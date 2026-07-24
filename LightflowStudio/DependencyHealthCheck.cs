@@ -63,7 +63,7 @@ internal static class DependencyHealthCheck
     {
         try
         {
-            var result = await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=size=128x128:rate=1", "-frames:v", "1", "-c:v", encoder, "-f", "null", "-"], token);
+            var result = await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=size=256x256:rate=1", "-frames:v", "1", "-c:v", encoder, "-f", "null", "-"], token);
             return result.ExitCode == 0
                 ? new(name, DependencyHealth.Ready, "Available for encoding.", $"{encoder} successfully started.", "No action is needed.")
                 : new(name, DependencyHealth.NeedsAttention, "Could not start on this computer.", FirstLine(result.StdErr + result.StdOut, "The encoder test failed."), "Install a current NVIDIA graphics driver and confirm that this computer has a supported NVIDIA GPU.");

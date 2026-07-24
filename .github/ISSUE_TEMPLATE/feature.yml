@@ -1,0 +1,38 @@
+name: Feature
+description: Implement or expand a Lightflow Studio capability
+title: "[Feature] "
+labels:
+  - type:feature
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What should be built or changed?
+    validations:
+      required: true
+  - type: textarea
+    id: user_value
+    attributes:
+      label: User value
+      description: What workflow problem does this solve?
+    validations:
+      required: true
+  - type: input
+    id: specification
+    attributes:
+      label: Specification
+      description: Repository path under docs/features, when available
+      placeholder: docs/features/video/example.md
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable outcomes.
+    validations:
+      required: true
+  - type: textarea
+    id: exclusions
+    attributes:
+      label: Out of scope
+      description: What is intentionally excluded?

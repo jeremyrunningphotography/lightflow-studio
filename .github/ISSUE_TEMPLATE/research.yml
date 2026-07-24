@@ -1,0 +1,27 @@
+name: Research
+description: Technical or product discovery before implementation
+title: "[Research] "
+labels:
+  - type:research
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Research question
+    validations:
+      required: true
+  - type: textarea
+    id: decisions
+    attributes:
+      label: Decisions this should enable
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and evaluation criteria
+  - type: textarea
+    id: output
+    attributes:
+      label: Expected output
+      description: ADR, prototype, benchmark, recommendation, or other artifact

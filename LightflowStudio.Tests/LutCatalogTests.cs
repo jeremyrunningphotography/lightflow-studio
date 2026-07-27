@@ -51,5 +51,12 @@ public sealed class LutCatalogTests : IDisposable
         Assert.Empty(LutCatalog.Discover(Path.Combine(_folder, "missing")));
     }
 
+    [Fact]
+    public void NoLut_HasAnEmptyFilePathSoItCanBeUsedAsASentinel()
+    {
+        Assert.Equal("No LUT", LutCatalog.NoLut.DisplayName);
+        Assert.Equal("", LutCatalog.NoLut.FilePath);
+    }
+
     public void Dispose() => Directory.Delete(_folder, recursive: true);
 }

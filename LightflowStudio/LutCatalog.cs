@@ -8,6 +8,7 @@ internal sealed record LutOption(string DisplayName, string FilePath);
 internal static partial class LutCatalog
 {
     public const string DefaultFolder = @"J:\Photography\LUTs";
+    public static readonly LutOption NoLut = new("No LUT", "");
 
     public static IReadOnlyList<LutOption> Discover(string folder)
     {

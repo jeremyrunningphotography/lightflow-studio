@@ -2,7 +2,7 @@ namespace LightflowStudio;
 
 internal static class FfmpegCommandBuilder
 {
-    public static List<string> Encode(string input, string output, string lut, RecoveryStrategy recovery,
+    public static List<string> Encode(string input, string output, string? lut, RecoveryStrategy recovery,
         OutputResolution resolution, bool detailedOutput = false, EncodingOptions? encoding = null)
     {
         if (!Enum.IsDefined(recovery)) throw new ArgumentOutOfRangeException(nameof(recovery));
@@ -18,7 +18,8 @@ internal static class FfmpegCommandBuilder
         if (recovery != RecoveryStrategy.VideoOnly && options.AudioMode != AudioEncodingMode.None)
             args.AddRange(["-map", recovery == RecoveryStrategy.Salvage ? "0:a:0?" : "0:a?"]);
 
-        var filters = new List<string> { $"lut3d=file='{EscapeFilterPath(lut)}'" };
+        var filters = new List<string>();
+        if (!string.IsNullOrEmpty(lut)) filters.Add($"lut3d=file='{EscapeFilterPath(lut)}'");
         if (options.Deinterlace) filters.Add("bwdif");
         if (options.FrameRate > 0) filters.Add($"fps={options.FrameRate.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         filters.AddRange(resolution switch
@@ -31,7 +32,7 @@ internal static class FfmpegCommandBuilder
             OutputResolution.Source => [],
             _ => throw new ArgumentOutOfRangeException(nameof(resolution))
         });
-        args.AddRange(["-vf", string.Join(',', filters)]);
+        if (filters.Count > 0) args.AddRange(["-vf", string.Join(',', filters)]);
 
         args.AddRange(["-c:v", options.Codec == VideoCodec.H264 ? "h264_nvenc" : "hevc_nvenc"]);
         args.AddRange(["-preset", $"p{options.EncoderPreset}", "-tune", TuneName(options.Tune)]);

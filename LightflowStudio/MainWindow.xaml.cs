@@ -328,16 +328,18 @@ public partial class MainWindow : Window
 
     private int RefreshLuts()
     {
-        var selectedPath = LutSelection.SelectedValue as string;
-        var preferredPath = string.IsNullOrWhiteSpace(selectedPath) ? _state.LastLutPath : selectedPath;
-        var options = LutCatalog.Discover(_settings.LutFolder);
+        var previousSelection = LutSelection.SelectedItem as LutOption;
+        var preferredPath = previousSelection?.FilePath ?? _state.LastLutPath;
+        var luts = LutCatalog.Discover(_settings.LutFolder);
+        var options = new List<LutOption> { LutCatalog.NoLut };
+        options.AddRange(luts);
         LutSelection.ItemsSource = options;
         LutSelection.SelectedItem = options.FirstOrDefault(option =>
-            string.Equals(option.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase)) ?? options.FirstOrDefault();
-        SettingsMessage.Text = options.Count == 0
-            ? $"No .cube LUT files found in {_settings.LutFolder}"
-            : $"Loaded {options.Count} LUT{(options.Count == 1 ? "" : "s")}.";
-        return options.Count;
+            string.Equals(option.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase)) ?? options[0];
+        SettingsMessage.Text = luts.Count == 0
+            ? $"No .cube LUT files found in {_settings.LutFolder}. Encoding will run without a LUT."
+            : $"Loaded {luts.Count} LUT{(luts.Count == 1 ? "" : "s")}.";
+        return luts.Count;
     }
 
     private void LutSelection_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -655,7 +657,7 @@ public partial class MainWindow : Window
             }
             var sourceDuration = TimeSpan.FromSeconds(durations.Values.Where(value => value > 0).Sum());
             AppendLog(BatchLogFormatter.Started(total, outputRoot, resolution, recovery, sourceDuration, startedAt));
-            AppendDetailedLog($"LUT: {SelectedLutPath}");
+            AppendDetailedLog($"LUT: {(string.IsNullOrEmpty(SelectedLutPath) ? "None" : SelectedLutPath)}");
             AppendDetailedLog($"Input folder: {InputFolder.Text}");
             AppendDetailedLog($"Encoder: {_settings.Encoding.Codec} via NVIDIA NVENC; preset P{_settings.Encoding.EncoderPreset}; {_settings.Encoding.RateControl}; {_settings.Encoding.Container}");
             AppendDetailedLog($"Scanning subfolders: {(Recursive.IsChecked == true ? "Yes" : "No")}; preserve folder structure: {(ShouldPreserveFolderStructure() ? "Yes" : "No")}; overwrite existing files: {(OverwriteExisting.IsChecked == true ? "Yes" : "No")}");
@@ -692,7 +694,7 @@ public partial class MainWindow : Window
                 }
 
                 var detailedOutput = ShowEncodingDetails.IsChecked == true;
-                var args = FfmpegCommandBuilder.Encode(input, output, SelectedLutPath!, recovery, resolution, detailedOutput, _settings.Encoding);
+                var args = FfmpegCommandBuilder.Encode(input, output, SelectedLutPath, recovery, resolution, detailedOutput, _settings.Encoding);
                 AppendDetailedLog($"Starting FFmpeg: {FormatCommand(_ffmpeg!, args)}");
                 var exit = await RunFfmpegProgressAsync(args, durations[input], detailedOutput, p =>
                 {
@@ -770,7 +772,7 @@ public partial class MainWindow : Window
                 throw new ArgumentException("Multiple selected files would create the same output filename. Choose Same folder or Specific folder with Preserve source folder structure, or rename the source files.");
         }
         catch (ArgumentException ex) { MessageBox.Show(ex.Message, "Output location", MessageBoxButton.OK, MessageBoxImage.Warning); return false; }
-        if (SelectedLutPath is not { } lut || !File.Exists(lut) || !lut.EndsWith(".cube", StringComparison.OrdinalIgnoreCase)) { MessageBox.Show("Select a valid .cube LUT from the LUT dropdown."); return false; }
+        if (SelectedLutPath is { Length: > 0 } lut && (!File.Exists(lut) || !lut.EndsWith(".cube", StringComparison.OrdinalIgnoreCase))) { MessageBox.Show("Select a valid .cube LUT from the LUT dropdown, or choose No LUT."); return false; }
         return true;
     }
 

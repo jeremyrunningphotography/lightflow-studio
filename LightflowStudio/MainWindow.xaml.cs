@@ -330,16 +330,14 @@ public partial class MainWindow : Window
     {
         var previousSelection = LutSelection.SelectedItem as LutOption;
         var preferredPath = previousSelection?.FilePath ?? _state.LastLutPath;
-        var luts = LutCatalog.Discover(_settings.LutFolder);
-        var options = new List<LutOption> { LutCatalog.NoLut };
-        options.AddRange(luts);
+        var options = LutCatalog.Options(_settings.LutFolder);
+        var lutCount = options.Count - 1;
         LutSelection.ItemsSource = options;
-        LutSelection.SelectedItem = options.FirstOrDefault(option =>
-            string.Equals(option.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase)) ?? options[0];
-        SettingsMessage.Text = luts.Count == 0
+        LutSelection.SelectedItem = LutCatalog.SelectPreferred(options, preferredPath);
+        SettingsMessage.Text = lutCount == 0
             ? $"No .cube LUT files found in {_settings.LutFolder}. Encoding will run without a LUT."
-            : $"Loaded {luts.Count} LUT{(luts.Count == 1 ? "" : "s")}.";
-        return luts.Count;
+            : $"Loaded {lutCount} LUT{(lutCount == 1 ? "" : "s")}.";
+        return lutCount;
     }
 
     private void LutSelection_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -772,7 +770,7 @@ public partial class MainWindow : Window
                 throw new ArgumentException("Multiple selected files would create the same output filename. Choose Same folder or Specific folder with Preserve source folder structure, or rename the source files.");
         }
         catch (ArgumentException ex) { MessageBox.Show(ex.Message, "Output location", MessageBoxButton.OK, MessageBoxImage.Warning); return false; }
-        if (SelectedLutPath is { Length: > 0 } lut && (!File.Exists(lut) || !lut.EndsWith(".cube", StringComparison.OrdinalIgnoreCase))) { MessageBox.Show("Select a valid .cube LUT from the LUT dropdown, or choose No LUT."); return false; }
+        if (!LutCatalog.IsValidSelection(LutSelection.SelectedItem as LutOption)) { MessageBox.Show("Select a valid .cube LUT from the LUT dropdown, or choose No LUT."); return false; }
         return true;
     }
 

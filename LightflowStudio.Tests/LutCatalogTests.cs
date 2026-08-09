@@ -58,5 +58,40 @@ public sealed class LutCatalogTests : IDisposable
         Assert.Equal("", LutCatalog.NoLut.FilePath);
     }
 
+    [Fact]
+    public void Options_AlwaysPlacesNoLutFirst()
+    {
+        File.WriteAllText(Path.Combine(_folder, "Film.cube"), "LUT");
+
+        var options = LutCatalog.Options(_folder);
+
+        Assert.Equal(LutCatalog.NoLut, options[0]);
+        Assert.Equal("Film", options[1].DisplayName);
+    }
+
+    [Fact]
+    public void SelectPreferred_PreservesNoLutAndFallsBackToItWhenSavedLutIsMissing()
+    {
+        var options = LutCatalog.Options(Path.Combine(_folder, "missing"));
+
+        Assert.Equal(LutCatalog.NoLut, LutCatalog.SelectPreferred(options, ""));
+        Assert.Equal(LutCatalog.NoLut, LutCatalog.SelectPreferred(options, @"C:\missing.cube"));
+    }
+
+    [Fact]
+    public void IsValidSelection_AcceptsNoLutAndExistingCubeOnly()
+    {
+        var cube = Path.Combine(_folder, "Film.cube");
+        var text = Path.Combine(_folder, "Film.txt");
+        File.WriteAllText(cube, "LUT");
+        File.WriteAllText(text, "not a LUT");
+
+        Assert.True(LutCatalog.IsValidSelection(LutCatalog.NoLut));
+        Assert.True(LutCatalog.IsValidSelection(new LutOption("Film", cube)));
+        Assert.False(LutCatalog.IsValidSelection(null));
+        Assert.False(LutCatalog.IsValidSelection(new LutOption("Missing", Path.Combine(_folder, "Missing.cube"))));
+        Assert.False(LutCatalog.IsValidSelection(new LutOption("Wrong type", text)));
+    }
+
     public void Dispose() => Directory.Delete(_folder, recursive: true);
 }

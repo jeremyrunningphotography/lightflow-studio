@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
     <!-- The single authoritative product version. Use set-version.ps1 to change it. -->
-    <VersionPrefix>0.8.1</VersionPrefix>
+    <VersionPrefix>0.9.0</VersionPrefix>
   </PropertyGroup>
 </Project>

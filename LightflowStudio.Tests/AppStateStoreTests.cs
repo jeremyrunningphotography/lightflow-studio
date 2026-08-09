@@ -48,6 +48,16 @@ public sealed class AppStateStoreTests : IDisposable
         Assert.Equal(new AppState(), AppStateStore.Load(StatePath));
     }
 
+    [Fact]
+    public void SaveAndLoad_PreservesNoLutSelection()
+    {
+        var expected = new AppState("");
+
+        AppStateStore.Save(StatePath, expected);
+
+        Assert.Equal("", AppStateStore.Load(StatePath).LastLutPath);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_folder)) Directory.Delete(_folder, recursive: true);

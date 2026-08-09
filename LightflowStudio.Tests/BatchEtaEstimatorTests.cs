@@ -32,4 +32,12 @@ public sealed class BatchEtaEstimatorTests
     {
         Assert.Equal(TimeSpan.Zero, BatchEtaEstimator.Estimate(TimeSpan.FromMinutes(2), 2, 2, 500));
     }
+
+    [Fact]
+    public void Estimate_SupportsDurationWeightedWork()
+    {
+        var estimate = BatchEtaEstimator.Estimate(TimeSpan.FromMinutes(1), completedWork: 45, totalWork: 180);
+
+        Assert.Equal(TimeSpan.FromMinutes(3), estimate);
+    }
 }

@@ -163,19 +163,29 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         var wasPlaying = player.IsPlaying;
         var restore = TimeSpan.FromTicks(player.CurTime);
         player.Pause();
-        var timestamp = await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
-        RunOnUi(EnsureOffscreenSurface);
-        await Task.Delay(50, token).ConfigureAwait(false);
-        var bitmap = RunOnUi(() => player.TakeSnapshotToBitmapSource()
-            ?? throw new InvalidOperationException("No decoded video frame is available."));
-        var converted = EnsureBgra32(bitmap);
-        var stride = converted.PixelWidth * 4;
-        var pixels = new byte[stride * converted.PixelHeight];
-        converted.CopyPixels(pixels, stride, 0);
-        var frame = new MediaDecodedFrame(timestamp, converted.PixelWidth, converted.PixelHeight, stride, pixels);
-        await SeekPlayerAsync(player, restore, CancellationToken.None).ConfigureAwait(false);
-        if (wasPlaying) player.Play();
-        return frame;
+        try
+        {
+            var timestamp = await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
+            RunOnUi(EnsureOffscreenSurface);
+            await Task.Delay(50, token).ConfigureAwait(false);
+            var bitmap = RunOnUi(() => player.TakeSnapshotToBitmapSource()
+                ?? throw new InvalidOperationException("No decoded video frame is available."));
+            var converted = EnsureBgra32(bitmap);
+            var stride = converted.PixelWidth * 4;
+            var pixels = new byte[stride * converted.PixelHeight];
+            converted.CopyPixels(pixels, stride, 0);
+            return new(timestamp, converted.PixelWidth, converted.PixelHeight, stride, pixels);
+        }
+        finally
+        {
+            // A source transition cancels this token before it can acquire the service's
+            // serialization gate. Never restore or resume an obsolete player after that point.
+            if (!token.IsCancellationRequested && ReferenceEquals(player, _player))
+            {
+                await SeekPlayerAsync(player, restore, token).ConfigureAwait(false);
+                if (wasPlaying) player.Play();
+            }
+        }
     }
 
     private Player CreatePlayer()

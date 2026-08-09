@@ -6,8 +6,13 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
 {
     private readonly IMediaPlaybackBackend _backend;
     private readonly SemaphoreSlim _operations = new(1, 1);
+    private readonly object _lifecycle = new();
+    private CancellationTokenSource _sourceLifetime = new();
     private CancellationTokenSource? _latestOperation;
-    private long _generation;
+    private long _sourceGeneration;
+    private long _operationGeneration;
+    private long _activeBackendOperation;
+    private int _suppressActiveBackendFrames;
     private bool _disposed;
 
     public MediaPlaybackService(IMediaPlaybackBackend backend)
@@ -27,34 +32,35 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
     public Task OpenAsync(string sourcePath, CancellationToken token = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+        var operation = BeginSourceTransition(token);
         var fullPath = Path.GetFullPath(sourcePath);
-        var operation = BeginLatestOperation(token);
-        _backend.CancelPending();
-        return RunOpenAsync(fullPath, operation.Generation, operation.Token);
+        Publish(new(MediaPlaybackState.Loading, fullPath, null, null));
+        return RunOpenAsync(fullPath, operation);
     }
 
     public Task SeekAsync(TimeSpan position, CancellationToken token = default)
     {
-        var operation = BeginLatestOperation(token);
-        _backend.CancelPending();
-        return RunPositionOperationAsync(position, operation.Generation, operation.Token);
+        EnsureLoaded();
+        var resume = Snapshot.State == MediaPlaybackState.Playing;
+        var operation = BeginSourceOperation(token);
+        Publish(Snapshot with { State = MediaPlaybackState.Seeking, Error = null });
+        return RunTimestampOperationAsync(
+            operation,
+            backendToken => _backend.SeekAsync(position, backendToken),
+            timestamp => Snapshot with
+            {
+                State = resume ? MediaPlaybackState.Playing : MediaPlaybackState.Paused,
+                DisplayedTimestamp = timestamp,
+                Error = null
+            },
+            resume);
     }
 
     public async Task CloseAsync(CancellationToken token = default)
     {
-        var operation = BeginLatestOperation(token);
-        _backend.CancelPending();
-        await _operations.WaitAsync(operation.Token).ConfigureAwait(false);
-        try
-        {
-            await _backend.CloseAsync(operation.Token).ConfigureAwait(false);
-            if (IsCurrent(operation.Generation))
-            {
-                SourceInfo = null;
-                Publish(new(MediaPlaybackState.Empty, null, null, null));
-            }
-        }
-        finally { _operations.Release(); }
+        var operation = BeginSourceTransition(token);
+        Publish(new(MediaPlaybackState.Empty, null, null, null));
+        await RunSerializedAsync(operation, _backend.CloseAsync).ConfigureAwait(false);
     }
 
     public Task PlayAsync(CancellationToken token = default) => RunStateOperationAsync(
@@ -69,86 +75,180 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
 
     public async Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token = default)
     {
-        ThrowIfDisposed();
-        return await _backend.GetFrameAsync(position, token).ConfigureAwait(false);
-    }
-
-    private async Task RunOpenAsync(string sourcePath, long generation, CancellationToken token)
-    {
-        if (IsCurrent(generation)) SourceInfo = null;
-        PublishIfCurrent(generation, new(MediaPlaybackState.Loading, sourcePath, null, null));
-        await _operations.WaitAsync(token).ConfigureAwait(false);
+        EnsureLoaded();
+        var operation = BeginSourceOperation(token);
+        await _operations.WaitAsync(operation.Token).ConfigureAwait(false);
         try
         {
+            EnsureCurrent(operation);
+            ActivateBackendOperation(operation, suppressFrames: true);
+            var frame = await _backend.GetFrameAsync(position, operation.Token).ConfigureAwait(false);
+            EnsureCurrent(operation);
+            return frame;
+        }
+        finally
+        {
+            Volatile.Write(ref _suppressActiveBackendFrames, 0);
+            _operations.Release();
+        }
+    }
+
+    private async Task RunOpenAsync(string sourcePath, PlaybackOperation operation)
+    {
+        await _operations.WaitAsync(operation.Token).ConfigureAwait(false);
+        try
+        {
+            EnsureCurrent(operation);
+            ActivateBackendOperation(operation);
             await _backend.CloseAsync(CancellationToken.None).ConfigureAwait(false);
-            var opened = await _backend.OpenAsync(sourcePath, token).ConfigureAwait(false);
-            if (!IsCurrent(generation)) return;
+            EnsureCurrent(operation);
+            var opened = await _backend.OpenAsync(sourcePath, operation.Token).ConfigureAwait(false);
+            EnsureCurrent(operation);
             SourceInfo = opened.Source;
             Publish(new(MediaPlaybackState.Paused, sourcePath, opened.FirstFrame, opened.Source.Duration));
         }
-        catch (OperationCanceledException) when (!IsCurrent(generation) || token.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (!IsCurrent(operation) || operation.Token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (IsCurrent(generation)) PublishFailure(sourcePath, exception);
+            if (IsCurrent(operation)) PublishFailure(sourcePath, exception);
         }
-        finally { _operations.Release(); }
-    }
-
-    private async Task RunPositionOperationAsync(TimeSpan position, long generation, CancellationToken token)
-    {
-        EnsureLoaded();
-        var resume = Snapshot.State == MediaPlaybackState.Playing;
-        PublishIfCurrent(generation, Snapshot with { State = MediaPlaybackState.Seeking, Error = null });
-        await _operations.WaitAsync(token).ConfigureAwait(false);
-        try
-        {
-            var timestamp = await _backend.SeekAsync(position, token).ConfigureAwait(false);
-            if (!IsCurrent(generation)) return;
-            Publish(Snapshot with { State = resume ? MediaPlaybackState.Playing : MediaPlaybackState.Paused, DisplayedTimestamp = timestamp });
-            if (resume) await _backend.PlayAsync(token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (!IsCurrent(generation) || token.IsCancellationRequested) { }
         finally { _operations.Release(); }
     }
 
     private async Task RunStateOperationAsync(MediaPlaybackState state, Func<CancellationToken, Task> action, CancellationToken token)
     {
         EnsureLoaded();
-        await action(token).ConfigureAwait(false);
-        Publish(Snapshot with { State = state, Error = null });
+        var operation = BeginSourceOperation(token);
+        await RunSerializedAsync(operation, action).ConfigureAwait(false);
+        if (IsCurrent(operation)) Publish(Snapshot with { State = state, Error = null });
     }
 
-    private async Task RunStepAsync(Func<CancellationToken, Task<MediaPresentationTimestamp>> action, CancellationToken token)
+    private Task RunStepAsync(Func<CancellationToken, Task<MediaPresentationTimestamp>> action, CancellationToken token)
     {
         EnsureLoaded();
-        await _backend.PauseAsync(token).ConfigureAwait(false);
-        var timestamp = await action(token).ConfigureAwait(false);
-        Publish(Snapshot with { State = MediaPlaybackState.Paused, DisplayedTimestamp = timestamp, Error = null });
+        var operation = BeginSourceOperation(token);
+        return RunTimestampOperationAsync(
+            operation,
+            async backendToken =>
+            {
+                await _backend.PauseAsync(backendToken).ConfigureAwait(false);
+                return await action(backendToken).ConfigureAwait(false);
+            },
+            timestamp => Snapshot with
+            {
+                State = MediaPlaybackState.Paused,
+                DisplayedTimestamp = timestamp,
+                Error = null
+            });
     }
 
-    private (long Generation, CancellationToken Token) BeginLatestOperation(CancellationToken callerToken)
+    private async Task RunTimestampOperationAsync(
+        PlaybackOperation operation,
+        Func<CancellationToken, Task<MediaPresentationTimestamp>> action,
+        Func<MediaPresentationTimestamp, MediaPlaybackSnapshot> completedSnapshot,
+        bool resumePlayback = false)
     {
-        ThrowIfDisposed();
-        var replacement = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
-        var previous = Interlocked.Exchange(ref _latestOperation, replacement);
-        previous?.Cancel();
-        previous?.Dispose();
-        return (Interlocked.Increment(ref _generation), replacement.Token);
+        await _operations.WaitAsync(operation.Token).ConfigureAwait(false);
+        try
+        {
+            EnsureCurrent(operation);
+            ActivateBackendOperation(operation);
+            var timestamp = await action(operation.Token).ConfigureAwait(false);
+            EnsureCurrent(operation);
+            if (resumePlayback)
+            {
+                await _backend.PlayAsync(operation.Token).ConfigureAwait(false);
+                EnsureCurrent(operation);
+            }
+            Publish(completedSnapshot(timestamp));
+        }
+        catch (OperationCanceledException) when (!IsCurrent(operation) || operation.Token.IsCancellationRequested) { }
+        finally { _operations.Release(); }
     }
 
-    private bool IsCurrent(long generation) => generation == Interlocked.Read(ref _generation);
-    private void PublishIfCurrent(long generation, MediaPlaybackSnapshot snapshot) { if (IsCurrent(generation)) Publish(snapshot); }
+    private async Task RunSerializedAsync(PlaybackOperation operation, Func<CancellationToken, Task> action)
+    {
+        await _operations.WaitAsync(operation.Token).ConfigureAwait(false);
+        try
+        {
+            EnsureCurrent(operation);
+            ActivateBackendOperation(operation);
+            await action(operation.Token).ConfigureAwait(false);
+            EnsureCurrent(operation);
+        }
+        catch (OperationCanceledException) when (!IsCurrent(operation) || operation.Token.IsCancellationRequested) { }
+        finally { _operations.Release(); }
+    }
+
+    private PlaybackOperation BeginSourceTransition(CancellationToken callerToken)
+    {
+        lock (_lifecycle)
+        {
+            ThrowIfDisposed();
+            var oldSource = _sourceLifetime;
+            var oldOperation = _latestOperation;
+            _sourceLifetime = new CancellationTokenSource();
+            SourceInfo = null;
+            oldOperation?.Cancel();
+            oldSource.Cancel();
+            _backend.CancelPending();
+            var sourceGeneration = ++_sourceGeneration;
+            var operationGeneration = ++_operationGeneration;
+            var linked = CancellationTokenSource.CreateLinkedTokenSource(callerToken, _sourceLifetime.Token);
+            _latestOperation = linked;
+            oldOperation?.Dispose();
+            oldSource.Dispose();
+            return new(sourceGeneration, operationGeneration, linked.Token);
+        }
+    }
+
+    private PlaybackOperation BeginSourceOperation(CancellationToken callerToken)
+    {
+        lock (_lifecycle)
+        {
+            ThrowIfDisposed();
+            if (SourceInfo is null) throw new InvalidOperationException("No playback source is loaded.");
+            var oldOperation = _latestOperation;
+            var linked = CancellationTokenSource.CreateLinkedTokenSource(callerToken, _sourceLifetime.Token);
+            _latestOperation = linked;
+            oldOperation?.Cancel();
+            _backend.CancelPending();
+            var operation = new PlaybackOperation(_sourceGeneration, ++_operationGeneration, linked.Token);
+            oldOperation?.Dispose();
+            return operation;
+        }
+    }
+
+    private bool IsCurrent(PlaybackOperation operation) =>
+        operation.SourceGeneration == Interlocked.Read(ref _sourceGeneration) &&
+        operation.OperationGeneration == Interlocked.Read(ref _operationGeneration) &&
+        !operation.Token.IsCancellationRequested;
+
+    private void EnsureCurrent(PlaybackOperation operation)
+    {
+        if (!IsCurrent(operation)) throw new OperationCanceledException(operation.Token);
+    }
+
+    private void ActivateBackendOperation(PlaybackOperation operation, bool suppressFrames = false)
+    {
+        Volatile.Write(ref _activeBackendOperation, operation.OperationGeneration);
+        Volatile.Write(ref _suppressActiveBackendFrames, suppressFrames ? 1 : 0);
+    }
 
     private void Backend_FramePresented(object? sender, MediaPresentationTimestamp timestamp)
     {
-        if (_disposed || Snapshot.State is MediaPlaybackState.Empty or MediaPlaybackState.Loading) return;
+        if (_disposed ||
+            Snapshot.State is MediaPlaybackState.Empty or MediaPlaybackState.Loading ||
+            Volatile.Read(ref _suppressActiveBackendFrames) != 0 ||
+            Volatile.Read(ref _activeBackendOperation) != Interlocked.Read(ref _operationGeneration)) return;
         Publish(Snapshot with { DisplayedTimestamp = timestamp });
         FramePresented?.Invoke(this, timestamp);
     }
 
     private void Backend_Failed(object? sender, MediaPlaybackError error)
     {
-        if (!_disposed) Publish(Snapshot with { State = MediaPlaybackState.Failed, Error = error });
+        if (!_disposed && Snapshot.State is not (MediaPlaybackState.Empty or MediaPlaybackState.Loading))
+            Publish(Snapshot with { State = MediaPlaybackState.Failed, Error = error });
     }
 
     private void PublishFailure(string sourcePath, Exception exception) => Publish(new(
@@ -176,12 +276,23 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
     {
         if (_disposed) return;
         _disposed = true;
-        _latestOperation?.Cancel();
+        lock (_lifecycle)
+        {
+            _latestOperation?.Cancel();
+            _sourceLifetime.Cancel();
+            _backend.CancelPending();
+        }
         _backend.FramePresented -= Backend_FramePresented;
         _backend.Failed -= Backend_Failed;
         await _backend.DisposeAsync().ConfigureAwait(false);
         _latestOperation?.Dispose();
+        _sourceLifetime.Dispose();
         _operations.Dispose();
         Publish(new(MediaPlaybackState.Disposed, null, null, null));
     }
+
+    private sealed record PlaybackOperation(
+        long SourceGeneration,
+        long OperationGeneration,
+        CancellationToken Token);
 }

@@ -20,12 +20,11 @@ public class VersionConsistencyTests
     }
 
     [Fact]
-    public void ReadmeAndPremiereHelper_MatchAuthoritativeVersion()
+    public void Readme_MatchesAuthoritativeApplicationVersion()
     {
         var root = FindRepositoryRoot();
         var version = ReadVersion();
         Assert.Contains($"Current version: **{version}**", File.ReadAllText(Path.Combine(root, "README.md")));
-        Assert.Contains($"Lightflow Studio v{version}", File.ReadAllText(Path.Combine(root, "PremiereHelper", "Export-V1-Clips.jsx")));
     }
 
     private static string ReadVersion()

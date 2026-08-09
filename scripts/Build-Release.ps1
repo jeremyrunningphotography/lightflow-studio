@@ -16,6 +16,7 @@ if ($Version -ne $sourceVersion) {
 $stagingRoot = Join-Path $repositoryRoot "artifacts\release"
 $appDirectory = Join-Path $stagingRoot "LightflowStudio"
 $ffmpegDirectory = Join-Path $appDirectory "ffmpeg"
+$playbackDirectory = Join-Path $appDirectory "playback\ffmpeg"
 $project = Join-Path $repositoryRoot "LightflowStudio\LightflowStudio.csproj"
 
 if (Test-Path -LiteralPath $stagingRoot) { Remove-Item -LiteralPath $stagingRoot -Recurse -Force }
@@ -32,6 +33,7 @@ Copy-Item -LiteralPath (Join-Path $repositoryRoot "PremiereHelper") -Destination
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "THIRD-PARTY-NOTICES.md") -Destination $appDirectory -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "LightflowStudio\Assets\Branding\LightflowStudio.ico") -Destination $appDirectory -Force
 & (Join-Path $PSScriptRoot "Get-Ffmpeg.ps1") -Destination $ffmpegDirectory
+& (Join-Path $PSScriptRoot "Get-PlaybackDependencies.ps1") -Destination $playbackDirectory
 
 $portableZip = Join-Path $OutputDirectory "LightflowStudio-$Version-win-x64-portable.zip"
 Compress-Archive -Path (Join-Path $appDirectory "*") -DestinationPath $portableZip -CompressionLevel Optimal

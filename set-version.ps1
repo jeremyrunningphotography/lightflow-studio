@@ -25,6 +25,5 @@ function Update-VersionText {
 }
 
 Update-VersionText -Path (Join-Path $repoRoot 'README.md') -Pattern 'Current version: \*\*\d+\.\d+\.\d+\*\*' -Replacement "Current version: **$Version**"
-Update-VersionText -Path (Join-Path $repoRoot 'PremiereHelper\Export-V1-Clips.jsx') -Pattern 'Lightflow Studio v\d+\.\d+\.\d+' -Replacement "Lightflow Studio v$Version"
 
 Write-Host "Lightflow Studio version updated to $Version."

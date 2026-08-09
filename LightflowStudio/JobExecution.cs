@@ -158,13 +158,16 @@ internal sealed class JobExecution<TOptions, TData>
     public JobProgressSnapshot Progress(JobItemExecution<TData>? current = null)
     {
         var workItems = Items.Where(item => item.PlanItem.Disposition == JobPlanDisposition.Process).ToList();
+        if (workItems.Count == 0)
+            return new(100, current?.ProgressPercent, 0, 0, Plan.WorkUnit);
+
         var determinate = workItems.All(item => item.PlanItem.WorkEstimate.IsDeterminate);
         var total = determinate ? workItems.Sum(item => item.PlanItem.WorkEstimate.Value!.Value) : (double?)null;
         var completed = determinate
             ? workItems.Sum(item => item.PlanItem.WorkEstimate.Value!.Value * CompletionFraction(item))
-            : Items.Count(item => IsTerminal(item.State));
+            : workItems.Count(item => IsTerminal(item.State));
         double? percent = total is > 0 ? Math.Clamp(completed * 100 / total.Value, 0, 100) : null;
-        if (Items.All(item => IsTerminal(item.State))) percent = 100;
+        if (workItems.All(item => IsTerminal(item.State))) percent = 100;
         return new(percent, current?.ProgressPercent, completed, total, Plan.WorkUnit);
     }
 

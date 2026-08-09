@@ -45,6 +45,73 @@ public sealed class JobExecutionTests
     }
 
     [Fact]
+    public void AggregateProgress_ExcludesPreplannedSkippedItemsFromCompletedWork()
+    {
+        var execution = ExecutionWithUnit(
+            JobWorkUnit.Items,
+            PlanItem("process", 1, workUnit: JobWorkUnit.Items),
+            PlanItem("skip", 1, JobPlanDisposition.Skip, JobWorkUnit.Items));
+        execution.Queue();
+        Complete(execution.Items[0]);
+
+        var progress = execution.Progress();
+
+        Assert.Equal(100, progress.OverallPercent);
+        Assert.Equal(1, progress.CompletedWork);
+        Assert.Equal(1, progress.TotalWork);
+    }
+
+    [Fact]
+    public void AggregateProgress_ExcludesPreplannedSkippedDurationFromWeightedProgress()
+    {
+        var execution = Execution(
+            PlanItem("process", 120),
+            PlanItem("skip", 300, JobPlanDisposition.Skip));
+        execution.Queue();
+        execution.Items[0].Start();
+        execution.Items[0].ReportProgress(25);
+
+        var progress = execution.Progress(execution.Items[0]);
+
+        Assert.Equal(25, progress.OverallPercent);
+        Assert.Equal(30, progress.CompletedWork);
+        Assert.Equal(120, progress.TotalWork);
+    }
+
+    [Fact]
+    public void AggregateProgress_ItemBasedFallbackExcludesPreplannedSkippedItems()
+    {
+        var execution = ExecutionWithUnit(
+            JobWorkUnit.Items,
+            PlanItem("unknown-duration", 1, workUnit: JobWorkUnit.Items),
+            PlanItem("skip", 1, JobPlanDisposition.Skip, JobWorkUnit.Items));
+        execution.Queue();
+        execution.Items[0].Start();
+        execution.Items[0].ReportProgress(50);
+
+        var progress = execution.Progress(execution.Items[0]);
+
+        Assert.Equal(50, progress.OverallPercent);
+        Assert.Equal(.5, progress.CompletedWork);
+        Assert.Equal(1, progress.TotalWork);
+        Assert.Equal(JobWorkUnit.Items, progress.WorkUnit);
+    }
+
+    [Fact]
+    public void AggregateProgress_AllItemsPreplannedSkippedIsCompleteWithNoScheduledWork()
+    {
+        var execution = Execution(
+            PlanItem("skip-one", 60, JobPlanDisposition.Skip),
+            PlanItem("skip-two", 120, JobPlanDisposition.Skip));
+
+        var progress = execution.Progress();
+
+        Assert.Equal(100, progress.OverallPercent);
+        Assert.Equal(0, progress.CompletedWork);
+        Assert.Equal(0, progress.TotalWork);
+    }
+
+    [Fact]
     public void AggregateProgress_RemainsIndeterminateWhenWorkCannotBeEstimated()
     {
         var item = new JobPlanItem(
@@ -53,7 +120,8 @@ public sealed class JobExecutionTests
             JobPlanDisposition.Process,
             JobWorkEstimate.Indeterminate(JobWorkUnit.Bytes),
             []);
-        var execution = ExecutionWithUnit(JobWorkUnit.Bytes, item);
+        var skipped = PlanItem("skip", 1, JobPlanDisposition.Skip, JobWorkUnit.Bytes);
+        var execution = ExecutionWithUnit(JobWorkUnit.Bytes, item, skipped);
         execution.Queue();
         execution.Items[0].Start();
         execution.Items[0].ReportProgress(25);
@@ -62,6 +130,7 @@ public sealed class JobExecutionTests
 
         Assert.Null(progress.OverallPercent);
         Assert.Null(progress.TotalWork);
+        Assert.Equal(0, progress.CompletedWork);
         Assert.Equal(25, progress.CurrentItemPercent);
     }
 
@@ -129,7 +198,11 @@ public sealed class JobExecutionTests
         return new(new JobPlan<string>(definition, DateTimeOffset.Now, items, [], workUnit));
     }
 
-    private static JobPlanItem PlanItem(string source, double work, JobPlanDisposition disposition = JobPlanDisposition.Process) =>
+    private static JobPlanItem PlanItem(
+        string source,
+        double work,
+        JobPlanDisposition disposition = JobPlanDisposition.Process,
+        JobWorkUnit workUnit = JobWorkUnit.MediaDuration) =>
         new(new JobItemDefinition(Guid.NewGuid(), source), [$"{source}.out"], disposition,
-            JobWorkEstimate.Determinate(JobWorkUnit.MediaDuration, work), []);
+            JobWorkEstimate.Determinate(workUnit, work), []);
 }

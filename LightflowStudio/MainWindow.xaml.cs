@@ -18,12 +18,13 @@ public partial class MainWindow : Window
 {
     private string? _ffmpeg;
     private string? _ffprobe;
-    private CancellationTokenSource? _cts;
+    private JobCancellation? _jobCancellation;
     private readonly BatchProgressState _batchProgress = new();
     private readonly string? _commandLineFolder;
     private AppSettings _settings = new();
     private AppState _state = new();
     private Process? _activeEncodingProcess;
+    private JobExecution<EncodingJobOptions, EncodingItemResult>? _activeEncodingJob;
     private readonly EncodingPauseController _encodingPause = new();
     private readonly ObservableCollection<BatchFileOption> _batchFiles = [];
     private readonly BatchFileSelectionMemory _batchSelectionMemory = new();
@@ -320,7 +321,7 @@ public partial class MainWindow : Window
         var folder = InputFolder.Text.Trim();
         var selected = _batchFiles.Count(file => file.IsSelected);
         var presentation = BatchStartReadiness.Evaluate(folder.Length > 0, Directory.Exists(folder), _batchFiles.Count, selected);
-        StartButton.IsEnabled = _cts is null && presentation.CanStart;
+        StartButton.IsEnabled = _jobCancellation is null && presentation.CanStart;
         if (updateGuidance) CurrentFileText.Text = presentation.Guidance;
     }
 
@@ -616,29 +617,26 @@ public partial class MainWindow : Window
         if (!ValidateEncoderInputs()) return;
         SaveBatchState();
         _closeAfterCurrent = false;
-        _cts = new CancellationTokenSource();
+        _jobCancellation = new JobCancellation();
         ToggleEncoding(true);
 
         var total = 0;
-        var encoded = 0;
-        var failed = 0;
-        var skipped = 0;
         var outputRoot = "";
         var outcome = "completed";
         Stopwatch? batchStart = null;
+        JobExecution<EncodingJobOptions, EncodingItemResult>? execution = null;
+        JobItemExecution<EncodingItemResult>? currentItem = null;
 
         try
         {
-            var files = BatchFileSelection.SelectedFiles(_batchFiles);
-            if (files.Count == 0) throw new InvalidOperationException("Select at least one video file for this batch.");
-            total = files.Count;
+            var sources = _batchFiles.Where(file => file.IsSelected).ToList();
+            if (sources.Count == 0) throw new InvalidOperationException("Select at least one video file for this batch.");
+            total = sources.Count;
             _batchProgress.StartBatch(total);
             ApplyProgressState();
 
             var recovery = (RecoveryStrategy)RecoveryMode.SelectedIndex;
             var resolution = (OutputResolution)Resolution.SelectedIndex;
-            outputRoot = OutputDestinationPlanner.ResolveRoot(InputFolder.Text, resolution, CurrentOutputDestination());
-            Directory.CreateDirectory(outputRoot);
             batchStart = Stopwatch.StartNew();
             _batchStopwatch = batchStart;
             var startedAt = DateTime.Now;
@@ -646,14 +644,27 @@ public partial class MainWindow : Window
             CurrentFileText.Text = $"Analyzing {total} file{(total == 1 ? "" : "s")}…";
             AppendLog($"Preparing batch — {total} file{(total == 1 ? "" : "s")} discovered.");
             var durations = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            foreach (var file in files)
+            foreach (var source in sources)
             {
-                _cts.Token.ThrowIfCancellationRequested();
-                var analyzedDuration = _batchFiles.FirstOrDefault(option =>
-                    string.Equals(option.FilePath, file, StringComparison.OrdinalIgnoreCase))?.Metadata?.DurationSeconds ?? 0;
-                durations[file] = analyzedDuration > 0 ? analyzedDuration : await ProbeDurationAsync(file, _cts.Token);
+                _jobCancellation.Token.ThrowIfCancellationRequested();
+                var analyzedDuration = source.Metadata?.DurationSeconds ?? 0;
+                durations[source.FilePath] = analyzedDuration > 0
+                    ? analyzedDuration
+                    : await ProbeDurationAsync(source.FilePath, _jobCancellation.Token);
             }
-            var sourceDuration = TimeSpan.FromSeconds(durations.Values.Where(value => value > 0).Sum());
+            var plan = CreateEncodingPlan(durations);
+            if (!plan.IsValid)
+                throw new InvalidOperationException(plan.Issues.Concat(plan.Items.SelectMany(item => item.Issues))
+                    .First(issue => issue.Severity == JobIssueSeverity.Error).Message);
+            execution = new JobExecution<EncodingJobOptions, EncodingItemResult>(plan);
+            _activeEncodingJob = execution;
+            execution.MarkStarted();
+            execution.Queue();
+            outputRoot = plan.Definition.Options.OutputRoot;
+            Directory.CreateDirectory(outputRoot);
+
+            var sourceDuration = TimeSpan.FromSeconds(plan.Items
+                .Sum(item => item.Definition.MediaRange?.EffectiveDuration.TotalSeconds ?? 0));
             AppendLog(BatchLogFormatter.Started(total, outputRoot, resolution, recovery, sourceDuration, startedAt));
             AppendDetailedLog($"LUT: {(string.IsNullOrEmpty(SelectedLutPath) ? "None" : SelectedLutPath)}");
             AppendDetailedLog($"Input folder: {InputFolder.Text}");
@@ -661,61 +672,67 @@ public partial class MainWindow : Window
             AppendDetailedLog($"Scanning subfolders: {(Recursive.IsChecked == true ? "Yes" : "No")}; preserve folder structure: {(ShouldPreserveFolderStructure() ? "Yes" : "No")}; overwrite existing files: {(OverwriteExisting.IsChecked == true ? "Yes" : "No")}");
 
             var completed = 0;
-            foreach (var input in files)
+            foreach (var item in execution.Items)
             {
-                _cts.Token.ThrowIfCancellationRequested();
-                var suffix = OutputDestinationPlanner.ResolveFilenameSuffix(resolution, CurrentOutputDestination());
-                var job = EncodingPathPlanner.CreateJob(InputFolder.Text, outputRoot, input, resolution, _settings.Encoding.Container, suffix, ShouldPreserveFolderStructure());
-                var outDir = Path.GetDirectoryName(job.OutputPath)!;
-                Directory.CreateDirectory(outDir);
-                var output = job.OutputPath;
+                _jobCancellation.Token.ThrowIfCancellationRequested();
+                currentItem = item;
+                var input = item.PlanItem.Definition.SourceIdentity;
+                var output = item.PlanItem.OutputPaths.Single();
+                var duration = item.PlanItem.Definition.MediaRange?.EffectiveDuration.TotalSeconds
+                               ?? durations.GetValueOrDefault(input);
                 _batchProgress.StartFile();
                 FileProgress.Value = _batchProgress.FilePercent;
                 CurrentFileText.Text = $"{completed + 1}/{total}: {Path.GetFileName(input)}";
                 AppendDetailedLog($"File {completed + 1} of {total}: {input}");
                 AppendDetailedLog($"Output: {output}");
-                AppendDetailedLog($"Detected duration: {FormatDuration(durations[input])}");
+                AppendDetailedLog($"Detected duration: {FormatDuration(duration)}");
 
-                var outputInfo = new FileInfo(output);
-                if (ExistingOutputPolicy.ShouldPreserve(OverwriteExisting.IsChecked == true, outputInfo.Exists, outputInfo.Exists ? outputInfo.Length : 0))
+                if (item.State == JobState.Skipped)
                 {
-                    skipped++;
                     completed++;
                     AppendLog($"Preserved existing file: {output}");
-                    UpdateBatch(completed, total, batchStart);
+                    UpdateBatch(execution, item, completed, total, batchStart);
                     if (_closeAfterCurrent)
                     {
                         outcome = "stopped after current file";
+                        execution.CancelPending();
                         break;
                     }
                     continue;
                 }
 
-                var detailedOutput = ShowEncodingDetails.IsChecked == true;
-                var args = FfmpegCommandBuilder.Encode(input, output, SelectedLutPath, recovery, resolution, detailedOutput, _settings.Encoding);
+                item.Start();
+                Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+                var encodingOptions = plan.Definition.Options;
+                var detailedOutput = encodingOptions.DetailedOutput;
+                var args = FfmpegCommandBuilder.Encode(input, output, encodingOptions.LutPath,
+                    encodingOptions.Recovery, encodingOptions.Resolution, detailedOutput, encodingOptions.Encoding);
                 AppendDetailedLog($"Starting FFmpeg: {FormatCommand(_ffmpeg!, args)}");
-                var exit = await RunFfmpegProgressAsync(args, durations[input], detailedOutput, p =>
+                var exit = await RunFfmpegProgressAsync(args, duration, detailedOutput, p =>
                 {
+                    item.ReportProgress(p);
                     _batchProgress.ReportFileProgress(p);
                     FileProgress.Value = _batchProgress.FilePercent;
-                    UpdateBatch(completed, total, batchStart, p);
-                }, _cts.Token);
+                    UpdateBatch(execution, item, completed, total, batchStart);
+                }, _jobCancellation.Token);
                 if (exit == 0)
                 {
-                    encoded++;
+                    item.Complete(new EncodingItemResult(exit, item.PlanItem.Definition.MediaRange?.EffectiveDuration));
                     AppendLog($"Completed: {output}");
                 }
                 else
                 {
-                    failed++;
+                    item.Fail($"FFmpeg exited with code {exit}.", new EncodingItemResult(exit, item.PlanItem.Definition.MediaRange?.EffectiveDuration));
                     AppendLog($"FAILED ({exit}): {input}");
                 }
 
                 completed++;
-                UpdateBatch(completed, total, batchStart);
+                UpdateBatch(execution, item, completed, total, batchStart);
+                currentItem = null;
                 if (_closeAfterCurrent)
                 {
                     outcome = "stopped after current file";
+                    execution.CancelPending();
                     break;
                 }
             }
@@ -725,25 +742,39 @@ public partial class MainWindow : Window
         catch (OperationCanceledException)
         {
             outcome = "cancelled";
+            if (currentItem?.State == JobState.Running) currentItem.Cancel();
+            execution?.CancelPending();
             AppendLog("Encoding cancelled.");
             CurrentFileText.Text = "Cancelled";
         }
         catch (Exception ex)
         {
             outcome = "failed";
+            if (currentItem?.State == JobState.Running) currentItem.Fail(ex.Message);
+            execution?.CancelPending();
             MessageBox.Show(ex.Message, "Encoding error", MessageBoxButton.OK, MessageBoxImage.Error);
             AppendLog(ex.ToString());
         }
         finally
         {
-            if (batchStart is not null && total > 0)
-                AppendLog(BatchLogFormatter.Finished(outcome, total, encoded, failed, skipped, batchStart.Elapsed, outputRoot));
+            if (batchStart is not null && total > 0 && execution is not null)
+            {
+                execution.CancelPending();
+                var result = execution.Result();
+                AppendLog(BatchLogFormatter.Finished(outcome, total,
+                    result.Summary.Completed + result.Summary.CompletedWithWarnings,
+                    result.Summary.Failed,
+                    result.Summary.Skipped,
+                    batchStart.Elapsed,
+                    outputRoot));
+            }
 
             var shouldClose = _closeAfterCurrent;
             _batchStopwatch = null;
             _closeAfterCurrent = false;
-            _cts.Dispose();
-            _cts = null;
+            _activeEncodingJob = null;
+            _jobCancellation.Dispose();
+            _jobCancellation = null;
             ToggleEncoding(false);
             if (shouldClose)
             {
@@ -757,21 +788,44 @@ public partial class MainWindow : Window
         if (_ffmpeg is null || !File.Exists(_ffmpeg)) { MessageBox.Show("FFmpeg was not found. Open Settings to configure ffmpeg.exe."); return false; }
         if (!Directory.Exists(InputFolder.Text)) { MessageBox.Show("Select a valid video folder."); return false; }
         if (_batchFiles.All(file => !file.IsSelected)) { MessageBox.Show("Select at least one video file for this batch."); return false; }
+        if (!LutCatalog.IsValidSelection(LutSelection.SelectedItem as LutOption)) { MessageBox.Show("Select a valid .cube LUT from the LUT dropdown, or choose No LUT."); return false; }
         try
         {
-            var outputOptions = CurrentOutputDestination();
-            var outputResolution = (OutputResolution)Math.Clamp(Resolution.SelectedIndex, 0, 5);
-            var outputRoot = OutputDestinationPlanner.ResolveRoot(InputFolder.Text, outputResolution, outputOptions);
-            var suffix = OutputDestinationPlanner.ResolveFilenameSuffix(outputResolution, outputOptions);
-            var jobs = BatchFileSelection.SelectedFiles(_batchFiles)
-                .Select(file => EncodingPathPlanner.CreateJob(InputFolder.Text, outputRoot, file, outputResolution,
-                    _settings.Encoding.Container, suffix, ShouldPreserveFolderStructure()));
-            if (EncodingPathPlanner.HasOutputCollisions(jobs))
-                throw new ArgumentException("Multiple selected files would create the same output filename. Choose Same folder or Specific folder with Preserve source folder structure, or rename the source files.");
+            var plan = CreateEncodingPlan();
+            var error = plan.Issues.Concat(plan.Items.SelectMany(item => item.Issues))
+                .FirstOrDefault(issue => issue.Severity == JobIssueSeverity.Error);
+            if (error is not null) throw new ArgumentException(error.Message);
         }
         catch (ArgumentException ex) { MessageBox.Show(ex.Message, "Output location", MessageBoxButton.OK, MessageBoxImage.Warning); return false; }
-        if (!LutCatalog.IsValidSelection(LutSelection.SelectedItem as LutOption)) { MessageBox.Show("Select a valid .cube LUT from the LUT dropdown, or choose No LUT."); return false; }
         return true;
+    }
+
+    private JobPlan<EncodingJobOptions> CreateEncodingPlan(IReadOnlyDictionary<string, double>? durations = null)
+    {
+        var resolution = (OutputResolution)Math.Clamp(Resolution.SelectedIndex, 0, 5);
+        var recovery = (RecoveryStrategy)Math.Clamp(RecoveryMode.SelectedIndex, 0, 2);
+        var outputRoot = OutputDestinationPlanner.ResolveRoot(InputFolder.Text, resolution, CurrentOutputDestination());
+        var suffix = OutputDestinationPlanner.ResolveFilenameSuffix(resolution, CurrentOutputDestination());
+        var options = new EncodingJobOptions(
+            InputFolder.Text,
+            outputRoot,
+            resolution,
+            recovery,
+            _settings.Encoding,
+            SelectedLutPath,
+            suffix,
+            ShouldPreserveFolderStructure(),
+            OverwriteExisting.IsChecked == true,
+            ShowEncodingDetails.IsChecked == true);
+        var sources = _batchFiles.Where(file => file.IsSelected).Select(file =>
+        {
+            var seconds = durations?.GetValueOrDefault(file.FilePath) ?? file.Metadata?.DurationSeconds ?? 0;
+            return new EncodingSource(
+                file.FilePath,
+                file.FileSizeBytes,
+                seconds > 0 ? TimeSpan.FromSeconds(seconds) : null);
+        });
+        return EncodingJobPlanner.Plan(EncodingJobPlanner.Define(options, sources));
     }
 
     private string? SelectedLutPath => (LutSelection.SelectedItem as LutOption)?.FilePath;
@@ -813,11 +867,19 @@ public partial class MainWindow : Window
             if (ReferenceEquals(_activeEncodingProcess, process)) _activeEncodingProcess = null;
         }
     }
-    private void UpdateBatch(int completed, int total, Stopwatch sw, double currentFilePercent = 0)
+    private void UpdateBatch(
+        JobExecution<EncodingJobOptions, EncodingItemResult> execution,
+        JobItemExecution<EncodingItemResult> current,
+        int completed,
+        int total,
+        Stopwatch sw)
     {
-        _batchProgress.ReportBatchProgress(completed + Math.Clamp(currentFilePercent, 0, 100) / 100d, total);
+        var progress = execution.Progress(current);
+        _batchProgress.ReportBatchPercent(progress.OverallPercent ?? 0);
         BatchProgress.Value = _batchProgress.BatchPercent;
-        var remaining = BatchEtaEstimator.Estimate(sw.Elapsed, completed, total, currentFilePercent);
+        var remaining = progress.TotalWork is > 0
+            ? BatchEtaEstimator.Estimate(sw.Elapsed, progress.CompletedWork, progress.TotalWork.Value)
+            : null;
         EtaText.Text = remaining is null
             ? $"Completed {completed} of {total} — estimated remaining: calculating…"
             : $"Completed {completed} of {total} — estimated remaining: {remaining:hh\\:mm\\:ss}";
@@ -881,7 +943,7 @@ public partial class MainWindow : Window
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
         SaveBatchState();
-        if (_cts is null || _forceClose) return;
+        if (_jobCancellation is null || _forceClose) return;
 
         e.Cancel = true;
         var pausedProcess = _activeEncodingProcess;
@@ -924,7 +986,8 @@ public partial class MainWindow : Window
 
     private void CancelActiveEncoding()
     {
-        _cts?.Cancel();
+        _jobCancellation?.Cancel();
+        _activeEncodingJob?.CancelPending();
         try
         {
             if (_activeEncodingProcess is { HasExited: false } process) process.Kill(entireProcessTree: true);

@@ -1,0 +1,120 @@
+using System.IO;
+
+namespace LightflowStudio;
+
+internal sealed record EncodingJobOptions(
+    string InputFolder,
+    string OutputRoot,
+    OutputResolution Resolution,
+    RecoveryStrategy Recovery,
+    EncodingOptions Encoding,
+    string? LutPath,
+    string FilenameSuffix,
+    bool PreserveFolderStructure,
+    bool OverwriteExistingFiles,
+    bool DetailedOutput);
+
+internal sealed record EncodingSource(
+    string Path,
+    long FileSizeBytes,
+    TimeSpan? SourceDuration,
+    MediaRange? MediaRange = null);
+
+internal sealed record EncodingItemResult(int ExitCode, TimeSpan? EffectiveDuration);
+
+internal sealed record OutputFileSnapshot(bool Exists, long Length)
+{
+    public static OutputFileSnapshot Read(string path)
+    {
+        var file = new FileInfo(path);
+        return new(file.Exists, file.Exists ? file.Length : 0);
+    }
+}
+
+internal static class EncodingJobPlanner
+{
+    public static JobDefinition<EncodingJobOptions> Define(
+        EncodingJobOptions options,
+        IEnumerable<EncodingSource> sources,
+        Guid? jobId = null,
+        DateTimeOffset? createdAt = null)
+    {
+        var items = sources
+            .OrderBy(source => source.Path, StringComparer.OrdinalIgnoreCase)
+            .Select(source => new JobItemDefinition(
+                Guid.NewGuid(),
+                source.Path,
+                source.FileSizeBytes,
+                source.MediaRange ?? (source.SourceDuration is { } duration && duration > TimeSpan.Zero
+                    ? new MediaRange(duration)
+                    : null)))
+            .ToList();
+        return new(jobId ?? Guid.NewGuid(), "video.encode", createdAt ?? DateTimeOffset.Now, options, items);
+    }
+
+    public static JobPlan<EncodingJobOptions> Plan(
+        JobDefinition<EncodingJobOptions> definition,
+        Func<string, OutputFileSnapshot>? inspectOutput = null,
+        DateTimeOffset? plannedAt = null)
+    {
+        inspectOutput ??= OutputFileSnapshot.Read;
+        var issues = new List<JobIssue>();
+        if (definition.Items.Count == 0)
+            issues.Add(new("encoding.no-inputs", "Select at least one video file for this batch.", JobIssueSeverity.Error));
+        if (!LutPathIsValid(definition.Options.LutPath))
+            issues.Add(new("encoding.invalid-lut", "Select a valid .cube LUT or choose No LUT.", JobIssueSeverity.Error));
+
+        var outputJobs = definition.Items.Select(item => new
+        {
+            Item = item,
+            Path = EncodingPathPlanner.CreateJob(
+                definition.Options.InputFolder,
+                definition.Options.OutputRoot,
+                item.SourceIdentity,
+                definition.Options.Resolution,
+                definition.Options.Encoding.Container,
+                definition.Options.FilenameSuffix,
+                definition.Options.PreserveFolderStructure).OutputPath
+        }).ToList();
+
+        var collisions = outputJobs
+            .GroupBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (collisions.Count > 0)
+            issues.Add(new("encoding.output-collision", "Multiple selected files would create the same output filename.", JobIssueSeverity.Error));
+
+        var useDuration = definition.Items.All(item => item.MediaRange?.EffectiveDuration > TimeSpan.Zero);
+        var workUnit = useDuration ? JobWorkUnit.MediaDuration : JobWorkUnit.Items;
+        var planItems = outputJobs.Select(output =>
+        {
+            var itemIssues = new List<JobIssue>();
+            if (output.Item.MediaRange is { } range) itemIssues.AddRange(range.Validate());
+            if (string.Equals(Path.GetFullPath(output.Item.SourceIdentity), Path.GetFullPath(output.Path), StringComparison.OrdinalIgnoreCase))
+                itemIssues.Add(new("encoding.source-overwrite", "The output path cannot be the same as the source path.", JobIssueSeverity.Error));
+            if (collisions.Contains(output.Path))
+                itemIssues.Add(new("encoding.output-collision", $"The planned output collides with another item: {output.Path}", JobIssueSeverity.Error));
+
+            var snapshot = inspectOutput(output.Path);
+            var skip = ExistingOutputPolicy.ShouldPreserve(
+                definition.Options.OverwriteExistingFiles,
+                snapshot.Exists,
+                snapshot.Length);
+            var estimate = useDuration
+                ? JobWorkEstimate.Determinate(JobWorkUnit.MediaDuration, output.Item.MediaRange!.EffectiveDuration.TotalSeconds)
+                : JobWorkEstimate.Determinate(JobWorkUnit.Items, 1);
+            return new JobPlanItem(
+                output.Item,
+                [output.Path],
+                skip ? JobPlanDisposition.Skip : JobPlanDisposition.Process,
+                estimate,
+                itemIssues);
+        }).ToList();
+
+        return new(definition, plannedAt ?? DateTimeOffset.Now, planItems, issues, workUnit);
+    }
+
+    private static bool LutPathIsValid(string? path) => string.IsNullOrEmpty(path)
+        || (path.EndsWith(".cube", StringComparison.OrdinalIgnoreCase) && File.Exists(path));
+}

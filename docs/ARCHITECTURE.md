@@ -135,6 +135,60 @@ FFmpeg and FFprobe remain external-engine adapters:
 
 The job model never contains FFmpeg arguments. This boundary permits future jobs such as bulk rename, copy verification, metadata operations, image processing, and workflow coordination.
 
+### Interactive video playback
+
+Interactive playback is a separate application service, not a shared batch Job. The subsystem consists of Lightflow-owned contracts in `MediaPlayback.cs`, lifecycle and latest-request coordination in `MediaPlaybackService`, global ownership in `MediaPlaybackCoordinator`, and an internal `FlyleafPlaybackBackend`. Flyleaf types do not appear in application-facing playback state, timestamps, frames, errors, stream information, browser/trim contracts, or the shared Job model.
+
+```text
+Future browser or trim surface
+        ↓
+IMediaPlaybackService + MediaPlaybackView
+        ↓
+MediaPlaybackService (Lightflow state and cancellation)
+        ↓
+IMediaPlaybackBackend
+        ↓
+FlyleafPlaybackBackend
+        ↓
+Flyleaf 3.10.4 + FFmpeg 8.1 shared libraries + Direct3D 11/XAudio2
+```
+
+#### Ownership and source lifecycle
+
+`MediaPlaybackCoordinator` owns one playback service and transfers an explicit lease between consumers. A new owner closes the previous source before receiving the service, preventing independent audible preview engines. The service assigns monotonically increasing generations to load and seek requests. A newer request cancels the older request and suppresses its completion and frame notifications. Source replacement disposes the prior Flyleaf player, decoder contexts, audio voices, renderer attachment, event subscriptions, and pending cancellation state before publishing the new paused source.
+
+Sources open asynchronously and settle on the first decoded frame while paused. Play, pause, seek, frame-step, close, failure recovery, and extraction remain off the WPF UI thread except for the small renderer/host operations that WPF requires on its dispatcher. Frame queues and decode buffering are owned and bounded by Flyleaf; Lightflow does not introduce another unbounded queue.
+
+#### Timestamp semantics
+
+`MediaPresentationTimestamp.Position` is the decoded/displayed frame timestamp exposed by Flyleaf in .NET ticks after Flyleaf converts FFmpeg's `best_effort_timestamp`. It is not an estimated frame number. `MediaPlaybackSourceInfo.StartTimestamp` records the stream start offset exposed by the backend. Consumers use the displayed timestamp for frame selection and later translate it with source-start metadata when constructing source ranges.
+
+For VFR input, forward stepping advances through decoded frames and publishes each frame's actual timestamp. Flyleaf's built-in backward-step fallback converts time through nominal frame duration and is therefore deliberately not used. Lightflow reconstructs a backward step by seeking to an earlier point, decoding forward through actual presentation timestamps, and settling on the immediate predecessor. If an exact predecessor cannot be established, the operation fails rather than returning an estimated boundary. Integration tests generate genuine VFR media and compare forward, backward, seek, and extraction results with FFprobe frame timestamps.
+
+Flyleaf accepts millisecond seek targets, so arbitrary seek requests are target approximations; the timestamp returned after seek is always the actual frame Flyleaf displayed, not the requested value. Future trim UI must store the returned displayed timestamp. Sources with missing timestamps may cause FFmpeg/Flyleaf to synthesize timestamps; such values are reported as decoded presentation timing but should be diagnosed before they are used as edit boundaries.
+
+#### Seeking and frame extraction
+
+Interactive seeks use latest-request-wins cancellation. Flyleaf also coalesces its internal paused seek stack. Seeking preserves whether Lightflow was paused or playing, and only the settled decoded timestamp is published. Backward stepping uses a bounded expanding search window and a bounded forward decode count.
+
+`GetFrameAsync` returns `MediaDecodedFrame`, a Lightflow-owned BGRA pixel buffer with dimensions, stride, and actual displayed timestamp. It uses the same decoder and color-conversion path as playback. A small off-screen renderer is created only when extraction is requested without an attached preview surface; it is released with the backend. No thumbnail cache, filmstrip, or browser is implemented.
+
+#### Video and audio behavior
+
+Flyleaf owns the playback clock, synchronized XAudio2 output, decode queues, Direct3D 11 presentation, and resynchronization after seeking. It selects one deterministic default audio stream and Lightflow exposes all discovered streams plus the selected index for later Issue #38 work. Audio initialization failure is reported separately where possible and does not redefine video timestamps.
+
+Hardware video decoding is requested automatically. Flyleaf falls back to software decoding when the source or device cannot use hardware acceleration; the application contract reports which path actually opened. Playback correctness does not depend on a GPU vendor. The current Flyleaf renderer supports HDR-to-SDR processing, but Issue #53 does not add display calibration, HDR output signaling, or user controls. Flyleaf currently outputs unusual multichannel audio layouts through its stereo XAudio2 output; advanced routing remains out of scope.
+
+#### Packaging and licensing
+
+Encoding continues to invoke the existing pinned LGPL FFmpeg and FFprobe command-line executables. Playback separately uses FlyleafLib 3.10.4, Flyleaf.FFmpeg.Bindings 8.1.0, and the pinned BtbN FFmpeg 8.1 `lgpl-shared` archive. The archive SHA-256, exact source revision, build-project URL, variant, and versions are recorded in `dependencies/ffmpeg-playback.json` and copied into release artifacts. GPL and nonfree FFmpeg variants are rejected by the dependency-preparation script.
+
+Installer and portable staging place playback DLLs under `playback/ffmpeg/bin`, with the package manifest, corresponding-source/build links, and upstream license files alongside them. Managed package versions and their transitive graph are locked by NuGet lock files. `THIRD-PARTY-NOTICES.md` documents Flyleaf, its bindings, FFmpeg, Vortice, and SharpGen obligations.
+
+#### Future consumers
+
+Issue #54 can consume playback, actual displayed timestamps, and the Lightflow view without learning Flyleaf types. Issue #55 remains responsible for translating selected timestamps into FFmpeg's inclusive/exclusive range semantics. A future media browser can repeatedly transfer the one global playback lease and issue A → B → C load requests; only the latest generation is allowed to publish state, frames, or audio. Playback-speed state is not exposed in this UI iteration, but Flyleaf's clock and the backend boundary can add it without changing source, timestamp, or frame contracts.
+
 ### Infrastructure
 
 - Settings and transient application-state persistence

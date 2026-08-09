@@ -20,3 +20,29 @@ FFmpeg project and source: <https://ffmpeg.org/>
 This notice is informational and is not legal advice. The third-party license
 files included with the application control the use and redistribution of
 those components.
+
+## Playback components
+
+Interactive video playback uses FlyleafLib 3.10.4 and
+Flyleaf.FFmpeg.Bindings 8.1.0. Both packages are licensed under the GNU Lesser
+General Public License, version 3.0 or later. Lightflow Studio keeps these
+libraries behind its own playback API and does not modify their source.
+
+- Flyleaf source: <https://github.com/SuRGeoNix/Flyleaf/tree/v3.10.4>
+- Flyleaf FFmpeg bindings source: <https://github.com/SuRGeoNix/Flyleaf.FFmpeg.Generator>
+
+Flyleaf uses dynamically loaded FFmpeg shared libraries. Lightflow distributes
+the pinned BtbN `lgpl-shared` build recorded in
+`playback/ffmpeg/ffmpeg-playback-package.json`. The package is built from the
+same FFmpeg source revision recorded there, and its exact archive checksum,
+corresponding FFmpeg source, and BtbN build scripts are documented in
+`playback/ffmpeg/SOURCE-AND-LICENSE.txt`. GPL and nonfree BtbN variants are not
+used.
+
+Flyleaf also depends on the Vortice.Windows and SharpGen.Runtime projects,
+distributed under the MIT License:
+
+- Vortice.Windows: <https://github.com/amerkoleci/Vortice.Windows>
+- SharpGenTools: <https://github.com/SharpGenTools/SharpGenTools>
+
+NuGet package license files and the source repositories above are authoritative.

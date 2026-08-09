@@ -1,4 +1,4 @@
-/* Lightflow Studio v0.9.0 — experimental Premiere Pro ExtendScript helper.
+/* Lightflow Studio v0.10.0 — experimental Premiere Pro ExtendScript helper.
    Test on a duplicate project. Requires an Adobe Media Encoder .epr preset. */
 (function () {
     if (!app.project || !app.project.activeSequence) {

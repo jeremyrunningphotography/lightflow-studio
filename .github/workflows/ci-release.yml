@@ -21,6 +21,9 @@ jobs:
           dotnet-version: 8.0.x
       - name: Restore
         run: dotnet restore .\LightflowStudio.Tests\LightflowStudio.Tests.csproj
+      - name: Prepare verified playback dependencies
+        shell: pwsh
+        run: .\scripts\Get-PlaybackDependencies.ps1
       - name: Test
         run: dotnet test .\LightflowStudio.Tests\LightflowStudio.Tests.csproj -c Release --no-restore --logger "trx;LogFileName=tests.trx"
       - name: Preserve test results

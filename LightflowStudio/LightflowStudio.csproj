@@ -16,6 +16,10 @@
     <ApplicationIcon>Assets\Branding\LightflowStudio.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Flyleaf.FFmpeg.Bindings" Version="8.1.0" />
+    <PackageReference Include="FlyleafLib" Version="3.10.4" />
+  </ItemGroup>
+  <ItemGroup>
     <None Remove="Assets\Branding\LightflowStudio.ico" />
     <None Remove="Assets\Branding\jr-glow-source.png" />
     <Resource Include="Assets\Branding\LightflowStudio.ico" />

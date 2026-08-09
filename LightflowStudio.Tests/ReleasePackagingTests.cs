@@ -20,6 +20,38 @@ public sealed class ReleasePackagingTests
     }
 
     [Fact]
+    public void PlaybackDependencies_AreExactPinnedAndUseTheLgplSharedVariant()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(PathAtRoot("dependencies", "ffmpeg-playback.json")));
+        var root = document.RootElement;
+        Assert.Equal("lgpl-shared", root.GetProperty("variant").GetString());
+        Assert.Equal("LGPL-2.1-or-later", root.GetProperty("license").GetString());
+        Assert.Equal("3.10.4", root.GetProperty("flyleafVersion").GetString());
+        Assert.Equal("8.1.0", root.GetProperty("flyleafBindingsVersion").GetString());
+        Assert.Matches("^[a-f0-9]{64}$", root.GetProperty("sha256").GetString()!);
+        Assert.Contains("lgpl-shared", root.GetProperty("archiveName").GetString());
+
+        var project = XDocument.Load(PathAtRoot("LightflowStudio", "LightflowStudio.csproj"));
+        var packages = project.Descendants("PackageReference").ToDictionary(
+            element => element.Attribute("Include")!.Value,
+            element => element.Attribute("Version")!.Value);
+        Assert.Equal("3.10.4", packages["FlyleafLib"]);
+        Assert.Equal("8.1.0", packages["Flyleaf.FFmpeg.Bindings"]);
+    }
+
+    [Fact]
+    public void ReleasePackaging_IncludesPlaybackLibrariesAndComplianceRecords()
+    {
+        var script = File.ReadAllText(PathAtRoot("scripts", "Build-Release.ps1"));
+        var dependencyScript = File.ReadAllText(PathAtRoot("scripts", "Get-PlaybackDependencies.ps1"));
+        Assert.Contains("Get-PlaybackDependencies.ps1", script);
+        Assert.Contains("playback\\ffmpeg", script);
+        Assert.Contains("avcodec-*.dll", dependencyScript);
+        Assert.Contains("SOURCE-AND-LICENSE.txt", dependencyScript);
+        Assert.Contains("lgpl-shared", dependencyScript);
+    }
+
+    [Fact]
     public void ReleaseWorkflow_GatesPackagingOnTests()
     {
         var workflow = File.ReadAllText(PathAtRoot(".github", "workflows", "ci-release.yml"));

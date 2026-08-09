@@ -6,6 +6,8 @@ namespace LightflowStudio;
 public partial class App : System.Windows.Application
 {
     internal static ActivityLogFile ActivityLog { get; } = ActivityLogFile.BesideSettings(AppSettingsStore.SettingsPath);
+    internal static MediaPlaybackCoordinator Playback { get; } = new(() =>
+        new MediaPlaybackService(new FlyleafPlaybackBackend()));
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -15,7 +17,11 @@ public partial class App : System.Windows.Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
-        Exit += (_, _) => ActivityLog.TryAppend("[App] Lightflow Studio exiting.");
+        Exit += (_, _) =>
+        {
+            Playback.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            ActivityLog.TryAppend("[App] Lightflow Studio exiting.");
+        };
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e) =>

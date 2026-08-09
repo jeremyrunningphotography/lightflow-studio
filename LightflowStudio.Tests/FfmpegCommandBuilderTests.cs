@@ -16,6 +16,25 @@ public sealed class FfmpegCommandBuilderTests
         Assert.Equal("output.mp4", args[^1]);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void Encode_OmitsLutFilterWhenNoLutIsSelected(string? lut)
+    {
+        var args = FfmpegCommandBuilder.Encode("input.mov", "output.mp4", lut, RecoveryStrategy.Normal, OutputResolution.FullHd);
+
+        AssertContainsSequence(args, "-vf", "scale=-2:1080");
+        Assert.DoesNotContain(args, arg => arg.Contains("lut3d"));
+    }
+
+    [Fact]
+    public void Encode_OmitsVfEntirelyWhenNoLutAndNoOtherFiltersApply()
+    {
+        var args = FfmpegCommandBuilder.Encode("input.mov", "output.mp4", null, RecoveryStrategy.Normal, OutputResolution.Source);
+
+        Assert.DoesNotContain("-vf", args);
+    }
+
     [Fact]
     public void Encode_SalvageModeUsesRecoveryFlagsAndAacResampling()
     {

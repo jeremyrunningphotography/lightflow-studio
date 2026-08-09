@@ -8,6 +8,22 @@ internal sealed record LutOption(string DisplayName, string FilePath);
 internal static partial class LutCatalog
 {
     public const string DefaultFolder = @"J:\Photography\LUTs";
+    public static readonly LutOption NoLut = new("No LUT", "");
+
+    public static IReadOnlyList<LutOption> Options(string folder) => [NoLut, .. Discover(folder)];
+
+    public static LutOption SelectPreferred(IReadOnlyList<LutOption> options, string? preferredPath) =>
+        options.FirstOrDefault(option =>
+            string.Equals(option.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase))
+        ?? options.FirstOrDefault()
+        ?? NoLut;
+
+    public static bool IsValidSelection(LutOption? option) =>
+        option is not null
+        && (option == NoLut
+            || (!string.IsNullOrWhiteSpace(option.FilePath)
+                && option.FilePath.EndsWith(".cube", StringComparison.OrdinalIgnoreCase)
+                && File.Exists(option.FilePath)));
 
     public static IReadOnlyList<LutOption> Discover(string folder)
     {

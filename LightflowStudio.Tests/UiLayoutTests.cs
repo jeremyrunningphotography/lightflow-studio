@@ -97,14 +97,24 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BatchConfiguration_IsNamedForEncodingStateControl()
+    public void BatchConfiguration_KeepsFileExpanderEnabledWhileLockingEditableControls()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var configuration = Named(document, "BatchConfiguration");
         var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
 
         Assert.Equal("1", (string?)configuration.Attribute("Grid.Row"));
-        Assert.Contains("BatchConfiguration.IsEnabled = !running;", source);
+        Assert.Equal("StackPanel", Named(document, "BatchSourceConfiguration").Name.LocalName);
+        Assert.Equal("Border", Named(document, "BatchFileContent").Name.LocalName);
+        Assert.Equal("Border", Named(document, "BatchOutputConfiguration").Name.LocalName);
+        Assert.Equal("StackPanel", Named(document, "BatchLutConfiguration").Name.LocalName);
+        Assert.Equal("StackPanel", Named(document, "BatchFormatConfiguration").Name.LocalName);
+        Assert.DoesNotContain("BatchConfiguration.IsEnabled = !running;", source);
+        Assert.Contains("BatchSourceConfiguration.IsEnabled = !running;", source);
+        Assert.Contains("BatchOutputConfiguration.IsEnabled = !running;", source);
+        Assert.Contains("BatchLutConfiguration.IsEnabled = !running;", source);
+        Assert.Contains("BatchFormatConfiguration.IsEnabled = !running;", source);
+        Assert.Contains("BatchFileContent.IsHitTestVisible = !running;", source);
     }
     [Fact]
     public void PhotographyBranding_IsNotRepeatedInTheStatusBar()

@@ -7,4 +7,5 @@ internal sealed record MediaMetadata(
     double DurationSeconds,
     long FileSizeBytes,
     string VideoCodec,
-    bool HasAudio);
+    bool HasAudio,
+    TimeSpan StartTimestamp = default);

@@ -8,10 +8,10 @@ public class MediaMetadataTests
     private const string ProbeJson = """
         {
           "streams": [
-            { "codec_type": "video", "codec_name": "hevc", "width": 3840, "height": 2160, "avg_frame_rate": "60000/1001" },
+            { "codec_type": "video", "codec_name": "hevc", "width": 3840, "height": 2160, "avg_frame_rate": "60000/1001", "start_time": "3.25", "duration": "134.5" },
             { "codec_type": "audio", "codec_name": "aac" }
           ],
-          "format": { "duration": "134.5" }
+          "format": { "start_time": "3.25", "duration": "137.75" }
         }
         """;
 
@@ -25,6 +25,7 @@ public class MediaMetadataTests
         Assert.Equal(134.5, metadata.DurationSeconds);
         Assert.Equal("hevc", metadata.VideoCodec);
         Assert.True(metadata.HasAudio);
+        Assert.Equal(TimeSpan.FromSeconds(3.25), metadata.StartTimestamp);
     }
 
     [Fact]

@@ -67,7 +67,7 @@ internal sealed class TrimHistoryStore : ITrimHistoryStore
             var record = records.FirstOrDefault(item => item.Identity.Matches(identity));
             if (record is null)
             {
-                if (changed) TrySave(records);
+                if (changed) TrySaveQuietly(records);
                 return null;
             }
 
@@ -75,12 +75,12 @@ internal sealed class TrimHistoryStore : ITrimHistoryStore
             if (range is null)
             {
                 records.Remove(record);
-                TrySave(records);
+                TrySaveQuietly(records);
                 return null;
             }
 
             record.LastUsedUtc = now;
-            TrySave(records);
+            TrySaveQuietly(records);
             return range;
         }
     }
@@ -96,7 +96,7 @@ internal sealed class TrimHistoryStore : ITrimHistoryStore
             var records = LoadAndClean(now, out _);
             records.RemoveAll(item => string.Equals(item.Identity.NormalizedPath, identity.NormalizedPath, StringComparison.OrdinalIgnoreCase));
             records.Add(TrimHistoryRecord.From(identity, range, now));
-            TrySave(records);
+            SaveRecords(records);
         }
     }
 
@@ -108,7 +108,7 @@ internal sealed class TrimHistoryStore : ITrimHistoryStore
             if (identity is null) return;
             var records = LoadAndClean(_utcNow(), out var changed);
             changed |= records.RemoveAll(item => item.Identity.Matches(identity)) > 0;
-            if (changed) TrySave(records);
+            if (changed) SaveRecords(records);
         }
     }
 
@@ -144,7 +144,13 @@ internal sealed class TrimHistoryStore : ITrimHistoryStore
         }
     }
 
-    private void TrySave(IReadOnlyList<TrimHistoryRecord> records)
+    private void TrySaveQuietly(IReadOnlyList<TrimHistoryRecord> records)
+    {
+        try { SaveRecords(records); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+    }
+
+    private void SaveRecords(IReadOnlyList<TrimHistoryRecord> records)
     {
         try
         {
@@ -162,6 +168,7 @@ internal sealed class TrimHistoryStore : ITrimHistoryStore
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             try { File.Delete(_path + ".tmp"); } catch { }
+            throw;
         }
     }
 

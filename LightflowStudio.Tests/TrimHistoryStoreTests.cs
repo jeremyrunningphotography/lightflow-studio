@@ -90,8 +90,64 @@ public sealed class TrimHistoryStoreTests : IDisposable
         Assert.Null(store.Restore(SourcePath));
     }
 
+    [Fact]
+    public void ExplicitSaveFailureIsObservableWhileInMemoryTrimRemainsApplied()
+    {
+        File.WriteAllBytes(SourcePath, new byte[64]);
+        var blockedDirectory = Path.Combine(_root, "not-a-directory");
+        File.WriteAllText(blockedDirectory, "block directory creation");
+        var store = new TrimHistoryStore(Path.Combine(blockedDirectory, "trim-history.json"));
+        var option = new BatchFileOption(SourcePath, "source.mp4", 64);
+
+        AssertPersistenceFailure(() => TrimStatePersistence.Apply(option, Range, store));
+
+        Assert.Equal(Range, option.TrimRange);
+        Assert.True(option.HasActiveTrim);
+    }
+
+    [Fact]
+    public void ExplicitRemovalFailureIsObservableWhileInMemoryTrimRemainsReset()
+    {
+        File.WriteAllBytes(SourcePath, new byte[64]);
+        var store = new TrimHistoryStore(StorePath);
+        store.Save(SourcePath, Range);
+        var option = new BatchFileOption(SourcePath, "source.mp4", 64);
+        option.ApplyTrim(Range);
+
+        using (File.Open(StorePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            AssertPersistenceFailure(() => TrimStatePersistence.Apply(option, null, store));
+        }
+
+        Assert.Null(option.TrimRange);
+        Assert.False(option.HasActiveTrim);
+        Assert.Equal(Range, new TrimHistoryStore(StorePath).Restore(SourcePath));
+    }
+
+    [Fact]
+    public void RestoreRemainsQuietWhenSlidingRefreshCannotBeWritten()
+    {
+        File.WriteAllBytes(SourcePath, new byte[64]);
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var store = new TrimHistoryStore(StorePath, () => now);
+        store.Save(SourcePath, Range);
+        now = now.AddDays(1);
+
+        using (File.Open(StorePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            Assert.Equal(Range, store.Restore(SourcePath));
+        }
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, true); } catch { }
+    }
+
+    private static void AssertPersistenceFailure(Action action)
+    {
+        var exception = Record.Exception(action);
+        Assert.True(exception is IOException or UnauthorizedAccessException,
+            $"Expected an observable persistence failure, received {exception?.GetType().Name ?? "no exception"}.");
     }
 }

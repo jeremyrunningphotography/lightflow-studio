@@ -258,9 +258,7 @@ public partial class MainWindow : Window
         }
         try
         {
-            option.ApplyTrim(editor.AppliedRange);
-            if (editor.AppliedRange is { } range) _trimHistory.Save(option.FilePath, range);
-            else _trimHistory.Remove(option.FilePath);
+            TrimStatePersistence.Apply(option, editor.AppliedRange, _trimHistory);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

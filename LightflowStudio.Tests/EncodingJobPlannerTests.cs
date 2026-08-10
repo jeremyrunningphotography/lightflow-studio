@@ -106,7 +106,7 @@ public sealed class EncodingJobPlannerTests : IDisposable
     }
 
     [Fact]
-    public void Plan_DoesNotSkipTrimmedOutputWithoutMatchingIdentity()
+    public void Plan_PreservesTrimmedOutputWithoutMatchingIdentityWhenOverwriteIsOff()
     {
         Directory.CreateDirectory(OutputRoot);
         var sourcePath = Path.Combine(_root, "one.mov");
@@ -116,11 +116,14 @@ public sealed class EncodingJobPlannerTests : IDisposable
 
         var plan = EncodingJobPlanner.Plan(definition, _ => new(true, 100));
 
-        Assert.Equal(JobPlanDisposition.Process, Assert.Single(plan.Items).Disposition);
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(JobPlanDisposition.Skip, item.Disposition);
+        Assert.Contains(item.Issues, issue => issue.Code == "encoding.existing-output-differs"
+            && issue.Severity == JobIssueSeverity.Warning);
     }
 
     [Fact]
-    public void Plan_SkipsOnlyWhenTrimAndEncodingIdentityMatch()
+    public void Plan_PreservesExistingOutputRegardlessOfTrimIdentityWhenOverwriteIsOff()
     {
         Directory.CreateDirectory(OutputRoot);
         var trim = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
@@ -140,7 +143,25 @@ public sealed class EncodingJobPlannerTests : IDisposable
         };
 
         Assert.Equal(JobPlanDisposition.Skip, Assert.Single(matching.Items).Disposition);
-        Assert.Equal(JobPlanDisposition.Process, Assert.Single(EncodingJobPlanner.Plan(changed, _ => new(true, 100), identityCacheDirectory: IdentityCache).Items).Disposition);
+        var changedItem = Assert.Single(EncodingJobPlanner.Plan(changed, _ => new(true, 100), identityCacheDirectory: IdentityCache).Items);
+        Assert.Equal(JobPlanDisposition.Skip, changedItem.Disposition);
+        Assert.Contains(changedItem.Issues, issue => issue.Code == "encoding.existing-output-differs");
+    }
+
+    [Fact]
+    public void Plan_ProcessesChangedTrimWhenOverwriteIsOn()
+    {
+        var trim = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+        var resolved = new ResolvedMediaRange(trim, TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2.04), TimeSpan.FromSeconds(1.04));
+        var definition = Define(new EncodingSource(Path.Combine(_root, "one.mov"), 100, trim.SourceDuration, trim, resolved, 123)) with
+        {
+            Options = Options() with { OverwriteExistingFiles = true }
+        };
+
+        var item = Assert.Single(EncodingJobPlanner.Plan(definition, _ => new(true, 100), identityCacheDirectory: IdentityCache).Items);
+
+        Assert.Equal(JobPlanDisposition.Process, item.Disposition);
+        Assert.DoesNotContain(item.Issues, issue => issue.Code == "encoding.existing-output-differs");
     }
 
     private JobDefinition<EncodingJobOptions> Define(params EncodingSource[] sources) =>

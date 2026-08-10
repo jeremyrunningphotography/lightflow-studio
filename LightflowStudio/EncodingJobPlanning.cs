@@ -116,15 +116,18 @@ internal static class EncodingJobPlanner
                 definition.Options.OverwriteExistingFiles,
                 snapshot.Exists,
                 snapshot.Length);
-            var skip = preserveExisting && (output.Item.ResolvedRange is null
-                || EncodingOutputIdentityStore.Matches(output.Path, EncodingOutputIdentity.Create(output.Item, definition.Options), identityCacheDirectory));
+            if (preserveExisting && output.Item.ResolvedRange is not null
+                && !EncodingOutputIdentityStore.Matches(output.Path, EncodingOutputIdentity.Create(output.Item, definition.Options), identityCacheDirectory))
+                itemIssues.Add(new("encoding.existing-output-differs",
+                    "The existing output was preserved, but it was created with a different source, trim, or encoding configuration.",
+                    JobIssueSeverity.Warning));
             var estimate = useDuration
                 ? JobWorkEstimate.Determinate(JobWorkUnit.MediaDuration, output.Item.MediaRange!.EffectiveDuration.TotalSeconds)
                 : JobWorkEstimate.Determinate(JobWorkUnit.Items, 1);
             return new JobPlanItem(
                 output.Item,
                 [output.Path],
-                skip ? JobPlanDisposition.Skip : JobPlanDisposition.Process,
+                preserveExisting ? JobPlanDisposition.Skip : JobPlanDisposition.Process,
                 estimate,
                 itemIssues);
         }).ToList();

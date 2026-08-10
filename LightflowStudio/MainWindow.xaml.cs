@@ -760,6 +760,8 @@ public partial class MainWindow : Window
                 {
                     completed++;
                     AppendLog($"Preserved existing file: {output}");
+                    foreach (var warning in item.PlanItem.Issues.Where(issue => issue.Severity == JobIssueSeverity.Warning))
+                        AppendLog($"Warning: {warning.Message}");
                     UpdateBatch(execution, item, completed, total, batchStart);
                     currentOutput = null;
                     if (_closeAfterCurrent)

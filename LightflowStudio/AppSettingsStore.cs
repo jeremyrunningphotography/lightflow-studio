@@ -38,11 +38,7 @@ internal sealed record AppSettings
 
 internal static class AppSettingsStore
 {
-    public static string SettingsPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Jeremy Running Photography",
-        "Lightflow Studio",
-        "settings.json");
+    public static string SettingsPath => LightflowStorageLocations.Current.SettingsPath;
 
     public static AppSettings Load(string path)
     {

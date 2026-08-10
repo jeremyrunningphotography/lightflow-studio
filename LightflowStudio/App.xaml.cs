@@ -5,7 +5,7 @@ namespace LightflowStudio;
 
 public partial class App : System.Windows.Application
 {
-    internal static ActivityLogFile ActivityLog { get; } = ActivityLogFile.BesideSettings(AppSettingsStore.SettingsPath);
+    internal static ActivityLogFile ActivityLog { get; } = new(LightflowStorageLocations.Current.ActivityLogPath);
     internal static MediaPlaybackCoordinator Playback { get; } = new(() =>
         new MediaPlaybackService(new FlyleafPlaybackBackend()));
 

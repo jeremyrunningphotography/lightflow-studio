@@ -136,7 +136,7 @@ public class UiLayoutTests
         var navigation = Named(document, "Navigation");
         var items = navigation.Elements(ns + "ListBoxItem").ToList();
 
-        Assert.Equal(5, items.Count);
+        Assert.Equal(6, items.Count);
         foreach (var item in items)
         {
             var grid = item.Element(ns + "Grid")!;

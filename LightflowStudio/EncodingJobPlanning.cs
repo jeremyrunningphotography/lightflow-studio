@@ -12,7 +12,8 @@ internal sealed record EncodingJobOptions(
     string FilenameSuffix,
     bool PreserveFolderStructure,
     bool OverwriteExistingFiles,
-    bool DetailedOutput);
+    bool DetailedOutput,
+    bool IncludeSubfolders = false);
 
 internal sealed record EncodingSource(
     string Path,

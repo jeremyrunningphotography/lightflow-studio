@@ -63,6 +63,14 @@ These types contain data only and are suitable for later capability-specific ser
 
 Definitions and results never contain WPF controls, delegates, cancellation sources, or process handles. Persistent history in Issue #35 can store capability-specific definitions and results without serializing runtime machinery.
 
+### Persistent job history
+
+Completed Encoding executions are recorded in the local, human-readable `job-history.json` beside settings and state. A schema-versioned document holds up to the 100 newest records in reverse completion order. Each record stores the shared durable typed definition and plan together with the terminal typed `JobResult<EncodingItemResult>`; it therefore preserves job identity and timing, Encoding options, ordered source identities, planned outputs, requested and resolved media ranges, effective durations, per-item states, warnings, errors, and aggregate summary counts. Runtime `JobExecution`, cancellation, process, playback, and presentation objects are never serialized.
+
+History deserialization dispatches by schema version and capability. The initial schema accepts the typed `video.encode` payload; future capabilities add explicit typed record adapters rather than generic property bags. A missing, malformed, inaccessible, or unsupported document produces an empty History view, while malformed individual records are skipped. Writes serialize to a same-directory temporary file and replace the destination, with temporary cleanup remaining best-effort.
+
+The History page presents summaries and detailed per-item outcomes. **Review & Rerun** never executes work: it revalidates each original source against its recorded path, size, and last-write timestamp, restores only unchanged sources and their normalized ranges, restores Encoding choices, uses the historic resolved output root as an explicit destination, and returns to Batch Encode for normal validation and user review. Missing or changed sources remain excluded and are reported. Historic output success and identity are never treated as current validity.
+
 #### Runtime concepts
 
 - `JobExecution<TOptions, TResult>` tracks item state, aggregate state, progress, start time, and result construction.

@@ -30,6 +30,8 @@ public partial class MainWindow : Window
     private readonly BatchFileSelectionMemory _batchSelectionMemory = new();
     private readonly ActivityLogFile _activityLogFile = App.ActivityLog;
     private readonly ITrimHistoryStore _trimHistory = new TrimHistoryStore(TrimHistoryStore.StorePath);
+    private readonly IJobHistoryStore _jobHistory = new JobHistoryStore(JobHistoryStore.StorePath);
+    private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
     private readonly DispatcherTimer _batchFolderRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private CancellationTokenSource? _batchMetadataCts;
     private readonly Dictionary<ToggleButton, CancellationTokenSource> _requirementHelpDismissals = [];
@@ -63,6 +65,8 @@ public partial class MainWindow : Window
             ApplyStateToBatch(_state);
             if (_commandLineFolder is not null) InputFolder.Text = _commandLineFolder;
             BatchFileList.ItemsSource = _batchFiles;
+            HistoryList.ItemsSource = _historyRecords;
+            RefreshHistory();
             LocateTools();
             await RefreshDependencyHealthAsync();
             RefreshBatchFiles();
@@ -883,6 +887,24 @@ public partial class MainWindow : Window
                     result.Summary.Skipped,
                     batchStart.Elapsed,
                     outputRoot));
+                try
+                {
+                    _jobHistory.Add(new EncodingJobHistoryRecord(
+                        execution.Plan.Definition.Id,
+                        execution.Plan.Definition.Capability,
+                        execution.Plan.Definition.CreatedAt,
+                        result.StartedAt,
+                        result.CompletedAt,
+                        result.State,
+                        execution.Plan.Definition,
+                        execution.Plan,
+                        result));
+                    RefreshHistory();
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    AppendLog($"Could not save this batch to History: {exception.Message}");
+                }
             }
 
             var shouldClose = _closeAfterCurrent;
@@ -898,6 +920,65 @@ public partial class MainWindow : Window
                 _ = Dispatcher.BeginInvoke(new Action(Close));
             }
         }
+    }
+
+    private void RefreshHistory()
+    {
+        _historyRecords.Clear();
+        foreach (var record in _jobHistory.Load()) _historyRecords.Add(record);
+        HistoryEmptyText.Visibility = _historyRecords.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (_historyRecords.Count > 0 && HistoryList.SelectedItem is null) HistoryList.SelectedIndex = 0;
+    }
+
+    private void HistoryList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        HistoryDetails.Text = (HistoryList.SelectedItem as EncodingJobHistoryRecord)?.DetailDisplay ?? "Select a job to inspect its results.";
+        HistoryRerunButton.IsEnabled = HistoryList.SelectedItem is EncodingJobHistoryRecord;
+    }
+
+    private void RefreshHistory_Click(object sender, RoutedEventArgs e) => RefreshHistory();
+
+    private void RerunHistory_Click(object sender, RoutedEventArgs e)
+    {
+        if (HistoryList.SelectedItem is not EncodingJobHistoryRecord record) return;
+        var preparation = EncodingHistoryRerun.Prepare(record);
+        var restoration = EncodingHistoryRerun.Materialize(preparation);
+        if (restoration.Restored.Count == 0)
+        {
+            MessageBox.Show("None of the original source files are still available and unchanged.", "Review Encoding job", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var options = preparation.Options;
+        _settings = _settings with { Encoding = EncodingOptions.Normalize(options.Encoding) };
+        InputFolder.Text = options.InputFolder;
+        Resolution.SelectedIndex = (int)options.Resolution;
+        RecoveryMode.SelectedIndex = (int)options.Recovery;
+        OverwriteExisting.IsChecked = options.OverwriteExistingFiles;
+        PreserveFolderStructure.IsChecked = options.PreserveFolderStructure;
+        Recursive.IsChecked = options.IncludeSubfolders;
+        ShowEncodingDetails.IsChecked = options.DetailedOutput;
+        var sameFolderOutput = string.Equals(Path.GetFullPath(options.InputFolder).TrimEnd(Path.DirectorySeparatorChar),
+            Path.GetFullPath(options.OutputRoot).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
+        OutputMode.SelectedIndex = (int)(sameFolderOutput ? OutputDestinationMode.SameFolder : OutputDestinationMode.SpecificFolder);
+        OutputSpecificFolder.Text = sameFolderOutput ? "" : options.OutputRoot;
+        _filenameSuffixUsesResolutionDefault = false;
+        OutputFilenameSuffix.Text = options.FilenameSuffix;
+        UpdateOutputModeUi();
+        RefreshLuts();
+        LutSelection.SelectedItem = LutSelection.Items.Cast<LutOption>().FirstOrDefault(option =>
+            string.Equals(option.FilePath, options.LutPath, StringComparison.OrdinalIgnoreCase))
+            ?? LutSelection.Items.Cast<LutOption>().First(option => option.FilePath is null);
+        _batchFolderRefreshTimer.Stop();
+        _batchMetadataCts?.Cancel();
+        _batchMetadataCts?.Dispose();
+        _batchMetadataCts = new CancellationTokenSource();
+        _batchFiles.Clear();
+        foreach (var file in restoration.Restored) _batchFiles.Add(file);
+        UpdateBatchFileSummary();
+        _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
+        MainTabs.SelectedIndex = 0;
+        CurrentFileText.Text = EncodingHistoryRerun.RestorationMessage(restoration);
     }
     private bool ValidateEncoderInputs()
     {
@@ -935,7 +1016,8 @@ public partial class MainWindow : Window
             suffix,
             ShouldPreserveFolderStructure(),
             OverwriteExisting.IsChecked == true,
-            ShowEncodingDetails.IsChecked == true);
+            ShowEncodingDetails.IsChecked == true,
+            Recursive.IsChecked == true);
         var sources = _batchFiles.Where(file => file.IsSelected).Select(file =>
         {
             var seconds = durations?.GetValueOrDefault(file.FilePath) ?? file.Metadata?.DurationSeconds ?? 0;

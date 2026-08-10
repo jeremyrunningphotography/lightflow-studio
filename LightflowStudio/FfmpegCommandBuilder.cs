@@ -55,9 +55,17 @@ internal static class FfmpegCommandBuilder
         AddAudio(args, recovery, options, trim);
         if (options.FastStart && options.Container is OutputContainer.Mp4 or OutputContainer.Mov)
             args.AddRange(["-movflags", "+faststart"]);
-        args.AddRange(["-progress", "pipe:1", "-nostats", output]);
+        args.AddRange(["-progress", "pipe:1", "-nostats", "-f", OutputMuxer(options.Container), output]);
         return args;
     }
+
+    internal static string OutputMuxer(OutputContainer container) => container switch
+    {
+        OutputContainer.Mp4 => "mp4",
+        OutputContainer.Mov => "mov",
+        OutputContainer.Mkv => "matroska",
+        _ => throw new ArgumentOutOfRangeException(nameof(container))
+    };
 
     private static void AddRateControl(List<string> args, EncodingOptions options)
     {

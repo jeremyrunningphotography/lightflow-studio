@@ -130,6 +130,28 @@ Encoding currently supplies:
 
 `EncodingJobPlanner` produces deterministic item ordering, output paths, collision errors, existing-output skip decisions, media-range validation, and work estimates before execution. The Encoding page consumes the plan while preserving LUT/No-LUT behavior, resolution and frame-rate filters, codec settings, salvage/video-only modes, logging, pause, close-after-current, and cancellation.
 
+#### Encoding output lifecycle
+
+The planner exposes only the intended final media path and remains side-effect free. Runtime execution creates an `EncodingOutputLifecycle` for each item. The lifecycle derives one exact, same-directory application-owned partial path by appending `.lightflow` to the complete final filename: for example, `clip.mp4.lightflow`, `clip.mov.lightflow`, or `clip.mkv.lightflow`.
+
+Immediately before an item starts, runtime hygiene removes only that exact sibling partial path. A locked or otherwise undeletable stale partial blocks the item instead of allowing FFmpeg to overwrite or mingle with it. Lightflow does not scan arbitrary folders or delete files based on a generic substring. Broader startup cleanup is intentionally deferred because current execution is serial and item-scoped ownership is the safer boundary.
+
+FFmpeg writes directly to the sibling partial in the final destination directory. Because `.lightflow` is deliberately the terminal extension, `FfmpegCommandBuilder` explicitly selects the output muxer from the typed `OutputContainer` (`mp4`, `mov`, or `matroska`) instead of relying on filename inference. FFprobe validates the partial artifact. Only a successful encode and successful validation permit finalization:
+
+```text
+planned final path
+    -> exact sibling .lightflow path
+    -> stale-partial hygiene
+    -> FFmpeg with explicit muxer
+    -> FFprobe validation of partial
+    -> same-directory move or atomic replacement
+    -> output identity + successful job result/history
+```
+
+For a new output, finalization is a same-directory filesystem move. When overwrite is enabled and a final output already exists, `File.Replace` atomically replaces it on the supported Windows filesystem; the old valid file is never deleted before the replacement is completely encoded and validated. A finalization failure leaves the item failed and the prior final intact. Cancellation, FFmpeg failure, or validation failure never promotes the partial. Cleanup is best-effort so a locked artifact remains visibly incomplete under its `.lightflow` name and is reported in the activity log.
+
+Resume and existing-output decisions inspect only the planned final path. Successful output identity is saved only after finalization. Failed attempts clear identity only when no pre-existing final remains; identity for an untouched prior valid output is preserved. Job history continues to describe the planned final path, while diagnostics may identify a retained partial when cleanup fails.
+
 The Tools-tab Inspect, Verify, Rewrap, Proxy, and Contact Sheet commands intentionally remain on their legacy one-off process path. They can migrate later by adding typed capability options/results and using the same planning and execution contracts. Issue #34 does not force unrelated tools through a premature abstraction.
 
 ### Media adapters

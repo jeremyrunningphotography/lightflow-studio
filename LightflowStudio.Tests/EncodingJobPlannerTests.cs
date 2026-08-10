@@ -58,6 +58,21 @@ public sealed class EncodingJobPlannerTests : IDisposable
     }
 
     [Fact]
+    public void Plan_RejectsPartialPathCollisionWithAnySelectedSource()
+    {
+        var regularSource = Source("clip.mov", 10);
+        var definition = Define(regularSource);
+        var initial = EncodingJobPlanner.Plan(definition, _ => new(false, 0));
+        var partialPath = EncodingOutputLifecycle.PartialPathFor(Assert.Single(initial.Items).OutputPaths.Single());
+        definition = Define(regularSource, new EncodingSource(partialPath, 100, TimeSpan.FromSeconds(10)));
+
+        var plan = EncodingJobPlanner.Plan(definition, _ => new(false, 0));
+
+        Assert.False(plan.IsValid);
+        Assert.Contains(plan.Items.SelectMany(item => item.Issues), issue => issue.Code == "encoding.partial-source-collision");
+    }
+
+    [Fact]
     public void Plan_AllowsNoLutWithoutChangingEncodingOptions()
     {
         var definition = Define(Source("one.mov", 60)) with { Options = Options() with { LutPath = null } };

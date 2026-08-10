@@ -2,7 +2,7 @@
 
 **Video processing and workflow tools by Jeremy Running Photography.**
 
-Current version: **0.14.0**
+Current version: **0.15.0**
 
 Lightflow Studio is a native C#/.NET 8 WPF desktop application for preparing, processing, inspecting, and recovering video media.
 
@@ -141,6 +141,7 @@ See `PremiereHelper\README.txt`. Adobe has changed Premiere scripting support ov
 ## Notes
 
 - Batch output can remain beside each source with a customizable filename suffix, go into a named subfolder, or use a specific destination. Source-relative folders are preserved.
+- Active encodes are written beside their destination as `filename.ext.lightflow`. The normal media filename is created or replaced only after FFmpeg succeeds and Lightflow validates the completed partial output. Interrupted artifacts remain visibly incomplete and are safely cleaned when that exact output is retried.
 - The LUT dropdown defaults to `J:\Photography\LUTs`. Choose another LUT folder in Settings, or use **Refresh** after adding LUT files to the current folder.
 - Application defaults are saved in `settings.json`, while the most recently used batch choices are remembered separately in `state.json` under `%LOCALAPPDATA%\Jeremy Running Photography\Lightflow Studio`.
 - An always-on activity log is written to `activity.log` in the same folder — every batch and Tools-tab FFmpeg/FFprobe invocation, its full output, application errors, and unhandled exceptions are recorded there regardless of the in-app Activity Log panel or the **Show encoding details** setting, which only control what is mirrored live in the UI. The log rotates at 5 MB and keeps 3 prior files (`activity.log.1`–`.3`).

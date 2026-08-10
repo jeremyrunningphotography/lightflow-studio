@@ -130,6 +130,16 @@ public partial class TrimEditorWindow : Window
 
     private async void PreviousFrame_Click(object sender, RoutedEventArgs e) => await StepAsync(forward: false);
     private async void NextFrame_Click(object sender, RoutedEventArgs e) => await StepAsync(forward: true);
+    private async void SeekIn_Click(object sender, RoutedEventArgs e) => await SeekBoundaryAsync(TrimBoundary.In);
+    private async void SeekOut_Click(object sender, RoutedEventArgs e) => await SeekBoundaryAsync(TrimBoundary.Out);
+
+    private async Task SeekBoundaryAsync(TrimBoundary boundary)
+    {
+        if (_selection is null || _service is null) return;
+        try { await _playback.SeekToBoundaryAsync(_selection, boundary); }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) { MessageText.Text = exception.Message; }
+    }
 
     private async Task StepAsync(bool forward)
     {
@@ -197,7 +207,9 @@ public partial class TrimEditorWindow : Window
     {
         PositionSlider.IsEnabled = enabled;
         SetInButton.IsEnabled = enabled;
+        InTimeLink.IsEnabled = enabled;
         SetOutButton.IsEnabled = enabled;
+        OutTimeLink.IsEnabled = enabled;
         PreviousFrameButton.IsEnabled = enabled;
         NextFrameButton.IsEnabled = enabled;
         PlayPauseButton.IsEnabled = enabled;

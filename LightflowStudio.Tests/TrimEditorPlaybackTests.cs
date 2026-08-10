@@ -49,6 +49,23 @@ public sealed class TrimEditorPlaybackTests
         Assert.Equal(settled, playback.Snapshot.DisplayedTimestamp);
     }
 
+    [Theory]
+    [InlineData(TrimBoundary.In, 12)]
+    [InlineData(TrimBoundary.Out, 40)]
+    internal async Task TrimBoundaryLink_SeeksToExactDraftTimestamp(TrimBoundary boundary, double expectedSeconds)
+    {
+        var backend = new FakeBackend();
+        await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+        await using var editor = new TrimEditorPlayback(coordinator);
+        var playback = await editor.OpenAsync(Path.GetFullPath("source.mp4"));
+        var range = new MediaRange(playback.SourceInfo!.Duration, TimeSpan.FromSeconds(12), TimeSpan.FromSeconds(40));
+        var selection = new TrimSelection(playback.SourceInfo.Duration, range);
+
+        await editor.SeekToBoundaryAsync(selection, boundary);
+
+        Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), backend.LastSeekPosition);
+    }
+
     [Fact]
     public async Task RepeatedEditorSessions_ReleaseAndReattachTheReusablePresentationSurface()
     {

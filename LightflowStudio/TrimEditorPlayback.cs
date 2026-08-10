@@ -1,5 +1,7 @@
 namespace LightflowStudio;
 
+internal enum TrimBoundary { In, Out }
+
 internal sealed class TrimEditorPlayback : IAsyncDisposable
 {
     private readonly MediaPlaybackCoordinator _coordinator;
@@ -24,6 +26,16 @@ internal sealed class TrimEditorPlayback : IAsyncDisposable
         if (_lease is null) throw new InvalidOperationException("Open the playback source before setting its initial position.");
         if (selection.InitialPlaybackPosition <= TimeSpan.Zero) return _lease.Service.Snapshot.DisplayedTimestamp;
         await _lease.Service.SeekAsync(selection.InitialPlaybackPosition, token).ConfigureAwait(false);
+        return _lease.Service.Snapshot.DisplayedTimestamp;
+    }
+
+    public async Task<MediaPresentationTimestamp?> SeekToBoundaryAsync(
+        TrimSelection selection, TrimBoundary boundary, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        if (_lease is null) throw new InvalidOperationException("Open the playback source before seeking to a trim boundary.");
+        var position = boundary == TrimBoundary.In ? selection.In : selection.Out;
+        await _lease.Service.SeekAsync(position, token).ConfigureAwait(false);
         return _lease.Service.Snapshot.DisplayedTimestamp;
     }
 

@@ -161,6 +161,8 @@ public class UiLayoutTests
         Assert.Equal("PositionSlider_PreviewMouseLeftButtonDown", (string?)slider.Attribute("PreviewMouseLeftButtonDown"));
         Assert.Equal("PlaybackTimelineSlider", ((string?)slider.Attribute("Style"))?.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("TrimRangeIndicator", range.Name.LocalName);
+        Assert.Equal("SeekIn_Click", (string?)Named(document, "InTimeLink").Attribute("Click"));
+        Assert.Equal("SeekOut_Click", (string?)Named(document, "OutTimeLink").Attribute("Click"));
         var hitAreaStyle = document.Descendants(ns + "Style").Single(element =>
             element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "PlaybackTimelineHitArea"));
         Assert.Contains(hitAreaStyle.Descendants(ns + "Border"), element =>

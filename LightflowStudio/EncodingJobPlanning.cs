@@ -68,7 +68,8 @@ internal static class EncodingJobPlanner
     public static JobPlan<EncodingJobOptions> Plan(
         JobDefinition<EncodingJobOptions> definition,
         Func<string, OutputFileSnapshot>? inspectOutput = null,
-        DateTimeOffset? plannedAt = null)
+        DateTimeOffset? plannedAt = null,
+        string? identityCacheDirectory = null)
     {
         inspectOutput ??= OutputFileSnapshot.Read;
         var issues = new List<JobIssue>();
@@ -116,7 +117,7 @@ internal static class EncodingJobPlanner
                 snapshot.Exists,
                 snapshot.Length);
             var skip = preserveExisting && (output.Item.ResolvedRange is null
-                || EncodingOutputIdentityStore.Matches(output.Path, EncodingOutputIdentity.Create(output.Item, definition.Options)));
+                || EncodingOutputIdentityStore.Matches(output.Path, EncodingOutputIdentity.Create(output.Item, definition.Options), identityCacheDirectory));
             var estimate = useDuration
                 ? JobWorkEstimate.Determinate(JobWorkUnit.MediaDuration, output.Item.MediaRange!.EffectiveDuration.TotalSeconds)
                 : JobWorkEstimate.Determinate(JobWorkUnit.Items, 1);

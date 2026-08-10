@@ -7,6 +7,7 @@ public sealed class EncodingJobPlannerTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"Lightflow-JobPlan-{Guid.NewGuid():N}");
     private string OutputRoot => Path.Combine(_root, "output");
+    private string IdentityCache => Path.Combine(_root, "identity-cache");
 
     public EncodingJobPlannerTests() => Directory.CreateDirectory(_root);
 
@@ -127,9 +128,9 @@ public sealed class EncodingJobPlannerTests : IDisposable
         var definition = Define(new EncodingSource(Path.Combine(_root, "one.mov"), 100, trim.SourceDuration, trim, resolved, 123));
         var initial = EncodingJobPlanner.Plan(definition, _ => new(false, 0));
         var output = Assert.Single(initial.Items).OutputPaths.Single();
-        EncodingOutputIdentityStore.Save(output, EncodingOutputIdentity.Create(initial.Items[0].Definition, definition.Options));
+        EncodingOutputIdentityStore.Save(output, EncodingOutputIdentity.Create(initial.Items[0].Definition, definition.Options), IdentityCache);
 
-        var matching = EncodingJobPlanner.Plan(definition, _ => new(true, 100));
+        var matching = EncodingJobPlanner.Plan(definition, _ => new(true, 100), identityCacheDirectory: IdentityCache);
         var changed = definition with
         {
             Items = definition.Items.Select(item => item with
@@ -139,7 +140,7 @@ public sealed class EncodingJobPlannerTests : IDisposable
         };
 
         Assert.Equal(JobPlanDisposition.Skip, Assert.Single(matching.Items).Disposition);
-        Assert.Equal(JobPlanDisposition.Process, Assert.Single(EncodingJobPlanner.Plan(changed, _ => new(true, 100)).Items).Disposition);
+        Assert.Equal(JobPlanDisposition.Process, Assert.Single(EncodingJobPlanner.Plan(changed, _ => new(true, 100), identityCacheDirectory: IdentityCache).Items).Disposition);
     }
 
     private JobDefinition<EncodingJobOptions> Define(params EncodingSource[] sources) =>

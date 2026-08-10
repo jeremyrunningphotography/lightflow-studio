@@ -672,7 +672,7 @@ public partial class MainWindow : Window
         Stopwatch? batchStart = null;
         JobExecution<EncodingJobOptions, EncodingItemResult>? execution = null;
         JobItemExecution<EncodingItemResult>? currentItem = null;
-        string? currentOutput = null;
+        EncodingOutputLifecycle? currentOutput = null;
 
         try
         {
@@ -748,7 +748,6 @@ public partial class MainWindow : Window
                 currentItem = item;
                 var input = item.PlanItem.Definition.SourceIdentity;
                 var output = item.PlanItem.OutputPaths.Single();
-                currentOutput = output;
                 var duration = item.PlanItem.Definition.MediaRange?.EffectiveDuration.TotalSeconds
                                ?? durations.GetValueOrDefault(input);
                 _batchProgress.StartFile();
@@ -779,9 +778,14 @@ public partial class MainWindow : Window
 
                 item.Start();
                 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+                currentOutput = new EncodingOutputLifecycle(output, input);
+                currentOutput.Prepare();
+                if (currentOutput.RemovedStalePartial)
+                    AppendDetailedLog($"Removed stale Lightflow partial output: {currentOutput.PartialPath}");
+                AppendDetailedLog($"Partial output: {currentOutput.PartialPath}");
                 var encodingOptions = plan.Definition.Options;
                 var detailedOutput = encodingOptions.DetailedOutput;
-                var args = FfmpegCommandBuilder.Encode(input, output, encodingOptions.LutPath,
+                var args = FfmpegCommandBuilder.Encode(input, currentOutput.PartialPath, encodingOptions.LutPath,
                     encodingOptions.Recovery, encodingOptions.Resolution, detailedOutput, encodingOptions.Encoding,
                     item.PlanItem.Definition.ResolvedRange);
                 AppendDetailedLog($"Starting FFmpeg: {FormatCommand(_ffmpeg!, args)}");
@@ -798,7 +802,7 @@ public partial class MainWindow : Window
                 }, _jobCancellation.Token);
                 if (exit == 0)
                 {
-                    var validation = await CaptureAsync(_ffprobe!, FfmpegCommandBuilder.ProbeOutput(output), _jobCancellation.Token);
+                    var validation = await CaptureAsync(_ffprobe!, FfmpegCommandBuilder.ProbeOutput(currentOutput.PartialPath), _jobCancellation.Token);
                     var expectsAudio = encodingOptions.Recovery != RecoveryStrategy.VideoOnly
                         && encodingOptions.Encoding.AudioMode != AudioEncodingMode.None
                         && item.PlanItem.Definition.SourceHasAudio != false;
@@ -806,6 +810,9 @@ public partial class MainWindow : Window
                     if (validation.ExitCode == 0 && EncodedOutputValidator.TryValidate(validation.StdOut,
                             item.PlanItem.Definition.MediaRange?.EffectiveDuration ?? TimeSpan.FromSeconds(duration), expectsAudio, out validationError))
                     {
+                        AppendDetailedLog($"Validated partial output: {currentOutput.PartialPath}");
+                        currentOutput.FinalizeValidatedOutput();
+                        AppendDetailedLog($"Finalized output: {output}");
                         var itemResult = new EncodingItemResult(exit,
                             item.PlanItem.Definition.ResolvedRange?.RequestedRange.SourceDuration ?? item.PlanItem.Definition.MediaRange?.SourceDuration,
                             item.PlanItem.Definition.ResolvedRange?.RequestedRange,
@@ -825,22 +832,24 @@ public partial class MainWindow : Window
                     else
                     {
                         var reason = validationError;
-                        EncodingOutputCleanup.DeleteIncomplete(output);
+                        var cleanupWarning = currentOutput.CleanupFailedAttempt();
                         item.Fail(reason, new EncodingItemResult(exit,
                             item.PlanItem.Definition.MediaRange?.SourceDuration,
                             item.PlanItem.Definition.ResolvedRange?.RequestedRange,
                             item.PlanItem.Definition.MediaRange?.EffectiveDuration));
                         AppendLog($"FAILED validation: {input} — {reason}");
+                        if (cleanupWarning is not null) AppendLog($"Warning: {cleanupWarning}");
                     }
                 }
                 else
                 {
-                    EncodingOutputCleanup.DeleteIncomplete(output);
+                    var cleanupWarning = currentOutput.CleanupFailedAttempt();
                     item.Fail($"FFmpeg exited with code {exit}.", new EncodingItemResult(exit,
                         item.PlanItem.Definition.MediaRange?.SourceDuration,
                         item.PlanItem.Definition.ResolvedRange?.RequestedRange,
                         item.PlanItem.Definition.MediaRange?.EffectiveDuration));
                     AppendLog($"FAILED ({exit}): {input}");
+                    if (cleanupWarning is not null) AppendLog($"Warning: {cleanupWarning}");
                 }
 
                 completed++;
@@ -860,7 +869,12 @@ public partial class MainWindow : Window
         catch (OperationCanceledException)
         {
             outcome = "cancelled";
-            if (currentOutput is not null) EncodingOutputCleanup.DeleteIncomplete(currentOutput);
+            if (currentOutput is not null)
+            {
+                var cleanupWarning = currentOutput.CleanupFailedAttempt();
+                if (cleanupWarning is not null) AppendLog($"Warning: {cleanupWarning}");
+                else AppendDetailedLog($"Removed cancelled partial output: {currentOutput.PartialPath}");
+            }
             if (currentItem?.State == JobState.Running) currentItem.Cancel();
             execution?.CancelPending();
             AppendLog("Encoding cancelled.");
@@ -869,7 +883,11 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             outcome = "failed";
-            if (currentOutput is not null) EncodingOutputCleanup.DeleteIncomplete(currentOutput);
+            if (currentOutput is not null)
+            {
+                var cleanupWarning = currentOutput.CleanupFailedAttempt();
+                if (cleanupWarning is not null) AppendLog($"Warning: {cleanupWarning}");
+            }
             if (currentItem?.State == JobState.Running) currentItem.Fail(ex.Message);
             execution?.CancelPending();
             MessageBox.Show(ex.Message, "Encoding error", MessageBoxButton.OK, MessageBoxImage.Error);

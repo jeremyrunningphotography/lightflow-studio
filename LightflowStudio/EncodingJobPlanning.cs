@@ -97,6 +97,8 @@ internal static class EncodingJobPlanner
             .Where(group => group.Count() > 1)
             .Select(group => group.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var sourcePaths = definition.Items.Select(item => Path.GetFullPath(item.SourceIdentity))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (collisions.Count > 0)
             issues.Add(new("encoding.output-collision", "Multiple selected files would create the same output filename.", JobIssueSeverity.Error));
 
@@ -109,6 +111,8 @@ internal static class EncodingJobPlanner
             if (output.Item.ResolvedRange is { } resolvedRange) itemIssues.AddRange(resolvedRange.Validate());
             if (string.Equals(Path.GetFullPath(output.Item.SourceIdentity), Path.GetFullPath(output.Path), StringComparison.OrdinalIgnoreCase))
                 itemIssues.Add(new("encoding.source-overwrite", "The output path cannot be the same as the source path.", JobIssueSeverity.Error));
+            if (sourcePaths.Contains(EncodingOutputLifecycle.PartialPathFor(output.Path)))
+                itemIssues.Add(new("encoding.partial-source-collision", "The Lightflow partial output path would collide with a selected source file.", JobIssueSeverity.Error));
             if (collisions.Contains(output.Path))
                 itemIssues.Add(new("encoding.output-collision", $"The planned output collides with another item: {output.Path}", JobIssueSeverity.Error));
 

@@ -90,6 +90,22 @@ public sealed class FfmpegCommandBuilderTests
         AssertContainsSequence(args, "-loglevel", "info");
     }
 
+    [Theory]
+    [InlineData(OutputContainer.Mp4, "mp4")]
+    [InlineData(OutputContainer.Mov, "mov")]
+    [InlineData(OutputContainer.Mkv, "matroska")]
+    internal void Encode_ExplicitlySelectsMuxerForLightflowPartialPath(OutputContainer container, string muxer)
+    {
+        var options = EncodingPresetCatalog.Recommended with { Container = container };
+        var output = $"output{EncodingPathPlanner.ContainerExtension(container)}.lightflow";
+
+        var args = FfmpegCommandBuilder.Encode("input.mov", output, null, RecoveryStrategy.Normal,
+            OutputResolution.Source, encoding: options);
+
+        AssertContainsSequence(args, "-f", muxer, output);
+        Assert.Equal(output, args[^1]);
+    }
+
     [Fact]
     public void Encode_HevcTenBitUsesSelectedPresetTuneAndMultipass()
     {

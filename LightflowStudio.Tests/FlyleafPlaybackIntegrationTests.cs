@@ -95,6 +95,39 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
             using (File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
     }
 
+    [Fact]
+    public async Task PresentationSurface_AttachesAcrossRepeatedSameAndDifferentSourceEditorSessions()
+    {
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var first = Path.Combine(_root, "first.mkv");
+        var second = Path.Combine(_root, "second.mkv");
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), first);
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), second);
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            await using var coordinator = new MediaPlaybackCoordinator(() =>
+                new MediaPlaybackService(new FlyleafPlaybackBackend(dependencies)));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            var surfaces = new List<object>();
+
+            foreach (var source in new[] { first, first, second, first })
+            {
+                await using var editor = new TrimEditorPlayback(coordinator);
+                var playback = await editor.OpenAsync(source, timeout.Token);
+                using var view = new MediaPlaybackView(playback);
+                Assert.NotNull(view.Content);
+                surfaces.Add(view.Content);
+                await playback.PlayAsync(timeout.Token);
+                await Task.Delay(100, timeout.Token);
+                await playback.PauseAsync(timeout.Token);
+                Assert.Equal(MediaPlaybackState.Paused, playback.Snapshot.State);
+            }
+            Assert.Equal(4, surfaces.Distinct().Count());
+        });
+    }
+
     private static void GenerateCfrFixture(string ffmpeg, string output) => Run(ffmpeg,
         "-hide_banner", "-loglevel", "error", "-y",
         "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=10:duration=1",

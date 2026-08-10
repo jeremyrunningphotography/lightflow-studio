@@ -27,7 +27,8 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
     public event EventHandler<MediaPlaybackSnapshot>? StateChanged;
     public event EventHandler<MediaPresentationTimestamp>? FramePresented;
 
-    public System.Windows.FrameworkElement CreatePresentationSurface() => _backend.CreatePresentationSurface();
+    public MediaPlaybackPresentation CreatePresentation() =>
+        new(_backend.CreatePresentationSurface(), _backend.ReleasePresentationSurface);
 
     public Task OpenAsync(string sourcePath, CancellationToken token = default)
     {

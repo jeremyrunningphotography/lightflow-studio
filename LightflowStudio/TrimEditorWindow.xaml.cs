@@ -10,15 +10,17 @@ public partial class TrimEditorWindow : Window
     private readonly string _sourcePath;
     private readonly MediaRange? _appliedRange;
     private readonly TrimEditorPlayback _playback = new(App.Playback);
+    private readonly TrimEditorCloseLifecycle _closeLifecycle;
     private IMediaPlaybackService? _service;
+    private MediaPlaybackView? _previewView;
     private TrimSelection? _selection;
     private bool _updatingPosition;
     private bool _releaseComplete;
-    private bool _closeAfterRelease;
 
     internal TrimEditorWindow(string sourcePath, MediaRange? appliedRange)
     {
         InitializeComponent();
+        _closeLifecycle = new(() => _playback.DisposeAsync());
         _sourcePath = sourcePath;
         _appliedRange = appliedRange;
         SourceName.Text = Path.GetFileName(sourcePath);
@@ -36,8 +38,9 @@ public partial class TrimEditorWindow : Window
             _service.StateChanged += Playback_StateChanged;
             if (_service.SourceInfo is not { } info || info.Duration <= TimeSpan.Zero || _service.Snapshot.State == MediaPlaybackState.Failed)
                 throw new InvalidOperationException(_service.Snapshot.Error?.Message ?? "The source does not provide usable playback timing.");
+            _previewView = new MediaPlaybackView(_service);
             PreviewHost.Children.Clear();
-            PreviewHost.Children.Add(new MediaPlaybackView(_service));
+            PreviewHost.Children.Add(_previewView);
             _selection = new(info.Duration, _appliedRange);
             PositionSlider.Maximum = info.Duration.TotalMilliseconds;
             DurationText.Text = FormatTimestamp(info.Duration);
@@ -125,18 +128,18 @@ public partial class TrimEditorWindow : Window
         UpdateSelectionText();
     }
 
-    private void Apply_Click(object sender, RoutedEventArgs e)
+    private async void Apply_Click(object sender, RoutedEventArgs e)
     {
         if (_selection is null) return;
         try
         {
             AppliedRange = _selection.Apply();
-            DialogResult = true;
+            await CloseAfterReleaseAsync(true);
         }
         catch (InvalidOperationException exception) { MessageText.Text = exception.Message; }
     }
 
-    private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+    private async void Cancel_Click(object sender, RoutedEventArgs e) => await CloseAfterReleaseAsync(false);
 
     private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
@@ -166,21 +169,39 @@ public partial class TrimEditorWindow : Window
         ApplyButton.IsEnabled = enabled;
     }
 
-    protected override async void OnClosing(CancelEventArgs e)
+    protected override void OnClosing(CancelEventArgs e)
     {
-        if (_closeAfterRelease || _releaseComplete)
+        if (_releaseComplete)
         {
             base.OnClosing(e);
             return;
         }
 
         e.Cancel = true;
+        _ = CloseAfterReleaseAsync(null);
+    }
+
+    private async Task CloseAfterReleaseAsync(bool? requestedResult)
+    {
         SetEditorEnabled(false);
         if (_service is not null) _service.StateChanged -= Playback_StateChanged;
-        await _playback.DisposeAsync();
-        _releaseComplete = true;
-        _closeAfterRelease = true;
-        Close();
+        PreviewHost.Children.Clear();
+        var previewView = _previewView;
+        _previewView = null;
+        try
+        {
+            var preservedResult = await _closeLifecycle.CloseAsync(requestedResult);
+            previewView?.Dispose();
+            _releaseComplete = true;
+            if (preservedResult.HasValue) DialogResult = preservedResult.Value;
+            else Close();
+        }
+        catch (Exception exception)
+        {
+            previewView?.Dispose();
+            MessageText.Text = $"Playback could not close cleanly: {exception.Message}";
+            SetEditorEnabled(true);
+        }
     }
 
     private static string FormatTimestamp(TimeSpan value)

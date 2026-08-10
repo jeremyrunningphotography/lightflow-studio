@@ -14,3 +14,7 @@ Each ADR should include:
 - Alternatives considered
 - Consequences
 - Follow-up work
+
+## Accepted decisions
+
+- [ADR 0001: Lightflow Catalog persistence](0001-lightflow-catalog-persistence.md)

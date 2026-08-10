@@ -30,8 +30,7 @@ internal sealed class JobHistoryStore : IJobHistoryStore
     private readonly string _path;
 
     public JobHistoryStore(string path) => _path = path;
-    public static string StorePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Jeremy Running Photography", "Lightflow Studio", "job-history.json");
+    public static string StorePath => LightflowStorageLocations.Current.JobHistoryPath;
 
     public IReadOnlyList<EncodingJobHistoryRecord> Load()
     {

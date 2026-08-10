@@ -30,9 +30,7 @@ internal sealed record EncodingOutputIdentity(
 internal static class EncodingOutputIdentityStore
 {
     private const int SchemaVersion = 1;
-    public static string CacheDirectory => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Jeremy Running Photography", "Lightflow Studio", "output-identities");
+    public static string CacheDirectory => LightflowStorageLocations.Current.OutputIdentityDirectory;
 
     public static string PathFor(string outputPath, string? cacheDirectory = null)
     {

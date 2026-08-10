@@ -50,11 +50,7 @@ internal sealed class TrimHistoryStore : ITrimHistoryStore
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
     }
 
-    public static string StorePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Jeremy Running Photography",
-        "Lightflow Studio",
-        "trim-history.json");
+    public static string StorePath => LightflowStorageLocations.Current.TrimHistoryPath;
 
     public MediaRange? Restore(string path)
     {

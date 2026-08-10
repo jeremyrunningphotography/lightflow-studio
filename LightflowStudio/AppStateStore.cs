@@ -26,11 +26,7 @@ internal sealed record AppState
 
 internal static class AppStateStore
 {
-    public static string StatePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Jeremy Running Photography",
-        "Lightflow Studio",
-        "state.json");
+    public static string StatePath => LightflowStorageLocations.Current.StatePath;
 
     public static AppState Load(string path)
     {

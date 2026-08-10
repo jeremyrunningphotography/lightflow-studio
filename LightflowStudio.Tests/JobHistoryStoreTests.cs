@@ -120,6 +120,48 @@ public sealed class JobHistoryStoreTests : IDisposable
         Assert.Equal(2, prepared.Sources.Count(source => !source.IsAvailable));
     }
 
+    [Fact]
+    public void RerunMaterialization_RestoresValidatedSourceEvenWhenFolderDiscoveryDoesNotReturnIt()
+    {
+        var inputFolder = Path.Combine(_root, "historic-input");
+        var sourceFolder = Path.Combine(_root, "still-available-elsewhere");
+        Directory.CreateDirectory(inputFolder);
+        Directory.CreateDirectory(sourceFolder);
+        var sourcePath = Path.Combine(sourceFolder, "source.mp4");
+        File.WriteAllText(sourcePath, "source");
+        var historic = Item(sourcePath);
+        var original = Record(JobState.Completed, DateTimeOffset.UtcNow, [historic]);
+        var options = original.Definition.Options with { InputFolder = inputFolder };
+        var definition = original.Definition with { Options = options };
+        var record = original with { Definition = definition, Plan = original.Plan with { Definition = definition } };
+
+        Assert.Empty(BatchFileSelection.Discover(inputFolder, recursive: true));
+        var restoration = EncodingHistoryRerun.Materialize(EncodingHistoryRerun.Prepare(record));
+
+        var restored = Assert.Single(restoration.Restored);
+        Assert.True(restored.IsSelected);
+        Assert.Equal(sourcePath, restored.FilePath);
+        Assert.Equal(historic.MediaRange, restored.TrimRange);
+        Assert.Empty(restoration.Unavailable);
+        Assert.Equal("Restored 1 file from History — review before encoding", EncodingHistoryRerun.RestorationMessage(restoration));
+    }
+
+    [Fact]
+    public void RerunMaterialization_ReportsValidatedSourceThatDisappearsBeforeRowCreationAsUnavailable()
+    {
+        var sourcePath = Path.Combine(_root, "disappearing.mp4");
+        File.WriteAllText(sourcePath, "source");
+        var preparation = EncodingHistoryRerun.Prepare(Record(JobState.Completed, DateTimeOffset.UtcNow, [Item(sourcePath)]));
+        Assert.Single(preparation.Available);
+        File.Delete(sourcePath);
+
+        var restoration = EncodingHistoryRerun.Materialize(preparation);
+
+        Assert.Empty(restoration.Restored);
+        Assert.Single(restoration.Unavailable);
+        Assert.Equal("Restored 0 unchanged files; 1 unavailable", EncodingHistoryRerun.RestorationMessage(restoration));
+    }
+
     private static JobItemDefinition Item(string path)
     {
         var info = new FileInfo(path);

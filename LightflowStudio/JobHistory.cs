@@ -123,6 +123,9 @@ internal sealed record EncodingRerunPreparation(EncodingJobOptions Options, IRea
 {
     public IReadOnlyList<EncodingRerunSource> Available => Sources.Where(source => source.IsAvailable).ToList();
 }
+internal sealed record EncodingRerunRestoration(
+    IReadOnlyList<BatchFileOption> Restored,
+    IReadOnlyList<EncodingRerunSource> Unavailable);
 
 internal static class EncodingHistoryRerun
 {
@@ -142,5 +145,46 @@ internal static class EncodingHistoryRerun
             { return new EncodingRerunSource(item, false, "Source file could not be inspected."); }
         }).ToList();
         return new(record.Definition.Options, sources);
+    }
+
+    public static EncodingRerunRestoration Materialize(EncodingRerunPreparation preparation)
+    {
+        var restored = new List<BatchFileOption>();
+        var unavailable = preparation.Sources.Where(source => !source.IsAvailable).ToList();
+        foreach (var source in preparation.Available)
+        {
+            try
+            {
+                var info = new FileInfo(source.Item.SourceIdentity);
+                var currentIdentity = TrimSourceIdentity.Read(source.Item.SourceIdentity);
+                if (!info.Exists || currentIdentity is null
+                    || source.Item.SourceSizeBytes is { } size && info.Length != size
+                    || source.Item.SourceLastWriteUtcTicks is { } ticks && currentIdentity.LastWriteUtcTicks != ticks)
+                {
+                    unavailable.Add(source with { IsAvailable = false, Problem = "Source file changed before it could be restored." });
+                    continue;
+                }
+
+                var option = new BatchFileOption(source.Item.SourceIdentity,
+                    Path.GetRelativePath(preparation.Options.InputFolder, source.Item.SourceIdentity), info.Length);
+                if (source.Item.MediaRange is { } range && !range.IsFullSource) option.ApplyTrim(range);
+                option.IsSelected = true;
+                restored.Add(option);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                unavailable.Add(source with { IsAvailable = false, Problem = "Source file could not be restored." });
+            }
+        }
+        return new(restored, unavailable);
+    }
+
+    public static string RestorationMessage(EncodingRerunRestoration restoration)
+    {
+        var restored = restoration.Restored.Count;
+        var unavailable = restoration.Unavailable.Count;
+        return unavailable == 0
+            ? $"Restored {restored} file{(restored == 1 ? "" : "s")} from History — review before encoding"
+            : $"Restored {restored} unchanged file{(restored == 1 ? "" : "s")}; {unavailable} unavailable";
     }
 }

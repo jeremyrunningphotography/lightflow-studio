@@ -942,8 +942,8 @@ public partial class MainWindow : Window
     {
         if (HistoryList.SelectedItem is not EncodingJobHistoryRecord record) return;
         var preparation = EncodingHistoryRerun.Prepare(record);
-        var available = preparation.Available;
-        if (available.Count == 0)
+        var restoration = EncodingHistoryRerun.Materialize(preparation);
+        if (restoration.Restored.Count == 0)
         {
             MessageBox.Show("None of the original source files are still available and unchanged.", "Review Encoding job", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
@@ -969,21 +969,16 @@ public partial class MainWindow : Window
         LutSelection.SelectedItem = LutSelection.Items.Cast<LutOption>().FirstOrDefault(option =>
             string.Equals(option.FilePath, options.LutPath, StringComparison.OrdinalIgnoreCase))
             ?? LutSelection.Items.Cast<LutOption>().First(option => option.FilePath is null);
-        RefreshBatchFiles();
-
-        var selectedPaths = available.Select(source => source.Item.SourceIdentity).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in _batchFiles)
-        {
-            file.IsSelected = selectedPaths.Contains(file.FilePath);
-            var historic = available.FirstOrDefault(source => string.Equals(source.Item.SourceIdentity, file.FilePath, StringComparison.OrdinalIgnoreCase));
-            if (historic?.Item.MediaRange is { } range && !range.IsFullSource) file.ApplyTrim(range);
-        }
+        _batchFolderRefreshTimer.Stop();
+        _batchMetadataCts?.Cancel();
+        _batchMetadataCts?.Dispose();
+        _batchMetadataCts = new CancellationTokenSource();
+        _batchFiles.Clear();
+        foreach (var file in restoration.Restored) _batchFiles.Add(file);
         UpdateBatchFileSummary();
+        _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
         MainTabs.SelectedIndex = 0;
-        var unavailable = preparation.Sources.Count - available.Count;
-        CurrentFileText.Text = unavailable == 0
-            ? $"Restored {available.Count} file{(available.Count == 1 ? "" : "s")} from History — review before encoding"
-            : $"Restored {available.Count} unchanged file{(available.Count == 1 ? "" : "s")}; {unavailable} missing or changed";
+        CurrentFileText.Text = EncodingHistoryRerun.RestorationMessage(restoration);
     }
     private bool ValidateEncoderInputs()
     {

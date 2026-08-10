@@ -668,6 +668,7 @@ public partial class MainWindow : Window
         Stopwatch? batchStart = null;
         JobExecution<EncodingJobOptions, EncodingItemResult>? execution = null;
         JobItemExecution<EncodingItemResult>? currentItem = null;
+        string? currentOutput = null;
 
         try
         {
@@ -686,6 +687,7 @@ public partial class MainWindow : Window
             CurrentFileText.Text = $"Analyzing {total} file{(total == 1 ? "" : "s")}…";
             AppendLog($"Preparing batch — {total} file{(total == 1 ? "" : "s")} discovered.");
             var durations = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            var resolvedRanges = new Dictionary<string, ResolvedMediaRange>(StringComparer.OrdinalIgnoreCase);
             foreach (var source in sources)
             {
                 _jobCancellation.Token.ThrowIfCancellationRequested();
@@ -693,8 +695,19 @@ public partial class MainWindow : Window
                 durations[source.FilePath] = analyzedDuration > 0
                     ? analyzedDuration
                     : await ProbeDurationAsync(source.FilePath, _jobCancellation.Token);
+                if (source.TrimRange is { } trim)
+                {
+                    var currentIdentity = TrimSourceIdentity.Read(source.FilePath);
+                    if (source.SourceIdentity is null || currentIdentity is null || !source.SourceIdentity.Matches(currentIdentity))
+                        throw new InvalidOperationException($"{source.DisplayName} changed after its trim was selected. Reopen Trim and choose the range again.");
+                    var startTimestamp = source.Metadata?.StartTimestamp ?? TimeSpan.Zero;
+                    var frameProbe = await CaptureAsync(_ffprobe!, FfmpegCommandBuilder.ProbeVideoFrames(source.FilePath), _jobCancellation.Token);
+                    if (frameProbe.ExitCode != 0)
+                        throw new InvalidOperationException($"Could not validate the saved trim for {source.DisplayName}.");
+                    resolvedRanges[source.FilePath] = EncodingRangeResolver.Resolve(trim, startTimestamp, frameProbe.StdOut);
+                }
             }
-            var plan = CreateEncodingPlan(durations);
+            var plan = CreateEncodingPlan(durations, resolvedRanges);
             if (!plan.IsValid)
                 throw new InvalidOperationException(plan.Issues.Concat(plan.Items.SelectMany(item => item.Issues))
                     .First(issue => issue.Severity == JobIssueSeverity.Error).Message);
@@ -720,6 +733,7 @@ public partial class MainWindow : Window
                 currentItem = item;
                 var input = item.PlanItem.Definition.SourceIdentity;
                 var output = item.PlanItem.OutputPaths.Single();
+                currentOutput = output;
                 var duration = item.PlanItem.Definition.MediaRange?.EffectiveDuration.TotalSeconds
                                ?? durations.GetValueOrDefault(input);
                 _batchProgress.StartFile();
@@ -728,12 +742,15 @@ public partial class MainWindow : Window
                 AppendDetailedLog($"File {completed + 1} of {total}: {input}");
                 AppendDetailedLog($"Output: {output}");
                 AppendDetailedLog($"Detected duration: {FormatDuration(duration)}");
+                if (item.PlanItem.Definition.ResolvedRange is { } appliedRange)
+                    AppendDetailedLog($"Applied trim: In {appliedRange.RequestedRange.EffectiveIn:c}; Out frame {appliedRange.RequestedRange.EffectiveOut:c}; encoded duration {appliedRange.EffectiveDuration:c}; source start {appliedRange.SourceStartTimestamp:c}");
 
                 if (item.State == JobState.Skipped)
                 {
                     completed++;
                     AppendLog($"Preserved existing file: {output}");
                     UpdateBatch(execution, item, completed, total, batchStart);
+                    currentOutput = null;
                     if (_closeAfterCurrent)
                     {
                         outcome = "stopped after current file";
@@ -748,7 +765,8 @@ public partial class MainWindow : Window
                 var encodingOptions = plan.Definition.Options;
                 var detailedOutput = encodingOptions.DetailedOutput;
                 var args = FfmpegCommandBuilder.Encode(input, output, encodingOptions.LutPath,
-                    encodingOptions.Recovery, encodingOptions.Resolution, detailedOutput, encodingOptions.Encoding);
+                    encodingOptions.Recovery, encodingOptions.Resolution, detailedOutput, encodingOptions.Encoding,
+                    item.PlanItem.Definition.ResolvedRange);
                 AppendDetailedLog($"Starting FFmpeg: {FormatCommand(_ffmpeg!, args)}");
                 var exit = await RunFfmpegProgressAsync(args, duration, detailedOutput, p =>
                 {
@@ -759,18 +777,55 @@ public partial class MainWindow : Window
                 }, _jobCancellation.Token);
                 if (exit == 0)
                 {
-                    item.Complete(new EncodingItemResult(exit, item.PlanItem.Definition.MediaRange?.EffectiveDuration));
-                    AppendLog($"Completed: {output}");
+                    var validation = await CaptureAsync(_ffprobe!, FfmpegCommandBuilder.ProbeOutput(output), _jobCancellation.Token);
+                    var expectsAudio = encodingOptions.Recovery != RecoveryStrategy.VideoOnly
+                        && encodingOptions.Encoding.AudioMode != AudioEncodingMode.None
+                        && item.PlanItem.Definition.SourceHasAudio != false;
+                    var validationError = "FFprobe could not open the encoded file.";
+                    if (validation.ExitCode == 0 && EncodedOutputValidator.TryValidate(validation.StdOut,
+                            item.PlanItem.Definition.MediaRange?.EffectiveDuration ?? TimeSpan.FromSeconds(duration), expectsAudio, out validationError))
+                    {
+                        var itemResult = new EncodingItemResult(exit,
+                            item.PlanItem.Definition.ResolvedRange?.RequestedRange.SourceDuration ?? item.PlanItem.Definition.MediaRange?.SourceDuration,
+                            item.PlanItem.Definition.ResolvedRange?.RequestedRange,
+                            item.PlanItem.Definition.MediaRange?.EffectiveDuration);
+                        try
+                        {
+                            EncodingOutputIdentityStore.Save(output, EncodingOutputIdentity.Create(item.PlanItem.Definition, encodingOptions));
+                            item.Complete(itemResult);
+                        }
+                        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                        {
+                            item.CompleteWithWarnings(["The output is valid, but its resume identity could not be saved."], itemResult);
+                            AppendLog($"Warning: resume information could not be saved for {output}: {exception.Message}");
+                        }
+                        AppendLog($"Completed: {output}");
+                    }
+                    else
+                    {
+                        var reason = validationError;
+                        EncodingOutputCleanup.DeleteIncomplete(output);
+                        item.Fail(reason, new EncodingItemResult(exit,
+                            item.PlanItem.Definition.MediaRange?.SourceDuration,
+                            item.PlanItem.Definition.ResolvedRange?.RequestedRange,
+                            item.PlanItem.Definition.MediaRange?.EffectiveDuration));
+                        AppendLog($"FAILED validation: {input} — {reason}");
+                    }
                 }
                 else
                 {
-                    item.Fail($"FFmpeg exited with code {exit}.", new EncodingItemResult(exit, item.PlanItem.Definition.MediaRange?.EffectiveDuration));
+                    EncodingOutputCleanup.DeleteIncomplete(output);
+                    item.Fail($"FFmpeg exited with code {exit}.", new EncodingItemResult(exit,
+                        item.PlanItem.Definition.MediaRange?.SourceDuration,
+                        item.PlanItem.Definition.ResolvedRange?.RequestedRange,
+                        item.PlanItem.Definition.MediaRange?.EffectiveDuration));
                     AppendLog($"FAILED ({exit}): {input}");
                 }
 
                 completed++;
                 UpdateBatch(execution, item, completed, total, batchStart);
                 currentItem = null;
+                currentOutput = null;
                 if (_closeAfterCurrent)
                 {
                     outcome = "stopped after current file";
@@ -784,6 +839,7 @@ public partial class MainWindow : Window
         catch (OperationCanceledException)
         {
             outcome = "cancelled";
+            if (currentOutput is not null) EncodingOutputCleanup.DeleteIncomplete(currentOutput);
             if (currentItem?.State == JobState.Running) currentItem.Cancel();
             execution?.CancelPending();
             AppendLog("Encoding cancelled.");
@@ -792,6 +848,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             outcome = "failed";
+            if (currentOutput is not null) EncodingOutputCleanup.DeleteIncomplete(currentOutput);
             if (currentItem?.State == JobState.Running) currentItem.Fail(ex.Message);
             execution?.CancelPending();
             MessageBox.Show(ex.Message, "Encoding error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -828,6 +885,7 @@ public partial class MainWindow : Window
     private bool ValidateEncoderInputs()
     {
         if (_ffmpeg is null || !File.Exists(_ffmpeg)) { MessageBox.Show("FFmpeg was not found. Open Settings to configure ffmpeg.exe."); return false; }
+        if (_ffprobe is null || !File.Exists(_ffprobe)) { MessageBox.Show("FFprobe was not found beside FFmpeg. Reinstall the packaged dependencies or update the FFmpeg path in Settings."); return false; }
         if (!Directory.Exists(InputFolder.Text)) { MessageBox.Show("Select a valid video folder."); return false; }
         if (_batchFiles.All(file => !file.IsSelected)) { MessageBox.Show("Select at least one video file for this batch."); return false; }
         if (!LutCatalog.IsValidSelection(LutSelection.SelectedItem as LutOption)) { MessageBox.Show("Select a valid .cube LUT from the LUT dropdown, or choose No LUT."); return false; }
@@ -842,7 +900,9 @@ public partial class MainWindow : Window
         return true;
     }
 
-    private JobPlan<EncodingJobOptions> CreateEncodingPlan(IReadOnlyDictionary<string, double>? durations = null)
+    private JobPlan<EncodingJobOptions> CreateEncodingPlan(
+        IReadOnlyDictionary<string, double>? durations = null,
+        IReadOnlyDictionary<string, ResolvedMediaRange>? resolvedRanges = null)
     {
         var resolution = (OutputResolution)Math.Clamp(Resolution.SelectedIndex, 0, 5);
         var recovery = (RecoveryStrategy)Math.Clamp(RecoveryMode.SelectedIndex, 0, 2);
@@ -865,10 +925,15 @@ public partial class MainWindow : Window
             return new EncodingSource(
                 file.FilePath,
                 file.FileSizeBytes,
-                seconds > 0 ? TimeSpan.FromSeconds(seconds) : null);
+                seconds > 0 ? TimeSpan.FromSeconds(seconds) : null,
+                file.TrimRange,
+                resolvedRanges?.GetValueOrDefault(file.FilePath),
+                file.SourceIdentity?.LastWriteUtcTicks,
+                file.Metadata?.HasAudio);
         });
         return EncodingJobPlanner.Plan(EncodingJobPlanner.Define(options, sources));
     }
+
 
     private string? SelectedLutPath => (LutSelection.SelectedItem as LutOption)?.FilePath;
 
@@ -900,6 +965,19 @@ public partial class MainWindow : Window
             if (process.ExitCode != 0 && !detailedOutput) ShowInActivityLog(errors.ToString());
             progress(100);
             return process.ExitCode;
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                if (!process.HasExited) process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync(CancellationToken.None);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                _activityLogFile.TryAppend($"[App] Could not stop the cancelled encoder process cleanly: {exception.Message}");
+            }
+            throw;
         }
         finally
         {

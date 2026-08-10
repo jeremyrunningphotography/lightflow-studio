@@ -68,11 +68,32 @@ internal sealed record MediaRange(TimeSpan SourceDuration, TimeSpan? In = null, 
     }
 }
 
+internal sealed record ResolvedMediaRange(
+    MediaRange RequestedRange,
+    TimeSpan SourceStartTimestamp,
+    TimeSpan AbsoluteIn,
+    TimeSpan ExclusiveOut,
+    TimeSpan EffectiveDuration)
+{
+    public IReadOnlyList<JobIssue> Validate()
+    {
+        var issues = RequestedRange.Validate().ToList();
+        if (AbsoluteIn < SourceStartTimestamp)
+            issues.Add(new("media.absolute-in-before-start", "The resolved trim begins before the source timeline.", JobIssueSeverity.Error));
+        if (ExclusiveOut <= AbsoluteIn || EffectiveDuration <= TimeSpan.Zero)
+            issues.Add(new("media.empty-resolved-range", "The resolved trim must contain at least one complete decoded frame.", JobIssueSeverity.Error));
+        return issues;
+    }
+}
+
 internal sealed record JobItemDefinition(
     Guid Id,
     string SourceIdentity,
     long? SourceSizeBytes = null,
-    MediaRange? MediaRange = null);
+    MediaRange? MediaRange = null,
+    ResolvedMediaRange? ResolvedRange = null,
+    long? SourceLastWriteUtcTicks = null,
+    bool? SourceHasAudio = null);
 
 internal sealed record JobDefinition<TOptions>(
     Guid Id,

@@ -22,10 +22,18 @@ internal static class MediaMetadataParser
             var codec = ReadString(video, "codec_name");
             var hasAudio = streams.Any(stream =>
                 stream.TryGetProperty("codec_type", out var type) && type.GetString() == "audio");
-            var duration = document.RootElement.TryGetProperty("format", out var format)
+            var formatDuration = document.RootElement.TryGetProperty("format", out var format)
                 ? ReadDouble(format, "duration")
                 : 0;
-            metadata = new MediaMetadata(width, height, frameRate, duration, fileSizeBytes, codec, hasAudio);
+            var startTimestamp = ReadDouble(video, "start_time");
+            if (startTimestamp == 0 && format.ValueKind != JsonValueKind.Undefined)
+                startTimestamp = ReadDouble(format, "start_time");
+            var streamDuration = ReadDouble(video, "duration");
+            var duration = streamDuration > 0 ? streamDuration
+                : startTimestamp > 0 && formatDuration > startTimestamp ? formatDuration - startTimestamp
+                : formatDuration;
+            metadata = new MediaMetadata(width, height, frameRate, duration, fileSizeBytes, codec, hasAudio,
+                TimeSpan.FromSeconds(Math.Max(0, startTimestamp)));
             return width > 0 && height > 0;
         }
         catch (JsonException)

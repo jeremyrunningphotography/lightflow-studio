@@ -3,7 +3,8 @@ namespace LightflowStudio;
 internal static class FfmpegCommandBuilder
 {
     public static List<string> Encode(string input, string output, string? lut, RecoveryStrategy recovery,
-        OutputResolution resolution, bool detailedOutput = false, EncodingOptions? encoding = null)
+        OutputResolution resolution, bool detailedOutput = false, EncodingOptions? encoding = null,
+        ResolvedMediaRange? trim = null)
     {
         if (!Enum.IsDefined(recovery)) throw new ArgumentOutOfRangeException(nameof(recovery));
         if (!Enum.IsDefined(resolution)) throw new ArgumentOutOfRangeException(nameof(resolution));
@@ -14,11 +15,14 @@ internal static class FfmpegCommandBuilder
         var args = new List<string> { "-hide_banner", "-loglevel", detailedOutput ? "verbose" : "info", "-y" };
         if (recovery != RecoveryStrategy.Normal)
             args.AddRange(["-fflags", "+discardcorrupt+genpts", "-err_detect", "ignore_err"]);
+        if (trim is not null) args.Add("-copyts");
         args.AddRange(["-i", input, "-map", "0:v:0"]);
         if (recovery != RecoveryStrategy.VideoOnly && options.AudioMode != AudioEncodingMode.None)
             args.AddRange(["-map", recovery == RecoveryStrategy.Salvage ? "0:a:0?" : "0:a?"]);
 
         var filters = new List<string>();
+        if (trim is not null)
+            filters.Add($"trim=start={Seconds(trim.AbsoluteIn)}:end={Seconds(trim.ExclusiveOut)},setpts=PTS-STARTPTS");
         if (!string.IsNullOrEmpty(lut)) filters.Add($"lut3d=file='{EscapeFilterPath(lut)}'");
         if (options.Deinterlace) filters.Add("bwdif");
         if (options.FrameRate > 0) filters.Add($"fps={options.FrameRate.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
@@ -43,7 +47,7 @@ internal static class FfmpegCommandBuilder
         if (options.SpatialAq || options.TemporalAq) args.AddRange(["-aq-strength", options.AqStrength.ToString()]);
         args.AddRange(["-pix_fmt", options.PixelFormat == VideoPixelFormat.P010 ? "p010le" : "yuv420p"]);
 
-        AddAudio(args, recovery, options);
+        AddAudio(args, recovery, options, trim);
         if (options.FastStart && options.Container is OutputContainer.Mp4 or OutputContainer.Mov)
             args.AddRange(["-movflags", "+faststart"]);
         args.AddRange(["-progress", "pipe:1", "-nostats", output]);
@@ -70,14 +74,14 @@ internal static class FfmpegCommandBuilder
         }
     }
 
-    private static void AddAudio(List<string> args, RecoveryStrategy recovery, EncodingOptions options)
+    private static void AddAudio(List<string> args, RecoveryStrategy recovery, EncodingOptions options, ResolvedMediaRange? trim)
     {
         if (recovery == RecoveryStrategy.VideoOnly || options.AudioMode == AudioEncodingMode.None)
         {
             args.Add("-an");
             return;
         }
-        if (recovery == RecoveryStrategy.Normal && options.AudioMode == AudioEncodingMode.Copy)
+        if (recovery == RecoveryStrategy.Normal && options.AudioMode == AudioEncodingMode.Copy && trim is null)
         {
             args.AddRange(["-c:a", "copy"]);
             return;
@@ -86,8 +90,14 @@ internal static class FfmpegCommandBuilder
         args.AddRange(["-c:a", "aac", "-b:a", $"{options.AudioBitrateKbps}k"]);
         if (options.AudioSampleRate > 0) args.AddRange(["-ar", options.AudioSampleRate.ToString()]);
         if (options.AudioChannels > 0) args.AddRange(["-ac", options.AudioChannels.ToString()]);
-        if (recovery == RecoveryStrategy.Salvage) args.AddRange(["-af", "aresample=async=1:first_pts=0"]);
+        var audioFilters = new List<string>();
+        if (trim is not null)
+            audioFilters.Add($"atrim=start={Seconds(trim.AbsoluteIn)}:end={Seconds(trim.ExclusiveOut)},asetpts=PTS-STARTPTS");
+        if (recovery == RecoveryStrategy.Salvage) audioFilters.Add("aresample=async=1:first_pts=0");
+        if (audioFilters.Count > 0) args.AddRange(["-af", string.Join(',', audioFilters)]);
     }
+
+    private static string Seconds(TimeSpan value) => value.TotalSeconds.ToString("0.#########", System.Globalization.CultureInfo.InvariantCulture);
 
     private static string TuneName(EncoderTune tune) => tune switch
     {
@@ -99,7 +109,11 @@ internal static class FfmpegCommandBuilder
 
     public static List<string> ProbeDuration(string file) => ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", file];
     public static List<string> ProbeMetadata(string file) =>
-        ["-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name,width,height,avg_frame_rate", "-of", "json", file];
+        ["-v", "error", "-show_entries", "format=duration,start_time:stream=codec_type,codec_name,width,height,avg_frame_rate,start_time,duration", "-of", "json", file];
+    public static List<string> ProbeVideoFrames(string file) =>
+        ["-v", "error", "-select_streams", "v:0", "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", file];
+    public static List<string> ProbeOutput(string file) =>
+        ["-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name", "-of", "json", file];
     public static List<string> Inspect(string file) => ["-hide_banner", "-show_format", "-show_streams", file];
     public static List<string> Verify(string file) => ["-v", "warning", "-i", file, "-map", "0:v:0", "-f", "null", "NUL"];
     public static List<string> Rewrap(string input, string output) => ["-hide_banner", "-y", "-i", input, "-map", "0", "-c", "copy", "-movflags", "+faststart", output];

@@ -155,8 +155,33 @@ public sealed class FfmpegCommandBuilderTests
     public void ProbeAndInspectArgumentsTargetProvidedFile()
     {
         Assert.Equal(["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", "clip.mov"], FfmpegCommandBuilder.ProbeDuration("clip.mov"));
-        Assert.Equal(["-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name,width,height,avg_frame_rate", "-of", "json", "clip.mov"], FfmpegCommandBuilder.ProbeMetadata("clip.mov"));
+        Assert.Equal(["-v", "error", "-show_entries", "format=duration,start_time:stream=codec_type,codec_name,width,height,avg_frame_rate,start_time,duration", "-of", "json", "clip.mov"], FfmpegCommandBuilder.ProbeMetadata("clip.mov"));
         Assert.Equal(["-hide_banner", "-show_format", "-show_streams", "clip.mov"], FfmpegCommandBuilder.Inspect("clip.mov"));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Trim_UsesAccurateAbsoluteSeekExclusiveDurationAndAlignedAudio(int recoveryValue)
+    {
+        var recovery = (RecoveryStrategy)recoveryValue;
+        var requested = new MediaRange(TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4));
+        var trim = new ResolvedMediaRange(requested, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(9.04), TimeSpan.FromSeconds(2.04));
+        var args = FfmpegCommandBuilder.Encode("in", "out", null, recovery, OutputResolution.Source,
+            encoding: EncodingPresetCatalog.Recommended, trim: trim);
+
+        Assert.DoesNotContain("-ss", args);
+        Assert.Contains("-copyts", args);
+        var videoFilter = args[args.IndexOf("-vf") + 1];
+        Assert.Contains("trim=start=7:end=", videoFilter);
+        Assert.Contains("setpts=PTS-STARTPTS", videoFilter);
+        if (recovery == RecoveryStrategy.VideoOnly) Assert.Contains("-an", args);
+        else
+        {
+            AssertContainsSequence(args, "-c:a", "aac");
+            Assert.Contains(args, argument => argument.Contains("atrim=start=7:end=") && argument.Contains("asetpts=PTS-STARTPTS"));
+        }
     }
 
     [Fact]

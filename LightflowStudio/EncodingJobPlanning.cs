@@ -18,9 +18,16 @@ internal sealed record EncodingSource(
     string Path,
     long FileSizeBytes,
     TimeSpan? SourceDuration,
-    MediaRange? MediaRange = null);
+    MediaRange? MediaRange = null,
+    ResolvedMediaRange? ResolvedRange = null,
+    long? LastWriteUtcTicks = null,
+    bool? HasAudio = null);
 
-internal sealed record EncodingItemResult(int ExitCode, TimeSpan? EffectiveDuration);
+internal sealed record EncodingItemResult(
+    int ExitCode,
+    TimeSpan? SourceDuration,
+    MediaRange? RequestedRange,
+    TimeSpan? EffectiveDuration);
 
 internal sealed record OutputFileSnapshot(bool Exists, long Length)
 {
@@ -45,9 +52,15 @@ internal static class EncodingJobPlanner
                 Guid.NewGuid(),
                 source.Path,
                 source.FileSizeBytes,
-                source.MediaRange ?? (source.SourceDuration is { } duration && duration > TimeSpan.Zero
-                    ? new MediaRange(duration)
-                    : null)))
+                source.ResolvedRange is { } resolved
+                    ? new MediaRange(resolved.RequestedRange.SourceDuration, resolved.RequestedRange.In,
+                        resolved.ExclusiveOut - resolved.SourceStartTimestamp)
+                    : source.MediaRange ?? (source.SourceDuration is { } duration && duration > TimeSpan.Zero
+                        ? new MediaRange(duration)
+                        : null),
+                source.ResolvedRange,
+                source.LastWriteUtcTicks,
+                source.HasAudio))
             .ToList();
         return new(jobId ?? Guid.NewGuid(), "video.encode", createdAt ?? DateTimeOffset.Now, options, items);
     }
@@ -91,16 +104,19 @@ internal static class EncodingJobPlanner
         {
             var itemIssues = new List<JobIssue>();
             if (output.Item.MediaRange is { } range) itemIssues.AddRange(range.Validate());
+            if (output.Item.ResolvedRange is { } resolvedRange) itemIssues.AddRange(resolvedRange.Validate());
             if (string.Equals(Path.GetFullPath(output.Item.SourceIdentity), Path.GetFullPath(output.Path), StringComparison.OrdinalIgnoreCase))
                 itemIssues.Add(new("encoding.source-overwrite", "The output path cannot be the same as the source path.", JobIssueSeverity.Error));
             if (collisions.Contains(output.Path))
                 itemIssues.Add(new("encoding.output-collision", $"The planned output collides with another item: {output.Path}", JobIssueSeverity.Error));
 
             var snapshot = inspectOutput(output.Path);
-            var skip = ExistingOutputPolicy.ShouldPreserve(
+            var preserveExisting = ExistingOutputPolicy.ShouldPreserve(
                 definition.Options.OverwriteExistingFiles,
                 snapshot.Exists,
                 snapshot.Length);
+            var skip = preserveExisting && (output.Item.ResolvedRange is null
+                || EncodingOutputIdentityStore.Matches(output.Path, EncodingOutputIdentity.Create(output.Item, definition.Options)));
             var estimate = useDuration
                 ? JobWorkEstimate.Determinate(JobWorkUnit.MediaDuration, output.Item.MediaRange!.EffectiveDuration.TotalSeconds)
                 : JobWorkEstimate.Determinate(JobWorkUnit.Items, 1);

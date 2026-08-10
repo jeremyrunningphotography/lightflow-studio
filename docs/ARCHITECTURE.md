@@ -97,7 +97,7 @@ Each plan selects a meaningful `JobWorkUnit`:
 
 Items carry a determinate or indeterminate `JobWorkEstimate`. Aggregate progress weights each item by that estimate rather than assuming equal file counts. Encoding uses effective media duration when all durations are known and falls back to item weighting when they are not. Other capabilities can choose bytes or item counts without changing the lifecycle.
 
-`MediaRange` separately represents source duration, optional In/Out timestamps, and effective duration. Current Encoding creates full-source ranges. A future 45-second selection from a 30-minute source can therefore be represented and weighted as 45 seconds without redesigning job progress. Frame-accurate trim command behavior remains deferred to Issues #52–#55.
+`MediaRange` represents normalized displayed source duration and optional In/Out timestamps. Encoding resolves an applied range before planning: the UI Out timestamp is the last included decoded frame, so FFprobe supplies the following decoded presentation timestamp as the exclusive processing boundary. The resulting `ResolvedMediaRange` carries the source start timestamp, absolute filter boundaries, and authoritative effective duration. Job work estimates, per-file progress, overall weighted progress, ETA, logs, and results use that resolved duration.
 
 #### Cancellation semantics
 
@@ -203,7 +203,9 @@ Applied trims are stored in the versioned local JSON file `trim-history.json`, b
 
 The input row renders a thin neutral duration line and, for an active trim, a proportional orange segment derived from normalized In, Out, and known duration. The row action reads Trim or Edit Trim; a silently restored trim is indistinguishable from a manually applied trim. When timing is unavailable, the row does not invent proportions and the editor remains unavailable until usable timing can be established.
 
-Issue #54 deliberately does not pass `BatchFileOption.TrimRange` into `EncodingSource`. Existing Encoding therefore remains full-source. Issue #55 owns final identity revalidation, source-start/container translation, inclusive/exclusive Out semantics, FFmpeg command construction, effective-duration progress and ETA, output equivalence, and results. The current optional single `MediaRange` can later evolve into ordered subclips without changing the playback or persistence identity boundaries; no multiple-range behavior is implemented now.
+`BatchFileOption.TrimRange` flows into `EncodingSource` only after the persisted file identity is revalidated. FFprobe frame presentation timestamps resolve the inclusive displayed Out frame to an exclusive boundary without nominal-FPS arithmetic. `MediaMetadata.StartTimestamp` maps normalized display positions onto the container timeline. Trimmed FFmpeg commands preserve input timestamps with `-copyts`, apply decoded-stream `trim`/`atrim` filters using those absolute boundaries, and reset output timestamps with `setpts`/`asetpts`; this provides accurate VFR boundaries and aligned audio while retaining LUT, scaling, deinterlace, frame-rate, salvage, and video-only behavior. Audio copy is intentionally promoted to AAC encoding for trimmed files because packet-copy boundaries cannot guarantee alignment.
+
+Successful outputs are FFprobe-validated for readable video, expected audio, and effective duration before the job reports completion. A `.lightflow.json` sidecar records source path/size/write time, trim timestamps, and an encoding-options hash. A trimmed existing output is skippable only when that identity matches; changing the trim schedules fresh processing. Failed, cancelled, or invalid output is removed together with a stale sidecar. Untrimmed Encoding remains command-compatible, and Tools-tab rewrap, proxy, verify, and contact-sheet operations remain full-source.
 
 ### Infrastructure
 

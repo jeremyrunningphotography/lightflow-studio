@@ -88,6 +88,60 @@ public sealed class EncodingJobPlannerTests : IDisposable
         Assert.All(plan.Items, item => Assert.Equal(1, item.WorkEstimate.Value));
     }
 
+    [Fact]
+    public void Plan_UsesResolvedTrimDurationForMixedBatchProgress()
+    {
+        var selected = new MediaRange(TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(19));
+        var resolved = new ResolvedMediaRange(selected, TimeSpan.Zero, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(10));
+        var definition = Define(
+            new EncodingSource(Path.Combine(_root, "trimmed.mov"), 100, selected.SourceDuration, selected, resolved),
+            Source("full.mov", 30));
+
+        var plan = EncodingJobPlanner.Plan(definition, _ => new(false, 0));
+
+        Assert.Equal(JobWorkUnit.MediaDuration, plan.WorkUnit);
+        Assert.Equal(40, plan.Items.Sum(item => item.WorkEstimate.Value));
+        Assert.Equal(10, plan.Items.Single(item => item.Definition.ResolvedRange is not null).WorkEstimate.Value);
+    }
+
+    [Fact]
+    public void Plan_DoesNotSkipTrimmedOutputWithoutMatchingIdentity()
+    {
+        Directory.CreateDirectory(OutputRoot);
+        var sourcePath = Path.Combine(_root, "one.mov");
+        var trim = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+        var resolved = new ResolvedMediaRange(trim, TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2.04), TimeSpan.FromSeconds(1.04));
+        var definition = Define(new EncodingSource(sourcePath, 100, trim.SourceDuration, trim, resolved, 123));
+
+        var plan = EncodingJobPlanner.Plan(definition, _ => new(true, 100));
+
+        Assert.Equal(JobPlanDisposition.Process, Assert.Single(plan.Items).Disposition);
+    }
+
+    [Fact]
+    public void Plan_SkipsOnlyWhenTrimAndEncodingIdentityMatch()
+    {
+        Directory.CreateDirectory(OutputRoot);
+        var trim = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+        var resolved = new ResolvedMediaRange(trim, TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2.04), TimeSpan.FromSeconds(1.04));
+        var definition = Define(new EncodingSource(Path.Combine(_root, "one.mov"), 100, trim.SourceDuration, trim, resolved, 123));
+        var initial = EncodingJobPlanner.Plan(definition, _ => new(false, 0));
+        var output = Assert.Single(initial.Items).OutputPaths.Single();
+        EncodingOutputIdentityStore.Save(output, EncodingOutputIdentity.Create(initial.Items[0].Definition, definition.Options));
+
+        var matching = EncodingJobPlanner.Plan(definition, _ => new(true, 100));
+        var changed = definition with
+        {
+            Items = definition.Items.Select(item => item with
+            {
+                ResolvedRange = resolved with { RequestedRange = trim with { Out = TimeSpan.FromSeconds(3) } }
+            }).ToList()
+        };
+
+        Assert.Equal(JobPlanDisposition.Skip, Assert.Single(matching.Items).Disposition);
+        Assert.Equal(JobPlanDisposition.Process, Assert.Single(EncodingJobPlanner.Plan(changed, _ => new(true, 100)).Items).Disposition);
+    }
+
     private JobDefinition<EncodingJobOptions> Define(params EncodingSource[] sources) =>
         EncodingJobPlanner.Define(Options(), sources, Guid.Parse("11111111-1111-1111-1111-111111111111"), DateTimeOffset.UnixEpoch);
 

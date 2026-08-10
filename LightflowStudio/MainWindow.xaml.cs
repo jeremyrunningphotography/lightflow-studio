@@ -245,7 +245,8 @@ public partial class MainWindow : Window
         }
 
         var editor = new TrimEditorWindow(option.FilePath, option.TrimRange) { Owner = this };
-        if (editor.ShowDialog() != true) return;
+        var dialogResult = editor.ShowDialog();
+        if (dialogResult != true) return;
         var identityAfterEditing = TrimSourceIdentity.Read(option.FilePath);
         if (identityAfterEditing is null || !option.SourceIdentity.Matches(identityAfterEditing))
         {
@@ -258,7 +259,7 @@ public partial class MainWindow : Window
         }
         try
         {
-            TrimStatePersistence.Apply(option, editor.AppliedRange, _trimHistory);
+            TrimStatePersistence.ApplyDialogResult(dialogResult, option, editor.AppliedRange, _trimHistory);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

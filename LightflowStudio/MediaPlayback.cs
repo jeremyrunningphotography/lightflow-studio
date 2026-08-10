@@ -54,6 +54,26 @@ internal sealed record MediaDecodedFrame(
     int Stride,
     byte[] BgraPixels);
 
+internal sealed class MediaPlaybackPresentation : IDisposable
+{
+    private readonly Action<FrameworkElement> _release;
+    private FrameworkElement? _surface;
+
+    public MediaPlaybackPresentation(FrameworkElement surface, Action<FrameworkElement> release)
+    {
+        _surface = surface;
+        _release = release;
+    }
+
+    public FrameworkElement Surface => _surface ?? throw new ObjectDisposedException(nameof(MediaPlaybackPresentation));
+
+    public void Dispose()
+    {
+        var surface = Interlocked.Exchange(ref _surface, null);
+        if (surface is not null) _release(surface);
+    }
+}
+
 internal interface IMediaPlaybackService : IAsyncDisposable
 {
     MediaPlaybackSnapshot Snapshot { get; }
@@ -61,7 +81,7 @@ internal interface IMediaPlaybackService : IAsyncDisposable
     event EventHandler<MediaPlaybackSnapshot>? StateChanged;
     event EventHandler<MediaPresentationTimestamp>? FramePresented;
 
-    FrameworkElement CreatePresentationSurface();
+    MediaPlaybackPresentation CreatePresentation();
     Task OpenAsync(string sourcePath, CancellationToken token = default);
     Task CloseAsync(CancellationToken token = default);
     Task PlayAsync(CancellationToken token = default);
@@ -79,6 +99,7 @@ internal interface IMediaPlaybackBackend : IAsyncDisposable
     event EventHandler<MediaPresentationTimestamp>? FramePresented;
     event EventHandler<MediaPlaybackError>? Failed;
     FrameworkElement CreatePresentationSurface();
+    void ReleasePresentationSurface(FrameworkElement surface);
     void CancelPending();
     Task<PlaybackBackendOpened> OpenAsync(string sourcePath, CancellationToken token);
     Task CloseAsync(CancellationToken token);

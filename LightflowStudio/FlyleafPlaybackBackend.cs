@@ -41,8 +41,21 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             _offscreenWindow.Content = null;
             _offscreenWindow.Close();
             _offscreenWindow = null;
+            _host.Player = _player;
         });
         return _host;
+    }
+
+    public void ReleasePresentationSurface(FrameworkElement surface)
+    {
+        if (!ReferenceEquals(surface, _host)) return;
+        RunOnUi(() =>
+        {
+            // The host is reusable, but its renderer must not retain the presentation
+            // target owned by a closed WPF view. A later CreatePresentationSurface call
+            // reattaches the current player to this same global-session host.
+            _host.Player = null;
+        });
     }
 
     public void CancelPending()

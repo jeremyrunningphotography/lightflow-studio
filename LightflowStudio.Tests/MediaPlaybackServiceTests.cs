@@ -238,6 +238,7 @@ public sealed class MediaPlaybackServiceTests
         public event EventHandler<MediaPresentationTimestamp>? FramePresented;
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
         public FrameworkElement CreatePresentationSurface() => new Border();
+        public void ReleasePresentationSurface(FrameworkElement surface) { }
         public void CancelPending()
         {
             var next = new CancellationTokenSource();

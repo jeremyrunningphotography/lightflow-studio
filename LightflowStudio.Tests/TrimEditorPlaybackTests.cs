@@ -33,14 +33,56 @@ public sealed class TrimEditorPlaybackTests
         Assert.Equal(0, backend.ActiveSessions);
     }
 
+    [Fact]
+    public async Task RepeatedEditorSessions_ReleaseAndReattachTheReusablePresentationSurface()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var backend = new FakeBackend();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            foreach (var source in new[] { "same.mp4", "same.mp4", "different.mp4", "same.mp4" })
+            {
+                await using var editor = new TrimEditorPlayback(coordinator);
+                var playback = await editor.OpenAsync(Path.GetFullPath(source));
+                using (var view = new MediaPlaybackView(playback))
+                {
+                    Assert.True(backend.PresentationAttached);
+                    Assert.Same(backend.Surface, view.Content);
+                }
+                Assert.False(backend.PresentationAttached);
+            }
+
+            Assert.Equal(4, backend.PresentationAttachCount);
+            Assert.Equal(4, backend.PresentationReleaseCount);
+            Assert.Equal(0, backend.ActiveSessions);
+        });
+    }
+
     private sealed class FakeBackend : IMediaPlaybackBackend
     {
         public static readonly TimeSpan NextFrame = TimeSpan.FromMilliseconds(10100);
         public static readonly TimeSpan PreviousFrame = TimeSpan.FromMilliseconds(9900);
         public int ActiveSessions { get; private set; }
+        private Border? _surface;
+        public Border Surface => _surface ??= new Border();
+        public bool PresentationAttached { get; private set; }
+        public int PresentationAttachCount { get; private set; }
+        public int PresentationReleaseCount { get; private set; }
         public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
-        public FrameworkElement CreatePresentationSurface() => new Border();
+        public FrameworkElement CreatePresentationSurface()
+        {
+            if (PresentationAttached) throw new InvalidOperationException("The previous editor still owns the presentation surface.");
+            PresentationAttached = true;
+            PresentationAttachCount++;
+            return Surface;
+        }
+        public void ReleasePresentationSurface(FrameworkElement surface)
+        {
+            Assert.Same(Surface, surface);
+            PresentationAttached = false;
+            PresentationReleaseCount++;
+        }
         public void CancelPending() { }
         public Task<PlaybackBackendOpened> OpenAsync(string sourcePath, CancellationToken token)
         {

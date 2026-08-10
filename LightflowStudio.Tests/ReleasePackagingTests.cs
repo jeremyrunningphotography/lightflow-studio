@@ -52,6 +52,47 @@ public sealed class ReleasePackagingTests
     }
 
     [Fact]
+    public void PullRequestPackaging_UsesSharedStagingButSkipsReleaseArchiveAndUsesFastInstallerCompression()
+    {
+        var script = File.ReadAllText(PathAtRoot("scripts", "Build-Release.ps1"));
+        var installer = File.ReadAllText(PathAtRoot("installer", "LightflowStudio.iss"));
+
+        Assert.Contains("[ValidateSet(\"Release\", \"PullRequest\")]", script);
+        Assert.Contains("Test-PackageContents.ps1", script);
+        Assert.Contains("if ($Mode -eq \"Release\")", script);
+        Assert.Contains("release portable archive skipped", script);
+        Assert.Contains("/DValidationBuild=1", script);
+        Assert.Contains("#ifdef ValidationBuild", installer);
+        Assert.Contains("Compression=zip", installer);
+        Assert.Contains("Compression=lzma2/ultra64", installer);
+    }
+
+    [Fact]
+    public void PackageValidation_ChecksNativeDependenciesManifestsLicensesAndNotices()
+    {
+        var validation = File.ReadAllText(PathAtRoot("scripts", "Test-PackageContents.ps1"));
+
+        Assert.Contains("THIRD-PARTY-NOTICES.md", validation);
+        Assert.Contains("avcodec-*.dll", validation);
+        Assert.Contains("ffmpeg-playback-package.json", validation);
+        Assert.Contains("Get-FileHash", validation);
+        Assert.Contains("licenses", validation);
+    }
+
+    [Fact]
+    public void Workflow_CachesPinnedDependenciesByBothManifestContentsAndStillRunsVerification()
+    {
+        var workflow = File.ReadAllText(PathAtRoot(".github", "workflows", "ci-release.yml"));
+
+        Assert.Contains("actions/cache@v5", workflow);
+        Assert.Contains("path: .cache/ffmpeg/*.zip", workflow);
+        Assert.Contains("hashFiles('dependencies/ffmpeg.json', 'dependencies/ffmpeg-playback.json')", workflow);
+        Assert.Contains("Get-Ffmpeg.ps1", workflow);
+        Assert.Contains("Get-PlaybackDependencies.ps1", workflow);
+        Assert.Contains("-Mode $mode", workflow);
+    }
+
+    [Fact]
     public void ReleaseWorkflow_GatesPackagingOnTests()
     {
         var workflow = File.ReadAllText(PathAtRoot(".github", "workflows", "ci-release.yml"));

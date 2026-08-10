@@ -23,12 +23,6 @@
           "Vortice.XAudio2": "3.7.6-beta"
         }
       },
-      "Microsoft.NET.ILLink.Tasks": {
-        "type": "Direct",
-        "requested": "[8.0.29, )",
-        "resolved": "8.0.29",
-        "contentHash": "HSBTfrkIZijz8z3ybLRKB7E8rHk4QQufFwpHa9fc5CMIgRhRzdn4mBGmlyXZqaueiMPtuJcnjresGvSTfaW8Mg=="
-      },
       "SharpGen.Runtime": {
         "type": "Transitive",
         "resolved": "2.4.2-beta",
@@ -144,13 +138,6 @@
           "SharpGen.Runtime": "2.4.2-beta",
           "Vortice.DirectX": "3.7.6-beta"
         }
-      }
-    },
-    "net8.0-windows7.0/win-x64": {
-      "System.Text.Encodings.Web": {
-        "type": "Transitive",
-        "resolved": "9.0.1",
-        "contentHash": "XkspqduP2t1e1x2vBUAD/xZ5ZDvmywuUwsmB93MvyQLospJfqtX0GsR/kU0vUL2h4kmvf777z3txV2W4NrQ9Qg=="
       }
     }
   }

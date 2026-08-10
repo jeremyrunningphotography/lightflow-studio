@@ -111,6 +111,47 @@ public sealed class EncodingOutputLifecycleTests : IDisposable
     }
 
     [Fact]
+    public void CompletedItemFollowedByPreparationFailure_DoesNotCleanPreviousOutputOrIdentity()
+    {
+        var finalA = Path.Combine(_root, "item-a.mp4");
+        var cache = Path.Combine(_root, "identity-cache");
+        var identity = new EncodingOutputIdentity("source-a.mov", 123, 456, null, null, "options");
+        EncodingOutputLifecycle? currentOutput = new EncodingOutputLifecycle(finalA, identityCacheDirectory: cache);
+        currentOutput.Prepare();
+        File.WriteAllText(currentOutput.PartialPath, "validated item A");
+        currentOutput.FinalizeValidatedOutput();
+        EncodingOutputIdentityStore.Save(finalA, identity, cache);
+
+        // Item A has reached a terminal state and relinquishes lifecycle ownership before item B preparation.
+        currentOutput = null;
+        var blockedParent = Path.Combine(_root, "not-a-directory");
+        File.WriteAllText(blockedParent, "file");
+        Assert.ThrowsAny<IOException>(() => Directory.CreateDirectory(Path.Combine(blockedParent, "item-b")));
+
+        // This mirrors the outer exception handler: there is no active lifecycle to clean.
+        currentOutput?.CleanupFailedAttempt();
+        Assert.Equal("validated item A", File.ReadAllText(finalA));
+        Assert.True(EncodingOutputIdentityStore.Matches(finalA, identity, cache));
+    }
+
+    [Fact]
+    public void CleanupFailedAttempt_AfterSuccessfulFinalizationIsNoOp()
+    {
+        var final = Path.Combine(_root, "completed.mp4");
+        var cache = Path.Combine(_root, "identity-cache");
+        var identity = new EncodingOutputIdentity("source.mov", 1, 2, null, null, "options");
+        var lifecycle = new EncodingOutputLifecycle(final, identityCacheDirectory: cache);
+        lifecycle.Prepare();
+        File.WriteAllText(lifecycle.PartialPath, "completed");
+        lifecycle.FinalizeValidatedOutput();
+        EncodingOutputIdentityStore.Save(final, identity, cache);
+
+        Assert.Null(lifecycle.CleanupFailedAttempt());
+        Assert.True(File.Exists(final));
+        Assert.True(EncodingOutputIdentityStore.Matches(final, identity, cache));
+    }
+
+    [Fact]
     public void CleanupFailedAttempt_LeavesExistingFinalAndReportsPartialDeletionFailure()
     {
         var final = Path.Combine(_root, "clip.mp4");

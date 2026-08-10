@@ -8,6 +8,7 @@ internal sealed class EncodingOutputLifecycle
 
     private readonly IEncodingOutputFileSystem _files;
     private readonly string? _identityCacheDirectory;
+    private bool _unfinished = true;
 
     public EncodingOutputLifecycle(string finalPath, string? sourcePath = null,
         string? identityCacheDirectory = null, IEncodingOutputFileSystem? files = null)
@@ -53,10 +54,12 @@ internal sealed class EncodingOutputLifecycle
             _files.Replace(PartialPath, FinalPath);
         else
             _files.Move(PartialPath, FinalPath);
+        _unfinished = false;
     }
 
     public string? CleanupFailedAttempt()
     {
+        if (!_unfinished) return null;
         string? warning = null;
         try
         {
@@ -70,6 +73,7 @@ internal sealed class EncodingOutputLifecycle
         // An identity for a still-present pre-existing final belongs to that valid file.
         if (!ReplacesExistingOutput || !_files.Exists(FinalPath))
             EncodingOutputIdentityStore.Delete(FinalPath, _identityCacheDirectory);
+        _unfinished = false;
         return warning;
     }
 

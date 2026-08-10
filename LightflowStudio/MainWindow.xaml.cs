@@ -744,6 +744,7 @@ public partial class MainWindow : Window
             var completed = 0;
             foreach (var item in execution.Items)
             {
+                currentOutput = null;
                 _jobCancellation.Token.ThrowIfCancellationRequested();
                 currentItem = item;
                 var input = item.PlanItem.Definition.SourceIdentity;
@@ -778,14 +779,15 @@ public partial class MainWindow : Window
 
                 item.Start();
                 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-                currentOutput = new EncodingOutputLifecycle(output, input);
-                currentOutput.Prepare();
-                if (currentOutput.RemovedStalePartial)
-                    AppendDetailedLog($"Removed stale Lightflow partial output: {currentOutput.PartialPath}");
-                AppendDetailedLog($"Partial output: {currentOutput.PartialPath}");
+                var outputLifecycle = new EncodingOutputLifecycle(output, input);
+                currentOutput = outputLifecycle;
+                outputLifecycle.Prepare();
+                if (outputLifecycle.RemovedStalePartial)
+                    AppendDetailedLog($"Removed stale Lightflow partial output: {outputLifecycle.PartialPath}");
+                AppendDetailedLog($"Partial output: {outputLifecycle.PartialPath}");
                 var encodingOptions = plan.Definition.Options;
                 var detailedOutput = encodingOptions.DetailedOutput;
-                var args = FfmpegCommandBuilder.Encode(input, currentOutput.PartialPath, encodingOptions.LutPath,
+                var args = FfmpegCommandBuilder.Encode(input, outputLifecycle.PartialPath, encodingOptions.LutPath,
                     encodingOptions.Recovery, encodingOptions.Resolution, detailedOutput, encodingOptions.Encoding,
                     item.PlanItem.Definition.ResolvedRange);
                 AppendDetailedLog($"Starting FFmpeg: {FormatCommand(_ffmpeg!, args)}");
@@ -802,7 +804,7 @@ public partial class MainWindow : Window
                 }, _jobCancellation.Token);
                 if (exit == 0)
                 {
-                    var validation = await CaptureAsync(_ffprobe!, FfmpegCommandBuilder.ProbeOutput(currentOutput.PartialPath), _jobCancellation.Token);
+                    var validation = await CaptureAsync(_ffprobe!, FfmpegCommandBuilder.ProbeOutput(outputLifecycle.PartialPath), _jobCancellation.Token);
                     var expectsAudio = encodingOptions.Recovery != RecoveryStrategy.VideoOnly
                         && encodingOptions.Encoding.AudioMode != AudioEncodingMode.None
                         && item.PlanItem.Definition.SourceHasAudio != false;
@@ -810,8 +812,9 @@ public partial class MainWindow : Window
                     if (validation.ExitCode == 0 && EncodedOutputValidator.TryValidate(validation.StdOut,
                             item.PlanItem.Definition.MediaRange?.EffectiveDuration ?? TimeSpan.FromSeconds(duration), expectsAudio, out validationError))
                     {
-                        AppendDetailedLog($"Validated partial output: {currentOutput.PartialPath}");
-                        currentOutput.FinalizeValidatedOutput();
+                        AppendDetailedLog($"Validated partial output: {outputLifecycle.PartialPath}");
+                        outputLifecycle.FinalizeValidatedOutput();
+                        currentOutput = null;
                         AppendDetailedLog($"Finalized output: {output}");
                         var itemResult = new EncodingItemResult(exit,
                             item.PlanItem.Definition.ResolvedRange?.RequestedRange.SourceDuration ?? item.PlanItem.Definition.MediaRange?.SourceDuration,
@@ -832,7 +835,8 @@ public partial class MainWindow : Window
                     else
                     {
                         var reason = validationError;
-                        var cleanupWarning = currentOutput.CleanupFailedAttempt();
+                        var cleanupWarning = outputLifecycle.CleanupFailedAttempt();
+                        currentOutput = null;
                         item.Fail(reason, new EncodingItemResult(exit,
                             item.PlanItem.Definition.MediaRange?.SourceDuration,
                             item.PlanItem.Definition.ResolvedRange?.RequestedRange,
@@ -843,7 +847,8 @@ public partial class MainWindow : Window
                 }
                 else
                 {
-                    var cleanupWarning = currentOutput.CleanupFailedAttempt();
+                    var cleanupWarning = outputLifecycle.CleanupFailedAttempt();
+                    currentOutput = null;
                     item.Fail($"FFmpeg exited with code {exit}.", new EncodingItemResult(exit,
                         item.PlanItem.Definition.MediaRange?.SourceDuration,
                         item.PlanItem.Definition.ResolvedRange?.RequestedRange,
@@ -871,9 +876,11 @@ public partial class MainWindow : Window
             outcome = "cancelled";
             if (currentOutput is not null)
             {
-                var cleanupWarning = currentOutput.CleanupFailedAttempt();
+                var activeOutput = currentOutput;
+                currentOutput = null;
+                var cleanupWarning = activeOutput.CleanupFailedAttempt();
                 if (cleanupWarning is not null) AppendLog($"Warning: {cleanupWarning}");
-                else AppendDetailedLog($"Removed cancelled partial output: {currentOutput.PartialPath}");
+                else AppendDetailedLog($"Removed cancelled partial output: {activeOutput.PartialPath}");
             }
             if (currentItem?.State == JobState.Running) currentItem.Cancel();
             execution?.CancelPending();
@@ -885,7 +892,9 @@ public partial class MainWindow : Window
             outcome = "failed";
             if (currentOutput is not null)
             {
-                var cleanupWarning = currentOutput.CleanupFailedAttempt();
+                var activeOutput = currentOutput;
+                currentOutput = null;
+                var cleanupWarning = activeOutput.CleanupFailedAttempt();
                 if (cleanupWarning is not null) AppendLog($"Warning: {cleanupWarning}");
             }
             if (currentItem?.State == JobState.Running) currentItem.Fail(ex.Message);

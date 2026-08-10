@@ -1012,7 +1012,11 @@ public partial class MainWindow : Window
     }
     private void ToggleEncoding(bool running)
     {
-        BatchConfiguration.IsEnabled = !running;
+        BatchSourceConfiguration.IsEnabled = !running;
+        BatchOutputConfiguration.IsEnabled = !running;
+        BatchLutConfiguration.IsEnabled = !running;
+        BatchFormatConfiguration.IsEnabled = !running;
+        BatchFileContent.IsHitTestVisible = !running;
         if (running) StartButton.IsEnabled = false;
         else UpdateBatchReadiness(updateGuidance: false);
         CancelButton.IsEnabled = running;

@@ -48,7 +48,7 @@
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
         <TextBlock Grid.ColumnSpan="2" Style="{StaticResource SectionTitle}" Margin="4,0,4,12" Text="Batch Setup"/>
-        <StackPanel Grid.Row="1" Grid.ColumnSpan="2">
+        <StackPanel Grid.Row="1" Grid.ColumnSpan="2" x:Name="BatchSourceConfiguration">
          <TextBlock Style="{StaticResource FieldLabel}" Text="VIDEO FOLDER"/>
          <DockPanel><Button DockPanel.Dock="Right" Content="Browse…" Click="BrowseInput_Click"/><TextBox x:Name="InputFolder" TextChanged="InputFolder_TextChanged"/></DockPanel>
          <CheckBox x:Name="Recursive" Margin="6,5,6,0" Content="Include subfolders" Checked="Recursive_Changed" Unchecked="Recursive_Changed"/>
@@ -60,7 +60,7 @@
            <TextBlock x:Name="BatchFileSummary" Margin="10,0,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Choose a folder to see its videos"/>
           </StackPanel>
          </Expander.Header>
-         <Border Margin="0,8,0,2" Background="#111318" BorderBrush="#303540" BorderThickness="1" CornerRadius="7" Padding="10">
+         <Border x:Name="BatchFileContent" Margin="0,8,0,2" Background="#111318" BorderBrush="#303540" BorderThickness="1" CornerRadius="7" Padding="10">
           <Grid>
            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
            <DockPanel Margin="0,0,0,8">
@@ -111,7 +111,7 @@
           </Grid>
          </Border>
         </Expander>
-        <Border Grid.Row="3" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="0,10,0,0" BorderBrush="#2A2E37" BorderThickness="0,1,0,0">
+        <Border Grid.Row="3" Grid.ColumnSpan="2" x:Name="BatchOutputConfiguration" Margin="0,10,0,0" Padding="0,10,0,0" BorderBrush="#2A2E37" BorderThickness="0,1,0,0">
         <Grid>
          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
          <Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -137,11 +137,11 @@
          </WrapPanel>
         </Grid>
         </Border>
-        <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,10,8,0">
+        <StackPanel Grid.Row="4" Grid.Column="0" x:Name="BatchLutConfiguration" Margin="0,10,8,0">
          <TextBlock Style="{StaticResource FieldLabel}" Text="LUT"/>
          <DockPanel><Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshLuts_Click"/><ComboBox x:Name="LutSelection" DisplayMemberPath="DisplayName" SelectedValuePath="FilePath" SelectionChanged="LutSelection_SelectionChanged"/></DockPanel>
         </StackPanel>
-        <StackPanel Grid.Row="4" Grid.Column="1" Margin="8,10,0,0">
+        <StackPanel Grid.Row="4" Grid.Column="1" x:Name="BatchFormatConfiguration" Margin="8,10,0,0">
          <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
           <StackPanel Margin="0,0,6,0"><TextBlock Style="{StaticResource FieldLabel}" Text="RESOLUTION"/><ComboBox x:Name="Resolution" SelectedIndex="2" SelectionChanged="Resolution_SelectionChanged"><ComboBoxItem Content="480p (854×480)"/><ComboBoxItem Content="720p (1280×720)"/><ComboBoxItem Content="1080p (1920×1080)"/><ComboBoxItem Content="1440p (2560×1440)"/><ComboBoxItem Content="4K UHD (3840×2160)"/><ComboBoxItem Content="Source resolution"/></ComboBox></StackPanel>
           <StackPanel Grid.Column="1" Margin="6,0,0,0"><TextBlock Style="{StaticResource FieldLabel}" Text="RECOVERY MODE"/><ComboBox x:Name="RecoveryMode" SelectedIndex="0"><ComboBoxItem Content="Normal"/><ComboBoxItem Content="Salvage audio + video"/><ComboBoxItem Content="Video only"/></ComboBox></StackPanel>

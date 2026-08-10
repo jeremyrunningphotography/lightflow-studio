@@ -779,8 +779,12 @@ public partial class MainWindow : Window
                     encodingOptions.Recovery, encodingOptions.Resolution, detailedOutput, encodingOptions.Encoding,
                     item.PlanItem.Definition.ResolvedRange);
                 AppendDetailedLog($"Starting FFmpeg: {FormatCommand(_ffmpeg!, args)}");
+                CurrentFileText.Text = item.PlanItem.Definition.ResolvedRange is null
+                    ? $"Starting {completed + 1}/{total}: {Path.GetFileName(input)}…"
+                    : $"Starting {completed + 1}/{total}: seeking to the selected range in {Path.GetFileName(input)}…";
                 var exit = await RunFfmpegProgressAsync(args, duration, detailedOutput, p =>
                 {
+                    CurrentFileText.Text = $"{completed + 1}/{total}: {Path.GetFileName(input)}";
                     item.ReportProgress(p);
                     _batchProgress.ReportFileProgress(p);
                     FileProgress.Value = _batchProgress.FilePercent;

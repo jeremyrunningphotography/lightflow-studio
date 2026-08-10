@@ -32,7 +32,7 @@ public sealed class RangeEncodingIntegrationTests : IDisposable
         var packetJson = Run(ffprobe, FfmpegCommandBuilder.ProbeVideoPackets(source, requested, metadata.StartTimestamp));
         var resolved = EncodingRangeResolver.Resolve(requested, metadata.StartTimestamp, packetJson);
 
-        Run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-copyts", "-i", source, "-map", "0:v:0", "-map", "0:a:0",
+        Run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-ss", Seconds(requested.EffectiveIn), "-copyts", "-i", source, "-map", "0:v:0", "-map", "0:a:0",
             "-vf", $"trim=start={Seconds(resolved.AbsoluteIn)}:end={Seconds(resolved.ExclusiveOut)},setpts=PTS-STARTPTS",
             "-af", $"atrim=start={Seconds(resolved.AbsoluteIn)}:end={Seconds(resolved.ExclusiveOut)},asetpts=PTS-STARTPTS",
             "-c:v", "ffv1", "-c:a", "pcm_s16le", output]);

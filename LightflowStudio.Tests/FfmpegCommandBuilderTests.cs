@@ -175,7 +175,7 @@ public sealed class FfmpegCommandBuilderTests
         var args = FfmpegCommandBuilder.Encode("in", "out", null, recovery, OutputResolution.Source,
             encoding: EncodingPresetCatalog.Recommended, trim: trim);
 
-        Assert.DoesNotContain("-ss", args);
+        AssertContainsSequence(args, "-ss", "2", "-copyts", "-i", "in");
         Assert.Contains("-copyts", args);
         var videoFilter = args[args.IndexOf("-vf") + 1];
         Assert.Contains("trim=start=7:end=", videoFilter);

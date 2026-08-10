@@ -15,7 +15,12 @@ internal static class FfmpegCommandBuilder
         var args = new List<string> { "-hide_banner", "-loglevel", detailedOutput ? "verbose" : "info", "-y" };
         if (recovery != RecoveryStrategy.Normal)
             args.AddRange(["-fflags", "+discardcorrupt+genpts", "-err_detect", "ignore_err"]);
-        if (trim is not null) args.Add("-copyts");
+        if (trim is not null)
+        {
+            if (trim.RequestedRange.EffectiveIn > TimeSpan.Zero)
+                args.AddRange(["-ss", Seconds(trim.RequestedRange.EffectiveIn)]);
+            args.Add("-copyts");
+        }
         args.AddRange(["-i", input, "-map", "0:v:0"]);
         if (recovery != RecoveryStrategy.VideoOnly && options.AudioMode != AudioEncodingMode.None)
             args.AddRange(["-map", recovery == RecoveryStrategy.Salvage ? "0:a:0?" : "0:a?"]);

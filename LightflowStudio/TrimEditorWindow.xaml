@@ -1,0 +1,59 @@
+<Window x:Class="LightflowStudio.TrimEditorWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:LightflowStudio"
+ Title="Trim video" Icon="Assets/Branding/LightflowStudio.ico"
+ Width="1040" Height="760" MinWidth="820" MinHeight="620"
+ WindowStartupLocation="CenterOwner" PreviewKeyDown="Window_PreviewKeyDown">
+ <Grid Margin="20">
+  <Grid.RowDefinitions>
+   <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+  </Grid.RowDefinitions>
+  <StackPanel Margin="2,0,2,14">
+   <TextBlock Style="{StaticResource PageTitle}" FontSize="24" Text="Trim video"/>
+   <TextBlock x:Name="SourceName" Margin="0,4,0,0" Style="{StaticResource PageSubtitle}" TextTrimming="CharacterEllipsis"/>
+  </StackPanel>
+
+  <Border Grid.Row="1" Background="#080A0E" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
+   <Grid x:Name="PreviewHost">
+    <TextBlock x:Name="LoadingText" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="Loading preview…"/>
+   </Grid>
+  </Border>
+
+  <Grid Grid.Row="2" Margin="4,16,4,0">
+   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="7"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+   <Slider x:Name="PositionSlider" Minimum="0" Maximum="1" ValueChanged="PositionSlider_ValueChanged" IsEnabled="False"/>
+   <local:TrimRangeIndicator x:Name="EditorRangeIndicator" Grid.Row="1" Margin="5,0" HasActiveTrim="True" HasProportions="True"/>
+   <Grid Grid.Row="2" Margin="2,2,2,0">
+    <TextBlock x:Name="CurrentTimeText" Foreground="{StaticResource TextBrush}" Text="00:00:00.000"/>
+    <TextBlock x:Name="DurationText" HorizontalAlignment="Right" Foreground="{StaticResource MutedTextBrush}" Text="00:00:00.000"/>
+   </Grid>
+  </Grid>
+
+  <Grid Grid.Row="3" Margin="0,12,0,4">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+    <Button x:Name="SetInButton" Content="Set In" Click="SetIn_Click" IsEnabled="False"/>
+    <TextBlock x:Name="InTimeText" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="In: 00:00:00.000"/>
+   </StackPanel>
+   <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+    <Button x:Name="PreviousFrameButton" Content="◀ Frame" Click="PreviousFrame_Click" IsEnabled="False" ToolTip="Previous decoded frame"/>
+    <Button x:Name="PlayPauseButton" MinWidth="88" Content="Play" Click="PlayPause_Click" IsEnabled="False"/>
+    <Button x:Name="NextFrameButton" Content="Frame ▶" Click="NextFrame_Click" IsEnabled="False" ToolTip="Next decoded frame"/>
+   </StackPanel>
+   <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+    <TextBlock x:Name="OutTimeText" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="Out: 00:00:00.000"/>
+    <Button x:Name="SetOutButton" Content="Set Out" Click="SetOut_Click" IsEnabled="False"/>
+   </StackPanel>
+  </Grid>
+
+  <Grid Grid.Row="4" Margin="0,12,0,0">
+   <TextBlock x:Name="MessageText" VerticalAlignment="Center" Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap"/>
+   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+    <Button x:Name="ResetButton" Content="Reset" Click="Reset_Click" IsEnabled="False"/>
+    <Button Content="Cancel" Click="Cancel_Click"/>
+    <Button x:Name="ApplyButton" Style="{StaticResource PrimaryButton}" Content="Apply" Click="Apply_Click" IsEnabled="False"/>
+   </StackPanel>
+  </Grid>
+ </Grid>
+</Window>

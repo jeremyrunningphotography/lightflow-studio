@@ -73,6 +73,22 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
                 await playback.OpenAsync(c, timeout.Token);
             }
             await playback.CloseAsync(timeout.Token);
+
+            await using var coordinator = new MediaPlaybackCoordinator(() =>
+                new MediaPlaybackService(new FlyleafPlaybackBackend(dependencies)));
+            await using (var trimPlayback = new TrimEditorPlayback(coordinator))
+            {
+                var trimService = await trimPlayback.OpenAsync(fixture, timeout.Token);
+                Assert.Equal(MediaPlaybackState.Paused, trimService.Snapshot.State);
+                await trimService.StepForwardAsync(timeout.Token);
+                var selection = new TrimSelection(trimService.SourceInfo!.Duration);
+                Assert.True(selection.SetIn(trimService.Snapshot.DisplayedTimestamp!.Position));
+                await trimService.StepForwardAsync(timeout.Token);
+                Assert.True(selection.SetOut(trimService.Snapshot.DisplayedTimestamp!.Position));
+                var applied = selection.Apply();
+                AssertTimestamp(expectedPts[1], new(applied!.EffectiveIn));
+                AssertTimestamp(expectedPts[2], new(applied.EffectiveOut));
+            }
         });
 
         foreach (var path in new[] { a, b, c, corrupt })

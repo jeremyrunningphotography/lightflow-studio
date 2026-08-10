@@ -61,6 +61,7 @@ internal interface IMediaPlaybackService : IAsyncDisposable
     event EventHandler<MediaPlaybackSnapshot>? StateChanged;
     event EventHandler<MediaPresentationTimestamp>? FramePresented;
 
+    FrameworkElement CreatePresentationSurface();
     Task OpenAsync(string sourcePath, CancellationToken token = default);
     Task CloseAsync(CancellationToken token = default);
     Task PlayAsync(CancellationToken token = default);

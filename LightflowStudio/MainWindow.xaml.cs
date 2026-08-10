@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<BatchFileOption> _batchFiles = [];
     private readonly BatchFileSelectionMemory _batchSelectionMemory = new();
     private readonly ActivityLogFile _activityLogFile = App.ActivityLog;
+    private readonly ITrimHistoryStore _trimHistory = new TrimHistoryStore(TrimHistoryStore.StorePath);
     private readonly DispatcherTimer _batchFolderRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private CancellationTokenSource? _batchMetadataCts;
     private readonly Dictionary<ToggleButton, CancellationTokenSource> _requirementHelpDismissals = [];
@@ -229,6 +230,43 @@ public partial class MainWindow : Window
     private void SelectAllBatchFiles_Click(object sender, RoutedEventArgs e) => SetBatchFileSelection(true);
     private void SelectNoBatchFiles_Click(object sender, RoutedEventArgs e) => SetBatchFileSelection(false);
 
+    private void TrimBatchFile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button { DataContext: BatchFileOption option }) return;
+        var currentIdentity = TrimSourceIdentity.Read(option.FilePath);
+        if (option.SourceIdentity is null || currentIdentity is null || !option.SourceIdentity.Matches(currentIdentity))
+        {
+            MessageBox.Show(
+                "This video has changed since it was added. Refresh the file list before editing its trim.",
+                "Video changed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        var editor = new TrimEditorWindow(option.FilePath, option.TrimRange) { Owner = this };
+        if (editor.ShowDialog() != true) return;
+        var identityAfterEditing = TrimSourceIdentity.Read(option.FilePath);
+        if (identityAfterEditing is null || !option.SourceIdentity.Matches(identityAfterEditing))
+        {
+            MessageBox.Show(
+                "This video changed while the trim editor was open. The existing trim was left unchanged.",
+                "Video changed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+        try
+        {
+            TrimStatePersistence.Apply(option, editor.AppliedRange, _trimHistory);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            _activityLogFile.TryAppend($"[Trim] Could not persist trim for {option.FilePath}: {exception}");
+            MessageBox.Show("The trim was applied for this session but could not be saved for later.", "Trim history", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void RefreshBatchFiles()
     {
         _batchFolderRefreshTimer.Stop();
@@ -255,7 +293,10 @@ public partial class MainWindow : Window
         }
         catch (ArgumentException) { }
         foreach (var option in BatchFileSelection.Discover(InputFolder.Text, Recursive.IsChecked == true, excludedOutput, excludedSuffix))
+        {
+            if (_trimHistory.Restore(option.FilePath) is { } restored) option.ApplyTrim(restored);
             _batchFiles.Add(option);
+        }
         _batchSelectionMemory.Apply(InputFolder.Text, _batchFiles);
         UpdateBatchFileSummary();
         _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);

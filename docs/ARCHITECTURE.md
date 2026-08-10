@@ -189,6 +189,18 @@ Installer and portable staging place playback DLLs under `playback/ffmpeg/bin`, 
 
 Issue #54 can consume playback, actual displayed timestamps, and the Lightflow view without learning Flyleaf types. Issue #55 remains responsible for translating selected timestamps into FFmpeg's inclusive/exclusive range semantics. A future media browser can repeatedly transfer the one global playback lease and issue A → B → C load requests; only the latest generation is allowed to publish state, frames, or audio. Playback-speed state is not exposed in this UI iteration, but Flyleaf's clock and the backend boundary can add it without changing source, timestamp, or frame contracts.
 
+### Per-file trim editing
+
+The Encoding input row owns zero or one applied `MediaRange` through `BatchFileOption.TrimRange`. `TrimSelection` is a dialog-local draft initialized from that applied range. Set In, Set Out, and Reset modify only the draft; Apply converts the draft into a timestamp-backed `MediaRange`, while Cancel returns without mutating the row. Applying the complete source produces `null`, the canonical untrimmed state.
+
+`TrimEditorWindow` acquires the single interactive playback session through `TrimEditorPlayback` and `MediaPlaybackCoordinator`, embeds the Lightflow-owned `MediaPlaybackView`, and releases its lease before closing. It loads paused and exposes ordinary play/pause, responsive seeking, previous/next decoded-frame stepping, and Space-key play/pause. In and Out are copied only from the settled `MediaPresentationTimestamp.Position` reported by playback. They remain normalized display-timeline timestamps; the separately reported source start is not added here.
+
+Applied trims are stored in the versioned local JSON file `trim-history.json`, beside Lightflow's other local application data. `TrimHistoryStore` identifies a source by normalized full path, byte length, and UTC last-write ticks. All three values must match before silent restoration. Missing or malformed storage and malformed individual records are ignored. Writes use a same-directory temporary file followed by replacement. Records expire after 90 days without use; restore and reapply refresh `lastUsedUtc`, and normal store access quietly removes expired entries. A source identity is checked both before and after editing so a file changed while the dialog is open cannot inherit the draft.
+
+The input row renders a thin neutral duration line and, for an active trim, a proportional orange segment derived from normalized In, Out, and known duration. The row action reads Trim or Edit Trim; a silently restored trim is indistinguishable from a manually applied trim. When timing is unavailable, the row does not invent proportions and the editor remains unavailable until usable timing can be established.
+
+Issue #54 deliberately does not pass `BatchFileOption.TrimRange` into `EncodingSource`. Existing Encoding therefore remains full-source. Issue #55 owns final identity revalidation, source-start/container translation, inclusive/exclusive Out semantics, FFmpeg command construction, effective-duration progress and ETA, output equivalence, and results. The current optional single `MediaRange` can later evolve into ordered subclips without changing the playback or persistence identity boundaries; no multiple-range behavior is implemented now.
+
 ### Infrastructure
 
 - Settings and transient application-state persistence

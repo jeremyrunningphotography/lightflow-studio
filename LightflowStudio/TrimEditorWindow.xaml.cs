@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Controls.Primitives;
 
 namespace LightflowStudio;
 
@@ -44,10 +46,17 @@ public partial class TrimEditorWindow : Window
             _selection = new(info.Duration, _appliedRange);
             PositionSlider.Maximum = info.Duration.TotalMilliseconds;
             DurationText.Text = FormatTimestamp(info.Duration);
-            UpdateFromSnapshot(_service.Snapshot);
             UpdateSelectionText();
+            if (_selection.InitialPlaybackPosition > TimeSpan.Zero)
+            {
+                MessageText.Text = "Moving to the saved In point…";
+                await _playback.SeekToInitialPositionAsync(_selection);
+                MessageText.Text = "";
+            }
+            UpdateFromSnapshot(_service.Snapshot);
             SetEditorEnabled(true);
         }
+        catch (OperationCanceledException) { }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
             MessageText.Text = exception.Message;
@@ -78,6 +87,33 @@ public partial class TrimEditorWindow : Window
         try { await _service.SeekAsync(TimeSpan.FromMilliseconds(e.NewValue)); }
         catch (OperationCanceledException) { }
         catch (Exception exception) { MessageText.Text = exception.Message; }
+    }
+
+    private async void PositionSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var target = IsInsideSliderThumb(e.OriginalSource as DependencyObject)
+            ? TimelinePointerTarget.PlayheadThumb
+            : TimelinePointerTarget.Track;
+        if (!TimelineSeek.ShouldSeek(target) || _service is null || !PositionSlider.IsEnabled) return;
+        e.Handled = true;
+        var position = TimelineSeek.PositionFromCoordinate(
+            e.GetPosition(PositionSlider).X, PositionSlider.ActualWidth, TimeSpan.FromMilliseconds(PositionSlider.Maximum));
+        _updatingPosition = true;
+        PositionSlider.Value = position.TotalMilliseconds;
+        _updatingPosition = false;
+        try { await _service.SeekAsync(position); }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) { MessageText.Text = exception.Message; }
+    }
+
+    private static bool IsInsideSliderThumb(DependencyObject? element)
+    {
+        while (element is not null)
+        {
+            if (element is Thumb) return true;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return false;
     }
 
     private async void PlayPause_Click(object sender, RoutedEventArgs e)

@@ -34,6 +34,22 @@ public sealed class TrimEditorPlaybackTests
     }
 
     [Fact]
+    public async Task ExistingTrim_SeeksThroughPlaybackServiceToAuthoritativeInTimestamp()
+    {
+        var backend = new FakeBackend();
+        await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+        await using var editor = new TrimEditorPlayback(coordinator);
+        var playback = await editor.OpenAsync(Path.GetFullPath("source.mp4"));
+        var range = new MediaRange(playback.SourceInfo!.Duration, TimeSpan.FromSeconds(12), TimeSpan.FromSeconds(40));
+
+        var settled = await editor.SeekToInitialPositionAsync(new TrimSelection(playback.SourceInfo.Duration, range));
+
+        Assert.Equal(TimeSpan.FromSeconds(12), backend.LastSeekPosition);
+        Assert.Equal(TimeSpan.FromMilliseconds(12005), settled!.Position);
+        Assert.Equal(settled, playback.Snapshot.DisplayedTimestamp);
+    }
+
+    [Fact]
     public async Task RepeatedEditorSessions_ReleaseAndReattachTheReusablePresentationSurface()
     {
         await StaDispatcher.RunAsync(async () =>
@@ -70,6 +86,7 @@ public sealed class TrimEditorPlaybackTests
         public bool PresentationAttached { get; private set; }
         public int PresentationAttachCount { get; private set; }
         public int PresentationReleaseCount { get; private set; }
+        public TimeSpan? LastSeekPosition { get; private set; }
         public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
         public FrameworkElement CreatePresentationSurface()
@@ -97,8 +114,11 @@ public sealed class TrimEditorPlaybackTests
         public Task CloseAsync(CancellationToken token) { ActiveSessions = 0; return Task.CompletedTask; }
         public Task PlayAsync(CancellationToken token) => Task.CompletedTask;
         public Task PauseAsync(CancellationToken token) => Task.CompletedTask;
-        public Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token) =>
-            Task.FromResult(new MediaPresentationTimestamp(position + TimeSpan.FromMilliseconds(5)));
+        public Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token)
+        {
+            LastSeekPosition = position;
+            return Task.FromResult(new MediaPresentationTimestamp(position + TimeSpan.FromMilliseconds(5)));
+        }
         public Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token) => Task.FromResult(new MediaPresentationTimestamp(NextFrame));
         public Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token) => Task.FromResult(new MediaPresentationTimestamp(PreviousFrame));
         public Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token) => throw new NotSupportedException();

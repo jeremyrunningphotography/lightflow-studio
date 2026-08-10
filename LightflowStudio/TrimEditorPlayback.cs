@@ -17,6 +17,16 @@ internal sealed class TrimEditorPlayback : IAsyncDisposable
         return _lease.Service;
     }
 
+    public async Task<MediaPresentationTimestamp?> SeekToInitialPositionAsync(
+        TrimSelection selection, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        if (_lease is null) throw new InvalidOperationException("Open the playback source before setting its initial position.");
+        if (selection.InitialPlaybackPosition <= TimeSpan.Zero) return _lease.Service.Snapshot.DisplayedTimestamp;
+        await _lease.Service.SeekAsync(selection.InitialPlaybackPosition, token).ConfigureAwait(false);
+        return _lease.Service.Snapshot.DisplayedTimestamp;
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_lease is null) return;

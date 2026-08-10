@@ -147,6 +147,29 @@ public class UiLayoutTests
             Assert.Equal("Segoe UI Symbol", (string?)text[0].Attribute("FontFamily"));
         }
     }
+
+    [Fact]
+    public void TrimEditor_UsesLightflowBrandingAndKeepsSeekSeparateFromRangeIndicator()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "TrimEditorWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var slider = Named(document, "PositionSlider");
+        var range = Named(document, "EditorRangeIndicator");
+
+        Assert.Equal("Lightflow Studio — Trim Video", (string?)document.Root.Attribute("Title"));
+        Assert.Equal("Assets/Branding/LightflowStudio.ico", (string?)document.Root.Attribute("Icon"));
+        Assert.Equal("PositionSlider_PreviewMouseLeftButtonDown", (string?)slider.Attribute("PreviewMouseLeftButtonDown"));
+        Assert.Equal("PlaybackTimelineSlider", ((string?)slider.Attribute("Style"))?.Split(' ').Last().TrimEnd('}'));
+        Assert.Equal("TrimRangeIndicator", range.Name.LocalName);
+        Assert.Equal("SeekIn_Click", (string?)Named(document, "InTimeLink").Attribute("Click"));
+        Assert.Equal("SeekOut_Click", (string?)Named(document, "OutTimeLink").Attribute("Click"));
+        var hitAreaStyle = document.Descendants(ns + "Style").Single(element =>
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "PlaybackTimelineHitArea"));
+        Assert.Contains(hitAreaStyle.Descendants(ns + "Border"), element =>
+            (string?)element.Attribute("Background") == "Transparent");
+        Assert.Contains(document.Descendants(ns + "Border"), element =>
+            (string?)element.Attribute("Background") == "{StaticResource BrandGradient}");
+    }
     private static XElement Named(XDocument document, string name) =>
         document.Descendants().Single(element => element.Attributes().Any(attribute =>
             attribute.Name.LocalName == "Name" && attribute.Value == name));

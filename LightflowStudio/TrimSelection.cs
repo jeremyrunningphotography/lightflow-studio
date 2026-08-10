@@ -17,6 +17,7 @@ internal sealed class TrimSelection
     public TimeSpan SourceDuration { get; }
     public TimeSpan In { get; private set; }
     public TimeSpan Out { get; private set; }
+    public TimeSpan InitialPlaybackPosition => In;
 
     public bool SetIn(TimeSpan timestamp)
     {

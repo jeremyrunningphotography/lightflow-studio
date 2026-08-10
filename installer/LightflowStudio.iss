@@ -25,8 +25,13 @@ OutputDir={#OutputDir}
 OutputBaseFilename=LightflowStudio-{#MyAppVersion}-win-x64-setup
 SetupIconFile={#SourceDir}\LightflowStudio.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
+#ifdef ValidationBuild
+Compression=zip
+SolidCompression=no
+#else
 Compression=lzma2/ultra64
 SolidCompression=yes
+#endif
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible

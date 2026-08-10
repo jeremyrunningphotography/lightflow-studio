@@ -1,0 +1,160 @@
+using System.Text.Json;
+using LightflowStudio;
+using Xunit;
+
+namespace LightflowStudio.Tests;
+
+public sealed class JobHistoryStoreTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "LightflowHistoryTests", Guid.NewGuid().ToString("N"));
+    private string StorePath => Path.Combine(_root, "job-history.json");
+
+    public JobHistoryStoreTests() => Directory.CreateDirectory(_root);
+
+    [Fact]
+    public void MissingStore_IsAnEmptyHistory() => Assert.Empty(new JobHistoryStore(StorePath).Load());
+
+    [Fact]
+    public void CompletedEncodingJob_RoundTripsTypedOptionsResultsAndRanges()
+    {
+        var record = Record(JobState.CompletedWithWarnings, DateTimeOffset.Parse("2026-01-02T03:04:05Z"));
+        new JobHistoryStore(StorePath).Add(record);
+
+        var actual = Assert.Single(new JobHistoryStore(StorePath).Load());
+        Assert.Equal(record.JobId, actual.JobId);
+        Assert.Equal(OutputResolution.Qhd1440, actual.Definition.Options.Resolution);
+        Assert.Equal(VideoCodec.Hevc, actual.Definition.Options.Encoding.Codec);
+        Assert.Equal(JobState.CompletedWithWarnings, actual.Result.State);
+        Assert.Equal("warning", Assert.Single(actual.Result.Items).Warnings.Single());
+        Assert.Equal("error detail", actual.Result.Items.Single().Errors.Single());
+        Assert.Equal(TimeSpan.FromSeconds(10), actual.Plan.Items.Single().Definition.MediaRange!.EffectiveIn);
+        Assert.Equal(TimeSpan.FromSeconds(20), actual.Result.Items.Single().Data!.EffectiveDuration);
+        Assert.False(File.Exists(StorePath + ".tmp"));
+    }
+
+    [Fact]
+    public void MultipleRecords_LoadNewestFirst()
+    {
+        var store = new JobHistoryStore(StorePath);
+        store.Add(Record(JobState.Completed, DateTimeOffset.Parse("2026-01-01T00:00:00Z")));
+        store.Add(Record(JobState.Failed, DateTimeOffset.Parse("2026-01-03T00:00:00Z")));
+        store.Add(Record(JobState.Cancelled, DateTimeOffset.Parse("2026-01-02T00:00:00Z")));
+        Assert.Equal([JobState.Failed, JobState.Cancelled, JobState.Completed], store.Load().Select(record => record.State));
+    }
+
+    [Theory]
+    [InlineData((int)JobState.Completed)]
+    [InlineData((int)JobState.CompletedWithWarnings)]
+    [InlineData((int)JobState.Skipped)]
+    [InlineData((int)JobState.Cancelled)]
+    [InlineData((int)JobState.Failed)]
+    public void TerminalOutcomes_RemainDistinct(int stateValue)
+    {
+        var state = (JobState)stateValue;
+        var store = new JobHistoryStore(StorePath);
+        store.Add(Record(state, DateTimeOffset.UtcNow));
+        Assert.Equal(state, Assert.Single(store.Load()).State);
+    }
+
+    [Fact]
+    public void MalformedDocumentAndUnsupportedVersion_AreIgnored()
+    {
+        File.WriteAllText(StorePath, "not json");
+        Assert.Empty(new JobHistoryStore(StorePath).Load());
+        File.WriteAllText(StorePath, "{\"version\":99,\"records\":[]}");
+        Assert.Empty(new JobHistoryStore(StorePath).Load());
+    }
+
+    [Fact]
+    public void MalformedIndividualRecord_DoesNotPoisonValidRecord()
+    {
+        var validPath = Path.Combine(_root, "valid.json");
+        new JobHistoryStore(validPath).Add(Record(JobState.Completed, DateTimeOffset.UtcNow));
+        using var document = JsonDocument.Parse(File.ReadAllText(validPath));
+        var valid = document.RootElement.GetProperty("records")[0].GetRawText();
+        File.WriteAllText(StorePath, $"{{\"version\":1,\"records\":[{{\"jobId\":7}},{valid}]}}");
+        Assert.Single(new JobHistoryStore(StorePath).Load());
+    }
+
+    [Fact]
+    public void Retention_KeepsNewestOneHundredRecords()
+    {
+        var store = new JobHistoryStore(StorePath);
+        for (var index = 0; index < 105; index++) store.Add(Record(JobState.Completed, DateTimeOffset.UnixEpoch.AddMinutes(index)));
+        var records = store.Load();
+        Assert.Equal(JobHistoryStore.MaximumRecords, records.Count);
+        Assert.Equal(DateTimeOffset.UnixEpoch.AddMinutes(104), records[0].CompletedAt);
+        Assert.Equal(DateTimeOffset.UnixEpoch.AddMinutes(5), records[^1].CompletedAt);
+    }
+
+    [Fact]
+    public void FailedTemporaryWrite_DoesNotReplaceExistingHistory()
+    {
+        var store = new JobHistoryStore(StorePath);
+        var original = Record(JobState.Completed, DateTimeOffset.UnixEpoch);
+        store.Add(original);
+        Directory.CreateDirectory(StorePath + ".tmp");
+
+        var failure = Xunit.Record.Exception(() => store.Add(Record(JobState.Failed, DateTimeOffset.UtcNow)));
+        Assert.True(failure is IOException or UnauthorizedAccessException);
+
+        Assert.Equal(original.JobId, Assert.Single(store.Load()).JobId);
+    }
+
+    [Fact]
+    public void RerunPreparation_RejectsMissingAndChangedSourcesAndKeepsMatchingRange()
+    {
+        var matching = Path.Combine(_root, "matching.mp4");
+        var changed = Path.Combine(_root, "changed.mp4");
+        File.WriteAllText(matching, "source");
+        File.WriteAllText(changed, "changed");
+        var good = Item(matching);
+        var stale = Item(changed) with { SourceSizeBytes = 1 };
+        var missing = Item(Path.Combine(_root, "missing.mp4"));
+        var record = Record(JobState.Completed, DateTimeOffset.UtcNow, [good, stale, missing]);
+
+        var prepared = EncodingHistoryRerun.Prepare(record);
+        var available = Assert.Single(prepared.Available);
+        Assert.Equal(matching, available.Item.SourceIdentity);
+        Assert.Equal(TimeSpan.FromSeconds(10), available.Item.MediaRange!.EffectiveIn);
+        Assert.Equal(2, prepared.Sources.Count(source => !source.IsAvailable));
+    }
+
+    private static JobItemDefinition Item(string path)
+    {
+        var info = new FileInfo(path);
+        return new(Guid.NewGuid(), path, info.Exists ? info.Length : null,
+            new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30)),
+            null, info.Exists ? info.LastWriteTimeUtc.Ticks : null, true);
+    }
+
+    private static EncodingJobHistoryRecord Record(JobState state, DateTimeOffset completedAt, IReadOnlyList<JobItemDefinition>? definitions = null)
+    {
+        definitions ??= [Item("source.mp4")];
+        var options = new EncodingJobOptions("input", "output", OutputResolution.Qhd1440, RecoveryStrategy.Normal,
+            EncodingPresetCatalog.Recommended with { Codec = VideoCodec.Hevc }, null, "_test", false, false, true);
+        var id = Guid.NewGuid();
+        var definition = new JobDefinition<EncodingJobOptions>(id, "video.encode", completedAt.AddMinutes(-2), options, definitions);
+        var planItems = definitions.Select(item => new JobPlanItem(item, [$"{item.SourceIdentity}.out.mp4"],
+            state == JobState.Skipped ? JobPlanDisposition.Skip : JobPlanDisposition.Process,
+            JobWorkEstimate.Determinate(JobWorkUnit.MediaDuration, 20), [])).ToList();
+        var plan = new JobPlan<EncodingJobOptions>(definition, completedAt.AddMinutes(-1), planItems, [], JobWorkUnit.MediaDuration);
+        var results = definitions.Select(item => new JobItemResult<EncodingItemResult>(item.Id, state,
+            [$"{item.SourceIdentity}.out.mp4"], state == JobState.CompletedWithWarnings ? ["warning"] : [],
+            ["error detail"], new EncodingItemResult(0, TimeSpan.FromSeconds(60), item.MediaRange, TimeSpan.FromSeconds(20)))).ToList();
+        var summary = new JobResultSummary(results.Count,
+            state == JobState.Completed ? results.Count : 0,
+            state == JobState.CompletedWithWarnings ? results.Count : 0,
+            state == JobState.Skipped ? results.Count : 0,
+            state == JobState.Cancelled ? results.Count : 0,
+            state == JobState.Failed ? results.Count : 0);
+        var result = new JobResult<EncodingItemResult>(id, state, completedAt.AddMinutes(-1), completedAt, results, summary,
+            state == JobState.CompletedWithWarnings ? ["warning"] : [], state == JobState.Failed ? ["error detail"] : []);
+        return new(id, "video.encode", definition.CreatedAt, result.StartedAt, completedAt, state, definition, plan, result);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_root)) Directory.Delete(_root, true);
+    }
+}

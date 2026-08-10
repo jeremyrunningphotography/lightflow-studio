@@ -31,7 +31,7 @@ Goal: make the existing application architecture ready for additional media util
 - Formalize capability-based navigation
 - Introduce a shared job model across tools
 - Standardize input selection, output planning, progress, cancellation, and result summaries
-- Add persistent job history
+- ✅ Add persistent local job history with typed Encoding details and review-before-rerun restoration
 - Improve batch review before processing
 - Improve error translation and troubleshooting links
 - Define preset import/export

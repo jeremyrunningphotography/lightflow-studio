@@ -22,6 +22,7 @@
      SelectedIndex="{Binding ElementName=MainTabs, Path=SelectedIndex, Mode=TwoWay}">
      <ListBoxItem IsSelected="True"><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe UI Symbol" FontSize="16" LineHeight="20" LineStackingStrategy="BlockLineHeight" Text="▶"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Batch Encode"/></Grid></ListBoxItem>
      <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe UI Symbol" FontSize="16" LineHeight="20" LineStackingStrategy="BlockLineHeight" Text="◇"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Media Tools"/></Grid></ListBoxItem>
+     <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe UI Symbol" FontSize="16" LineHeight="20" LineStackingStrategy="BlockLineHeight" Text="◷"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="History"/></Grid></ListBoxItem>
      <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe UI Symbol" FontSize="16" LineHeight="20" LineStackingStrategy="BlockLineHeight" Text="✦"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Premiere Helper"/></Grid></ListBoxItem>
      <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe UI Symbol" FontSize="16" LineHeight="20" LineStackingStrategy="BlockLineHeight" Text="⚙"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Settings"/></Grid></ListBoxItem>
      <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe UI Symbol" FontSize="16" LineHeight="20" LineStackingStrategy="BlockLineHeight" Text="●"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="About"/></Grid></ListBoxItem>
@@ -207,6 +208,34 @@
       </StackPanel>
      </Border>
      <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Style="{StaticResource SectionTitle}" Margin="4,0,4,10" Text="Tool Output"/><TextBox Grid.Row="1" x:Name="ToolsOutput" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" FontSize="12" VerticalContentAlignment="Top" HorizontalContentAlignment="Left" VerticalScrollBarVisibility="Auto"/></Grid></Border>
+    </Grid>
+   </TabItem>
+
+   <TabItem>
+    <Grid Margin="28,24,28,28">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+     <DockPanel Margin="2,0,0,20">
+      <Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshHistory_Click"/>
+      <StackPanel><TextBlock Style="{StaticResource PageTitle}" Text="History"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Review completed Encoding jobs and restore safe inputs for another run."/></StackPanel>
+     </DockPanel>
+     <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Border Style="{StaticResource Card}" Margin="0,0,10,0">
+       <Grid><TextBlock x:Name="HistoryEmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="No completed jobs yet."/>
+        <ListBox x:Name="HistoryList" Background="Transparent" BorderThickness="0" SelectionChanged="HistoryList_SelectionChanged">
+         <ListBox.ItemTemplate><DataTemplate><Grid Margin="4,6"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <DockPanel><TextBlock DockPanel.Dock="Right" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="{Binding CompletedDisplay}"/><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding CapabilityDisplay}"/></DockPanel>
+          <TextBlock Grid.Row="1" Margin="0,4,0,0" Foreground="{StaticResource OrangeBrush}" Text="{Binding StateDisplay}"/>
+          <TextBlock Grid.Row="2" Margin="0,3,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap" Text="{Binding SummaryDisplay}"/>
+         </Grid></DataTemplate></ListBox.ItemTemplate>
+        </ListBox>
+       </Grid>
+      </Border>
+      <Border Grid.Column="1" Style="{StaticResource Card}" Margin="10,0,0,0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <TextBlock Style="{StaticResource SectionTitle}" Text="Job details"/>
+       <TextBox Grid.Row="1" x:Name="HistoryDetails" Margin="0,12,0,12" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas" FontSize="12" Text="Select a job to inspect its results."/>
+       <Button Grid.Row="2" x:Name="HistoryRerunButton" HorizontalAlignment="Right" Style="{StaticResource PrimaryButton}" Content="Review &amp; Rerun" IsEnabled="False" Click="RerunHistory_Click"/>
+      </Grid></Border>
+     </Grid>
     </Grid>
    </TabItem>
 

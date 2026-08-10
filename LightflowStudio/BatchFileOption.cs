@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 
 namespace LightflowStudio;
 
@@ -12,18 +13,22 @@ internal sealed class BatchFileOption : INotifyPropertyChanged
     private string _resolutionText = "Reading…";
     private string _frameRateText = "—";
     private string _durationText = "—";
+    private MediaRange? _trimRange;
+    private TrimIndicatorPresentation _trimIndicator = TrimIndicatorPresentation.For(null, null);
 
     public BatchFileOption(string filePath, string displayName, long fileSizeBytes = 0)
     {
         FilePath = filePath;
         DisplayName = displayName;
         FileSizeBytes = fileSizeBytes;
+        SourceIdentity = TrimSourceIdentity.Read(filePath);
         _detailsText = $"Reading details… · {MediaMetadataPresentation.FormatSize(fileSizeBytes)}";
     }
 
     public string FilePath { get; }
     public string DisplayName { get; }
     public long FileSizeBytes { get; }
+    public TrimSourceIdentity? SourceIdentity { get; }
     public MediaMetadata? Metadata { get; private set; }
     public bool MetadataError { get; private set; }
     public bool IsAnalyzing => Metadata is null && !MetadataError;
@@ -36,6 +41,13 @@ internal sealed class BatchFileOption : INotifyPropertyChanged
     public string FrameRateText { get => _frameRateText; private set => SetField(ref _frameRateText, value); }
     public string DurationText { get => _durationText; private set => SetField(ref _durationText, value); }
     public string SizeText => MediaMetadataPresentation.FormatSize(FileSizeBytes);
+    public MediaRange? TrimRange => _trimRange;
+    public bool HasActiveTrim => _trimRange is not null;
+    public string TrimActionText => HasActiveTrim ? "Edit Trim" : "Trim";
+    public bool CanTrim => SourceIdentity is not null;
+    public bool TrimIndicatorHasProportions => _trimIndicator.HasProportions;
+    public double TrimIndicatorStart => _trimIndicator.StartFraction;
+    public double TrimIndicatorWidth => _trimIndicator.WidthFraction;
 
     public bool IsSelected
     {
@@ -58,6 +70,8 @@ internal sealed class BatchFileOption : INotifyPropertyChanged
         FrameRateText = $"{MediaMetadataPresentation.FormatFrameRate(metadata.FrameRate)} fps";
         DurationText = MediaMetadataPresentation.FormatDuration(metadata.DurationSeconds);
         OnPropertyChanged(nameof(IsAnalyzing));
+        OnPropertyChanged(nameof(CanTrim));
+        UpdateTrimIndicator();
     }
 
     public void MarkMetadataUnavailable()
@@ -70,12 +84,34 @@ internal sealed class BatchFileOption : INotifyPropertyChanged
         FrameRateText = "—";
         DurationText = "—";
         OnPropertyChanged(nameof(IsAnalyzing));
+        OnPropertyChanged(nameof(CanTrim));
+        UpdateTrimIndicator();
     }
 
     public void SetWarning(string label, string tooltip)
     {
         WarningLabel = label;
         WarningTooltip = tooltip;
+    }
+
+    public void ApplyTrim(MediaRange? range)
+    {
+        if (range is not null && (range.IsFullSource || range.Validate().Count != 0))
+            throw new ArgumentException("The applied trim must be a valid partial media range.", nameof(range));
+        _trimRange = range;
+        OnPropertyChanged(nameof(TrimRange));
+        OnPropertyChanged(nameof(HasActiveTrim));
+        OnPropertyChanged(nameof(TrimActionText));
+        UpdateTrimIndicator();
+    }
+
+    private void UpdateTrimIndicator()
+    {
+        TimeSpan? duration = Metadata?.DurationSeconds > 0 ? TimeSpan.FromSeconds(Metadata.DurationSeconds) : null;
+        _trimIndicator = TrimIndicatorPresentation.For(_trimRange, duration);
+        OnPropertyChanged(nameof(TrimIndicatorHasProportions));
+        OnPropertyChanged(nameof(TrimIndicatorStart));
+        OnPropertyChanged(nameof(TrimIndicatorWidth));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

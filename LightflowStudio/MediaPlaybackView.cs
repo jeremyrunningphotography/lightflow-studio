@@ -4,7 +4,7 @@ namespace LightflowStudio;
 
 internal sealed class MediaPlaybackView : ContentControl
 {
-    public MediaPlaybackView(MediaPlaybackService playback)
+    public MediaPlaybackView(IMediaPlaybackService playback)
     {
         ArgumentNullException.ThrowIfNull(playback);
         Content = playback.CreatePresentationSurface();

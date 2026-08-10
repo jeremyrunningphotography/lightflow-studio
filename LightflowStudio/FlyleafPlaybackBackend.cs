@@ -14,9 +14,9 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     private static readonly object EngineLock = new();
     private static bool _engineStarted;
     private readonly string _ffmpegPath;
-    private readonly FlyleafHost _host;
     private readonly Dispatcher _dispatcher;
     private Window? _offscreenWindow;
+    private FlyleafHost? _host;
     private CancellationTokenSource _pending = new();
     private Player? _player;
     private bool _disposed;
@@ -27,7 +27,6 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             ?? throw new DirectoryNotFoundException("Bundled playback libraries were not found.");
         _dispatcher = Dispatcher.CurrentDispatcher;
         StartEngine(_ffmpegPath, _dispatcher);
-        _host = RunOnUi(() => new FlyleafHost());
     }
 
     public event EventHandler<MediaPresentationTimestamp>? FramePresented;
@@ -35,26 +34,24 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
     public FrameworkElement CreatePresentationSurface()
     {
-        RunOnUi(() =>
+        return RunOnUi(() =>
         {
-            if (_offscreenWindow is null) return;
-            _offscreenWindow.Content = null;
-            _offscreenWindow.Close();
-            _offscreenWindow = null;
-            _host.Player = _player;
+            CloseOffscreenWindow();
+            ReleaseHost(_host);
+            _host = new FlyleafHost { Player = _player };
+            return _host;
         });
-        return _host;
     }
 
     public void ReleasePresentationSurface(FrameworkElement surface)
     {
-        if (!ReferenceEquals(surface, _host)) return;
+        if (surface is not FlyleafHost host) return;
         RunOnUi(() =>
         {
-            // The host is reusable, but its renderer must not retain the presentation
-            // target owned by a closed WPF view. A later CreatePresentationSurface call
-            // reattaches the current player to this same global-session host.
-            _host.Player = null;
+            if (!ReferenceEquals(host, _host)) return;
+            CloseOffscreenWindow();
+            ReleaseHost(host);
+            _host = null;
         });
     }
 
@@ -74,7 +71,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
         var player = RunOnUi(CreatePlayer);
         _player = player;
-        RunOnUi(() => _host.Player = player);
+        RunOnUi(() => { if (_host is not null) _host.Player = player; });
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _pending.Token);
         var opened = await WaitForOpenAsync(player, sourcePath, linked.Token).ConfigureAwait(false);
         if (!opened.Success)
@@ -219,7 +216,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         if (player is null) return;
         player.PropertyChanged -= Player_PropertyChanged;
         await Task.Run(() => player.Dispose()).ConfigureAwait(false);
-        RunOnUi(() => { if (ReferenceEquals(_host.Player, player)) _host.Player = null; });
+        RunOnUi(() => { if (ReferenceEquals(_host?.Player, player)) _host.Player = null; });
     }
 
     private void Player_PropertyChanged(object? sender, PropertyChangedEventArgs args)
@@ -311,6 +308,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
     private void EnsureOffscreenSurface()
     {
+        _host ??= new FlyleafHost { Player = _player };
         if (_host.IsLoaded || _offscreenWindow is not null) return;
         _offscreenWindow = new Window
         {
@@ -324,6 +322,21 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             WindowStyle = WindowStyle.None
         };
         _offscreenWindow.Show();
+    }
+
+    private void CloseOffscreenWindow()
+    {
+        if (_offscreenWindow is null) return;
+        _offscreenWindow.Content = null;
+        _offscreenWindow.Close();
+        _offscreenWindow = null;
+    }
+
+    private static void ReleaseHost(FlyleafHost? host)
+    {
+        if (host is null) return;
+        host.Player = null;
+        host.Dispose();
     }
     private Player RequirePlayer() => _player ?? throw new InvalidOperationException("No playback source is loaded.");
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
@@ -363,13 +376,9 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         await ClosePlayerAsync().ConfigureAwait(false);
         RunOnUi(() =>
         {
-            if (_offscreenWindow is not null)
-            {
-                _offscreenWindow.Content = null;
-                _offscreenWindow.Close();
-                _offscreenWindow = null;
-            }
-            _host.Dispose();
+            CloseOffscreenWindow();
+            ReleaseHost(_host);
+            _host = null;
         });
         _pending.Dispose();
     }

@@ -40,6 +40,7 @@ public sealed class TrimEditorPlaybackTests
         {
             var backend = new FakeBackend();
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var surfaces = new List<FrameworkElement>();
             foreach (var source in new[] { "same.mp4", "same.mp4", "different.mp4", "same.mp4" })
             {
                 await using var editor = new TrimEditorPlayback(coordinator);
@@ -47,13 +48,15 @@ public sealed class TrimEditorPlaybackTests
                 using (var view = new MediaPlaybackView(playback))
                 {
                     Assert.True(backend.PresentationAttached);
-                    Assert.Same(backend.Surface, view.Content);
+                    Assert.Same(backend.ActiveSurface, view.Content);
+                    surfaces.Add((FrameworkElement)view.Content);
                 }
                 Assert.False(backend.PresentationAttached);
             }
 
             Assert.Equal(4, backend.PresentationAttachCount);
             Assert.Equal(4, backend.PresentationReleaseCount);
+            Assert.Equal(4, surfaces.Distinct().Count());
             Assert.Equal(0, backend.ActiveSessions);
         });
     }
@@ -63,8 +66,7 @@ public sealed class TrimEditorPlaybackTests
         public static readonly TimeSpan NextFrame = TimeSpan.FromMilliseconds(10100);
         public static readonly TimeSpan PreviousFrame = TimeSpan.FromMilliseconds(9900);
         public int ActiveSessions { get; private set; }
-        private Border? _surface;
-        public Border Surface => _surface ??= new Border();
+        public FrameworkElement? ActiveSurface { get; private set; }
         public bool PresentationAttached { get; private set; }
         public int PresentationAttachCount { get; private set; }
         public int PresentationReleaseCount { get; private set; }
@@ -75,12 +77,14 @@ public sealed class TrimEditorPlaybackTests
             if (PresentationAttached) throw new InvalidOperationException("The previous editor still owns the presentation surface.");
             PresentationAttached = true;
             PresentationAttachCount++;
-            return Surface;
+            ActiveSurface = new Border();
+            return ActiveSurface;
         }
         public void ReleasePresentationSurface(FrameworkElement surface)
         {
-            Assert.Same(Surface, surface);
+            Assert.Same(ActiveSurface, surface);
             PresentationAttached = false;
+            ActiveSurface = null;
             PresentationReleaseCount++;
         }
         public void CancelPending() { }

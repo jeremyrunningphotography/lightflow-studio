@@ -110,6 +110,7 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
             await using var coordinator = new MediaPlaybackCoordinator(() =>
                 new MediaPlaybackService(new FlyleafPlaybackBackend(dependencies)));
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            var surfaces = new List<object>();
 
             foreach (var source in new[] { first, first, second, first })
             {
@@ -117,11 +118,13 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
                 var playback = await editor.OpenAsync(source, timeout.Token);
                 using var view = new MediaPlaybackView(playback);
                 Assert.NotNull(view.Content);
+                surfaces.Add(view.Content);
                 await playback.PlayAsync(timeout.Token);
                 await Task.Delay(100, timeout.Token);
                 await playback.PauseAsync(timeout.Token);
                 Assert.Equal(MediaPlaybackState.Paused, playback.Snapshot.State);
             }
+            Assert.Equal(4, surfaces.Distinct().Count());
         });
     }
 

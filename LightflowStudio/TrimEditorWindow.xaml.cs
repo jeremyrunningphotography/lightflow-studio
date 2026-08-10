@@ -186,17 +186,19 @@ public partial class TrimEditorWindow : Window
         SetEditorEnabled(false);
         if (_service is not null) _service.StateChanged -= Playback_StateChanged;
         PreviewHost.Children.Clear();
-        _previewView?.Dispose();
+        var previewView = _previewView;
         _previewView = null;
         try
         {
             var preservedResult = await _closeLifecycle.CloseAsync(requestedResult);
+            previewView?.Dispose();
             _releaseComplete = true;
             if (preservedResult.HasValue) DialogResult = preservedResult.Value;
             else Close();
         }
         catch (Exception exception)
         {
+            previewView?.Dispose();
             MessageText.Text = $"Playback could not close cleanly: {exception.Message}";
             SetEditorEnabled(true);
         }

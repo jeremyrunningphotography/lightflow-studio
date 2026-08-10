@@ -112,6 +112,12 @@ internal static class FfmpegCommandBuilder
         ["-v", "error", "-show_entries", "format=duration,start_time:stream=codec_type,codec_name,width,height,avg_frame_rate,start_time,duration", "-of", "json", file];
     public static List<string> ProbeVideoFrames(string file) =>
         ["-v", "error", "-select_streams", "v:0", "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", file];
+    public static List<string> ProbeVideoFrames(string file, MediaRange range, TimeSpan sourceStartTimestamp = default) =>
+        ["-v", "error", "-select_streams", "v:0", "-read_intervals", EncodingFrameProbeWindow.For(range, sourceStartTimestamp),
+            "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", file];
+    public static List<string> ProbeVideoPackets(string file, MediaRange range, TimeSpan sourceStartTimestamp = default) =>
+        ["-v", "error", "-select_streams", "v:0", "-read_intervals", EncodingFrameProbeWindow.For(range, sourceStartTimestamp),
+            "-show_packets", "-show_entries", "packet=pts_time", "-of", "json", file];
     public static List<string> ProbeOutput(string file) =>
         ["-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name", "-of", "json", file];
     public static List<string> Inspect(string file) => ["-hide_banner", "-show_format", "-show_streams", file];

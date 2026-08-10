@@ -25,11 +25,12 @@ public sealed class RangeEncodingIntegrationTests : IDisposable
 
         var metadataJson = Run(ffprobe, FfmpegCommandBuilder.ProbeMetadata(source));
         Assert.True(MediaMetadataParser.TryParse(metadataJson, new FileInfo(source).Length, out var metadata));
-        var frameJson = Run(ffprobe, FfmpegCommandBuilder.ProbeVideoFrames(source));
-        var timestamps = EncodingRangeResolver.ParseFrameTimestamps(frameJson)
+        var allFrameJson = Run(ffprobe, FfmpegCommandBuilder.ProbeVideoFrames(source));
+        var timestamps = EncodingRangeResolver.ParseFrameTimestamps(allFrameJson)
             .Select(value => value - metadata.StartTimestamp).ToList();
         var requested = new MediaRange(TimeSpan.FromSeconds(metadata.DurationSeconds), timestamps[2], timestamps[6]);
-        var resolved = EncodingRangeResolver.Resolve(requested, metadata.StartTimestamp, frameJson);
+        var packetJson = Run(ffprobe, FfmpegCommandBuilder.ProbeVideoPackets(source, requested, metadata.StartTimestamp));
+        var resolved = EncodingRangeResolver.Resolve(requested, metadata.StartTimestamp, packetJson);
 
         Run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-copyts", "-i", source, "-map", "0:v:0", "-map", "0:a:0",
             "-vf", $"trim=start={Seconds(resolved.AbsoluteIn)}:end={Seconds(resolved.ExclusiveOut)},setpts=PTS-STARTPTS",

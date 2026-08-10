@@ -157,6 +157,10 @@ public sealed class FfmpegCommandBuilderTests
         Assert.Equal(["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", "clip.mov"], FfmpegCommandBuilder.ProbeDuration("clip.mov"));
         Assert.Equal(["-v", "error", "-show_entries", "format=duration,start_time:stream=codec_type,codec_name,width,height,avg_frame_rate,start_time,duration", "-of", "json", "clip.mov"], FfmpegCommandBuilder.ProbeMetadata("clip.mov"));
         Assert.Equal(["-hide_banner", "-show_format", "-show_streams", "clip.mov"], FfmpegCommandBuilder.Inspect("clip.mov"));
+        Assert.Equal(["-v", "error", "-select_streams", "v:0", "-read_intervals", "7%10", "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", "clip.mov"],
+            FfmpegCommandBuilder.ProbeVideoFrames("clip.mov", new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(9))));
+        Assert.Equal(["-v", "error", "-select_streams", "v:0", "-read_intervals", "7%10", "-show_packets", "-show_entries", "packet=pts_time", "-of", "json", "clip.mov"],
+            FfmpegCommandBuilder.ProbeVideoPackets("clip.mov", new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(9))));
     }
 
     [Theory]

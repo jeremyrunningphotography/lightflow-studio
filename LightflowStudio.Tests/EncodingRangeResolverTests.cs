@@ -42,6 +42,15 @@ public sealed class EncodingRangeResolverTests
             new(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(.15), TimeSpan.FromSeconds(.3)), TimeSpan.Zero, Frames(0, .1, .2, .3)));
     }
 
+    [Fact]
+    public void Resolve_AcceptsPacketPresentationTimestamps()
+    {
+        var requested = new MediaRange(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(.1), TimeSpan.FromSeconds(.3));
+        const string packets = """{"packets":[{"pts_time":"0.0"},{"pts_time":"0.1"},{"pts_time":"0.3"},{"pts_time":"0.45"}]}""";
+
+        Assert.Equal(TimeSpan.FromSeconds(.35), EncodingRangeResolver.Resolve(requested, TimeSpan.Zero, packets).EffectiveDuration);
+    }
+
     private static string Frames(params double[] values) =>
         "{\"frames\":[" + string.Join(',', values.Select(value => $"{{\"best_effort_timestamp_time\":\"{value}\"}}")) + "]}";
 }

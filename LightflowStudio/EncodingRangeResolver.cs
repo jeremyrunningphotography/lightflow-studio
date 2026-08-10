@@ -13,7 +13,7 @@ internal static class EncodingRangeResolver
         var validation = requested.Validate();
         if (validation.Count != 0) throw new ArgumentException(validation[0].Message, nameof(requested));
 
-        var timestamps = ParseFrameTimestamps(frameProbeJson)
+        var timestamps = ParsePresentationTimestamps(frameProbeJson)
             .Select(timestamp => timestamp - sourceStartTimestamp)
             .Where(timestamp => timestamp >= TimeSpan.Zero)
             .Distinct()
@@ -36,11 +36,19 @@ internal static class EncodingRangeResolver
     }
 
     internal static IReadOnlyList<TimeSpan> ParseFrameTimestamps(string json)
+        => ParsePresentationTimestamps(json);
+
+    internal static IReadOnlyList<TimeSpan> ParsePresentationTimestamps(string json)
     {
         using var document = JsonDocument.Parse(json);
-        if (!document.RootElement.TryGetProperty("frames", out var frames)) return [];
-        return frames.EnumerateArray()
-            .Select(frame => frame.TryGetProperty("best_effort_timestamp_time", out var value)
+        var (items, property) = document.RootElement.TryGetProperty("frames", out var frames)
+            ? (frames, "best_effort_timestamp_time")
+            : document.RootElement.TryGetProperty("packets", out var packets)
+                ? (packets, "pts_time")
+                : (default, "");
+        if (items.ValueKind != JsonValueKind.Array) return [];
+        return items.EnumerateArray()
+            .Select(item => item.TryGetProperty(property, out var value)
                 && double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
                     ? TimeSpan.FromSeconds(seconds)
                     : (TimeSpan?)null)

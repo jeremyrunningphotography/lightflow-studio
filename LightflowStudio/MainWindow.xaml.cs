@@ -701,10 +701,21 @@ public partial class MainWindow : Window
                     if (source.SourceIdentity is null || currentIdentity is null || !source.SourceIdentity.Matches(currentIdentity))
                         throw new InvalidOperationException($"{source.DisplayName} changed after its trim was selected. Reopen Trim and choose the range again.");
                     var startTimestamp = source.Metadata?.StartTimestamp ?? TimeSpan.Zero;
-                    var frameProbe = await CaptureAsync(_ffprobe!, FfmpegCommandBuilder.ProbeVideoFrames(source.FilePath), _jobCancellation.Token);
-                    if (frameProbe.ExitCode != 0)
+                    CurrentFileText.Text = $"Analyzing trim boundaries for {source.DisplayName}…";
+                    var timestampProbe = await CaptureAsync(_ffprobe!, FfmpegCommandBuilder.ProbeVideoPackets(source.FilePath, trim, startTimestamp), _jobCancellation.Token);
+                    if (timestampProbe.ExitCode != 0)
                         throw new InvalidOperationException($"Could not validate the saved trim for {source.DisplayName}.");
-                    resolvedRanges[source.FilePath] = EncodingRangeResolver.Resolve(trim, startTimestamp, frameProbe.StdOut);
+                    try
+                    {
+                        resolvedRanges[source.FilePath] = EncodingRangeResolver.Resolve(trim, startTimestamp, timestampProbe.StdOut);
+                    }
+                    catch (Exception exception) when (exception is ArgumentException or InvalidDataException)
+                    {
+                        AppendDetailedLog($"Packet timestamps were insufficient for {source.DisplayName}; checking decoded frame timestamps.");
+                        var frameProbe = await CaptureAsync(_ffprobe!, FfmpegCommandBuilder.ProbeVideoFrames(source.FilePath, trim, startTimestamp), _jobCancellation.Token);
+                        if (frameProbe.ExitCode != 0) throw;
+                        resolvedRanges[source.FilePath] = EncodingRangeResolver.Resolve(trim, startTimestamp, frameProbe.StdOut);
+                    }
                 }
             }
             var plan = CreateEncodingPlan(durations, resolvedRanges);

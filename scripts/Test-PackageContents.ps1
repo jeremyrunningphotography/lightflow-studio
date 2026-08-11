@@ -31,6 +31,14 @@ foreach ($relativePath in $requiredFiles) {
     }
 }
 
+$thirdPartyNotices = Get-Content -LiteralPath (Join-Path $packageRoot "THIRD-PARTY-NOTICES.md") -Raw
+$requiredNoticeMarkers = @("Microsoft.Data.Sqlite 8.0.29", "SQLitePCLRaw 2.1.6", "sqlite.org/copyright")
+foreach ($marker in $requiredNoticeMarkers) {
+    if (-not $thirdPartyNotices.Contains($marker, [StringComparison]::Ordinal)) {
+        throw "Staged third-party notices are missing the Catalog database dependency: $marker"
+    }
+}
+
 $requiredPlaybackLibraries = @("avcodec-*.dll", "avformat-*.dll", "avutil-*.dll", "swresample-*.dll", "swscale-*.dll")
 foreach ($pattern in $requiredPlaybackLibraries) {
     $matches = Get-ChildItem -LiteralPath (Join-Path $packageRoot "playback\ffmpeg\bin") -Filter $pattern -File

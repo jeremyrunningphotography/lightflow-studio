@@ -30,11 +30,11 @@ The existing same-directory `*.lightflow` Encoding partial is intentionally gove
 
 SQLite is appropriate for the expected single-user desktop workload: one application process, large row counts queried incrementally, transactional relational updates, and no requirement for a database server.
 
-Issue #80 will add a direct, exact reference to **`Microsoft.Data.Sqlite` 8.0.29**. Lightflow will use its ADO.NET API directly rather than Entity Framework Core. This keeps the data-access boundary explicit, migration SQL reviewable, package size lower, and schema evolution under Lightflow's control.
+Issue #80 adds a direct, exact reference to **`Microsoft.Data.Sqlite` 8.0.29**. Lightflow uses its ADO.NET API directly rather than Entity Framework Core. This keeps the data-access boundary explicit, migration SQL reviewable, package size lower, and schema evolution under Lightflow's control.
 
 `Microsoft.Data.Sqlite` is MIT licensed. Its default bundle uses SQLitePCLRaw and the native `e_sqlite3` library; SQLite is dedicated to the public domain. When #80 adds the binary dependency, the exact package graph and applicable MIT notices must be added to `THIRD-PARTY-NOTICES.md` and verified in self-contained/installer packaging. The package is not added by #78 because no production database code exists yet; an unused native dependency would add payload without validating the eventual package path.
 
-The provider major follows the application's .NET 8 target. A provider upgrade is an intentional dependency change with normal test/package validation; code must not float to an unpinned version.
+The provider major follows the application's .NET 8 target. A provider upgrade is an intentional dependency change with normal test/package validation; code must not float to an unpinned version. The exact package graph is locked, and self-contained packaging embeds the SQLitePCLRaw `e_sqlite3` native library for runtime extraction.
 
 ### 3. File layout and centralized locations
 
@@ -98,12 +98,12 @@ Every opened Catalog connection must enforce the same policy through a connectio
 
 `synchronous=FULL` adds filesystem synchronization and therefore higher write latency than `NORMAL`, particularly during frequent small commits. Lightflow intentionally accepts that cost for precious Catalog writes so a reported commit receives SQLite's strongest practical WAL durability against operating-system crash or power loss. Features should still group related changes into short transactions rather than trading durability away. This policy is scoped to the Catalog. It does not prescribe FULL synchronization, WAL, or even SQLite for rebuildable Preview persistence, which may choose a throughput-oriented design in its own implementation.
 
-These are accepted runtime requirements, not behavior implemented by #78. #80 must add the provider, connection factory, PRAGMA application/verification, schema, migrations, and integration tests before any production Catalog database is opened.
+These are accepted runtime requirements, not behavior implemented by #78. #80 implements the provider, connection factory, PRAGMA application/verification, schema, migrations, and integration tests. The service is not connected to startup or location UI until the protected workflows in #79 are available.
 
 ### 7. Schema versions and migrations
 
 - The database's `PRAGMA user_version` is the authoritative integer schema version.
-- #80 will also keep an append-only migration record containing migration ID/version and UTC application time for diagnostics.
+- #80 also keeps an append-only migration record containing migration ID/version and UTC application time for diagnostics.
 - Migrations are ordered, forward-only, deterministic, and included in application code. Production code never performs ad hoc schema repair.
 - New Catalog creation applies the same ordered migration chain from version 0.
 - Each migration runs in a transaction where SQLite permits it. A failure rolls back and leaves the original Catalog recoverable.
@@ -180,14 +180,14 @@ Rejected categorically. Preview deletion/rebuild must never lose a rating, label
 
 - Later Catalog work has a fixed provider, durability policy, path contract, migration convention, and failure model.
 - Catalog operations require more care than caches: explicit transactions, backups, integrity checks, and user-visible failures.
-- The application will carry a native SQLite library once #80 lands; licensing notices and package checks must be updated then.
+- The application carries a native SQLite library through its self-contained single-file package; licensing notices and package checks cover that dependency.
 - Direct live-Catalog access on network storage and multi-client writers are intentionally unsupported in v1; validated backup/export destinations are not prohibited.
 - Existing JSON stores remain stable and can migrate incrementally after stable Asset IDs exist.
 
 ## Follow-up work
 
 - **#79:** Persist independent location choices, validate destinations, implement protected Catalog relocation and Preview move/rebuild UX, and surface unavailable storage.
-- **#80:** Add the pinned provider/package and notices, connection factory/runtime PRAGMAs, initial schema, application identity, migration runner, and repository boundaries.
+- **#80:** Implemented the pinned provider/package and notices, connection factory/runtime PRAGMAs, initial schema, application identity, migration runner, and repository boundaries.
 - **#81:** Add logical Media Roots and machine-specific mappings.
 - **#82:** Add stable Asset IDs, relative paths, and initial source fingerprints.
 - **#83:** Implement SQLite-aware backup retention, integrity lifecycle, recovery/restore services, and user-facing diagnostics.

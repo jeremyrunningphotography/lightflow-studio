@@ -46,3 +46,23 @@ distributed under the MIT License:
 - SharpGenTools: <https://github.com/SharpGenTools/SharpGenTools>
 
 NuGet package license files and the source repositories above are authoritative.
+
+## Catalog database components
+
+The durable Lightflow Catalog uses Microsoft.Data.Sqlite 8.0.29, distributed
+under the MIT License:
+
+- Microsoft.Data.Sqlite source and license: <https://github.com/dotnet/efcore>
+
+Microsoft.Data.Sqlite uses SQLitePCLRaw 2.1.6, also distributed under the MIT
+License, to load the bundled native `e_sqlite3` library:
+
+- SQLitePCLRaw source and license: <https://github.com/ericsink/SQLitePCL.raw>
+
+SQLite itself is in the public domain. The SQLite project and public-domain
+dedication are available at <https://www.sqlite.org/copyright.html>.
+
+The exact managed and native package graph, versions, and package hashes are
+recorded in the NuGet `packages.lock.json` files. The native SQLite library is
+embedded in Lightflow's self-contained single-file executable and extracted by
+the .NET host at runtime.

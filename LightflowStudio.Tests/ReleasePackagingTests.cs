@@ -52,6 +52,49 @@ public sealed class ReleasePackagingTests
     }
 
     [Fact]
+    public void CatalogSqliteDependency_IsExactLockedLicensedAndEmbeddedForSelfContainedPackaging()
+    {
+        var project = XDocument.Load(PathAtRoot("LightflowStudio", "LightflowStudio.csproj"));
+        var sqlite = project.Descendants("PackageReference").Single(element =>
+            element.Attribute("Include")?.Value == "Microsoft.Data.Sqlite");
+        Assert.Equal("[8.0.29]", sqlite.Attribute("Version")?.Value);
+
+        using var lockDocument = JsonDocument.Parse(
+            File.ReadAllText(PathAtRoot("LightflowStudio", "packages.lock.json")));
+        var packages = lockDocument.RootElement.GetProperty("dependencies")
+            .GetProperty("net8.0-windows7.0");
+        Assert.Equal("8.0.29", packages.GetProperty("Microsoft.Data.Sqlite").GetProperty("resolved").GetString());
+        Assert.Equal("8.0.29", packages.GetProperty("Microsoft.Data.Sqlite.Core").GetProperty("resolved").GetString());
+        Assert.Equal("2.1.6", packages.GetProperty("SQLitePCLRaw.bundle_e_sqlite3").GetProperty("resolved").GetString());
+        Assert.Equal("2.1.6", packages.GetProperty("SQLitePCLRaw.lib.e_sqlite3").GetProperty("resolved").GetString());
+
+        using var testLockDocument = JsonDocument.Parse(
+            File.ReadAllText(PathAtRoot("LightflowStudio.Tests", "packages.lock.json")));
+        var testPackages = testLockDocument.RootElement.GetProperty("dependencies")
+            .GetProperty("net8.0-windows7.0");
+        Assert.Equal("8.0.29", testPackages.GetProperty("Microsoft.Data.Sqlite").GetProperty("resolved").GetString());
+        Assert.Equal("2.1.6", testPackages.GetProperty("SQLitePCLRaw.lib.e_sqlite3").GetProperty("resolved").GetString());
+
+        var release = File.ReadAllText(PathAtRoot("scripts", "Build-Release.ps1"));
+        Assert.Contains("IncludeNativeLibrariesForSelfExtract=true", release);
+        Assert.Contains("--verify-catalog-runtime", release);
+        Assert.Contains("Start-Process", release);
+        Assert.Contains("-WorkingDirectory $appDirectory", release);
+        Assert.Contains("-Wait -PassThru -WindowStyle Hidden", release);
+        Assert.Contains("Packaged Catalog SQLite runtime verification failed", release);
+        Assert.True(release.IndexOf("--verify-catalog-runtime", StringComparison.Ordinal) <
+            release.IndexOf("if ($Mode -eq \"Release\")", StringComparison.Ordinal));
+        Assert.True(release.IndexOf("--verify-catalog-runtime", StringComparison.Ordinal) <
+            release.IndexOf("if (-not $SkipInstaller)", StringComparison.Ordinal));
+        var notices = File.ReadAllText(PathAtRoot("THIRD-PARTY-NOTICES.md"));
+        Assert.Contains("Microsoft.Data.Sqlite 8.0.29", notices);
+        Assert.Contains("SQLitePCLRaw 2.1.6", notices);
+        Assert.Contains("sqlite.org/copyright", notices);
+        Assert.Contains("Microsoft.Data.Sqlite", File.ReadAllText(
+            PathAtRoot("scripts", "Test-PackageContents.ps1")));
+    }
+
+    [Fact]
     public void PullRequestPackaging_UsesSharedStagingButSkipsReleaseArchiveAndUsesFastInstallerCompression()
     {
         var script = File.ReadAllText(PathAtRoot("scripts", "Build-Release.ps1"));

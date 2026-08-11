@@ -1,0 +1,116 @@
+using Microsoft.Data.Sqlite;
+
+namespace LightflowStudio;
+
+internal sealed record CatalogMigration(
+    int Version,
+    string Name,
+    Action<SqliteConnection, SqliteTransaction, CatalogMigrationContext> Apply);
+
+internal sealed record CatalogMigrationContext(Guid CatalogId, string AppliedUtc);
+
+internal static class CatalogMigrations
+{
+    public static IReadOnlyList<CatalogMigration> All { get; } =
+    [
+        new(1, "Initial catalog identity, roots, mappings, and assets", ApplyVersion1)
+    ];
+
+    private static void ApplyVersion1(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CatalogMigrationContext context)
+    {
+        Execute(connection, transaction,
+            $"PRAGMA application_id = {CatalogDatabaseService.SqliteApplicationId};");
+        Execute(connection, transaction, """
+            CREATE TABLE CatalogInfo (
+                SingletonId INTEGER NOT NULL PRIMARY KEY CHECK (SingletonId = 1),
+                ApplicationIdentity TEXT NOT NULL CHECK (length(ApplicationIdentity) > 0),
+                CatalogId TEXT NOT NULL UNIQUE CHECK (length(CatalogId) = 36),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28)
+            );
+
+            CREATE TABLE SchemaMigrations (
+                Version INTEGER NOT NULL PRIMARY KEY CHECK (Version > 0),
+                Name TEXT NOT NULL UNIQUE CHECK (length(Name) > 0),
+                AppliedUtc TEXT NOT NULL CHECK (length(AppliedUtc) = 28)
+            );
+
+            CREATE TABLE MediaRoots (
+                RootId TEXT NOT NULL PRIMARY KEY CHECK (length(RootId) = 36),
+                DisplayName TEXT NOT NULL CHECK (length(trim(DisplayName)) > 0),
+                SourceStatus TEXT NOT NULL DEFAULT 'unknown'
+                    CHECK (SourceStatus IN ('unknown', 'online', 'offline', 'unavailable')),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28)
+            );
+
+            CREATE TABLE MediaRootMappings (
+                MappingId TEXT NOT NULL PRIMARY KEY CHECK (length(MappingId) = 36),
+                RootId TEXT NOT NULL,
+                MachineId TEXT NOT NULL CHECK (length(trim(MachineId)) > 0),
+                PhysicalPath TEXT NOT NULL CHECK (length(trim(PhysicalPath)) > 0),
+                SourceStatus TEXT NOT NULL DEFAULT 'unknown'
+                    CHECK (SourceStatus IN ('unknown', 'online', 'offline', 'unavailable')),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                FOREIGN KEY (RootId) REFERENCES MediaRoots (RootId) ON DELETE RESTRICT,
+                UNIQUE (RootId, MachineId)
+            );
+
+            CREATE INDEX IX_MediaRootMappings_MachineId
+                ON MediaRootMappings (MachineId);
+
+            CREATE TABLE MediaAssets (
+                AssetId TEXT NOT NULL PRIMARY KEY CHECK (length(AssetId) = 36),
+                RootId TEXT NOT NULL,
+                RelativePath TEXT NOT NULL
+                    CHECK (length(RelativePath) > 0 AND substr(RelativePath, 1, 1) <> '/'
+                        AND instr(RelativePath, '\') = 0),
+                RelativePathKey TEXT NOT NULL CHECK (length(RelativePathKey) > 0),
+                MediaType TEXT NOT NULL DEFAULT 'unknown' CHECK (length(MediaType) > 0),
+                FileSizeBytes INTEGER NOT NULL CHECK (FileSizeBytes >= 0),
+                LastWriteUtcTicks INTEGER NOT NULL CHECK (LastWriteUtcTicks >= 0),
+                FingerprintVersion INTEGER NULL CHECK (FingerprintVersion IS NULL OR FingerprintVersion > 0),
+                SourceFingerprint TEXT NULL CHECK (SourceFingerprint IS NULL OR length(SourceFingerprint) > 0),
+                SourceStatus TEXT NOT NULL DEFAULT 'unknown'
+                    CHECK (SourceStatus IN ('unknown', 'available', 'missing')),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                LastSeenUtc TEXT NULL CHECK (LastSeenUtc IS NULL OR length(LastSeenUtc) = 28),
+                FOREIGN KEY (RootId) REFERENCES MediaRoots (RootId) ON DELETE RESTRICT,
+                UNIQUE (RootId, RelativePathKey),
+                CHECK ((FingerprintVersion IS NULL) = (SourceFingerprint IS NULL))
+            );
+
+            CREATE INDEX IX_MediaAssets_RootId_SourceStatus
+                ON MediaAssets (RootId, SourceStatus);
+            CREATE INDEX IX_MediaAssets_SourceFingerprint
+                ON MediaAssets (FingerprintVersion, SourceFingerprint)
+                WHERE SourceFingerprint IS NOT NULL;
+            """);
+
+        using var identity = connection.CreateCommand();
+        identity.Transaction = transaction;
+        identity.CommandText = """
+            INSERT INTO CatalogInfo
+                (SingletonId, ApplicationIdentity, CatalogId, CreatedUtc, UpdatedUtc)
+            VALUES
+                (1, $applicationIdentity, $catalogId, $createdUtc, $createdUtc);
+            """;
+        identity.Parameters.AddWithValue("$applicationIdentity", CatalogDatabaseService.ApplicationIdentity);
+        identity.Parameters.AddWithValue("$catalogId", context.CatalogId.ToString("D"));
+        identity.Parameters.AddWithValue("$createdUtc", context.AppliedUtc);
+        identity.ExecuteNonQuery();
+    }
+
+    private static void Execute(SqliteConnection connection, SqliteTransaction transaction, string sql)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = sql;
+        command.ExecuteNonQuery();
+    }
+}

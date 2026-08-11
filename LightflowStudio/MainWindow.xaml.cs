@@ -21,6 +21,9 @@ public partial class MainWindow : Window
     private JobCancellation? _jobCancellation;
     private readonly BatchProgressState _batchProgress = new();
     private readonly string? _commandLineFolder;
+    private readonly LightflowStorageCoordinator _storage;
+    private readonly StorageStartupStatus _storageStartupStatus;
+    private readonly string? _storageDiagnostic;
     private AppSettings _settings = new();
     private AppState _state = new();
     private Process? _activeEncodingProcess;
@@ -29,8 +32,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<BatchFileOption> _batchFiles = [];
     private readonly BatchFileSelectionMemory _batchSelectionMemory = new();
     private readonly ActivityLogFile _activityLogFile = App.ActivityLog;
-    private readonly ITrimHistoryStore _trimHistory = new TrimHistoryStore(TrimHistoryStore.StorePath);
-    private readonly IJobHistoryStore _jobHistory = new JobHistoryStore(JobHistoryStore.StorePath);
+    private readonly ITrimHistoryStore _trimHistory;
+    private readonly IJobHistoryStore _jobHistory;
     private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
     private readonly DispatcherTimer _batchFolderRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private CancellationTokenSource? _batchMetadataCts;
@@ -45,8 +48,14 @@ public partial class MainWindow : Window
     private static readonly double[] FrameRateValues = [0, 23.976, 24, 25, 29.97, 30, 50, 59.94, 60];
     private static readonly int[] AudioSampleRates = [0, 44100, 48000, 96000];
 
-    public MainWindow()
+    internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
+        string? storageDiagnostic)
     {
+        _storage = storage;
+        _storageStartupStatus = storageStartupStatus;
+        _storageDiagnostic = storageDiagnostic;
+        _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
+        _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
         InitializeComponent();
         _batchFolderRefreshTimer.Tick += (_, _) =>
         {
@@ -58,8 +67,8 @@ public partial class MainWindow : Window
         Loaded += async (_, _) =>
         {
             AboutVersionText.Text = $"Version {AppVersion.Display}  •  Built for the creative workflow";
-            _settings = AppSettingsStore.Load(AppSettingsStore.SettingsPath);
-            _state = AppStateStore.Load(AppStateStore.StatePath);
+            _settings = _storage.Settings;
+            _state = AppStateStore.Load(_storage.Locations.StatePath);
             PopulateSettingsControls(_settings);
             ApplySettingsToBatch(_settings);
             ApplyStateToBatch(_state);
@@ -71,6 +80,10 @@ public partial class MainWindow : Window
             await RefreshDependencyHealthAsync();
             RefreshBatchFiles();
             RefreshLuts();
+            if (_storageStartupStatus != StorageStartupStatus.Ready)
+                SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
+            else if (!_storage.PreviewAvailable)
+                SettingsMessage.Text = _storage.PreviewDiagnostic;
         };
     }
     private void LocateTools(string? configuredPath = null)
@@ -393,7 +406,7 @@ public partial class MainWindow : Window
         _state = _state with { LastLutPath = path };
         try
         {
-            AppStateStore.Save(AppStateStore.StatePath, _state);
+            AppStateStore.Save(_storage.Locations.StatePath, _state);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -421,6 +434,45 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() == true) SettingsFfmpegPath.Text = dialog.FileName;
     }
 
+    private async void ChangeCatalogLocation_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_storage.CatalogAvailable)
+        {
+            MessageBox.Show("The configured Catalog is not currently available. Lightflow will not replace or redirect it. Restore access to the configured location before relocating it.",
+                "Catalog unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var destination = PickFolder("Choose the new Catalog folder", _storage.Locations.CatalogDirectory);
+        if (destination is null) return;
+        var confirmation = MessageBox.Show(
+            "Lightflow will safely copy and validate the Catalog, switch only after validation succeeds, and retain the original as a recovery source. Continue?",
+            "Move Catalog", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (confirmation != MessageBoxResult.Yes) return;
+        SettingsMessage.Text = "Moving and validating the Catalog…";
+        var result = await _storage.RelocateCatalogAsync(destination);
+        SettingsCatalogDirectory.Text = _storage.Locations.CatalogDirectory;
+        SettingsMessage.Text = result.Succeeded
+            ? result.Diagnostic ?? "Catalog moved successfully. The original Catalog was retained."
+            : result.Diagnostic;
+        if (!result.Succeeded) MessageBox.Show(result.Diagnostic, "Catalog was not moved", MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private async void ChangePreviewsLocation_Click(object sender, RoutedEventArgs e)
+    {
+        var destination = PickFolder("Choose the new Previews folder", _storage.Locations.PreviewsDirectory);
+        if (destination is null) return;
+        var choice = MessageBox.Show(
+            "Choose Yes to move existing Previews. Choose No to use the new location and rebuild Previews as needed. Choose Cancel to keep the current location.",
+            "Change Previews Location", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        if (choice == MessageBoxResult.Cancel) return;
+        var mode = choice == MessageBoxResult.Yes ? PreviewRelocationMode.MoveExisting : PreviewRelocationMode.SwitchAndRebuild;
+        SettingsMessage.Text = mode == PreviewRelocationMode.MoveExisting ? "Moving Previews…" : "Changing Previews location…";
+        var result = await _storage.RelocatePreviewsAsync(destination, mode);
+        SettingsPreviewsDirectory.Text = _storage.Locations.PreviewsDirectory;
+        SettingsMessage.Text = result.Succeeded ? "Previews location changed successfully." : result.Diagnostic;
+        if (!result.Succeeded) MessageBox.Show(result.Diagnostic, "Previews location was not changed", MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
     {
         if (!TryReadEncodingControls(out var encoding, out var encodingError))
@@ -437,8 +489,8 @@ public partial class MainWindow : Window
 
         try
         {
-            AppSettingsStore.Save(AppSettingsStore.SettingsPath, settings);
-            _settings = settings;
+            _storage.SaveSettings(settings);
+            _settings = _storage.Settings;
             ApplySettingsToBatch(settings);
             LocateTools();
             await RefreshDependencyHealthAsync();
@@ -546,6 +598,8 @@ public partial class MainWindow : Window
     }
     private void PopulateSettingsControls(AppSettings settings)
     {
+        SettingsCatalogDirectory.Text = _storage.Locations.CatalogDirectory;
+        SettingsPreviewsDirectory.Text = _storage.Locations.PreviewsDirectory;
         SettingsDefaultVideoFolder.Text = settings.DefaultVideoFolder;
         SettingsLutFolder.Text = settings.LutFolder;
         SettingsFfmpegPath.Text = settings.FfmpegPath;
@@ -638,7 +692,7 @@ public partial class MainWindow : Window
             LastFilenameSuffixUsesResolutionDefault = _filenameSuffixUsesResolutionDefault,
             LastSpecificOutputFolder = OutputSpecificFolder.Text
         };
-        try { AppStateStore.Save(AppStateStore.StatePath, _state); }
+        try { AppStateStore.Save(_storage.Locations.StatePath, _state); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppendDetailedLog($"Could not remember batch choices: {ex.Message}"); }
     }
 
@@ -1276,7 +1330,7 @@ public partial class MainWindow : Window
         _settings = _settings with { DetailedActivityLogging = ShowEncodingDetails.IsChecked == true };
         try
         {
-            AppSettingsStore.Save(AppSettingsStore.SettingsPath, _settings);
+            _storage.SaveSettings(_settings);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

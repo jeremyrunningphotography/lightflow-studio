@@ -112,5 +112,34 @@ public sealed class LightflowStorageLocationsTests : IDisposable
         Assert.DoesNotContain(locations.CatalogDirectory, locations.TemporaryDirectory);
     }
 
+    [Fact]
+    public void WithOverrides_ChangesOnlyCatalogAndPreviewOwnershipPaths()
+    {
+        var original = LightflowStorageLocations.Create(_root);
+        var changed = original.WithOverrides(new(
+            Path.Combine(_root, "custom-catalog"), Path.Combine(_root, "custom-previews")));
+
+        Assert.Equal(original.ApplicationDataDirectory, changed.ApplicationDataDirectory);
+        Assert.Equal(original.SettingsPath, changed.SettingsPath);
+        Assert.Equal(original.StatePath, changed.StatePath);
+        Assert.Equal(original.JobHistoryPath, changed.JobHistoryPath);
+        Assert.Equal(original.TrimHistoryPath, changed.TrimHistoryPath);
+        Assert.Equal(original.OutputIdentityDirectory, changed.OutputIdentityDirectory);
+        Assert.Equal(original.ActivityLogPath, changed.ActivityLogPath);
+        Assert.Equal(original.TemporaryDirectory, changed.TemporaryDirectory);
+        Assert.Equal(Path.Combine(_root, "custom-catalog"), changed.CatalogDirectory);
+        Assert.Equal(Path.Combine(_root, "custom-previews"), changed.PreviewsDirectory);
+    }
+
+    [Fact]
+    public void WithOverrides_AllowsNetworkPreviewsWhileCatalogPolicyRejectsNetworkElsewhere()
+    {
+        var original = LightflowStorageLocations.Create(_root);
+        var changed = original.WithOverrides(new(original.CatalogDirectory, @"\\server\share\LightflowPreviews"));
+
+        Assert.Equal(@"\\server\share\LightflowPreviews", changed.PreviewsDirectory);
+        Assert.Equal(original.CatalogDirectory, changed.CatalogDirectory);
+    }
+
     public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
 }

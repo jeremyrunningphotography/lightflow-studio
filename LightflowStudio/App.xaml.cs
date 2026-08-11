@@ -5,7 +5,8 @@ namespace LightflowStudio;
 
 public partial class App : System.Windows.Application
 {
-    internal static ActivityLogFile ActivityLog { get; } = new(LightflowStorageLocations.Current.ActivityLogPath);
+    internal static ActivityLogFile ActivityLog { get; private set; } = null!;
+    internal LightflowStorageCoordinator? Storage { get; private set; }
     internal static MediaPlaybackCoordinator Playback { get; } = new(() =>
         new MediaPlaybackService(new FlyleafPlaybackBackend()));
 
@@ -21,7 +22,21 @@ public partial class App : System.Windows.Application
         }
 
         base.OnStartup(e);
+        var storage = LightflowStorageCoordinator.StartAsync().GetAwaiter().GetResult();
+        if (storage.Coordinator is null)
+        {
+            System.Windows.MessageBox.Show(storage.Diagnostic ?? "Lightflow storage configuration could not be loaded.",
+                "Storage configuration", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+            return;
+        }
+        Storage = storage.Coordinator;
+        ActivityLog = new(Storage.Locations.ActivityLogPath);
         ActivityLog.TryAppend($"[App] Lightflow Studio {AppVersion.Display} starting.");
+        if (!storage.IsReady)
+            ActivityLog.TryAppend($"[Catalog] {storage.Status}: {storage.Diagnostic}");
+        if (!Storage.PreviewAvailable)
+            ActivityLog.TryAppend($"[Previews] {Storage.PreviewDiagnostic}");
 
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
@@ -29,8 +44,11 @@ public partial class App : System.Windows.Application
         Exit += (_, _) =>
         {
             Playback.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            Storage?.DisposeAsync().AsTask().GetAwaiter().GetResult();
             ActivityLog.TryAppend("[App] Lightflow Studio exiting.");
         };
+        MainWindow = new MainWindow(Storage, storage.Status, storage.Diagnostic);
+        MainWindow.Show();
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e) =>

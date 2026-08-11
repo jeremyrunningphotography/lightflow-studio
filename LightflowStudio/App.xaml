@@ -1,7 +1,7 @@
 <Application x:Class="LightflowStudio.App"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- StartupUri="MainWindow.xaml">
+>
  <Application.Resources>
   <Color x:Key="WindowColor">#0E1014</Color>
   <Color x:Key="NavigationColor">#090A0E</Color>

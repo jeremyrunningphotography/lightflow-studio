@@ -37,6 +37,11 @@ dotnet publish $project -c Release -r win-x64 --self-contained true `
     -p:DebugType=None -p:DebugSymbols=false -o $appDirectory
 if ($LASTEXITCODE -ne 0) { throw "Application publish failed." }
 
+$catalogRuntimeCheck = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
+    -ArgumentList "--verify-catalog-runtime" -WorkingDirectory $appDirectory `
+    -Wait -PassThru -WindowStyle Hidden
+if ($catalogRuntimeCheck.ExitCode -ne 0) { throw "Packaged Catalog SQLite runtime verification failed." }
+
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "PremiereHelper") -Destination (Join-Path $appDirectory "PremiereHelper") -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "THIRD-PARTY-NOTICES.md") -Destination $appDirectory -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "LightflowStudio\Assets\Branding\LightflowStudio.ico") -Destination $appDirectory -Force

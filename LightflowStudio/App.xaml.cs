@@ -11,6 +11,15 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (e.Args.Contains(CatalogPackageRuntimeVerifier.CommandLineSwitch, StringComparer.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            base.OnStartup(e);
+            var verified = CatalogPackageRuntimeVerifier.VerifyAsync().GetAwaiter().GetResult();
+            Shutdown(verified ? 0 : 1);
+            return;
+        }
+
         base.OnStartup(e);
         ActivityLog.TryAppend($"[App] Lightflow Studio {AppVersion.Display} starting.");
 

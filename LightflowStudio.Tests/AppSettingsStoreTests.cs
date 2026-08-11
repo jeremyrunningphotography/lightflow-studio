@@ -40,6 +40,17 @@ public sealed class AppSettingsStoreTests : IDisposable
         Assert.Equal(LutCatalog.DefaultFolder, AppSettingsStore.Load(SettingsPath).LutFolder);
     }
 
+    [Fact]
+    public void Save_AtomicallyReplacesExistingSettingsWithoutLeavingTemporaryFiles()
+    {
+        AppSettingsStore.Save(SettingsPath, new AppSettings(@"D:\First"));
+
+        AppSettingsStore.Save(SettingsPath, new AppSettings(@"D:\Second"));
+
+        Assert.Equal(@"D:\Second", AppSettingsStore.Load(SettingsPath).LutFolder);
+        Assert.Empty(Directory.EnumerateFiles(_folder, "*.tmp"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_folder)) Directory.Delete(_folder, recursive: true);

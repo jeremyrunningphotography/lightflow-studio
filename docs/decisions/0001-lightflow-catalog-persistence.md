@@ -63,6 +63,8 @@ Catalog, Previews, and Temporary directories may not be equal or nested within o
 
 `LightflowStorageLocationOptions` is a path-resolution contract only. #79 owns persistence of configured overrides, destination validation, protected Catalog relocation, Preview move/rebuild behavior, and UI. A Catalog path change must never be applied as a raw settings edit.
 
+Issue #79 persists only `CatalogDirectory`, `PreviewsDirectory`, and the expected Catalog identity in the existing atomically replaced `settings.json`. Derived paths remain owned by `ILightflowStorageLocations`. Application startup loads this bootstrap configuration before constructing the active location service or opening the Catalog. The identity marker distinguishes approved first creation from a missing previously initialized Catalog.
+
 ### 4. Unavailable configured storage
 
 Path resolution is side-effect free and does not create directories. The service that opens a Catalog must distinguish:
@@ -74,6 +76,14 @@ Path resolution is side-effect free and does not create directories. The service
 - migration or recovery is required.
 
 The absence of the database file alone is never sufficient evidence of first-time use: a disconnected drive or unavailable share can also appear absent. When a configured Catalog location is unavailable or its expected database cannot be opened, Lightflow retains that configuration, does not fall back to the default, and does not create a second empty Catalog. Catalog-dependent features enter an unavailable/read-only state with actionable diagnostics; independent features such as Encoding may continue. A Preview location failure may disable previews or select an explicitly approved rebuild destination, but it must not affect Catalog data.
+
+The application composition root now owns the active location coordinator and Catalog session. First creation is permitted only when no custom Catalog directory and no prior Catalog identity are configured. Missing, unavailable, unreadable, corrupt, foreign, or future-schema Catalogs remain explicit startup states. A configured Preview directory that disappears is reported independently and never changes Catalog availability.
+
+### Protected relocation behavior
+
+Catalog relocation rejects relative, overlapping, equivalent, non-empty, conflicting, and obvious UNC live-database destinations. It verifies write/staging access, disposes the active session and clears SQLite pools, uses `SqliteConnection.BackupDatabase` into a same-destination staging file, opens the result through the production Catalog lifecycle, and compares Catalog identity and schema before atomically persisting the new directory. Only then is the validated session activated. A post-switch activation failure atomically restores the source configuration and reopens the source. The old Catalog directory is never deleted or overwritten: its original database and any SQLite-managed companion files remain as the known-good recovery source. Any copy, validation, configuration, or cancellation failure removes only operation-owned staging/destination files where possible, restores the original configuration, and reopens the source Catalog. This retained source is not entered into backup history or retention; that belongs to #83.
+
+Preview changes use an independent workflow. “Move existing” copies into an operation-owned staging directory, switches the cache directory, then removes the old rebuildable cache best-effort. “Switch and rebuild” selects an empty writable destination and deliberately leaves the old cache untouched. Neither workflow reads or mutates Catalog data.
 
 ### 5. Connection and transaction lifecycle
 

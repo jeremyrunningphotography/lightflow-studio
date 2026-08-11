@@ -34,7 +34,7 @@ foreach ($relativePath in $requiredFiles) {
 $thirdPartyNotices = Get-Content -LiteralPath (Join-Path $packageRoot "THIRD-PARTY-NOTICES.md") -Raw
 $requiredNoticeMarkers = @("Microsoft.Data.Sqlite 8.0.29", "SQLitePCLRaw 2.1.6", "sqlite.org/copyright")
 foreach ($marker in $requiredNoticeMarkers) {
-    if (-not $thirdPartyNotices.Contains($marker, [StringComparison]::Ordinal)) {
+    if ($thirdPartyNotices.IndexOf($marker, [StringComparison]::Ordinal) -lt 0) {
         throw "Staged third-party notices are missing the Catalog database dependency: $marker"
     }
 }

@@ -79,6 +79,23 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
         };
     }
 
+    internal LightflowStorageLocations WithOverrides(LightflowStorageLocationOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var catalogDirectory = ResolveOverride(options.CatalogDirectory, CatalogDirectory,
+            nameof(options.CatalogDirectory));
+        var previewsDirectory = ResolveOverride(options.PreviewsDirectory, PreviewsDirectory,
+            nameof(options.PreviewsDirectory));
+        ValidateOwnershipBoundaries(catalogDirectory, previewsDirectory, TemporaryDirectory);
+        return this with
+        {
+            CatalogDirectory = catalogDirectory,
+            CatalogDatabasePath = Path.Combine(catalogDirectory, CatalogFileName),
+            CatalogBackupsDirectory = Path.Combine(catalogDirectory, "Backups"),
+            PreviewsDirectory = previewsDirectory
+        };
+    }
+
     private static string ResolveOverride(string? configured, string fallback, string parameterName)
     {
         if (string.IsNullOrWhiteSpace(configured)) return Path.GetFullPath(fallback);

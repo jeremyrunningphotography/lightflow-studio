@@ -20,6 +20,7 @@ $appDirectory = Join-Path $stagingRoot "LightflowStudio"
 $ffmpegDirectory = Join-Path $appDirectory "ffmpeg"
 $playbackDirectory = Join-Path $appDirectory "playback\ffmpeg"
 $project = Join-Path $repositoryRoot "LightflowStudio\LightflowStudio.csproj"
+$publishLockFile = Join-Path $stagingRoot "publish.packages.lock.json"
 $totalTimer = [Diagnostics.Stopwatch]::StartNew()
 
 function Write-StageTiming([string]$Name, [Diagnostics.Stopwatch]$Timer) {
@@ -34,6 +35,7 @@ Write-Host "Publishing Lightflow Studio $Version..." -ForegroundColor Cyan
 $stageTimer = [Diagnostics.Stopwatch]::StartNew()
 dotnet publish $project -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:NuGetLockFilePath=$publishLockFile `
     -p:DebugType=None -p:DebugSymbols=false -o $appDirectory
 if ($LASTEXITCODE -ne 0) { throw "Application publish failed." }
 
@@ -88,7 +90,7 @@ $checksumLines = foreach ($file in $checksumFiles) {
     $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $($file.Name)"
 }
-[IO.File]::WriteAllLines((Join-Path $OutputDirectory "SHA256SUMS.txt"), $checksumLines)
+[IO.File]::WriteAllLines((Join-Path $OutputDirectory "SHA256SUMS.txt"), [string[]]@($checksumLines))
 
 Write-Host "Release artifacts created at: $OutputDirectory" -ForegroundColor Green
 Write-StageTiming "total packaging" $totalTimer

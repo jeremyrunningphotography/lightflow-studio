@@ -283,6 +283,45 @@ public sealed class StorageManagementTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CatalogIdentityMismatch_IsNonfatalAndPreservesConfiguredCatalogAssociation()
+    {
+        var defaults = LightflowStorageLocations.Create(_root);
+        var configuredDirectory = Path.Combine(_root, "different-valid-catalog");
+        var configuredLocations = LightflowStorageLocations.Create(_root,
+            new(configuredDirectory, defaults.PreviewsDirectory));
+        var created = await new CatalogDatabaseService(configuredLocations).CreateNewAsync();
+        Assert.True(created.IsSuccess);
+        var actualId = created.Session!.Identity.CatalogId;
+        await created.Session.DisposeAsync();
+        var expectedId = Guid.NewGuid();
+        Assert.NotEqual(expectedId, actualId);
+        AppSettingsStore.Save(defaults.SettingsPath, new AppSettings
+        {
+            CatalogDirectory = configuredDirectory,
+            CatalogId = expectedId,
+            LutFolder = @"D:\Preserved LUTs"
+        });
+        var persistedBefore = File.ReadAllText(defaults.SettingsPath);
+
+        var result = await LightflowStorageCoordinator.StartAsync(_root);
+
+        Assert.Equal(StorageStartupStatus.CatalogIdentityMismatch, result.Status);
+        Assert.NotNull(result.Coordinator);
+        Assert.False(result.Coordinator!.CatalogAvailable);
+        Assert.Equal(Path.GetFullPath(configuredDirectory), result.Coordinator.Locations.CatalogDirectory);
+        Assert.Equal(expectedId, result.Coordinator.Settings.CatalogId);
+        Assert.Contains("does not match", result.Diagnostic, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("previously associated", result.Diagnostic, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(persistedBefore, File.ReadAllText(defaults.SettingsPath));
+        Assert.False(File.Exists(defaults.CatalogDatabasePath));
+        var verified = await new CatalogDatabaseService(configuredLocations).OpenExistingAsync();
+        Assert.True(verified.IsSuccess);
+        Assert.Equal(actualId, verified.Session!.Identity.CatalogId);
+        await verified.Session.DisposeAsync();
+        await result.Coordinator.DisposeAsync();
+    }
+
+    [Fact]
     public async Task UnavailableConfiguredPreviews_AreReportedWithoutAffectingCatalog()
     {
         var first = (await LightflowStorageCoordinator.StartAsync(_root)).Coordinator!;
@@ -375,6 +414,43 @@ public sealed class StorageManagementTests : IAsyncLifetime
         Assert.Equal(catalogPath, coordinator.Locations.CatalogDatabasePath);
         Assert.Equal(previewPath, coordinator.Locations.PreviewsDirectory);
         Assert.True(File.Exists(Path.Combine(destination, "unrelated.bin")));
+        await coordinator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task PreviewMoveConfigurationFailure_RemovesOwnedDestinationAndCanRetry()
+    {
+        var defaults = LightflowStorageLocations.Create(_root);
+        var configuration = new ControllableConfigurationStore(defaults.SettingsPath);
+        var coordinator = (await LightflowStorageCoordinator.StartAsync(_root, configuration: configuration)).Coordinator!;
+        var source = coordinator.Locations.PreviewsDirectory;
+        Directory.CreateDirectory(source);
+        var sourceFile = Path.Combine(source, "nested", "preview.bin");
+        Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
+        File.WriteAllText(sourceFile, "rebuildable preview");
+        var catalogPath = coordinator.Locations.CatalogDatabasePath;
+        var catalogId = coordinator.CatalogSession.Identity.CatalogId;
+        var destination = Path.Combine(_root, "retryable-preview-destination");
+        configuration.FailWrites = true;
+
+        var failed = await coordinator.RelocatePreviewsAsync(destination, PreviewRelocationMode.MoveExisting);
+
+        Assert.False(failed.Succeeded);
+        Assert.Equal(source, coordinator.Locations.PreviewsDirectory);
+        Assert.Null(AppSettingsStore.Load(defaults.SettingsPath).PreviewsDirectory);
+        Assert.True(File.Exists(sourceFile));
+        Assert.False(Directory.Exists(destination));
+        Assert.Equal(catalogPath, coordinator.Locations.CatalogDatabasePath);
+        Assert.Equal(catalogId, coordinator.CatalogSession.Identity.CatalogId);
+
+        configuration.FailWrites = false;
+        var retried = await coordinator.RelocatePreviewsAsync(destination, PreviewRelocationMode.MoveExisting);
+
+        Assert.True(retried.Succeeded);
+        Assert.Equal("rebuildable preview", File.ReadAllText(Path.Combine(destination, "nested", "preview.bin")));
+        Assert.Equal(destination, coordinator.Locations.PreviewsDirectory);
+        Assert.Equal(catalogPath, coordinator.Locations.CatalogDatabasePath);
+        Assert.Equal(catalogId, coordinator.CatalogSession.Identity.CatalogId);
         await coordinator.DisposeAsync();
     }
 

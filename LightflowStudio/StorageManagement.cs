@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 
 namespace LightflowStudio;
 
-internal enum StorageStartupStatus { Ready, CatalogUnavailable, CatalogMissing, CatalogUnreadable, CatalogCorrupt, InvalidConfiguration }
+internal enum StorageStartupStatus { Ready, CatalogUnavailable, CatalogMissing, CatalogUnreadable, CatalogCorrupt, CatalogIdentityMismatch, InvalidConfiguration }
 internal sealed record StorageStartupResult(StorageStartupStatus Status, LightflowStorageCoordinator? Coordinator = null, string? Diagnostic = null)
 {
     public bool IsReady => Status == StorageStartupStatus.Ready;
@@ -139,8 +139,9 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         if (settings.CatalogId is Guid expected && opened.Session!.Identity.CatalogId != expected)
         {
             await opened.Session.DisposeAsync().ConfigureAwait(false);
-            return new(StorageStartupStatus.CatalogUnreadable,
-                Diagnostic: "The configured Catalog does not match the Catalog previously used by Lightflow.");
+            return new(StorageStartupStatus.CatalogIdentityMismatch,
+                new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator),
+                "The configured Catalog does not match the Catalog previously associated with this Lightflow installation.");
         }
 
         if (settings.CatalogId is null)
@@ -260,6 +261,9 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         LightflowStorageLocations destination;
         var sourceDirectory = Locations.PreviewsDirectory;
         string? stagingDirectory = null;
+        string? ownedDestinationDirectory = null;
+        var destinationOwned = false;
+        var configurationSwitched = false;
         try
         {
             destination = ValidateDestination(destinationDirectory, catalog: false);
@@ -275,9 +279,12 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                 Directory.Delete(destination.PreviewsDirectory);
                 Directory.Move(stagingDirectory, destination.PreviewsDirectory);
                 stagingDirectory = null;
+                destinationOwned = true;
+                ownedDestinationDirectory = destination.PreviewsDirectory;
             }
             var changed = Settings with { PreviewsDirectory = destination.PreviewsDirectory };
             _configuration.Save(changed);
+            configurationSwitched = true;
             Settings = changed;
             Locations = destination;
             PreviewAvailable = true;
@@ -293,6 +300,10 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             if (stagingDirectory is not null)
             {
                 try { Directory.Delete(stagingDirectory, recursive: true); } catch { }
+            }
+            if (mode == PreviewRelocationMode.MoveExisting && destinationOwned && !configurationSwitched)
+            {
+                try { Directory.Delete(ownedDestinationDirectory!, recursive: true); } catch { }
             }
             return new(StorageChangeStatus.Failed, $"The Previews location was not changed. {exception.Message}");
         }

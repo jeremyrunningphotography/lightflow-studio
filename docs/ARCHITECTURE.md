@@ -83,7 +83,7 @@ Schema version 1 contains only `CatalogInfo`, append-only `SchemaMigrations`, `M
 
 `PRAGMA user_version` is authoritative. Migrations are contiguous, ordered, forward-only, and run one version per explicit transaction; successful versions append a diagnostic ledger row inside the same transaction. Version 1 establishes both the SQLite header application ID and the `CatalogInfo` identity row in its transaction. New databases traverse the version-zero migration chain. Existing older Catalogs first receive a full integrity check and must pass the provider-neutral `ICatalogMigrationBackup` seam before any migration starts. #83 still owns the actual SQLite-aware backup implementation, so upgrades are safely blocked—not falsely backed up—until that service exists. Ordinary open validates SQLite readability, the header-level Lightflow application ID, supported schema, migration ledger, Catalog identity row, and `quick_check` through a read-only preflight before applying mutable runtime policy. Non-SQLite input is classified as unreadable, while a failed SQLite integrity check is classified as corruption; both preserve the original file and never trigger replacement creation.
 
-#79 still owns location persistence, destination validation, relocation, atomic configuration switching, and storage UI. #81 owns Media Root behavior and relative-path normalization APIs. #82 owns Asset repositories, fingerprint calculation, and reconciliation rules. #83 owns automatic backup cadence/retention, pre-migration backup implementation, full recovery/restore, and user-facing recovery diagnostics.
+#79 owns location persistence, destination validation, relocation, atomic configuration switching, and storage UI. #81 owns Media Root behavior and relative-path normalization APIs. #82 owns Asset repositories, fingerprint calculation, and source-observation semantics. #83 owns automatic backup cadence/retention, pre-migration backup implementation, full recovery/restore, and user-facing recovery diagnostics.
 
 #78 introduced the path/configuration contracts and #80 adds the database lifecycle and foundational schema. Neither exposes location UI, performs relocation, or starts Catalog-dependent product features; those responsibilities remain with #79 and #81–#83.
 
@@ -281,7 +281,17 @@ The Lightflow-owned `IMediaRootService` isolates UI and future discovery code fr
 
 Availability is an observation, not destructive Catalog state. A missing mapping is **Unmapped**; a mapped folder that cannot currently be reached is **Unavailable**; an accessible mapping is **Online**. A missing child beneath an online root remains distinct from an offline root. Failed probes do not delete mappings, assets, metadata, or prior Catalog state. Media Root mappings may point to removable, mapped-drive, or UNC storage, with normal network latency and availability caveats; this does not relax the separate rule that the live SQLite Catalog itself is local-only in v1.
 
-Settings provides only root listing, naming, add, and reconnect operations. Asset discovery/import, metadata probing, browser presentation, duplicate handling, and preview generation remain deferred to Issues #82 and later Catalog work.
+Settings provides only root listing, naming, add, and reconnect operations. Asset discovery/import, metadata probing, browser presentation, duplicate handling, and preview generation remain deferred to later Catalog work.
+
+### Stable Catalog assets and source fingerprints
+
+`AssetId` is a random, durable Lightflow identity and the target for future user-authored Catalog relationships. `(RootId, RelativePathKey)` is the asset's unique current logical location, not immutable byte identity. Asset creation normalizes the relative path through the #81 path contract, resolves it through the current machine's root mapping, observes an existing source, and transactionally inserts the new identity. Reopening the Catalog, updating observed facts, or remapping the root never regenerates `AssetId`.
+
+The Lightflow-owned `IMediaAssetService` and `IMediaAssetRepository` keep SQLite out of feature callers. The service supports create, ID lookup, logical-location lookup, current resolution, and explicit observation. Observation updates file size, UTC last-write ticks, fingerprint, last-seen time, and source status while retaining identity. A missing child under an online root is persisted as **Missing**. An unavailable or unmapped root is returned as a separate runtime condition and does not mass-change asset state.
+
+Source fingerprint version 1 is SHA-256 over a domain/version marker, file length, and bounded 64 KiB head/tail samples. Small files may be read completely; large media is never full-file hashed. This cheaply detects many common mutations and supplies layered evidence for future relocation/reconciliation, but it is not proof of byte-for-byte equality and changes confined to an unsampled middle region can retain the same fingerprint. Size and last-write time remain independent evidence. Observations compare filesystem facts before and after sampling and retry once rather than persisting a mixed state from a concurrently changing source.
+
+Issue #82 does not add discovery scanning, derived media metadata, thumbnails, browser UI, or relocation/reconciliation. Those remain later Catalog capabilities.
 
 ## Shared batch planning
 

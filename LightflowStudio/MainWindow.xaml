@@ -255,7 +255,7 @@
 
    <TabItem>
     <ScrollViewer VerticalScrollBarVisibility="Auto"><Grid Margin="28,24,28,28">
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <StackPanel Margin="2,0,0,20"><TextBlock Style="{StaticResource PageTitle}" Text="Settings"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Choose the folders, tools, and defaults restored whenever the application starts."/></StackPanel>
      <Border Grid.Row="1" Style="{StaticResource Card}"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <TextBlock Grid.ColumnSpan="2" Style="{StaticResource SectionTitle}" Margin="4,0,4,12" Text="Folders"/>
@@ -273,14 +273,24 @@
        <TextBox x:Name="SettingsPreviewsDirectory" Margin="4,8,4,0" IsReadOnly="True"/>
       </StackPanel></Border>
      </StackPanel></Border>
-     <Border Grid.Row="3" Style="{StaticResource Card}"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <Border Grid.Row="3" Style="{StaticResource Card}"><StackPanel>
+      <DockPanel Margin="4,0,4,10"><Button DockPanel.Dock="Right" Content="Add Media Root…" Click="AddMediaRoot_Click"/><StackPanel><TextBlock Style="{StaticResource SectionTitle}" Text="Media Roots"/><TextBlock Margin="0,4,16,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="Stable Catalog locations for originals. Each computer connects the same logical root to its own folder path."/></StackPanel></DockPanel>
+      <TextBlock x:Name="MediaRootsEmptyText" Margin="4,8" Foreground="{StaticResource MutedTextBrush}" Text="No Media Roots yet."/>
+      <ItemsControl x:Name="MediaRootsList"><ItemsControl.ItemTemplate><DataTemplate>
+       <Border Background="#111319" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="12" Margin="4,3"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel><DockPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding DisplayName}"/><Border Margin="10,0,0,0" Padding="7,2" CornerRadius="8" Background="#34261A"><TextBlock FontSize="10" Foreground="{StaticResource OrangeBrush}" Text="{Binding Availability}"/></Border></DockPanel><TextBlock Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" Text="{Binding PhysicalPath}"/><TextBlock Margin="0,3,0,0" Foreground="#D7A25C" TextWrapping="Wrap" Text="{Binding Diagnostic}"/></StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button Content="Rename" Click="RenameMediaRoot_Click"/><Button Content="Reconnect…" Click="ReconnectMediaRoot_Click"/></StackPanel>
+       </Grid></Border>
+      </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+     </StackPanel></Border>
+     <Border Grid.Row="4" Style="{StaticResource Card}"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <TextBlock Grid.ColumnSpan="2" Style="{StaticResource SectionTitle}" Margin="4,0,4,12" Text="Batch Encode Defaults"/>
       <StackPanel Grid.Row="1" Margin="0,0,8,0"><TextBlock Style="{StaticResource FieldLabel}" Text="RESOLUTION"/><ComboBox x:Name="SettingsResolution"><ComboBoxItem Content="480p (854×480)"/><ComboBoxItem Content="720p (1280×720)"/><ComboBoxItem Content="1080p (1920×1080)"/><ComboBoxItem Content="1440p (2560×1440)"/><ComboBoxItem Content="4K UHD (3840×2160)"/><ComboBoxItem Content="Source resolution"/></ComboBox></StackPanel>
       <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,0"><TextBlock Style="{StaticResource FieldLabel}" Text="RECOVERY MODE"/><ComboBox x:Name="SettingsRecoveryMode"><ComboBoxItem Content="Normal"/><ComboBoxItem Content="Salvage audio + video"/><ComboBoxItem Content="Video only"/></ComboBox></StackPanel>
       <WrapPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="4,8,0,0"><CheckBox x:Name="SettingsRecursive" Content="Include subfolders by default" Checked="SettingsRecursive_Changed" Unchecked="SettingsRecursive_Changed"/><CheckBox x:Name="SettingsPreserveFolderStructure" Content="Preserve source folder structure by default" Visibility="Collapsed"/><CheckBox x:Name="SettingsOverwriteExisting" Content="Overwrite existing output files by default"/></WrapPanel>
 
      </Grid></Border>
-     <Border Grid.Row="4" Style="{StaticResource Card}">
+     <Border Grid.Row="5" Style="{StaticResource Card}">
       <StackPanel>
        <TextBlock Style="{StaticResource SectionTitle}" Margin="4,0,4,4" Text="Encoding Quality"/>
        <TextBlock Margin="4,0,4,12" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="Choose a named starting point, then fine-tune individual options. NVIDIA NVENC is available now; CPU, AMD, and Intel backends are reserved for later releases."/>
@@ -322,7 +332,7 @@
        </Expander>
       </StackPanel>
      </Border>
-     <Border Grid.Row="5" Style="{StaticResource Card}">
+     <Border Grid.Row="6" Style="{StaticResource Card}">
       <StackPanel>
        <DockPanel Margin="4,0,4,12">
         <Button DockPanel.Dock="Right" Padding="12,6" Content="Check Again" Click="CheckDependencies_Click"/>
@@ -350,7 +360,7 @@
        <TextBlock Margin="6,5,4,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="Leave blank to use a bundled FFmpeg or the first copy available on PATH. FFprobe is detected beside FFmpeg or on PATH."/>
       </StackPanel>
      </Border>
-     <DockPanel Grid.Row="6" Margin="2,0"><TextBlock x:Name="SettingsMessage" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"/><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Content="Restore Defaults" Click="ResetSettings_Click"/><Button Style="{StaticResource PrimaryButton}" Content="Save Settings" Click="SaveSettings_Click"/></StackPanel></DockPanel>
+     <DockPanel Grid.Row="7" Margin="2,0"><TextBlock x:Name="SettingsMessage" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"/><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Content="Restore Defaults" Click="ResetSettings_Click"/><Button Style="{StaticResource PrimaryButton}" Content="Save Settings" Click="SaveSettings_Click"/></StackPanel></DockPanel>
     </Grid></ScrollViewer>
    </TabItem>
 

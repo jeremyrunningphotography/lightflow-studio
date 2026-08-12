@@ -271,6 +271,18 @@ Startup first loads the existing local `settings.json` from the stable applicati
 
 Catalog relocation is a protected SQLite operation: validate an empty local non-overlapping destination, quiesce the session/pool, use SQLite online backup into a staged database, validate schema and Catalog identity through `CatalogDatabaseService`, atomically save configuration, activate the validated session, and retain the complete original Catalog directory. Copy, validation, configuration, cancellation, or post-switch activation failure restores the original configuration/session; an unlikely rollback-write failure keeps the already validated destination active so disk configuration and memory cannot diverge. Preview relocation is separate and rebuildable, supporting staged move or switch/rebuild. A failed staged Preview move removes only the destination data owned by that attempt before allowing a retry; switch/rebuild never deletes the old cache. A missing, unavailable, or identity-mismatched configured Catalog never triggers fallback or replacement creation; it returns a nonfatal unavailable coordinator so Catalog-independent features remain usable. Preview availability is reported independently. Backup history and restore policy remain deferred to #83.
 
+### Logical Media Roots and machine mappings
+
+A Media Root is a durable Catalog identity (`RootId` plus a user-facing name), not a physical folder. `MediaRootMappings` connects that identity to one absolute path for the current Lightflow machine identity. The machine identity is a locally persisted random GUID; it contains no computer name, account name, hardware identifier, or network address. Moving or reconnecting a root changes only that machine's mapping and never rewrites the root or its assets. Another computer opening the same Catalog sees the logical root as unmapped until it supplies its own path.
+
+Asset identity is `(RootId, RelativePathKey)`. Display paths are normalized to forward-slash relative form while preserving user-visible casing. Keys use invariant uppercase comparison to model Windows case-insensitive identity. Rooted, drive-qualified, UNC-relative, empty, and parent-traversal values are rejected. Resolution combines the mapped root with the normalized relative path and verifies segment-aware containment before touching the filesystem.
+
+The Lightflow-owned `IMediaRootService` isolates UI and future discovery code from SQLite. Root creation and remapping probe the selected folder off the UI thread before a short transaction. Equivalent, ancestor, and descendant mappings on the same machine are rejected using normalized segment-aware Windows path comparisons; similarly named sibling folders remain valid. Catalog schema v1 already contains the required root/mapping split, so Issue #81 adds no migration.
+
+Availability is an observation, not destructive Catalog state. A missing mapping is **Unmapped**; a mapped folder that cannot currently be reached is **Unavailable**; an accessible mapping is **Online**. A missing child beneath an online root remains distinct from an offline root. Failed probes do not delete mappings, assets, metadata, or prior Catalog state. Media Root mappings may point to removable, mapped-drive, or UNC storage, with normal network latency and availability caveats; this does not relax the separate rule that the live SQLite Catalog itself is local-only in v1.
+
+Settings provides only root listing, naming, add, and reconnect operations. Asset discovery/import, metadata probing, browser presentation, duplicate handling, and preview generation remain deferred to Issues #82 and later Catalog work.
+
 ## Shared batch planning
 
 Before execution, a mature capability should produce a plan containing:

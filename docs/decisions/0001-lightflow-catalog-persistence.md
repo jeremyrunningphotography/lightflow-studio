@@ -198,6 +198,6 @@ Rejected categorically. Preview deletion/rebuild must never lose a rating, label
 
 - **#79:** Persist independent location choices, validate destinations, implement protected Catalog relocation and Preview move/rebuild UX, and surface unavailable storage.
 - **#80:** Implemented the pinned provider/package and notices, connection factory/runtime PRAGMAs, initial schema, application identity, migration runner, and repository boundaries.
-- **#81:** Add logical Media Roots and machine-specific mappings.
+- **#81:** Implemented logical Media Roots, machine-specific mappings, stable private machine identity, Windows relative-path keys, and non-destructive availability observation.
 - **#82:** Add stable Asset IDs, relative paths, and initial source fingerprints.
 - **#83:** Implement SQLite-aware backup retention, integrity lifecycle, recovery/restore services, and user-facing diagnostics.

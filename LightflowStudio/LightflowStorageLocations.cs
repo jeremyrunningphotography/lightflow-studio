@@ -17,6 +17,7 @@ internal interface ILightflowStorageLocations
     string TemporaryDirectory { get; }
     string LogsDirectory { get; }
     string ActivityLogPath { get; }
+    string MachineIdentityPath { get; }
 }
 
 internal sealed record LightflowStorageLocationOptions(
@@ -41,6 +42,7 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
     public required string TemporaryDirectory { get; init; }
     public required string LogsDirectory { get; init; }
     public required string ActivityLogPath { get; init; }
+    public required string MachineIdentityPath { get; init; }
 
     public static LightflowStorageLocations CreateDefault(LightflowStorageLocationOptions? options = null) =>
         Create(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), options);
@@ -75,7 +77,8 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
             PreviewsDirectory = previewsDirectory,
             TemporaryDirectory = temporaryDirectory,
             LogsDirectory = logsDirectory,
-            ActivityLogPath = Path.Combine(logsDirectory, "activity.log")
+            ActivityLogPath = Path.Combine(logsDirectory, "activity.log"),
+            MachineIdentityPath = Path.Combine(applicationData, "machine-id")
         };
     }
 

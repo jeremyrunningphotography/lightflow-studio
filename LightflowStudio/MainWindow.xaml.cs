@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private readonly ITrimHistoryStore _trimHistory;
     private readonly IJobHistoryStore _jobHistory;
     private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
+    private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
     private readonly DispatcherTimer _batchFolderRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private CancellationTokenSource? _batchMetadataCts;
     private readonly Dictionary<ToggleButton, CancellationTokenSource> _requirementHelpDismissals = [];
@@ -75,11 +76,13 @@ public partial class MainWindow : Window
             if (_commandLineFolder is not null) InputFolder.Text = _commandLineFolder;
             BatchFileList.ItemsSource = _batchFiles;
             HistoryList.ItemsSource = _historyRecords;
+            MediaRootsList.ItemsSource = _mediaRoots;
             RefreshHistory();
             LocateTools();
             await RefreshDependencyHealthAsync();
             RefreshBatchFiles();
             RefreshLuts();
+            await RefreshMediaRootsAsync();
             if (_storageStartupStatus != StorageStartupStatus.Ready)
                 SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
             else if (!_storage.PreviewAvailable)
@@ -471,6 +474,83 @@ public partial class MainWindow : Window
         SettingsPreviewsDirectory.Text = _storage.Locations.PreviewsDirectory;
         SettingsMessage.Text = result.Succeeded ? "Previews location changed successfully." : result.Diagnostic;
         if (!result.Succeeded) MessageBox.Show(result.Diagnostic, "Previews location was not changed", MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private async Task RefreshMediaRootsAsync()
+    {
+        _mediaRoots.Clear();
+        if (!_storage.CatalogAvailable)
+        {
+            MediaRootsEmptyText.Text = "The Catalog is unavailable. Encoding remains available, but Media Roots cannot be managed.";
+            MediaRootsEmptyText.Visibility = Visibility.Visible;
+            return;
+        }
+        try
+        {
+            foreach (var root in await _storage.MediaRoots.ListAsync()) _mediaRoots.Add(root);
+            MediaRootsEmptyText.Text = "No Media Roots yet. Add one to give media a stable Catalog identity.";
+            MediaRootsEmptyText.Visibility = _mediaRoots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch (Exception exception)
+        {
+            MediaRootsEmptyText.Text = $"Media Roots could not be loaded: {exception.Message}";
+            MediaRootsEmptyText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async void AddMediaRoot_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_storage.CatalogAvailable) return;
+        var folder = PickFolder("Choose a Media Root folder", _settings.DefaultVideoFolder);
+        if (folder is null) return;
+        var suggested = new DirectoryInfo(folder).Name;
+        var name = PromptForMediaRootName("Add Media Root", "Name this Media Root", suggested);
+        if (name is null) return;
+        var result = await _storage.MediaRoots.CreateAsync(name, folder);
+        await ShowMediaRootResultAsync(result, "Media Root added.");
+    }
+
+    private async void RenameMediaRoot_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not MediaRootInfo root) return;
+        var name = PromptForMediaRootName("Rename Media Root", "Media Root name", root.DisplayName);
+        if (name is null) return;
+        var result = await _storage.MediaRoots.RenameAsync(root.RootId, name);
+        await ShowMediaRootResultAsync(result, "Media Root renamed.");
+    }
+
+    private async void ReconnectMediaRoot_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not MediaRootInfo root) return;
+        var folder = PickFolder($"Reconnect {root.DisplayName}", root.PhysicalPath ?? _settings.DefaultVideoFolder);
+        if (folder is null) return;
+        var result = await _storage.MediaRoots.RemapAsync(root.RootId, folder);
+        await ShowMediaRootResultAsync(result, "Media Root connected.");
+    }
+
+    private async Task ShowMediaRootResultAsync(MediaRootChangeResult result, string success)
+    {
+        SettingsMessage.Text = result.Succeeded ? success : result.Diagnostic;
+        if (!result.Succeeded)
+            MessageBox.Show(result.Diagnostic, "Media Root was not changed", MessageBoxButton.OK, MessageBoxImage.Warning);
+        await RefreshMediaRootsAsync();
+    }
+
+    private string? PromptForMediaRootName(string title, string prompt, string initial)
+    {
+        var input = new System.Windows.Controls.TextBox { Text = initial, MinWidth = 320, Margin = new Thickness(0, 8, 0, 14) };
+        var ok = new System.Windows.Controls.Button { Content = "Save", IsDefault = true, MinWidth = 82 };
+        var cancel = new System.Windows.Controls.Button { Content = "Cancel", IsCancel = true, MinWidth = 82 };
+        var buttons = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
+        buttons.Children.Add(cancel); buttons.Children.Add(ok);
+        var content = new System.Windows.Controls.StackPanel { Margin = new Thickness(20) };
+        content.Children.Add(new System.Windows.Controls.TextBlock { Text = prompt, Foreground = (System.Windows.Media.Brush)FindResource("TextBrush") });
+        content.Children.Add(input); content.Children.Add(buttons);
+        var dialog = new Window { Title = title, Owner = this, Content = content, SizeToContent = SizeToContent.WidthAndHeight,
+            ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(23, 26, 32)) };
+        ok.Click += (_, _) => { if (!string.IsNullOrWhiteSpace(input.Text)) dialog.DialogResult = true; };
+        input.SelectAll(); input.Focus();
+        return dialog.ShowDialog() == true ? input.Text.Trim() : null;
     }
 
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)

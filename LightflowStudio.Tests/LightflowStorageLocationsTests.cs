@@ -127,6 +127,7 @@ public sealed class LightflowStorageLocationsTests : IDisposable
         Assert.Equal(original.OutputIdentityDirectory, changed.OutputIdentityDirectory);
         Assert.Equal(original.ActivityLogPath, changed.ActivityLogPath);
         Assert.Equal(original.TemporaryDirectory, changed.TemporaryDirectory);
+        Assert.Equal(original.MachineIdentityPath, changed.MachineIdentityPath);
         Assert.Equal(Path.Combine(_root, "custom-catalog"), changed.CatalogDirectory);
         Assert.Equal(Path.Combine(_root, "custom-previews"), changed.PreviewsDirectory);
     }

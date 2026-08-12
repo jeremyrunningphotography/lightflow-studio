@@ -79,6 +79,12 @@ internal sealed class CatalogDatabaseSession : IAsyncDisposable
     public CatalogIdentity Identity { get; }
     public CatalogRuntimePolicy RuntimePolicy { get; }
 
+    internal Microsoft.Data.Sqlite.SqliteConnection OpenConnection()
+    {
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        return _connections.OpenConnection();
+    }
+
     public ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)

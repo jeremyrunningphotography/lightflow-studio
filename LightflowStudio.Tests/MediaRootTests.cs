@@ -151,6 +151,89 @@ public sealed class MediaRootTests : IDisposable
         Assert.DoesNotContain(Environment.MachineName, first, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void MachineIdentity_ExistingValidIdentityIsReturnedWithoutChangingFile()
+    {
+        Directory.CreateDirectory(_temporary);
+        var path = Path.Combine(_temporary, "machine-id");
+        var identity = Guid.NewGuid();
+        var bytes = System.Text.Encoding.UTF8.GetBytes($" {identity:D}\r\n");
+        File.WriteAllBytes(path, bytes);
+
+        Assert.Equal(identity.ToString("D"), new MachineIdentityProvider(path).GetMachineId());
+        Assert.Equal(bytes, File.ReadAllBytes(path));
+    }
+
+    [Fact]
+    public void MachineIdentity_ExistingMalformedIdentityFailsAndPreservesBytes()
+    {
+        Directory.CreateDirectory(_temporary);
+        var path = Path.Combine(_temporary, "machine-id");
+        byte[] bytes = [0xff, 0xfe, 0x00, 0x61, 0x62];
+        File.WriteAllBytes(path, bytes);
+
+        var exception = Assert.Throws<MachineIdentityException>(() => new MachineIdentityProvider(path).GetMachineId());
+
+        Assert.Equal(MachineIdentityFailure.Malformed, exception.Failure);
+        Assert.Equal(bytes, File.ReadAllBytes(path));
+    }
+
+    [Fact]
+    public void MachineIdentity_ExistingUnreadableIdentityFailsWithoutReplacement()
+    {
+        Directory.CreateDirectory(_temporary);
+        var path = Path.Combine(_temporary, "machine-id");
+        var identity = Guid.NewGuid().ToString("D");
+        File.WriteAllText(path, identity);
+        using var locked = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+
+        var exception = Assert.Throws<MachineIdentityException>(() => new MachineIdentityProvider(path).GetMachineId());
+
+        Assert.Equal(MachineIdentityFailure.Unavailable, exception.Failure);
+        locked.Position = 0;
+        using var reader = new StreamReader(locked, System.Text.Encoding.UTF8, true, 1024, leaveOpen: true);
+        Assert.Equal(identity, reader.ReadToEnd());
+    }
+
+    [Fact]
+    public async Task MachineIdentity_ConcurrentFirstRunConvergesWithoutTemporaryFiles()
+    {
+        Directory.CreateDirectory(_temporary);
+        var path = Path.Combine(_temporary, "machine-id");
+        var providers = Enumerable.Range(0, 20).Select(_ => new MachineIdentityProvider(path)).ToArray();
+
+        var identities = await Task.WhenAll(providers.Select(provider => Task.Run(provider.GetMachineId)));
+
+        Assert.Single(identities.Distinct(StringComparer.Ordinal));
+        Assert.True(Guid.TryParse(File.ReadAllText(path), out _));
+        Assert.Empty(Directory.EnumerateFiles(_temporary, "machine-id.*.tmp"));
+    }
+
+    [Fact]
+    public async Task CorruptIdentity_FailsExplicitlyWithoutChangingExistingMapping()
+    {
+        Directory.CreateDirectory(_temporary);
+        var identityPath = Path.Combine(_temporary, "machine-id");
+        var provider = new MachineIdentityProvider(identityPath);
+        var established = provider.GetMachineId();
+        var rootPath = Directory.CreateDirectory(Path.Combine(_temporary, "media")).FullName;
+        await using var fixture = await Fixture.CreateAsync(_temporary, established);
+        var root = (await fixture.Service.CreateAsync("Originals", rootPath)).Root!;
+        File.WriteAllText(identityPath, "corrupt identity");
+        var restarted = new MediaRootService(() => fixture.Session,
+            new MachineIdentityProvider(identityPath), new MediaRootFileSystem());
+
+        var exception = await Assert.ThrowsAsync<MachineIdentityException>(() => restarted.GetAsync(root.RootId));
+
+        Assert.Equal(MachineIdentityFailure.Malformed, exception.Failure);
+        using var connection = fixture.Session.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT MachineId || ':' || PhysicalPath FROM MediaRootMappings WHERE RootId=$root;";
+        command.Parameters.AddWithValue("$root", root.RootId.ToString("D"));
+        Assert.Equal($"{established}:{rootPath}", Convert.ToString(command.ExecuteScalar()));
+        Assert.Equal("corrupt identity", File.ReadAllText(identityPath));
+    }
+
     public void Dispose() { try { Directory.Delete(_temporary, recursive: true); } catch { } }
 
     private sealed class FixedMachine(string id) : IMachineIdentityProvider { public string GetMachineId() => id; }

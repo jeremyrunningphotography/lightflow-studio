@@ -18,6 +18,14 @@ internal interface IMachineIdentityProvider
     string GetMachineId();
 }
 
+internal enum MachineIdentityFailure { Malformed, Unavailable }
+
+internal sealed class MachineIdentityException(MachineIdentityFailure failure, string diagnostic, Exception? innerException = null)
+    : Exception(diagnostic, innerException)
+{
+    public MachineIdentityFailure Failure { get; } = failure;
+}
+
 internal sealed class MachineIdentityProvider(string path) : IMachineIdentityProvider
 {
     private static readonly object Gate = new();
@@ -28,32 +36,43 @@ internal sealed class MachineIdentityProvider(string path) : IMachineIdentityPro
         lock (Gate)
         {
             if (_value is not null) return _value;
-            Guid existing;
-            try
-            {
-                if (File.Exists(path) && Guid.TryParse(File.ReadAllText(path).Trim(), out existing))
-                    return _value = existing.ToString("D");
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+            if (File.Exists(path)) return _value = ReadEstablishedIdentity();
 
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var created = Guid.NewGuid().ToString("D");
             var temporary = path + $".{Guid.NewGuid():N}.tmp";
             try
             {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                 File.WriteAllText(temporary, created);
-                File.Move(temporary, path, overwrite: true);
+                File.Move(temporary, path, overwrite: false);
                 return _value = created;
             }
-            catch (IOException) when (File.Exists(path))
+            catch (IOException exception) when (File.Exists(path))
             {
-                try { File.Delete(temporary); } catch { }
-                if (Guid.TryParse(File.ReadAllText(path).Trim(), out existing))
-                    return _value = existing.ToString("D");
-                throw;
+                return _value = ReadEstablishedIdentity(exception);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                throw new MachineIdentityException(MachineIdentityFailure.Unavailable,
+                    "Lightflow could not establish this installation's Media Root identity.", exception);
             }
             finally { try { File.Delete(temporary); } catch { } }
         }
+    }
+
+    private string ReadEstablishedIdentity(Exception? raceException = null)
+    {
+        string contents;
+        try { contents = File.ReadAllText(path); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new MachineIdentityException(MachineIdentityFailure.Unavailable,
+                "Lightflow could not read this installation's established Media Root identity.", exception);
+        }
+        if (!Guid.TryParse(contents.Trim(), out var identity))
+            throw new MachineIdentityException(MachineIdentityFailure.Malformed,
+                "This installation's Media Root identity is malformed. Lightflow preserved it for diagnosis.", raceException);
+        return identity.ToString("D");
     }
 }
 
@@ -136,6 +155,7 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
     private readonly SemaphoreSlim _mutationGate = new(1, 1);
     public Task<IReadOnlyList<MediaRootInfo>> ListAsync(CancellationToken cancellationToken = default) => RunAsync(() =>
     {
+        var machineId = machine.GetMachineId();
         using var connection = RequireSession().OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -144,7 +164,7 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
             LEFT JOIN MediaRootMappings m ON m.RootId = r.RootId AND m.MachineId = $machine
             ORDER BY r.DisplayName COLLATE NOCASE, r.RootId;
             """;
-        command.Parameters.AddWithValue("$machine", machine.GetMachineId());
+        command.Parameters.AddWithValue("$machine", machineId);
         using var reader = command.ExecuteReader();
         var roots = new List<MediaRootInfo>();
         while (reader.Read()) roots.Add(Observe(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
@@ -153,8 +173,9 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
 
     public Task<MediaRootInfo?> GetAsync(Guid rootId, CancellationToken cancellationToken = default) => RunAsync(() =>
     {
+        var machineId = machine.GetMachineId();
         using var connection = RequireSession().OpenConnection();
-        return Read(connection, rootId);
+        return Read(connection, rootId, machineId);
     }, cancellationToken);
 
     public async Task<MediaRootChangeResult> CreateAsync(string displayName, string physicalPath, CancellationToken cancellationToken = default)
@@ -165,16 +186,17 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException) { return new(false, Diagnostic: ex.Message); }
         return await RunChangeAsync(() =>
         {
+            var machineId = machine.GetMachineId();
             using var connection = RequireSession().OpenConnection();
             using var transaction = connection.BeginTransaction();
-            if (FindOverlap(connection, transaction, path, null) is { } overlap)
+            if (FindOverlap(connection, transaction, path, null, machineId) is { } overlap)
                 return new MediaRootChangeResult(false, Diagnostic: $"That folder overlaps Media Root ‘{overlap}’ on this computer.");
             var rootId = Guid.NewGuid();
             var now = UtcTimestamp();
             Execute(connection, transaction, "INSERT INTO MediaRoots (RootId, DisplayName, SourceStatus, CreatedUtc, UpdatedUtc) VALUES ($id,$name,'online',$now,$now);",
                 ("$id", rootId.ToString("D")), ("$name", name), ("$now", now));
             Execute(connection, transaction, "INSERT INTO MediaRootMappings (MappingId, RootId, MachineId, PhysicalPath, SourceStatus, CreatedUtc, UpdatedUtc) VALUES ($mapping,$id,$machine,$path,'online',$now,$now);",
-                ("$mapping", Guid.NewGuid().ToString("D")), ("$id", rootId.ToString("D")), ("$machine", machine.GetMachineId()), ("$path", path), ("$now", now));
+                ("$mapping", Guid.NewGuid().ToString("D")), ("$id", rootId.ToString("D")), ("$machine", machineId), ("$path", path), ("$now", now));
             transaction.Commit();
             return new MediaRootChangeResult(true, Observe(rootId, name, path));
         }, cancellationToken).ConfigureAwait(false);
@@ -183,10 +205,11 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
     public Task<MediaRootChangeResult> RenameAsync(Guid rootId, string displayName, CancellationToken cancellationToken = default) => RunChangeAsync(() =>
     {
         var name = NormalizeName(displayName);
+        var machineId = machine.GetMachineId();
         using var connection = RequireSession().OpenConnection();
         var changed = Execute(connection, null, "UPDATE MediaRoots SET DisplayName=$name, UpdatedUtc=$now WHERE RootId=$id;",
             ("$name", name), ("$now", UtcTimestamp()), ("$id", rootId.ToString("D")));
-        return changed == 0 ? new(false, Diagnostic: "The Media Root no longer exists.") : new(true, Read(connection, rootId));
+        return changed == 0 ? new(false, Diagnostic: "The Media Root no longer exists.") : new(true, Read(connection, rootId, machineId));
     }, cancellationToken);
 
     public async Task<MediaRootChangeResult> RemapAsync(Guid rootId, string physicalPath, CancellationToken cancellationToken = default)
@@ -196,27 +219,29 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException) { return new(false, Diagnostic: ex.Message); }
         return await RunChangeAsync(() =>
         {
+            var machineId = machine.GetMachineId();
             using var connection = RequireSession().OpenConnection();
             using var transaction = connection.BeginTransaction();
             if (!RootExists(connection, transaction, rootId)) return new(false, Diagnostic: "The Media Root no longer exists.");
-            if (FindOverlap(connection, transaction, path, rootId) is { } overlap)
+            if (FindOverlap(connection, transaction, path, rootId, machineId) is { } overlap)
                 return new(false, Diagnostic: $"That folder overlaps Media Root ‘{overlap}’ on this computer.");
             var now = UtcTimestamp();
             Execute(connection, transaction, """
                 INSERT INTO MediaRootMappings (MappingId,RootId,MachineId,PhysicalPath,SourceStatus,CreatedUtc,UpdatedUtc)
                 VALUES ($mapping,$id,$machine,$path,'online',$now,$now)
                 ON CONFLICT(RootId,MachineId) DO UPDATE SET PhysicalPath=excluded.PhysicalPath, SourceStatus='online', UpdatedUtc=excluded.UpdatedUtc;
-                """, ("$mapping", Guid.NewGuid().ToString("D")), ("$id", rootId.ToString("D")), ("$machine", machine.GetMachineId()), ("$path", path), ("$now", now));
+                """, ("$mapping", Guid.NewGuid().ToString("D")), ("$id", rootId.ToString("D")), ("$machine", machineId), ("$path", path), ("$now", now));
             transaction.Commit();
-            return new(true, Read(connection, rootId));
+            return new(true, Read(connection, rootId, machineId));
         }, cancellationToken).ConfigureAwait(false);
     }
 
     public Task<MediaPathResolution> ResolveAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default) => RunAsync<MediaPathResolution>(() =>
     {
         var normalized = MediaPathSemantics.NormalizeRelativePath(relativePath);
+        var machineId = machine.GetMachineId();
         using var connection = RequireSession().OpenConnection();
-        var root = Read(connection, rootId) ?? throw new KeyNotFoundException("The Media Root does not exist.");
+        var root = Read(connection, rootId, machineId) ?? throw new KeyNotFoundException("The Media Root does not exist.");
         if (root.Availability != MediaRootAvailability.Online)
             return new(rootId, normalized, MediaPathSemantics.RelativePathKey(normalized), null, root.Availability, false, root.Diagnostic);
         var resolved = MediaPathSemantics.ResolveContained(root.PhysicalPath!, normalized);
@@ -232,11 +257,11 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
             ? new(id, name, path, MediaRootAvailability.Online)
             : new(id, name, path, MediaRootAvailability.Unavailable, "The mapped folder is currently unavailable.");
 
-    private MediaRootInfo? Read(SqliteConnection connection, Guid id)
+    private MediaRootInfo? Read(SqliteConnection connection, Guid id, string machineId)
     {
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT r.DisplayName,m.PhysicalPath FROM MediaRoots r LEFT JOIN MediaRootMappings m ON m.RootId=r.RootId AND m.MachineId=$machine WHERE r.RootId=$id;";
-        command.Parameters.AddWithValue("$machine", machine.GetMachineId()); command.Parameters.AddWithValue("$id", id.ToString("D"));
+        command.Parameters.AddWithValue("$machine", machineId); command.Parameters.AddWithValue("$id", id.ToString("D"));
         using var reader = command.ExecuteReader();
         return reader.Read() ? Observe(id, reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1)) : null;
     }
@@ -249,11 +274,11 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
         return normalized;
     }
 
-    private string? FindOverlap(SqliteConnection connection, SqliteTransaction transaction, string path, Guid? exclude)
+    private static string? FindOverlap(SqliteConnection connection, SqliteTransaction transaction, string path, Guid? exclude, string machineId)
     {
         using var command = connection.CreateCommand(); command.Transaction = transaction;
         command.CommandText = "SELECT r.RootId,r.DisplayName,m.PhysicalPath FROM MediaRootMappings m JOIN MediaRoots r ON r.RootId=m.RootId WHERE m.MachineId=$machine;";
-        command.Parameters.AddWithValue("$machine", machine.GetMachineId());
+        command.Parameters.AddWithValue("$machine", machineId);
         using var reader = command.ExecuteReader();
         while (reader.Read())
             if (Guid.Parse(reader.GetString(0)) != exclude && MediaPathSemantics.Overlaps(path, reader.GetString(2))) return reader.GetString(1);
@@ -287,7 +312,11 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
     private async Task<MediaRootChangeResult> RunChangeAsync(Func<MediaRootChangeResult> operation, CancellationToken token)
     {
         await _mutationGate.WaitAsync(token).ConfigureAwait(false);
-        try { return await RunAsync(operation, token).ConfigureAwait(false); }
+        try
+        {
+            try { return await RunAsync(operation, token).ConfigureAwait(false); }
+            catch (MachineIdentityException exception) { return new(false, Diagnostic: exception.Message); }
+        }
         finally { _mutationGate.Release(); }
     }
 }

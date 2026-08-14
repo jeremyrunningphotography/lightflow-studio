@@ -272,6 +272,11 @@
        <DockPanel><Button DockPanel.Dock="Right" Content="Change…" Click="ChangePreviewsLocation_Click"/><StackPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="Previews Location"/><TextBlock Margin="0,4,16,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="Previews can use significant disk space. They are rebuildable and may be moved to another drive independently."/></StackPanel></DockPanel>
        <TextBox x:Name="SettingsPreviewsDirectory" Margin="4,8,4,0" IsReadOnly="True"/>
       </StackPanel></Border>
+      <Border Background="#111319" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="12" Margin="4,10,4,0"><StackPanel>
+       <DockPanel><StackPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="Catalog Backup &amp; Recovery"/><TextBlock Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="Lightflow keeps validated Catalog backups separately from rebuildable Previews. Restore is explicit and protects the current Catalog before making changes."/></StackPanel></DockPanel>
+       <ComboBox x:Name="CatalogBackupSelection" Margin="4,10,4,0" DisplayMemberPath="DisplayName"/>
+       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0"><Button Content="Back Up Now" Click="BackupCatalog_Click"/><Button Content="Restore Selected…" Click="RestoreCatalog_Click"/></StackPanel>
+      </StackPanel></Border>
      </StackPanel></Border>
      <Border Grid.Row="3" Style="{StaticResource Card}"><StackPanel>
       <DockPanel Margin="4,0,4,10"><Button DockPanel.Dock="Right" Content="Add Media Root…" Click="AddMediaRoot_Click"/><StackPanel><TextBlock Style="{StaticResource SectionTitle}" Text="Media Roots"/><TextBlock Margin="0,4,16,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="Stable Catalog locations for originals. Each computer connects the same logical root to its own folder path."/></StackPanel></DockPanel>

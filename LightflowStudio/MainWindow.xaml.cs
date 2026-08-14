@@ -77,6 +77,7 @@ public partial class MainWindow : Window
             BatchFileList.ItemsSource = _batchFiles;
             HistoryList.ItemsSource = _historyRecords;
             MediaRootsList.ItemsSource = _mediaRoots;
+            RefreshCatalogBackups();
             RefreshHistory();
             LocateTools();
             await RefreshDependencyHealthAsync();
@@ -87,6 +88,8 @@ public partial class MainWindow : Window
                 SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
             else if (!_storage.PreviewAvailable)
                 SettingsMessage.Text = _storage.PreviewDiagnostic;
+            else if (_storage.RecoveryDiagnostic is not null)
+                SettingsMessage.Text = _storage.RecoveryDiagnostic;
         };
     }
     private void LocateTools(string? configuredPath = null)
@@ -691,6 +694,39 @@ public partial class MainWindow : Window
         ShowEncodingDetails.IsChecked = settings.DetailedActivityLogging;
         SettingsEncodingPreset.SelectedIndex = (int)settings.EncodingPreset;
         PopulateEncodingControls(settings.Encoding);
+    }
+
+    private sealed record CatalogBackupDisplay(CatalogBackup Backup, string DisplayName);
+
+    private void RefreshCatalogBackups()
+    {
+        CatalogBackupSelection.ItemsSource = _storage.CatalogBackups
+            .Select(x => new CatalogBackupDisplay(x, $"{x.CreatedUtc.LocalDateTime:g} — {x.Kind} — schema {x.SchemaVersion}"))
+            .ToArray();
+        CatalogBackupSelection.SelectedIndex = CatalogBackupSelection.Items.Count > 0 ? 0 : -1;
+    }
+
+    private async void BackupCatalog_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsMessage.Text = "Creating and validating Catalog backup…";
+        var result = await _storage.BackupCatalogAsync();
+        SettingsMessage.Text = result.Succeeded ? "Catalog backup created and validated." : result.Diagnostic;
+        if (!result.Succeeded) MessageBox.Show(result.Diagnostic, "Catalog backup failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        RefreshCatalogBackups();
+    }
+
+    private async void RestoreCatalog_Click(object sender, RoutedEventArgs e)
+    {
+        if (CatalogBackupSelection.SelectedItem is not CatalogBackupDisplay selected) return;
+        if (MessageBox.Show("Restore this validated backup? Lightflow will protect the current Catalog first. Previews are not changed.",
+            "Restore Catalog", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        SettingsMessage.Text = "Validating and restoring Catalog…";
+        var result = await _storage.RestoreCatalogAsync(selected.Backup.Path);
+        SettingsMessage.Text = result.Diagnostic ?? (result.Succeeded ? "Catalog restored successfully." : "Catalog restore failed.");
+        MessageBox.Show(SettingsMessage.Text, result.Succeeded ? "Catalog restored" : "Catalog restore failed",
+            MessageBoxButton.OK, result.Succeeded ? MessageBoxImage.Information : MessageBoxImage.Error);
+        RefreshCatalogBackups();
+        if (result.Succeeded) await RefreshMediaRootsAsync();
     }
 
     private void PopulateEncodingControls(EncodingOptions options)

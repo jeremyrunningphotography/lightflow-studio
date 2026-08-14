@@ -37,6 +37,8 @@ public partial class App : System.Windows.Application
             ActivityLog.TryAppend($"[Catalog] {storage.Status}: {storage.Diagnostic}");
         if (!Storage.PreviewAvailable)
             ActivityLog.TryAppend($"[Previews] {Storage.PreviewDiagnostic}");
+        if (Storage.RecoveryDiagnostic is not null)
+            ActivityLog.TryAppend($"[Catalog recovery] {Storage.RecoveryDiagnostic}");
 
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;

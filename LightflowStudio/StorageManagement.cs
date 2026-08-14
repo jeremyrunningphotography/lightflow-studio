@@ -81,6 +81,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         PreviewDiagnostic = PreviewAvailable ? null : $"The configured Previews directory is unavailable: {locations.PreviewsDirectory}";
         MediaRoots = new MediaRootService(() => _catalogSession,
             new MachineIdentityProvider(locations.MachineIdentityPath), new MediaRootFileSystem());
+        MediaAssets = new MediaAssetService(new CatalogMediaAssetRepository(() => _catalogSession),
+            MediaRoots, new SampledSourceFingerprintService());
     }
 
     public AppSettings Settings { get; private set; }
@@ -90,6 +92,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public bool PreviewAvailable { get; private set; }
     public string? PreviewDiagnostic { get; private set; }
     public IMediaRootService MediaRoots { get; }
+    public IMediaAssetService MediaAssets { get; }
 
     public static async Task<StorageStartupResult> StartAsync(string? localApplicationData = null,
         CancellationToken cancellationToken = default, ICatalogRelocationTransfer? transfer = null,

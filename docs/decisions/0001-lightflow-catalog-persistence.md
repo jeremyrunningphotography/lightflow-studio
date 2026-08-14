@@ -155,7 +155,7 @@ No existing store is migrated by this decision.
 | --- | --- | --- |
 | `settings.json` | User preferences and tool/default folders | Remains configuration. #79 may add references to protected Catalog/Preview location configuration, but not a freely editable live Catalog path. |
 | `state.json` | Last-used Batch Encode choices | Ephemeral UI state; does not belong in Catalog. |
-| `trim-history.json` | Path/size/last-write keyed trim ranges, 90-day retention | Candidate to attach durable ranges to AssetId after #82, if product semantics call for it. Do not migrate before stable Asset identity exists. |
+| `trim-history.json` | Path/size/last-write keyed trim ranges, 90-day retention | Candidate to attach durable ranges to AssetId in a later focused migration if product semantics call for it; #82 does not migrate existing trim history. |
 | `job-history.json` | Bounded typed Encoding execution history | May later reference AssetIds/RootIds, but remains operational history rather than precious media knowledge for now. |
 | `output-identities/*.json` | Resume/skip identity cache for finalized outputs | Rebuildable operational cache; must not become precious Catalog data. Could move under a future general cache boundary, not the Catalog. |
 | legacy `*.lightflow.json` sidecars | Compatibility source for old output identities | Continue best-effort migration into the central output-identity cache; never import wholesale into Catalog. |
@@ -199,5 +199,5 @@ Rejected categorically. Preview deletion/rebuild must never lose a rating, label
 - **#79:** Persist independent location choices, validate destinations, implement protected Catalog relocation and Preview move/rebuild UX, and surface unavailable storage.
 - **#80:** Implemented the pinned provider/package and notices, connection factory/runtime PRAGMAs, initial schema, application identity, migration runner, and repository boundaries.
 - **#81:** Implemented logical Media Roots, machine-specific mappings, stable private machine identity, Windows relative-path keys, and non-destructive availability observation.
-- **#82:** Add stable Asset IDs, relative paths, and initial source fingerprints.
+- **#82:** Implemented durable Asset IDs, logical-location lookup, observation state, and a versioned bounded source fingerprint.
 - **#83:** Implement SQLite-aware backup retention, integrity lifecycle, recovery/restore services, and user-facing diagnostics.

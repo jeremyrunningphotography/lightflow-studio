@@ -196,25 +196,70 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             if (!candidate.IsValid) return new(false, $"The selected backup is invalid. {candidate.Diagnostic}");
             if (expectedId is Guid expectedCandidate && candidate.CatalogId != expectedCandidate)
                 return new(false, "The selected backup belongs to a different Lightflow Catalog.");
-            if (_catalogSession is not null)
+            var currentSession = _catalogSession;
+            var hadActiveCatalog = currentSession is not null;
+            if (currentSession is not null)
             {
-                await _catalogSession.DisposeAsync().ConfigureAwait(false);
+                await currentSession.DisposeAsync().ConfigureAwait(false);
                 _catalogSession = null;
             }
-            var restored = await _recovery.RestoreAsync(backupPath, cancellationToken).ConfigureAwait(false);
-            var opened = await new CatalogDatabaseService(Locations, _recovery).OpenExistingAsync(CancellationToken.None).ConfigureAwait(false);
-            if (opened.IsSuccess) _catalogSession = opened.Session;
-            if (!restored.Succeeded || !opened.IsSuccess)
-                return new(false, restored.Diagnostic ?? opened.Diagnostic ?? "The Catalog could not be restored.");
-            if (expectedId is Guid expected && opened.Session!.Identity.CatalogId != expected)
+            var installation = await _recovery.BeginRestoreAsync(backupPath, hadActiveCatalog, cancellationToken).ConfigureAwait(false);
+            if (!installation.Succeeded)
             {
-                await opened.Session.DisposeAsync().ConfigureAwait(false);
-                _catalogSession = null;
-                return new(false, "The restored backup belongs to a different Lightflow Catalog.");
+                var reactivation = await TryReactivateCatalogAsync().ConfigureAwait(false);
+                var diagnostic = installation.Diagnostic ?? "The Catalog could not be restored.";
+                if (hadActiveCatalog && !reactivation.Succeeded)
+                    diagnostic += $" The previous Catalog could not be reactivated: {reactivation.Diagnostic}";
+                return new(false, diagnostic);
             }
-            return restored;
+
+            CatalogDatabaseSession? replacementSession = null;
+            try
+            {
+                var opened = await new CatalogDatabaseService(Locations, _recovery)
+                    .OpenExistingAsync(CancellationToken.None).ConfigureAwait(false);
+                if (!opened.IsSuccess)
+                    throw new InvalidDataException(opened.Diagnostic ?? "The restored Catalog could not be opened.");
+                replacementSession = opened.Session;
+                if (expectedId is Guid expected && replacementSession!.Identity.CatalogId != expected)
+                    throw new InvalidDataException("The restored backup belongs to a different Lightflow Catalog.");
+                replacementSession = _activator.Activate(replacementSession!);
+                var committed = await installation.Transaction!.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+                if (!committed.Succeeded) throw new IOException(committed.Diagnostic);
+                _catalogSession = replacementSession;
+                replacementSession = null;
+                return committed;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                if (replacementSession is not null) await replacementSession.DisposeAsync().ConfigureAwait(false);
+                var rollback = await installation.Transaction!.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                if (!rollback.Succeeded)
+                    return new(false, $"The restored Catalog could not be activated: {exception.Message} {rollback.Diagnostic}");
+                var reactivation = await TryReactivateCatalogAsync().ConfigureAwait(false);
+                if (!reactivation.Succeeded)
+                    return new(false, $"The restored Catalog could not be activated: {exception.Message} {rollback.Diagnostic} The previous Catalog could not be reactivated: {reactivation.Diagnostic}");
+                return new(false, $"The restored Catalog could not be activated, so the previous Catalog was restored and reactivated. {exception.Message}");
+            }
         }
         finally { _mutationGate.Release(); }
+    }
+
+    private async Task<CatalogRestoreResult> TryReactivateCatalogAsync()
+    {
+        var opened = await new CatalogDatabaseService(Locations, _recovery)
+            .OpenExistingAsync(CancellationToken.None).ConfigureAwait(false);
+        if (!opened.IsSuccess) return new(false, opened.Diagnostic ?? "The Catalog could not be reopened.");
+        try
+        {
+            _catalogSession = _activator.Activate(opened.Session!);
+            return new(true);
+        }
+        catch (Exception exception)
+        {
+            await opened.Session!.DisposeAsync().ConfigureAwait(false);
+            return new(false, exception.Message);
+        }
     }
 
     public async Task<StorageChangeResult> RelocateCatalogAsync(string destinationDirectory,

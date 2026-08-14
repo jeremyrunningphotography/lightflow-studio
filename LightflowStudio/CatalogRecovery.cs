@@ -11,6 +11,15 @@ internal sealed record CatalogBackup(string Path, int SchemaVersion, DateTimeOff
 internal sealed record CatalogIntegrityResult(bool IsValid, string? Diagnostic = null, int? SchemaVersion = null, Guid? CatalogId = null);
 internal sealed record CatalogBackupResult(bool Succeeded, CatalogBackup? Backup = null, string? Diagnostic = null);
 internal sealed record CatalogRestoreResult(bool Succeeded, string? Diagnostic = null);
+internal sealed record CatalogRestoreInstallation(bool Succeeded, ICatalogRestoreTransaction? Transaction = null,
+    string? Diagnostic = null);
+
+internal interface ICatalogRestoreTransaction
+{
+    string? DisplacedCatalogPath { get; }
+    Task<CatalogRestoreResult> CommitAsync(CancellationToken cancellationToken = default);
+    Task<CatalogRestoreResult> RollbackAsync(CancellationToken cancellationToken = default);
+}
 
 internal interface ICatalogRecoveryService : ICatalogMigrationBackup
 {
@@ -18,7 +27,8 @@ internal interface ICatalogRecoveryService : ICatalogMigrationBackup
     Task<CatalogBackupResult> CreateBackupAsync(string databasePath, CatalogBackupKind kind,
         bool onlyIfNeededToday = false, CancellationToken cancellationToken = default);
     IReadOnlyList<CatalogBackup> ListBackups();
-    Task<CatalogRestoreResult> RestoreAsync(string backupPath, CancellationToken cancellationToken = default);
+    Task<CatalogRestoreInstallation> BeginRestoreAsync(string backupPath, bool requireCurrentProtection = false,
+        CancellationToken cancellationToken = default);
 }
 
 internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoveryService
@@ -77,7 +87,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         {
             return new CatalogBackupResult(false, Diagnostic: $"Catalog backup failed: {ex.Message}");
         }
-        finally { try { File.Delete(staging); } catch { } }
+        finally { DeleteCatalogFiles(staging); }
     }, cancellationToken);
 
     public IReadOnlyList<CatalogBackup> ListBackups()
@@ -88,35 +98,34 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
             .OrderByDescending(x => x.CreatedUtc).ToArray();
     }
 
-    public Task<CatalogRestoreResult> RestoreAsync(string backupPath, CancellationToken cancellationToken = default) => Task.Run(() =>
+    public Task<CatalogRestoreInstallation> BeginRestoreAsync(string backupPath, bool requireCurrentProtection = false,
+        CancellationToken cancellationToken = default) => Task.Run(() =>
     {
         cancellationToken.ThrowIfCancellationRequested();
         var candidate = Inspect(backupPath, full: true, cancellationToken);
-        if (!candidate.IsValid) return new CatalogRestoreResult(false, $"The selected backup is not valid. {candidate.Diagnostic}");
+        if (!candidate.IsValid) return new CatalogRestoreInstallation(false, Diagnostic: $"The selected backup is not valid. {candidate.Diagnostic}");
         Directory.CreateDirectory(_locations.CatalogDirectory);
         var live = _locations.CatalogDatabasePath;
         var staged = live + $".{Guid.NewGuid():N}.restoring";
         var displaced = live + $".{_utcNow():yyyyMMddTHHmmssZ}.before-restore";
         var movedCurrent = false;
-        var currentProtected = false;
         var replacementInstalled = false;
         try
         {
+            BackupDatabase(backupPath, staged);
+            var stagedCheck = Inspect(staged, full: true, cancellationToken);
+            if (!stagedCheck.IsValid) throw new InvalidDataException(stagedCheck.Diagnostic);
             if (File.Exists(live))
             {
                 var current = Inspect(live, full: true, cancellationToken);
-                if (current.IsValid)
+                if (current.IsValid || requireCurrentProtection)
                 {
                     var protection = CreateBackupAsync(live, CatalogBackupKind.Recovery,
                         cancellationToken: cancellationToken).GetAwaiter().GetResult();
                     if (!protection.Succeeded)
-                        return new(false, $"The current Catalog could not be protected. {protection.Diagnostic}");
-                    currentProtected = true;
+                        return new(false, Diagnostic: $"The current Catalog could not be protected. {protection.Diagnostic}");
                 }
             }
-            BackupDatabase(backupPath, staged);
-            var stagedCheck = Inspect(staged, full: true, cancellationToken);
-            if (!stagedCheck.IsValid) throw new InvalidDataException(stagedCheck.Diagnostic);
             if (File.Exists(live)) { File.Move(live, displaced); movedCurrent = true; }
             MoveCompanion(live + "-wal", displaced + "-wal");
             MoveCompanion(live + "-shm", displaced + "-shm");
@@ -124,14 +133,8 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
             replacementInstalled = true;
             var restored = Inspect(live, full: true, cancellationToken);
             if (!restored.IsValid) throw new InvalidDataException(restored.Diagnostic);
-            if (currentProtected)
-            {
-                DeleteCatalogFiles(displaced);
-                movedCurrent = false;
-            }
-            return new CatalogRestoreResult(true, movedCurrent
-                ? $"Catalog restored. The previous Catalog was preserved at {displaced}."
-                : "Catalog restored successfully.");
+            return new CatalogRestoreInstallation(true,
+                new RestoreTransaction(live, movedCurrent ? displaced : null, _utcNow));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException or InvalidDataException)
         {
@@ -142,11 +145,53 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
                 MoveCompanion(displaced + "-wal", live + "-wal");
                 MoveCompanion(displaced + "-shm", live + "-shm");
             }
-            catch (Exception rollback) { return new(false, $"Restore failed: {ex.Message} The previous Catalog is preserved at {displaced}, but automatic rollback also failed: {rollback.Message}"); }
-            return new(false, $"Restore failed and the previous Catalog was restored: {ex.Message}");
+            catch (Exception rollback) { return new(false, Diagnostic: $"Restore failed: {ex.Message} The previous Catalog is preserved at {displaced}, but automatic rollback also failed: {rollback.Message}"); }
+            return new(false, Diagnostic: $"Restore failed and the previous Catalog was restored: {ex.Message}");
         }
         finally { try { File.Delete(staged); } catch { } }
     }, cancellationToken);
+
+    private sealed class RestoreTransaction(string livePath, string? displacedPath,
+        Func<DateTimeOffset> utcNow) : ICatalogRestoreTransaction
+    {
+        private int _completed;
+        public string? DisplacedCatalogPath { get; } = displacedPath;
+
+        public Task<CatalogRestoreResult> CommitAsync(CancellationToken cancellationToken = default) => Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Interlocked.Exchange(ref _completed, 1) != 0)
+                return new CatalogRestoreResult(false, "The restore transaction is already complete.");
+            if (DisplacedCatalogPath is not null) DeleteCatalogFiles(DisplacedCatalogPath);
+            return new CatalogRestoreResult(true, "Catalog restored successfully.");
+        }, cancellationToken);
+
+        public Task<CatalogRestoreResult> RollbackAsync(CancellationToken cancellationToken = default) => Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Interlocked.Exchange(ref _completed, 1) != 0)
+                return new CatalogRestoreResult(false, "The restore transaction is already complete.");
+            var failedReplacement = livePath + $".{utcNow():yyyyMMddTHHmmssZ}.failed-restore";
+            try
+            {
+                if (File.Exists(livePath)) File.Move(livePath, failedReplacement);
+                MoveCompanion(livePath + "-wal", failedReplacement + "-wal");
+                MoveCompanion(livePath + "-shm", failedReplacement + "-shm");
+                if (DisplacedCatalogPath is not null)
+                {
+                    File.Move(DisplacedCatalogPath, livePath);
+                    MoveCompanion(DisplacedCatalogPath + "-wal", livePath + "-wal");
+                    MoveCompanion(DisplacedCatalogPath + "-shm", livePath + "-shm");
+                }
+                return new CatalogRestoreResult(true, $"The previous Catalog was restored. The rejected replacement was preserved at {failedReplacement}.");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return new CatalogRestoreResult(false,
+                    $"Automatic rollback failed: {ex.Message} Previous Catalog artifact: {DisplacedCatalogPath ?? "none"}. Replacement artifact: {failedReplacement}.");
+            }
+        }, cancellationToken);
+    }
 
     private CatalogIntegrityResult Inspect(string path, bool full, CancellationToken cancellationToken)
     {
@@ -174,6 +219,9 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         using var source = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = sourcePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
         using var destination = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = destinationPath, Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString());
         source.Open(); destination.Open(); source.BackupDatabase(destination);
+        using var checkpoint = destination.CreateCommand();
+        checkpoint.CommandText = "PRAGMA journal_mode=DELETE;";
+        checkpoint.ExecuteScalar();
     }
 
     private string UniqueBackupPath(int schema, DateTimeOffset now, CatalogBackupKind kind)
@@ -189,14 +237,21 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
     private void ApplyRetention()
     {
         var all = ListBackups();
-        var daily = all.GroupBy(x => x.CreatedUtc.UtcDateTime.Date).Select(g => g.OrderByDescending(x => x.CreatedUtc).First()).Take(DailyRetention).ToHashSet();
-        var monthly = all.GroupBy(x => (x.CreatedUtc.Year, x.CreatedUtc.Month)).Select(g => g.OrderByDescending(x => x.CreatedUtc).First()).Take(MonthlyRetention).ToHashSet();
+        var daily = all.GroupBy(x => x.CreatedUtc.UtcDateTime.Date).Select(g => PreferredAnchor(g)).Take(DailyRetention).ToHashSet();
+        var monthly = all.GroupBy(x => (x.CreatedUtc.Year, x.CreatedUtc.Month)).Select(g => PreferredAnchor(g)).Take(MonthlyRetention).ToHashSet();
         foreach (var backup in all.Where(x => !daily.Contains(x) && !monthly.Contains(x)))
         {
             try { File.Delete(backup.Path); } catch { }
             try { File.Delete(backup.Path + ".metadata.json"); } catch { }
+            try { File.Delete(backup.Path + "-wal"); } catch { }
+            try { File.Delete(backup.Path + "-shm"); } catch { }
         }
     }
+
+    private static CatalogBackup PreferredAnchor(IEnumerable<CatalogBackup> backups) => backups
+        .OrderByDescending(x => x.Kind is CatalogBackupKind.Recovery or CatalogBackupKind.Migration)
+        .ThenByDescending(x => x.CreatedUtc)
+        .First();
 
     private static CatalogBackup? ParseBackup(string path)
     {

@@ -51,7 +51,7 @@ public sealed class CatalogRecoveryTests : IAsyncLifetime
         var recovery = new SqliteCatalogRecoveryService(locations);
 
         Assert.False((await recovery.CheckIntegrityAsync(locations.CatalogDatabasePath)).IsValid);
-        Assert.False((await recovery.RestoreAsync(invalid)).Succeeded);
+        Assert.False((await recovery.BeginRestoreAsync(invalid)).Succeeded);
         Assert.Equal("not sqlite", await File.ReadAllTextAsync(locations.CatalogDatabasePath));
     }
 
@@ -69,7 +69,8 @@ public sealed class CatalogRecoveryTests : IAsyncLifetime
         await File.WriteAllTextAsync(preview, "rebuildable but untouched");
         File.Delete(locations.CatalogDatabasePath);
 
-        var restored = await recovery.RestoreAsync(backup.Backup!.Path);
+        var installation = await recovery.BeginRestoreAsync(backup.Backup!.Path);
+        var restored = await installation.Transaction!.CommitAsync();
         var opened = await new CatalogDatabaseService(locations, recovery).OpenExistingAsync();
 
         Assert.True(restored.Succeeded);
@@ -127,12 +128,70 @@ public sealed class CatalogRecoveryTests : IAsyncLifetime
         Directory.Delete(locations.CatalogBackupsDirectory, true);
         await File.WriteAllTextAsync(locations.CatalogBackupsDirectory, "blocks backup directory creation");
 
-        var result = await recovery.RestoreAsync(candidate);
+        var result = await recovery.BeginRestoreAsync(candidate);
         var reopened = await new CatalogDatabaseService(locations).OpenExistingAsync();
 
         Assert.False(result.Succeeded);
         Assert.Equal(id, reopened.Session!.Identity.CatalogId);
         await reopened.Session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task PostInstallActivationFailure_RollsBackAndReactivatesPreviousCatalog()
+    {
+        var activator = new FailNextActivation();
+        var startup = await LightflowStorageCoordinator.StartAsync(_root, activator: activator);
+        var coordinator = startup.Coordinator!;
+        var catalogId = coordinator.CatalogSession.Identity.CatalogId;
+        using (var connection = coordinator.CatalogSession.OpenConnection())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "CREATE TABLE RestoreProbe (Value TEXT NOT NULL); INSERT INTO RestoreProbe VALUES ('backup-state');";
+            command.ExecuteNonQuery();
+        }
+        var backup = await coordinator.BackupCatalogAsync();
+        using (var connection = coordinator.CatalogSession.OpenConnection())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "UPDATE RestoreProbe SET Value='current-state';";
+            command.ExecuteNonQuery();
+        }
+        Directory.CreateDirectory(coordinator.Locations.PreviewsDirectory);
+        var preview = Path.Combine(coordinator.Locations.PreviewsDirectory, "untouched.preview");
+        await File.WriteAllTextAsync(preview, "preview-data");
+        activator.FailNext = true;
+
+        var result = await coordinator.RestoreCatalogAsync(backup.Backup!.Path);
+
+        Assert.False(result.Succeeded);
+        Assert.True(coordinator.CatalogAvailable);
+        Assert.Equal(catalogId, coordinator.CatalogSession.Identity.CatalogId);
+        using (var connection = coordinator.CatalogSession.OpenConnection())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT Value FROM RestoreProbe;";
+            Assert.Equal("current-state", command.ExecuteScalar());
+        }
+        Assert.Equal("preview-data", await File.ReadAllTextAsync(preview));
+        Assert.Contains(coordinator.CatalogBackups, x => x.Kind == CatalogBackupKind.Recovery);
+        Assert.NotEmpty(Directory.EnumerateFiles(coordinator.Locations.CatalogDirectory, "*.failed-restore*"));
+        Assert.Empty(Directory.EnumerateFiles(coordinator.Locations.CatalogDirectory, "*.before-restore*"));
+        await coordinator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task SuccessfulActivation_CommitsAndRemovesDisplacedCatalog()
+    {
+        var coordinator = (await LightflowStorageCoordinator.StartAsync(_root)).Coordinator!;
+        var backup = await coordinator.BackupCatalogAsync();
+
+        var result = await coordinator.RestoreCatalogAsync(backup.Backup!.Path);
+
+        Assert.True(result.Succeeded);
+        Assert.True(coordinator.CatalogAvailable);
+        Assert.Empty(Directory.EnumerateFiles(coordinator.Locations.CatalogDirectory, "*.before-restore*"));
+        Assert.Empty(Directory.EnumerateFiles(coordinator.Locations.CatalogDirectory, "*.restoring"));
+        await coordinator.DisposeAsync();
     }
 
     [Fact]
@@ -158,4 +217,16 @@ public sealed class CatalogRecoveryTests : IAsyncLifetime
 
     public Task InitializeAsync() => Task.CompletedTask;
     public Task DisposeAsync() { try { Directory.Delete(_root, true); } catch { } return Task.CompletedTask; }
+
+    private sealed class FailNextActivation : ICatalogSessionActivator
+    {
+        public bool FailNext { get; set; }
+        public CatalogDatabaseSession Activate(CatalogDatabaseSession session)
+        {
+            if (!FailNext) return session;
+            FailNext = false;
+            throw new InvalidOperationException("simulated post-install activation failure");
+        }
+    }
+
 }

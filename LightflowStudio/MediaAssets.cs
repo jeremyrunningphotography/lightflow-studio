@@ -7,7 +7,7 @@ using Microsoft.Data.Sqlite;
 namespace LightflowStudio;
 
 internal enum MediaAssetSourceStatus { Unknown, Available, Missing }
-internal enum MediaAssetOperationStatus { Succeeded, AlreadyExists, RootUnavailable, SourceMissing, NotFound, Failed }
+internal enum MediaAssetOperationStatus { Succeeded, AlreadyExists, RootNotFound, RootUnavailable, SourceMissing, NotFound, Failed }
 
 internal sealed record SourceFingerprint(int Version, string Value);
 
@@ -250,7 +250,12 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
         var key = MediaPathSemantics.RelativePathKey(normalized);
         if (await repository.FindAsync(rootId, key, cancellationToken).ConfigureAwait(false) is not null)
             return new(MediaAssetOperationStatus.AlreadyExists, Diagnostic: "An asset already exists at that logical location.");
-        var resolved = await roots.ResolveAsync(rootId, normalized, cancellationToken).ConfigureAwait(false);
+        MediaPathResolution resolved;
+        try { resolved = await roots.ResolveAsync(rootId, normalized, cancellationToken).ConfigureAwait(false); }
+        catch (KeyNotFoundException)
+        {
+            return new(MediaAssetOperationStatus.RootNotFound, Diagnostic: "The Media Root does not exist.");
+        }
         if (resolved.RootAvailability != MediaRootAvailability.Online)
             return new(MediaAssetOperationStatus.RootUnavailable, Diagnostic: resolved.Diagnostic);
         if (!resolved.Exists || resolved.PhysicalPath is null)

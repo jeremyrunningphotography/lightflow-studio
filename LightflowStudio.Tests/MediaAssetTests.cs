@@ -38,6 +38,22 @@ public sealed class MediaAssetTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateWithNonexistentRootReturnsRootNotFoundWithoutCreatingAsset()
+    {
+        await using var fixture = await Fixture.CreateAsync(_temporary);
+
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            var result = await fixture.Assets.CreateAsync(Guid.NewGuid(), "clip.mp4", "video");
+            Assert.Equal(MediaAssetOperationStatus.RootNotFound, result.Status);
+            Assert.Null(result.Asset);
+        });
+
+        Assert.Null(exception);
+        Assert.Equal(0L, fixture.AssetCount());
+    }
+
+    [Fact]
     public async Task LogicalLookup_NormalizesSeparatorsAndCase_AndRejectsDuplicate()
     {
         await using var fixture = await Fixture.CreateAsync(_temporary);

@@ -309,6 +309,16 @@ Schema version 1 keys one `PreviewRecords` row to the stable Catalog `AssetId` w
 
 Generated artifact paths are deterministic from `AssetId`, representation class, generator version, and a hashed versioned source identity. They use two directory partitions from the first four normalized AssetId characters, for example `thumbnails/00/11/...`, avoiding millions of siblings in one directory. Paths remain under the Preview root and stored artifact references must be normalized relative paths. Issue #90 establishes identities and persistence only; #91 owns probing/normalization, #92 owns generation, and #93 owns quota, pruning, clear/rebuild, usage reporting, and maintenance UX.
 
+### Derived media metadata
+
+`IDerivedMediaMetadataService` is the reusable, UI-independent entry point for technical metadata. It accepts a stable Catalog `AssetId`, resolves and observes the source through the existing Media Asset and Media Root services, converts that observation into the #90 Preview source identity, and writes only to the rebuildable Preview store. Catalog rows retain logical identity and inexpensive source observations; normalized technical metadata and raw provider snapshots never enter the precious Catalog.
+
+Video and audio use the already distributed FFprobe command-line dependency behind `IMediaMetadataProbe` and `IProbeProcessRunner`. FFprobe JSON is normalized into Lightflow-owned container, primary video, and primary audio models while the complete JSON remains available as a reconstructable raw snapshot. Ordinary JPEG, PNG, TIFF, BMP, GIF, WDP, and JXR images use Windows Imaging Component behind `IImageMetadataReader`; normalized fields include dimensions, pixel depth, orientation, camera make/model, lens model, and capture-time text when present. RAW-specific libraries and decode support remain deferred.
+
+Probe version 1 is stored in `PreviewRecords.MetadataProbeVersion`. A current matching source identity and probe version is reused without invoking a provider. A source-identity change is marked stale by the Preview store and a generator-version mismatch triggers reprobe. Work is asynchronous, cancellable, off the UI thread, and bounded by a service semaphore (two concurrent probes by default). Process cancellation terminates the FFprobe process tree so obsolete work does not continue consuming resources.
+
+Missing sources and unavailable Media Roots update only Preview source availability and retain prior normalized/raw metadata. Unsupported, malformed, and temporary provider failures produce provider-neutral status and diagnostics; an attempted refresh marks the metadata component failed without erasing a previously successful payload. There is no scanning or automatic scheduling in #91—future discovery/browser work chooses which stable assets to probe. Thumbnail generation (#92), cache maintenance (#93), discovery scanning (#71), and Inspector presentation (#73) remain separate concerns.
+
 ## Shared batch planning
 
 Before execution, a mature capability should produce a plan containing:

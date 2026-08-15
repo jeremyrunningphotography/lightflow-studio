@@ -166,7 +166,11 @@ public sealed class PreviewPersistenceTests : IAsyncLifetime
     {
         var locations = LightflowStorageLocations.Create(_root);
         Directory.CreateDirectory(locations.PreviewsDirectory);
-        using (var connection = new SqliteConnection($"Data Source={locations.PreviewsDatabasePath}"))
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = locations.PreviewsDatabasePath,
+            Pooling = false
+        }.ToString()))
         {
             connection.Open();
             using var command = connection.CreateCommand();
@@ -182,6 +186,100 @@ public sealed class PreviewPersistenceTests : IAsyncLifetime
         using var check = verify.CreateCommand();
         check.CommandText = "SELECT count(*) FROM sqlite_master WHERE name='ForeignData';";
         Assert.Equal(1L, check.ExecuteScalar());
+    }
+
+    [Fact]
+    public async Task Startup_DefaultMissingPreviewStore_InitializesAndIsAvailable()
+    {
+        var locations = LightflowStorageLocations.Create(_root);
+        Assert.False(File.Exists(locations.PreviewsDatabasePath));
+
+        var startup = await LightflowStorageCoordinator.StartAsync(_root);
+
+        Assert.True(startup.IsReady);
+        Assert.True(startup.Coordinator!.CatalogAvailable);
+        Assert.True(startup.Coordinator.PreviewAvailable);
+        Assert.NotNull(startup.Coordinator.Previews);
+        Assert.Null(startup.Coordinator.PreviewDiagnostic);
+        Assert.True(File.Exists(locations.PreviewsDatabasePath));
+        await startup.Coordinator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Startup_ExistingValidPreviewStore_IsValidatedAndAvailable()
+    {
+        var first = (await LightflowStorageCoordinator.StartAsync(_root)).Coordinator!;
+        var assetId = Guid.NewGuid();
+        await first.Previews!.ObserveSourceAsync(assetId, Source());
+        await first.DisposeAsync();
+
+        var restarted = await LightflowStorageCoordinator.StartAsync(_root);
+
+        Assert.True(restarted.IsReady);
+        Assert.True(restarted.Coordinator!.PreviewAvailable);
+        Assert.Equal(assetId, (await restarted.Coordinator.Previews!.GetAsync(assetId))!.AssetId);
+        await restarted.Coordinator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Startup_ForeignPreviewDatabase_IsNonfatalUntouchedAndCatalogRemainsAvailable()
+    {
+        var locations = LightflowStorageLocations.Create(_root);
+        var catalogId = await CreateCatalogAndRemovePreviewStoreAsync(locations);
+        Directory.CreateDirectory(locations.PreviewsDirectory);
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = locations.PreviewsDatabasePath,
+            Pooling = false
+        }.ToString()))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "CREATE TABLE ForeignData(Value TEXT); INSERT INTO ForeignData VALUES('preserve');";
+            command.ExecuteNonQuery();
+        }
+        var original = await File.ReadAllBytesAsync(locations.PreviewsDatabasePath);
+
+        var startup = await LightflowStorageCoordinator.StartAsync(_root);
+
+        Assert.True(startup.IsReady);
+        Assert.True(startup.Coordinator!.CatalogAvailable);
+        Assert.Equal(catalogId, startup.Coordinator.CatalogSession.Identity.CatalogId);
+        Assert.False(startup.Coordinator.PreviewAvailable);
+        Assert.Null(startup.Coordinator.Previews);
+        Assert.Contains("not a Lightflow Preview store", startup.Coordinator.PreviewDiagnostic);
+        Assert.Equal(original, await File.ReadAllBytesAsync(locations.PreviewsDatabasePath));
+        await startup.Coordinator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Startup_CorruptPreviewDatabase_IsNonfatalUntouchedAndCatalogRemainsAvailable()
+    {
+        var locations = LightflowStorageLocations.Create(_root);
+        var catalogId = await CreateCatalogAndRemovePreviewStoreAsync(locations);
+        Directory.CreateDirectory(locations.PreviewsDirectory);
+        var original = Enumerable.Range(0, 256).Select(value => (byte)value).ToArray();
+        await File.WriteAllBytesAsync(locations.PreviewsDatabasePath, original);
+
+        var startup = await LightflowStorageCoordinator.StartAsync(_root);
+
+        Assert.True(startup.IsReady);
+        Assert.True(startup.Coordinator!.CatalogAvailable);
+        Assert.Equal(catalogId, startup.Coordinator.CatalogSession.Identity.CatalogId);
+        Assert.False(startup.Coordinator.PreviewAvailable);
+        Assert.Null(startup.Coordinator.Previews);
+        Assert.Contains("Preview store is unavailable", startup.Coordinator.PreviewDiagnostic);
+        Assert.Equal(original, await File.ReadAllBytesAsync(locations.PreviewsDatabasePath));
+        await startup.Coordinator.DisposeAsync();
+    }
+
+    private async Task<Guid> CreateCatalogAndRemovePreviewStoreAsync(LightflowStorageLocations locations)
+    {
+        var coordinator = (await LightflowStorageCoordinator.StartAsync(_root)).Coordinator!;
+        var catalogId = coordinator.CatalogSession.Identity.CatalogId;
+        await coordinator.DisposeAsync();
+        Directory.Delete(locations.PreviewsDirectory, recursive: true);
+        return catalogId;
     }
 
     public Task InitializeAsync() => Task.CompletedTask;

@@ -70,7 +70,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
 
     private LightflowStorageCoordinator(IStorageConfigurationStore configuration, AppSettings settings,
         LightflowStorageLocations locations, CatalogDatabaseSession? session, ICatalogRelocationTransfer transfer,
-        ICatalogSessionActivator activator, ICatalogRecoveryService recovery)
+        ICatalogSessionActivator activator, ICatalogRecoveryService recovery, IPreviewStoreService? previews,
+        string? previewDiagnostic)
     {
         _configuration = configuration;
         Settings = settings;
@@ -79,9 +80,9 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         _transfer = transfer;
         _activator = activator;
         _recovery = recovery;
-        PreviewAvailable = settings.PreviewsDirectory is null || Directory.Exists(locations.PreviewsDirectory);
-        PreviewDiagnostic = PreviewAvailable ? null : $"The configured Previews directory is unavailable: {locations.PreviewsDirectory}";
-        Previews = PreviewAvailable ? new PreviewStoreService(locations) : null;
+        Previews = previews;
+        PreviewAvailable = previews is not null;
+        PreviewDiagnostic = previewDiagnostic;
         MediaRoots = new MediaRootService(() => _catalogSession,
             new MachineIdentityProvider(locations.MachineIdentityPath), new MediaRootFileSystem());
         MediaAssets = new MediaAssetService(new CatalogMediaAssetRepository(() => _catalogSession),
@@ -148,13 +149,21 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         }
 
         if (!opened.IsSuccess)
+        {
+            var (unavailableCatalogPreviews, unavailableCatalogPreviewDiagnostic) =
+                await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
             return new(Map(opened.Status),
-                new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator, recovery), opened.Diagnostic);
+                new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator, recovery,
+                    unavailableCatalogPreviews, unavailableCatalogPreviewDiagnostic), opened.Diagnostic);
+        }
         if (settings.CatalogId is Guid expected && opened.Session!.Identity.CatalogId != expected)
         {
             await opened.Session.DisposeAsync().ConfigureAwait(false);
+            var (mismatchedCatalogPreviews, mismatchedCatalogPreviewDiagnostic) =
+                await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
             return new(StorageStartupStatus.CatalogIdentityMismatch,
-                new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator, recovery),
+                new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator, recovery,
+                    mismatchedCatalogPreviews, mismatchedCatalogPreviewDiagnostic),
                 "The configured Catalog does not match the Catalog previously associated with this Lightflow installation.");
         }
 
@@ -168,12 +177,34 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                 throw;
             }
         }
-        var coordinator = new LightflowStorageCoordinator(configuration, settings, locations, opened.Session, transfer, activator, recovery);
+        var (previews, previewDiagnostic) = await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
+        var coordinator = new LightflowStorageCoordinator(configuration, settings, locations, opened.Session, transfer,
+            activator, recovery, previews, previewDiagnostic);
         var automaticBackup = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic,
             onlyIfNeededToday: true, cancellationToken).ConfigureAwait(false);
         if (!automaticBackup.Succeeded)
             coordinator.RecoveryDiagnostic = $"Automatic Catalog backup failed: {automaticBackup.Diagnostic}";
         return new(StorageStartupStatus.Ready, coordinator);
+    }
+
+    private static async Task<(IPreviewStoreService? Service, string? Diagnostic)> OpenPreviewsAsync(
+        AppSettings settings, LightflowStorageLocations locations, CancellationToken cancellationToken)
+    {
+        if (settings.PreviewsDirectory is not null && !Directory.Exists(locations.PreviewsDirectory))
+            return (null, $"The configured Previews directory is unavailable: {locations.PreviewsDirectory}");
+
+        var previews = new PreviewStoreService(locations);
+        try
+        {
+            await previews.InitializeAsync(cancellationToken).ConfigureAwait(false);
+            return (previews, null);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException
+            or NotSupportedException or SqliteException)
+        {
+            await previews.DisposeAsync().ConfigureAwait(false);
+            return (null, $"The Preview store is unavailable: {exception.Message}");
+        }
     }
 
     public async Task<CatalogBackupResult> BackupCatalogAsync(CancellationToken cancellationToken = default)

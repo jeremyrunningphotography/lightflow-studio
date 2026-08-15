@@ -58,6 +58,7 @@ internal sealed record PreviewComponentUpdate(
 
 internal interface IPreviewStoreService : IAsyncDisposable
 {
+    Task InitializeAsync(CancellationToken cancellationToken = default);
     Task<PreviewRecord?> GetAsync(Guid assetId, CancellationToken cancellationToken = default);
     Task<PreviewRecord> ObserveSourceAsync(Guid assetId, PreviewSourceIdentity source,
         CancellationToken cancellationToken = default);
@@ -81,6 +82,17 @@ internal sealed class PreviewStoreService : IPreviewStoreService
     private bool _disposed;
 
     public PreviewStoreService(ILightflowStorageLocations locations) => _locations = locations;
+
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            await Task.Run(() => EnsureInitialized(cancellationToken), cancellationToken).ConfigureAwait(false);
+        }
+        finally { _gate.Release(); }
+    }
 
     public Task<PreviewRecord?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
         RunAsync(connection => Read(connection, assetId), cancellationToken);

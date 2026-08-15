@@ -139,6 +139,34 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MaintenanceWaitsForActiveThumbnailPublicationAndRetainsPublishedFile()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, "photo.jpg"), "source");
+        var assetId = await fixture.AddAssetAsync("photo.jpg", "image");
+        using var operations = new PreviewOperationCoordinator();
+        var renderer = new ReleasableRenderer();
+        using var thumbnails = new ThumbnailGenerationService(fixture.Coordinator.MediaAssets,
+            fixture.Coordinator.Previews!, fixture.Coordinator.Locations, renderer, operations: operations);
+        using var metadata = new FakeMetadataService(1);
+        using var maintenance = new PreviewMaintenanceService(fixture.Coordinator.Previews!,
+            fixture.Coordinator.MediaAssets, metadata, thumbnails, operations, fixture.Coordinator.Locations);
+        var generation = thumbnails.GenerateAsync(new(assetId));
+        await renderer.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var cleanup = maintenance.CleanupAsync(new(long.MaxValue, TimeSpan.Zero, TimeSpan.Zero));
+        await Task.Delay(50);
+        Assert.False(cleanup.IsCompleted);
+        renderer.Release.TrySetResult();
+
+        var generated = await generation.WaitAsync(TimeSpan.FromSeconds(5));
+        await cleanup.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(File.Exists(generated.ThumbnailPath));
+        Assert.Equal(PreviewComponentState.Current,
+            (await fixture.Coordinator.Previews!.GetAsync(assetId))!.ThumbnailState);
+    }
+
+    [Fact]
     public async Task CancellationAndInvalidOutput_CleanTemporaryFilesWithoutPublishingCurrent()
     {
         await using var fixture = await ThumbnailFixture.CreateAsync(_root);

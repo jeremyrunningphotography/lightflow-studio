@@ -22,6 +22,7 @@ public sealed class SettingsPreferencesTests : IDisposable
             PreserveFolderStructure = false,
             OverwriteExistingFiles = true,
             DetailedActivityLogging = true,
+            PreviewCacheQuotaGb = 64,
             EncodingPreset = EncodingPreset.EfficientHevc,
             Encoding = EncodingPresetCatalog.Get(EncodingPreset.EfficientHevc) with
             {
@@ -54,6 +55,18 @@ public sealed class SettingsPreferencesTests : IDisposable
         Assert.True(settings.PreserveFolderStructure);
         Assert.False(settings.OverwriteExistingFiles);
         Assert.False(settings.DetailedActivityLogging);
+        Assert.Equal(20, settings.PreviewCacheQuotaGb);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(2048, 1024)]
+    public void NormalizeBoundsPreviewCacheQuota(int configured, int expected)
+    {
+        Assert.Equal(expected, AppSettings.Normalize(new AppSettings
+        {
+            PreviewCacheQuotaGb = configured
+        }).PreviewCacheQuotaGb);
     }
 
     [Fact]

@@ -231,7 +231,8 @@ internal sealed class CompositeMediaMetadataProbe(IImageMetadataReader images, I
 internal static class DerivedMediaMetadataFactory
 {
     public static IDerivedMediaMetadataService Create(IMediaAssetService assets, IPreviewStoreService previews,
-        AppSettings settings, string? applicationDirectory = null, int maximumConcurrency = 2)
+        AppSettings settings, string? applicationDirectory = null, int maximumConcurrency = 2,
+        IPreviewOperationCoordinator? operations = null)
     {
         applicationDirectory ??= AppContext.BaseDirectory;
         var configuredDirectory = string.IsNullOrWhiteSpace(settings.FfmpegPath)
@@ -242,7 +243,7 @@ internal static class DerivedMediaMetadataFactory
             Path.Combine(applicationDirectory, "ffmpeg", "bin", "ffprobe.exe"), configured: configured);
         var probe = new CompositeMediaMetadataProbe(new WicImageMetadataReader(),
             new FfprobeMediaMetadataReader(ffprobe, new ProbeProcessRunner()));
-        return new DerivedMediaMetadataService(assets, previews, probe, maximumConcurrency);
+        return new DerivedMediaMetadataService(assets, previews, probe, maximumConcurrency, operations);
     }
 }
 
@@ -259,20 +260,24 @@ internal sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService
     private readonly IPreviewStoreService _previews;
     private readonly IMediaMetadataProbe _probe;
     private readonly SemaphoreSlim _concurrency;
+    private readonly IPreviewOperationCoordinator? _operations;
 
     public DerivedMediaMetadataService(IMediaAssetService assets, IPreviewStoreService previews,
-        IMediaMetadataProbe probe, int maximumConcurrency = 2)
+        IMediaMetadataProbe probe, int maximumConcurrency = 2, IPreviewOperationCoordinator? operations = null)
     {
         if (maximumConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maximumConcurrency));
         _assets = assets;
         _previews = previews;
         _probe = probe;
         _concurrency = new(maximumConcurrency, maximumConcurrency);
+        _operations = operations;
     }
 
     public async Task<DerivedMetadataResult> ProbeAsync(Guid assetId, bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
+        using var operationLease = _operations is null ? null :
+            await _operations.EnterOperationAsync(cancellationToken).ConfigureAwait(false);
         var observed = await _assets.ObserveAsync(assetId, cancellationToken).ConfigureAwait(false);
         if (observed.Status == MediaAssetOperationStatus.NotFound)
             return new(DerivedMetadataStatus.AssetNotFound, Diagnostic: observed.Diagnostic);

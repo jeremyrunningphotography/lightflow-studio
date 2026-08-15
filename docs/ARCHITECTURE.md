@@ -327,7 +327,17 @@ Ordinary Windows-supported images are decoded off the UI thread with Windows Ima
 
 Generation is cancellable and bounded to two concurrent operations by default. A priority-aware queue admits visible-item requests ahead of queued normal/background work without coupling generation to a Browser UI. Output is written to a unique `.lightflow` file beside its intended cache path, decoded once to validate it, and moved over the deterministic final path only after success. Cancellation, renderer failure, or invalid output removes the operation-owned temporary file and never publishes it as Current.
 
-Immediately before publication the service re-observes size, last-write time, fingerprint version, and fingerprint value using #82. A changed source marks existing Preview state stale and discards the obsolete generated result; missing or offline sources retain any prior cached thumbnail and availability state. Thumbnail cache cleanup, quota/rebuild scheduling and UX remain #93; discovery and Browser presentation remain #71 and later UI work; RAW-specific decoding remains deferred.
+Immediately before publication the service re-observes size, last-write time, fingerprint version, and fingerprint value using #82. A changed source marks existing Preview state stale and discards the obsolete generated result; missing or offline sources retain any prior cached thumbnail and availability state. Preview maintenance is defined below; discovery and Browser presentation remain #71 and later UI work; RAW-specific decoding remains deferred.
+
+### Preview maintenance and retention
+
+`IPreviewMaintenanceService` owns usage reporting, cleanup, Clear, and Rebuild behavior for the independently configured Preview location. Usage includes the Preview database/WAL files, generated thumbnail and standard-preview trees, operation-owned temporary files, record/file counts, and unreferenced files. None of these operations write to the Catalog or source media.
+
+The default cache quota is 20 GiB and is configurable from Settings (1–1024 GiB). Automatic cleanup removes unreferenced generated files only after a 24-hour safety window, then removes stale/failed artifacts older than 30 days when their source is available. If the cache still exceeds quota, the oldest available-source current artifacts are removed until the target is met. Missing and unavailable sources are excluded from automatic stale/quota pruning, so temporary root outages retain useful cached data; cleanup reports when protected offline data keeps usage above quota.
+
+`PreviewOperationCoordinator` provides shared leases for metadata/thumbnail work and an exclusive lease for destructive maintenance. Writer admission closes a turnstile before waiting for active generation, preventing cleanup starvation and ensuring cleanup cannot classify a just-published file as orphaned. Preview relocation and application shutdown also enter this exclusive lifecycle. Generated artifacts are removed only from the Lightflow-owned `thumbnails` and `previews` trees.
+
+Clear is explicit and confirmed in Settings. It atomically moves the two cache trees into an operation-owned staging directory, transactionally clears rebuildable Preview records, restores the moved trees if the database reset fails, and deletes committed staging data best-effort. Rebuild performs Clear, enumerates stable Catalog assets through the provider-neutral Media Asset service, then invokes the existing #91 metadata and #92 thumbnail services with progress and cancellation. Cancellation leaves completed regenerated entries valid and the store retryable. Browser/discovery scheduling remains outside #93.
 
 ## Shared batch planning
 

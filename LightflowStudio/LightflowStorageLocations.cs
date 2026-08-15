@@ -14,6 +14,9 @@ internal interface ILightflowStorageLocations
     string CatalogDatabasePath { get; }
     string CatalogBackupsDirectory { get; }
     string PreviewsDirectory { get; }
+    string PreviewsDatabasePath { get; }
+    string ThumbnailCacheDirectory { get; }
+    string StandardPreviewCacheDirectory { get; }
     string TemporaryDirectory { get; }
     string LogsDirectory { get; }
     string ActivityLogPath { get; }
@@ -27,6 +30,7 @@ internal sealed record LightflowStorageLocationOptions(
 internal sealed record LightflowStorageLocations : ILightflowStorageLocations
 {
     public const string CatalogFileName = "LightflowCatalog.db";
+    public const string PreviewsFileName = "previews.db";
     public static LightflowStorageLocations Current { get; } = CreateDefault();
 
     public required string ApplicationDataDirectory { get; init; }
@@ -39,6 +43,9 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
     public required string CatalogDatabasePath { get; init; }
     public required string CatalogBackupsDirectory { get; init; }
     public required string PreviewsDirectory { get; init; }
+    public required string PreviewsDatabasePath { get; init; }
+    public required string ThumbnailCacheDirectory { get; init; }
+    public required string StandardPreviewCacheDirectory { get; init; }
     public required string TemporaryDirectory { get; init; }
     public required string LogsDirectory { get; init; }
     public required string ActivityLogPath { get; init; }
@@ -75,6 +82,9 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
             CatalogDatabasePath = Path.Combine(catalogDirectory, CatalogFileName),
             CatalogBackupsDirectory = Path.Combine(catalogDirectory, "Backups"),
             PreviewsDirectory = previewsDirectory,
+            PreviewsDatabasePath = Path.Combine(previewsDirectory, PreviewsFileName),
+            ThumbnailCacheDirectory = Path.Combine(previewsDirectory, "thumbnails"),
+            StandardPreviewCacheDirectory = Path.Combine(previewsDirectory, "previews"),
             TemporaryDirectory = temporaryDirectory,
             LogsDirectory = logsDirectory,
             ActivityLogPath = Path.Combine(logsDirectory, "activity.log"),
@@ -95,7 +105,10 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
             CatalogDirectory = catalogDirectory,
             CatalogDatabasePath = Path.Combine(catalogDirectory, CatalogFileName),
             CatalogBackupsDirectory = Path.Combine(catalogDirectory, "Backups"),
-            PreviewsDirectory = previewsDirectory
+            PreviewsDirectory = previewsDirectory,
+            PreviewsDatabasePath = Path.Combine(previewsDirectory, PreviewsFileName),
+            ThumbnailCacheDirectory = Path.Combine(previewsDirectory, "thumbnails"),
+            StandardPreviewCacheDirectory = Path.Combine(previewsDirectory, "previews")
         };
     }
 

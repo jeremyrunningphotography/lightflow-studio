@@ -22,7 +22,13 @@ internal static class CatalogPackageRuntimeVerifier
             if (!reopened.IsSuccess || reopened.Session is null) return false;
             var matches = reopened.Session.Identity.CatalogId == catalogId;
             await reopened.Session.DisposeAsync().ConfigureAwait(false);
-            return matches;
+            if (!matches) return false;
+
+            var assetId = Guid.NewGuid();
+            await using var previews = new PreviewStoreService(locations);
+            await previews.ObserveSourceAsync(assetId,
+                new PreviewSourceIdentity(1, 1, 1, "0123456789abcdef")).ConfigureAwait(false);
+            return (await previews.GetAsync(assetId).ConfigureAwait(false))?.AssetId == assetId;
         }
         catch
         {

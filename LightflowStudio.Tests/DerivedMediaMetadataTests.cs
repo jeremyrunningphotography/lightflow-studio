@@ -163,6 +163,47 @@ public sealed class DerivedMediaMetadataTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SourceChangedDuringProbe_DoesNotPublishResultAndStableRetrySucceeds()
+    {
+        await using var fixture = await MetadataFixture.CreateAsync(_root, "clip.mp4", "video");
+        var initialProbe = new FakeProbe(SuccessMetadata());
+        using (var initial = new DerivedMediaMetadataService(fixture.Coordinator.MediaAssets,
+            fixture.Coordinator.Previews!, initialProbe))
+            await initial.ProbeAsync(fixture.AssetId);
+        var before = (await fixture.Coordinator.Previews!.GetAsync(fixture.AssetId))!;
+        var blockingProbe = new ReleasableProbe(SuccessMetadata());
+        using var changing = new DerivedMediaMetadataService(fixture.Coordinator.MediaAssets,
+            fixture.Coordinator.Previews, blockingProbe);
+        var operation = changing.ProbeAsync(fixture.AssetId, forceRefresh: true);
+        await blockingProbe.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await File.AppendAllTextAsync(MediaPathSemantics.ResolveContained(fixture.MediaRoot, "clip.mp4"),
+            " changed during probe");
+        blockingProbe.Release.TrySetResult();
+
+        var changed = await operation;
+        var after = (await fixture.Coordinator.Previews.GetAsync(fixture.AssetId))!;
+
+        Assert.Equal(DerivedMetadataStatus.SourceChanged, changed.Status);
+        Assert.Contains("changed while metadata was being read", changed.Diagnostic);
+        Assert.Equal(PreviewComponentState.Stale, after.MetadataState);
+        Assert.NotEqual(before.Source, after.Source);
+        Assert.Equal(new FileInfo(MediaPathSemantics.ResolveContained(fixture.MediaRoot, "clip.mp4")).Length,
+            after.Source.FileSizeBytes);
+        Assert.Equal(before.MetadataJson, after.MetadataJson);
+        Assert.Equal(before.RawMetadataJson, after.RawMetadataJson);
+
+        var stableProbe = new FakeProbe(SuccessMetadata());
+        using var stable = new DerivedMediaMetadataService(fixture.Coordinator.MediaAssets,
+            fixture.Coordinator.Previews, stableProbe);
+        var retried = await stable.ProbeAsync(fixture.AssetId);
+
+        Assert.Equal(DerivedMetadataStatus.Succeeded, retried.Status);
+        Assert.Equal(PreviewComponentState.Current,
+            (await fixture.Coordinator.Previews.GetAsync(fixture.AssetId))!.MetadataState);
+        Assert.Equal(1, stableProbe.CallCount);
+    }
+
+    [Fact]
     public async Task MalformedRefresh_RetainsExistingMetadataAndRecordsFailure()
     {
         await using var fixture = await MetadataFixture.CreateAsync(_root, "clip.mp4", "video");
@@ -317,6 +358,19 @@ public sealed class DerivedMediaMetadataTests : IAsyncLifetime
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public async Task<MediaProbeResult> ProbeAsync(string path, string mediaType, long fileSizeBytes, CancellationToken cancellationToken = default)
         { Started.TrySetResult(); await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); throw new UnreachableException(); }
+    }
+
+    private sealed class ReleasableProbe(MediaProbeResult result) : IMediaMetadataProbe
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<MediaProbeResult> ProbeAsync(string path, string mediaType, long fileSizeBytes,
+            CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            return result;
+        }
     }
 
     private sealed class ConcurrencyProbe : IMediaMetadataProbe

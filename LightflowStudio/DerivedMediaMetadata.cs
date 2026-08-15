@@ -8,7 +8,7 @@ using System.Windows.Media.Imaging;
 namespace LightflowStudio;
 
 internal enum DerivedMediaKind { Image, Video, Audio }
-internal enum DerivedMetadataStatus { Succeeded, Current, AssetNotFound, RootUnavailable, SourceMissing, Unsupported, ProbeUnavailable, Malformed, Failed }
+internal enum DerivedMetadataStatus { Succeeded, Current, SourceChanged, AssetNotFound, RootUnavailable, SourceMissing, Unsupported, ProbeUnavailable, Malformed, Failed }
 
 internal sealed record DerivedVideoMetadata(
     string Codec,
@@ -302,6 +302,27 @@ internal sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService
                 asset.FileSizeBytes, cancellationToken).ConfigureAwait(false);
             if (result.Status == DerivedMetadataStatus.Succeeded && result.Metadata is not null)
             {
+                var verified = await _assets.ObserveAsync(assetId, cancellationToken).ConfigureAwait(false);
+                if (verified.Status == MediaAssetOperationStatus.NotFound)
+                    return new(DerivedMetadataStatus.AssetNotFound, Diagnostic: verified.Diagnostic);
+                if (verified.Status == MediaAssetOperationStatus.RootUnavailable)
+                    return await RetainOfflineAsync(assetId, PreviewSourceAvailability.Unavailable,
+                        DerivedMetadataStatus.RootUnavailable, verified.Diagnostic, cancellationToken).ConfigureAwait(false);
+                if (verified.Status == MediaAssetOperationStatus.SourceMissing)
+                    return await RetainOfflineAsync(assetId, PreviewSourceAvailability.Missing,
+                        DerivedMetadataStatus.SourceMissing, verified.Diagnostic, cancellationToken).ConfigureAwait(false);
+                if (!verified.Succeeded || verified.Asset?.Asset.Fingerprint is null)
+                    return new(DerivedMetadataStatus.Failed,
+                        Diagnostic: verified.Diagnostic ?? "The media source could not be verified after probing.");
+
+                var verifiedAsset = verified.Asset.Asset;
+                var verifiedSource = new PreviewSourceIdentity(verifiedAsset.FileSizeBytes, verifiedAsset.LastWriteUtcTicks,
+                    verifiedAsset.Fingerprint.Version, verifiedAsset.Fingerprint.Value);
+                await _previews.ObserveSourceAsync(assetId, verifiedSource, cancellationToken).ConfigureAwait(false);
+                if (!SameSourceIdentity(source, verifiedSource))
+                    return new(DerivedMetadataStatus.SourceChanged,
+                        Diagnostic: "The source changed while metadata was being read. Retry after the file is stable.");
+
                 var normalized = JsonSerializer.Serialize(result.Metadata, DerivedMetadataJson.Options);
                 await _previews.SetMetadataAsync(assetId, new(CurrentProbeVersion, PreviewComponentState.Current,
                     PayloadJson: normalized, RawPayloadJson: result.RawMetadata), cancellationToken).ConfigureAwait(false);
@@ -332,6 +353,12 @@ internal sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService
         try { metadata = JsonSerializer.Deserialize<DerivedMediaMetadata>(json, DerivedMetadataJson.Options); return metadata is not null; }
         catch (JsonException) { return false; }
     }
+
+    private static bool SameSourceIdentity(PreviewSourceIdentity left, PreviewSourceIdentity right) =>
+        left.FileSizeBytes == right.FileSizeBytes &&
+        left.LastWriteUtcTicks == right.LastWriteUtcTicks &&
+        left.FingerprintVersion == right.FingerprintVersion &&
+        string.Equals(left.Fingerprint, right.Fingerprint, StringComparison.OrdinalIgnoreCase);
 
     public void Dispose() => _concurrency.Dispose();
 }

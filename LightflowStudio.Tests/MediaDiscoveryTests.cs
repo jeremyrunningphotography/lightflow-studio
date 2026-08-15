@@ -253,6 +253,43 @@ public sealed class MediaFolderEnumeratorTests : IDisposable
         Assert.Empty(result.Entries);
     }
 
+    [Fact]
+    public async Task LinkedDirectoryAndFileEntriesAreSkippedWithoutExposingOutsideMedia()
+    {
+        var linkedDirectory = Path.Combine(_root, "outside-folder-link");
+        var linkedFile = Path.Combine(_root, "outside-file-link.mp4");
+        var ordinaryDirectory = Path.Combine(_root, "ordinary-folder");
+        var ordinaryFile = Path.Combine(_root, "ordinary.mp4");
+        var fileSystem = new FixedFileSystem(
+        [
+            new(linkedDirectory, "outside-folder-link", true, null, default, IsReparsePoint: true),
+            new(linkedFile, "outside-file-link.mp4", false, null, default, IsReparsePoint: true),
+            new(ordinaryDirectory, "ordinary-folder", true, null, DateTimeOffset.UtcNow),
+            new(ordinaryFile, "ordinary.mp4", false, 10, DateTimeOffset.UtcNow)
+        ]);
+
+        var result = await CreateEnumerator(fileSystem).EnumerateAsync(new(_rootId));
+
+        Assert.True(result.Succeeded, result.Diagnostic);
+        Assert.Equal(2, result.SkippedLinkedEntries);
+        Assert.Contains("filesystem link", result.Diagnostic, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(new[] { "ordinary-folder", "ordinary.mp4" }, result.Entries.Select(item => item.Name));
+        Assert.Equal(MediaTypeCategory.Video, result.Entries.Single(item => !item.IsDirectory).MediaType.Category);
+    }
+
+    [Fact]
+    public async Task FolderReachedThroughLinkIsRejectedBeforeItsTargetCanBeEnumerated()
+    {
+        var service = CreateEnumerator(new ThrowingFileSystem(
+            new MediaFolderLinkException("linked folder targets outside the Media Root")));
+
+        var result = await service.EnumerateAsync(new(_rootId, "outside-folder-link"));
+
+        Assert.Equal(MediaFolderEnumerationStatus.LinkedPathRejected, result.Status);
+        Assert.Empty(result.Entries);
+        Assert.Contains("outside", result.Diagnostic, StringComparison.OrdinalIgnoreCase);
+    }
+
     private MediaFolderEnumerator CreateEnumerator(IMediaFolderFileSystem? fileSystem = null) => new(
         new FakeRoots(new(_rootId, "Media", _root, MediaRootAvailability.Online)),
         MediaTypeRegistry.CreateDefault(), fileSystem ?? new MediaFolderFileSystem());
@@ -288,7 +325,8 @@ public sealed class MediaFolderEnumeratorTests : IDisposable
     private sealed class BlockingFileSystem : IMediaFolderFileSystem
     {
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public async Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string folderPath,
+        public async Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string mediaRootPath,
+            string folderPath,
             CancellationToken cancellationToken = default)
         {
             Started.TrySetResult();
@@ -299,14 +337,16 @@ public sealed class MediaFolderEnumeratorTests : IDisposable
 
     private sealed class ThrowingFileSystem(Exception exception) : IMediaFolderFileSystem
     {
-        public Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string folderPath,
+        public Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string mediaRootPath,
+            string folderPath,
             CancellationToken cancellationToken = default) => Task.FromException<IReadOnlyList<MediaFolderFileSystemEntry>>(exception);
     }
 
     private sealed class RecordingFileSystem : IMediaFolderFileSystem
     {
         public int CallCount { get; private set; }
-        public Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string folderPath,
+        public Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string mediaRootPath,
+            string folderPath,
             CancellationToken cancellationToken = default)
         {
             CallCount++;
@@ -316,7 +356,8 @@ public sealed class MediaFolderEnumeratorTests : IDisposable
 
     private sealed class FixedFileSystem(IReadOnlyList<MediaFolderFileSystemEntry> entries) : IMediaFolderFileSystem
     {
-        public Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string folderPath,
+        public Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string mediaRootPath,
+            string folderPath,
             CancellationToken cancellationToken = default) => Task.FromResult(entries);
     }
 
@@ -332,7 +373,8 @@ public sealed class MediaFolderEnumeratorTests : IDisposable
         public int CallCount => _callCount;
         public int MaximumObserved => _maximumObserved;
 
-        public async Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string folderPath,
+        public async Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string mediaRootPath,
+            string folderPath,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _callCount);

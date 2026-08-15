@@ -101,11 +101,15 @@ internal sealed record MediaFolderFileSystemEntry(
     string Name,
     bool IsDirectory,
     long? FileSizeBytes,
-    DateTimeOffset LastWriteUtc);
+    DateTimeOffset LastWriteUtc,
+    bool IsReparsePoint = false);
+
+internal sealed class MediaFolderLinkException(string diagnostic) : IOException(diagnostic);
 
 internal interface IMediaFolderFileSystem
 {
     Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(
+        string mediaRootPath,
         string folderPath,
         CancellationToken cancellationToken = default);
 }
@@ -113,10 +117,12 @@ internal interface IMediaFolderFileSystem
 internal sealed class MediaFolderFileSystem : IMediaFolderFileSystem
 {
     public Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(
+        string mediaRootPath,
         string folderPath,
         CancellationToken cancellationToken = default) => Task.Run<IReadOnlyList<MediaFolderFileSystemEntry>>(() =>
     {
         cancellationToken.ThrowIfCancellationRequested();
+        EnsureNoLinkedPath(mediaRootPath, folderPath);
         var directory = new DirectoryInfo(folderPath);
         var entries = new List<MediaFolderFileSystemEntry>();
         foreach (var item in directory.EnumerateFileSystemInfos("*", new EnumerationOptions
@@ -128,12 +134,32 @@ internal sealed class MediaFolderFileSystem : IMediaFolderFileSystem
         }))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var attributes = item.Attributes;
+            var isReparsePoint = (attributes & FileAttributes.ReparsePoint) != 0;
             var isDirectory = item is DirectoryInfo;
             entries.Add(new(item.FullName, item.Name, isDirectory,
-                item is FileInfo file ? file.Length : null, item.LastWriteTimeUtc));
+                !isReparsePoint && item is FileInfo file ? file.Length : null,
+                isReparsePoint ? default : item.LastWriteTimeUtc, isReparsePoint));
         }
+        EnsureNoLinkedPath(mediaRootPath, folderPath);
         return entries;
     }, cancellationToken);
+
+    private static void EnsureNoLinkedPath(string mediaRootPath, string folderPath)
+    {
+        var root = MediaPathSemantics.NormalizeRootPath(mediaRootPath);
+        var folder = Path.GetFullPath(folderPath);
+        var relative = Path.GetRelativePath(root, folder);
+        if (relative == ".") return;
+        var current = root;
+        foreach (var component in relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+        {
+            current = Path.Combine(current, component);
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                throw new MediaFolderLinkException(
+                    "Lightflow does not enumerate folders reached through filesystem links.");
+        }
+    }
 }
 
 internal sealed record MediaFolderEnumerationRequest(Guid RootId, string? RelativeFolder = null);
@@ -155,6 +181,7 @@ internal enum MediaFolderEnumerationStatus
     RootUnavailable,
     FolderNotFound,
     FolderUnavailable,
+    LinkedPathRejected,
     AccessDenied,
     InvalidPath,
     Failed
@@ -164,7 +191,8 @@ internal sealed record MediaFolderEnumerationResult(
     MediaFolderEnumerationStatus Status,
     string RelativeFolder,
     IReadOnlyList<MediaFolderEntry> Entries,
-    string? Diagnostic = null)
+    string? Diagnostic = null,
+    int SkippedLinkedEntries = 0)
 {
     public bool Succeeded => Status == MediaFolderEnumerationStatus.Succeeded;
 }
@@ -215,7 +243,8 @@ internal sealed class MediaFolderEnumerator(
         IReadOnlyList<MediaFolderFileSystemEntry> sourceEntries;
         try
         {
-            sourceEntries = await EnumerateSourceAsync(physicalFolder, cancellationToken).ConfigureAwait(false);
+            sourceEntries = await EnumerateSourceAsync(root.PhysicalPath, physicalFolder, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException) { throw; }
         catch (UnauthorizedAccessException exception)
@@ -232,6 +261,14 @@ internal sealed class MediaFolderEnumerator(
         {
             return Result(MediaFolderEnumerationStatus.FolderNotFound, relativeFolder, exception.Message);
         }
+        catch (FileNotFoundException exception)
+        {
+            return Result(MediaFolderEnumerationStatus.FolderNotFound, relativeFolder, exception.Message);
+        }
+        catch (MediaFolderLinkException exception)
+        {
+            return Result(MediaFolderEnumerationStatus.LinkedPathRejected, relativeFolder, exception.Message);
+        }
         catch (IOException exception)
         {
             return Result(MediaFolderEnumerationStatus.FolderUnavailable, relativeFolder,
@@ -239,11 +276,17 @@ internal sealed class MediaFolderEnumerator(
         }
 
         var entries = new List<MediaFolderEntry>(sourceEntries.Count);
+        var skippedLinks = 0;
         try
         {
             foreach (var source in sourceEntries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (source.IsReparsePoint)
+                {
+                    skippedLinks++;
+                    continue;
+                }
                 var fullPath = Path.GetFullPath(source.FullPath);
                 var relative = MediaPathSemantics.NormalizeRelativePath(
                     Path.GetRelativePath(root.PhysicalPath, fullPath));
@@ -265,15 +308,21 @@ internal sealed class MediaFolderEnumerator(
         }
 
         entries.Sort(MediaFolderEntryComparer.Instance);
-        return new(MediaFolderEnumerationStatus.Succeeded, relativeFolder, entries);
+        return new(MediaFolderEnumerationStatus.Succeeded, relativeFolder, entries,
+            skippedLinks == 0 ? null : $"Skipped {skippedLinks} filesystem link(s) for safety.", skippedLinks);
     }
 
     private async Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateSourceAsync(
+        string mediaRootPath,
         string physicalFolder,
         CancellationToken cancellationToken)
     {
         await _concurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { return await fileSystem.EnumerateAsync(physicalFolder, cancellationToken).ConfigureAwait(false); }
+        try
+        {
+            return await fileSystem.EnumerateAsync(mediaRootPath, physicalFolder, cancellationToken)
+                .ConfigureAwait(false);
+        }
         finally { _concurrency.Release(); }
     }
 

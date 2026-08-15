@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- The single authoritative product version. Use set-version.ps1 to change it. -->
-    <VersionPrefix>0.23.0</VersionPrefix>
+    <VersionPrefix>0.24.0</VersionPrefix>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 </Project>

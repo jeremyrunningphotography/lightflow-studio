@@ -384,13 +384,15 @@ internal sealed class PriorityAsyncGate : IDisposable
     private readonly Queue<Waiter> _visible = new();
     private readonly Queue<Waiter> _normal = new();
     private readonly Queue<Waiter> _background = new();
+    private readonly Action? _beforeWaiterAssignment;
     private int _active;
     private bool _disposed;
 
-    public PriorityAsyncGate(int maximum)
+    public PriorityAsyncGate(int maximum, Action? beforeWaiterAssignment = null)
     {
         if (maximum <= 0) throw new ArgumentOutOfRangeException(nameof(maximum));
         _maximum = maximum;
+        _beforeWaiterAssignment = beforeWaiterAssignment;
     }
 
     public async Task<IDisposable> EnterAsync(ThumbnailPriority priority, CancellationToken cancellationToken)
@@ -413,14 +415,17 @@ internal sealed class PriorityAsyncGate : IDisposable
 
     private void Release()
     {
-        Waiter? next;
         lock (_sync)
         {
             _active--;
-            next = Dequeue(_visible) ?? Dequeue(_normal) ?? Dequeue(_background);
-            if (next is not null) _active++;
+            while ((Dequeue(_visible) ?? Dequeue(_normal) ?? Dequeue(_background)) is { } next)
+            {
+                _beforeWaiterAssignment?.Invoke();
+                if (!next.TryAssign()) continue;
+                _active++;
+                break;
+            }
         }
-        next?.Release();
     }
 
     private Queue<Waiter> Queue(ThumbnailPriority priority) => priority switch
@@ -465,7 +470,12 @@ internal sealed class PriorityAsyncGate : IDisposable
             _registration = cancellationToken.Register(() => _completion.TrySetCanceled(cancellationToken));
         public Task Task => _completion.Task;
         public bool IsCanceled => _completion.Task.IsCanceled;
-        public void Release() { _registration.Dispose(); _completion.TrySetResult(); }
+        public bool TryAssign()
+        {
+            var assigned = _completion.TrySetResult();
+            _registration.Dispose();
+            return assigned;
+        }
         public void Cancel() { _completion.TrySetCanceled(); _registration.Dispose(); }
         public void Dispose() => _registration.Dispose();
     }

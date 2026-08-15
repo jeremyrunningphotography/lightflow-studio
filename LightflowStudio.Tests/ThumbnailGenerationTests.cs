@@ -193,17 +193,94 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task VisiblePriority_IsServedBeforeQueuedBackgroundWork()
+    public async Task CanceledQueuedWaiter_DoesNotConsumeCapacityAndLaterWorkRuns()
+    {
+        using var gate = new PriorityAsyncGate(1);
+        using var first = await gate.EnterAsync(ThumbnailPriority.Normal, CancellationToken.None);
+        using var cancellation = new CancellationTokenSource();
+        var canceled = gate.EnterAsync(ThumbnailPriority.Normal, cancellation.Token);
+        var later = gate.EnterAsync(ThumbnailPriority.Normal, CancellationToken.None);
+        cancellation.Cancel();
+        first.Dispose();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceled);
+        using var laterLease = await later.WaitAsync(TimeSpan.FromSeconds(5));
+        laterLease.Dispose();
+        using var subsequent = await gate.EnterAsync(ThumbnailPriority.Normal, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task CancellationRacingWithAssignment_DoesNotLeakSlot()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var assignments = 0;
+        using var gate = new PriorityAsyncGate(1, () =>
+        {
+            if (Interlocked.Increment(ref assignments) == 1) cancellation.Cancel();
+        });
+        using var first = await gate.EnterAsync(ThumbnailPriority.Normal, CancellationToken.None);
+        var raced = gate.EnterAsync(ThumbnailPriority.Normal, cancellation.Token);
+        var later = gate.EnterAsync(ThumbnailPriority.Normal, CancellationToken.None);
+        first.Dispose();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => raced);
+        using var laterLease = await later.WaitAsync(TimeSpan.FromSeconds(5));
+        laterLease.Dispose();
+        using var subsequent = await gate.EnterAsync(ThumbnailPriority.Normal, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task ActiveLeases_NeverExceedConfiguredMaximum()
+    {
+        const int maximum = 2;
+        using var gate = new PriorityAsyncGate(maximum);
+        var active = 0;
+        var maximumObserved = 0;
+        var tasks = Enumerable.Range(0, 24).Select(async index =>
+        {
+            using var lease = await gate.EnterAsync((index % 3) switch
+            {
+                0 => ThumbnailPriority.Visible,
+                1 => ThumbnailPriority.Normal,
+                _ => ThumbnailPriority.Background
+            }, CancellationToken.None);
+            var current = Interlocked.Increment(ref active);
+            int observed;
+            while (current > (observed = Volatile.Read(ref maximumObserved)) &&
+                   Interlocked.CompareExchange(ref maximumObserved, current, observed) != observed) { }
+            await Task.Delay(5);
+            Interlocked.Decrement(ref active);
+        });
+
+        await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(maximum, maximumObserved);
+        Assert.Equal(0, active);
+    }
+
+    [Fact]
+    public async Task PriorityOrdering_RemainsIntactAfterCanceledWaiters()
     {
         using var gate = new PriorityAsyncGate(1);
         using var first = await gate.EnterAsync(ThumbnailPriority.Background, CancellationToken.None);
         var background = gate.EnterAsync(ThumbnailPriority.Background, CancellationToken.None);
+        var normal = gate.EnterAsync(ThumbnailPriority.Normal, CancellationToken.None);
+        using var cancellation = new CancellationTokenSource();
+        var canceledVisible = gate.EnterAsync(ThumbnailPriority.Visible, cancellation.Token);
         var visible = gate.EnterAsync(ThumbnailPriority.Visible, CancellationToken.None);
+        cancellation.Cancel();
         first.Dispose();
 
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceledVisible);
         using var visibleLease = await visible.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(normal.IsCompleted);
         Assert.False(background.IsCompleted);
         visibleLease.Dispose();
+        using var normalLease = await normal.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(background.IsCompleted);
+        normalLease.Dispose();
         using var backgroundLease = await background.WaitAsync(TimeSpan.FromSeconds(5));
     }
 

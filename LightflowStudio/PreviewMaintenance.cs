@@ -305,8 +305,9 @@ internal sealed class PreviewMaintenanceService : IPreviewMaintenanceService
     }
 
     private HashSet<string> ReferencedPaths(IEnumerable<PreviewRecord> records) =>
-        ArtifactEntries(records).Where(item => item.Path is not null)
-            .Select(item => item.Path!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        records.SelectMany(record => new[] { record.ThumbnailRelativePath, record.StandardPreviewRelativePath })
+            .Select(ResolvePersistedCachePath).Where(path => path is not null)
+            .Select(path => path!).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     private IEnumerable<(PreviewRecord Record, PreviewArtifactKind Kind, PreviewComponentState State, string? Path)>
         ArtifactEntries(IEnumerable<PreviewRecord> records)
@@ -314,16 +315,31 @@ internal sealed class PreviewMaintenanceService : IPreviewMaintenanceService
         foreach (var record in records)
         {
             yield return (record, PreviewArtifactKind.Thumbnail, record.ThumbnailState,
-                Resolve(record.ThumbnailRelativePath));
+                ResolveArtifactPath(PreviewArtifactKind.Thumbnail, record.ThumbnailRelativePath));
             yield return (record, PreviewArtifactKind.StandardPreview, record.StandardPreviewState,
-                Resolve(record.StandardPreviewRelativePath));
+                ResolveArtifactPath(PreviewArtifactKind.StandardPreview, record.StandardPreviewRelativePath));
         }
     }
 
-    private string? Resolve(string? relative)
+    private string? ResolveArtifactPath(PreviewArtifactKind kind, string? relative)
+    {
+        var path = ResolvePersistedCachePath(relative);
+        if (path is null) return null;
+        var expectedRoot = kind == PreviewArtifactKind.Thumbnail
+            ? _locations.ThumbnailCacheDirectory
+            : _locations.StandardPreviewCacheDirectory;
+        return IsWithin(expectedRoot, path) ? path : null;
+    }
+
+    private string? ResolvePersistedCachePath(string? relative)
     {
         if (string.IsNullOrWhiteSpace(relative)) return null;
-        try { return MediaPathSemantics.ResolveContained(_locations.PreviewsDirectory, relative); }
+        try
+        {
+            var path = MediaPathSemantics.ResolveContained(_locations.PreviewsDirectory, relative);
+            return IsWithin(_locations.ThumbnailCacheDirectory, path) ||
+                IsWithin(_locations.StandardPreviewCacheDirectory, path) ? path : null;
+        }
         catch (ArgumentException) { return null; }
     }
 

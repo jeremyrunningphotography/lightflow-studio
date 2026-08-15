@@ -54,6 +54,58 @@ public sealed class PreviewMaintenanceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CleanupNeverDeletesDatabaseReferencedAsThumbnail()
+    {
+        await using var fixture = await Fixture.CreateAsync(_root);
+        var assetId = Guid.NewGuid();
+        await fixture.Store.ObserveSourceAsync(assetId, new(1, DateTime.UtcNow.Ticks, 1, "AA"));
+        await fixture.Store.SetArtifactAsync(assetId, PreviewArtifactKind.Thumbnail,
+            new(1, PreviewComponentState.Stale, "previews.db"));
+        var databasePath = fixture.Locations.PreviewsDatabasePath;
+        Assert.True(File.Exists(databasePath));
+
+        await fixture.Service.CleanupAsync(new(long.MaxValue, TimeSpan.Zero, TimeSpan.Zero));
+
+        Assert.True(File.Exists(databasePath));
+        Assert.Equal(PreviewComponentState.Missing, (await fixture.Store.GetAsync(assetId))!.ThumbnailState);
+    }
+
+    [Fact]
+    public async Task CleanupNeverDeletesCrossKindArtifactReference()
+    {
+        await using var fixture = await Fixture.CreateAsync(_root);
+        var assetId = Guid.NewGuid();
+        var standardPreview = fixture.WriteCacheFile("previews/protected.jpg", 9, old: true);
+        await fixture.Store.ObserveSourceAsync(assetId, new(9, DateTime.UtcNow.Ticks, 1, "AA"));
+        await fixture.Store.SetArtifactAsync(assetId, PreviewArtifactKind.Thumbnail,
+            new(1, PreviewComponentState.Stale, "previews/protected.jpg"));
+
+        await fixture.Service.CleanupAsync(new(long.MaxValue, TimeSpan.Zero, TimeSpan.Zero));
+
+        Assert.True(File.Exists(standardPreview));
+        Assert.Equal(PreviewComponentState.Missing, (await fixture.Store.GetAsync(assetId))!.ThumbnailState);
+    }
+
+    [Fact]
+    public async Task CleanupDeletesValidThumbnailAndStandardPreviewArtifacts()
+    {
+        await using var fixture = await Fixture.CreateAsync(_root);
+        var thumbnail = await fixture.AddArtifactAsync(Guid.NewGuid(), PreviewArtifactKind.Thumbnail,
+            PreviewComponentState.Stale, 7);
+        var standardPreview = await fixture.AddArtifactAsync(Guid.NewGuid(), PreviewArtifactKind.StandardPreview,
+            PreviewComponentState.Stale, 8);
+
+        await fixture.Service.CleanupAsync(new(long.MaxValue, TimeSpan.Zero, TimeSpan.Zero));
+
+        Assert.False(File.Exists(thumbnail.Path));
+        Assert.False(File.Exists(standardPreview.Path));
+        Assert.Equal(PreviewComponentState.Missing,
+            (await fixture.Store.GetAsync(thumbnail.AssetId))!.ThumbnailState);
+        Assert.Equal(PreviewComponentState.Missing,
+            (await fixture.Store.GetAsync(standardPreview.AssetId))!.StandardPreviewState);
+    }
+
+    [Fact]
     public async Task ClearRemovesAllPreviewRecordsAndArtifacts()
     {
         await using var fixture = await Fixture.CreateAsync(_root);
@@ -210,17 +262,22 @@ public sealed class PreviewMaintenanceTests : IAsyncLifetime
 
         public async Task<(Guid AssetId, string Path)> AddArtifactAsync(Guid assetId, PreviewComponentState state,
             int bytes, PreviewSourceAvailability availability = PreviewSourceAvailability.Available)
+            => await AddArtifactAsync(assetId, PreviewArtifactKind.Thumbnail, state, bytes, availability);
+
+        public async Task<(Guid AssetId, string Path)> AddArtifactAsync(Guid assetId, PreviewArtifactKind kind,
+            PreviewComponentState state, int bytes,
+            PreviewSourceAvailability availability = PreviewSourceAvailability.Available)
         {
             var source = new PreviewSourceIdentity(bytes, DateTime.UtcNow.Ticks, 1, "AA");
             await Store.ObserveSourceAsync(assetId, source);
             if (availability != PreviewSourceAvailability.Available)
                 await Store.SetSourceAvailabilityAsync(assetId, availability);
-            var path = Store.GetArtifactPath(assetId, PreviewArtifactKind.Thumbnail, 1, source, "jpg");
+            var path = Store.GetArtifactPath(assetId, kind, 1, source, "jpg");
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             await File.WriteAllBytesAsync(path, new byte[bytes]);
             File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-60));
             var relative = Path.GetRelativePath(Locations.PreviewsDirectory, path).Replace('\\', '/');
-            await Store.SetArtifactAsync(assetId, PreviewArtifactKind.Thumbnail, new(1, state, relative));
+            await Store.SetArtifactAsync(assetId, kind, new(1, state, relative));
             return (assetId, path);
         }
 

@@ -159,12 +159,14 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         CancellationToken cancellationToken = default) => RunAsync(connection =>
     {
         ValidateUpdate(update);
-        if (string.IsNullOrWhiteSpace(update.RelativePath)) throw new ArgumentException("An artifact relative path is required.", nameof(update));
+        if (update.State == PreviewComponentState.Current && string.IsNullOrWhiteSpace(update.RelativePath))
+            throw new ArgumentException("A current artifact requires a relative path.", nameof(update));
         var prefix = kind == PreviewArtifactKind.Thumbnail ? "Thumbnail" : "StandardPreview";
         using var command = connection.CreateCommand();
         command.CommandText = $"UPDATE PreviewRecords SET {prefix}GeneratorVersion=$version,{prefix}State=$state,{prefix}RelativePath=$path,UpdatedUtc=$now WHERE AssetId=$asset;";
         AddUpdate(command, assetId, update);
-        command.Parameters.AddWithValue("$path", NormalizeArtifactRelativePath(update.RelativePath));
+        command.Parameters.AddWithValue("$path", string.IsNullOrWhiteSpace(update.RelativePath)
+            ? DBNull.Value : NormalizeArtifactRelativePath(update.RelativePath));
         command.ExecuteNonQuery();
         return Read(connection, assetId);
     }, cancellationToken);

@@ -60,14 +60,19 @@ internal interface IPreviewStoreService : IAsyncDisposable
 {
     Task InitializeAsync(CancellationToken cancellationToken = default);
     Task<PreviewRecord?> GetAsync(Guid assetId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default);
     Task<PreviewRecord> ObserveSourceAsync(Guid assetId, PreviewSourceIdentity source,
         CancellationToken cancellationToken = default);
     Task<PreviewRecord?> SetSourceAvailabilityAsync(Guid assetId, PreviewSourceAvailability availability,
         CancellationToken cancellationToken = default);
     Task<PreviewRecord?> SetMetadataAsync(Guid assetId, PreviewComponentUpdate update,
         CancellationToken cancellationToken = default);
+    Task<PreviewRecord?> ClearMetadataAsync(Guid assetId, CancellationToken cancellationToken = default);
     Task<PreviewRecord?> SetArtifactAsync(Guid assetId, PreviewArtifactKind kind, PreviewComponentUpdate update,
         CancellationToken cancellationToken = default);
+    Task<PreviewRecord?> ClearArtifactAsync(Guid assetId, PreviewArtifactKind kind,
+        CancellationToken cancellationToken = default);
+    Task ClearAllAsync(CancellationToken cancellationToken = default);
     string GetArtifactPath(Guid assetId, PreviewArtifactKind kind, int generatorVersion,
         PreviewSourceIdentity source, string extension);
 }
@@ -96,6 +101,17 @@ internal sealed class PreviewStoreService : IPreviewStoreService
 
     public Task<PreviewRecord?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
         RunAsync(connection => Read(connection, assetId), cancellationToken);
+
+    public Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default) =>
+        RunAsync<IReadOnlyList<PreviewRecord>>(connection =>
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = SelectSql + " ORDER BY AssetId;";
+            using var reader = command.ExecuteReader();
+            var records = new List<PreviewRecord>();
+            while (reader.Read()) records.Add(Read(reader));
+            return records;
+        }, cancellationToken);
 
     public Task<PreviewRecord> ObserveSourceAsync(Guid assetId, PreviewSourceIdentity source,
         CancellationToken cancellationToken = default) => RunAsync(connection =>
@@ -169,6 +185,47 @@ internal sealed class PreviewStoreService : IPreviewStoreService
             ? DBNull.Value : NormalizeArtifactRelativePath(update.RelativePath));
         command.ExecuteNonQuery();
         return Read(connection, assetId);
+    }, cancellationToken);
+
+    public Task<PreviewRecord?> ClearMetadataAsync(Guid assetId, CancellationToken cancellationToken = default) =>
+        RunAsync(connection =>
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE PreviewRecords SET MetadataProbeVersion=NULL,MetadataState='missing',MetadataJson=NULL,RawMetadataJson=NULL,UpdatedUtc=$now WHERE AssetId=$asset;";
+            command.Parameters.AddWithValue("$now", Utc(DateTimeOffset.UtcNow));
+            command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
+            command.ExecuteNonQuery();
+            return Read(connection, assetId);
+        }, cancellationToken);
+
+    public Task<PreviewRecord?> ClearArtifactAsync(Guid assetId, PreviewArtifactKind kind,
+        CancellationToken cancellationToken = default) => RunAsync(connection =>
+    {
+        var prefix = kind == PreviewArtifactKind.Thumbnail ? "Thumbnail" : "StandardPreview";
+        using var command = connection.CreateCommand();
+        command.CommandText = $"UPDATE PreviewRecords SET {prefix}GeneratorVersion=NULL,{prefix}State='missing',{prefix}RelativePath=NULL,UpdatedUtc=$now WHERE AssetId=$asset;";
+        command.Parameters.AddWithValue("$now", Utc(DateTimeOffset.UtcNow));
+        command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
+        command.ExecuteNonQuery();
+        return Read(connection, assetId);
+    }, cancellationToken);
+
+    public Task ClearAllAsync(CancellationToken cancellationToken = default) => RunAsync(connection =>
+    {
+        using var transaction = connection.BeginTransaction();
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "DELETE FROM PreviewRecords;";
+        command.ExecuteNonQuery();
+        transaction.Commit();
+        try
+        {
+            command.Transaction = null;
+            command.CommandText = "VACUUM; PRAGMA wal_checkpoint(TRUNCATE);";
+            command.ExecuteNonQuery();
+        }
+        catch (SqliteException) { }
+        return true;
     }, cancellationToken);
 
     public string GetArtifactPath(Guid assetId, PreviewArtifactKind kind, int generatorVersion,
@@ -301,21 +358,26 @@ internal sealed class PreviewStoreService : IPreviewStoreService
     private static PreviewRecord? Read(SqliteConnection connection, Guid assetId)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT AssetId,FileSizeBytes,LastWriteUtcTicks,FingerprintVersion,SourceFingerprint,SourceAvailability,
-                MetadataProbeVersion,MetadataState,MetadataJson,RawMetadataJson,
-                ThumbnailGeneratorVersion,ThumbnailState,ThumbnailRelativePath,
-                StandardPreviewGeneratorVersion,StandardPreviewState,StandardPreviewRelativePath,CreatedUtc,UpdatedUtc
-            FROM PreviewRecords WHERE AssetId=$asset;
-            """;
+        command.CommandText = SelectSql + " WHERE AssetId=$asset;";
         command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
         using var reader = command.ExecuteReader();
         if (!reader.Read()) return null;
-        return new(Guid.Parse(reader.GetString(0)), new(reader.GetInt64(1), reader.GetInt64(2), reader.GetInt32(3), reader.GetString(4)),
+        return Read(reader);
+    }
+
+    private static PreviewRecord Read(SqliteDataReader reader) =>
+        new(Guid.Parse(reader.GetString(0)), new(reader.GetInt64(1), reader.GetInt64(2), reader.GetInt32(3), reader.GetString(4)),
             ParseAvailability(reader.GetString(5)), NullableInt(reader, 6), ParseState(reader.GetString(7)), NullableString(reader, 8), NullableString(reader, 9),
             NullableInt(reader, 10), ParseState(reader.GetString(11)), NullableString(reader, 12), NullableInt(reader, 13), ParseState(reader.GetString(14)), NullableString(reader, 15),
             DateTimeOffset.Parse(reader.GetString(16), CultureInfo.InvariantCulture), DateTimeOffset.Parse(reader.GetString(17), CultureInfo.InvariantCulture));
-    }
+
+    private const string SelectSql = """
+        SELECT AssetId,FileSizeBytes,LastWriteUtcTicks,FingerprintVersion,SourceFingerprint,SourceAvailability,
+            MetadataProbeVersion,MetadataState,MetadataJson,RawMetadataJson,
+            ThumbnailGeneratorVersion,ThumbnailState,ThumbnailRelativePath,
+            StandardPreviewGeneratorVersion,StandardPreviewState,StandardPreviewRelativePath,CreatedUtc,UpdatedUtc
+        FROM PreviewRecords
+        """;
 
     private static void AddSource(SqliteCommand command, Guid assetId, PreviewSourceIdentity source, string now)
     {

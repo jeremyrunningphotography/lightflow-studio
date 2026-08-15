@@ -194,11 +194,12 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
     private readonly IDerivedMediaMetadataService? _metadata;
     private readonly IDisposable? _ownedDependency;
     private readonly PriorityAsyncGate _gate;
+    private readonly IPreviewOperationCoordinator? _operations;
 
     public ThumbnailGenerationService(IMediaAssetService assets, IPreviewStoreService previews,
         ILightflowStorageLocations locations, IThumbnailRenderer renderer,
         IDerivedMediaMetadataService? metadata = null, int maximumConcurrency = 2,
-        IDisposable? ownedDependency = null)
+        IDisposable? ownedDependency = null, IPreviewOperationCoordinator? operations = null)
     {
         _assets = assets;
         _previews = previews;
@@ -207,11 +208,14 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
         _metadata = metadata;
         _ownedDependency = ownedDependency;
         _gate = new(maximumConcurrency);
+        _operations = operations;
     }
 
     public async Task<ThumbnailGenerationResult> GenerateAsync(ThumbnailRequest request,
         CancellationToken cancellationToken = default)
     {
+        using var operationLease = _operations is null ? null :
+            await _operations.EnterOperationAsync(cancellationToken).ConfigureAwait(false);
         var observed = await _assets.ObserveAsync(request.AssetId, cancellationToken).ConfigureAwait(false);
         if (observed.Status == MediaAssetOperationStatus.NotFound)
             return new(ThumbnailGenerationStatus.AssetNotFound, Diagnostic: observed.Diagnostic);
@@ -360,7 +364,7 @@ internal static class ThumbnailGenerationFactory
 {
     public static IThumbnailGenerationService Create(IMediaAssetService assets, IPreviewStoreService previews,
         ILightflowStorageLocations locations, AppSettings settings, string? applicationDirectory = null,
-        int maximumConcurrency = 2)
+        int maximumConcurrency = 2, IPreviewOperationCoordinator? operations = null)
     {
         applicationDirectory ??= AppContext.BaseDirectory;
         var configuredDirectory = string.IsNullOrWhiteSpace(settings.FfmpegPath)
@@ -368,12 +372,15 @@ internal static class ThumbnailGenerationFactory
         var configuredFfmpeg = configuredDirectory is null ? null : Path.Combine(configuredDirectory, "ffmpeg.exe");
         var ffmpeg = ExecutableLocator.Find("ffmpeg.exe", Path.Combine(applicationDirectory, "ffmpeg", "bin", "ffmpeg.exe"),
             configured: configuredFfmpeg ?? settings.FfmpegPath);
+        // Thumbnail generation holds the shared Preview lease across its complete lifecycle, including this
+        // internal metadata lookup. Giving the nested service the same coordinator could deadlock behind a
+        // waiting maintenance writer while the outer thumbnail operation still owns the shared resource.
         var metadata = DerivedMediaMetadataFactory.Create(assets, previews, settings, applicationDirectory,
             maximumConcurrency);
         var renderer = new CompositeThumbnailRenderer(new WicImageThumbnailRenderer(),
             new FfmpegVideoThumbnailRenderer(ffmpeg, new ProbeProcessRunner()));
         return new ThumbnailGenerationService(assets, previews, locations, renderer, metadata,
-            maximumConcurrency, metadata);
+            maximumConcurrency, metadata, operations);
     }
 }
 

@@ -18,6 +18,7 @@ internal sealed record AppSettings
     public EncodingOptions Encoding { get; init; } = EncodingPresetCatalog.Recommended;
     public string? CatalogDirectory { get; init; }
     public string? PreviewsDirectory { get; init; }
+    public int PreviewCacheQuotaGb { get; init; } = 20;
     public Guid? CatalogId { get; init; }
 
     public AppSettings() { }
@@ -33,6 +34,7 @@ internal sealed record AppSettings
             FfmpegPath = settings.FfmpegPath?.Trim() ?? "",
             CatalogDirectory = NormalizeStorageDirectory(settings.CatalogDirectory),
             PreviewsDirectory = NormalizeStorageDirectory(settings.PreviewsDirectory),
+            PreviewCacheQuotaGb = Math.Clamp(settings.PreviewCacheQuotaGb, 1, 1024),
             DefaultResolution = Enum.IsDefined(settings.DefaultResolution) ? settings.DefaultResolution : OutputResolution.FullHd,
             DefaultRecovery = Enum.IsDefined(settings.DefaultRecovery) ? settings.DefaultRecovery : RecoveryStrategy.Normal,
             EncodingPreset = Enum.IsDefined(settings.EncodingPreset) ? settings.EncodingPreset : EncodingPreset.Recommended,

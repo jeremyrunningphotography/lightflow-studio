@@ -98,6 +98,7 @@ internal sealed class SampledSourceFingerprintService : ISourceFingerprintServic
 internal interface IMediaAssetRepository
 {
     Task<MediaAsset?> GetAsync(Guid assetId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default);
     Task<MediaAsset?> FindAsync(Guid rootId, string relativePathKey, CancellationToken cancellationToken = default);
     Task<MediaAssetOperationStatus> CreateAsync(MediaAsset asset, CancellationToken cancellationToken = default);
     Task<bool> UpdateObservationAsync(Guid assetId, long size, long lastWriteUtcTicks,
@@ -114,6 +115,17 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         command.CommandText = SelectSql + " WHERE AssetId=$asset;";
         command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
         return ReadOne(command);
+    }, cancellationToken);
+
+    public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) => RunAsync<IReadOnlyList<MediaAsset>>(() =>
+    {
+        using var connection = RequireSession().OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = SelectSql + " ORDER BY AssetId;";
+        using var reader = command.ExecuteReader();
+        var assets = new List<MediaAsset>();
+        while (reader.Read()) assets.Add(Read(reader));
+        return assets;
     }, cancellationToken);
 
     public Task<MediaAsset?> FindAsync(Guid rootId, string relativePathKey, CancellationToken cancellationToken = default) => RunAsync(() =>
@@ -188,6 +200,11 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
     {
         using var reader = command.ExecuteReader();
         if (!reader.Read()) return null;
+        return Read(reader);
+    }
+
+    private static MediaAsset Read(SqliteDataReader reader)
+    {
         var fingerprint = reader.IsDBNull(7) ? null : new SourceFingerprint(reader.GetInt32(7), reader.GetString(8));
         return new(
             Guid.Parse(reader.GetString(0)), Guid.Parse(reader.GetString(1)), reader.GetString(2), reader.GetString(3),
@@ -236,6 +253,7 @@ internal interface IMediaAssetService
     Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown",
         CancellationToken cancellationToken = default);
     Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default);
     Task<MediaAssetResolution?> FindAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default);
     Task<MediaAssetOperationResult> ObserveAsync(Guid assetId, CancellationToken cancellationToken = default);
 }
@@ -288,6 +306,9 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
         var asset = await repository.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
         return asset is null ? null : await ResolveAsync(asset, cancellationToken).ConfigureAwait(false);
     }
+
+    public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) =>
+        repository.ListAsync(cancellationToken);
 
     public async Task<MediaAssetResolution?> FindAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default)
     {

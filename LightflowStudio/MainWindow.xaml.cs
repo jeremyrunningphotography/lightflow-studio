@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Threading;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using Microsoft.Data.Sqlite;
 using Forms = System.Windows.Forms;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using MessageBox = System.Windows.MessageBox;
@@ -38,6 +39,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
     private readonly DispatcherTimer _batchFolderRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private CancellationTokenSource? _batchMetadataCts;
+    private CancellationTokenSource? _previewMaintenanceCts;
     private readonly Dictionary<ToggleButton, CancellationTokenSource> _requirementHelpDismissals = [];
     private Stopwatch? _batchStopwatch;
     private bool _closeAfterCurrent;
@@ -84,6 +86,7 @@ public partial class MainWindow : Window
             RefreshBatchFiles();
             RefreshLuts();
             await RefreshMediaRootsAsync();
+            await RefreshPreviewUsageAsync();
             if (_storageStartupStatus != StorageStartupStatus.Ready)
                 SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
             else if (!_storage.PreviewAvailable)
@@ -477,6 +480,116 @@ public partial class MainWindow : Window
         SettingsPreviewsDirectory.Text = _storage.Locations.PreviewsDirectory;
         SettingsMessage.Text = result.Succeeded ? "Previews location changed successfully." : result.Diagnostic;
         if (!result.Succeeded) MessageBox.Show(result.Diagnostic, "Previews location was not changed", MessageBoxButton.OK, MessageBoxImage.Error);
+        await RefreshPreviewUsageAsync();
+    }
+
+    private async void RefreshPreviewUsage_Click(object sender, RoutedEventArgs e) =>
+        await RefreshPreviewUsageAsync();
+
+    private async Task RefreshPreviewUsageAsync()
+    {
+        try
+        {
+            var usage = await _storage.GetPreviewUsageAsync();
+            PreviewUsageText.Text = usage is null
+                ? _storage.PreviewDiagnostic ?? "Preview storage is unavailable."
+                : $"{FormatBytes(usage.TotalBytes)} used — {usage.RecordCount:N0} records, " +
+                  $"{usage.ArtifactCount:N0} generated files{(usage.OrphanCount == 0 ? "" : $", {usage.OrphanCount:N0} orphaned")}";
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or SqliteException)
+        {
+            PreviewUsageText.Text = $"Preview usage is unavailable: {exception.Message}";
+        }
+    }
+
+    private async void CleanupPreviews_Click(object sender, RoutedEventArgs e)
+    {
+        await RunPreviewMaintenanceAsync(async token =>
+        {
+            PreviewMaintenanceStatus.Text = "Cleaning stale and unreferenced Preview files…";
+            var result = await _storage.CleanupPreviewsAsync(token);
+            PreviewMaintenanceStatus.Text = result.Succeeded
+                ? $"Cleanup complete: {result.FilesRemoved:N0} files removed, {FormatBytes(result.BytesFreed)} freed." +
+                  (result.Diagnostic is null ? "" : $" {result.Diagnostic}")
+                : result.Diagnostic;
+        });
+    }
+
+    private async void ClearPreviews_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show("Clear all rebuildable Preview metadata and generated images? Catalog data and source media will not be changed.",
+            "Clear Previews", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        await RunPreviewMaintenanceAsync(async token =>
+        {
+            PreviewMaintenanceStatus.Text = "Clearing Previews…";
+            var result = await _storage.ClearPreviewsAsync(token);
+            PreviewMaintenanceStatus.Text = result.Succeeded ? "Previews cleared." : result.Diagnostic;
+        });
+    }
+
+    private async void RebuildPreviews_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show("Clear and rebuild Preview metadata and thumbnails for all available Catalog assets? Offline sources will be skipped and can be rebuilt later.",
+            "Rebuild Previews", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        await RunPreviewMaintenanceAsync(async token =>
+        {
+            PreviewMaintenanceProgress.Visibility = Visibility.Visible;
+            var progress = new Progress<PreviewRebuildProgress>(value =>
+            {
+                PreviewMaintenanceProgress.Maximum = Math.Max(1, value.Total);
+                PreviewMaintenanceProgress.Value = value.Completed;
+                PreviewMaintenanceStatus.Text = value.Total == 0 ? "No Catalog assets to rebuild."
+                    : $"Rebuilding {value.Completed:N0} of {value.Total:N0}: {value.CurrentItem}";
+            });
+            var result = await _storage.RebuildPreviewsAsync(progress, token);
+            PreviewMaintenanceStatus.Text = result.Succeeded
+                ? $"Rebuild complete: {result.Rebuilt:N0} rebuilt, {result.Skipped:N0} unavailable or unsupported."
+                : result.Diagnostic;
+        });
+    }
+
+    private async Task RunPreviewMaintenanceAsync(Func<CancellationToken, Task> operation)
+    {
+        if (_previewMaintenanceCts is not null) return;
+        _previewMaintenanceCts = new();
+        SetPreviewMaintenanceControls(running: true);
+        try { await operation(_previewMaintenanceCts.Token); }
+        catch (OperationCanceledException) { PreviewMaintenanceStatus.Text = "Preview maintenance canceled. Completed work remains valid."; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or SqliteException)
+        {
+            PreviewMaintenanceStatus.Text = $"Preview maintenance failed: {exception.Message}";
+            _activityLogFile.TryAppend($"[App] Preview maintenance failed: {exception}");
+        }
+        finally
+        {
+            _previewMaintenanceCts.Dispose();
+            _previewMaintenanceCts = null;
+            SetPreviewMaintenanceControls(running: false);
+            await RefreshPreviewUsageAsync();
+        }
+    }
+
+    private void CancelPreviewMaintenance_Click(object sender, RoutedEventArgs e) => _previewMaintenanceCts?.Cancel();
+
+    private void SetPreviewMaintenanceControls(bool running)
+    {
+        RefreshPreviewUsageButton.IsEnabled = !running;
+        CleanupPreviewsButton.IsEnabled = !running;
+        ClearPreviewsButton.IsEnabled = !running;
+        RebuildPreviewsButton.IsEnabled = !running;
+        ChangePreviewsLocationButton.IsEnabled = !running;
+        SaveSettingsButton.IsEnabled = !running;
+        CancelPreviewMaintenanceButton.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
+        if (!running) PreviewMaintenanceProgress.Visibility = Visibility.Collapsed;
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var value = (double)Math.Max(0, bytes);
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
+        return $"{value:0.#} {units[unit]}";
     }
 
     private async Task RefreshMediaRootsAsync()
@@ -549,8 +662,16 @@ public partial class MainWindow : Window
         var content = new System.Windows.Controls.StackPanel { Margin = new Thickness(20) };
         content.Children.Add(new System.Windows.Controls.TextBlock { Text = prompt, Foreground = (System.Windows.Media.Brush)FindResource("TextBrush") });
         content.Children.Add(input); content.Children.Add(buttons);
-        var dialog = new Window { Title = title, Owner = this, Content = content, SizeToContent = SizeToContent.WidthAndHeight,
-            ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(23, 26, 32)) };
+        var dialog = new Window
+        {
+            Title = title,
+            Owner = this,
+            Content = content,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(23, 26, 32))
+        };
         ok.Click += (_, _) => { if (!string.IsNullOrWhiteSpace(input.Text)) dialog.DialogResult = true; };
         input.SelectAll(); input.Focus();
         return dialog.ShowDialog() == true ? input.Text.Trim() : null;
@@ -561,6 +682,12 @@ public partial class MainWindow : Window
         if (!TryReadEncodingControls(out var encoding, out var encodingError))
         {
             MessageBox.Show(encodingError, "Encoding settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (!int.TryParse(SettingsPreviewCacheQuotaGb.Text, out var previewQuota) || previewQuota is < 1 or > 1024)
+        {
+            MessageBox.Show("Preview cache limit must be a whole number from 1 to 1024 GB.", "Preview settings",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         var settings = ReadSettingsControls(encoding);
@@ -611,6 +738,7 @@ public partial class MainWindow : Window
             OverwriteExistingFiles = SettingsOverwriteExisting.IsChecked == true,
             DetailedActivityLogging = ShowEncodingDetails.IsChecked == true,
             EncodingPreset = selectedPreset,
+            PreviewCacheQuotaGb = int.TryParse(SettingsPreviewCacheQuotaGb.Text, out var quota) ? quota : 20,
             Encoding = encoding
         });
     }
@@ -683,6 +811,7 @@ public partial class MainWindow : Window
     {
         SettingsCatalogDirectory.Text = _storage.Locations.CatalogDirectory;
         SettingsPreviewsDirectory.Text = _storage.Locations.PreviewsDirectory;
+        SettingsPreviewCacheQuotaGb.Text = settings.PreviewCacheQuotaGb.ToString(CultureInfo.InvariantCulture);
         SettingsDefaultVideoFolder.Text = settings.DefaultVideoFolder;
         SettingsLutFolder.Text = settings.LutFolder;
         SettingsFfmpegPath.Text = settings.FfmpegPath;
@@ -1363,6 +1492,7 @@ public partial class MainWindow : Window
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
         SaveBatchState();
+        _previewMaintenanceCts?.Cancel();
         if (_jobCancellation is null || _forceClose) return;
 
         e.Cancel = true;

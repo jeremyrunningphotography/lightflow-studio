@@ -66,6 +66,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     private readonly ICatalogSessionActivator _activator;
     private ICatalogRecoveryService _recovery;
     private readonly SemaphoreSlim _mutationGate = new(1, 1);
+    private readonly PreviewOperationCoordinator _previewOperations = new();
     private CatalogDatabaseSession? _catalogSession;
 
     private LightflowStorageCoordinator(IStorageConfigurationStore configuration, AppSettings settings,
@@ -389,8 +390,76 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         PreviewRelocationMode mode, CancellationToken cancellationToken = default)
     {
         await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { return await RelocatePreviewsCoreAsync(destinationDirectory, mode, cancellationToken).ConfigureAwait(false); }
+        try
+        {
+            using var previewLease = await _previewOperations.EnterMaintenanceAsync(cancellationToken).ConfigureAwait(false);
+            return await RelocatePreviewsCoreAsync(destinationDirectory, mode, cancellationToken).ConfigureAwait(false);
+        }
         finally { _mutationGate.Release(); }
+    }
+
+    public async Task<PreviewUsage?> GetPreviewUsageAsync(CancellationToken cancellationToken = default)
+    {
+        await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var maintenance = CreatePreviewMaintenance();
+            return maintenance is null ? null : await maintenance.GetUsageAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally { _mutationGate.Release(); }
+    }
+
+    public async Task<PreviewMaintenanceResult> CleanupPreviewsAsync(CancellationToken cancellationToken = default)
+    {
+        await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var maintenance = CreatePreviewMaintenance();
+            return maintenance is null
+                ? new(false, Diagnostic: PreviewDiagnostic ?? "The Preview store is unavailable.")
+                : await maintenance.CleanupAsync(PreviewMaintenancePolicy.FromSettings(Settings), cancellationToken)
+                    .ConfigureAwait(false);
+        }
+        finally { _mutationGate.Release(); }
+    }
+
+    public async Task<PreviewMaintenanceResult> ClearPreviewsAsync(CancellationToken cancellationToken = default)
+    {
+        await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var maintenance = CreatePreviewMaintenance();
+            return maintenance is null
+                ? new(false, Diagnostic: PreviewDiagnostic ?? "The Preview store is unavailable.")
+                : await maintenance.ClearAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally { _mutationGate.Release(); }
+    }
+
+    public async Task<PreviewRebuildResult> RebuildPreviewsAsync(IProgress<PreviewRebuildProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!CatalogAvailable) return new(false, 0, 0, 0, "The Catalog is unavailable.");
+            using var maintenance = CreatePreviewMaintenance();
+            return maintenance is null
+                ? new(false, 0, 0, 0, PreviewDiagnostic ?? "The Preview store is unavailable.")
+                : await maintenance.RebuildAsync(progress, cancellationToken).ConfigureAwait(false);
+        }
+        finally { _mutationGate.Release(); }
+    }
+
+    private IPreviewMaintenanceService? CreatePreviewMaintenance()
+    {
+        if (Previews is null) return null;
+        var metadata = DerivedMediaMetadataFactory.Create(MediaAssets, Previews, Settings,
+            operations: _previewOperations);
+        var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
+            operations: _previewOperations);
+        return new PreviewMaintenanceService(Previews, MediaAssets, metadata, thumbnails,
+            _previewOperations, Locations, ownsGenerators: true);
     }
 
     private async Task<StorageChangeResult> RelocatePreviewsCoreAsync(string destinationDirectory,
@@ -435,6 +504,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             PreviewAvailable = true;
             PreviewDiagnostic = null;
             Previews = new PreviewStoreService(destination);
+            await Previews.InitializeAsync(cancellationToken).ConfigureAwait(false);
             if (mode == PreviewRelocationMode.MoveExisting)
             {
                 try { Directory.Delete(sourceDirectory, recursive: true); } catch { }
@@ -540,6 +610,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         await _mutationGate.WaitAsync().ConfigureAwait(false);
         try
         {
+            using var previewLease = await _previewOperations.EnterMaintenanceAsync().ConfigureAwait(false);
             if (_catalogSession is not null) await _catalogSession.DisposeAsync().ConfigureAwait(false);
             _catalogSession = null;
             if (Previews is not null) await Previews.DisposeAsync().ConfigureAwait(false);

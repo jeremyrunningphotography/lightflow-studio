@@ -294,7 +294,18 @@ public sealed class DerivedMediaMetadataTests : IAsyncLifetime
         using var service = new DerivedMediaMetadataService(fixture.Coordinator.MediaAssets,
             fixture.Coordinator.Previews!, probe, maximumConcurrency: 2);
 
-        await Task.WhenAll(service.ProbeAsync(fixture.AssetId), service.ProbeAsync(second), service.ProbeAsync(third));
+        var probes = Task.WhenAll(
+            service.ProbeAsync(fixture.AssetId),
+            service.ProbeAsync(second),
+            service.ProbeAsync(third));
+
+        try
+        {
+            await probe.ConcurrencyLimitReached.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(2, probe.MaximumObserved);
+        }
+        finally { probe.Release.TrySetResult(); }
+        await probes;
 
         Assert.Equal(2, probe.MaximumObserved);
     }
@@ -377,6 +388,10 @@ public sealed class DerivedMediaMetadataTests : IAsyncLifetime
     {
         private int _active;
         private int _maximumObserved;
+        public TaskCompletionSource ConcurrencyLimitReached { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int MaximumObserved => _maximumObserved;
         public async Task<MediaProbeResult> ProbeAsync(string path, string mediaType, long fileSizeBytes, CancellationToken cancellationToken = default)
         {
@@ -384,7 +399,8 @@ public sealed class DerivedMediaMetadataTests : IAsyncLifetime
             int observed;
             while ((observed = _maximumObserved) < active &&
                 Interlocked.CompareExchange(ref _maximumObserved, active, observed) != observed) { }
-            try { await Task.Delay(100, cancellationToken); return SuccessMetadata(); }
+            if (active >= 2) ConcurrencyLimitReached.TrySetResult();
+            try { await Release.Task.WaitAsync(cancellationToken); return SuccessMetadata(); }
             finally { Interlocked.Decrement(ref _active); }
         }
     }

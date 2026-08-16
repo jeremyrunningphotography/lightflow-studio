@@ -307,7 +307,11 @@ internal sealed class MediaRootMonitoringService : IMediaRootMonitoringService
 
     private void SetState(MediaRootMonitorStatus status, string? diagnostic)
     {
-        lock (_sync) SetStateLocked(status, diagnostic);
+        lock (_sync)
+        {
+            if (_disposed) return;
+            SetStateLocked(status, diagnostic);
+        }
     }
 
     private void SetStateLocked(MediaRootMonitorStatus status, string? diagnostic)

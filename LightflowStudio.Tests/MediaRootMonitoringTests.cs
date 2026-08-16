@@ -148,6 +148,31 @@ public sealed class MediaRootMonitoringTests : IDisposable
     }
 
     [Fact]
+    public async Task StoppedRemainsTerminalWhenInFlightRefreshReturnsCanceledDuringDisposal()
+    {
+        Directory.CreateDirectory(_temporary);
+        var roots = new FakeRoots(new MediaRootInfo(_rootId, "Media", _temporary, MediaRootAvailability.Online));
+        var refresh = new BlockingRefresh();
+        var factory = new FakeWatcherFactory();
+        var service = new MediaRootMonitoringService(roots, refresh, factory, TimeSpan.Zero);
+        var states = new List<MediaRootMonitorStatus>();
+        service.StateChanged += (_, state) => states.Add(state.Status);
+        await service.StartAsync();
+        factory.Created.Single().Publish(new(_rootId, MediaRootChangeKind.Changed,
+            Path.Combine(_temporary, "clip.mp4")));
+        await refresh.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var disposal = service.DisposeAsync().AsTask();
+        await disposal.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(MediaRootMonitorStatus.Stopped, service.State.Status);
+        var stopped = states.LastIndexOf(MediaRootMonitorStatus.Stopped);
+        Assert.True(stopped >= 0);
+        Assert.DoesNotContain(MediaRootMonitorStatus.Degraded, states.Skip(stopped + 1));
+        Assert.Equal(MediaRootMonitorStatus.Stopped, states[^1]);
+    }
+
+    [Fact]
     public async Task ManualAuthoritativeRefreshRemainsIndependentWhenWatcherCreationFails()
     {
         var roots = new FakeRoots(new MediaRootInfo(_rootId, "Media", _temporary, MediaRootAvailability.Online));
@@ -221,6 +246,23 @@ public sealed class MediaRootMonitoringTests : IDisposable
             var result = new CatalogReconciliationResult(CatalogReconciliationStatus.Succeeded, request.RootId,
                 request.RelativeFolder ?? string.Empty, []);
             return Task.FromResult(new MediaDiscoveryRefreshResult(result, null));
+        }
+    }
+
+    private sealed class BlockingRefresh : IMediaDiscoveryRefreshService
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<MediaDiscoveryRefreshResult> RefreshAsync(MediaFolderEnumerationRequest request,
+            DerivedWorkPriority priority = DerivedWorkPriority.Background, CancellationToken cancellationToken = default,
+            CancellationToken derivedWorkCancellationToken = default)
+        {
+            Entered.TrySetResult();
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, derivedWorkCancellationToken); }
+            catch (OperationCanceledException) when (derivedWorkCancellationToken.IsCancellationRequested) { }
+            var canceled = new CatalogReconciliationResult(CatalogReconciliationStatus.Canceled, request.RootId,
+                request.RelativeFolder ?? string.Empty, [], Diagnostic: "Monitoring shutdown canceled refresh.");
+            return new(canceled, null, canceled.Diagnostic);
         }
     }
 

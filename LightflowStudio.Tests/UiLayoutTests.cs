@@ -197,6 +197,8 @@ public class UiLayoutTests
         Assert.Equal("Horizontal", (string?)itemsPanel.Attribute("Orientation"));
         Assert.Equal("1", (string?)Named(document, "MainTabs").Attribute("Grid.Row"));
         Assert.Null(shellGrid.Element(ns + "Grid.ColumnDefinitions"));
+        Assert.DoesNotContain(navigation.Parent!.Parent!.Descendants(), element =>
+            (string?)element.Attribute("Background") == "{StaticResource BrandGradient}");
         Assert.Equal("60", (string?)shellGrid.Element(ns + "Grid.RowDefinitions")!
             .Elements(ns + "RowDefinition").First().Attribute("Height"));
     }

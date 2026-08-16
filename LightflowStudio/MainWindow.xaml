@@ -10,7 +10,7 @@
 
   <Border Background="{StaticResource NavigationBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1" Padding="18,0">
    <Grid>
-    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
      <Image Source="Assets/Branding/jr-glow-source.png" Width="38" Height="38" Stretch="Uniform"/>
      <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
@@ -30,7 +30,6 @@
      <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE713;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Settings"/></Grid></ListBoxItem>
      <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE946;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="About"/></Grid></ListBoxItem>
     </ListBox>
-    <Border Grid.Column="2" Width="54" Height="2" Background="{StaticResource BrandGradient}" CornerRadius="1"/>
    </Grid>
   </Border>
 

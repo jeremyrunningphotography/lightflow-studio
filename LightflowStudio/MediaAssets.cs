@@ -104,6 +104,8 @@ internal interface IMediaAssetRepository
     Task<bool> UpdateObservationAsync(Guid assetId, long size, long lastWriteUtcTicks,
         SourceFingerprint fingerprint, DateTimeOffset observedUtc, CancellationToken cancellationToken = default);
     Task<bool> MarkMissingAsync(Guid assetId, DateTimeOffset observedUtc, CancellationToken cancellationToken = default);
+    Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds, DateTimeOffset observedUtc,
+        CancellationToken cancellationToken = default);
 }
 
 internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> session) : IMediaAssetRepository
@@ -194,6 +196,28 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         return command.ExecuteNonQuery() == 1;
     }, cancellationToken);
 
+    public Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds, DateTimeOffset observedUtc,
+        CancellationToken cancellationToken = default) => RunAsync(() =>
+    {
+        if (assetIds.Count == 0) return 0;
+        using var connection = RequireSession().OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        var updated = 0;
+        foreach (var assetId in assetIds)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "UPDATE MediaAssets SET SourceStatus='missing', UpdatedUtc=$now WHERE AssetId=$asset;";
+            command.Parameters.AddWithValue("$now", Timestamp(observedUtc));
+            command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
+            updated += command.ExecuteNonQuery();
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        transaction.Commit();
+        return updated;
+    }, cancellationToken);
+
     private CatalogDatabaseSession RequireSession() => session() ?? throw new InvalidOperationException("The Catalog is unavailable.");
 
     private static MediaAsset? ReadOne(SqliteCommand command)
@@ -256,6 +280,7 @@ internal interface IMediaAssetService
     Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default);
     Task<MediaAssetResolution?> FindAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default);
     Task<MediaAssetOperationResult> ObserveAsync(Guid assetId, CancellationToken cancellationToken = default);
+    Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default);
 }
 
 internal sealed class MediaAssetService(IMediaAssetRepository repository, IMediaRootService roots,
@@ -350,6 +375,10 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
                 new(asset, MediaRootAvailability.Online, resolved.PhysicalPath, false), exception.Message);
         }
     }
+
+    public Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default) =>
+        repository.MarkMissingAsync(assetIds, DateTimeOffset.UtcNow, cancellationToken);
 
     private async Task<MediaAssetResolution> ResolveAsync(MediaAsset asset, CancellationToken cancellationToken)
     {

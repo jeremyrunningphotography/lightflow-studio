@@ -143,6 +143,23 @@ public partial class MainWindow : Window
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(node.AbsolutePath));
     }
 
+    private void BrowserFolderTree_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        const double pixelsPerWheelNotch = 48;
+        var distance = -(e.Delta / (double)Mouse.MouseWheelDeltaForOneLine) * pixelsPerWheelNotch;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && BrowserFolderScrollViewer.ScrollableWidth > 0)
+            BrowserFolderScrollViewer.ScrollToHorizontalOffset(
+                Math.Clamp(BrowserFolderScrollViewer.HorizontalOffset + distance, 0,
+                    BrowserFolderScrollViewer.ScrollableWidth));
+        else if (BrowserFolderScrollViewer.ScrollableHeight > 0)
+            BrowserFolderScrollViewer.ScrollToVerticalOffset(
+                Math.Clamp(BrowserFolderScrollViewer.VerticalOffset + distance, 0,
+                    BrowserFolderScrollViewer.ScrollableHeight));
+        else
+            return;
+        e.Handled = true;
+    }
+
     private async void BrowserGo_Click(object sender, RoutedEventArgs e) => await NavigateToEnteredBrowserPathAsync();
 
     private async void BrowserCurrentPath_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)

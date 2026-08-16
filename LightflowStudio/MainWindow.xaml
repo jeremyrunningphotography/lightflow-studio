@@ -54,11 +54,12 @@
         <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Locations"/>
         <Grid Grid.Row="1" Margin="0,12,0,0">
          <ScrollViewer x:Name="BrowserFolderScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-          CanContentScroll="False" Padding="0,0,2,2" Focusable="False">
-         <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch"
-          SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+          CanContentScroll="False" Padding="0,0,2,2" Focusable="False" Style="{StaticResource BrowserFolderScrollViewerStyle}">
+         <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}"
+          SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseWheel="BrowserFolderTree_PreviewMouseWheel"
+          ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
           <TreeView.ItemContainerStyle>
-           <Style TargetType="TreeViewItem">
+           <Style TargetType="TreeViewItem" BasedOn="{StaticResource BrowserTreeItemStyle}">
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
             <EventSetter Event="Expanded" Handler="BrowserFolderTreeItem_Expanded"/>

@@ -50,6 +50,9 @@ public class UiLayoutTests
         Assert.Equal("SizeWE", (string?)splitter.Attribute("Cursor"));
         Assert.Equal("Auto", (string?)scroller.Attribute("HorizontalScrollBarVisibility"));
         Assert.Equal("Auto", (string?)scroller.Attribute("VerticalScrollBarVisibility"));
+        Assert.Equal("{StaticResource BrowserFolderScrollViewerStyle}", (string?)scroller.Attribute("Style"));
+        Assert.Equal("BrowserFolderTree_PreviewMouseWheel", (string?)tree.Attribute("PreviewMouseWheel"));
+        Assert.Equal("{x:Null}", (string?)tree.Attribute("FocusVisualStyle"));
         Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
             attribute.Name.LocalName == "ScrollViewer.HorizontalScrollBarVisibility").Value);
         Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
@@ -66,6 +69,32 @@ public class UiLayoutTests
         Assert.Contains(horizontalTrigger.Elements(appNs + "Setter"), setter =>
             setter.Attribute("TargetName") is null && (string?)setter.Attribute("Property") == "Height" &&
             (string?)setter.Attribute("Value") == "12");
+
+        var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var scrollViewerStyle = app.Descendants(appNs + "Style").Single(style =>
+            (string?)style.Attribute(xNamespace + "Key") == "BrowserFolderScrollViewerStyle");
+        Assert.Contains(scrollViewerStyle.Descendants(appNs + "ScrollBar"), bar =>
+            (string?)bar.Attribute(xNamespace + "Name") == "PART_VerticalScrollBar");
+        Assert.Contains(scrollViewerStyle.Descendants(appNs + "ScrollBar"), bar =>
+            (string?)bar.Attribute(xNamespace + "Name") == "PART_HorizontalScrollBar");
+        Assert.Contains(scrollViewerStyle.Descendants(appNs + "Border"), border =>
+            (string?)border.Attribute(xNamespace + "Name") == "ScrollBarCorner" &&
+            (string?)border.Attribute("Background") == "#111319");
+
+        var treeItemStyle = app.Descendants(appNs + "Style").Single(style =>
+            (string?)style.Attribute(xNamespace + "Key") == "BrowserTreeItemStyle");
+        Assert.Contains(treeItemStyle.Elements(appNs + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "FocusVisualStyle" &&
+            (string?)setter.Attribute("Value") == "{x:Null}");
+        Assert.Contains(treeItemStyle.Descendants(appNs + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsSelected", StringComparison.Ordinal) == true);
+        Assert.Contains(treeItemStyle.Descendants(appNs + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsKeyboardFocusWithin", StringComparison.Ordinal) == true);
+
+        var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "MainWindow.xaml.cs"));
+        Assert.Contains("BrowserFolderScrollViewer.ScrollToVerticalOffset", source);
+        Assert.Contains("BrowserFolderScrollViewer.ScrollToHorizontalOffset", source);
+        Assert.Contains("Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)", source);
     }
 
     [Fact]

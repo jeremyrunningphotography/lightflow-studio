@@ -67,14 +67,13 @@
           </TreeView.ItemContainerStyle>
           <TreeView.Resources>
            <HierarchicalDataTemplate DataType="{x:Type local:BrowserTreeNode}" ItemsSource="{Binding Children, Mode=OneWay}">
-            <Grid Margin="3,5" ToolTip="{Binding Diagnostic, Mode=OneWay}">
-             <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-             <TextBlock VerticalAlignment="Center" Foreground="#E4B85A" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE8B7;"/>
-             <StackPanel Grid.Column="1">
-              <TextBlock Foreground="{StaticResource TextBrush}" Text="{Binding DisplayName, Mode=OneWay}" TextTrimming="CharacterEllipsis"/>
-              <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="{Binding StorageStatus, Mode=OneWay}"/>
-             </StackPanel>
+            <Grid Height="26" ToolTip="{Binding Diagnostic, Mode=OneWay}">
+             <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+             <TextBlock VerticalAlignment="Center" TextAlignment="Center" Foreground="#E4B85A" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Text="&#xE8B7;"/>
+             <TextBlock x:Name="FolderLabel" Grid.Column="1" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="{Binding DisplayName, Mode=OneWay}" TextTrimming="CharacterEllipsis"/>
+             <TextBlock Grid.Column="2" Margin="7,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="{Binding StorageStatus, Mode=OneWay}"/>
             </Grid>
+            <HierarchicalDataTemplate.Triggers><DataTrigger Binding="{Binding IsStorageLocation}" Value="True"><Setter TargetName="FolderLabel" Property="FontWeight" Value="SemiBold"/></DataTrigger></HierarchicalDataTemplate.Triggers>
            </HierarchicalDataTemplate>
           </TreeView.Resources>
          </TreeView>

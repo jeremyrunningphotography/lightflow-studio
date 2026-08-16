@@ -96,6 +96,23 @@ public class UiLayoutTests
             ((string?)trigger.Attribute("Binding"))?.Contains("IsSelected", StringComparison.Ordinal) == true);
         Assert.Contains(treeItemStyle.Descendants(appNs + "DataTrigger"), trigger =>
             ((string?)trigger.Attribute("Binding"))?.Contains("IsKeyboardFocusWithin", StringComparison.Ordinal) == true);
+        var treeTemplate = treeItemStyle.Descendants(appNs + "ControlTemplate").First();
+        var expander = treeTemplate.Descendants(appNs + "ToggleButton").Single(button =>
+            (string?)button.Attribute(xNamespace + "Name") == "Expander");
+        var header = treeTemplate.Descendants(appNs + "Border").Single(border =>
+            (string?)border.Attribute(xNamespace + "Name") == "HeaderChrome");
+        var itemsHost = treeTemplate.Descendants(appNs + "ItemsPresenter").Single();
+        Assert.Equal("28", (string?)expander.Attribute("Height"));
+        Assert.Equal("16", (string?)expander.Attribute("Width"));
+        Assert.Equal("28", (string?)header.Attribute("Height"));
+        Assert.Equal("14,0,0,0", (string?)itemsHost.Attribute("Margin"));
+
+        var hierarchyTemplate = tree.Descendants(ns + "HierarchicalDataTemplate").Single();
+        var row = hierarchyTemplate.Elements(ns + "Grid").Single();
+        var columns = row.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").ToList();
+        Assert.Equal("26", (string?)row.Attribute("Height"));
+        Assert.Equal(["18", "Auto", "Auto"], columns.Select(column => (string?)column.Attribute("Width")));
+        Assert.DoesNotContain(hierarchyTemplate.Descendants(ns + "StackPanel"), _ => true);
 
         var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "MainWindow.xaml.cs"));
         Assert.Contains("BrowserFolderScrollViewer.ScrollToVerticalOffset", source);

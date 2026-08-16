@@ -6,6 +6,154 @@ namespace LightflowStudio.Tests;
 public class UiLayoutTests
 {
     [Fact]
+    public void BrowserWorkspace_ExposesFilesystemFirstNavigationWithoutFutureGridFeatures()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+
+        Assert.NotNull(Named(document, "BrowserFolderTree"));
+        Assert.NotNull(Named(document, "BrowserEntries"));
+        Assert.Equal("BrowserCurrentPath_KeyDown", (string?)Named(document, "BrowserCurrentPath").Attribute("KeyDown"));
+        Assert.Equal("BrowserGo_Click", (string?)Named(document, "BrowserGoButton").Attribute("Click"));
+        var ns = document.Root!.Name.Namespace;
+        Assert.Equal("BrowserFolderTree_SelectedItemChanged",
+            (string?)Named(document, "BrowserFolderTree").Attribute("SelectedItemChanged"));
+        Assert.DoesNotContain(document.Descendants(ns + "Button"), element =>
+            (string?)element.Attribute("Click") == "BrowserFolder_Click");
+        var itemTemplate = Named(document, "BrowserEntries").Descendants(ns + "DataTemplate").Single();
+        Assert.DoesNotContain(itemTemplate.Descendants(), element =>
+            ((string?)element.Attribute("Text"))?.Contains("Folder", StringComparison.Ordinal) == true);
+        Assert.Equal("BrowserBack_Click", (string?)Named(document, "BrowserBackButton").Attribute("Click"));
+        Assert.Equal("BrowserForward_Click", (string?)Named(document, "BrowserForwardButton").Attribute("Click"));
+        Assert.Equal("BrowserUp_Click", (string?)Named(document, "BrowserUpButton").Attribute("Click"));
+        Assert.Equal("BrowserRefresh_Click", (string?)Named(document, "BrowserRefreshButton").Attribute("Click"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            ((string?)element.Attribute("Text"))?.Contains("FOUNDATION PREVIEW", StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
+    public void BrowserFolderNavigation_IsBoundedResizableAndScrollsInBothDirections()
+    {
+        var root = FindRepositoryRoot();
+        var document = XDocument.Load(Path.Combine(root, "LightflowStudio", "MainWindow.xaml"));
+        var app = XDocument.Load(Path.Combine(root, "LightflowStudio", "App.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var column = Named(document, "BrowserNavigationColumn");
+        var splitter = Named(document, "BrowserNavigationSplitter");
+        var scroller = Named(document, "BrowserFolderScrollViewer");
+        var tree = Named(document, "BrowserFolderTree");
+
+        Assert.Equal("280", (string?)column.Attribute("Width"));
+        Assert.Equal("220", (string?)column.Attribute("MinWidth"));
+        Assert.Equal("520", (string?)column.Attribute("MaxWidth"));
+        Assert.Equal("Columns", (string?)splitter.Attribute("ResizeDirection"));
+        Assert.Equal("PreviousAndNext", (string?)splitter.Attribute("ResizeBehavior"));
+        Assert.Equal("SizeWE", (string?)splitter.Attribute("Cursor"));
+        Assert.Equal("8", (string?)splitter.Attribute("Width"));
+        Assert.Equal("Transparent", (string?)splitter.Attribute("Background"));
+        var splitterTemplate = splitter.Descendants(ns + "ControlTemplate").Single();
+        Assert.Empty(splitterTemplate.Descendants(ns + "Border"));
+        Assert.All(splitterTemplate.Descendants(ns + "Grid"), grid =>
+            Assert.Equal("Transparent", (string?)grid.Attribute("Background")));
+        Assert.Equal("Auto", (string?)scroller.Attribute("HorizontalScrollBarVisibility"));
+        Assert.Equal("Auto", (string?)scroller.Attribute("VerticalScrollBarVisibility"));
+        Assert.Equal("{StaticResource BrowserFolderScrollViewerStyle}", (string?)scroller.Attribute("Style"));
+        Assert.Equal("BrowserFolderTree_PreviewMouseWheel", (string?)tree.Attribute("PreviewMouseWheel"));
+        Assert.Equal("{x:Null}", (string?)tree.Attribute("FocusVisualStyle"));
+        Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
+            attribute.Name.LocalName == "ScrollViewer.HorizontalScrollBarVisibility").Value);
+        Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
+            attribute.Name.LocalName == "ScrollViewer.VerticalScrollBarVisibility").Value);
+        Assert.Equal(scroller, tree.Parent);
+
+        var appNs = app.Root!.Name.Namespace;
+        var horizontalTrigger = app.Descendants(appNs + "Trigger").Single(trigger =>
+            (string?)trigger.Attribute("Property") == "Orientation" &&
+            (string?)trigger.Attribute("Value") == "Horizontal");
+        Assert.Contains(horizontalTrigger.Elements(appNs + "Setter"), setter =>
+            setter.Attribute("TargetName") is null && (string?)setter.Attribute("Property") == "Width" &&
+            (string?)setter.Attribute("Value") == "Auto");
+        Assert.Contains(horizontalTrigger.Elements(appNs + "Setter"), setter =>
+            setter.Attribute("TargetName") is null && (string?)setter.Attribute("Property") == "Height" &&
+            (string?)setter.Attribute("Value") == "12");
+
+        var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var scrollViewerStyle = app.Descendants(appNs + "Style").Single(style =>
+            (string?)style.Attribute(xNamespace + "Key") == "BrowserFolderScrollViewerStyle");
+        Assert.Contains(scrollViewerStyle.Descendants(appNs + "ScrollBar"), bar =>
+            (string?)bar.Attribute(xNamespace + "Name") == "PART_VerticalScrollBar");
+        Assert.Contains(scrollViewerStyle.Descendants(appNs + "ScrollBar"), bar =>
+            (string?)bar.Attribute(xNamespace + "Name") == "PART_HorizontalScrollBar");
+        Assert.Contains(scrollViewerStyle.Descendants(appNs + "Border"), border =>
+            (string?)border.Attribute(xNamespace + "Name") == "ScrollBarCorner" &&
+            (string?)border.Attribute("Background") == "#111319");
+
+        var treeItemStyle = app.Descendants(appNs + "Style").Single(style =>
+            (string?)style.Attribute(xNamespace + "Key") == "BrowserTreeItemStyle");
+        Assert.Contains(treeItemStyle.Elements(appNs + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "FocusVisualStyle" &&
+            (string?)setter.Attribute("Value") == "{x:Null}");
+        Assert.Contains(treeItemStyle.Descendants(appNs + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsSelected", StringComparison.Ordinal) == true);
+        Assert.Contains(treeItemStyle.Descendants(appNs + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsKeyboardFocused", StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(treeItemStyle.Descendants(appNs + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsKeyboardFocusWithin", StringComparison.Ordinal) == true);
+        var treeTemplate = treeItemStyle.Descendants(appNs + "ControlTemplate").First();
+        var expander = treeTemplate.Descendants(appNs + "ToggleButton").Single(button =>
+            (string?)button.Attribute(xNamespace + "Name") == "Expander");
+        var header = treeTemplate.Descendants(appNs + "Border").Single(border =>
+            (string?)border.Attribute(xNamespace + "Name") == "HeaderChrome");
+        var itemsHost = treeTemplate.Descendants(appNs + "ItemsPresenter").Single();
+        Assert.Equal("28", (string?)expander.Attribute("Height"));
+        Assert.Equal("16", (string?)expander.Attribute("Width"));
+        Assert.Equal("28", (string?)header.Attribute("Height"));
+        Assert.Equal("14,0,0,0", (string?)itemsHost.Attribute("Margin"));
+
+        var hierarchyTemplate = tree.Descendants(ns + "HierarchicalDataTemplate").Single();
+        var row = hierarchyTemplate.Elements(ns + "Grid").Single();
+        var columns = row.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").ToList();
+        Assert.Equal("26", (string?)row.Attribute("Height"));
+        Assert.Equal(["18", "Auto", "Auto"], columns.Select(column => (string?)column.Attribute("Width")));
+        Assert.DoesNotContain(hierarchyTemplate.Descendants(ns + "StackPanel"), _ => true);
+        var folderLabel = hierarchyTemplate.Descendants(ns + "TextBlock").Single(text =>
+            (string?)text.Attribute(xNamespace + "Name") == "FolderLabel");
+        Assert.Equal("8,0,0,0", (string?)folderLabel.Attribute("Margin"));
+        Assert.Null(folderLabel.Attribute("Foreground"));
+
+        var shell = XDocument.Load(Path.Combine(root, "LightflowStudio", "Themes", "LightflowShell.xaml"));
+        var shellNs = shell.Root!.Name.Namespace;
+        Assert.Contains(shell.Root.Elements(shellNs + "Color"), color =>
+            (string?)color.Attribute(xNamespace + "Key") == "ShellNavigationTextColor" && color.Value == "#D8D8DC");
+        Assert.Contains(treeItemStyle.Elements(appNs + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Foreground" &&
+            (string?)setter.Attribute("Value") == "{StaticResource ShellNavigationTextBrush}");
+
+        var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "MainWindow.xaml.cs"));
+        Assert.Contains("BrowserFolderScrollViewer.ScrollToVerticalOffset", source);
+        Assert.Contains("BrowserFolderScrollViewer.ScrollToHorizontalOffset", source);
+        Assert.Contains("Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)", source);
+        Assert.Contains("BrowserTreeScroll.RevealVerticalOffset", source);
+        Assert.Contains("BrowserTreeScroll.RevealHorizontalOffset", source);
+        Assert.Contains("BrowserFolderScrollViewer.ScrollToVerticalOffset", source);
+        Assert.Contains("BrowserFolderScrollViewer.ScrollToHorizontalOffset", source);
+        Assert.DoesNotContain("BringIntoView()", source);
+        Assert.True(source.IndexOf("RequestBrowserTreeSelection(_browserNavigation.UpTarget);", StringComparison.Ordinal) <
+            source.IndexOf("_browserNavigation.UpAsync()", StringComparison.Ordinal));
+        Assert.True(source.IndexOf("RequestBrowserTreeSelection(_browserNavigation.BackTarget);", StringComparison.Ordinal) <
+            source.IndexOf("_browserNavigation.BackAsync()", StringComparison.Ordinal));
+        Assert.True(source.IndexOf("RequestBrowserTreeSelection(_browserNavigation.ForwardTarget);", StringComparison.Ordinal) <
+            source.IndexOf("_browserNavigation.ForwardAsync()", StringComparison.Ordinal));
+        var selectionIndex = source.IndexOf("RequestBrowserTreeSelection(node);", StringComparison.Ordinal);
+        var navigationIndex = source.IndexOf("await RunBrowserNavigationAsync", selectionIndex, StringComparison.Ordinal);
+        Assert.True(selectionIndex >= 0 && navigationIndex > selectionIndex,
+            "Tree intent selection must occur before asynchronous navigation begins.");
+        var runStart = source.IndexOf("private async Task RunBrowserNavigationAsync", StringComparison.Ordinal);
+        var applyStart = source.IndexOf("private void ApplyBrowserState", runStart, StringComparison.Ordinal);
+        var runBody = source[runStart..applyStart];
+        Assert.DoesNotContain("_browserEntries.Clear()", runBody);
+    }
+
+    [Fact]
     public void ActivityLog_IsCollapsedByDefault()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));

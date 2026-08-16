@@ -259,6 +259,8 @@
   <Style TargetType="ScrollBar">
    <Setter Property="Background" Value="#111319"/>
    <Setter Property="Width" Value="12"/>
+   <Setter Property="Focusable" Value="False"/>
+   <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
    <Setter Property="Template">
     <Setter.Value>
      <ControlTemplate TargetType="ScrollBar">
@@ -271,11 +273,90 @@
       </Grid>
       <ControlTemplate.Triggers>
        <Trigger Property="Orientation" Value="Horizontal">
-        <Setter TargetName="ScrollRoot" Property="Width" Value="Auto"/><Setter TargetName="ScrollRoot" Property="Height" Value="12"/>
+       <Setter TargetName="ScrollRoot" Property="Width" Value="Auto"/><Setter TargetName="ScrollRoot" Property="Height" Value="12"/>
+        <Setter Property="Width" Value="Auto"/><Setter Property="Height" Value="12"/>
         <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
         <Setter TargetName="DecreaseButton" Property="Command" Value="{x:Static ScrollBar.PageLeftCommand}"/>
         <Setter TargetName="IncreaseButton" Property="Command" Value="{x:Static ScrollBar.PageRightCommand}"/>
        </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style x:Key="BrowserFolderScrollViewerStyle" TargetType="ScrollViewer">
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ScrollViewer">
+      <Grid Background="{TemplateBinding Background}">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Grid.Row="0" Grid.Column="0"
+        Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+        CanContentScroll="{TemplateBinding CanContentScroll}" Margin="{TemplateBinding Padding}"/>
+       <ScrollBar x:Name="PART_VerticalScrollBar" Grid.Row="0" Grid.Column="1" Orientation="Vertical"
+        Maximum="{TemplateBinding ScrollableHeight}" ViewportSize="{TemplateBinding ViewportHeight}"
+        Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}"
+        Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+       <ScrollBar x:Name="PART_HorizontalScrollBar" Grid.Row="1" Grid.Column="0" Orientation="Horizontal"
+        Maximum="{TemplateBinding ScrollableWidth}" ViewportSize="{TemplateBinding ViewportWidth}"
+        Value="{Binding HorizontalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}"
+        Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"/>
+       <Border x:Name="ScrollBarCorner" Grid.Row="1" Grid.Column="1" Background="#111319"/>
+      </Grid>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style x:Key="BrowserTreeItemStyle" TargetType="TreeViewItem">
+   <Setter Property="Foreground" Value="{StaticResource ShellNavigationTextBrush}"/>
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="BorderBrush" Value="Transparent"/>
+   <Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="Padding" Value="0,1"/>
+   <Setter Property="HorizontalContentAlignment" Value="Left"/>
+   <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="TreeViewItem">
+      <Grid Background="Transparent">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="16"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <ToggleButton x:Name="Expander" Grid.Row="0" Grid.Column="0" Width="16" Height="28" Focusable="False"
+        IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" Background="Transparent" BorderThickness="0">
+        <ToggleButton.Template>
+         <ControlTemplate TargetType="ToggleButton">
+          <Border Background="Transparent"><TextBlock x:Name="Chevron" HorizontalAlignment="Center" VerticalAlignment="Center"
+           Foreground="{StaticResource MutedTextBrush}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" Text="&#xE76C;"/></Border>
+          <ControlTemplate.Triggers>
+           <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chevron" Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger>
+           <Trigger Property="IsChecked" Value="True"><Setter TargetName="Chevron" Property="Text" Value="&#xE70D;"/></Trigger>
+          </ControlTemplate.Triggers>
+         </ControlTemplate>
+        </ToggleButton.Template>
+       </ToggleButton>
+       <Border x:Name="HeaderChrome" Grid.Row="0" Grid.Column="1" Height="28" BorderThickness="1" CornerRadius="5" Padding="{TemplateBinding Padding}">
+        <Border.Style>
+         <Style TargetType="Border">
+          <Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/>
+          <Style.Triggers>
+           <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#20242C"/></Trigger>
+           <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource TemplatedParent}}" Value="True"><Setter Property="Background" Value="{StaticResource ShellSelectionBrush}"/></DataTrigger>
+           <DataTrigger Binding="{Binding IsKeyboardFocused, RelativeSource={RelativeSource TemplatedParent}}" Value="True"><Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
+          </Style.Triggers>
+         </Style>
+        </Border.Style>
+        <ContentPresenter x:Name="PART_Header" ContentSource="Header" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+       </Border>
+       <ItemsPresenter x:Name="ItemsHost" Grid.Row="1" Grid.Column="1" Margin="14,0,0,0"/>
+      </Grid>
+      <ControlTemplate.Triggers>
+       <Trigger Property="HasItems" Value="False"><Setter TargetName="Expander" Property="Visibility" Value="Hidden"/></Trigger>
+       <Trigger Property="IsExpanded" Value="False"><Setter TargetName="ItemsHost" Property="Visibility" Value="Collapsed"/></Trigger>
+       <Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger>
+       <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
     </Setter.Value>

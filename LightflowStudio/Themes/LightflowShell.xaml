@@ -7,6 +7,7 @@
  <Color x:Key="ShellDividerColor">#2B303A</Color>
  <Color x:Key="ShellFocusColor">#FF9A66</Color>
  <Color x:Key="ShellSelectionColor">#282129</Color>
+ <Color x:Key="ShellNavigationTextColor">#D8D8DC</Color>
 
  <SolidColorBrush x:Key="ShellCanvasBrush" Color="{StaticResource ShellCanvasColor}"/>
  <SolidColorBrush x:Key="ShellSurfaceBrush" Color="{StaticResource ShellSurfaceColor}"/>
@@ -15,6 +16,7 @@
  <SolidColorBrush x:Key="ShellDividerBrush" Color="{StaticResource ShellDividerColor}"/>
  <SolidColorBrush x:Key="ShellFocusBrush" Color="{StaticResource ShellFocusColor}"/>
  <SolidColorBrush x:Key="ShellSelectionBrush" Color="{StaticResource ShellSelectionColor}"/>
+ <SolidColorBrush x:Key="ShellNavigationTextBrush" Color="{StaticResource ShellNavigationTextColor}"/>
 
  <Thickness x:Key="ShellWorkspacePadding">28,24,28,24</Thickness>
  <Thickness x:Key="ShellPanelPadding">18</Thickness>

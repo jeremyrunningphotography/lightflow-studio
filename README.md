@@ -2,12 +2,13 @@
 
 **Video processing and workflow tools by Jeremy Running Photography.**
 
-Current version: **0.30.0**
+Current version: **0.31.0**
 
 Lightflow Studio is a native C#/.NET 8 WPF desktop application for preparing, processing, inspecting, and recovering video media.
 
 ## Features
 
+- Filesystem-first Browser with familiar storage locations, stable Catalog identity, authoritative refresh, and Back/Forward/Up history
 - Folder batch encoding with a collapsed per-file picker, allowing individual videos to be skipped before a batch begins
 - Flexible batch destinations: source folders, named subfolders, or a specific output folder
 - Asynchronous file details with resolution, frame rate, duration, size, codec/audio tooltips, and warning badges for media outliers

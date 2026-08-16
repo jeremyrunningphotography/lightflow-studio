@@ -119,6 +119,19 @@ internal static class MediaPathSemantics
         IsSameOrAncestor(NormalizeRootPath(left), NormalizeRootPath(right)) ||
         IsSameOrAncestor(NormalizeRootPath(right), NormalizeRootPath(left));
 
+    public static bool Contains(string rootPath, string candidatePath) =>
+        IsSameOrAncestor(NormalizeRootPath(rootPath), NormalizeRootPath(candidatePath));
+
+    public static string RelativeFolder(string rootPath, string candidatePath)
+    {
+        var root = NormalizeRootPath(rootPath);
+        var candidate = NormalizeRootPath(candidatePath);
+        if (!IsSameOrAncestor(root, candidate))
+            throw new ArgumentException("The folder is outside its Media Root.", nameof(candidatePath));
+        var relative = Path.GetRelativePath(root, candidate);
+        return relative == "." ? "" : NormalizeRelativePath(relative);
+    }
+
     private static bool IsSameOrAncestor(string parent, string child)
     {
         if (string.Equals(parent, child, StringComparison.OrdinalIgnoreCase)) return true;
@@ -144,6 +157,8 @@ internal interface IMediaRootService
     Task<IReadOnlyList<MediaRootInfo>> ListAsync(CancellationToken cancellationToken = default);
     Task<MediaRootInfo?> GetAsync(Guid rootId, CancellationToken cancellationToken = default);
     Task<MediaRootChangeResult> CreateAsync(string displayName, string physicalPath, CancellationToken cancellationToken = default);
+    Task<MediaRootChangeResult> CreateBrowserAnchorAsync(string displayName, string physicalPath,
+        CancellationToken cancellationToken = default) => CreateAsync(displayName, physicalPath, cancellationToken);
     Task<MediaRootChangeResult> RenameAsync(Guid rootId, string displayName, CancellationToken cancellationToken = default);
     Task<MediaRootChangeResult> RemapAsync(Guid rootId, string physicalPath, CancellationToken cancellationToken = default);
     Task<MediaPathResolution> ResolveAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default);
@@ -179,6 +194,22 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
     }, cancellationToken);
 
     public async Task<MediaRootChangeResult> CreateAsync(string displayName, string physicalPath, CancellationToken cancellationToken = default)
+        => await CreateCoreAsync(displayName, physicalPath, allowManagedOverlap: false, cancellationToken).ConfigureAwait(false);
+
+    public async Task<MediaRootChangeResult> CreateBrowserAnchorAsync(string displayName, string physicalPath,
+        CancellationToken cancellationToken = default)
+    {
+        string normalized;
+        try { normalized = MediaPathSemantics.NormalizeRootPath(physicalPath); }
+        catch (ArgumentException exception) { return new(false, Diagnostic: exception.Message); }
+        if (!IsNaturalAnchor(normalized))
+            return new(false, Diagnostic: "Automatic Browser roots must be anchored at a volume or network-share boundary.");
+        return await CreateCoreAsync(displayName, normalized, allowManagedOverlap: true, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<MediaRootChangeResult> CreateCoreAsync(string displayName, string physicalPath,
+        bool allowManagedOverlap, CancellationToken cancellationToken)
     {
         var name = NormalizeName(displayName);
         string path;
@@ -189,7 +220,13 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
             var machineId = machine.GetMachineId();
             using var connection = RequireSession().OpenConnection();
             using var transaction = connection.BeginTransaction();
-            if (FindOverlap(connection, transaction, path, null, machineId) is { } overlap)
+            if (FindExactMapping(connection, transaction, path, machineId) is { } existing)
+                return allowManagedOverlap
+                    ? new MediaRootChangeResult(true, Read(connection, existing, machineId))
+                    : new MediaRootChangeResult(false,
+                        Diagnostic: "That folder is already mapped by another Media Root on this computer.");
+            if (!allowManagedOverlap && FindOverlap(connection, transaction, path, null, machineId,
+                    ignoreNaturalAnchors: true) is { } overlap)
                 return new MediaRootChangeResult(false, Diagnostic: $"That folder overlaps Media Root ‘{overlap}’ on this computer.");
             var rootId = Guid.NewGuid();
             var now = UtcTimestamp();
@@ -200,6 +237,21 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
             transaction.Commit();
             return new MediaRootChangeResult(true, Observe(rootId, name, path));
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static Guid? FindExactMapping(SqliteConnection connection, SqliteTransaction transaction,
+        string path, string machineId, Guid? exclude = null)
+    {
+        using var command = connection.CreateCommand(); command.Transaction = transaction;
+        command.CommandText = "SELECT RootId,PhysicalPath FROM MediaRootMappings WHERE MachineId=$machine;";
+        command.Parameters.AddWithValue("$machine", machineId);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            if (Guid.Parse(reader.GetString(0)) != exclude &&
+                string.Equals(MediaPathSemantics.NormalizeRootPath(path),
+                    MediaPathSemantics.NormalizeRootPath(reader.GetString(1)), StringComparison.OrdinalIgnoreCase))
+                return Guid.Parse(reader.GetString(0));
+        return null;
     }
 
     public Task<MediaRootChangeResult> RenameAsync(Guid rootId, string displayName, CancellationToken cancellationToken = default) => RunChangeAsync(() =>
@@ -223,7 +275,10 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
             using var connection = RequireSession().OpenConnection();
             using var transaction = connection.BeginTransaction();
             if (!RootExists(connection, transaction, rootId)) return new(false, Diagnostic: "The Media Root no longer exists.");
-            if (FindOverlap(connection, transaction, path, rootId, machineId) is { } overlap)
+            if (FindExactMapping(connection, transaction, path, machineId, rootId) is not null)
+                return new(false, Diagnostic: "That folder is already mapped by another Media Root on this computer.");
+            if (FindOverlap(connection, transaction, path, rootId, machineId,
+                    ignoreNaturalAnchors: true) is { } overlap)
                 return new(false, Diagnostic: $"That folder overlaps Media Root ‘{overlap}’ on this computer.");
             var now = UtcTimestamp();
             Execute(connection, transaction, """
@@ -274,15 +329,26 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
         return normalized;
     }
 
-    private static string? FindOverlap(SqliteConnection connection, SqliteTransaction transaction, string path, Guid? exclude, string machineId)
+    private static string? FindOverlap(SqliteConnection connection, SqliteTransaction transaction, string path,
+        Guid? exclude, string machineId, bool ignoreNaturalAnchors)
     {
         using var command = connection.CreateCommand(); command.Transaction = transaction;
         command.CommandText = "SELECT r.RootId,r.DisplayName,m.PhysicalPath FROM MediaRootMappings m JOIN MediaRoots r ON r.RootId=m.RootId WHERE m.MachineId=$machine;";
         command.Parameters.AddWithValue("$machine", machineId);
         using var reader = command.ExecuteReader();
         while (reader.Read())
-            if (Guid.Parse(reader.GetString(0)) != exclude && MediaPathSemantics.Overlaps(path, reader.GetString(2))) return reader.GetString(1);
+            if (Guid.Parse(reader.GetString(0)) != exclude &&
+                (!ignoreNaturalAnchors || !IsNaturalAnchor(reader.GetString(2))) &&
+                MediaPathSemantics.Overlaps(path, reader.GetString(2))) return reader.GetString(1);
         return null;
+    }
+
+    private static bool IsNaturalAnchor(string path)
+    {
+        var normalized = MediaPathSemantics.NormalizeRootPath(path);
+        var root = Path.GetPathRoot(normalized);
+        return !string.IsNullOrWhiteSpace(root) && string.Equals(normalized,
+            MediaPathSemantics.NormalizeRootPath(root), StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool RootExists(SqliteConnection connection, SqliteTransaction transaction, Guid id)

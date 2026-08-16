@@ -241,6 +241,18 @@ public sealed class BrowserTreeTests
             BrowserTreeScroll.RevealVerticalOffset(current, viewport, rowTop, rowHeight));
     }
 
+    [Theory]
+    [InlineData(160, 200, 120, 44, 120)] // Deep item clipped on the left while scrolled right.
+    [InlineData(120, 200, 28, 44, 28)] // Up selects a less-indented parent.
+    [InlineData(0, 100, 160, 44, 104)] // Direct path reveals a deeply nested target's leading area.
+    [InlineData(100, 200, 150, 44, 100)] // Fully visible leading area does not move.
+    public void ProgrammaticSelectionUsesMinimalHorizontalReveal(double current, double viewport,
+        double rowLeft, double leadingAreaWidth, double expected)
+    {
+        Assert.Equal(expected,
+            BrowserTreeScroll.RevealHorizontalOffset(current, viewport, rowLeft, leadingAreaWidth));
+    }
+
     [Fact]
     public void ProgrammaticPathSelectionExpandsAncestorsWithoutCollapsingOtherBranches()
     {

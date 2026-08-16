@@ -174,15 +174,20 @@ public partial class MainWindow : Window
 
     private void BringBrowserTreeNodeIntoView(BrowserTreeNode node)
     {
+        const double disclosureAndIconWidth = 44;
         _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
             var container = FindBrowserTreeItem(BrowserFolderTree, node);
-            if (container is null || BrowserFolderScrollViewer.ViewportHeight <= 0) return;
-            var rowTop = container.TranslatePoint(new System.Windows.Point(0, 0), BrowserFolderTree).Y;
-            var offset = BrowserTreeScroll.RevealVerticalOffset(BrowserFolderScrollViewer.VerticalOffset,
-                BrowserFolderScrollViewer.ViewportHeight, rowTop, container.ActualHeight);
+            if (container is null) return;
+            var rowPosition = container.TranslatePoint(new System.Windows.Point(0, 0), BrowserFolderTree);
+            var verticalOffset = BrowserTreeScroll.RevealVerticalOffset(BrowserFolderScrollViewer.VerticalOffset,
+                BrowserFolderScrollViewer.ViewportHeight, rowPosition.Y, container.ActualHeight);
+            var horizontalOffset = BrowserTreeScroll.RevealHorizontalOffset(BrowserFolderScrollViewer.HorizontalOffset,
+                BrowserFolderScrollViewer.ViewportWidth, rowPosition.X, disclosureAndIconWidth);
             BrowserFolderScrollViewer.ScrollToVerticalOffset(
-                Math.Min(offset, BrowserFolderScrollViewer.ScrollableHeight));
+                Math.Min(verticalOffset, BrowserFolderScrollViewer.ScrollableHeight));
+            BrowserFolderScrollViewer.ScrollToHorizontalOffset(
+                Math.Min(horizontalOffset, BrowserFolderScrollViewer.ScrollableWidth));
         });
     }
 

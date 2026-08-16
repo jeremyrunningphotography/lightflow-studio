@@ -263,4 +263,14 @@ internal static class BrowserTreeScroll
             ? Math.Max(0, rowBottom - viewportHeight)
             : currentOffset;
     }
+
+    public static double RevealHorizontalOffset(double currentOffset, double viewportWidth, double rowLeft,
+        double leadingAreaWidth)
+    {
+        if (rowLeft < currentOffset) return Math.Max(0, rowLeft);
+        var leadingAreaRight = rowLeft + leadingAreaWidth;
+        return leadingAreaRight > currentOffset + viewportWidth
+            ? Math.Max(0, leadingAreaRight - viewportWidth)
+            : currentOffset;
+    }
 }

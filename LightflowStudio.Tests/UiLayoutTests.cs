@@ -133,7 +133,9 @@ public class UiLayoutTests
         Assert.Contains("BrowserFolderScrollViewer.ScrollToHorizontalOffset", source);
         Assert.Contains("Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)", source);
         Assert.Contains("BrowserTreeScroll.RevealVerticalOffset", source);
+        Assert.Contains("BrowserTreeScroll.RevealHorizontalOffset", source);
         Assert.Contains("BrowserFolderScrollViewer.ScrollToVerticalOffset", source);
+        Assert.Contains("BrowserFolderScrollViewer.ScrollToHorizontalOffset", source);
         Assert.DoesNotContain("BringIntoView()", source);
         Assert.True(source.IndexOf("RequestBrowserTreeSelection(_browserNavigation.UpTarget);", StringComparison.Ordinal) <
             source.IndexOf("_browserNavigation.UpAsync()", StringComparison.Ordinal));

@@ -19,9 +19,9 @@ internal sealed class BrowserTreeNode : INotifyPropertyChanged
         IsPlaceholder = placeholder;
     }
 
-    public string DisplayName { get; }
-    public string? AbsolutePath { get; }
-    public BrowserStorageEntry? Storage { get; }
+    public string DisplayName { get; private set; }
+    public string? AbsolutePath { get; private set; }
+    public BrowserStorageEntry? Storage { get; private set; }
     public bool IsPlaceholder { get; }
     public ObservableCollection<BrowserTreeNode> Children { get; } = [];
     public string? Diagnostic => Storage?.Diagnostic;
@@ -42,6 +42,21 @@ internal sealed class BrowserTreeNode : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void UpdateStorage(BrowserStorageEntry storage)
+    {
+        DisplayName = storage.DisplayName;
+        AbsolutePath = storage.PhysicalPath;
+        Storage = storage;
+        OnPropertyChanged(nameof(DisplayName));
+        OnPropertyChanged(nameof(AbsolutePath));
+        OnPropertyChanged(nameof(Storage));
+        OnPropertyChanged(nameof(Diagnostic));
+        OnPropertyChanged(nameof(Availability));
+        OnPropertyChanged(nameof(IsStorageLocation));
+        OnPropertyChanged(nameof(StorageStatus));
+    }
+
     private void OnPropertyChanged([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
@@ -54,14 +69,31 @@ internal sealed class BrowserTreeModel
 
     public void SetStorageEntries(IEnumerable<BrowserStorageEntry> entries)
     {
-        Roots.Clear();
-        SelectedNode = null;
+        var existing = Roots.Where(node => node.Storage is not null)
+            .ToDictionary(node => node.Storage!.Key, StringComparer.OrdinalIgnoreCase);
+        var desired = new List<BrowserTreeNode>();
         foreach (var entry in entries)
         {
-            var node = new BrowserTreeNode(entry.DisplayName, entry.PhysicalPath, entry);
-            if (entry.Availability == MediaRootAvailability.Online && entry.PhysicalPath is not null)
-                node.Children.Add(NewPlaceholder());
-            Roots.Add(node);
+            BrowserTreeNode node;
+            if (existing.TryGetValue(entry.Key, out var prior) && SamePath(prior.AbsolutePath, entry.PhysicalPath))
+            {
+                node = prior;
+                node.UpdateStorage(entry);
+            }
+            else
+            {
+                node = new BrowserTreeNode(entry.DisplayName, entry.PhysicalPath, entry);
+                if (entry.Availability == MediaRootAvailability.Online && entry.PhysicalPath is not null)
+                    node.Children.Add(NewPlaceholder());
+            }
+            desired.Add(node);
+        }
+
+        Reconcile(Roots, desired);
+        if (SelectedNode is not null && !Roots.Any(root => ContainsNode(root, SelectedNode)))
+        {
+            SelectedNode.IsSelected = false;
+            SelectedNode = null;
         }
     }
 
@@ -128,15 +160,21 @@ internal sealed class BrowserTreeModel
 
     private static void ReplaceDirectories(BrowserTreeNode current, BrowserFolderState state)
     {
-        current.Children.Clear();
         if (state.Location is null) return;
+        var existing = current.Children.Where(node => !node.IsPlaceholder && node.AbsolutePath is not null)
+            .ToDictionary(node => node.AbsolutePath!, StringComparer.OrdinalIgnoreCase);
+        var desired = new List<BrowserTreeNode>();
         foreach (var entry in state.Entries.Where(entry => entry.IsDirectory))
         {
             var path = MediaPathSemantics.ResolveContained(state.Location.RootPath, entry.RelativePath);
-            var child = new BrowserTreeNode(entry.Name, path);
-            child.Children.Add(NewPlaceholder());
-            current.Children.Add(child);
+            if (!existing.TryGetValue(path, out var child))
+            {
+                child = new BrowserTreeNode(entry.Name, path);
+                child.Children.Add(NewPlaceholder());
+            }
+            desired.Add(child);
         }
+        Reconcile(current.Children, desired);
     }
 
     private void Select(BrowserTreeNode node)
@@ -153,4 +191,24 @@ internal sealed class BrowserTreeModel
     }
 
     private static BrowserTreeNode NewPlaceholder() => new("Loading…", null, placeholder: true);
+
+    private static bool SamePath(string? left, string? right) =>
+        left is null || right is null ? left == right :
+        string.Equals(MediaPathSemantics.NormalizeRootPath(left), MediaPathSemantics.NormalizeRootPath(right),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool ContainsNode(BrowserTreeNode root, BrowserTreeNode target) =>
+        ReferenceEquals(root, target) || root.Children.Any(child => ContainsNode(child, target));
+
+    private static void Reconcile(ObservableCollection<BrowserTreeNode> target,
+        IReadOnlyList<BrowserTreeNode> desired)
+    {
+        for (var index = 0; index < desired.Count; index++)
+        {
+            var currentIndex = target.IndexOf(desired[index]);
+            if (currentIndex < 0) target.Insert(index, desired[index]);
+            else if (currentIndex != index) target.Move(currentIndex, index);
+        }
+        while (target.Count > desired.Count) target.RemoveAt(target.Count - 1);
+    }
 }

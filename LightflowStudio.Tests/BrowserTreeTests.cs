@@ -22,6 +22,9 @@ public sealed class BrowserTreeTests
             child => child.AbsolutePath == @"C:\Photos\Trips\Day 1");
         Assert.Single(files);
         Assert.False(files[0].IsDirectory);
+        Assert.Single(Descendants(model.Roots), node => node.IsSelected);
+        Assert.All(Descendants(model.Roots).Where(node => !ReferenceEquals(node, model.SelectedNode)),
+            node => Assert.False(node.IsSelected));
     }
 
     [Fact]
@@ -85,6 +88,90 @@ public sealed class BrowserTreeTests
         Assert.Equal(@"\\server\media", root.AbsolutePath);
         Assert.Equal(@"\\server\media\Projects\Show", model.SelectedNode!.AbsolutePath);
         Assert.True(root.IsExpanded);
+    }
+
+    [Fact]
+    public void IndependentExpandedBranchesSurviveSelectionAndAncestorNavigation()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "", Directory(rootId, "A"), Directory(rootId, "B")));
+        var branchA = Find(model, @"C:\A")!;
+        var branchB = Find(model, @"C:\B")!;
+
+        model.Synchronize(State(rootId, "A", Directory(rootId, "A/Child")));
+        model.Synchronize(State(rootId, "B", Directory(rootId, "B/Child")));
+        branchA.IsExpanded = true;
+        branchB.IsExpanded = true;
+        var childA = Find(model, @"C:\A\Child")!;
+        var childB = Find(model, @"C:\B\Child")!;
+        childA.IsExpanded = true;
+        childB.IsExpanded = true;
+        var branchCollectionActions = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
+        model.Roots[0].Children.CollectionChanged += (_, args) => branchCollectionActions.Add(args.Action);
+
+        model.Synchronize(State(rootId, "A/Child", File(rootId, "A/Child/a.mp4")));
+        model.Synchronize(State(rootId, "", Directory(rootId, "A"), Directory(rootId, "B")));
+
+        Assert.True(branchA.IsExpanded);
+        Assert.True(branchB.IsExpanded);
+        Assert.True(childA.IsExpanded);
+        Assert.True(childB.IsExpanded);
+        Assert.Same(model.Roots[0], model.SelectedNode);
+        Assert.Single(Descendants(model.Roots), node => node.IsSelected);
+        Assert.DoesNotContain(System.Collections.Specialized.NotifyCollectionChangedAction.Reset,
+            branchCollectionActions);
+    }
+
+    [Fact]
+    public void HistoryAndDirectPathExpandNeededAncestorsWithoutCollapsingOtherBranches()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "", Directory(rootId, "A"), Directory(rootId, "B")));
+        model.Synchronize(State(rootId, "B", Directory(rootId, "B/Deep")));
+        var branchB = Find(model, @"C:\B")!;
+        var deepB = Find(model, @"C:\B\Deep")!;
+        branchB.IsExpanded = true;
+        deepB.IsExpanded = true;
+
+        model.Synchronize(State(rootId, "A/Direct/Path", File(rootId, "A/Direct/Path/a.mp4")));
+        Assert.True(branchB.IsExpanded);
+        Assert.True(deepB.IsExpanded);
+        Assert.True(Find(model, @"C:\A")!.IsExpanded);
+        Assert.True(Find(model, @"C:\A\Direct")!.IsExpanded);
+
+        model.Synchronize(State(rootId, "A/Direct", Directory(rootId, "A/Direct/Path")));
+        model.Synchronize(State(rootId, "A/Direct/Path", File(rootId, "A/Direct/Path/a.mp4")));
+        Assert.True(branchB.IsExpanded);
+        Assert.True(deepB.IsExpanded);
+        Assert.Single(Descendants(model.Roots), node => node.IsSelected);
+    }
+
+    [Fact]
+    public void StorageRefreshReusesExpandedNodesWithStableIdentity()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "Photos", Directory(rootId, "Photos/Trips")));
+        var root = model.Roots[0];
+        var photos = Find(model, @"C:\Photos")!;
+        root.IsExpanded = true;
+        photos.IsExpanded = true;
+        var collectionActions = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
+        model.Roots.CollectionChanged += (_, args) => collectionActions.Add(args.Action);
+
+        model.SetStorageEntries([
+            new("volume:C", "Renamed Disk (C:)", @"C:\", BrowserStorageKind.Volume,
+                MediaRootAvailability.Online, rootId)
+        ]);
+
+        Assert.Same(root, model.Roots[0]);
+        Assert.Same(photos, Find(model, @"C:\Photos"));
+        Assert.True(root.IsExpanded);
+        Assert.True(photos.IsExpanded);
+        Assert.Equal("Renamed Disk (C:)", root.DisplayName);
+        Assert.DoesNotContain(System.Collections.Specialized.NotifyCollectionChangedAction.Reset, collectionActions);
     }
 
     private static BrowserTreeModel Model(Guid rootId)

@@ -344,7 +344,7 @@
           <Style.Triggers>
            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#20242C"/></Trigger>
            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource TemplatedParent}}" Value="True"><Setter Property="Background" Value="{StaticResource ShellSelectionBrush}"/></DataTrigger>
-           <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource TemplatedParent}}" Value="True"><Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
+           <DataTrigger Binding="{Binding IsKeyboardFocused, RelativeSource={RelativeSource TemplatedParent}}" Value="True"><Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
           </Style.Triggers>
          </Style>
         </Border.Style>

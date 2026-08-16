@@ -95,6 +95,8 @@ public class UiLayoutTests
         Assert.Contains(treeItemStyle.Descendants(appNs + "DataTrigger"), trigger =>
             ((string?)trigger.Attribute("Binding"))?.Contains("IsSelected", StringComparison.Ordinal) == true);
         Assert.Contains(treeItemStyle.Descendants(appNs + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsKeyboardFocused", StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(treeItemStyle.Descendants(appNs + "DataTrigger"), trigger =>
             ((string?)trigger.Attribute("Binding"))?.Contains("IsKeyboardFocusWithin", StringComparison.Ordinal) == true);
         var treeTemplate = treeItemStyle.Descendants(appNs + "ControlTemplate").First();
         var expander = treeTemplate.Descendants(appNs + "ToggleButton").Single(button =>

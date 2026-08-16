@@ -38,9 +38,19 @@ internal interface IDerivedWorkBatch
 
 internal interface IDerivedWorkScheduler : IAsyncDisposable
 {
-    IDerivedWorkBatch Schedule(CatalogReconciliationResult reconciliation,
+    DerivedWorkSchedulingResult TrySchedule(CatalogReconciliationResult reconciliation,
         DerivedWorkPriority priority = DerivedWorkPriority.Background,
         CancellationToken cancellationToken = default);
+}
+
+internal enum DerivedWorkSchedulingStatus { Accepted, SchedulerUnavailable }
+
+internal sealed record DerivedWorkSchedulingResult(
+    DerivedWorkSchedulingStatus Status,
+    IDerivedWorkBatch? Batch = null,
+    string? Diagnostic = null)
+{
+    public bool Accepted => Status == DerivedWorkSchedulingStatus.Accepted && Batch is not null;
 }
 
 internal sealed record MediaDiscoveryRefreshResult(
@@ -68,9 +78,13 @@ internal sealed class MediaDiscoveryRefreshService(
         var result = await reconciliation.ReconcileAsync(request, cancellationToken).ConfigureAwait(false);
         if (!result.Succeeded) return new(result, null, result.Diagnostic);
         var activeScheduler = scheduler();
-        return activeScheduler is null
-            ? new(result, null, "Preview storage is unavailable; Catalog reconciliation completed without derived work.")
-            : new(result, activeScheduler.Schedule(result, priority, derivedWorkCancellationToken));
+        if (activeScheduler is null)
+            return new(result, null, "Preview storage is unavailable; Catalog reconciliation completed without derived work.");
+        var scheduled = activeScheduler.TrySchedule(result, priority, derivedWorkCancellationToken);
+        return scheduled.Accepted
+            ? new(result, scheduled.Batch)
+            : new(result, null, scheduled.Diagnostic ??
+                "Preview work was not scheduled because storage lifecycle is changing. Refresh again later.");
     }
 }
 
@@ -113,7 +127,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
             .ToArray();
     }
 
-    public IDerivedWorkBatch Schedule(CatalogReconciliationResult reconciliation,
+    public DerivedWorkSchedulingResult TrySchedule(CatalogReconciliationResult reconciliation,
         DerivedWorkPriority priority = DerivedWorkPriority.Background,
         CancellationToken cancellationToken = default)
     {
@@ -122,12 +136,14 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
         if (!reconciliation.Succeeded)
         {
             batch.CompleteEmpty();
-            return batch;
+            return new(DerivedWorkSchedulingStatus.Accepted, batch);
         }
 
         lock (_sync)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_disposed)
+                return new(DerivedWorkSchedulingStatus.SchedulerUnavailable, Diagnostic:
+                    "Preview work was not scheduled because storage or the scheduler is being replaced or shut down.");
             foreach (var item in reconciliation.Items)
             {
                 if (item.Status == CatalogReconciliationItemStatus.Missing)
@@ -162,7 +178,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
 
         if (cancellationToken.CanBeCanceled)
             batch.SetCancellation(cancellationToken.Register(static state => ((DerivedWorkBatch)state!).Cancel(), batch));
-        return batch;
+        return new(DerivedWorkSchedulingStatus.Accepted, batch);
     }
 
     private void Enqueue(WorkItem item)

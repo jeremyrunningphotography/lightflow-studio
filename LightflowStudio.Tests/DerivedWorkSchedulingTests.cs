@@ -16,7 +16,7 @@ public sealed class DerivedWorkSchedulingTests
         var thumbnails = new FakeThumbnails();
         await using var scheduler = new DerivedWorkScheduler(assets, previews, metadata, thumbnails);
 
-        var batch = scheduler.Schedule(Reconciliation(
+        var batch = Schedule(scheduler, Reconciliation(
             (first.Asset.AssetId, CatalogReconciliationItemStatus.New),
             (second.Asset.AssetId, CatalogReconciliationItemStatus.Changed)));
         var progress = await batch.Completion;
@@ -36,7 +36,7 @@ public sealed class DerivedWorkSchedulingTests
         var thumbnails = new FakeThumbnails();
         await using var scheduler = new DerivedWorkScheduler(new FakeAssets(asset), previews, metadata, thumbnails);
 
-        var batch = scheduler.Schedule(Reconciliation(
+        var batch = Schedule(scheduler, Reconciliation(
             (asset.Asset.AssetId, CatalogReconciliationItemStatus.Unchanged)));
         var progress = await batch.Completion;
 
@@ -54,9 +54,9 @@ public sealed class DerivedWorkSchedulingTests
             new FakeThumbnails(), maximumConcurrency: 1);
         var result = Reconciliation((asset.Asset.AssetId, CatalogReconciliationItemStatus.New));
 
-        var first = scheduler.Schedule(result);
+        var first = Schedule(scheduler, result);
         await metadata.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var repeated = scheduler.Schedule(result, DerivedWorkPriority.Visible);
+        var repeated = Schedule(scheduler, result, DerivedWorkPriority.Visible);
         metadata.Release.TrySetResult();
         await Task.WhenAll(first.Completion, repeated.Completion);
 
@@ -75,11 +75,11 @@ public sealed class DerivedWorkSchedulingTests
         await using var scheduler = new DerivedWorkScheduler(new FakeAssets(blocker, background, visible),
             new FakePreviews(), metadata, new FakeThumbnails(), maximumConcurrency: 1);
 
-        var running = scheduler.Schedule(Reconciliation((blocker.Asset.AssetId, CatalogReconciliationItemStatus.New)));
+        var running = Schedule(scheduler, Reconciliation((blocker.Asset.AssetId, CatalogReconciliationItemStatus.New)));
         await metadata.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var queuedBackground = scheduler.Schedule(Reconciliation(
+        var queuedBackground = Schedule(scheduler, Reconciliation(
             (background.Asset.AssetId, CatalogReconciliationItemStatus.New)), DerivedWorkPriority.Background);
-        var queuedVisible = scheduler.Schedule(Reconciliation(
+        var queuedVisible = Schedule(scheduler, Reconciliation(
             (visible.Asset.AssetId, CatalogReconciliationItemStatus.New)), DerivedWorkPriority.Visible);
         metadata.Release.TrySetResult();
         await Task.WhenAll(running.Completion, queuedBackground.Completion, queuedVisible.Completion);
@@ -96,12 +96,12 @@ public sealed class DerivedWorkSchedulingTests
         var metadata = new FakeMetadata { BlockingAsset = blocker.Asset.AssetId };
         await using var scheduler = new DerivedWorkScheduler(new FakeAssets(blocker, canceled, later),
             new FakePreviews(), metadata, new FakeThumbnails(), maximumConcurrency: 1);
-        var running = scheduler.Schedule(Reconciliation((blocker.Asset.AssetId, CatalogReconciliationItemStatus.New)));
+        var running = Schedule(scheduler, Reconciliation((blocker.Asset.AssetId, CatalogReconciliationItemStatus.New)));
         await metadata.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         using var cancellation = new CancellationTokenSource();
-        var canceledBatch = scheduler.Schedule(Reconciliation(
+        var canceledBatch = Schedule(scheduler, Reconciliation(
             (canceled.Asset.AssetId, CatalogReconciliationItemStatus.New)), cancellationToken: cancellation.Token);
-        var laterBatch = scheduler.Schedule(Reconciliation((later.Asset.AssetId, CatalogReconciliationItemStatus.New)));
+        var laterBatch = Schedule(scheduler, Reconciliation((later.Asset.AssetId, CatalogReconciliationItemStatus.New)));
 
         cancellation.Cancel();
         metadata.Release.TrySetResult();
@@ -120,7 +120,7 @@ public sealed class DerivedWorkSchedulingTests
         await using var scheduler = new DerivedWorkScheduler(new FakeAssets(assets), new FakePreviews(), metadata,
             new FakeThumbnails(), maximumConcurrency: 2);
 
-        var batch = scheduler.Schedule(Reconciliation(assets.Select(asset =>
+        var batch = Schedule(scheduler, Reconciliation(assets.Select(asset =>
             (asset.Asset.AssetId, CatalogReconciliationItemStatus.New)).ToArray()));
         await metadata.LimitReached.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -140,12 +140,12 @@ public sealed class DerivedWorkSchedulingTests
         await using var scheduler = new DerivedWorkScheduler(new FakeAssets(failing, healthy),
             new FakePreviews(), metadata, new FakeThumbnails());
 
-        var first = scheduler.Schedule(Reconciliation(
+        var first = Schedule(scheduler, Reconciliation(
             (failing.Asset.AssetId, CatalogReconciliationItemStatus.New),
             (healthy.Asset.AssetId, CatalogReconciliationItemStatus.New)));
         var firstProgress = await first.Completion;
         metadata.FailingAsset = null;
-        var retry = scheduler.Schedule(Reconciliation(
+        var retry = Schedule(scheduler, Reconciliation(
             (failing.Asset.AssetId, CatalogReconciliationItemStatus.Unchanged)));
         var retryProgress = await retry.Completion;
 
@@ -165,7 +165,7 @@ public sealed class DerivedWorkSchedulingTests
         await using var scheduler = new DerivedWorkScheduler(new FakeAssets(changed, healthy),
             new FakePreviews(), metadata, thumbnails);
 
-        var batch = scheduler.Schedule(Reconciliation(
+        var batch = Schedule(scheduler, Reconciliation(
             (changed.Asset.AssetId, CatalogReconciliationItemStatus.Changed),
             (healthy.Asset.AssetId, CatalogReconciliationItemStatus.New)));
         var progress = await batch.Completion;
@@ -185,7 +185,7 @@ public sealed class DerivedWorkSchedulingTests
         await using var scheduler = new DerivedWorkScheduler(new FakeAssets(asset), new FakePreviews(),
             metadata, thumbnails);
 
-        var batch = scheduler.Schedule(Reconciliation(
+        var batch = Schedule(scheduler, Reconciliation(
             (asset.Asset.AssetId, CatalogReconciliationItemStatus.New)));
         var progress = await batch.Completion;
 
@@ -205,7 +205,7 @@ public sealed class DerivedWorkSchedulingTests
         await using var scheduler = new DerivedWorkScheduler(new FakeAssets(missing, offline), previews,
             metadata, thumbnails);
 
-        var batch = scheduler.Schedule(Reconciliation(
+        var batch = Schedule(scheduler, Reconciliation(
             (missing.Asset.AssetId, CatalogReconciliationItemStatus.Missing),
             (offline.Asset.AssetId, CatalogReconciliationItemStatus.Unchanged)));
         var progress = await batch.Completion;
@@ -239,10 +239,65 @@ public sealed class DerivedWorkSchedulingTests
         Assert.Equal(DerivedWorkBatchStatus.Completed, (await batch.Completion).Status);
     }
 
+    [Fact]
+    public async Task SchedulerReplacementAfterReconciliationReturnsCatalogSuccessAndLaterRefreshCanRetry()
+    {
+        var asset = Asset("audio");
+        var reconciliation = Reconciliation((asset.Asset.AssetId, CatalogReconciliationItemStatus.New));
+        var originalMetadata = new FakeMetadata();
+        var replacementMetadata = new FakeMetadata();
+        await using var original = new DerivedWorkScheduler(new FakeAssets(asset), new FakePreviews(),
+            originalMetadata, new FakeThumbnails());
+        await using var replacement = new DerivedWorkScheduler(new FakeAssets(asset), new FakePreviews(),
+            replacementMetadata, new FakeThumbnails());
+        IDerivedWorkScheduler current = original;
+        var schedulerSelected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowSubmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var selections = 0;
+        var discovery = new MediaDiscoveryRefreshService(new FakeReconciliation(reconciliation), () =>
+        {
+            var selected = Volatile.Read(ref current);
+            if (Interlocked.Increment(ref selections) == 1)
+            {
+                schedulerSelected.TrySetResult();
+                allowSubmission.Task.GetAwaiter().GetResult();
+            }
+            return selected;
+        });
+
+        var racingRefresh = Task.Run(async () => await discovery.RefreshAsync(new(reconciliation.RootId)));
+        await schedulerSelected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await original.DisposeAsync();
+        Volatile.Write(ref current, replacement);
+        allowSubmission.TrySetResult();
+
+        var raced = await racingRefresh;
+        Assert.Same(reconciliation, raced.Reconciliation);
+        Assert.True(raced.Reconciliation.Succeeded);
+        Assert.Null(raced.DerivedWork);
+        Assert.Contains("storage", raced.Diagnostic, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(originalMetadata.Calls);
+
+        var retried = await discovery.RefreshAsync(new(reconciliation.RootId));
+        Assert.NotNull(retried.DerivedWork);
+        Assert.Equal(DerivedWorkBatchStatus.Completed, (await retried.DerivedWork.Completion).Status);
+        Assert.Single(replacementMetadata.Calls);
+    }
+
     private static CatalogReconciliationResult Reconciliation(
         params (Guid AssetId, CatalogReconciliationItemStatus Status)[] items) =>
         new(CatalogReconciliationStatus.Succeeded, Guid.NewGuid(), "",
             items.Select(item => new CatalogReconciliationItem(item.AssetId, $"{item.AssetId:N}.media", item.Status)).ToArray());
+
+    private static IDerivedWorkBatch Schedule(DerivedWorkScheduler scheduler,
+        CatalogReconciliationResult reconciliation,
+        DerivedWorkPriority priority = DerivedWorkPriority.Background,
+        CancellationToken cancellationToken = default)
+    {
+        var result = scheduler.TrySchedule(reconciliation, priority, cancellationToken);
+        Assert.True(result.Accepted, result.Diagnostic);
+        return result.Batch!;
+    }
 
     private static MediaAssetResolution Asset(string mediaType,
         MediaAssetSourceStatus sourceStatus = MediaAssetSourceStatus.Available,

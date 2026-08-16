@@ -75,7 +75,11 @@ public partial class MainWindow : Window
             PopulateSettingsControls(_settings);
             ApplySettingsToBatch(_settings);
             ApplyStateToBatch(_state);
-            if (_commandLineFolder is not null) InputFolder.Text = _commandLineFolder;
+            if (_commandLineFolder is not null)
+            {
+                InputFolder.Text = _commandLineFolder;
+                MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
+            }
             BatchFileList.ItemsSource = _batchFiles;
             HistoryList.ItemsSource = _historyRecords;
             MediaRootsList.ItemsSource = _mediaRoots;
@@ -103,6 +107,9 @@ public partial class MainWindow : Window
         _ffprobe = ExecutableLocator.Find("ffprobe.exe", Path.Combine(baseDir, "ffmpeg", "bin", "ffprobe.exe"), configured: besideFfmpeg);
         StatusText.Text = _ffmpeg is null ? "FFmpeg not found — configure it in Settings" : $"FFmpeg ready: {_ffmpeg}";
     }
+
+    private void OpenEncodingWorkspace_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
     private async Task RefreshDependencyHealthAsync()
     {
         DependencySummary.Text = "Checking the tools needed for encoding…";
@@ -1303,7 +1310,7 @@ public partial class MainWindow : Window
         foreach (var file in restoration.Restored) _batchFiles.Add(file);
         UpdateBatchFileSummary();
         _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
-        MainTabs.SelectedIndex = 0;
+        MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
         CurrentFileText.Text = EncodingHistoryRerun.RestorationMessage(restoration);
     }
     private bool ValidateEncoderInputs()

@@ -2,7 +2,7 @@
 
 **Video processing and workflow tools by Jeremy Running Photography.**
 
-Current version: **0.31.0**
+Current version: **0.32.0**
 
 Lightflow Studio is a native C#/.NET 8 WPF desktop application for preparing, processing, inspecting, and recovering video media.
 
@@ -86,6 +86,8 @@ powershell.exe -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1
 ```
 
 Release artifacts are placed in `dist`. The build script downloads the exact FFmpeg package pinned in `dependencies\ffmpeg.json`, verifies its SHA-256, and includes its license, source, and build records in both distributions.
+
+The Windows installer is a per-machine package: it requests normal UAC elevation and installs to `{Program Files}\Lightflow Studio` by default. Application binaries and bundled dependencies live there; Catalogs, Previews, settings, history, logs, and other mutable data remain in Lightflow's separately managed user-data locations. The portable ZIP remains independent of installer registration.
 
 Pull requests and pushes to `main` run the complete test suite before the packaging job can begin. A semantic version tag such as `vX.Y.Z` publishes the validated installer, portable ZIP, and checksums to a GitHub release.
 

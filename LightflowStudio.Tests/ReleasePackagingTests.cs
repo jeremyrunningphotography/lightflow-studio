@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using System.Xml.Linq;
 using Xunit;
@@ -101,6 +102,7 @@ public sealed class ReleasePackagingTests
         var installer = File.ReadAllText(PathAtRoot("installer", "LightflowStudio.iss"));
 
         Assert.Contains("[ValidateSet(\"Release\", \"PullRequest\")]", script);
+        Assert.Contains("$OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)", script);
         Assert.Contains("Test-PackageContents.ps1", script);
         Assert.Contains("if ($Mode -eq \"Release\")", script);
         Assert.Contains("release portable archive skipped", script);
@@ -159,13 +161,50 @@ public sealed class ReleasePackagingTests
     }
 
     [Fact]
-    public void Installer_RecursivelyPackagesTheStagedApplication()
+    public void Installer_IsBrandedPerMachineAndRecursivelyPackagesTheStagedApplication()
     {
         var installer = File.ReadAllText(PathAtRoot("installer", "LightflowStudio.iss"));
 
         Assert.Contains("recursesubdirs", installer);
-        Assert.Contains("PrivilegesRequired=lowest", installer);
+        Assert.Contains("PrivilegesRequired=admin", installer);
+        Assert.DoesNotContain("PrivilegesRequired=lowest", installer);
+        Assert.DoesNotContain("PrivilegesRequiredOverridesAllowed", installer);
+        Assert.Contains(@"DefaultDirName={autopf}\Lightflow Studio", installer);
+        Assert.DoesNotContain("{localappdata}", installer, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("WizardStyle=modern dark slate includetitlebar hidebevels", installer);
+        Assert.Contains("WizardImageFile={#InstallerAssetsDir}\\LightflowWizard.png", installer);
+        Assert.Contains("WizardSmallImageFile={#InstallerAssetsDir}\\LightflowWizardSmall.png", installer);
+        Assert.Contains("Jeremy Running Photography", installer);
+        Assert.Contains("UninstallDisplayIcon={app}\\{#MyAppExeName}", installer);
         Assert.Contains("THIRD-PARTY-NOTICES.md", installer);
+        Assert.True(File.Exists(PathAtRoot("installer", "Assets", "LightflowWizard.png")));
+        Assert.True(File.Exists(PathAtRoot("installer", "Assets", "LightflowWizardSmall.png")));
+        Assert.Equal((480, 918), ReadPngDimensions(PathAtRoot("installer", "Assets", "LightflowWizard.png")));
+        Assert.Equal((294, 294), ReadPngDimensions(PathAtRoot("installer", "Assets", "LightflowWizardSmall.png")));
+        Assert.Contains("Test-InstallerArtifact.ps1", File.ReadAllText(PathAtRoot("scripts", "Build-Release.ps1")));
+        var artifactValidation = File.ReadAllText(PathAtRoot("scripts", "Test-InstallerArtifact.ps1"));
+        Assert.Contains("ProductName", artifactValidation);
+        Assert.Contains("CompanyName", artifactValidation);
+        Assert.Contains("ProductVersion", artifactValidation);
+    }
+
+    [Fact]
+    public void Installer_DeliberatelyMigratesLegacyPerUserRegistrationWithoutTouchingUserData()
+    {
+        var installer = File.ReadAllText(PathAtRoot("installer", "LightflowStudio.iss"));
+
+        Assert.Contains("HKCU64", installer);
+        Assert.Contains("HKCU32", installer);
+        Assert.Contains("PrepareToInstall", installer);
+        Assert.Contains("/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", installer);
+        Assert.Contains("ExecutableFromCommandLine", installer);
+        Assert.Contains("Your Catalog, Previews, settings, and logs will remain untouched", installer);
+        Assert.DoesNotContain("[UninstallDelete]", installer);
+        Assert.DoesNotContain("Jeremy Running Photography\\Lightflow Studio", installer);
+
+        var locations = File.ReadAllText(PathAtRoot("LightflowStudio", "LightflowStorageLocations.cs"));
+        Assert.Contains("Environment.SpecialFolder.LocalApplicationData", locations);
+        Assert.DoesNotContain("Environment.SpecialFolder.ProgramFiles", locations);
     }
 
     [Fact]
@@ -182,6 +221,15 @@ public sealed class ReleasePackagingTests
 
     private static string PathAtRoot(params string[] parts) =>
         Path.Combine(new[] { FindRepositoryRoot() }.Concat(parts).ToArray());
+
+    private static (int Width, int Height) ReadPngDimensions(string path)
+    {
+        var header = File.ReadAllBytes(path).AsSpan();
+        Assert.True(header.Length >= 24 &&
+            header[..8].SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }));
+        return (BinaryPrimitives.ReadInt32BigEndian(header.Slice(16, 4)),
+            BinaryPrimitives.ReadInt32BigEndian(header.Slice(20, 4)));
+    }
 
     private static string FindRepositoryRoot()
     {

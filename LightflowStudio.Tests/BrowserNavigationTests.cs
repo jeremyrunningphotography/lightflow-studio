@@ -193,6 +193,25 @@ public sealed class BrowserNavigationTests
         Assert.Empty(deniedResult.Entries);
     }
 
+    [Fact]
+    public async Task FailedNavigationDoesNotReplaceLastSuccessfullyLoadedSessionState()
+    {
+        var root = Root("Library", @"C:\Library");
+        var fail = false;
+        var folders = new FakeFolders((request, _) => Task.FromResult(fail
+            ? new MediaFolderEnumerationResult(MediaFolderEnumerationStatus.AccessDenied,
+                request.RelativeFolder ?? "", [], "Access denied.")
+            : Success(request, FileEntry(root.RootId, "loaded.mp4"))));
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders);
+        var loaded = await session.NavigateToRootAsync(root.RootId);
+        fail = true;
+        var failed = await session.RefreshAsync();
+
+        Assert.Equal(BrowserFolderStatus.Ready, loaded!.Status);
+        Assert.Equal(BrowserFolderStatus.AccessDenied, failed!.Status);
+        Assert.Equal(loaded, session.State);
+    }
+
     private static BrowserNavigationSession Session(FakeRoots roots, FakeDiscovery discovery, FakeFolders folders) =>
         new(roots, new BrowserLocationResolver(roots, new ExistingFileSystem()), discovery, folders);
 

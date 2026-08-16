@@ -110,6 +110,24 @@ internal sealed class BrowserTreeModel
         return state.Entries.Where(entry => !entry.IsDirectory).ToArray();
     }
 
+    public void RequestSelection(BrowserTreeNode node)
+    {
+        if (node.IsPlaceholder || !Roots.Any(root => ContainsNode(root, node))) return;
+        Select(node);
+    }
+
+    public void RestoreSelection(BrowserLocation? location)
+    {
+        if (location is null)
+        {
+            if (SelectedNode is not null) SelectedNode.IsSelected = false;
+            SelectedNode = null;
+            return;
+        }
+        var root = FindRoot(location) ?? AddCurrentRoot(location);
+        Select(EnsurePath(root, location.AbsolutePath));
+    }
+
     private BrowserTreeNode? FindRoot(BrowserLocation location)
     {
         var matchingIdentity = Roots.FirstOrDefault(node => node.Storage?.RootId == location.RootId);

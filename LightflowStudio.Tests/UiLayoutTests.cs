@@ -132,6 +132,14 @@ public class UiLayoutTests
         Assert.Contains("BrowserFolderScrollViewer.ScrollToVerticalOffset", source);
         Assert.Contains("BrowserFolderScrollViewer.ScrollToHorizontalOffset", source);
         Assert.Contains("Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)", source);
+        var selectionIndex = source.IndexOf("RequestBrowserTreeSelection(node);", StringComparison.Ordinal);
+        var navigationIndex = source.IndexOf("await RunBrowserNavigationAsync", selectionIndex, StringComparison.Ordinal);
+        Assert.True(selectionIndex >= 0 && navigationIndex > selectionIndex,
+            "Tree intent selection must occur before asynchronous navigation begins.");
+        var runStart = source.IndexOf("private async Task RunBrowserNavigationAsync", StringComparison.Ordinal);
+        var applyStart = source.IndexOf("private void ApplyBrowserState", runStart, StringComparison.Ordinal);
+        var runBody = source[runStart..applyStart];
+        Assert.DoesNotContain("_browserEntries.Clear()", runBody);
     }
 
     [Fact]

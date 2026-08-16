@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<MediaFolderEntry> _browserEntries = [];
     private readonly BrowserTreeModel _browserTree = new();
     private readonly BrowserNavigationSession _browserNavigation;
+    private BrowserFolderState? _lastLoadedBrowserState;
     private readonly DispatcherTimer _batchFolderRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private CancellationTokenSource? _batchMetadataCts;
     private CancellationTokenSource? _previewMaintenanceCts;
@@ -127,6 +128,7 @@ public partial class MainWindow : Window
     private async void BrowserFolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (_synchronizingBrowserTree || e.NewValue is not BrowserTreeNode { IsPlaceholder: false } node) return;
+        RequestBrowserTreeSelection(node);
         if (node.Storage is { Kind: BrowserStorageKind.ManagedRoot, RootId: { } rootId })
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(rootId));
         else if (!string.IsNullOrWhiteSpace(node.AbsolutePath))
@@ -137,10 +139,18 @@ public partial class MainWindow : Window
     {
         if (_synchronizingBrowserTree || (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node ||
             node.IsPlaceholder || !node.Children.Any(child => child.IsPlaceholder)) return;
+        RequestBrowserTreeSelection(node);
         if (node.Storage is { Kind: BrowserStorageKind.ManagedRoot, RootId: { } rootId })
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(rootId));
         else if (!string.IsNullOrWhiteSpace(node.AbsolutePath))
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(node.AbsolutePath));
+    }
+
+    private void RequestBrowserTreeSelection(BrowserTreeNode node)
+    {
+        _synchronizingBrowserTree = true;
+        try { _browserTree.RequestSelection(node); }
+        finally { _synchronizingBrowserTree = false; }
     }
 
     private void BrowserFolderTree_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -194,13 +204,22 @@ public partial class MainWindow : Window
         try
         {
             var state = await navigate();
-            if (state is not null && generation == _browserUiGeneration) ApplyBrowserState(state);
+            if (state is not null && generation == _browserUiGeneration)
+            {
+                if (state.Status is BrowserFolderStatus.Ready or BrowserFolderStatus.Empty)
+                    ApplyBrowserState(state);
+                else
+                    ApplyBrowserNavigationFailure(state);
+            }
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+            if (generation == _browserUiGeneration) RestoreLoadedBrowserSelection();
+        }
         catch (Exception exception)
         {
             if (generation == _browserUiGeneration)
-                ApplyBrowserState(new(_browserNavigation.State.Location, BrowserFolderStatus.Failed, [],
+                ApplyBrowserNavigationFailure(new(_browserNavigation.State.Location, BrowserFolderStatus.Failed, [],
                     $"Lightflow could not open this folder: {exception.Message}",
                     _browserNavigation.State.CanGoBack, _browserNavigation.State.CanGoForward,
                     _browserNavigation.State.CanGoUp));
@@ -214,6 +233,7 @@ public partial class MainWindow : Window
 
     private void ApplyBrowserState(BrowserFolderState state)
     {
+        _lastLoadedBrowserState = state;
         _synchronizingBrowserTree = true;
         IReadOnlyList<MediaFolderEntry> files;
         try { files = _browserTree.Synchronize(state); }
@@ -252,6 +272,31 @@ public partial class MainWindow : Window
         BrowserEmptyMessage.Text = state.Diagnostic ?? (state.Location is null
             ? "Select a drive, mapped location, or managed library to browse its folders and supported media."
             : "Choose another folder from the navigation pane or refresh this location.");
+    }
+
+    private void ApplyBrowserNavigationFailure(BrowserFolderState failure)
+    {
+        RestoreLoadedBrowserSelection();
+        BrowserWorkspaceStatus.Text = "Folder unavailable";
+        BrowserEmptyTitle.Text = failure.Status switch
+        {
+            BrowserFolderStatus.RootUnavailable => "Media Root unavailable",
+            BrowserFolderStatus.RootNotFound => "Media Root not found",
+            BrowserFolderStatus.FolderNotFound => "Folder not found",
+            BrowserFolderStatus.AccessDenied => "Access denied",
+            BrowserFolderStatus.InvalidPath => "Folder cannot be opened",
+            BrowserFolderStatus.CatalogUnavailable => "Catalog unavailable",
+            _ => "Folder could not be loaded"
+        };
+        BrowserEmptyMessage.Text = failure.Diagnostic ?? "The previous folder remains loaded. Try again when the location is available.";
+        BrowserEmptyState.Visibility = Visibility.Visible;
+    }
+
+    private void RestoreLoadedBrowserSelection()
+    {
+        _synchronizingBrowserTree = true;
+        try { _browserTree.RestoreSelection(_lastLoadedBrowserState?.Location); }
+        finally { _synchronizingBrowserTree = false; }
     }
 
     private void LocateTools(string? configuredPath = null)

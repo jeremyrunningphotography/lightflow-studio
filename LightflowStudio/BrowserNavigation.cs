@@ -228,6 +228,9 @@ internal sealed class BrowserNavigationSession(
         lock (_sync)
         {
             if (_disposed || generation != _generation) return null;
+            if (status is not (BrowserFolderStatus.Ready or BrowserFolderStatus.Empty))
+                return new(location, status, [], diagnostic, State.CanGoBack, State.CanGoForward,
+                    State.CanGoUp);
             var previous = State.Location;
             switch (kind)
             {
@@ -255,8 +258,7 @@ internal sealed class BrowserNavigationSession(
         lock (_sync)
         {
             if (_disposed || generation != _generation) return null;
-            State = State with { Status = status, Entries = [], Diagnostic = diagnostic };
-            return State;
+            return new(State.Location, status, [], diagnostic, State.CanGoBack, State.CanGoForward, State.CanGoUp);
         }
     }
 

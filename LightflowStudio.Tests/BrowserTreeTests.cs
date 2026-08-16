@@ -174,6 +174,62 @@ public sealed class BrowserTreeTests
         Assert.DoesNotContain(System.Collections.Specialized.NotifyCollectionChangedAction.Reset, collectionActions);
     }
 
+    [Fact]
+    public void RequestedSelectionChangesImmediatelyWithoutMutatingTreeLayoutOrLoadedFiles()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        var loadedFiles = model.Synchronize(State(rootId, "", Directory(rootId, "A"),
+            File(rootId, "loaded.mp4")));
+        var root = model.Roots[0];
+        var target = Find(model, @"C:\A")!;
+        root.IsExpanded = true;
+        var collectionChanges = 0;
+        root.Children.CollectionChanged += (_, _) => collectionChanges++;
+        var selectionChanges = 0;
+        target.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(BrowserTreeNode.IsSelected)) selectionChanges++;
+        };
+
+        model.RequestSelection(target);
+
+        Assert.Same(target, model.SelectedNode);
+        Assert.True(target.IsSelected);
+        Assert.False(root.IsSelected);
+        Assert.True(root.IsExpanded);
+        Assert.Equal(0, collectionChanges);
+        Assert.Equal("loaded.mp4", Assert.Single(loadedFiles).Name);
+        Assert.Equal(1, selectionChanges);
+
+        model.Synchronize(State(rootId, "A", File(rootId, "A/new.mp4")));
+        Assert.Same(target, model.SelectedNode);
+        Assert.Equal(1, selectionChanges);
+    }
+
+    [Fact]
+    public void RapidRequestsAndFailureRestorationKeepOneDeliberateSelection()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        var loaded = State(rootId, "", Directory(rootId, "A"), Directory(rootId, "B"));
+        model.Synchronize(loaded);
+        var root = model.Roots[0];
+        var branchA = Find(model, @"C:\A")!;
+        var branchB = Find(model, @"C:\B")!;
+
+        model.RequestSelection(branchA);
+        model.RequestSelection(branchB);
+
+        Assert.Same(branchB, model.SelectedNode);
+        Assert.False(branchA.IsSelected);
+        Assert.Single(Descendants(model.Roots), node => node.IsSelected);
+
+        model.RestoreSelection(loaded.Location);
+        Assert.Same(root, model.SelectedNode);
+        Assert.Single(Descendants(model.Roots), node => node.IsSelected);
+    }
+
     private static BrowserTreeModel Model(Guid rootId)
     {
         var model = new BrowserTreeModel();

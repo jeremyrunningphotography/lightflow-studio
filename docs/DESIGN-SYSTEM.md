@@ -31,6 +31,6 @@ Body text should remain readable against every dark surface. Muted text is for s
 
 ## Workspace composition
 
-The permanent shell hosts one workspace at a time. Browser is the default. Encoding, Settings, and existing utilities remain peers in the same host. Browser owns navigation and selection presentation; Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
+The permanent shell hosts one workspace at a time. Browser is the default. Encoding, Settings, and existing utilities remain peers in the same host and are reached from the compact horizontal application header. Application navigation must not occupy a permanent left rail: Browser owns that edge for Media Roots/folder navigation, and future Player/Viewer presentation needs the width for media plus Inspector. Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
 
 The #106 Browser canvas is deliberately skeletal. Media Roots, thumbnails, selection, sorting/filtering/search, Player/Viewer, and Browser-to-capability handoff must not be simulated in the shell foundation; later issues add real behavior to the established regions.

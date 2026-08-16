@@ -185,6 +185,23 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void WorkspaceNavigation_IsCompactAndLeavesBrowserLeftEdgeForFolderContext()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var navigation = Named(document, "Navigation");
+        var itemsPanel = navigation.Element(ns + "ListBox.ItemsPanel")!
+            .Descendants(ns + "StackPanel").Single();
+        var shellGrid = document.Root.Element(ns + "Grid")!;
+
+        Assert.Equal("Horizontal", (string?)itemsPanel.Attribute("Orientation"));
+        Assert.Equal("1", (string?)Named(document, "MainTabs").Attribute("Grid.Row"));
+        Assert.Null(shellGrid.Element(ns + "Grid.ColumnDefinitions"));
+        Assert.Equal("60", (string?)shellGrid.Element(ns + "Grid.RowDefinitions")!
+            .Elements(ns + "RowDefinition").First().Attribute("Height"));
+    }
+
+    [Fact]
     public void TrimEditor_UsesLightflowBrandingAndKeepsSeekSeparateFromRangeIndicator()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "TrimEditorWindow.xaml"));

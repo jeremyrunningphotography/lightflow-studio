@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -37,6 +38,8 @@ public partial class MainWindow : Window
     private readonly IJobHistoryStore _jobHistory;
     private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
     private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
+    private readonly ObservableCollection<MediaFolderEntry> _browserEntries = [];
+    private readonly BrowserNavigationSession _browserNavigation;
     private readonly DispatcherTimer _batchFolderRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private CancellationTokenSource? _batchMetadataCts;
     private CancellationTokenSource? _previewMaintenanceCts;
@@ -50,6 +53,7 @@ public partial class MainWindow : Window
     private bool _updatingFilenameSuffix;
     private static readonly double[] FrameRateValues = [0, 23.976, 24, 25, 29.97, 30, 50, 59.94, 60];
     private static readonly int[] AudioSampleRates = [0, 44100, 48000, 96000];
+    private long _browserUiGeneration;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -57,6 +61,7 @@ public partial class MainWindow : Window
         _storage = storage;
         _storageStartupStatus = storageStartupStatus;
         _storageDiagnostic = storageDiagnostic;
+        _browserNavigation = new BrowserNavigationSession(storage.MediaRoots, storage.MediaDiscovery, storage.MediaFolders);
         _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
         InitializeComponent();
@@ -83,6 +88,8 @@ public partial class MainWindow : Window
             BatchFileList.ItemsSource = _batchFiles;
             HistoryList.ItemsSource = _historyRecords;
             MediaRootsList.ItemsSource = _mediaRoots;
+            BrowserRootsList.ItemsSource = _mediaRoots;
+            BrowserEntries.ItemsSource = _browserEntries;
             RefreshCatalogBackups();
             RefreshHistory();
             LocateTools();
@@ -98,7 +105,93 @@ public partial class MainWindow : Window
             else if (_storage.RecoveryDiagnostic is not null)
                 SettingsMessage.Text = _storage.RecoveryDiagnostic;
         };
+        Closed += (_, _) => _browserNavigation.Dispose();
     }
+
+    private async void BrowserRootsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (BrowserRootsList.SelectedItem is MediaRootInfo root)
+            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(root.RootId));
+    }
+
+    private async void BrowserFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is MediaFolderEntry { IsDirectory: true } folder)
+            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToFolderAsync(folder));
+    }
+
+    private async void BrowserBack_Click(object sender, RoutedEventArgs e) =>
+        await RunBrowserNavigationAsync(() => _browserNavigation.BackAsync());
+
+    private async void BrowserForward_Click(object sender, RoutedEventArgs e) =>
+        await RunBrowserNavigationAsync(() => _browserNavigation.ForwardAsync());
+
+    private async void BrowserUp_Click(object sender, RoutedEventArgs e) =>
+        await RunBrowserNavigationAsync(() => _browserNavigation.UpAsync());
+
+    private async void BrowserRefresh_Click(object sender, RoutedEventArgs e) =>
+        await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+
+    private async Task RunBrowserNavigationAsync(Func<Task<BrowserFolderState?>> navigate)
+    {
+        var generation = ++_browserUiGeneration;
+        BrowserLoadingOverlay.Visibility = Visibility.Visible;
+        try
+        {
+            var state = await navigate();
+            if (state is not null && generation == _browserUiGeneration) ApplyBrowserState(state);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            if (generation == _browserUiGeneration)
+                ApplyBrowserState(new(_browserNavigation.State.Location, BrowserFolderStatus.Failed, [],
+                    $"Lightflow could not open this folder: {exception.Message}",
+                    _browserNavigation.State.CanGoBack, _browserNavigation.State.CanGoForward,
+                    _browserNavigation.State.CanGoUp));
+        }
+        finally
+        {
+            if (generation == _browserUiGeneration)
+                BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void ApplyBrowserState(BrowserFolderState state)
+    {
+        _browserEntries.Clear();
+        foreach (var entry in state.Entries) _browserEntries.Add(entry);
+        BrowserCurrentPath.Text = state.Location?.DisplayPath ?? "No Media Root selected";
+        BrowserBackButton.IsEnabled = state.CanGoBack;
+        BrowserForwardButton.IsEnabled = state.CanGoForward;
+        BrowserUpButton.IsEnabled = state.CanGoUp;
+        BrowserRefreshButton.IsEnabled = state.Location is not null;
+        BrowserWorkspaceStatus.Text = state.Status switch
+        {
+            BrowserFolderStatus.Ready => $"{state.Entries.Count} items",
+            BrowserFolderStatus.Empty => state.Location is null ? "Choose a Media Root" : "Folder is empty",
+            BrowserFolderStatus.RootUnavailable => "Media Root unavailable",
+            _ => "Folder unavailable"
+        };
+        BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready
+            ? Visibility.Collapsed : Visibility.Visible;
+        BrowserEmptyTitle.Text = state.Status switch
+        {
+            BrowserFolderStatus.Empty when state.Location is not null => "This folder is empty",
+            BrowserFolderStatus.RootUnavailable => "Media Root unavailable",
+            BrowserFolderStatus.RootNotFound => "Media Root not found",
+            BrowserFolderStatus.FolderNotFound => "Folder not found",
+            BrowserFolderStatus.AccessDenied => "Access denied",
+            BrowserFolderStatus.InvalidPath => "Folder cannot be opened",
+            BrowserFolderStatus.FolderUnavailable => "Folder unavailable",
+            BrowserFolderStatus.Failed => "Folder could not be loaded",
+            _ => "Choose a Media Root"
+        };
+        BrowserEmptyMessage.Text = state.Diagnostic ?? (state.Location is null
+            ? "Select an available Media Root to browse its folders and supported media."
+            : "There are no folders or supported media here yet.");
+    }
+
     private void LocateTools(string? configuredPath = null)
     {
         var baseDir = AppContext.BaseDirectory;
@@ -606,6 +699,8 @@ public partial class MainWindow : Window
         {
             MediaRootsEmptyText.Text = "The Catalog is unavailable. Encoding remains available, but Media Roots cannot be managed.";
             MediaRootsEmptyText.Visibility = Visibility.Visible;
+            BrowserRootsEmptyState.Visibility = Visibility.Visible;
+            BrowserWorkspaceStatus.Text = "Catalog unavailable";
             return;
         }
         try
@@ -613,11 +708,14 @@ public partial class MainWindow : Window
             foreach (var root in await _storage.MediaRoots.ListAsync()) _mediaRoots.Add(root);
             MediaRootsEmptyText.Text = "No Media Roots yet. Add one to give media a stable Catalog identity.";
             MediaRootsEmptyText.Visibility = _mediaRoots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            BrowserRootsEmptyState.Visibility = _mediaRoots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (Exception exception)
         {
             MediaRootsEmptyText.Text = $"Media Roots could not be loaded: {exception.Message}";
             MediaRootsEmptyText.Visibility = Visibility.Visible;
+            BrowserRootsEmptyState.Visibility = Visibility.Visible;
+            BrowserWorkspaceStatus.Text = "Media Roots unavailable";
         }
     }
 

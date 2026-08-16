@@ -136,7 +136,7 @@ public class UiLayoutTests
         var navigation = Named(document, "Navigation");
         var items = navigation.Elements(ns + "ListBoxItem").ToList();
 
-        Assert.Equal(6, items.Count);
+        Assert.Equal(7, items.Count);
         foreach (var item in items)
         {
             var grid = item.Element(ns + "Grid")!;
@@ -144,8 +144,63 @@ public class UiLayoutTests
             Assert.Equal("22", (string?)grid.Attribute("Height"));
             Assert.All(text, element => Assert.Equal("Center", (string?)element.Attribute("VerticalAlignment")));
             Assert.Equal("Center", (string?)text[0].Attribute("TextAlignment"));
-            Assert.Equal("Segoe UI Symbol", (string?)text[0].Attribute("FontFamily"));
+            Assert.Equal("Segoe Fluent Icons, Segoe MDL2 Assets", (string?)text[0].Attribute("FontFamily"));
         }
+    }
+
+    [Fact]
+    public void PermanentShell_StartsInBrowserAndKeepsExistingWorkspacesReachable()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var navigation = Named(document, "Navigation");
+        var labels = navigation.Elements(ns + "ListBoxItem")
+            .Select(item => item.Descendants(ns + "TextBlock").Last())
+            .Select(label => (string?)label.Attribute("Text"))
+            .ToList();
+        var tabs = Named(document, "MainTabs").Elements(ns + "TabItem").ToList();
+
+        Assert.Equal("0", (string?)Named(document, "MainTabs").Attribute("SelectedIndex"));
+        Assert.Equal(["Browser", "Encoding", "Media Tools", "History", "Premiere Helper", "Settings", "About"], labels);
+        Assert.Equal(labels.Count, tabs.Count);
+        Assert.Contains(tabs[0].Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "Browser");
+        Assert.Contains(tabs[1].Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "Batch Encode");
+    }
+
+    [Fact]
+    public void Shell_UsesSharedDarkOnlyResourcesAndKeyboardFocusNavigation()
+    {
+        var root = FindRepositoryRoot();
+        var shell = XDocument.Load(Path.Combine(root, "LightflowStudio", "Themes", "LightflowShell.xaml"));
+        var window = XDocument.Load(Path.Combine(root, "LightflowStudio", "MainWindow.xaml"));
+        var app = File.ReadAllText(Path.Combine(root, "LightflowStudio", "App.xaml"));
+
+        Assert.Contains(shell.Descendants(), element =>
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "ShellPanel"));
+        Assert.Contains("Themes/LightflowShell.xaml", app);
+        Assert.DoesNotContain("LightTheme", app, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Once", (string?)Named(window, "Navigation").Attribute("KeyboardNavigation.TabNavigation"));
+        Assert.True(double.Parse((string?)window.Root!.Attribute("MinWidth") ?? "0") >= 1120);
+        Assert.True(double.Parse((string?)window.Root.Attribute("MinHeight") ?? "0") >= 720);
+    }
+
+    [Fact]
+    public void WorkspaceNavigation_IsCompactAndLeavesBrowserLeftEdgeForFolderContext()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var navigation = Named(document, "Navigation");
+        var itemsPanel = navigation.Element(ns + "ListBox.ItemsPanel")!
+            .Descendants(ns + "StackPanel").Single();
+        var shellGrid = document.Root.Element(ns + "Grid")!;
+
+        Assert.Equal("Horizontal", (string?)itemsPanel.Attribute("Orientation"));
+        Assert.Equal("1", (string?)Named(document, "MainTabs").Attribute("Grid.Row"));
+        Assert.Null(shellGrid.Element(ns + "Grid.ColumnDefinitions"));
+        Assert.DoesNotContain(navigation.Parent!.Parent!.Descendants(), element =>
+            (string?)element.Attribute("Background") == "{StaticResource BrandGradient}");
+        Assert.Equal("60", (string?)shellGrid.Element(ns + "Grid.RowDefinitions")!
+            .Elements(ns + "RowDefinition").First().Attribute("Height"));
     }
 
     [Fact]

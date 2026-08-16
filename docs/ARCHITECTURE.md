@@ -20,6 +20,12 @@ WPF views and code-behind currently own navigation, dialogs, accessibility behav
 
 `MainWindow` still coordinates the Encoding page while that feature is migrated incrementally. Its process pause/close behavior is intentionally retained rather than introducing a broad MVVM rewrite.
 
+`MainWindow` is also the permanent Lightflow application shell. `ShellWorkspace` gives Browser, Encoding, Media Tools, History, Premiere Helper, Settings, and About stable semantic identities while the content-only host preserves each existing workspace. Browser is index zero and the startup default; compact horizontal application navigation and workspace selection remain two-way synchronized. Features that intentionally return to Encoding use the semantic workspace contract rather than a numeric tab index. The application navigation occupies a restrained top header rather than a permanent side rail, preserving the Browser's left edge for Media Roots/folders and maximizing width for future media plus Inspector presentation. Upcoming Browser and Player slices extend this host instead of creating another long-lived top-level window.
+
+The shell is intentionally dark-only. Shared neutral canvas, surface, panel, raised, divider, focus, and selection resources live in `Themes/LightflowShell.xaml`; existing reusable control styles remain application-scoped. Warm brand color is reserved for focus, primary action, small identity details, and status—not broad content surfaces—so photography and video can remain visually authoritative. Keyboard focus, redundant selected-state weight, minimum window dimensions, and resizable grid regions are part of the shell contract. See [Dark-only design system](DESIGN-SYSTEM.md).
+
+Issue #106 establishes only the Browser presentation regions (root/navigation context, central media canvas, and contextual details) and truthful empty-state guidance. It does not query Catalog data or implement Media Root navigation, thumbnails, selection, sorting/filtering/search, Player/Viewer presentation, or selected-media handoff to Encoding; Issues #107–#112 own those behaviors.
+
 ### Application services
 
 Application-level services coordinate planning and execution. Current examples include:

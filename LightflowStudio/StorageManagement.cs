@@ -91,6 +91,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         MediaTypes = MediaTypeRegistry.CreateDefault();
         MediaFolders = new MediaFolderEnumerator(MediaRoots, MediaTypes, new MediaFolderFileSystem());
         CatalogReconciliation = new CatalogReconciliationService(MediaFolders, MediaAssets);
+        DerivedWork = CreateDerivedWorkScheduler();
+        MediaDiscovery = new MediaDiscoveryRefreshService(CatalogReconciliation, () => DerivedWork);
     }
 
     public AppSettings Settings { get; private set; }
@@ -105,6 +107,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public IMediaTypeRegistry MediaTypes { get; }
     public IMediaFolderEnumerator MediaFolders { get; }
     public ICatalogReconciliationService CatalogReconciliation { get; }
+    public IDerivedWorkScheduler? DerivedWork { get; private set; }
+    public IMediaDiscoveryRefreshService MediaDiscovery { get; }
     public IPreviewStoreService? Previews { get; private set; }
     public IReadOnlyList<CatalogBackup> CatalogBackups => _recovery.ListBackups();
 
@@ -231,6 +235,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
             var expectedId = Settings.CatalogId;
             var candidate = await _recovery.CheckIntegrityAsync(backupPath, cancellationToken).ConfigureAwait(false);
             if (!candidate.IsValid) return new(false, $"The selected backup is invalid. {candidate.Diagnostic}");
@@ -282,7 +287,11 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                 return new(false, $"The restored Catalog could not be activated, so the previous Catalog was restored and reactivated. {exception.Message}");
             }
         }
-        finally { _mutationGate.Release(); }
+        finally
+        {
+            try { DerivedWork = CreateDerivedWorkScheduler(); }
+            finally { _mutationGate.Release(); }
+        }
     }
 
     private async Task<CatalogRestoreResult> TryReactivateCatalogAsync()
@@ -306,8 +315,16 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { return await RelocateCatalogCoreAsync(destinationDirectory, cancellationToken).ConfigureAwait(false); }
-        finally { _mutationGate.Release(); }
+        try
+        {
+            await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
+            return await RelocateCatalogCoreAsync(destinationDirectory, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            try { DerivedWork = CreateDerivedWorkScheduler(); }
+            finally { _mutationGate.Release(); }
+        }
     }
 
     private async Task<StorageChangeResult> RelocateCatalogCoreAsync(string destinationDirectory,
@@ -398,10 +415,15 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
             using var previewLease = await _previewOperations.EnterMaintenanceAsync(cancellationToken).ConfigureAwait(false);
             return await RelocatePreviewsCoreAsync(destinationDirectory, mode, cancellationToken).ConfigureAwait(false);
         }
-        finally { _mutationGate.Release(); }
+        finally
+        {
+            try { DerivedWork = CreateDerivedWorkScheduler(); }
+            finally { _mutationGate.Release(); }
+        }
     }
 
     public async Task<PreviewUsage?> GetPreviewUsageAsync(CancellationToken cancellationToken = default)
@@ -466,6 +488,24 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             operations: _previewOperations);
         return new PreviewMaintenanceService(Previews, MediaAssets, metadata, thumbnails,
             _previewOperations, Locations, ownsGenerators: true);
+    }
+
+    private IDerivedWorkScheduler? CreateDerivedWorkScheduler()
+    {
+        if (!CatalogAvailable || Previews is null) return null;
+        var metadata = DerivedMediaMetadataFactory.Create(MediaAssets, Previews, Settings,
+            operations: _previewOperations);
+        var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
+            operations: _previewOperations);
+        return new DerivedWorkScheduler(MediaAssets, Previews, metadata, thumbnails,
+            ownsGenerators: true, operations: _previewOperations);
+    }
+
+    private async Task DisposeDerivedWorkSchedulerAsync()
+    {
+        var scheduler = DerivedWork;
+        DerivedWork = null;
+        if (scheduler is not null) await scheduler.DisposeAsync().ConfigureAwait(false);
     }
 
     private async Task<StorageChangeResult> RelocatePreviewsCoreAsync(string destinationDirectory,
@@ -613,6 +653,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
         await _mutationGate.WaitAsync().ConfigureAwait(false);
         try
         {

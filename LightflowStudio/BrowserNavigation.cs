@@ -60,6 +60,30 @@ internal sealed class BrowserNavigationSession(
 
     public BrowserFolderState State { get; private set; } = BrowserFolderState.Initial;
 
+    public BrowserLocation? BackTarget
+    {
+        get { lock (_sync) return _back.Count == 0 ? null : _back[^1]; }
+    }
+
+    public BrowserLocation? ForwardTarget
+    {
+        get { lock (_sync) return _forward.Count == 0 ? null : _forward[^1]; }
+    }
+
+    public BrowserLocation? UpTarget
+    {
+        get
+        {
+            var current = State.Location;
+            var parent = current is null ? null : ParentPath(current.AbsolutePath);
+            return parent is null || current is null ? null : current with
+            {
+                RelativeFolder = Path.GetRelativePath(current.RootPath, parent) is "." ? "" :
+                    MediaPathSemantics.NormalizeRelativePath(Path.GetRelativePath(current.RootPath, parent))
+            };
+        }
+    }
+
     public Task<BrowserFolderState?> NavigateToPathAsync(string absoluteFolder,
         CancellationToken cancellationToken = default) =>
         NavigateResolvedAsync(absoluteFolder, NavigationKind.New, cancellationToken);

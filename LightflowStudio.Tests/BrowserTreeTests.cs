@@ -230,6 +230,36 @@ public sealed class BrowserTreeTests
         Assert.Single(Descendants(model.Roots), node => node.IsSelected);
     }
 
+    [Theory]
+    [InlineData(100, 200, 40, 28, 40)]
+    [InlineData(100, 200, 350, 28, 178)]
+    [InlineData(100, 200, 150, 28, 100)]
+    public void ProgrammaticSelectionUsesMinimalVerticalReveal(double current, double viewport,
+        double rowTop, double rowHeight, double expected)
+    {
+        Assert.Equal(expected,
+            BrowserTreeScroll.RevealVerticalOffset(current, viewport, rowTop, rowHeight));
+    }
+
+    [Fact]
+    public void ProgrammaticPathSelectionExpandsAncestorsWithoutCollapsingOtherBranches()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "", Directory(rootId, "A"), Directory(rootId, "B")));
+        var branchB = Find(model, @"C:\B")!;
+        branchB.IsExpanded = true;
+
+        var selected = model.RequestSelection(@"C:\A\Deep\Target");
+
+        Assert.NotNull(selected);
+        Assert.True(selected.IsSelected);
+        Assert.True(Find(model, @"C:\A")!.IsExpanded);
+        Assert.True(Find(model, @"C:\A\Deep")!.IsExpanded);
+        Assert.True(branchB.IsExpanded);
+        Assert.Single(Descendants(model.Roots), node => node.IsSelected);
+    }
+
     private static BrowserTreeModel Model(Guid rootId)
     {
         var model = new BrowserTreeModel();

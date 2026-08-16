@@ -132,6 +132,15 @@ public class UiLayoutTests
         Assert.Contains("BrowserFolderScrollViewer.ScrollToVerticalOffset", source);
         Assert.Contains("BrowserFolderScrollViewer.ScrollToHorizontalOffset", source);
         Assert.Contains("Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)", source);
+        Assert.Contains("BrowserTreeScroll.RevealVerticalOffset", source);
+        Assert.Contains("BrowserFolderScrollViewer.ScrollToVerticalOffset", source);
+        Assert.DoesNotContain("BringIntoView()", source);
+        Assert.True(source.IndexOf("RequestBrowserTreeSelection(_browserNavigation.UpTarget);", StringComparison.Ordinal) <
+            source.IndexOf("_browserNavigation.UpAsync()", StringComparison.Ordinal));
+        Assert.True(source.IndexOf("RequestBrowserTreeSelection(_browserNavigation.BackTarget);", StringComparison.Ordinal) <
+            source.IndexOf("_browserNavigation.BackAsync()", StringComparison.Ordinal));
+        Assert.True(source.IndexOf("RequestBrowserTreeSelection(_browserNavigation.ForwardTarget);", StringComparison.Ordinal) <
+            source.IndexOf("_browserNavigation.ForwardAsync()", StringComparison.Ordinal));
         var selectionIndex = source.IndexOf("RequestBrowserTreeSelection(node);", StringComparison.Ordinal);
         var navigationIndex = source.IndexOf("await RunBrowserNavigationAsync", selectionIndex, StringComparison.Ordinal);
         Assert.True(selectionIndex >= 0 && navigationIndex > selectionIndex,

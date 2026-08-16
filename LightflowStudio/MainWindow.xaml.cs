@@ -153,6 +153,51 @@ public partial class MainWindow : Window
         finally { _synchronizingBrowserTree = false; }
     }
 
+    private void RequestBrowserTreeSelection(BrowserLocation? location)
+    {
+        if (location is null) return;
+        _synchronizingBrowserTree = true;
+        BrowserTreeNode? node;
+        try { node = _browserTree.RequestSelection(location); }
+        finally { _synchronizingBrowserTree = false; }
+        if (node is not null) BringBrowserTreeNodeIntoView(node);
+    }
+
+    private void RequestBrowserTreeSelection(string absolutePath)
+    {
+        _synchronizingBrowserTree = true;
+        BrowserTreeNode? node;
+        try { node = _browserTree.RequestSelection(absolutePath); }
+        finally { _synchronizingBrowserTree = false; }
+        if (node is not null) BringBrowserTreeNodeIntoView(node);
+    }
+
+    private void BringBrowserTreeNodeIntoView(BrowserTreeNode node)
+    {
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            var container = FindBrowserTreeItem(BrowserFolderTree, node);
+            if (container is null || BrowserFolderScrollViewer.ViewportHeight <= 0) return;
+            var rowTop = container.TranslatePoint(new System.Windows.Point(0, 0), BrowserFolderTree).Y;
+            var offset = BrowserTreeScroll.RevealVerticalOffset(BrowserFolderScrollViewer.VerticalOffset,
+                BrowserFolderScrollViewer.ViewportHeight, rowTop, container.ActualHeight);
+            BrowserFolderScrollViewer.ScrollToVerticalOffset(
+                Math.Min(offset, BrowserFolderScrollViewer.ScrollableHeight));
+        });
+    }
+
+    private static TreeViewItem? FindBrowserTreeItem(ItemsControl parent, BrowserTreeNode target)
+    {
+        foreach (var item in parent.Items)
+        {
+            if (parent.ItemContainerGenerator.ContainerFromItem(item) is not TreeViewItem container) continue;
+            if (ReferenceEquals(item, target)) return container;
+            if (item is BrowserTreeNode { IsExpanded: true } && FindBrowserTreeItem(container, target) is { } child)
+                return child;
+        }
+        return null;
+    }
+
     private void BrowserFolderTree_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         const double pixelsPerWheelNotch = 48;
@@ -182,17 +227,29 @@ public partial class MainWindow : Window
     private async Task NavigateToEnteredBrowserPathAsync()
     {
         if (!string.IsNullOrWhiteSpace(BrowserCurrentPath.Text))
+        {
+            RequestBrowserTreeSelection(BrowserCurrentPath.Text);
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(BrowserCurrentPath.Text));
+        }
     }
 
-    private async void BrowserBack_Click(object sender, RoutedEventArgs e) =>
+    private async void BrowserBack_Click(object sender, RoutedEventArgs e)
+    {
+        RequestBrowserTreeSelection(_browserNavigation.BackTarget);
         await RunBrowserNavigationAsync(() => _browserNavigation.BackAsync());
+    }
 
-    private async void BrowserForward_Click(object sender, RoutedEventArgs e) =>
+    private async void BrowserForward_Click(object sender, RoutedEventArgs e)
+    {
+        RequestBrowserTreeSelection(_browserNavigation.ForwardTarget);
         await RunBrowserNavigationAsync(() => _browserNavigation.ForwardAsync());
+    }
 
-    private async void BrowserUp_Click(object sender, RoutedEventArgs e) =>
+    private async void BrowserUp_Click(object sender, RoutedEventArgs e)
+    {
+        RequestBrowserTreeSelection(_browserNavigation.UpTarget);
         await RunBrowserNavigationAsync(() => _browserNavigation.UpAsync());
+    }
 
     private async void BrowserRefresh_Click(object sender, RoutedEventArgs e) =>
         await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());

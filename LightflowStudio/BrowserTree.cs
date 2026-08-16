@@ -116,6 +116,27 @@ internal sealed class BrowserTreeModel
         Select(node);
     }
 
+    public BrowserTreeNode? RequestSelection(BrowserLocation? location)
+    {
+        if (location is null) return null;
+        var root = FindRoot(location) ?? AddCurrentRoot(location);
+        var node = EnsurePath(root, location.AbsolutePath);
+        Select(node);
+        return node;
+    }
+
+    public BrowserTreeNode? RequestSelection(string absolutePath)
+    {
+        var root = Roots.Where(node => node.AbsolutePath is not null &&
+                MediaPathSemantics.Contains(node.AbsolutePath, absolutePath))
+            .OrderByDescending(node => node.AbsolutePath!.Length)
+            .FirstOrDefault();
+        if (root is null) return null;
+        var node = EnsurePath(root, absolutePath);
+        Select(node);
+        return node;
+    }
+
     public void RestoreSelection(BrowserLocation? location)
     {
         if (location is null)
@@ -228,5 +249,18 @@ internal sealed class BrowserTreeModel
             else if (currentIndex != index) target.Move(currentIndex, index);
         }
         while (target.Count > desired.Count) target.RemoveAt(target.Count - 1);
+    }
+}
+
+internal static class BrowserTreeScroll
+{
+    public static double RevealVerticalOffset(double currentOffset, double viewportHeight, double rowTop,
+        double rowHeight)
+    {
+        if (rowTop < currentOffset) return Math.Max(0, rowTop);
+        var rowBottom = rowTop + rowHeight;
+        return rowBottom > currentOffset + viewportHeight
+            ? Math.Max(0, rowBottom - viewportHeight)
+            : currentOffset;
     }
 }

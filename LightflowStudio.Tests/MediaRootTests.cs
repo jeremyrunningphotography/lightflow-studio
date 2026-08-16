@@ -33,6 +33,25 @@ public sealed class MediaRootTests : IDisposable
     }
 
     [Fact]
+    public async Task BrowserAnchor_AllowsNaturalAncestorAndReusesExactMapping()
+    {
+        var volume = Path.GetPathRoot(Path.GetFullPath(_temporary))!;
+        var library = Directory.CreateDirectory(Path.Combine(_temporary, "managed-library")).FullName;
+        await using var fixture = await Fixture.CreateAsync(_temporary);
+        var managed = await fixture.Service.CreateAsync("Managed Library", library);
+
+        var automatic = await fixture.Service.CreateBrowserAnchorAsync("Browse Volume", volume);
+        var reused = await fixture.Service.CreateBrowserAnchorAsync("Browse Volume Again", volume);
+
+        Assert.True(managed.Succeeded);
+        Assert.True(automatic.Succeeded);
+        Assert.True(reused.Succeeded);
+        Assert.NotEqual(managed.Root!.RootId, automatic.Root!.RootId);
+        Assert.Equal(automatic.Root.RootId, reused.Root!.RootId);
+        Assert.Equal(2, (await fixture.Service.ListAsync()).Count);
+    }
+
+    [Fact]
     public async Task CreateRenameRemap_PreservesLogicalRootIdentity()
     {
         Directory.CreateDirectory(_temporary);

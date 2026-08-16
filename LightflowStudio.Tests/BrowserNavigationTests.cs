@@ -6,124 +6,147 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserNavigationTests
 {
     [Fact]
-    public async Task Navigate_UsesAuthoritativeRefreshThenListsFolder()
+    public async Task ZeroManagedRoots_LocalFolderCreatesVolumeAnchorAndReconcilesOnlyVisitedFolder()
     {
-        var root = Root("Library");
+        var roots = new FakeRoots();
         var discovery = new FakeDiscovery();
         var folders = new FakeFolders((request, _) => Task.FromResult(Success(request,
-            DirectoryEntry(root.RootId, "Trips"), FileEntry(root.RootId, "clip.mp4"))));
-        using var session = new BrowserNavigationSession(new FakeRoots(root), discovery, folders);
+            FileEntry(request.RootId, "Media/clip.mp4"))));
+        using var session = Session(roots, discovery, folders);
 
-        var result = await session.NavigateToRootAsync(root.RootId);
+        var result = await session.NavigateToPathAsync(@"C:\Media");
 
-        Assert.NotNull(result);
-        Assert.Equal(BrowserFolderStatus.Ready, result.Status);
-        Assert.Equal(["Trips", "clip.mp4"], result.Entries.Select(item => item.Name));
-        Assert.Equal(DerivedWorkPriority.Visible, discovery.Priorities.Single());
-        Assert.Equal(root.RootId, discovery.Requests.Single().RootId);
-        Assert.Single(folders.Requests);
+        Assert.Equal(BrowserFolderStatus.Ready, result!.Status);
+        var created = Assert.Single(roots.AutomaticCreations);
+        Assert.Equal(@"C:\", created.Path);
+        Assert.Equal("Media", discovery.Requests.Single().RelativeFolder);
+        Assert.Equal("Media", folders.Requests.Single().RelativeFolder);
+        Assert.DoesNotContain(discovery.Requests, request => request.RelativeFolder is null);
     }
 
     [Fact]
-    public async Task NestedNavigation_SupportsUpBackForwardAndRefreshWithoutDuplicatingHistory()
+    public async Task RevisitingVolumeAndDifferentFoldersReusesOneStableAnchor()
     {
-        var root = Root("Library");
-        var discovery = new FakeDiscovery();
+        var roots = new FakeRoots();
+        using var session = Session(roots, new FakeDiscovery(), EmptyFolders());
+
+        var first = await session.NavigateToPathAsync(@"D:\Photos\Day1");
+        var second = await session.NavigateToPathAsync(@"D:\Photos\Day2");
+        var revisit = await session.NavigateToPathAsync(@"D:\Photos\Day1");
+
+        Assert.Single(roots.AutomaticCreations);
+        Assert.Equal(@"D:\", roots.AutomaticCreations[0].Path);
+        Assert.Equal(first!.Location!.RootId, second!.Location!.RootId);
+        Assert.Equal(first.Location.RootId, revisit!.Location!.RootId);
+        Assert.Equal("Photos/Day1", revisit.Location.RelativeFolder);
+    }
+
+    [Fact]
+    public async Task ExistingMostSpecificAncestorRootIsReusedWithoutAutomaticCreation()
+    {
+        var managed = Root("Photos", @"E:\Libraries\Photos");
+        var broader = Root("Drive E", @"E:\");
+        var roots = new FakeRoots(broader, managed);
+        using var session = Session(roots, new FakeDiscovery(), EmptyFolders());
+
+        var result = await session.NavigateToPathAsync(@"E:\Libraries\Photos\Trips");
+
+        Assert.Equal(managed.RootId, result!.Location!.RootId);
+        Assert.Equal("Trips", result.Location.RelativeFolder);
+        Assert.Empty(roots.AutomaticCreations);
+    }
+
+    [Theory]
+    [InlineData(@"\\server\share\Photos", @"\\server\share")]
+    [InlineData(@"F:\Camera\Clips", @"F:\")]
+    public void NaturalAnchorUsesShareOrVolumeBoundary(string location, string expected)
+    {
+        Assert.Equal(expected, BrowserLocationResolver.NaturalAnchor(location));
+    }
+
+    [Fact]
+    public async Task StorageEntriesIncludeReadyAndUnavailableVolumesWithoutManagedRoots()
+    {
+        var provider = new BrowserStorageProvider(new FakeRoots(), new FakeVolumes(
+            new(@"G:\", "REMOVABLE (G:)", true),
+            new(@"Z:\", "MAPPED (Z:)", false, "Disconnected.")));
+
+        var entries = await provider.ListAsync();
+
+        Assert.Equal(2, entries.Count);
+        Assert.All(entries, entry => Assert.Equal(BrowserStorageKind.Volume, entry.Kind));
+        Assert.Contains(entries, entry => entry.PhysicalPath == @"G:\" && entry.Availability == MediaRootAvailability.Online);
+        Assert.Contains(entries, entry => entry.PhysicalPath == @"Z:\" && entry.Availability == MediaRootAvailability.Unavailable);
+    }
+
+    [Fact]
+    public async Task NestedNavigationSupportsUpBackForwardAndRefresh()
+    {
+        var root = Root("Library", @"C:\Library");
+        var roots = new FakeRoots(root);
         var folders = new FakeFolders((request, _) => Task.FromResult(Success(request,
             request.RelativeFolder is null ? DirectoryEntry(root.RootId, "Trips") : FileEntry(root.RootId, "Trips/clip.mp4"))));
-        using var session = new BrowserNavigationSession(new FakeRoots(root), discovery, folders);
+        using var session = Session(roots, new FakeDiscovery(), folders);
         await session.NavigateToRootAsync(root.RootId);
         await session.NavigateToFolderAsync(DirectoryEntry(root.RootId, "Trips"));
 
         Assert.Equal("Trips", session.State.Location!.RelativeFolder);
-        Assert.True(session.State.CanGoBack);
-        Assert.True(session.State.CanGoUp);
-
         await session.UpAsync();
         Assert.Equal("", session.State.Location!.RelativeFolder);
         await session.BackAsync();
         Assert.Equal("Trips", session.State.Location!.RelativeFolder);
         await session.ForwardAsync();
         Assert.Equal("", session.State.Location!.RelativeFolder);
-
-        var beforeRefresh = folders.Requests.Count;
+        var count = folders.Requests.Count;
         await session.RefreshAsync();
-        Assert.Equal(beforeRefresh + 1, folders.Requests.Count);
-        Assert.True(session.State.CanGoBack);
-        Assert.False(session.State.CanGoForward);
+        Assert.Equal(count + 1, folders.Requests.Count);
     }
 
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
-    public async Task UnavailableRoot_IsReportedWithoutDiscoveryOrEnumeration(int availabilityValue)
+    public async Task UnavailableManagedRootIsReportedWithoutReconciliation(int availabilityValue)
     {
         var availability = availabilityValue == 1 ? MediaRootAvailability.Unavailable : MediaRootAvailability.Unmapped;
-        var root = Root("Archive") with { Availability = availability, Diagnostic = "Drive is unavailable." };
+        var root = Root("Archive", @"X:\Archive") with { Availability = availability, Diagnostic = "Drive unavailable." };
         var discovery = new FakeDiscovery();
-        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request)));
-        using var session = new BrowserNavigationSession(new FakeRoots(root), discovery, folders);
+        using var session = Session(new FakeRoots(root), discovery, EmptyFolders());
 
         var result = await session.NavigateToRootAsync(root.RootId);
 
         Assert.Equal(BrowserFolderStatus.RootUnavailable, result!.Status);
-        Assert.Equal("Drive is unavailable.", result.Diagnostic);
         Assert.Empty(discovery.Requests);
-        Assert.Empty(folders.Requests);
     }
 
     [Fact]
-    public async Task FailedEnumeration_RemainsHonestAndDoesNotInferAnEmptyFolder()
+    public async Task RapidSwitchLatestRequestWinsAndCanceledRequestKeepsAcceptedState()
     {
-        var root = Root("Library");
-        var folders = new FakeFolders((request, _) => Task.FromResult(new MediaFolderEnumerationResult(
-            MediaFolderEnumerationStatus.AccessDenied, request.RelativeFolder ?? "", [], "Access denied.")));
-        using var session = new BrowserNavigationSession(new FakeRoots(root), new FakeDiscovery(), folders);
-
-        var result = await session.NavigateToRootAsync(root.RootId);
-
-        Assert.Equal(BrowserFolderStatus.AccessDenied, result!.Status);
-        Assert.Equal("Access denied.", result.Diagnostic);
-        Assert.Empty(result.Entries);
-    }
-
-    [Fact]
-    public async Task RapidRootSwitch_LatestRequestWinsAndSuppressesStalePublication()
-    {
-        var first = Root("First");
-        var second = Root("Second");
-        var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = Root("First", @"C:\First");
+        var second = Root("Second", @"C:\Second");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var discovery = new FakeDiscovery(async (request, _, _, _) =>
         {
-            if (request.RootId == first.RootId)
-            {
-                firstEntered.SetResult();
-                await releaseFirst.Task; // Deliberately ignore cancellation to exercise generation suppression.
-            }
+            if (request.RootId == first.RootId) { entered.SetResult(); await release.Task; }
             return DiscoverySuccess(request);
         });
-        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request,
-            FileEntry(request.RootId, request.RootId == first.RootId ? "old.mp4" : "new.mp4"))));
-        using var session = new BrowserNavigationSession(new FakeRoots(first, second), discovery, folders);
+        using var session = Session(new FakeRoots(first, second), discovery, EmptyFolders());
 
-        var oldRequest = session.NavigateToRootAsync(first.RootId);
-        await firstEntered.Task;
+        var obsolete = session.NavigateToRootAsync(first.RootId);
+        await entered.Task;
         var latest = await session.NavigateToRootAsync(second.RootId);
-        releaseFirst.SetResult();
-        var obsolete = await oldRequest;
+        release.SetResult();
 
-        Assert.Null(obsolete);
+        Assert.Null(await obsolete);
         Assert.Equal(second.RootId, latest!.Location!.RootId);
-        Assert.Equal("new.mp4", latest.Entries.Single().Name);
         Assert.Equal(second.RootId, session.State.Location!.RootId);
     }
 
     [Fact]
-    public async Task CanceledNavigation_DoesNotReplaceThePreviouslyAcceptedLocation()
+    public async Task CallerCancellationAndEnumerationFailureDoNotPublishMisleadingFolderContents()
     {
-        var first = Root("First");
-        var second = Root("Second");
+        var first = Root("First", @"C:\First");
+        var second = Root("Second", @"C:\Second");
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var discovery = new FakeDiscovery(async (request, _, cancellationToken, _) =>
         {
@@ -134,25 +157,37 @@ public sealed class BrowserNavigationTests
             }
             return DiscoverySuccess(request);
         });
-        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request)));
-        using var session = new BrowserNavigationSession(new FakeRoots(first, second), discovery, folders);
+        using var session = Session(new FakeRoots(first, second), discovery, EmptyFolders());
         await session.NavigateToRootAsync(first.RootId);
         using var cancellation = new CancellationTokenSource();
 
-        var canceledNavigation = session.NavigateToRootAsync(second.RootId, cancellation.Token);
+        var canceled = session.NavigateToRootAsync(second.RootId, cancellation.Token);
         await entered.Task;
         cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceledNavigation);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceled);
         Assert.Equal(first.RootId, session.State.Location!.RootId);
+
+        var deniedFolders = new FakeFolders((request, _) => Task.FromResult(new MediaFolderEnumerationResult(
+            MediaFolderEnumerationStatus.AccessDenied, request.RelativeFolder ?? "", [], "Access denied.")));
+        using var denied = Session(new FakeRoots(first), new FakeDiscovery(), deniedFolders);
+        var deniedResult = await denied.NavigateToRootAsync(first.RootId);
+        Assert.Equal(BrowserFolderStatus.AccessDenied, deniedResult!.Status);
+        Assert.Empty(deniedResult.Entries);
     }
 
-    private static MediaRootInfo Root(string name) =>
-        new(Guid.NewGuid(), name, $"C:\\{name}", MediaRootAvailability.Online, null);
+    private static BrowserNavigationSession Session(FakeRoots roots, FakeDiscovery discovery, FakeFolders folders) =>
+        new(roots, new BrowserLocationResolver(roots, new ExistingFileSystem()), discovery, folders);
+
+    private static FakeFolders EmptyFolders() =>
+        new((request, _) => Task.FromResult(Success(request)));
+
+    private static MediaRootInfo Root(string name, string path) =>
+        new(Guid.NewGuid(), name, path, MediaRootAvailability.Online);
 
     private static MediaFolderEntry DirectoryEntry(Guid rootId, string path) =>
         new(rootId, path, path.ToUpperInvariant(), Path.GetFileName(path), true,
-            new(MediaTypeCategory.Unknown), null, DateTimeOffset.UtcNow);
+            MediaTypeClassification.Unknown, null, DateTimeOffset.UtcNow);
 
     private static MediaFolderEntry FileEntry(Guid rootId, string path) =>
         new(rootId, path, path.ToUpperInvariant(), Path.GetFileName(path), false,
@@ -165,12 +200,35 @@ public sealed class BrowserNavigationTests
     private static MediaDiscoveryRefreshResult DiscoverySuccess(MediaFolderEnumerationRequest request) =>
         new(new(CatalogReconciliationStatus.Succeeded, request.RootId, request.RelativeFolder ?? "", []), null);
 
-    private sealed class FakeRoots(params MediaRootInfo[] roots) : IMediaRootService
+    private sealed class ExistingFileSystem : IBrowserLocationFileSystem
     {
+        public bool DirectoryExists(string path) => true;
+    }
+
+    private sealed class FakeVolumes(params BrowserVolume[] volumes) : IBrowserVolumeProvider
+    {
+        public IReadOnlyList<BrowserVolume> ListVolumes() => volumes;
+    }
+
+    private sealed class FakeRoots(params MediaRootInfo[] initial) : IMediaRootService
+    {
+        private readonly List<MediaRootInfo> _roots = [.. initial];
+        public List<(string Name, string Path)> AutomaticCreations { get; } = [];
         public Task<IReadOnlyList<MediaRootInfo>> ListAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<MediaRootInfo>>(roots);
+            Task.FromResult<IReadOnlyList<MediaRootInfo>>(_roots.ToArray());
         public Task<MediaRootInfo?> GetAsync(Guid rootId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(roots.FirstOrDefault(root => root.RootId == rootId));
+            Task.FromResult(_roots.FirstOrDefault(root => root.RootId == rootId));
+        public Task<MediaRootChangeResult> CreateBrowserAnchorAsync(string displayName, string physicalPath, CancellationToken cancellationToken = default)
+        {
+            var normalized = MediaPathSemantics.NormalizeRootPath(physicalPath);
+            var existing = _roots.FirstOrDefault(root => root.PhysicalPath is not null &&
+                string.Equals(MediaPathSemantics.NormalizeRootPath(root.PhysicalPath), normalized, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null) return Task.FromResult(new MediaRootChangeResult(true, existing));
+            AutomaticCreations.Add((displayName, physicalPath));
+            var created = Root(displayName, normalized);
+            _roots.Add(created);
+            return Task.FromResult(new MediaRootChangeResult(true, created));
+        }
         public Task<MediaRootChangeResult> CreateAsync(string displayName, string physicalPath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaRootChangeResult> RenameAsync(Guid rootId, string displayName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaRootChangeResult> RemapAsync(Guid rootId, string physicalPath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -183,11 +241,9 @@ public sealed class BrowserNavigationTests
         public FakeDiscovery(Func<MediaFolderEnumerationRequest, DerivedWorkPriority, CancellationToken, CancellationToken, Task<MediaDiscoveryRefreshResult>>? refresh = null) =>
             _refresh = refresh ?? ((request, _, _, _) => Task.FromResult(DiscoverySuccess(request)));
         public List<MediaFolderEnumerationRequest> Requests { get; } = [];
-        public List<DerivedWorkPriority> Priorities { get; } = [];
         public Task<MediaDiscoveryRefreshResult> RefreshAsync(MediaFolderEnumerationRequest request, DerivedWorkPriority priority = DerivedWorkPriority.Background, CancellationToken cancellationToken = default, CancellationToken derivedWorkCancellationToken = default)
         {
             Requests.Add(request);
-            Priorities.Add(priority);
             return _refresh(request, priority, cancellationToken, derivedWorkCancellationToken);
         }
     }

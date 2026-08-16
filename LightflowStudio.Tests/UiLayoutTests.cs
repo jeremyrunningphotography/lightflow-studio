@@ -6,12 +6,14 @@ namespace LightflowStudio.Tests;
 public class UiLayoutTests
 {
     [Fact]
-    public void BrowserWorkspace_ExposesRootAndLogicalFolderNavigationWithoutFutureGridFeatures()
+    public void BrowserWorkspace_ExposesFilesystemFirstNavigationWithoutFutureGridFeatures()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
 
         Assert.NotNull(Named(document, "BrowserRootsList"));
         Assert.NotNull(Named(document, "BrowserEntries"));
+        Assert.Equal("BrowserCurrentPath_KeyDown", (string?)Named(document, "BrowserCurrentPath").Attribute("KeyDown"));
+        Assert.Equal("BrowserGo_Click", (string?)Named(document, "BrowserGoButton").Attribute("Click"));
         Assert.Equal("BrowserBack_Click", (string?)Named(document, "BrowserBackButton").Attribute("Click"));
         Assert.Equal("BrowserForward_Click", (string?)Named(document, "BrowserForwardButton").Attribute("Click"));
         Assert.Equal("BrowserUp_Click", (string?)Named(document, "BrowserUpButton").Attribute("Click"));

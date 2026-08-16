@@ -51,7 +51,7 @@
       <Grid.ColumnDefinitions><ColumnDefinition Width="260"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource ShellPanel}">
        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-        <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Media Roots"/>
+        <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Locations"/>
         <Grid Grid.Row="1" Margin="0,12,0,0">
          <ListBox x:Name="BrowserRootsList" BorderThickness="0" Background="Transparent" HorizontalContentAlignment="Stretch"
           SelectionChanged="BrowserRootsList_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -64,7 +64,7 @@
              </Ellipse>
              <StackPanel Grid.Column="1">
               <TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"/>
-              <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="{Binding Availability}"/>
+              <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11"><Run Text="{Binding DisplayKind}"/><Run Text=" · "/><Run Text="{Binding Availability}"/></TextBlock>
              </StackPanel>
             </Grid>
            </DataTemplate>
@@ -72,7 +72,7 @@
          </ListBox>
          <StackPanel x:Name="BrowserRootsEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="14">
           <TextBlock Foreground="{StaticResource MutedTextBrush}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="26" HorizontalAlignment="Center" Text="&#xE838;"/>
-          <TextBlock Style="{StaticResource ShellPlaceholderText}" Margin="0,10,0,0" Text="Add a Media Root in Settings to begin browsing."/>
+          <TextBlock Style="{StaticResource ShellPlaceholderText}" Margin="0,10,0,0" Text="No storage locations are currently available."/>
          </StackPanel>
         </Grid>
        </Grid>
@@ -81,14 +81,15 @@
        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="*"/></Grid.RowDefinitions>
        <Border Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>
-         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
          <StackPanel Orientation="Horizontal">
           <Button x:Name="BrowserBackButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Back" AutomationProperties.Name="Back" Click="BrowserBack_Click" Content="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
           <Button x:Name="BrowserForwardButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Forward" AutomationProperties.Name="Forward" Click="BrowserForward_Click" Content="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
           <Button x:Name="BrowserUpButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Up one folder" AutomationProperties.Name="Up one folder" Click="BrowserUp_Click" Content="&#xE74A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
          </StackPanel>
-         <TextBlock Grid.Column="1" x:Name="BrowserCurrentPath" Margin="14,0" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="No Media Root selected" TextTrimming="CharacterEllipsis"/>
-         <Button Grid.Column="2" x:Name="BrowserRefreshButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Refresh current folder" AutomationProperties.Name="Refresh current folder" Click="BrowserRefresh_Click" Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+         <TextBox Grid.Column="1" x:Name="BrowserCurrentPath" Margin="14,0,6,0" VerticalAlignment="Center" Text="" ToolTip="Type a local, mapped, or network folder path" AutomationProperties.Name="Current folder path" KeyDown="BrowserCurrentPath_KeyDown"/>
+         <Button Grid.Column="2" x:Name="BrowserGoButton" Padding="12,7" Content="Go" ToolTip="Open the entered folder" AutomationProperties.Name="Open folder path" Click="BrowserGo_Click"/>
+         <Button Grid.Column="3" x:Name="BrowserRefreshButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Refresh current folder" AutomationProperties.Name="Refresh current folder" Click="BrowserRefresh_Click" Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
         </Grid>
        </Border>
        <Border Grid.Row="2" Style="{StaticResource ShellPanel}" Background="#0D0F13">
@@ -117,8 +118,8 @@
           </ItemsControl>
          </ScrollViewer>
          <StackPanel x:Name="BrowserEmptyState" MaxWidth="460" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center">
-          <TextBlock x:Name="BrowserEmptyTitle" Style="{StaticResource ShellPlaceholderTitle}" Text="Choose a Media Root"/>
-          <TextBlock x:Name="BrowserEmptyMessage" Style="{StaticResource ShellPlaceholderText}" Margin="0,8,0,0" Text="Select an available Media Root to browse its folders and supported media."/>
+          <TextBlock x:Name="BrowserEmptyTitle" Style="{StaticResource ShellPlaceholderTitle}" Text="Choose a storage location"/>
+          <TextBlock x:Name="BrowserEmptyMessage" Style="{StaticResource ShellPlaceholderText}" Margin="0,8,0,0" Text="Select a drive, mapped location, or managed library to browse its folders and supported media."/>
          </StackPanel>
          <Border x:Name="BrowserLoadingOverlay" Background="#B00D0F13" Visibility="Collapsed">
           <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><ProgressBar Width="180" Height="4" IsIndeterminate="True"/><TextBlock Margin="0,12,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Loading folder…"/></StackPanel>

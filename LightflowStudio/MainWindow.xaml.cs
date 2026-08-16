@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     private readonly IJobHistoryStore _jobHistory;
     private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
     private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
+    private readonly ObservableCollection<BrowserStorageEntry> _browserStorageEntries = [];
     private readonly ObservableCollection<MediaFolderEntry> _browserEntries = [];
     private readonly BrowserNavigationSession _browserNavigation;
     private readonly DispatcherTimer _batchFolderRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
@@ -61,7 +62,8 @@ public partial class MainWindow : Window
         _storage = storage;
         _storageStartupStatus = storageStartupStatus;
         _storageDiagnostic = storageDiagnostic;
-        _browserNavigation = new BrowserNavigationSession(storage.MediaRoots, storage.MediaDiscovery, storage.MediaFolders);
+        _browserNavigation = new BrowserNavigationSession(storage.MediaRoots, storage.BrowserLocations,
+            storage.MediaDiscovery, storage.MediaFolders);
         _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
         InitializeComponent();
@@ -88,7 +90,7 @@ public partial class MainWindow : Window
             BatchFileList.ItemsSource = _batchFiles;
             HistoryList.ItemsSource = _historyRecords;
             MediaRootsList.ItemsSource = _mediaRoots;
-            BrowserRootsList.ItemsSource = _mediaRoots;
+            BrowserRootsList.ItemsSource = _browserStorageEntries;
             BrowserEntries.ItemsSource = _browserEntries;
             RefreshCatalogBackups();
             RefreshHistory();
@@ -97,6 +99,7 @@ public partial class MainWindow : Window
             RefreshBatchFiles();
             RefreshLuts();
             await RefreshMediaRootsAsync();
+            await RefreshBrowserStorageAsync();
             await RefreshPreviewUsageAsync();
             if (_storageStartupStatus != StorageStartupStatus.Ready)
                 SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
@@ -110,8 +113,26 @@ public partial class MainWindow : Window
 
     private async void BrowserRootsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (BrowserRootsList.SelectedItem is MediaRootInfo root)
-            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(root.RootId));
+        if (BrowserRootsList.SelectedItem is not BrowserStorageEntry entry) return;
+        if (entry.Kind == BrowserStorageKind.ManagedRoot && entry.RootId is { } rootId)
+            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(rootId));
+        else if (!string.IsNullOrWhiteSpace(entry.PhysicalPath))
+            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(entry.PhysicalPath));
+    }
+
+    private async void BrowserGo_Click(object sender, RoutedEventArgs e) => await NavigateToEnteredBrowserPathAsync();
+
+    private async void BrowserCurrentPath_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        await NavigateToEnteredBrowserPathAsync();
+    }
+
+    private async Task NavigateToEnteredBrowserPathAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(BrowserCurrentPath.Text))
+            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(BrowserCurrentPath.Text));
     }
 
     private async void BrowserFolder_Click(object sender, RoutedEventArgs e)
@@ -161,7 +182,7 @@ public partial class MainWindow : Window
     {
         _browserEntries.Clear();
         foreach (var entry in state.Entries) _browserEntries.Add(entry);
-        BrowserCurrentPath.Text = state.Location?.DisplayPath ?? "No Media Root selected";
+        BrowserCurrentPath.Text = state.Location?.DisplayPath ?? "";
         BrowserBackButton.IsEnabled = state.CanGoBack;
         BrowserForwardButton.IsEnabled = state.CanGoForward;
         BrowserUpButton.IsEnabled = state.CanGoUp;
@@ -169,8 +190,9 @@ public partial class MainWindow : Window
         BrowserWorkspaceStatus.Text = state.Status switch
         {
             BrowserFolderStatus.Ready => $"{state.Entries.Count} items",
-            BrowserFolderStatus.Empty => state.Location is null ? "Choose a Media Root" : "Folder is empty",
+            BrowserFolderStatus.Empty => state.Location is null ? "Choose a storage location" : "Folder is empty",
             BrowserFolderStatus.RootUnavailable => "Media Root unavailable",
+            BrowserFolderStatus.CatalogUnavailable => "Catalog unavailable",
             _ => "Folder unavailable"
         };
         BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready
@@ -185,10 +207,11 @@ public partial class MainWindow : Window
             BrowserFolderStatus.InvalidPath => "Folder cannot be opened",
             BrowserFolderStatus.FolderUnavailable => "Folder unavailable",
             BrowserFolderStatus.Failed => "Folder could not be loaded",
-            _ => "Choose a Media Root"
+            BrowserFolderStatus.CatalogUnavailable => "Catalog unavailable",
+            _ => "Choose a storage location"
         };
         BrowserEmptyMessage.Text = state.Diagnostic ?? (state.Location is null
-            ? "Select an available Media Root to browse its folders and supported media."
+            ? "Select a drive, mapped location, or managed library to browse its folders and supported media."
             : "There are no folders or supported media here yet.");
     }
 
@@ -699,7 +722,6 @@ public partial class MainWindow : Window
         {
             MediaRootsEmptyText.Text = "The Catalog is unavailable. Encoding remains available, but Media Roots cannot be managed.";
             MediaRootsEmptyText.Visibility = Visibility.Visible;
-            BrowserRootsEmptyState.Visibility = Visibility.Visible;
             BrowserWorkspaceStatus.Text = "Catalog unavailable";
             return;
         }
@@ -708,14 +730,29 @@ public partial class MainWindow : Window
             foreach (var root in await _storage.MediaRoots.ListAsync()) _mediaRoots.Add(root);
             MediaRootsEmptyText.Text = "No Media Roots yet. Add one to give media a stable Catalog identity.";
             MediaRootsEmptyText.Visibility = _mediaRoots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            BrowserRootsEmptyState.Visibility = _mediaRoots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (Exception exception)
         {
             MediaRootsEmptyText.Text = $"Media Roots could not be loaded: {exception.Message}";
             MediaRootsEmptyText.Visibility = Visibility.Visible;
-            BrowserRootsEmptyState.Visibility = Visibility.Visible;
             BrowserWorkspaceStatus.Text = "Media Roots unavailable";
+        }
+    }
+
+    private async Task RefreshBrowserStorageAsync()
+    {
+        _browserStorageEntries.Clear();
+        try
+        {
+            foreach (var entry in await _storage.BrowserStorage.ListAsync())
+                _browserStorageEntries.Add(entry);
+            BrowserRootsEmptyState.Visibility = _browserStorageEntries.Count == 0
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch (Exception exception)
+        {
+            BrowserRootsEmptyState.Visibility = Visibility.Visible;
+            BrowserWorkspaceStatus.Text = $"Storage locations unavailable: {exception.Message}";
         }
     }
 
@@ -755,6 +792,7 @@ public partial class MainWindow : Window
         if (!result.Succeeded)
             MessageBox.Show(result.Diagnostic, "Media Root was not changed", MessageBoxButton.OK, MessageBoxImage.Warning);
         await RefreshMediaRootsAsync();
+        await RefreshBrowserStorageAsync();
     }
 
     private string? PromptForMediaRootName(string title, string prompt, string initial)

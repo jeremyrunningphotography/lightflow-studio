@@ -86,6 +86,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         PreviewDiagnostic = previewDiagnostic;
         MediaRoots = new MediaRootService(() => _catalogSession,
             new MachineIdentityProvider(locations.MachineIdentityPath), new MediaRootFileSystem());
+        BrowserStorage = new BrowserStorageProvider(MediaRoots, new WindowsBrowserVolumeProvider());
+        BrowserLocations = new BrowserLocationResolver(MediaRoots, new BrowserLocationFileSystem());
         MediaAssets = new MediaAssetService(new CatalogMediaAssetRepository(() => _catalogSession),
             MediaRoots, new SampledSourceFingerprintService());
         MediaTypes = MediaTypeRegistry.CreateDefault();
@@ -104,6 +106,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public string? PreviewDiagnostic { get; private set; }
     public string? RecoveryDiagnostic { get; private set; }
     public IMediaRootService MediaRoots { get; }
+    public IBrowserStorageProvider BrowserStorage { get; }
+    public IBrowserLocationResolver BrowserLocations { get; }
     public IMediaAssetService MediaAssets { get; }
     public IMediaTypeRegistry MediaTypes { get; }
     public IMediaFolderEnumerator MediaFolders { get; }

@@ -2,11 +2,16 @@ using System.IO;
 
 namespace LightflowStudio;
 
-internal sealed record BrowserLocation(Guid RootId, string RootName, string RelativeFolder)
+internal sealed record BrowserLocation(
+    Guid RootId,
+    string RootName,
+    string RootPath,
+    string RelativeFolder)
 {
-    public string DisplayPath => string.IsNullOrEmpty(RelativeFolder)
-        ? RootName
-        : $"{RootName}  ›  {RelativeFolder.Replace("/", "  ›  ")}";
+    public string AbsolutePath => string.IsNullOrEmpty(RelativeFolder)
+        ? RootPath
+        : MediaPathSemantics.ResolveContained(RootPath, RelativeFolder);
+    public string DisplayPath => AbsolutePath;
 }
 
 internal enum BrowserFolderStatus
@@ -19,6 +24,7 @@ internal enum BrowserFolderStatus
     FolderUnavailable,
     AccessDenied,
     InvalidPath,
+    CatalogUnavailable,
     Failed
 }
 
@@ -32,15 +38,16 @@ internal sealed record BrowserFolderState(
     bool CanGoUp)
 {
     public static BrowserFolderState Initial { get; } = new(null, BrowserFolderStatus.Empty, [],
-        "Choose a Media Root to begin browsing.", false, false, false);
+        "Choose a storage location to begin browsing.", false, false, false);
 }
 
 /// <summary>
-/// UI-independent logical-folder session. Filesystem/Catalog work stays in the existing Media Root,
-/// discovery, reconciliation, and enumeration services; only the latest requested location may publish.
+/// UI-independent filesystem-first navigation session. Absolute paths are resolved to stable logical roots
+/// before the existing authoritative discovery and contained enumeration services run.
 /// </summary>
 internal sealed class BrowserNavigationSession(
     IMediaRootService roots,
+    IBrowserLocationResolver locations,
     IMediaDiscoveryRefreshService discovery,
     IMediaFolderEnumerator folders) : IDisposable
 {
@@ -53,8 +60,39 @@ internal sealed class BrowserNavigationSession(
 
     public BrowserFolderState State { get; private set; } = BrowserFolderState.Initial;
 
-    public Task<BrowserFolderState?> NavigateToRootAsync(Guid rootId, CancellationToken cancellationToken = default) =>
-        NavigateAsync(new(rootId, "", ""), NavigationKind.New, cancellationToken);
+    public Task<BrowserFolderState?> NavigateToPathAsync(string absoluteFolder,
+        CancellationToken cancellationToken = default) =>
+        NavigateResolvedAsync(absoluteFolder, NavigationKind.New, cancellationToken);
+
+    public async Task<BrowserFolderState?> NavigateToRootAsync(Guid rootId,
+        CancellationToken cancellationToken = default)
+    {
+        var operation = Begin(cancellationToken);
+        try
+        {
+            var root = await roots.GetAsync(rootId, operation.Request.Token).ConfigureAwait(false);
+            operation.Request.Token.ThrowIfCancellationRequested();
+            if (root is null)
+                return CommitFailure(operation.Generation, BrowserFolderStatus.RootNotFound,
+                    "This managed location no longer exists.");
+            if (root.Availability != MediaRootAvailability.Online || string.IsNullOrWhiteSpace(root.PhysicalPath))
+                return CommitFailure(operation.Generation, BrowserFolderStatus.RootUnavailable, root.Diagnostic ??
+                    "This managed location is not available on this computer.");
+            var resolution = await locations.ResolveAsync(root.PhysicalPath, operation.Request.Token).ConfigureAwait(false);
+            operation.Request.Token.ThrowIfCancellationRequested();
+            if (!resolution.Succeeded)
+                return CommitFailure(operation.Generation, Map(resolution.Status), resolution.Diagnostic);
+            var location = new BrowserLocation(resolution.RootId!.Value, resolution.RootName!, resolution.RootPath!,
+                resolution.RelativeFolder);
+            return await LoadAndCommitAsync(operation, location, NavigationKind.New, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (operation.Request.IsCancellationRequested)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return null;
+        }
+    }
 
     public Task<BrowserFolderState?> NavigateToFolderAsync(MediaFolderEntry entry,
         CancellationToken cancellationToken = default)
@@ -63,7 +101,8 @@ internal sealed class BrowserNavigationSession(
         var current = State.Location;
         if (current is null || current.RootId != entry.RootId)
             throw new ArgumentException("The folder does not belong to the current Browser location.", nameof(entry));
-        return NavigateAsync(new(entry.RootId, current.RootName, entry.RelativePath), NavigationKind.New, cancellationToken);
+        return NavigateResolvedAsync(MediaPathSemantics.ResolveContained(current.RootPath, entry.RelativePath),
+            NavigationKind.New, cancellationToken);
     }
 
     public Task<BrowserFolderState?> BackAsync(CancellationToken cancellationToken = default)
@@ -71,7 +110,7 @@ internal sealed class BrowserNavigationSession(
         BrowserLocation? target;
         lock (_sync) target = _back.Count == 0 ? null : _back[^1];
         return target is null ? Task.FromResult<BrowserFolderState?>(State)
-            : NavigateAsync(target, NavigationKind.Back, cancellationToken);
+            : NavigateKnownAsync(target, NavigationKind.Back, cancellationToken);
     }
 
     public Task<BrowserFolderState?> ForwardAsync(CancellationToken cancellationToken = default)
@@ -79,80 +118,107 @@ internal sealed class BrowserNavigationSession(
         BrowserLocation? target;
         lock (_sync) target = _forward.Count == 0 ? null : _forward[^1];
         return target is null ? Task.FromResult<BrowserFolderState?>(State)
-            : NavigateAsync(target, NavigationKind.Forward, cancellationToken);
+            : NavigateKnownAsync(target, NavigationKind.Forward, cancellationToken);
     }
 
     public Task<BrowserFolderState?> UpAsync(CancellationToken cancellationToken = default)
     {
         var current = State.Location;
-        if (current is null || string.IsNullOrEmpty(current.RelativeFolder))
-            return Task.FromResult<BrowserFolderState?>(State);
-        var separator = current.RelativeFolder.LastIndexOf('/');
-        var parent = separator < 0 ? "" : current.RelativeFolder[..separator];
-        return NavigateAsync(current with { RelativeFolder = parent }, NavigationKind.New, cancellationToken);
+        if (current is null) return Task.FromResult<BrowserFolderState?>(State);
+        var parent = ParentPath(current.AbsolutePath);
+        return parent is null ? Task.FromResult<BrowserFolderState?>(State)
+            : NavigateResolvedAsync(parent, NavigationKind.New, cancellationToken);
     }
 
     public Task<BrowserFolderState?> RefreshAsync(CancellationToken cancellationToken = default)
     {
         var current = State.Location;
         return current is null ? Task.FromResult<BrowserFolderState?>(State)
-            : NavigateAsync(current, NavigationKind.Refresh, cancellationToken);
+            : NavigateResolvedAsync(current.AbsolutePath, NavigationKind.Refresh, cancellationToken);
     }
 
-    private async Task<BrowserFolderState?> NavigateAsync(BrowserLocation requested,
+    private async Task<BrowserFolderState?> NavigateResolvedAsync(string absoluteFolder,
         NavigationKind kind, CancellationToken cancellationToken)
     {
-        CancellationTokenSource request;
-        long generation;
+        var operation = Begin(cancellationToken);
+        try
+        {
+            var resolution = await locations.ResolveAsync(absoluteFolder, operation.Request.Token).ConfigureAwait(false);
+            operation.Request.Token.ThrowIfCancellationRequested();
+            if (!resolution.Succeeded)
+                return CommitFailure(operation.Generation, Map(resolution.Status), resolution.Diagnostic);
+            var location = new BrowserLocation(resolution.RootId!.Value, resolution.RootName!, resolution.RootPath!,
+                resolution.RelativeFolder);
+            return await LoadAndCommitAsync(operation, location, kind, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (operation.Request.IsCancellationRequested)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return null;
+        }
+    }
+
+    private async Task<BrowserFolderState?> NavigateKnownAsync(BrowserLocation location,
+        NavigationKind kind, CancellationToken cancellationToken)
+    {
+        var operation = Begin(cancellationToken);
+        try { return await LoadAndCommitAsync(operation, location, kind, cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (operation.Request.IsCancellationRequested)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return null;
+        }
+    }
+
+    private async Task<BrowserFolderState?> LoadAndCommitAsync(Operation operation, BrowserLocation location,
+        NavigationKind kind, CancellationToken callerToken)
+    {
+        try
+        {
+            var root = await roots.GetAsync(location.RootId, operation.Request.Token).ConfigureAwait(false);
+            operation.Request.Token.ThrowIfCancellationRequested();
+            if (root is null)
+                return Commit(operation.Generation, location, kind, BrowserFolderStatus.RootNotFound, [],
+                    "This location's Catalog identity no longer exists.");
+            if (root.Availability != MediaRootAvailability.Online)
+                return Commit(operation.Generation, location, kind, BrowserFolderStatus.RootUnavailable, [], root.Diagnostic ??
+                    "This storage location is currently unavailable.");
+            location = location with { RootName = root.DisplayName, RootPath = root.PhysicalPath! };
+
+            var authoritative = await discovery.RefreshAsync(
+                new(location.RootId, EmptyToNull(location.RelativeFolder)), DerivedWorkPriority.Visible,
+                operation.Request.Token, operation.Request.Token).ConfigureAwait(false);
+            operation.Request.Token.ThrowIfCancellationRequested();
+            if (!authoritative.Reconciliation.Succeeded)
+                return Commit(operation.Generation, location, kind, Map(authoritative.Reconciliation.Status), [],
+                    authoritative.Diagnostic ?? authoritative.Reconciliation.Diagnostic);
+
+            var listing = await folders.EnumerateAsync(
+                new(location.RootId, EmptyToNull(location.RelativeFolder)), operation.Request.Token).ConfigureAwait(false);
+            operation.Request.Token.ThrowIfCancellationRequested();
+            return Commit(operation.Generation, location with { RelativeFolder = listing.RelativeFolder }, kind,
+                listing.Succeeded
+                    ? listing.Entries.Count == 0 ? BrowserFolderStatus.Empty : BrowserFolderStatus.Ready
+                    : Map(listing.Status), listing.Entries, listing.Diagnostic);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            callerToken.ThrowIfCancellationRequested();
+            return Commit(operation.Generation, location, kind, BrowserFolderStatus.Failed, [],
+                $"Lightflow could not open this folder: {exception.Message}");
+        }
+    }
+
+    private Operation Begin(CancellationToken cancellationToken)
+    {
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _activeRequest?.Cancel();
             _activeRequest?.Dispose();
             _activeRequest = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            request = _activeRequest;
-            generation = ++_generation;
-        }
-
-        try
-        {
-            var root = await roots.GetAsync(requested.RootId, request.Token).ConfigureAwait(false);
-            request.Token.ThrowIfCancellationRequested();
-            if (root is null)
-                return Commit(generation, requested, kind, BrowserFolderStatus.RootNotFound, [],
-                    "This Media Root no longer exists.");
-            var location = requested with { RootName = root.DisplayName };
-            if (root.Availability != MediaRootAvailability.Online)
-                return Commit(generation, location, kind, BrowserFolderStatus.RootUnavailable, [],
-                    root.Diagnostic ?? (root.Availability == MediaRootAvailability.Unmapped
-                        ? "This Media Root is not connected on this computer. Reconnect it in Settings."
-                        : "This Media Root is currently unavailable. Check the drive or network connection."));
-
-            var authoritative = await discovery.RefreshAsync(
-                new(location.RootId, EmptyToNull(location.RelativeFolder)), DerivedWorkPriority.Visible,
-                request.Token, request.Token).ConfigureAwait(false);
-            request.Token.ThrowIfCancellationRequested();
-            if (!authoritative.Reconciliation.Succeeded)
-                return Commit(generation, location, kind, Map(authoritative.Reconciliation.Status), [],
-                    authoritative.Diagnostic ?? authoritative.Reconciliation.Diagnostic);
-
-            var listing = await folders.EnumerateAsync(
-                new(location.RootId, EmptyToNull(location.RelativeFolder)), request.Token).ConfigureAwait(false);
-            request.Token.ThrowIfCancellationRequested();
-            return Commit(generation, location with { RelativeFolder = listing.RelativeFolder }, kind,
-                listing.Succeeded
-                    ? listing.Entries.Count == 0 ? BrowserFolderStatus.Empty : BrowserFolderStatus.Ready
-                    : Map(listing.Status), listing.Entries, listing.Diagnostic);
-        }
-        catch (OperationCanceledException) when (request.IsCancellationRequested)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return null;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
-        {
-            return Commit(generation, requested, kind, BrowserFolderStatus.Failed, [],
-                $"Lightflow could not open this folder: {exception.Message}");
+            return new(_activeRequest, ++_generation);
         }
     }
 
@@ -179,12 +245,41 @@ internal sealed class BrowserNavigationSession(
                     break;
             }
             State = new(location, status, entries, diagnostic, _back.Count > 0, _forward.Count > 0,
-                !string.IsNullOrEmpty(location.RelativeFolder));
+                ParentPath(location.AbsolutePath) is not null);
+            return State;
+        }
+    }
+
+    private BrowserFolderState? CommitFailure(long generation, BrowserFolderStatus status, string? diagnostic)
+    {
+        lock (_sync)
+        {
+            if (_disposed || generation != _generation) return null;
+            State = State with { Status = status, Entries = [], Diagnostic = diagnostic };
             return State;
         }
     }
 
     private static string? EmptyToNull(string value) => value.Length == 0 ? null : value;
+
+    private static string? ParentPath(string path)
+    {
+        try
+        {
+            if (string.Equals(MediaPathSemantics.NormalizeRootPath(path),
+                    BrowserLocationResolver.NaturalAnchor(path), StringComparison.OrdinalIgnoreCase)) return null;
+            return Directory.GetParent(path)?.FullName;
+        }
+        catch (ArgumentException) { return null; }
+    }
+
+    private static BrowserFolderStatus Map(BrowserLocationResolutionStatus status) => status switch
+    {
+        BrowserLocationResolutionStatus.CatalogUnavailable => BrowserFolderStatus.CatalogUnavailable,
+        BrowserLocationResolutionStatus.FolderUnavailable => BrowserFolderStatus.FolderUnavailable,
+        BrowserLocationResolutionStatus.InvalidPath => BrowserFolderStatus.InvalidPath,
+        _ => BrowserFolderStatus.Failed
+    };
 
     private static BrowserFolderStatus Map(MediaFolderEnumerationStatus status) => status switch
     {
@@ -219,5 +314,6 @@ internal sealed class BrowserNavigationSession(
         }
     }
 
+    private sealed record Operation(CancellationTokenSource Request, long Generation);
     private enum NavigationKind { New, Back, Forward, Refresh }
 }

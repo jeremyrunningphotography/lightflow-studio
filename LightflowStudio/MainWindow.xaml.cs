@@ -40,6 +40,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
     private readonly ObservableCollection<BrowserStorageEntry> _browserStorageEntries = [];
     private readonly ObservableCollection<MediaFolderEntry> _browserEntries = [];
+    private readonly BrowserTreeModel _browserTree = new();
     private readonly BrowserNavigationSession _browserNavigation;
     private readonly DispatcherTimer _batchFolderRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private CancellationTokenSource? _batchMetadataCts;
@@ -55,6 +56,7 @@ public partial class MainWindow : Window
     private static readonly double[] FrameRateValues = [0, 23.976, 24, 25, 29.97, 30, 50, 59.94, 60];
     private static readonly int[] AudioSampleRates = [0, 44100, 48000, 96000];
     private long _browserUiGeneration;
+    private bool _synchronizingBrowserTree;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -92,7 +94,7 @@ public partial class MainWindow : Window
                 BatchFileList.ItemsSource = _batchFiles;
                 HistoryList.ItemsSource = _historyRecords;
                 MediaRootsList.ItemsSource = _mediaRoots;
-                BrowserRootsList.ItemsSource = _browserStorageEntries;
+                BrowserFolderTree.ItemsSource = _browserTree.Roots;
                 BrowserEntries.ItemsSource = _browserEntries;
                 RefreshCatalogBackups();
                 RefreshHistory();
@@ -122,13 +124,23 @@ public partial class MainWindow : Window
         Closed += (_, _) => _browserNavigation.Dispose();
     }
 
-    private async void BrowserRootsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void BrowserFolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
-        if (BrowserRootsList.SelectedItem is not BrowserStorageEntry entry) return;
-        if (entry.Kind == BrowserStorageKind.ManagedRoot && entry.RootId is { } rootId)
+        if (_synchronizingBrowserTree || e.NewValue is not BrowserTreeNode { IsPlaceholder: false } node) return;
+        if (node.Storage is { Kind: BrowserStorageKind.ManagedRoot, RootId: { } rootId })
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(rootId));
-        else if (!string.IsNullOrWhiteSpace(entry.PhysicalPath))
-            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(entry.PhysicalPath));
+        else if (!string.IsNullOrWhiteSpace(node.AbsolutePath))
+            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(node.AbsolutePath));
+    }
+
+    private async void BrowserFolderTreeItem_Expanded(object sender, RoutedEventArgs e)
+    {
+        if (_synchronizingBrowserTree || (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node ||
+            node.IsPlaceholder || !node.Children.Any(child => child.IsPlaceholder)) return;
+        if (node.Storage is { Kind: BrowserStorageKind.ManagedRoot, RootId: { } rootId })
+            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(rootId));
+        else if (!string.IsNullOrWhiteSpace(node.AbsolutePath))
+            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(node.AbsolutePath));
     }
 
     private async void BrowserGo_Click(object sender, RoutedEventArgs e) => await NavigateToEnteredBrowserPathAsync();
@@ -144,12 +156,6 @@ public partial class MainWindow : Window
     {
         if (!string.IsNullOrWhiteSpace(BrowserCurrentPath.Text))
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(BrowserCurrentPath.Text));
-    }
-
-    private async void BrowserFolder_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is MediaFolderEntry { IsDirectory: true } folder)
-            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToFolderAsync(folder));
     }
 
     private async void BrowserBack_Click(object sender, RoutedEventArgs e) =>
@@ -191,8 +197,12 @@ public partial class MainWindow : Window
 
     private void ApplyBrowserState(BrowserFolderState state)
     {
+        _synchronizingBrowserTree = true;
+        IReadOnlyList<MediaFolderEntry> files;
+        try { files = _browserTree.Synchronize(state); }
+        finally { _synchronizingBrowserTree = false; }
         _browserEntries.Clear();
-        foreach (var entry in state.Entries) _browserEntries.Add(entry);
+        foreach (var entry in files) _browserEntries.Add(entry);
         BrowserCurrentPath.Text = state.Location?.DisplayPath ?? "";
         BrowserBackButton.IsEnabled = state.CanGoBack;
         BrowserForwardButton.IsEnabled = state.CanGoForward;
@@ -200,17 +210,18 @@ public partial class MainWindow : Window
         BrowserRefreshButton.IsEnabled = state.Location is not null;
         BrowserWorkspaceStatus.Text = state.Status switch
         {
-            BrowserFolderStatus.Ready => $"{state.Entries.Count} items",
+            BrowserFolderStatus.Ready => $"{files.Count} media files",
             BrowserFolderStatus.Empty => state.Location is null ? "Choose a storage location" : "Folder is empty",
             BrowserFolderStatus.RootUnavailable => "Media Root unavailable",
             BrowserFolderStatus.CatalogUnavailable => "Catalog unavailable",
             _ => "Folder unavailable"
         };
-        BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready
+        BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready && files.Count > 0
             ? Visibility.Collapsed : Visibility.Visible;
         BrowserEmptyTitle.Text = state.Status switch
         {
-            BrowserFolderStatus.Empty when state.Location is not null => "This folder is empty",
+            BrowserFolderStatus.Ready when files.Count == 0 => "No media files in this folder",
+            BrowserFolderStatus.Empty when state.Location is not null => "No media files in this folder",
             BrowserFolderStatus.RootUnavailable => "Media Root unavailable",
             BrowserFolderStatus.RootNotFound => "Media Root not found",
             BrowserFolderStatus.FolderNotFound => "Folder not found",
@@ -223,7 +234,7 @@ public partial class MainWindow : Window
         };
         BrowserEmptyMessage.Text = state.Diagnostic ?? (state.Location is null
             ? "Select a drive, mapped location, or managed library to browse its folders and supported media."
-            : "There are no folders or supported media here yet.");
+            : "Choose another folder from the navigation pane or refresh this location.");
     }
 
     private void LocateTools(string? configuredPath = null)
@@ -757,6 +768,7 @@ public partial class MainWindow : Window
         {
             foreach (var entry in await _storage.BrowserStorage.ListAsync())
                 _browserStorageEntries.Add(entry);
+            _browserTree.SetStorageEntries(_browserStorageEntries);
             BrowserRootsEmptyState.Visibility = _browserStorageEntries.Count == 0
                 ? Visibility.Visible : Visibility.Collapsed;
         }

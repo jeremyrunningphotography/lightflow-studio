@@ -53,23 +53,28 @@
        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
         <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Locations"/>
         <Grid Grid.Row="1" Margin="0,12,0,0">
-         <ListBox x:Name="BrowserRootsList" BorderThickness="0" Background="Transparent" HorizontalContentAlignment="Stretch"
-          SelectionChanged="BrowserRootsList_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-          <ListBox.ItemTemplate>
-           <DataTemplate>
-            <Grid Margin="6,7" ToolTip="{Binding Diagnostic}">
-             <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-             <Ellipse Width="8" Height="8" HorizontalAlignment="Left" VerticalAlignment="Center">
-              <Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="#777D89"/><Style.Triggers><DataTrigger Binding="{Binding Availability}" Value="Online"><Setter Property="Fill" Value="#42C98B"/></DataTrigger></Style.Triggers></Style></Ellipse.Style>
-             </Ellipse>
+         <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent"
+          SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto">
+          <TreeView.ItemContainerStyle>
+           <Style TargetType="TreeViewItem">
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+            <EventSetter Event="Expanded" Handler="BrowserFolderTreeItem_Expanded"/>
+           </Style>
+          </TreeView.ItemContainerStyle>
+          <TreeView.Resources>
+           <HierarchicalDataTemplate DataType="{x:Type local:BrowserTreeNode}" ItemsSource="{Binding Children, Mode=OneWay}">
+            <Grid Margin="3,5" ToolTip="{Binding Diagnostic, Mode=OneWay}">
+             <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+             <TextBlock VerticalAlignment="Center" Foreground="#E4B85A" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE8B7;"/>
              <StackPanel Grid.Column="1">
-              <TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"/>
-              <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11"><Run Text="{Binding DisplayKind, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding Availability, Mode=OneWay}"/></TextBlock>
+              <TextBlock Foreground="{StaticResource TextBrush}" Text="{Binding DisplayName, Mode=OneWay}" TextTrimming="CharacterEllipsis"/>
+              <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="{Binding StorageStatus, Mode=OneWay}"/>
              </StackPanel>
             </Grid>
-           </DataTemplate>
-          </ListBox.ItemTemplate>
-         </ListBox>
+           </HierarchicalDataTemplate>
+          </TreeView.Resources>
+         </TreeView>
          <StackPanel x:Name="BrowserRootsEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="14">
           <TextBlock Foreground="{StaticResource MutedTextBrush}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="26" HorizontalAlignment="Center" Text="&#xE838;"/>
           <TextBlock Style="{StaticResource ShellPlaceholderText}" Margin="0,10,0,0" Text="No storage locations are currently available."/>
@@ -98,21 +103,11 @@
           <ItemsControl x:Name="BrowserEntries">
            <ItemsControl.ItemTemplate>
             <DataTemplate>
-             <Grid Margin="4,2">
-              <Button x:Name="FolderButton" HorizontalContentAlignment="Stretch" Padding="10,8" Background="Transparent" BorderThickness="0" Click="BrowserFolder_Click" AutomationProperties.Name="{Binding Name}">
-               <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                <TextBlock VerticalAlignment="Center" Foreground="#E4B85A" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="17" Text="&#xE8B7;"/>
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
-                <TextBlock Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Folder"/>
-               </Grid>
-              </Button>
-              <Grid x:Name="FileRow" Margin="10,8" Visibility="Collapsed"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+             <Grid x:Name="FileRow" Margin="14,10"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                <TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Text="&#xE8A5;"/>
                <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
                <TextBlock Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="{Binding MediaType}"/>
               </Grid>
-             </Grid>
-             <DataTemplate.Triggers><DataTrigger Binding="{Binding IsDirectory}" Value="False"><Setter TargetName="FolderButton" Property="Visibility" Value="Collapsed"/><Setter TargetName="FileRow" Property="Visibility" Value="Visible"/></DataTrigger></DataTemplate.Triggers>
             </DataTemplate>
            </ItemsControl.ItemTemplate>
           </ItemsControl>

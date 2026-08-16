@@ -10,14 +10,18 @@ public class UiLayoutTests
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
 
-        Assert.NotNull(Named(document, "BrowserRootsList"));
+        Assert.NotNull(Named(document, "BrowserFolderTree"));
         Assert.NotNull(Named(document, "BrowserEntries"));
         Assert.Equal("BrowserCurrentPath_KeyDown", (string?)Named(document, "BrowserCurrentPath").Attribute("KeyDown"));
         Assert.Equal("BrowserGo_Click", (string?)Named(document, "BrowserGoButton").Attribute("Click"));
         var ns = document.Root!.Name.Namespace;
-        var displayKind = document.Descendants(ns + "Run").Single(element =>
-            ((string?)element.Attribute("Text"))?.Contains("DisplayKind", StringComparison.Ordinal) == true);
-        Assert.Contains("Mode=OneWay", (string?)displayKind.Attribute("Text"));
+        Assert.Equal("BrowserFolderTree_SelectedItemChanged",
+            (string?)Named(document, "BrowserFolderTree").Attribute("SelectedItemChanged"));
+        Assert.DoesNotContain(document.Descendants(ns + "Button"), element =>
+            (string?)element.Attribute("Click") == "BrowserFolder_Click");
+        var itemTemplate = Named(document, "BrowserEntries").Descendants(ns + "DataTemplate").Single();
+        Assert.DoesNotContain(itemTemplate.Descendants(), element =>
+            ((string?)element.Attribute("Text"))?.Contains("Folder", StringComparison.Ordinal) == true);
         Assert.Equal("BrowserBack_Click", (string?)Named(document, "BrowserBackButton").Attribute("Click"));
         Assert.Equal("BrowserForward_Click", (string?)Named(document, "BrowserForwardButton").Attribute("Click"));
         Assert.Equal("BrowserUp_Click", (string?)Named(document, "BrowserUpButton").Attribute("Click"));

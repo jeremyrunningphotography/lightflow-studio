@@ -90,6 +90,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             MediaRoots, new SampledSourceFingerprintService());
         MediaTypes = MediaTypeRegistry.CreateDefault();
         MediaFolders = new MediaFolderEnumerator(MediaRoots, MediaTypes, new MediaFolderFileSystem());
+        CatalogReconciliation = new CatalogReconciliationService(MediaFolders, MediaAssets);
     }
 
     public AppSettings Settings { get; private set; }
@@ -103,6 +104,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public IMediaAssetService MediaAssets { get; }
     public IMediaTypeRegistry MediaTypes { get; }
     public IMediaFolderEnumerator MediaFolders { get; }
+    public ICatalogReconciliationService CatalogReconciliation { get; }
     public IPreviewStoreService? Previews { get; private set; }
     public IReadOnlyList<CatalogBackup> CatalogBackups => _recovery.ListBackups();
 

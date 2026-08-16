@@ -28,30 +28,84 @@ internal interface IBrowserVolumeProvider
     IReadOnlyList<BrowserVolume> ListVolumes();
 }
 
+internal interface IBrowserDrive
+{
+    string Name { get; }
+    string RootPath { get; }
+    bool IsReady { get; }
+    string VolumeLabel { get; }
+}
+
+internal interface IBrowserDriveSource
+{
+    IReadOnlyList<IBrowserDrive> ListDrives();
+}
+
+internal sealed class WindowsBrowserDrive(DriveInfo drive) : IBrowserDrive
+{
+    public string Name => drive.Name;
+    public string RootPath => drive.RootDirectory.FullName;
+    public bool IsReady => drive.IsReady;
+    public string VolumeLabel => drive.VolumeLabel;
+}
+
+internal sealed class WindowsBrowserDriveSource : IBrowserDriveSource
+{
+    public IReadOnlyList<IBrowserDrive> ListDrives() =>
+        DriveInfo.GetDrives().Select(drive => (IBrowserDrive)new WindowsBrowserDrive(drive)).ToArray();
+}
+
 internal sealed class WindowsBrowserVolumeProvider : IBrowserVolumeProvider
 {
+    private readonly IBrowserDriveSource _source;
+
+    public WindowsBrowserVolumeProvider() : this(new WindowsBrowserDriveSource()) { }
+    internal WindowsBrowserVolumeProvider(IBrowserDriveSource source) => _source = source;
+
     public IReadOnlyList<BrowserVolume> ListVolumes()
     {
         var volumes = new List<BrowserVolume>();
-        foreach (var drive in DriveInfo.GetDrives())
+        IReadOnlyList<IBrowserDrive> drives;
+        try { drives = _source.ListDrives(); }
+        catch (Exception exception) when (IsExpectedDriveFailure(exception)) { return volumes; }
+        foreach (var drive in drives)
         {
+            var name = SafeName(drive);
             try
             {
                 var ready = drive.IsReady;
                 var label = ready && !string.IsNullOrWhiteSpace(drive.VolumeLabel)
-                    ? $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\')})"
-                    : drive.Name.TrimEnd('\\');
-                volumes.Add(new(drive.RootDirectory.FullName, label, ready,
+                    ? $"{drive.VolumeLabel} ({name.TrimEnd('\\')})"
+                    : name.TrimEnd('\\');
+                volumes.Add(new(drive.RootPath, label, ready,
                     ready ? null : "This drive is not currently ready."));
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            catch (Exception exception) when (IsExpectedDriveFailure(exception))
             {
-                volumes.Add(new(drive.Name, drive.Name.TrimEnd('\\'), false,
-                    $"This drive is unavailable: {exception.Message}"));
+                var root = SafeRootPath(drive);
+                if (root is not null)
+                    volumes.Add(new(root, name.TrimEnd('\\'), false,
+                        $"This drive is unavailable: {exception.Message}"));
             }
         }
         return volumes;
     }
+
+    private static string SafeName(IBrowserDrive drive)
+    {
+        try { return drive.Name; }
+        catch (Exception exception) when (IsExpectedDriveFailure(exception)) { return "Unavailable storage"; }
+    }
+
+    private static string? SafeRootPath(IBrowserDrive drive)
+    {
+        try { return drive.RootPath; }
+        catch (Exception exception) when (IsExpectedDriveFailure(exception)) { return null; }
+    }
+
+    private static bool IsExpectedDriveFailure(Exception exception) =>
+        exception is IOException or UnauthorizedAccessException or System.Security.SecurityException or
+            InvalidOperationException or ArgumentException;
 }
 
 internal sealed class BrowserStorageProvider(IMediaRootService roots, IBrowserVolumeProvider volumes)
@@ -64,7 +118,9 @@ internal sealed class BrowserStorageProvider(IMediaRootService roots, IBrowserVo
         foreach (var volume in await Task.Run(volumes.ListVolumes, cancellationToken).ConfigureAwait(false))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var path = MediaPathSemantics.NormalizeRootPath(volume.RootPath);
+            string path;
+            try { path = MediaPathSemantics.NormalizeRootPath(volume.RootPath); }
+            catch (ArgumentException) { continue; }
             volumePaths.Add(path);
             entries.Add(new($"volume:{path.ToUpperInvariant()}", volume.DisplayName, path,
                 BrowserStorageKind.Volume, volume.IsReady ? MediaRootAvailability.Online : MediaRootAvailability.Unavailable,

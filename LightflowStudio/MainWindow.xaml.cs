@@ -76,37 +76,48 @@ public partial class MainWindow : Window
         _commandLineFolder = Environment.GetCommandLineArgs().Skip(1).FirstOrDefault(Directory.Exists);
         Loaded += async (_, _) =>
         {
-            AboutVersionText.Text = $"Version {AppVersion.Display}  •  Built for the creative workflow";
-            _settings = _storage.Settings;
-            _state = AppStateStore.Load(_storage.Locations.StatePath);
-            PopulateSettingsControls(_settings);
-            ApplySettingsToBatch(_settings);
-            ApplyStateToBatch(_state);
-            if (_commandLineFolder is not null)
+            try
             {
-                InputFolder.Text = _commandLineFolder;
-                MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
+                AboutVersionText.Text = $"Version {AppVersion.Display}  •  Built for the creative workflow";
+                _settings = _storage.Settings;
+                _state = AppStateStore.Load(_storage.Locations.StatePath);
+                PopulateSettingsControls(_settings);
+                ApplySettingsToBatch(_settings);
+                ApplyStateToBatch(_state);
+                if (_commandLineFolder is not null)
+                {
+                    InputFolder.Text = _commandLineFolder;
+                    MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
+                }
+                BatchFileList.ItemsSource = _batchFiles;
+                HistoryList.ItemsSource = _historyRecords;
+                MediaRootsList.ItemsSource = _mediaRoots;
+                BrowserRootsList.ItemsSource = _browserStorageEntries;
+                BrowserEntries.ItemsSource = _browserEntries;
+                RefreshCatalogBackups();
+                RefreshHistory();
+                LocateTools();
+                await RefreshDependencyHealthAsync();
+                RefreshBatchFiles();
+                RefreshLuts();
+                await RefreshMediaRootsAsync();
+                await RefreshBrowserStorageAsync();
+                await RefreshPreviewUsageAsync();
+                if (_storageStartupStatus != StorageStartupStatus.Ready)
+                    SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
+                else if (!_storage.PreviewAvailable)
+                    SettingsMessage.Text = _storage.PreviewDiagnostic;
+                else if (_storage.RecoveryDiagnostic is not null)
+                    SettingsMessage.Text = _storage.RecoveryDiagnostic;
             }
-            BatchFileList.ItemsSource = _batchFiles;
-            HistoryList.ItemsSource = _historyRecords;
-            MediaRootsList.ItemsSource = _mediaRoots;
-            BrowserRootsList.ItemsSource = _browserStorageEntries;
-            BrowserEntries.ItemsSource = _browserEntries;
-            RefreshCatalogBackups();
-            RefreshHistory();
-            LocateTools();
-            await RefreshDependencyHealthAsync();
-            RefreshBatchFiles();
-            RefreshLuts();
-            await RefreshMediaRootsAsync();
-            await RefreshBrowserStorageAsync();
-            await RefreshPreviewUsageAsync();
-            if (_storageStartupStatus != StorageStartupStatus.Ready)
-                SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
-            else if (!_storage.PreviewAvailable)
-                SettingsMessage.Text = _storage.PreviewDiagnostic;
-            else if (_storage.RecoveryDiagnostic is not null)
-                SettingsMessage.Text = _storage.RecoveryDiagnostic;
+            catch (Exception exception)
+            {
+                _activityLogFile.TryAppend($"[App] Main window initialization failed: {exception}");
+                BrowserWorkspaceStatus.Text = "Browser initialization needs attention";
+                BrowserEmptyTitle.Text = "Storage locations could not be loaded";
+                BrowserEmptyMessage.Text = $"Lightflow remains available. Details were written to {_activityLogFile.Path}.";
+                BrowserEmptyState.Visibility = Visibility.Visible;
+            }
         };
         Closed += (_, _) => _browserNavigation.Dispose();
     }

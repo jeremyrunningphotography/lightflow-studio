@@ -64,7 +64,7 @@
              </Ellipse>
              <StackPanel Grid.Column="1">
               <TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"/>
-              <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11"><Run Text="{Binding DisplayKind}"/><Run Text=" · "/><Run Text="{Binding Availability}"/></TextBlock>
+              <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11"><Run Text="{Binding DisplayKind, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding Availability, Mode=OneWay}"/></TextBlock>
              </StackPanel>
             </Grid>
            </DataTemplate>

@@ -80,6 +80,23 @@ public sealed class BrowserNavigationTests
     }
 
     [Fact]
+    public void WindowsVolumeProvider_ProblematicDriveDoesNotHideHealthyDrives()
+    {
+        var provider = new WindowsBrowserVolumeProvider(new FakeDriveSource(
+            new FakeDrive(@"C:\", "System", true),
+            new FakeDrive(@"Q:\", "Broken", true, new IOException("Device is not ready.")),
+            new FakeDrive(@"R:\", "Media", true)));
+
+        var volumes = provider.ListVolumes();
+
+        Assert.Contains(volumes, volume => volume.RootPath == @"C:\" && volume.IsReady);
+        Assert.Contains(volumes, volume => volume.RootPath == @"R:\" && volume.IsReady);
+        var problematic = Assert.Single(volumes, volume => volume.RootPath == @"Q:\");
+        Assert.False(problematic.IsReady);
+        Assert.Contains("Device is not ready", problematic.Diagnostic);
+    }
+
+    [Fact]
     public async Task NestedNavigationSupportsUpBackForwardAndRefresh()
     {
         var root = Root("Library", @"C:\Library");
@@ -208,6 +225,19 @@ public sealed class BrowserNavigationTests
     private sealed class FakeVolumes(params BrowserVolume[] volumes) : IBrowserVolumeProvider
     {
         public IReadOnlyList<BrowserVolume> ListVolumes() => volumes;
+    }
+
+    private sealed class FakeDriveSource(params IBrowserDrive[] drives) : IBrowserDriveSource
+    {
+        public IReadOnlyList<IBrowserDrive> ListDrives() => drives;
+    }
+
+    private sealed class FakeDrive(string rootPath, string label, bool ready, Exception? failure = null) : IBrowserDrive
+    {
+        public string Name => rootPath;
+        public string RootPath => rootPath;
+        public bool IsReady => failure is null ? ready : throw failure;
+        public string VolumeLabel => label;
     }
 
     private sealed class FakeRoots(params MediaRootInfo[] initial) : IMediaRootService

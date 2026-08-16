@@ -14,6 +14,10 @@ public class UiLayoutTests
         Assert.NotNull(Named(document, "BrowserEntries"));
         Assert.Equal("BrowserCurrentPath_KeyDown", (string?)Named(document, "BrowserCurrentPath").Attribute("KeyDown"));
         Assert.Equal("BrowserGo_Click", (string?)Named(document, "BrowserGoButton").Attribute("Click"));
+        var ns = document.Root!.Name.Namespace;
+        var displayKind = document.Descendants(ns + "Run").Single(element =>
+            ((string?)element.Attribute("Text"))?.Contains("DisplayKind", StringComparison.Ordinal) == true);
+        Assert.Contains("Mode=OneWay", (string?)displayKind.Attribute("Text"));
         Assert.Equal("BrowserBack_Click", (string?)Named(document, "BrowserBackButton").Attribute("Click"));
         Assert.Equal("BrowserForward_Click", (string?)Named(document, "BrowserForwardButton").Attribute("Click"));
         Assert.Equal("BrowserUp_Click", (string?)Named(document, "BrowserUpButton").Attribute("Click"));

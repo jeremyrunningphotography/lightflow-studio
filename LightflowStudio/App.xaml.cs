@@ -53,8 +53,15 @@ public partial class App : System.Windows.Application
         MainWindow.Show();
     }
 
-    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e) =>
+    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
         ActivityLog.TryAppend($"[App] Unhandled UI exception: {e.Exception}");
+        e.Handled = true;
+        System.Windows.MessageBox.Show(
+            $"Lightflow encountered an unexpected interface error and must close. Diagnostic details were written to:\n\n{ActivityLog.Path}",
+            "Lightflow Studio", MessageBoxButton.OK, MessageBoxImage.Error);
+        Shutdown(1);
+    }
 
     private void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e) =>
         ActivityLog.TryAppend($"[App] Unhandled exception (terminating={e.IsTerminating}): {e.ExceptionObject}");

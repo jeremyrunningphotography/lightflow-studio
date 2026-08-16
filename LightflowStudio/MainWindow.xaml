@@ -48,13 +48,15 @@
       </Grid>
      </Border>
      <Grid Grid.Row="1" Margin="{StaticResource ShellWorkspacePadding}">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="260"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="10"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource ShellPanel}">
        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
         <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Locations"/>
         <Grid Grid.Row="1" Margin="0,12,0,0">
-         <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent"
-          SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto">
+         <ScrollViewer x:Name="BrowserFolderScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+          CanContentScroll="False" Padding="0,0,2,2" Focusable="False">
+         <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch"
+          SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
           <TreeView.ItemContainerStyle>
            <Style TargetType="TreeViewItem">
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
@@ -75,6 +77,7 @@
            </HierarchicalDataTemplate>
           </TreeView.Resources>
          </TreeView>
+         </ScrollViewer>
          <StackPanel x:Name="BrowserRootsEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="14">
           <TextBlock Foreground="{StaticResource MutedTextBrush}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="26" HorizontalAlignment="Center" Text="&#xE838;"/>
           <TextBlock Style="{StaticResource ShellPlaceholderText}" Margin="0,10,0,0" Text="No storage locations are currently available."/>
@@ -82,7 +85,12 @@
         </Grid>
        </Grid>
       </Border>
-      <Grid Grid.Column="2">
+      <GridSplitter x:Name="BrowserNavigationSplitter" Grid.Column="1" Width="10" HorizontalAlignment="Stretch"
+       VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent"
+       Cursor="SizeWE" ToolTip="Drag to resize folder navigation" AutomationProperties.Name="Resize folder navigation">
+       <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"><Border Width="2" HorizontalAlignment="Center" Background="{StaticResource ShellDividerBrush}" CornerRadius="1"/></Grid></ControlTemplate></GridSplitter.Template>
+      </GridSplitter>
+      <Grid Grid.Column="2" MinWidth="520">
        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="*"/></Grid.RowDefinitions>
        <Border Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>

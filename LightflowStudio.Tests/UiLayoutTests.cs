@@ -31,6 +31,44 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserFolderNavigation_IsBoundedResizableAndScrollsInBothDirections()
+    {
+        var root = FindRepositoryRoot();
+        var document = XDocument.Load(Path.Combine(root, "LightflowStudio", "MainWindow.xaml"));
+        var app = XDocument.Load(Path.Combine(root, "LightflowStudio", "App.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var column = Named(document, "BrowserNavigationColumn");
+        var splitter = Named(document, "BrowserNavigationSplitter");
+        var scroller = Named(document, "BrowserFolderScrollViewer");
+        var tree = Named(document, "BrowserFolderTree");
+
+        Assert.Equal("280", (string?)column.Attribute("Width"));
+        Assert.Equal("220", (string?)column.Attribute("MinWidth"));
+        Assert.Equal("520", (string?)column.Attribute("MaxWidth"));
+        Assert.Equal("Columns", (string?)splitter.Attribute("ResizeDirection"));
+        Assert.Equal("PreviousAndNext", (string?)splitter.Attribute("ResizeBehavior"));
+        Assert.Equal("SizeWE", (string?)splitter.Attribute("Cursor"));
+        Assert.Equal("Auto", (string?)scroller.Attribute("HorizontalScrollBarVisibility"));
+        Assert.Equal("Auto", (string?)scroller.Attribute("VerticalScrollBarVisibility"));
+        Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
+            attribute.Name.LocalName == "ScrollViewer.HorizontalScrollBarVisibility").Value);
+        Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
+            attribute.Name.LocalName == "ScrollViewer.VerticalScrollBarVisibility").Value);
+        Assert.Equal(scroller, tree.Parent);
+
+        var appNs = app.Root!.Name.Namespace;
+        var horizontalTrigger = app.Descendants(appNs + "Trigger").Single(trigger =>
+            (string?)trigger.Attribute("Property") == "Orientation" &&
+            (string?)trigger.Attribute("Value") == "Horizontal");
+        Assert.Contains(horizontalTrigger.Elements(appNs + "Setter"), setter =>
+            setter.Attribute("TargetName") is null && (string?)setter.Attribute("Property") == "Width" &&
+            (string?)setter.Attribute("Value") == "Auto");
+        Assert.Contains(horizontalTrigger.Elements(appNs + "Setter"), setter =>
+            setter.Attribute("TargetName") is null && (string?)setter.Attribute("Property") == "Height" &&
+            (string?)setter.Attribute("Value") == "12");
+    }
+
+    [Fact]
     public void ActivityLog_IsCollapsedByDefault()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));

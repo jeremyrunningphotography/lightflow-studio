@@ -48,7 +48,7 @@
       </Grid>
      </Border>
      <Grid Grid.Row="1" Margin="{StaticResource ShellWorkspacePadding}">
-      <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="10"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource ShellPanel}">
        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
         <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Locations"/>
@@ -86,10 +86,10 @@
         </Grid>
        </Grid>
       </Border>
-      <GridSplitter x:Name="BrowserNavigationSplitter" Grid.Column="1" Width="10" HorizontalAlignment="Stretch"
+      <GridSplitter x:Name="BrowserNavigationSplitter" Grid.Column="1" Width="8" HorizontalAlignment="Stretch"
        VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent"
        Cursor="SizeWE" ToolTip="Drag to resize folder navigation" AutomationProperties.Name="Resize folder navigation">
-       <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"><Border Width="2" HorizontalAlignment="Center" Background="{StaticResource ShellDividerBrush}" CornerRadius="1"/></Grid></ControlTemplate></GridSplitter.Template>
+       <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template>
       </GridSplitter>
       <Grid Grid.Column="2" MinWidth="520">
        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="*"/></Grid.RowDefinitions>

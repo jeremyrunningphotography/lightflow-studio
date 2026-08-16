@@ -48,6 +48,12 @@ public class UiLayoutTests
         Assert.Equal("Columns", (string?)splitter.Attribute("ResizeDirection"));
         Assert.Equal("PreviousAndNext", (string?)splitter.Attribute("ResizeBehavior"));
         Assert.Equal("SizeWE", (string?)splitter.Attribute("Cursor"));
+        Assert.Equal("8", (string?)splitter.Attribute("Width"));
+        Assert.Equal("Transparent", (string?)splitter.Attribute("Background"));
+        var splitterTemplate = splitter.Descendants(ns + "ControlTemplate").Single();
+        Assert.Empty(splitterTemplate.Descendants(ns + "Border"));
+        Assert.All(splitterTemplate.Descendants(ns + "Grid"), grid =>
+            Assert.Equal("Transparent", (string?)grid.Attribute("Background")));
         Assert.Equal("Auto", (string?)scroller.Attribute("HorizontalScrollBarVisibility"));
         Assert.Equal("Auto", (string?)scroller.Attribute("VerticalScrollBarVisibility"));
         Assert.Equal("{StaticResource BrowserFolderScrollViewerStyle}", (string?)scroller.Attribute("Style"));

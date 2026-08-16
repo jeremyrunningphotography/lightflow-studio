@@ -113,6 +113,18 @@ public class UiLayoutTests
         Assert.Equal("26", (string?)row.Attribute("Height"));
         Assert.Equal(["18", "Auto", "Auto"], columns.Select(column => (string?)column.Attribute("Width")));
         Assert.DoesNotContain(hierarchyTemplate.Descendants(ns + "StackPanel"), _ => true);
+        var folderLabel = hierarchyTemplate.Descendants(ns + "TextBlock").Single(text =>
+            (string?)text.Attribute(xNamespace + "Name") == "FolderLabel");
+        Assert.Equal("8,0,0,0", (string?)folderLabel.Attribute("Margin"));
+        Assert.Null(folderLabel.Attribute("Foreground"));
+
+        var shell = XDocument.Load(Path.Combine(root, "LightflowStudio", "Themes", "LightflowShell.xaml"));
+        var shellNs = shell.Root!.Name.Namespace;
+        Assert.Contains(shell.Root.Elements(shellNs + "Color"), color =>
+            (string?)color.Attribute(xNamespace + "Key") == "ShellNavigationTextColor" && color.Value == "#D8D8DC");
+        Assert.Contains(treeItemStyle.Elements(appNs + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Foreground" &&
+            (string?)setter.Attribute("Value") == "{StaticResource ShellNavigationTextBrush}");
 
         var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "MainWindow.xaml.cs"));
         Assert.Contains("BrowserFolderScrollViewer.ScrollToVerticalOffset", source);

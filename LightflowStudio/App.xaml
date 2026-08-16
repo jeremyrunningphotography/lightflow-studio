@@ -311,7 +311,7 @@
    </Setter>
   </Style>
   <Style x:Key="BrowserTreeItemStyle" TargetType="TreeViewItem">
-   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+   <Setter Property="Foreground" Value="{StaticResource ShellNavigationTextBrush}"/>
    <Setter Property="Background" Value="Transparent"/>
    <Setter Property="BorderBrush" Value="Transparent"/>
    <Setter Property="BorderThickness" Value="1"/>
@@ -355,6 +355,7 @@
       <ControlTemplate.Triggers>
        <Trigger Property="HasItems" Value="False"><Setter TargetName="Expander" Property="Visibility" Value="Hidden"/></Trigger>
        <Trigger Property="IsExpanded" Value="False"><Setter TargetName="ItemsHost" Property="Visibility" Value="Collapsed"/></Trigger>
+       <Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger>
        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>

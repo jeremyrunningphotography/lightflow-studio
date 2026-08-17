@@ -194,6 +194,38 @@ public sealed class BrowserNavigationTests
     }
 
     [Fact]
+    public async Task SuccessfulNavigationSurfacesTheScheduledDerivedWorkBatchForGridThumbnailUpdates()
+    {
+        var root = Root("Library", @"C:\Library");
+        var reconciliation = new CatalogReconciliationResult(CatalogReconciliationStatus.Succeeded, root.RootId, "",
+            [new(Guid.NewGuid(), "clip.mp4", CatalogReconciliationItemStatus.New)]);
+        var batch = new DerivedWorkBatch(reconciliation, static _ => { });
+        batch.Seal();
+        var discovery = new FakeDiscovery((request, _, _, _) =>
+            Task.FromResult(new MediaDiscoveryRefreshResult(reconciliation, batch)));
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, FileEntry(root.RootId, "clip.mp4"))));
+        using var session = Session(new FakeRoots(root), discovery, folders);
+
+        var result = await session.NavigateToRootAsync(root.RootId);
+
+        Assert.Same(batch, result!.DerivedWork);
+    }
+
+    [Fact]
+    public async Task FailedReconciliationLeavesDerivedWorkNull()
+    {
+        var root = Root("Library", @"C:\Library");
+        var discovery = new FakeDiscovery((request, _, _, _) => Task.FromResult(new MediaDiscoveryRefreshResult(
+            new(CatalogReconciliationStatus.Failed, request.RootId, request.RelativeFolder ?? "", [], Diagnostic: "boom"), null)));
+        using var session = Session(new FakeRoots(root), discovery, EmptyFolders());
+
+        var result = await session.NavigateToRootAsync(root.RootId);
+
+        Assert.Equal(BrowserFolderStatus.Failed, result!.Status);
+        Assert.Null(result.DerivedWork);
+    }
+
+    [Fact]
     public async Task FailedNavigationDoesNotReplaceLastSuccessfullyLoadedSessionState()
     {
         var root = Root("Library", @"C:\Library");

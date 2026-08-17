@@ -30,6 +30,26 @@ public sealed class MediaRootMonitoringTests : IDisposable
     }
 
     [Fact]
+    public async Task FolderRefreshedFiresWithTheReconciledFolderSoBrowserCanRefreshAnOpenView()
+    {
+        var context = CreateContext();
+        await context.Service.SynchronizeAsync();
+        await context.Service.FlushAsync();
+        context.Refresh.Requests.Clear();
+        var notifications = new List<MediaFolderEnumerationRequest>();
+        context.Service.FolderRefreshed += (_, request) => notifications.Add(request);
+        var file = Path.Combine(_temporary, "shoot", "clip.mp4");
+
+        context.Watcher.Publish(new(_rootId, MediaRootChangeKind.Created, file));
+        await context.Service.FlushAsync();
+
+        var notification = Assert.Single(notifications);
+        Assert.Equal(_rootId, notification.RootId);
+        Assert.Equal("shoot", notification.RelativeFolder);
+        await context.Service.DisposeAsync();
+    }
+
+    [Fact]
     public async Task DebounceWaitsAndRepeatedHintsRestartOneFolderSubmission()
     {
         Directory.CreateDirectory(_temporary);

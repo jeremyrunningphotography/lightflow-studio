@@ -24,6 +24,13 @@ internal sealed class BrowserTreeNode : INotifyPropertyChanged
     public BrowserStorageEntry? Storage { get; private set; }
     public bool IsPlaceholder { get; }
     public ObservableCollection<BrowserTreeNode> Children { get; } = [];
+
+    /// <summary>
+    /// True once <see cref="Children"/> reflects a real folder enumeration for this node rather than only a
+    /// lazy-load placeholder or a synthetic single-child stub created while materializing an ancestor chain
+    /// toward a not-yet-visited deep folder. Sibling folders are only trustworthy once this is true.
+    /// </summary>
+    public bool IsMaterialized { get; set; }
     public string? Diagnostic => Storage?.Diagnostic;
     public MediaRootAvailability Availability => Storage?.Availability ?? MediaRootAvailability.Online;
     public bool IsStorageLocation => Storage is not null;
@@ -106,9 +113,28 @@ internal sealed class BrowserTreeModel
 
         var current = EnsurePath(root, state.Location.AbsolutePath);
         Select(current);
-        ReplaceDirectories(current, state);
+        ReplaceDirectories(current, state.Location.RootPath, state.Entries);
         return state.Entries.Where(entry => !entry.IsDirectory).ToArray();
     }
+
+    /// <summary>
+    /// Ancestor nodes from the root down to (but excluding) <paramref name="location"/> itself, in top-down
+    /// order, that still need their real children loaded through a folder enumeration before their sibling
+    /// folders can be trusted to be visible. Also walks/creates the identity chain toward the target exactly
+    /// like <see cref="Synchronize"/> does, so the target node exists and is selectable immediately, even
+    /// before any returned ancestor is materialized. Safe to call repeatedly/idempotently — already
+    /// materialized or already-created nodes are reused rather than duplicated.
+    /// </summary>
+    public IReadOnlyList<BrowserTreeNode> GetUnmaterializedAncestors(BrowserLocation location)
+    {
+        var root = FindRoot(location) ?? AddCurrentRoot(location);
+        var chain = EnsurePathChain(root, location.AbsolutePath);
+        return chain.Take(chain.Count - 1).Where(node => !node.IsMaterialized).ToArray();
+    }
+
+    /// <summary>Backfills a tree node's real children (siblings) from an actual folder enumeration.</summary>
+    public void ApplyDirectoryListing(BrowserTreeNode node, string rootPath, IReadOnlyList<MediaFolderEntry> entries) =>
+        ReplaceDirectories(node, rootPath, entries);
 
     public void RequestSelection(BrowserTreeNode node)
     {
@@ -169,13 +195,24 @@ internal sealed class BrowserTreeModel
         return node;
     }
 
-    private static BrowserTreeNode EnsurePath(BrowserTreeNode root, string targetPath)
+    private static BrowserTreeNode EnsurePath(BrowserTreeNode root, string targetPath) =>
+        EnsurePathChain(root, targetPath)[^1];
+
+    /// <summary>
+    /// Walks/creates the node chain from <paramref name="root"/> down to <paramref name="targetPath"/>,
+    /// inclusive of both ends. Intermediate nodes created along the way are structural placeholders only —
+    /// each has exactly the one child leading toward the target, never a real listing of that ancestor's
+    /// other children — callers that need real sibling folders must materialize those ancestors separately
+    /// via <see cref="ApplyDirectoryListing"/> (see <see cref="GetUnmaterializedAncestors"/>).
+    /// </summary>
+    private static IReadOnlyList<BrowserTreeNode> EnsurePathChain(BrowserTreeNode root, string targetPath)
     {
         var rootPath = MediaPathSemantics.NormalizeRootPath(root.AbsolutePath!);
         var target = MediaPathSemantics.NormalizeRootPath(targetPath);
-        if (string.Equals(rootPath, target, StringComparison.OrdinalIgnoreCase)) return root;
+        if (string.Equals(rootPath, target, StringComparison.OrdinalIgnoreCase)) return [root];
 
         var relative = Path.GetRelativePath(rootPath, target);
+        var chain = new List<BrowserTreeNode> { root };
         var current = root;
         var currentPath = rootPath;
         foreach (var segment in relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
@@ -192,20 +229,20 @@ internal sealed class BrowserTreeModel
                 child.Children.Add(NewPlaceholder());
                 current.Children.Add(child);
             }
+            chain.Add(child);
             current = child;
         }
-        return current;
+        return chain;
     }
 
-    private static void ReplaceDirectories(BrowserTreeNode current, BrowserFolderState state)
+    private static void ReplaceDirectories(BrowserTreeNode current, string rootPath, IReadOnlyList<MediaFolderEntry> entries)
     {
-        if (state.Location is null) return;
         var existing = current.Children.Where(node => !node.IsPlaceholder && node.AbsolutePath is not null)
             .ToDictionary(node => node.AbsolutePath!, StringComparer.OrdinalIgnoreCase);
         var desired = new List<BrowserTreeNode>();
-        foreach (var entry in state.Entries.Where(entry => entry.IsDirectory))
+        foreach (var entry in entries.Where(entry => entry.IsDirectory))
         {
-            var path = MediaPathSemantics.ResolveContained(state.Location.RootPath, entry.RelativePath);
+            var path = MediaPathSemantics.ResolveContained(rootPath, entry.RelativePath);
             if (!existing.TryGetValue(path, out var child))
             {
                 child = new BrowserTreeNode(entry.Name, path);
@@ -214,6 +251,7 @@ internal sealed class BrowserTreeModel
             desired.Add(child);
         }
         Reconcile(current.Children, desired);
+        current.IsMaterialized = true;
     }
 
     private void Select(BrowserTreeNode node)

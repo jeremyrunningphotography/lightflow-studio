@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
     private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
     private readonly ObservableCollection<BrowserStorageEntry> _browserStorageEntries = [];
-    private readonly ObservableCollection<MediaFolderEntry> _browserEntries = [];
+    private readonly BrowserGridModel _browserGrid = new();
     private readonly BrowserTreeModel _browserTree = new();
     private readonly BrowserNavigationSession _browserNavigation;
     private BrowserFolderState? _lastLoadedBrowserState;
@@ -96,7 +96,8 @@ public partial class MainWindow : Window
                 HistoryList.ItemsSource = _historyRecords;
                 MediaRootsList.ItemsSource = _mediaRoots;
                 BrowserFolderTree.ItemsSource = _browserTree.Roots;
-                BrowserEntries.ItemsSource = _browserEntries;
+                BrowserGridRows.ItemsSource = _browserGrid.Rows;
+                if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed += BrowserMonitoring_FolderRefreshed;
                 RefreshCatalogBackups();
                 RefreshHistory();
                 LocateTools();
@@ -121,8 +122,22 @@ public partial class MainWindow : Window
                 BrowserEmptyState.Visibility = Visibility.Visible;
             }
         };
-        Closed += (_, _) => _browserNavigation.Dispose();
+        Closed += (_, _) =>
+        {
+            if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
+            _browserNavigation.Dispose();
+        };
     }
+
+    private void BrowserMonitoring_FolderRefreshed(object? sender, MediaFolderEnumerationRequest request) =>
+        Dispatcher.BeginInvoke(async () =>
+        {
+            var location = _browserNavigation.State.Location;
+            if (location is null || location.RootId != request.RootId ||
+                !string.Equals(location.RelativeFolder ?? "", request.RelativeFolder ?? "", StringComparison.OrdinalIgnoreCase))
+                return;
+            await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+        });
 
     private async void BrowserFolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
@@ -178,6 +193,11 @@ public partial class MainWindow : Window
         {
             var container = FindBrowserTreeItem(BrowserFolderTree, node);
             if (container is null) return;
+            // Programmatic selection only sets IsSelected (the background fill); the focus-ring outline is a
+            // separate IsKeyboardFocused-driven trigger for accessibility. Giving the revealed container real
+            // keyboard focus here makes direct-path/programmatic navigation look and behave the same as a
+            // manual click, matching Explorer-like navigation conventions.
+            container.Focus();
             var rowPosition = container.TranslatePoint(new System.Windows.Point(0, 0), BrowserFolderTree);
             var verticalOffset = BrowserTreeScroll.RevealVerticalOffset(BrowserFolderScrollViewer.VerticalOffset,
                 BrowserFolderScrollViewer.ViewportHeight, rowPosition.Y, container.ActualHeight);
@@ -189,6 +209,53 @@ public partial class MainWindow : Window
                 Math.Min(horizontalOffset, BrowserFolderScrollViewer.ScrollableWidth));
         });
     }
+
+    /// <summary>
+    /// Materializes every ancestor between the Locations root and <paramref name="location"/> that direct-path
+    /// or other programmatic navigation has not yet visited, so the tree shows real sibling folders along the
+    /// whole path instead of the synthetic single-child chain <see cref="BrowserTreeModel"/> creates just to
+    /// preserve node identity while the real listing is unknown. Ancestors already materialized by ordinary
+    /// click-driven expansion are skipped, so this is a no-op in the common case.
+    /// </summary>
+    private async Task RevealBrowserTreeAncestorsAsync(BrowserLocation location, long generation)
+    {
+        IReadOnlyList<BrowserTreeNode> pending;
+        _synchronizingBrowserTree = true;
+        try { pending = _browserTree.GetUnmaterializedAncestors(location); }
+        finally { _synchronizingBrowserTree = false; }
+
+        foreach (var ancestor in pending)
+        {
+            if (generation != _browserUiGeneration) return;
+            if (ancestor.AbsolutePath is not { } absolutePath) continue;
+
+            MediaFolderEnumerationResult listing;
+            try
+            {
+                listing = await _storage.MediaFolders.EnumerateAsync(
+                    new(location.RootId, RelativeFolderUnderRoot(location.RootPath, absolutePath))).ConfigureAwait(true);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                continue;
+            }
+            if (generation != _browserUiGeneration) return;
+            if (!listing.Succeeded) continue;
+
+            _synchronizingBrowserTree = true;
+            try { _browserTree.ApplyDirectoryListing(ancestor, location.RootPath, listing.Entries); }
+            finally { _synchronizingBrowserTree = false; }
+        }
+
+        if (generation == _browserUiGeneration && _browserTree.SelectedNode is { } selected)
+            BringBrowserTreeNodeIntoView(selected);
+    }
+
+    private static string? RelativeFolderUnderRoot(string rootPath, string absolutePath) =>
+        string.Equals(MediaPathSemantics.NormalizeRootPath(rootPath), MediaPathSemantics.NormalizeRootPath(absolutePath),
+            StringComparison.OrdinalIgnoreCase)
+            ? null
+            : MediaPathSemantics.NormalizeRelativePath(Path.GetRelativePath(rootPath, absolutePath));
 
     private static TreeViewItem? FindBrowserTreeItem(ItemsControl parent, BrowserTreeNode target)
     {
@@ -268,7 +335,10 @@ public partial class MainWindow : Window
             if (state is not null && generation == _browserUiGeneration)
             {
                 if (state.Status is BrowserFolderStatus.Ready or BrowserFolderStatus.Empty)
+                {
                     ApplyBrowserState(state);
+                    if (state.Location is { } location) _ = RevealBrowserTreeAncestorsAsync(location, generation);
+                }
                 else
                     ApplyBrowserNavigationFailure(state);
             }
@@ -299,8 +369,10 @@ public partial class MainWindow : Window
         IReadOnlyList<MediaFolderEntry> files;
         try { files = _browserTree.Synchronize(state); }
         finally { _synchronizingBrowserTree = false; }
-        _browserEntries.Clear();
-        foreach (var entry in files) _browserEntries.Add(entry);
+        _browserGrid.Populate(files);
+        UpdateBrowserGridColumns();
+        if (state.DerivedWork is { } batch) _browserGrid.ApplyAssetIdentities(batch.Reconciliation.Items);
+        AttachBrowserDerivedWork(state.DerivedWork, _browserUiGeneration);
         BrowserCurrentPath.Text = state.Location?.DisplayPath ?? "";
         BrowserBackButton.IsEnabled = state.CanGoBack;
         BrowserForwardButton.IsEnabled = state.CanGoForward;
@@ -349,6 +421,68 @@ public partial class MainWindow : Window
         _synchronizingBrowserTree = true;
         try { _browserTree.RestoreSelection(_lastLoadedBrowserState?.Location); }
         finally { _synchronizingBrowserTree = false; }
+    }
+
+    private void UpdateBrowserGridColumns()
+    {
+        const double scrollbarAllowance = 20;
+        var width = BrowserGridHost.ActualWidth - BrowserGridHost.Padding.Left - BrowserGridHost.Padding.Right - scrollbarAllowance;
+        if (width <= 0) return;
+        _browserGrid.SetColumns(BrowserGridLayout.ComputeColumns(width));
+    }
+
+    private void BrowserGridHost_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateBrowserGridColumns();
+
+    private void BrowserGridHost_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _browserGrid.ClearSelection();
+        BrowserGridRows.Focus();
+    }
+
+    private void BrowserGridTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) _browserGrid.SelectRange(tile.Index);
+        else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) _browserGrid.ToggleCtrl(tile.Index);
+        else _browserGrid.SelectSingle(tile.Index);
+        BrowserGridRows.Focus();
+        e.Handled = true;
+    }
+
+    private void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != Key.A || !Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
+        _browserGrid.SelectAll();
+        e.Handled = true;
+    }
+
+    private void AttachBrowserDerivedWork(IDerivedWorkBatch? batch, long generation)
+    {
+        if (batch is null) return;
+        EventHandler<DerivedWorkProgress> handler = null!;
+        handler = (_, _) => Dispatcher.BeginInvoke(() => _ = ApplyBrowserDerivedWorkResultsAsync(batch, generation));
+        batch.ProgressChanged += handler;
+        _ = ApplyBrowserDerivedWorkResultsAsync(batch, generation);
+        _ = batch.Completion.ContinueWith(_ => batch.ProgressChanged -= handler, TaskScheduler.Default);
+    }
+
+    private async Task ApplyBrowserDerivedWorkResultsAsync(IDerivedWorkBatch batch, long generation)
+    {
+        if (generation != _browserUiGeneration || _storage.Previews is not { } previews) return;
+        var pending = BrowserDerivedWorkProjection.AssetsNeedingThumbnailLookup(batch.Results, _browserGrid.HasThumbnail);
+        foreach (var assetId in pending)
+        {
+            if (generation != _browserUiGeneration) return;
+            PreviewRecord? record;
+            try { record = await previews.GetAsync(assetId).ConfigureAwait(true); }
+            catch { continue; }
+            if (generation != _browserUiGeneration || record?.ThumbnailRelativePath is null ||
+                record.ThumbnailState != PreviewComponentState.Current) continue;
+            string absolute;
+            try { absolute = MediaPathSemantics.ResolveContained(_storage.Locations.PreviewsDirectory, record.ThumbnailRelativePath); }
+            catch { continue; }
+            if (File.Exists(absolute)) _browserGrid.ApplyThumbnail(assetId, absolute);
+        }
     }
 
     private void LocateTools(string? configuredPath = null)

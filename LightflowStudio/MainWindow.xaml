@@ -82,7 +82,7 @@
        <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template>
       </GridSplitter>
       <Grid Grid.Column="2" MinWidth="520">
-       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
        <Border Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>
          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -96,7 +96,46 @@
          <Button Grid.Column="3" x:Name="BrowserRefreshButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Refresh current folder" AutomationProperties.Name="Refresh current folder" Click="BrowserRefresh_Click" Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
         </Grid>
        </Border>
-       <Border Grid.Row="2" x:Name="BrowserGridHost" Style="{StaticResource ShellPanel}" Background="#0D0F13" Padding="14"
+       <!--
+        #109's media-area toolbar: narrows and presents the scope the Locations sidebar already chose.
+        Search/filter/sort/status live here, never in the left sidebar, and never inside folder navigation.
+       -->
+       <Border Grid.Row="2" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="12,8" IsEnabled="False">
+        <Grid>
+         <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="200"/><ColumnDefinition Width="12"/>
+          <ColumnDefinition Width="150"/><ColumnDefinition Width="10"/>
+          <ColumnDefinition Width="160"/><ColumnDefinition Width="6"/>
+          <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+         </Grid.ColumnDefinitions>
+         <TextBox x:Name="BrowserSearchBox" VerticalAlignment="Center" ToolTip="Search filename or path within this scope"
+          AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged"/>
+         <!-- SelectedIndex is set from code-behind (ResetBrowserQueryToolbar) once a folder actually loads,
+              not declared here: WPF can raise SelectionChanged while InitializeComponent is still connecting
+              later-declared named elements, and the handler reads sibling controls that would not exist yet. -->
+         <ComboBox Grid.Column="2" x:Name="BrowserMediaFilterCombo" VerticalAlignment="Center"
+          ToolTip="Filter by media type" AutomationProperties.Name="Filter by media type" SelectionChanged="BrowserMediaFilterCombo_SelectionChanged">
+          <ComboBoxItem Content="All media"/>
+          <ComboBoxItem Content="Images"/>
+          <ComboBoxItem Content="RAW"/>
+          <ComboBoxItem Content="Video"/>
+         </ComboBox>
+         <ComboBox Grid.Column="4" x:Name="BrowserSortCombo" VerticalAlignment="Center"
+          ToolTip="Sort by" AutomationProperties.Name="Sort by" SelectionChanged="BrowserSortCombo_SelectionChanged">
+          <ComboBoxItem Content="Name"/>
+          <ComboBoxItem Content="Capture date"/>
+          <ComboBoxItem Content="Modified date"/>
+          <ComboBoxItem Content="Media type"/>
+          <ComboBoxItem Content="File size"/>
+          <ComboBoxItem Content="Duration"/>
+         </ComboBox>
+         <Button Grid.Column="6" x:Name="BrowserSortDirectionButton" Width="34" Padding="0,7" Content="&#xE70E;"
+          FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" ToolTip="Sort ascending (click to reverse)"
+          AutomationProperties.Name="Toggle sort direction" Click="BrowserSortDirection_Click"/>
+         <TextBlock Grid.Column="8" x:Name="BrowserStatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"/>
+        </Grid>
+       </Border>
+       <Border Grid.Row="4" x:Name="BrowserGridHost" Style="{StaticResource ShellPanel}" Background="#0D0F13" Padding="14"
         SizeChanged="BrowserGridHost_SizeChanged" MouseLeftButtonDown="BrowserGridHost_MouseLeftButtonDown">
         <Grid>
          <ItemsControl x:Name="BrowserGridRows" Focusable="True" KeyDown="BrowserGridRows_KeyDown"

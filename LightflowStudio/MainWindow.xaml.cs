@@ -61,6 +61,12 @@ public partial class MainWindow : Window
     private readonly WorkspaceStateService _workspaceState;
     private readonly DispatcherTimer _workspaceSaveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private WindowState _lastNonMinimizedWindowState = WindowState.Normal;
+    private readonly DispatcherTimer _browserSearchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
+    private readonly DispatcherTimer _browserMetadataResortTimer = new() { Interval = TimeSpan.FromMilliseconds(800) };
+    private bool _synchronizingBrowserQuery;
+    private bool _browserSortDescending;
+    private (Guid RootId, string RelativeFolder)? _browserQueryScope;
+    private IDerivedWorkBatch? _activeBrowserDerivedWorkBatch;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -85,6 +91,17 @@ public partial class MainWindow : Window
         {
             _workspaceSaveTimer.Stop();
             _workspaceState.Save();
+        };
+        _browserSearchDebounceTimer.Tick += (_, _) =>
+        {
+            _browserSearchDebounceTimer.Stop();
+            ApplyBrowserQuery();
+        };
+        _browserMetadataResortTimer.Tick += (_, _) =>
+        {
+            _browserMetadataResortTimer.Stop();
+            _browserGrid.ReapplyQuery();
+            UpdateBrowserStatusText();
         };
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
         StateChanged += (_, _) =>
@@ -149,6 +166,8 @@ public partial class MainWindow : Window
         {
             if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
             _workspaceSaveTimer.Stop();
+            _browserSearchDebounceTimer.Stop();
+            _browserMetadataResortTimer.Stop();
             _browserNavigation.Dispose();
         };
     }
@@ -511,6 +530,13 @@ public partial class MainWindow : Window
     private void ApplyBrowserState(BrowserFolderState state)
     {
         _lastLoadedBrowserState = state;
+        var scope = state.Location is { } scopeLocation ? (scopeLocation.RootId, scopeLocation.RelativeFolder) : ((Guid, string)?)null;
+        // A genuinely new scope (different folder, or navigating away from/into a location entirely) starts
+        // sort/filter/search over: the media-area toolbar narrows *the current* scope, not a remembered one.
+        // Refreshing the same folder (monitoring, explicit Refresh) must not disturb the chosen view of it.
+        if (scope != _browserQueryScope) ResetBrowserQueryToolbar();
+        _browserQueryScope = scope;
+
         _synchronizingBrowserTree = true;
         IReadOnlyList<MediaFolderEntry> files;
         try { files = _browserTree.Synchronize(state); }
@@ -524,11 +550,13 @@ public partial class MainWindow : Window
         BrowserForwardButton.IsEnabled = state.CanGoForward;
         BrowserUpButton.IsEnabled = state.CanGoUp;
         BrowserRefreshButton.IsEnabled = state.Location is not null;
-        BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready && files.Count > 0
+        BrowserQueryToolbar.IsEnabled = state.Location is not null;
+        var presentableCount = _browserGrid.TotalCount;
+        BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready && presentableCount > 0
             ? Visibility.Collapsed : Visibility.Visible;
         BrowserEmptyTitle.Text = state.Status switch
         {
-            BrowserFolderStatus.Ready when files.Count == 0 => "No media files in this folder",
+            BrowserFolderStatus.Ready when presentableCount == 0 => "No media files in this folder",
             BrowserFolderStatus.Empty when state.Location is not null => "No media files in this folder",
             BrowserFolderStatus.RootUnavailable => "Media Root unavailable",
             BrowserFolderStatus.RootNotFound => "Media Root not found",
@@ -543,6 +571,7 @@ public partial class MainWindow : Window
         BrowserEmptyMessage.Text = state.Diagnostic ?? (state.Location is null
             ? "Select a drive, mapped location, or managed library to browse its folders and supported media."
             : "Choose another folder from the navigation pane or refresh this location.");
+        UpdateBrowserStatusText();
 
         if (state.Location is { } location)
         {
@@ -591,6 +620,7 @@ public partial class MainWindow : Window
     {
         _browserGrid.ClearSelection();
         BrowserGridRows.Focus();
+        UpdateBrowserStatusText();
     }
 
     private void BrowserGridTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -600,6 +630,7 @@ public partial class MainWindow : Window
         else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) _browserGrid.ToggleCtrl(tile.Index);
         else _browserGrid.SelectSingle(tile.Index);
         BrowserGridRows.Focus();
+        UpdateBrowserStatusText();
         e.Handled = true;
     }
 
@@ -607,11 +638,103 @@ public partial class MainWindow : Window
     {
         if (e.Key != Key.A || !Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
         _browserGrid.SelectAll();
+        UpdateBrowserStatusText();
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Reads the media-area toolbar's current controls into a <see cref="BrowserQuery"/> and applies it.
+    /// Debounced search text aside, every control change reaches here directly — sort/filter apply
+    /// immediately so rapidly switching between them (a named acceptance scenario) never feels laggy.
+    /// </summary>
+    private void ApplyBrowserQuery()
+    {
+        var query = new BrowserQuery
+        {
+            SortMode = (BrowserSortMode)BrowserSortCombo.SelectedIndex,
+            SortDescending = _browserSortDescending,
+            MediaFilter = BrowserMediaFilterCombo.SelectedIndex switch
+            {
+                1 => MediaTypeCategory.StillImage,
+                2 => MediaTypeCategory.RawImage,
+                3 => MediaTypeCategory.Video,
+                _ => null
+            },
+            SearchText = BrowserSearchBox.Text
+        };
+        _browserGrid.SetQuery(query);
+        UpdateBrowserStatusText();
+    }
+
+    /// <summary>Returns the toolbar to its defaults for a newly opened scope, without re-triggering each control's own change handler.</summary>
+    private void ResetBrowserQueryToolbar()
+    {
+        _synchronizingBrowserQuery = true;
+        try
+        {
+            _browserSearchDebounceTimer.Stop();
+            BrowserSearchBox.Text = "";
+            BrowserMediaFilterCombo.SelectedIndex = 0;
+            BrowserSortCombo.SelectedIndex = 0;
+            _browserSortDescending = false;
+            UpdateBrowserSortDirectionGlyph();
+        }
+        finally { _synchronizingBrowserQuery = false; }
+        _browserGrid.SetQuery(BrowserQuery.Default);
+    }
+
+    private void UpdateBrowserSortDirectionGlyph()
+    {
+        BrowserSortDirectionButton.Content = _browserSortDescending ? "\uE70D" : "\uE70E";
+        BrowserSortDirectionButton.ToolTip = _browserSortDescending
+            ? "Sort descending (click to reverse)" : "Sort ascending (click to reverse)";
+    }
+
+    private void BrowserSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_synchronizingBrowserQuery) return;
+        _browserSearchDebounceTimer.Stop();
+        _browserSearchDebounceTimer.Start();
+    }
+
+    private void BrowserMediaFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_synchronizingBrowserQuery) return;
+        ApplyBrowserQuery();
+    }
+
+    private void BrowserSortCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_synchronizingBrowserQuery) return;
+        ApplyBrowserQuery();
+    }
+
+    private void BrowserSortDirection_Click(object sender, RoutedEventArgs e)
+    {
+        _browserSortDescending = !_browserSortDescending;
+        UpdateBrowserSortDirectionGlyph();
+        ApplyBrowserQuery();
+    }
+
+    /// <summary>
+    /// Lightweight Browser status: visible/total item counts, selection count/size (scoped to the whole
+    /// selection, not just what the current filter shows — see <see cref="BrowserGridModel.SelectedTotalSizeBytes"/>),
+    /// and whether Preview generation is still active for this folder.
+    /// </summary>
+    private void UpdateBrowserStatusText()
+    {
+        var progress = _activeBrowserDerivedWorkBatch?.Progress;
+        var isGenerating = progress?.Status == DerivedWorkBatchStatus.Running;
+        var remaining = progress is null ? 0 : progress.Pending + progress.Running;
+        BrowserStatusText.Text = BrowserStatusPresentation.Describe(_browserGrid.VisibleCount, _browserGrid.TotalCount,
+            _browserGrid.SelectedKeys.Count, _browserGrid.SelectedTotalSizeBytes, isGenerating, remaining);
     }
 
     private void AttachBrowserDerivedWork(IDerivedWorkBatch? batch, long generation)
     {
+        // Assigned unconditionally (including null) so a folder with nothing scheduled never keeps showing
+        // "Generating previews…" left over from whichever folder was open before it.
+        _activeBrowserDerivedWorkBatch = batch;
         if (batch is null) return;
         EventHandler<DerivedWorkProgress> handler = null!;
         handler = (_, _) => Dispatcher.BeginInvoke(() => _ = ApplyBrowserDerivedWorkResultsAsync(batch, generation));
@@ -623,19 +746,43 @@ public partial class MainWindow : Window
     private async Task ApplyBrowserDerivedWorkResultsAsync(IDerivedWorkBatch batch, long generation)
     {
         if (generation != _browserUiGeneration || _storage.Previews is not { } previews) return;
-        var pending = BrowserDerivedWorkProjection.AssetsNeedingThumbnailLookup(batch.Results, _browserGrid.HasThumbnail);
-        foreach (var assetId in pending)
+        var pendingThumbnails = new HashSet<Guid>(
+            BrowserDerivedWorkProjection.AssetsNeedingThumbnailLookup(batch.Results, _browserGrid.HasThumbnail));
+        var pendingMetadata = new HashSet<Guid>(
+            BrowserDerivedWorkProjection.AssetsNeedingMetadataLookup(batch.Results, _browserGrid.HasMetadataApplied));
+        var sortRelevantMetadataChanged = false;
+
+        foreach (var assetId in pendingThumbnails.Union(pendingMetadata))
         {
             if (generation != _browserUiGeneration) return;
             PreviewRecord? record;
             try { record = await previews.GetAsync(assetId).ConfigureAwait(true); }
             catch { continue; }
-            if (generation != _browserUiGeneration || record?.ThumbnailRelativePath is null ||
-                record.ThumbnailState != PreviewComponentState.Current) continue;
-            string absolute;
-            try { absolute = MediaPathSemantics.ResolveContained(_storage.Locations.PreviewsDirectory, record.ThumbnailRelativePath); }
-            catch { continue; }
-            if (File.Exists(absolute)) _browserGrid.ApplyThumbnail(assetId, absolute);
+            if (generation != _browserUiGeneration || record is null) continue;
+
+            if (pendingThumbnails.Contains(assetId) && record.ThumbnailRelativePath is not null &&
+                record.ThumbnailState == PreviewComponentState.Current)
+            {
+                string? absolute = null;
+                try { absolute = MediaPathSemantics.ResolveContained(_storage.Locations.PreviewsDirectory, record.ThumbnailRelativePath); }
+                catch { /* leave the placeholder; a later refresh may resolve a valid path */ }
+                if (absolute is not null && File.Exists(absolute)) _browserGrid.ApplyThumbnail(assetId, absolute);
+            }
+
+            if (pendingMetadata.Contains(assetId) && record.MetadataState == PreviewComponentState.Current)
+            {
+                var (captureDate, durationSeconds) = BrowserQueryEngine.ExtractSortableMetadata(record.MetadataJson);
+                if (_browserGrid.ApplyMetadata(assetId, captureDate, durationSeconds)) sortRelevantMetadataChanged = true;
+            }
+        }
+
+        UpdateBrowserStatusText();
+        if (sortRelevantMetadataChanged && _browserGrid.Query.SortMode is BrowserSortMode.CaptureDate or BrowserSortMode.Duration)
+        {
+            // Coalesce into one re-sort ~800ms after updates settle, rather than resorting/reflowing per
+            // asset while a large folder's metadata is still streaming in — see #109's responsiveness goal.
+            _browserMetadataResortTimer.Stop();
+            _browserMetadataResortTimer.Start();
         }
     }
 

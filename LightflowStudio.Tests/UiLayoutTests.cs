@@ -32,6 +32,55 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserQueryToolbar_LivesInTheMediaAreaAndNeverInTheLocationsSidebar()
+    {
+        // #109's UX boundary: the left sidebar chooses scope only; search/filter/sort/view controls belong
+        // exclusively to the media-area toolbar. No permanent Filters section is ever added to the sidebar.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var locationsPanel = document.Descendants(ns + "TextBlock").Single(tb => (string?)tb.Attribute("Text") == "Locations")
+            .Ancestors(ns + "Border").First();
+        var toolbar = Named(document, "BrowserQueryToolbar");
+        var searchBox = Named(document, "BrowserSearchBox");
+        var filterCombo = Named(document, "BrowserMediaFilterCombo");
+        var sortCombo = Named(document, "BrowserSortCombo");
+        var directionButton = Named(document, "BrowserSortDirectionButton");
+        var statusText = Named(document, "BrowserStatusText");
+
+        Assert.DoesNotContain(locationsPanel.Descendants(), element => element == toolbar);
+        Assert.DoesNotContain(locationsPanel.Descendants(), element =>
+            element == searchBox || element == filterCombo || element == sortCombo || element == directionButton);
+        Assert.DoesNotContain(locationsPanel.Descendants(ns + "TextBlock"), tb =>
+            ((string?)tb.Attribute("Text"))?.Contains("Filter", StringComparison.OrdinalIgnoreCase) == true);
+
+        Assert.Contains(toolbar.Descendants(), element => element == searchBox);
+        Assert.Contains(toolbar.Descendants(), element => element == filterCombo);
+        Assert.Contains(toolbar.Descendants(), element => element == sortCombo);
+        Assert.Contains(toolbar.Descendants(), element => element == directionButton);
+        Assert.Contains(toolbar.Descendants(), element => element == statusText);
+
+        Assert.Equal("BrowserSearchBox_TextChanged", (string?)searchBox.Attribute("TextChanged"));
+        Assert.Equal("BrowserMediaFilterCombo_SelectionChanged", (string?)filterCombo.Attribute("SelectionChanged"));
+        Assert.Equal("BrowserSortCombo_SelectionChanged", (string?)sortCombo.Attribute("SelectionChanged"));
+        Assert.Equal("BrowserSortDirection_Click", (string?)directionButton.Attribute("Click"));
+        Assert.Equal("False", (string?)toolbar.Attribute("IsEnabled"));
+    }
+
+    [Fact]
+    public void BrowserQueryToolbar_ComboBoxItemCountsMatchTheirEnumsSoASelectedIndexCastCannotSilentlyMismatch()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+
+        var sortItems = Named(document, "BrowserSortCombo").Elements(ns + "ComboBoxItem").ToList();
+        Assert.Equal(Enum.GetValues<LightflowStudio.BrowserSortMode>().Length, sortItems.Count);
+
+        // All media, Images, RAW, Video — matches MainWindow.BrowserMediaFilterCombo_SelectionChanged's mapping.
+        var filterItems = Named(document, "BrowserMediaFilterCombo").Elements(ns + "ComboBoxItem").ToList();
+        Assert.Equal(4, filterItems.Count);
+    }
+
+    [Fact]
     public void BrowserLoadingOverlay_IsARestrainedInCanvasIndicatorRatherThanAModalOrSplashSurface()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));

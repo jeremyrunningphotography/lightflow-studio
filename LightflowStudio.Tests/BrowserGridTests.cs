@@ -75,7 +75,8 @@ public sealed class BrowserGridTests
 
         model.Populate(entries);
 
-        Assert.Equal(["photo.jpg", "raw.cr2", "clip.mp4"], model.Tiles.Select(tile => tile.Name));
+        // Default query is Name-ascending, so this also verifies the filtered set sorts correctly by default.
+        Assert.Equal(["clip.mp4", "photo.jpg", "raw.cr2"], model.Tiles.Select(tile => tile.Name));
     }
 
     [Fact]
@@ -544,6 +545,211 @@ public sealed class BrowserGridTests
         Assert.Empty(pending);
     }
 
+    [Fact]
+    public void DerivedWorkProjection_MetadataLookupMirrorsThumbnailLookupIncludingTheNotNeededCase()
+    {
+        var freshlyProbed = Guid.NewGuid();
+        var alreadyCurrentFromPriorSession = Guid.NewGuid();
+        var failed = Guid.NewGuid();
+        var alreadyApplied = Guid.NewGuid();
+        var results = new[]
+        {
+            new DerivedWorkItemResult(freshlyProbed, DerivedWorkItemOutcome.Generated, DerivedWorkComponentOutcome.Succeeded, DerivedWorkComponentOutcome.NotNeeded),
+            new DerivedWorkItemResult(alreadyCurrentFromPriorSession, DerivedWorkItemOutcome.Current, DerivedWorkComponentOutcome.NotNeeded, DerivedWorkComponentOutcome.NotNeeded),
+            new DerivedWorkItemResult(failed, DerivedWorkItemOutcome.Failed, DerivedWorkComponentOutcome.Failed, DerivedWorkComponentOutcome.NotNeeded),
+            new DerivedWorkItemResult(alreadyApplied, DerivedWorkItemOutcome.Current, DerivedWorkComponentOutcome.NotNeeded, DerivedWorkComponentOutcome.NotNeeded),
+        };
+
+        var pending = BrowserDerivedWorkProjection.AssetsNeedingMetadataLookup(results, assetId => assetId == alreadyApplied);
+
+        Assert.Equal([freshlyProbed, alreadyCurrentFromPriorSession], pending);
+    }
+
+    [Fact]
+    public void SetQuery_FiltersToTheChosenMediaCategory()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([Image(rootId, "a.jpg"), Video(rootId, "b.mp4")]);
+
+        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video });
+
+        Assert.Equal(["b.mp4"], model.Tiles.Select(t => t.Name));
+        Assert.Equal(2, model.TotalCount);
+        Assert.Equal(1, model.VisibleCount);
+    }
+
+    [Fact]
+    public void SetQuery_ReassignsIndexToPositionsWithinTheNewVisibleListOnly()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([Image(rootId, "a.jpg"), Video(rootId, "b.mp4"), Image(rootId, "c.jpg")]);
+
+        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.StillImage });
+
+        Assert.Equal([0, 1], model.Tiles.Select(t => t.Index));
+    }
+
+    [Fact]
+    public void SetQuery_IdenticalQueryIsANoOpAndDoesNotResetTheSelectionAnchor()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate(Enumerable.Range(0, 4).Select(i => Image(rootId, $"{i}.jpg")).ToArray());
+        model.SelectSingle(1);
+
+        model.SetQuery(BrowserQuery.Default);
+        model.SelectRange(3);
+
+        // If the anchor had been cleared, SelectRange(3) with no anchor would treat 3 as its own anchor and
+        // select only index 3, not the 1..3 span.
+        Assert.Equal([false, true, true, true], model.Tiles.Select(t => t.IsSelected));
+    }
+
+    [Fact]
+    public void SetQuery_NeverDeselectsItemsThatRemainVisible()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([Image(rootId, "a.jpg"), Video(rootId, "b.mp4")]);
+        model.SelectSingle(0);
+
+        model.SetQuery(BrowserQuery.Default with { SearchText = "a" });
+
+        Assert.True(model.Tiles.Single().IsSelected);
+    }
+
+    [Fact]
+    public void SetQuery_DoesNotClearSelectionOnItemsHiddenByTheNewFilterTheyRemainSelectedIfShownAgain()
+    {
+        // Filtering never silently drops a selection just because the item is temporarily out of view —
+        // only an explicit action (Select All, Clear, folder navigation) changes what is selected.
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([Image(rootId, "a.jpg"), Video(rootId, "b.mp4")]);
+        model.SelectAll();
+
+        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video });
+        Assert.Equal(2, model.SelectedKeys.Count);
+
+        model.SetQuery(BrowserQuery.Default);
+        Assert.True(model.Tiles.Single(t => t.Name == "a.jpg").IsSelected);
+    }
+
+    [Fact]
+    public void SelectAll_ReplacesTheEntireSelectionWithOnlyWhatTheCurrentFilterShows()
+    {
+        // Select All is a deliberate replace action (standard Ctrl+A semantics): unlike an implicit filter
+        // change, it intentionally drops a prior selection outside the now-visible set.
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var image = Image(rootId, "a.jpg");
+        model.Populate([image, Video(rootId, "b.mp4")]);
+        model.SelectAll();
+        Assert.Equal(2, model.SelectedKeys.Count);
+
+        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video });
+        model.SelectAll();
+
+        Assert.Single(model.SelectedKeys);
+        Assert.DoesNotContain(image.RelativePathKey, model.SelectedKeys);
+        Assert.True(model.Tiles.Single(t => t.Name == "b.mp4").IsSelected);
+    }
+
+    [Fact]
+    public void Populate_PreservesTheCurrentQueryAcrossANonDestructiveRefresh()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([Image(rootId, "a.jpg"), Video(rootId, "b.mp4")]);
+        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video });
+
+        model.Populate([Image(rootId, "a.jpg"), Video(rootId, "b.mp4"), Video(rootId, "c.mp4")]);
+
+        Assert.Equal(["b.mp4", "c.mp4"], model.Tiles.Select(t => t.Name));
+    }
+
+    [Fact]
+    public void ApplyMetadata_UpdatesOnlyTheMatchingAssetAndReportsWhetherASortableValueChanged()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entry = Image(rootId, "a.jpg");
+        model.Populate([entry]);
+        var assetId = Guid.NewGuid();
+        model.ApplyAssetIdentities([new(assetId, entry.RelativePath, CatalogReconciliationItemStatus.New)]);
+
+        var firstApply = model.ApplyMetadata(assetId, new DateTime(2024, 1, 1), null);
+        var redundantApply = model.ApplyMetadata(assetId, new DateTime(2024, 1, 1), null);
+
+        Assert.True(firstApply);
+        Assert.False(redundantApply);
+        Assert.Equal(new DateTime(2024, 1, 1), model.Tiles.Single().CaptureDate);
+    }
+
+    [Fact]
+    public void ApplyMetadata_ForAssetNoLongerPresentIsIgnoredRatherThanThrowing()
+    {
+        var model = new BrowserGridModel();
+        model.Populate([]);
+
+        var exception = Record.Exception(() => model.ApplyMetadata(Guid.NewGuid(), DateTime.UtcNow, 5.0));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void HasMetadataApplied_ReflectsAppliedStateForKnownAssetsOnly()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entry = Image(rootId, "a.jpg");
+        model.Populate([entry]);
+        var assetId = Guid.NewGuid();
+        model.ApplyAssetIdentities([new(assetId, entry.RelativePath, CatalogReconciliationItemStatus.New)]);
+
+        Assert.False(model.HasMetadataApplied(assetId));
+        model.ApplyMetadata(assetId, null, null);
+        Assert.True(model.HasMetadataApplied(assetId));
+        Assert.False(model.HasMetadataApplied(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void SelectedTotalSizeBytes_SumsSelectedItemsRegardlessOfWhatTheCurrentFilterShows()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([SizedImage(rootId, "a.jpg", 1000), SizedFile(rootId, "b.mp4", MediaTypeCategory.Video, 2000)]);
+        model.SelectAll();
+
+        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video });
+
+        Assert.Equal(3000, model.SelectedTotalSizeBytes);
+    }
+
+    [Fact]
+    public void ReapplyQuery_RecomputesOrderWhenUnderlyingMetadataChangedWithoutTheQueryItselfChanging()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entryA = Image(rootId, "a.jpg");
+        var entryB = Image(rootId, "b.jpg");
+        model.Populate([entryA, entryB]);
+        var assetA = Guid.NewGuid();
+        var assetB = Guid.NewGuid();
+        model.ApplyAssetIdentities([new(assetA, entryA.RelativePath, CatalogReconciliationItemStatus.New),
+            new(assetB, entryB.RelativePath, CatalogReconciliationItemStatus.New)]);
+        model.SetQuery(BrowserQuery.Default with { SortMode = BrowserSortMode.CaptureDate });
+        // Both currently missing a capture date: falls back to name order.
+        Assert.Equal(["a.jpg", "b.jpg"], model.Tiles.Select(t => t.Name));
+
+        model.ApplyMetadata(assetB, new DateTime(2020, 1, 1), null);
+        model.ReapplyQuery();
+
+        Assert.Equal(["b.jpg", "a.jpg"], model.Tiles.Select(t => t.Name));
+    }
+
     private static MediaFolderEntry Directory(Guid rootId, string name) =>
         new(rootId, name, name.ToUpperInvariant(), name, true, MediaTypeClassification.Unknown, null, DateTimeOffset.UtcNow);
 
@@ -553,4 +759,10 @@ public sealed class BrowserGridTests
 
     private static MediaFolderEntry File(Guid rootId, string name, MediaTypeCategory category) =>
         new(rootId, name, name.ToUpperInvariant(), name, false, new(category), 10, DateTimeOffset.UtcNow);
+
+    private static MediaFolderEntry SizedImage(Guid rootId, string name, long sizeBytes) =>
+        SizedFile(rootId, name, MediaTypeCategory.StillImage, sizeBytes);
+
+    private static MediaFolderEntry SizedFile(Guid rootId, string name, MediaTypeCategory category, long sizeBytes) =>
+        new(rootId, name, name.ToUpperInvariant(), name, false, new(category), sizeBytes, DateTimeOffset.UtcNow);
 }

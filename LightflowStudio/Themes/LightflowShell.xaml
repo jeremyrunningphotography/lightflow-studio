@@ -18,7 +18,7 @@
  <SolidColorBrush x:Key="ShellSelectionBrush" Color="{StaticResource ShellSelectionColor}"/>
  <SolidColorBrush x:Key="ShellNavigationTextBrush" Color="{StaticResource ShellNavigationTextColor}"/>
 
- <Thickness x:Key="ShellWorkspacePadding">28,24,28,24</Thickness>
+ <Thickness x:Key="ShellWorkspacePadding">28,16,28,24</Thickness>
  <Thickness x:Key="ShellPanelPadding">18</Thickness>
 
  <Style x:Key="ShellPanel" TargetType="Border">
@@ -27,18 +27,6 @@
   <Setter Property="BorderThickness" Value="1"/>
   <Setter Property="CornerRadius" Value="8"/>
   <Setter Property="Padding" Value="{StaticResource ShellPanelPadding}"/>
- </Style>
-
- <Style x:Key="ShellWorkspaceTitle" TargetType="TextBlock">
-  <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-  <Setter Property="FontSize" Value="24"/>
-  <Setter Property="FontWeight" Value="SemiBold"/>
- </Style>
-
- <Style x:Key="ShellEyebrow" TargetType="TextBlock">
-  <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}"/>
-  <Setter Property="FontSize" Value="11"/>
-  <Setter Property="FontWeight" Value="SemiBold"/>
  </Style>
 
  <Style x:Key="ShellPlaceholderTitle" TargetType="TextBlock">

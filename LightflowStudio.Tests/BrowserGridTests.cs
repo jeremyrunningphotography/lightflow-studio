@@ -572,7 +572,7 @@ public sealed class BrowserGridTests
         var rootId = Guid.NewGuid();
         model.Populate([Image(rootId, "a.jpg"), Video(rootId, "b.mp4")]);
 
-        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video });
+        model.SetQuery(BrowserQuery.Default with { Filters = [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video)] });
 
         Assert.Equal(["b.mp4"], model.Tiles.Select(t => t.Name));
         Assert.Equal(2, model.TotalCount);
@@ -586,14 +586,17 @@ public sealed class BrowserGridTests
         var rootId = Guid.NewGuid();
         model.Populate([Image(rootId, "a.jpg"), Video(rootId, "b.mp4"), Image(rootId, "c.jpg")]);
 
-        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.StillImage });
+        model.SetQuery(BrowserQuery.Default with { Filters = [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.StillImage)] });
 
         Assert.Equal([0, 1], model.Tiles.Select(t => t.Index));
     }
 
     [Fact]
-    public void SetQuery_IdenticalQueryIsANoOpAndDoesNotResetTheSelectionAnchor()
+    public void SetQuery_AlwaysResetsTheSelectionAnchorEvenForAQueryWithEquivalentContent()
     {
+        // BrowserQuery.Filters is a list, so record equality on BrowserQuery only catches reference-identical
+        // predicate collections, not equivalent ones (see BrowserGridModel.SetQuery) — every call recomputes
+        // and resets the anchor, including one that happens to describe the same intent as before.
         var model = new BrowserGridModel();
         var rootId = Guid.NewGuid();
         model.Populate(Enumerable.Range(0, 4).Select(i => Image(rootId, $"{i}.jpg")).ToArray());
@@ -602,9 +605,9 @@ public sealed class BrowserGridTests
         model.SetQuery(BrowserQuery.Default);
         model.SelectRange(3);
 
-        // If the anchor had been cleared, SelectRange(3) with no anchor would treat 3 as its own anchor and
-        // select only index 3, not the 1..3 span.
-        Assert.Equal([false, true, true, true], model.Tiles.Select(t => t.IsSelected));
+        // With the anchor cleared, SelectRange(3) with no anchor treats 3 as its own anchor and selects only
+        // index 3, not a 1..3 span.
+        Assert.Equal([false, false, false, true], model.Tiles.Select(t => t.IsSelected));
     }
 
     [Fact]
@@ -630,7 +633,7 @@ public sealed class BrowserGridTests
         model.Populate([Image(rootId, "a.jpg"), Video(rootId, "b.mp4")]);
         model.SelectAll();
 
-        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video });
+        model.SetQuery(BrowserQuery.Default with { Filters = [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video)] });
         Assert.Equal(2, model.SelectedKeys.Count);
 
         model.SetQuery(BrowserQuery.Default);
@@ -649,7 +652,7 @@ public sealed class BrowserGridTests
         model.SelectAll();
         Assert.Equal(2, model.SelectedKeys.Count);
 
-        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video });
+        model.SetQuery(BrowserQuery.Default with { Filters = [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video)] });
         model.SelectAll();
 
         Assert.Single(model.SelectedKeys);
@@ -663,7 +666,7 @@ public sealed class BrowserGridTests
         var model = new BrowserGridModel();
         var rootId = Guid.NewGuid();
         model.Populate([Image(rootId, "a.jpg"), Video(rootId, "b.mp4")]);
-        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video });
+        model.SetQuery(BrowserQuery.Default with { Filters = [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video)] });
 
         model.Populate([Image(rootId, "a.jpg"), Video(rootId, "b.mp4"), Video(rootId, "c.mp4")]);
 
@@ -723,7 +726,7 @@ public sealed class BrowserGridTests
         model.Populate([SizedImage(rootId, "a.jpg", 1000), SizedFile(rootId, "b.mp4", MediaTypeCategory.Video, 2000)]);
         model.SelectAll();
 
-        model.SetQuery(BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video });
+        model.SetQuery(BrowserQuery.Default with { Filters = [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video)] });
 
         Assert.Equal(3000, model.SelectedTotalSizeBytes);
     }

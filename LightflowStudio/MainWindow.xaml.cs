@@ -64,7 +64,6 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _browserSearchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private readonly DispatcherTimer _browserMetadataResortTimer = new() { Interval = TimeSpan.FromMilliseconds(800) };
     private bool _synchronizingBrowserQuery;
-    private bool _browserSortDescending;
     private (Guid RootId, string RelativeFolder)? _browserQueryScope;
     private IDerivedWorkBatch? _activeBrowserDerivedWorkBatch;
 
@@ -95,7 +94,7 @@ public partial class MainWindow : Window
         _browserSearchDebounceTimer.Tick += (_, _) =>
         {
             _browserSearchDebounceTimer.Stop();
-            ApplyBrowserQuery();
+            ApplyBrowserQuery(query => query with { SearchText = BrowserSearchBox.Text });
         };
         _browserMetadataResortTimer.Tick += (_, _) =>
         {
@@ -643,26 +642,14 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Reads the media-area toolbar's current controls into a <see cref="BrowserQuery"/> and applies it.
-    /// Debounced search text aside, every control change reaches here directly — sort/filter apply
-    /// immediately so rapidly switching between them (a named acceptance scenario) never feels laggy.
+    /// Applies <paramref name="transform"/> to the grid's current query and keeps every toolbar visual
+    /// (filter checkboxes, chip row, sort-direction glyph) in sync with the result — the single place that
+    /// touches <see cref="BrowserGridModel.SetQuery"/> so those visuals can never drift from the model.
     /// </summary>
-    private void ApplyBrowserQuery()
+    private void ApplyBrowserQuery(Func<BrowserQuery, BrowserQuery> transform)
     {
-        var query = new BrowserQuery
-        {
-            SortMode = (BrowserSortMode)BrowserSortCombo.SelectedIndex,
-            SortDescending = _browserSortDescending,
-            MediaFilter = BrowserMediaFilterCombo.SelectedIndex switch
-            {
-                1 => MediaTypeCategory.StillImage,
-                2 => MediaTypeCategory.RawImage,
-                3 => MediaTypeCategory.Video,
-                _ => null
-            },
-            SearchText = BrowserSearchBox.Text
-        };
-        _browserGrid.SetQuery(query);
+        _browserGrid.SetQuery(transform(_browserGrid.Query));
+        SyncBrowserQueryToolbarVisuals();
         UpdateBrowserStatusText();
     }
 
@@ -674,19 +661,36 @@ public partial class MainWindow : Window
         {
             _browserSearchDebounceTimer.Stop();
             BrowserSearchBox.Text = "";
-            BrowserMediaFilterCombo.SelectedIndex = 0;
             BrowserSortCombo.SelectedIndex = 0;
-            _browserSortDescending = false;
-            UpdateBrowserSortDirectionGlyph();
+            BrowserFilterButton.IsChecked = false;
         }
         finally { _synchronizingBrowserQuery = false; }
         _browserGrid.SetQuery(BrowserQuery.Default);
+        SyncBrowserQueryToolbarVisuals();
+    }
+
+    /// <summary>Reflects the grid's current query onto every toolbar control that displays it, guarded so this never re-enters the controls' own change handlers.</summary>
+    private void SyncBrowserQueryToolbarVisuals()
+    {
+        _synchronizingBrowserQuery = true;
+        try
+        {
+            var filters = _browserGrid.Query.Filters;
+            BrowserFilterImagesCheck.IsChecked = filters.Any(f => f.MediaTypeValue == MediaTypeCategory.StillImage);
+            BrowserFilterRawCheck.IsChecked = filters.Any(f => f.MediaTypeValue == MediaTypeCategory.RawImage);
+            BrowserFilterVideoCheck.IsChecked = filters.Any(f => f.MediaTypeValue == MediaTypeCategory.Video);
+            BrowserFilterChips.ItemsSource = filters;
+            BrowserFilterChips.Visibility = filters.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            UpdateBrowserSortDirectionGlyph();
+        }
+        finally { _synchronizingBrowserQuery = false; }
     }
 
     private void UpdateBrowserSortDirectionGlyph()
     {
-        BrowserSortDirectionButton.Content = _browserSortDescending ? "\uE70D" : "\uE70E";
-        BrowserSortDirectionButton.ToolTip = _browserSortDescending
+        var descending = _browserGrid.Query.SortDescending;
+        BrowserSortDirectionButton.Content = descending ? "\uE70D" : "\uE70E";
+        BrowserSortDirectionButton.ToolTip = descending
             ? "Sort descending (click to reverse)" : "Sort ascending (click to reverse)";
     }
 
@@ -697,23 +701,35 @@ public partial class MainWindow : Window
         _browserSearchDebounceTimer.Start();
     }
 
-    private void BrowserMediaFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_synchronizingBrowserQuery) return;
-        ApplyBrowserQuery();
-    }
-
     private void BrowserSortCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_synchronizingBrowserQuery) return;
-        ApplyBrowserQuery();
+        ApplyBrowserQuery(query => query with { SortMode = (BrowserSortMode)BrowserSortCombo.SelectedIndex });
     }
 
-    private void BrowserSortDirection_Click(object sender, RoutedEventArgs e)
+    private void BrowserSortDirection_Click(object sender, RoutedEventArgs e) =>
+        ApplyBrowserQuery(query => query with { SortDescending = !query.SortDescending });
+
+    private void BrowserFilterImagesCheck_Changed(object sender, RoutedEventArgs e) =>
+        ToggleBrowserMediaTypeFilter(MediaTypeCategory.StillImage, BrowserFilterImagesCheck.IsChecked == true);
+
+    private void BrowserFilterRawCheck_Changed(object sender, RoutedEventArgs e) =>
+        ToggleBrowserMediaTypeFilter(MediaTypeCategory.RawImage, BrowserFilterRawCheck.IsChecked == true);
+
+    private void BrowserFilterVideoCheck_Changed(object sender, RoutedEventArgs e) =>
+        ToggleBrowserMediaTypeFilter(MediaTypeCategory.Video, BrowserFilterVideoCheck.IsChecked == true);
+
+    private void ToggleBrowserMediaTypeFilter(MediaTypeCategory category, bool isActive)
     {
-        _browserSortDescending = !_browserSortDescending;
-        UpdateBrowserSortDirectionGlyph();
-        ApplyBrowserQuery();
+        if (_synchronizingBrowserQuery) return;
+        var predicate = BrowserFilterPredicate.ForMediaType(category);
+        ApplyBrowserQuery(query => isActive ? query.WithFilterAdded(predicate) : query.WithFilterRemoved(predicate));
+    }
+
+    private void BrowserFilterChip_Remove_Click(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not BrowserFilterPredicate predicate) return;
+        ApplyBrowserQuery(query => query.WithFilterRemoved(predicate));
     }
 
     /// <summary>

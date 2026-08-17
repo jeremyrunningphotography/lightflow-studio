@@ -320,13 +320,16 @@ internal sealed class BrowserGridModel
     }
 
     /// <summary>
-    /// Applies a new sort/filter/search intent. A no-op for an identical query. Selection is left entirely
-    /// untouched (it is not scoped to the current view — see <see cref="SelectedTotalSizeBytes"/>); only the
-    /// shift-range anchor resets, since the visible order/positions it referred to no longer apply.
+    /// Applies a new sort/filter/search intent. Selection is left entirely untouched (it is not scoped to
+    /// the current view — see <see cref="SelectedTotalSizeBytes"/>); only the shift-range anchor resets,
+    /// since the visible order/positions it referred to no longer apply. Always recomputes rather than
+    /// short-circuiting on an unchanged query: <see cref="BrowserQuery.Filters"/> is a list, so record
+    /// equality on <see cref="BrowserQuery"/> would only catch reference-identical predicate collections,
+    /// not equivalent ones — recomputation is cheap enough that a reliable no-op check is not worth the
+    /// complexity it would add to an otherwise plain, equatable query representation.
     /// </summary>
     public void SetQuery(BrowserQuery query)
     {
-        if (Query == query) return;
         Query = query;
         _selection.ResetAnchor();
         RecomputeVisible();

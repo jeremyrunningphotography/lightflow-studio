@@ -6,6 +6,52 @@ namespace LightflowStudio;
 internal enum BrowserSortMode { Name, CaptureDate, ModifiedDate, MediaType, FileSize, Duration }
 
 /// <summary>
+/// The field a <see cref="BrowserFilterPredicate"/> constrains. Only <see cref="MediaType"/> is implemented;
+/// this enum exists so later predicate kinds (date, file size, duration, camera, lens, resolution, frame
+/// rate, rating, labels, flags, keywords) extend the same representation rather than requiring a redesign.
+/// </summary>
+internal enum BrowserFilterField { MediaType }
+
+/// <summary>
+/// One stackable filter condition (e.g. "Video"). Multiple active predicates combine with AND semantics —
+/// no OR/grouping UI yet. Deliberately plain, equatable data (not a stored delegate) so two predicates
+/// describing the same condition are structurally equal, and so a future Smart Collection can persist this
+/// shape directly as saved query intent. <see cref="Matches"/> and <see cref="Label"/> are computed, not
+/// stored, so they never affect equality.
+/// </summary>
+internal sealed record BrowserFilterPredicate
+{
+    public required BrowserFilterField Field { get; init; }
+
+    /// <summary>Populated when <see cref="Field"/> is <see cref="BrowserFilterField.MediaType"/>.</summary>
+    public MediaTypeCategory? MediaTypeValue { get; init; }
+
+    public static BrowserFilterPredicate ForMediaType(MediaTypeCategory category) =>
+        new() { Field = BrowserFilterField.MediaType, MediaTypeValue = category };
+
+    /// <summary>Compact chip text, e.g. "Video".</summary>
+    public string Label => Field switch
+    {
+        BrowserFilterField.MediaType => MediaTypeValue switch
+        {
+            MediaTypeCategory.StillImage => "Images",
+            MediaTypeCategory.RawImage => "RAW",
+            MediaTypeCategory.Video => "Video",
+            _ => "Media type"
+        },
+        _ => "Filter"
+    };
+
+    public string RemoveAutomationLabel => $"Remove {Label} filter";
+
+    public bool Matches(BrowserGridTile tile) => Field switch
+    {
+        BrowserFilterField.MediaType => MediaTypeValue is null || tile.Category == MediaTypeValue,
+        _ => true
+    };
+}
+
+/// <summary>
 /// The current media-area presentation intent (sort, filter, search) over the Browser's active scope.
 /// Deliberately a small, self-contained value with no WPF/UI coupling and no dependency on how the current
 /// scope was reached (filesystem folder today; Favorite/Collection/Smart Collection later per #74) — a
@@ -17,12 +63,18 @@ internal sealed record BrowserQuery
     public BrowserSortMode SortMode { get; init; } = BrowserSortMode.Name;
     public bool SortDescending { get; init; }
 
-    /// <summary>Null means every presentable Browser media category (#108: still image, RAW, video).</summary>
-    public MediaTypeCategory? MediaFilter { get; init; }
+    /// <summary>Empty means every presentable Browser media category (#108: still image, RAW, video) — no active filters.</summary>
+    public IReadOnlyList<BrowserFilterPredicate> Filters { get; init; } = [];
 
     public string SearchText { get; init; } = "";
 
     public static BrowserQuery Default { get; } = new();
+
+    public BrowserQuery WithFilterAdded(BrowserFilterPredicate predicate) =>
+        Filters.Contains(predicate) ? this : this with { Filters = [.. Filters, predicate] };
+
+    public BrowserQuery WithFilterRemoved(BrowserFilterPredicate predicate) =>
+        Filters.Contains(predicate) ? this with { Filters = Filters.Where(existing => existing != predicate).ToArray() } : this;
 }
 
 /// <summary>
@@ -38,7 +90,10 @@ internal static class BrowserQueryEngine
     public static IReadOnlyList<BrowserGridTile> Apply(IReadOnlyList<BrowserGridTile> tiles, BrowserQuery query)
     {
         IEnumerable<BrowserGridTile> filtered = tiles;
-        if (query.MediaFilter is { } filter) filtered = filtered.Where(tile => tile.Category == filter);
+        // AND semantics: each stacked predicate narrows the previous result further. Two predicates that
+        // describe mutually exclusive conditions on the same field (e.g. both "Video" and "Images") therefore
+        // yield nothing — an accepted consequence of AND-only composition for this first implementation.
+        foreach (var predicate in query.Filters) filtered = filtered.Where(predicate.Matches);
 
         var search = query.SearchText.Trim();
         if (search.Length > 0)

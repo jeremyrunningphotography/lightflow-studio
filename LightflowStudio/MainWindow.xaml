@@ -101,39 +101,75 @@
         Search/filter/sort/status live here, never in the left sidebar, and never inside folder navigation.
        -->
        <Border Grid.Row="2" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="12,8" IsEnabled="False">
-        <Grid>
-         <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="200"/><ColumnDefinition Width="12"/>
-          <ColumnDefinition Width="150"/><ColumnDefinition Width="10"/>
-          <ColumnDefinition Width="160"/><ColumnDefinition Width="6"/>
-          <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
-         </Grid.ColumnDefinitions>
-         <TextBox x:Name="BrowserSearchBox" VerticalAlignment="Center" ToolTip="Search filename or path within this scope"
-          AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged"/>
-         <!-- SelectedIndex is set from code-behind (ResetBrowserQueryToolbar) once a folder actually loads,
-              not declared here: WPF can raise SelectionChanged while InitializeComponent is still connecting
-              later-declared named elements, and the handler reads sibling controls that would not exist yet. -->
-         <ComboBox Grid.Column="2" x:Name="BrowserMediaFilterCombo" VerticalAlignment="Center"
-          ToolTip="Filter by media type" AutomationProperties.Name="Filter by media type" SelectionChanged="BrowserMediaFilterCombo_SelectionChanged">
-          <ComboBoxItem Content="All media"/>
-          <ComboBoxItem Content="Images"/>
-          <ComboBoxItem Content="RAW"/>
-          <ComboBoxItem Content="Video"/>
-         </ComboBox>
-         <ComboBox Grid.Column="4" x:Name="BrowserSortCombo" VerticalAlignment="Center"
-          ToolTip="Sort by" AutomationProperties.Name="Sort by" SelectionChanged="BrowserSortCombo_SelectionChanged">
-          <ComboBoxItem Content="Name"/>
-          <ComboBoxItem Content="Capture date"/>
-          <ComboBoxItem Content="Modified date"/>
-          <ComboBoxItem Content="Media type"/>
-          <ComboBoxItem Content="File size"/>
-          <ComboBoxItem Content="Duration"/>
-         </ComboBox>
-         <Button Grid.Column="6" x:Name="BrowserSortDirectionButton" Width="34" Padding="0,7" Content="&#xE70E;"
-          FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" ToolTip="Sort ascending (click to reverse)"
-          AutomationProperties.Name="Toggle sort direction" Click="BrowserSortDirection_Click"/>
-         <TextBlock Grid.Column="8" x:Name="BrowserStatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"/>
-        </Grid>
+        <StackPanel>
+         <Grid>
+          <Grid.ColumnDefinitions>
+           <ColumnDefinition Width="200"/><ColumnDefinition Width="12"/>
+           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
+           <ColumnDefinition Width="160"/><ColumnDefinition Width="6"/>
+           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBox x:Name="BrowserSearchBox" VerticalAlignment="Center" ToolTip="Search filename or path within this scope"
+           AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged"/>
+          <!-- Progressive disclosure: the everyday toolbar stays to Search/Filter/Sort/status. Filter ▾ opens
+               a compact predicate editor rather than exposing permanent one-off media-type ComboBoxes; active
+               predicates surface as removable chips beneath, appearing only while at least one is active. -->
+          <ToggleButton Grid.Column="2" x:Name="BrowserFilterButton" Padding="10,7" Content="Filter &#x25BE;"
+           ToolTip="Add a filter" AutomationProperties.Name="Add a filter"/>
+          <Popup x:Name="BrowserFilterPopup" IsOpen="{Binding IsChecked, ElementName=BrowserFilterButton, Mode=TwoWay}"
+           PlacementTarget="{Binding ElementName=BrowserFilterButton}" Placement="Bottom" VerticalOffset="4"
+           StaysOpen="False" AllowsTransparency="True">
+           <Border Width="180" Padding="12" Background="#20242C" BorderBrush="#596270" BorderThickness="1" CornerRadius="8">
+            <StackPanel>
+             <TextBlock Style="{StaticResource FieldLabel}" Text="MEDIA TYPE"/>
+             <!-- IsChecked is synced from code-behind once a predicate is added/removed, not declared here —
+                  see the SelectedIndex note on BrowserSortCombo below for why nothing here sets a XAML default. -->
+             <CheckBox x:Name="BrowserFilterImagesCheck" Margin="0,8,0,0" Content="Images"
+              Checked="BrowserFilterImagesCheck_Changed" Unchecked="BrowserFilterImagesCheck_Changed"/>
+             <CheckBox x:Name="BrowserFilterRawCheck" Margin="0,8,0,0" Content="RAW"
+              Checked="BrowserFilterRawCheck_Changed" Unchecked="BrowserFilterRawCheck_Changed"/>
+             <CheckBox x:Name="BrowserFilterVideoCheck" Margin="0,8,0,0" Content="Video"
+              Checked="BrowserFilterVideoCheck_Changed" Unchecked="BrowserFilterVideoCheck_Changed"/>
+            </StackPanel>
+           </Border>
+          </Popup>
+          <!-- SelectedIndex is set from code-behind (ResetBrowserQueryToolbar) once a folder actually loads,
+               not declared here: WPF can raise SelectionChanged while InitializeComponent is still connecting
+               later-declared named elements, and the handler reads sibling controls that would not exist yet. -->
+          <ComboBox Grid.Column="4" x:Name="BrowserSortCombo" VerticalAlignment="Center"
+           ToolTip="Sort by" AutomationProperties.Name="Sort by" SelectionChanged="BrowserSortCombo_SelectionChanged">
+           <ComboBoxItem Content="Name"/>
+           <ComboBoxItem Content="Capture date"/>
+           <ComboBoxItem Content="Modified date"/>
+           <ComboBoxItem Content="Media type"/>
+           <ComboBoxItem Content="File size"/>
+           <ComboBoxItem Content="Duration"/>
+          </ComboBox>
+          <Button Grid.Column="6" x:Name="BrowserSortDirectionButton" Width="34" Padding="0,7" Content="&#xE70E;"
+           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" ToolTip="Sort ascending (click to reverse)"
+           AutomationProperties.Name="Toggle sort direction" Click="BrowserSortDirection_Click"/>
+          <TextBlock Grid.Column="8" x:Name="BrowserStatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"/>
+         </Grid>
+         <!-- Collapsed (and empty) whenever no predicate is active, so the toolbar stays a single quiet row
+              for ordinary browsing — see MainWindow.SyncBrowserQueryToolbarVisuals. -->
+         <ItemsControl x:Name="BrowserFilterChips" Margin="0,8,0,0" Visibility="Collapsed" Focusable="False">
+          <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+           <DataTemplate DataType="{x:Type local:BrowserFilterPredicate}">
+            <Border Background="{StaticResource ShellSelectionBrush}" BorderBrush="{StaticResource ShellDividerBrush}"
+             BorderThickness="1" CornerRadius="11" Padding="9,3" Margin="0,0,6,6">
+             <StackPanel Orientation="Horizontal">
+              <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" FontSize="12" Text="{Binding Label}"/>
+              <Button Margin="6,0,0,0" Padding="4,0" Background="Transparent" BorderThickness="0"
+               Foreground="{StaticResource MutedTextBrush}" FontSize="12" FontWeight="Bold" Content="×"
+               ToolTip="Remove this filter" AutomationProperties.Name="{Binding RemoveAutomationLabel}"
+               Click="BrowserFilterChip_Remove_Click"/>
+             </StackPanel>
+            </Border>
+           </DataTemplate>
+          </ItemsControl.ItemTemplate>
+         </ItemsControl>
+        </StackPanel>
        </Border>
        <Border Grid.Row="4" x:Name="BrowserGridHost" Style="{StaticResource ShellPanel}" Background="#0D0F13" Padding="14"
         SizeChanged="BrowserGridHost_SizeChanged" MouseLeftButtonDown="BrowserGridHost_MouseLeftButtonDown">

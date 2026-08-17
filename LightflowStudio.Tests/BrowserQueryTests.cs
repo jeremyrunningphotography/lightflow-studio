@@ -23,20 +23,21 @@ public sealed class BrowserQueryTests
         model.Populate([Entry(rootId, "a.jpg", MediaTypeCategory.StillImage), Entry(rootId, "b.cr2", MediaTypeCategory.RawImage),
             Entry(rootId, "c.mp4", MediaTypeCategory.Video)]);
 
-        var result = BrowserQueryEngine.Apply(model.Tiles, BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video });
+        var result = BrowserQueryEngine.Apply(model.Tiles,
+            BrowserQuery.Default with { Filters = [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video)] });
 
         Assert.Equal(["c.mp4"], result.Select(t => t.Name));
     }
 
     [Fact]
-    public void Apply_NullMediaFilterMeansEveryPresentableCategory()
+    public void Apply_NoActiveFiltersMeansEveryPresentableCategory()
     {
         var model = new BrowserGridModel();
         var rootId = Guid.NewGuid();
         model.Populate([Entry(rootId, "a.jpg", MediaTypeCategory.StillImage), Entry(rootId, "b.cr2", MediaTypeCategory.RawImage),
             Entry(rootId, "c.mp4", MediaTypeCategory.Video)]);
 
-        var result = BrowserQueryEngine.Apply(model.Tiles, BrowserQuery.Default with { MediaFilter = null });
+        var result = BrowserQueryEngine.Apply(model.Tiles, BrowserQuery.Default);
 
         Assert.Equal(3, result.Count);
     }
@@ -82,10 +83,34 @@ public sealed class BrowserQueryTests
         model.Populate([Entry(rootId, "beach.jpg", MediaTypeCategory.StillImage), Entry(rootId, "beach.mp4", MediaTypeCategory.Video),
             Entry(rootId, "mountain.mp4", MediaTypeCategory.Video)]);
 
-        var result = BrowserQueryEngine.Apply(model.Tiles,
-            BrowserQuery.Default with { MediaFilter = MediaTypeCategory.Video, SearchText = "beach" });
+        var result = BrowserQueryEngine.Apply(model.Tiles, BrowserQuery.Default with
+        {
+            Filters = [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video)],
+            SearchText = "beach"
+        });
 
         Assert.Equal(["beach.mp4"], result.Select(t => t.Name));
+    }
+
+    [Fact]
+    public void Apply_StackingTwoMutuallyExclusiveMediaTypePredicatesYieldsNoMatches()
+    {
+        // Documents the accepted AND-only tradeoff: stacking "Video" and "Images" narrows to their
+        // intersection, which is empty since a tile can only ever be one media type.
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([Entry(rootId, "a.jpg", MediaTypeCategory.StillImage), Entry(rootId, "b.mp4", MediaTypeCategory.Video)]);
+
+        var result = BrowserQueryEngine.Apply(model.Tiles, BrowserQuery.Default with
+        {
+            Filters =
+            [
+                BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video),
+                BrowserFilterPredicate.ForMediaType(MediaTypeCategory.StillImage)
+            ]
+        });
+
+        Assert.Empty(result);
     }
 
     [Fact]
@@ -250,4 +275,104 @@ public sealed class BrowserQueryTests
 
     private static MediaFolderEntry SizedEntry(Guid rootId, string name, long sizeBytes) =>
         new(rootId, name, name.ToUpperInvariant(), name, false, new(MediaTypeCategory.StillImage), sizeBytes, DateTimeOffset.UtcNow);
+}
+
+public sealed class BrowserFilterPredicateTests
+{
+    [Fact]
+    public void Label_IsImagesForStillImageCategory() => AssertLabel(MediaTypeCategory.StillImage, "Images");
+
+    [Fact]
+    public void Label_IsRawForRawImageCategory() => AssertLabel(MediaTypeCategory.RawImage, "RAW");
+
+    [Fact]
+    public void Label_IsVideoForVideoCategory() => AssertLabel(MediaTypeCategory.Video, "Video");
+
+    private static void AssertLabel(MediaTypeCategory category, string expectedLabel) =>
+        Assert.Equal(expectedLabel, BrowserFilterPredicate.ForMediaType(category).Label);
+
+    [Fact]
+    public void RemoveAutomationLabel_NamesTheSpecificFilterBeingRemoved() =>
+        Assert.Equal("Remove Video filter", BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video).RemoveAutomationLabel);
+
+    [Fact]
+    public void TwoPredicatesForTheSameConditionAreStructurallyEqual()
+    {
+        // Equality (not reference identity) is what WithFilterAdded/WithFilterRemoved rely on, and what
+        // would let a future Smart Collection compare/deduplicate saved query intent.
+        var first = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video);
+        var second = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video);
+
+        Assert.Equal(first, second);
+        Assert.True(first == second);
+    }
+
+    [Fact]
+    public void Matches_RestrictsToTheExactMediaTypeCategory()
+    {
+        var predicate = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video);
+        var video = new BrowserGridTile(Entry(Guid.NewGuid(), "a.mp4", MediaTypeCategory.Video), 0);
+        var image = new BrowserGridTile(Entry(Guid.NewGuid(), "b.jpg", MediaTypeCategory.StillImage), 1);
+
+        Assert.True(predicate.Matches(video));
+        Assert.False(predicate.Matches(image));
+    }
+
+    private static MediaFolderEntry Entry(Guid rootId, string name, MediaTypeCategory category) =>
+        new(rootId, name, name.ToUpperInvariant(), name, false, new(category), 10, DateTimeOffset.UtcNow);
+}
+
+public sealed class BrowserQueryFilterMutationTests
+{
+    [Fact]
+    public void WithFilterAdded_AppendsANewPredicate()
+    {
+        var predicate = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video);
+
+        var query = BrowserQuery.Default.WithFilterAdded(predicate);
+
+        Assert.Equal([predicate], query.Filters);
+    }
+
+    [Fact]
+    public void WithFilterAdded_IsIdempotentForAnAlreadyActivePredicate()
+    {
+        var predicate = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video);
+        var query = BrowserQuery.Default.WithFilterAdded(predicate);
+
+        var reapplied = query.WithFilterAdded(predicate);
+
+        Assert.Equal([predicate], reapplied.Filters);
+    }
+
+    [Fact]
+    public void WithFilterAdded_SupportsStackingDistinctPredicates()
+    {
+        var video = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video);
+        var images = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.StillImage);
+
+        var query = BrowserQuery.Default.WithFilterAdded(video).WithFilterAdded(images);
+
+        Assert.Equal([video, images], query.Filters);
+    }
+
+    [Fact]
+    public void WithFilterRemoved_DropsExactlyTheGivenPredicate()
+    {
+        var video = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video);
+        var images = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.StillImage);
+        var query = BrowserQuery.Default.WithFilterAdded(video).WithFilterAdded(images);
+
+        var result = query.WithFilterRemoved(video);
+
+        Assert.Equal([images], result.Filters);
+    }
+
+    [Fact]
+    public void WithFilterRemoved_IsANoOpForAPredicateThatIsNotActive() =>
+        Assert.Same(BrowserQuery.Default, BrowserQuery.Default.WithFilterRemoved(BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video)));
+
+    [Fact]
+    public void DefaultQuery_HasNoActiveFilters() =>
+        Assert.Empty(BrowserQuery.Default.Filters);
 }

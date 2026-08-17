@@ -42,42 +42,79 @@ public class UiLayoutTests
             .Ancestors(ns + "Border").First();
         var toolbar = Named(document, "BrowserQueryToolbar");
         var searchBox = Named(document, "BrowserSearchBox");
-        var filterCombo = Named(document, "BrowserMediaFilterCombo");
+        var filterButton = Named(document, "BrowserFilterButton");
+        var filterChips = Named(document, "BrowserFilterChips");
         var sortCombo = Named(document, "BrowserSortCombo");
         var directionButton = Named(document, "BrowserSortDirectionButton");
         var statusText = Named(document, "BrowserStatusText");
 
         Assert.DoesNotContain(locationsPanel.Descendants(), element => element == toolbar);
         Assert.DoesNotContain(locationsPanel.Descendants(), element =>
-            element == searchBox || element == filterCombo || element == sortCombo || element == directionButton);
+            element == searchBox || element == filterButton || element == sortCombo || element == directionButton);
         Assert.DoesNotContain(locationsPanel.Descendants(ns + "TextBlock"), tb =>
             ((string?)tb.Attribute("Text"))?.Contains("Filter", StringComparison.OrdinalIgnoreCase) == true);
 
         Assert.Contains(toolbar.Descendants(), element => element == searchBox);
-        Assert.Contains(toolbar.Descendants(), element => element == filterCombo);
+        Assert.Contains(toolbar.Descendants(), element => element == filterButton);
+        Assert.Contains(toolbar.Descendants(), element => element == filterChips);
         Assert.Contains(toolbar.Descendants(), element => element == sortCombo);
         Assert.Contains(toolbar.Descendants(), element => element == directionButton);
         Assert.Contains(toolbar.Descendants(), element => element == statusText);
 
         Assert.Equal("BrowserSearchBox_TextChanged", (string?)searchBox.Attribute("TextChanged"));
-        Assert.Equal("BrowserMediaFilterCombo_SelectionChanged", (string?)filterCombo.Attribute("SelectionChanged"));
         Assert.Equal("BrowserSortCombo_SelectionChanged", (string?)sortCombo.Attribute("SelectionChanged"));
         Assert.Equal("BrowserSortDirection_Click", (string?)directionButton.Attribute("Click"));
         Assert.Equal("False", (string?)toolbar.Attribute("IsEnabled"));
     }
 
     [Fact]
-    public void BrowserQueryToolbar_ComboBoxItemCountsMatchTheirEnumsSoASelectedIndexCastCannotSilentlyMismatch()
+    public void BrowserFilterButton_OpensAPopupOfStackableMediaTypePredicatesRatherThanAPermanentComboBox()
+    {
+        // Progressive disclosure per #109's revised interaction model: Filter ▾ opens a compact predicate
+        // editor; it must not be a permanent one-off ComboBox sitting in the everyday toolbar.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var filterButton = Named(document, "BrowserFilterButton");
+        var popup = Named(document, "BrowserFilterPopup");
+        var imagesCheck = Named(document, "BrowserFilterImagesCheck");
+        var rawCheck = Named(document, "BrowserFilterRawCheck");
+        var videoCheck = Named(document, "BrowserFilterVideoCheck");
+
+        Assert.Equal("ToggleButton", filterButton.Name.LocalName);
+        Assert.Equal("Popup", popup.Name.LocalName);
+        Assert.Equal("BrowserFilterButton", ((string?)popup.Attribute("PlacementTarget"))?.Replace("{Binding ElementName=", "").TrimEnd('}'));
+        Assert.Contains(popup.Descendants(), element => element == imagesCheck || element == rawCheck || element == videoCheck);
+        Assert.DoesNotContain(document.Descendants(ns + "ComboBox"), combo =>
+            (string?)combo.Attribute("Name") == "BrowserMediaFilterCombo");
+
+        foreach (var checkBox in new[] { imagesCheck, rawCheck, videoCheck })
+            Assert.DoesNotContain("IsChecked", checkBox.Attributes().Select(attribute => attribute.Name.LocalName));
+    }
+
+    [Fact]
+    public void BrowserFilterChips_TemplateBindsToRemovablePredicatesWithAKeyboardAccessibleRemoveControl()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var chips = Named(document, "BrowserFilterChips");
+        var template = chips.Descendants(ns + "DataTemplate").Single();
+
+        Assert.Equal("{x:Type local:BrowserFilterPredicate}", (string?)template.Attribute("DataType"));
+        Assert.Contains(template.Descendants(ns + "TextBlock"), tb => (string?)tb.Attribute("Text") == "{Binding Label}");
+        // A Button (not a bare clickable TextBlock) so the remove control is reachable and activatable by keyboard.
+        var removeButton = template.Descendants(ns + "Button").Single();
+        Assert.Equal("BrowserFilterChip_Remove_Click", (string?)removeButton.Attribute("Click"));
+        Assert.Equal("{Binding RemoveAutomationLabel}", (string?)removeButton.Attribute("AutomationProperties.Name"));
+    }
+
+    [Fact]
+    public void BrowserQueryToolbar_SortComboItemCountMatchesItsEnumSoASelectedIndexCastCannotSilentlyMismatch()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
 
         var sortItems = Named(document, "BrowserSortCombo").Elements(ns + "ComboBoxItem").ToList();
         Assert.Equal(Enum.GetValues<LightflowStudio.BrowserSortMode>().Length, sortItems.Count);
-
-        // All media, Images, RAW, Video — matches MainWindow.BrowserMediaFilterCombo_SelectionChanged's mapping.
-        var filterItems = Named(document, "BrowserMediaFilterCombo").Elements(ns + "ComboBoxItem").ToList();
-        Assert.Equal(4, filterItems.Count);
     }
 
     [Fact]

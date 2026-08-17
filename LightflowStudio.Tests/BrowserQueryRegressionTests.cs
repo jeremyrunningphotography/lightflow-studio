@@ -41,14 +41,68 @@ public sealed class BrowserQueryRegressionTests
     public void BrowserFilterAndSortControls_ApplyImmediatelyForRapidSwitchingRatherThanDebouncing()
     {
         var source = Source();
-        foreach (var handler in new[] { "BrowserMediaFilterCombo_SelectionChanged", "BrowserSortCombo_SelectionChanged", "BrowserSortDirection_Click" })
+        foreach (var handler in new[] { "BrowserSortCombo_SelectionChanged", "BrowserSortDirection_Click", "ToggleBrowserMediaTypeFilter",
+            "BrowserFilterChip_Remove_Click" })
         {
             var methodStart = source.IndexOf($"private void {handler}", StringComparison.Ordinal);
-            var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
             Assert.True(methodStart >= 0, $"{handler} not found");
+            var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
             var body = source[methodStart..methodEnd];
-            Assert.Contains("ApplyBrowserQuery();", body);
+            Assert.Contains("ApplyBrowserQuery(", body);
+            Assert.DoesNotContain("DebounceTimer", body);
         }
+    }
+
+    [Fact]
+    public void MediaTypeFilterCheckboxHandlers_RouteThroughTheSharedGuardedToggleHelper()
+    {
+        var source = Source();
+        foreach (var (handler, category) in new[]
+        {
+            ("BrowserFilterImagesCheck_Changed", "MediaTypeCategory.StillImage"),
+            ("BrowserFilterRawCheck_Changed", "MediaTypeCategory.RawImage"),
+            ("BrowserFilterVideoCheck_Changed", "MediaTypeCategory.Video"),
+        })
+        {
+            var methodStart = source.IndexOf($"private void {handler}", StringComparison.Ordinal);
+            Assert.True(methodStart >= 0, $"{handler} not found");
+            var methodEnd = source.IndexOf(';', methodStart);
+            var body = source[methodStart..methodEnd];
+            Assert.Contains("ToggleBrowserMediaTypeFilter(", body);
+            Assert.Contains(category, body);
+        }
+
+        var toggleStart = source.IndexOf("private void ToggleBrowserMediaTypeFilter", StringComparison.Ordinal);
+        var toggleEnd = source.IndexOf("\n    private", toggleStart + 1, StringComparison.Ordinal);
+        var toggleBody = source[toggleStart..toggleEnd];
+        Assert.Contains("if (_synchronizingBrowserQuery) return;", toggleBody);
+        Assert.Contains("WithFilterAdded", toggleBody);
+        Assert.Contains("WithFilterRemoved", toggleBody);
+    }
+
+    [Fact]
+    public void ApplyBrowserQuery_AlwaysResyncsToolbarVisualsSoCheckboxesChipsAndTheDirectionGlyphNeverDrift()
+    {
+        var source = Source();
+        var methodStart = source.IndexOf("private void ApplyBrowserQuery(Func<BrowserQuery, BrowserQuery> transform)", StringComparison.Ordinal);
+        Assert.True(methodStart >= 0);
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("_browserGrid.SetQuery(transform(_browserGrid.Query));", body);
+        Assert.Contains("SyncBrowserQueryToolbarVisuals();", body);
+    }
+
+    [Fact]
+    public void SyncBrowserQueryToolbarVisuals_ShowsTheChipRowOnlyWhenAtLeastOnePredicateIsActive()
+    {
+        var source = Source();
+        var methodStart = source.IndexOf("private void SyncBrowserQueryToolbarVisuals", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("BrowserFilterChips.ItemsSource = filters;", body);
+        Assert.Contains("filters.Count > 0 ? Visibility.Visible : Visibility.Collapsed", body);
     }
 
     [Fact]
@@ -92,28 +146,37 @@ public sealed class BrowserQueryRegressionTests
         var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
         var body = source[methodStart..methodEnd];
         var guardOn = body.IndexOf("_synchronizingBrowserQuery = true;", StringComparison.Ordinal);
-        var filterAssignment = body.IndexOf("BrowserMediaFilterCombo.SelectedIndex = 0;", StringComparison.Ordinal);
         var sortAssignment = body.IndexOf("BrowserSortCombo.SelectedIndex = 0;", StringComparison.Ordinal);
+        var filterButtonAssignment = body.IndexOf("BrowserFilterButton.IsChecked = false;", StringComparison.Ordinal);
         var guardOff = body.IndexOf("finally { _synchronizingBrowserQuery = false; }", StringComparison.Ordinal);
 
-        Assert.True(guardOn >= 0 && guardOn < filterAssignment && filterAssignment < guardOff && sortAssignment < guardOff,
+        Assert.True(guardOn >= 0 && guardOn < sortAssignment && sortAssignment < guardOff &&
+            guardOn < filterButtonAssignment && filterButtonAssignment < guardOff,
             "Every toolbar control reset must happen between the guard being set and cleared.");
+        // The filter checkboxes/chips are reflected by SyncBrowserQueryToolbarVisuals (also guarded, called
+        // separately below) rather than being reset by hand here — one code path for "reflect the model".
+        Assert.Contains("SyncBrowserQueryToolbarVisuals();", body);
     }
 
     [Fact]
-    public void BrowserFilterAndSortCombos_DoNotDeclareASelectedIndexInXamlToAvoidReenteringHandlersDuringInitializeComponent()
+    public void BrowserFilterAndSortControls_DoNotDeclareADefaultSelectionInXamlToAvoidReenteringHandlersDuringInitializeComponent()
     {
-        // Regression: WPF can raise SelectionChanged for a XAML-declared SelectedIndex while
-        // InitializeComponent is still connecting later-declared named elements in the same file, so the
-        // handler (which reads sibling controls) must never be reachable from a declarative default.
+        // Regression: WPF can raise SelectionChanged/Checked for a XAML-declared default while
+        // InitializeComponent is still connecting later-declared named elements in the same file, so a
+        // handler that reads sibling controls must never be reachable from a declarative default.
         var xaml = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
-        var filterStart = xaml.IndexOf("x:Name=\"BrowserMediaFilterCombo\"", StringComparison.Ordinal);
-        var filterEnd = xaml.IndexOf('>', filterStart);
-        var sortStart = xaml.IndexOf("x:Name=\"BrowserSortCombo\"", StringComparison.Ordinal);
-        var sortEnd = xaml.IndexOf('>', sortStart);
-
-        Assert.DoesNotContain("SelectedIndex", xaml[filterStart..filterEnd]);
-        Assert.DoesNotContain("SelectedIndex", xaml[sortStart..sortEnd]);
+        foreach (var name in new[]
+        {
+            "BrowserSortCombo", "BrowserFilterImagesCheck", "BrowserFilterRawCheck", "BrowserFilterVideoCheck"
+        })
+        {
+            var start = xaml.IndexOf($"x:Name=\"{name}\"", StringComparison.Ordinal);
+            Assert.True(start >= 0, $"{name} not found in XAML");
+            var end = xaml.IndexOf('>', start);
+            var tag = xaml[start..end];
+            Assert.DoesNotContain("SelectedIndex", tag);
+            Assert.DoesNotContain("IsChecked", tag);
+        }
     }
 
     [Fact]

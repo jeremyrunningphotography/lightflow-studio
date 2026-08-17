@@ -20,6 +20,63 @@ public sealed class BrowserLocationRestorationTests
     }
 
     [Fact]
+    public void DescribeSavedLocation_UsesTheLastSegmentOfTheRelativeFolder()
+    {
+        var saved = new WorkspaceBrowserLocationState
+        {
+            RootId = Guid.NewGuid(),
+            RelativeFolder = "Photography/DJI Pocket 4/2026/2026-08-15 - Wedding",
+            LastResolvedAbsolutePath = @"J:\Photography\DJI Pocket 4\2026\2026-08-15 - Wedding"
+        };
+
+        Assert.Equal("2026-08-15 - Wedding", BrowserLocationRestoration.DescribeSavedLocation(saved));
+    }
+
+    [Fact]
+    public void DescribeSavedLocation_PrefersTheRelativeFolderOverTheDiagnosticPathWhenBothArePresent()
+    {
+        // The relative folder is authoritative identity; the diagnostic path is stale/best-effort only,
+        // so even a mismatched diagnostic path must never influence the label.
+        var saved = new WorkspaceBrowserLocationState
+        {
+            RootId = Guid.NewGuid(),
+            RelativeFolder = "Trips/Iceland",
+            LastResolvedAbsolutePath = @"Z:\SomeOtherStaleMapping\Nowhere"
+        };
+
+        Assert.Equal("Iceland", BrowserLocationRestoration.DescribeSavedLocation(saved));
+    }
+
+    [Fact]
+    public void DescribeSavedLocation_FallsBackToTheDiagnosticPathsFileNameWhenRestoringTheRootItself()
+    {
+        var saved = new WorkspaceBrowserLocationState
+        {
+            RootId = Guid.NewGuid(),
+            RelativeFolder = "",
+            LastResolvedAbsolutePath = @"D:\Trips\Iceland"
+        };
+
+        Assert.Equal("Iceland", BrowserLocationRestoration.DescribeSavedLocation(saved));
+    }
+
+    [Fact]
+    public void DescribeSavedLocation_FallsBackToTheFullPathWhenItHasNoFileNameSegment()
+    {
+        var saved = new WorkspaceBrowserLocationState { RootId = Guid.NewGuid(), RelativeFolder = "", LastResolvedAbsolutePath = @"C:\" };
+
+        Assert.Equal(@"C:\", BrowserLocationRestoration.DescribeSavedLocation(saved));
+    }
+
+    [Fact]
+    public void DescribeSavedLocation_ReturnsNullWhenNothingUsableIsAvailable()
+    {
+        var saved = new WorkspaceBrowserLocationState { RootId = Guid.NewGuid(), RelativeFolder = "", LastResolvedAbsolutePath = null };
+
+        Assert.Null(BrowserLocationRestoration.DescribeSavedLocation(saved));
+    }
+
+    [Fact]
     public async Task RestoreAsync_NoSavedLocationDoesNothing()
     {
         using var session = Session(new FakeRoots(), new FakeDiscovery(), EmptyFolders(), new FakeFileSystem());

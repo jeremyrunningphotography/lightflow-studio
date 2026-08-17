@@ -32,6 +32,22 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserLoadingOverlay_IsARestrainedInCanvasIndicatorRatherThanAModalOrSplashSurface()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var overlay = Named(document, "BrowserLoadingOverlay");
+        var loadingText = Named(document, "BrowserLoadingText");
+
+        Assert.Equal("Border", overlay.Name.LocalName);
+        Assert.Equal(Named(document, "BrowserGridHost"), overlay.Ancestors(ns + "Border").First());
+        Assert.DoesNotContain(document.Descendants(ns + "Window"), element => !ReferenceEquals(element, document.Root));
+        Assert.DoesNotContain(document.Descendants(ns + "Popup"), element => overlay.Ancestors().Contains(element) || element.Descendants().Contains(overlay));
+        Assert.Contains(overlay.Descendants(ns + "ProgressBar"), bar => (string?)bar.Attribute("IsIndeterminate") == "True");
+        Assert.Equal(overlay, loadingText.Ancestors(ns + "Border").First());
+    }
+
+    [Fact]
     public void BrowserWorkspace_HasNoRedundantTitleBandOrStatusLabelAndStartsCloseToNavigation()
     {
         var root = FindRepositoryRoot();

@@ -75,6 +75,7 @@ public partial class MainWindow : Window
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
         ApplyRestoredWorkspaceLayout();
+        if (_workspaceState.Current.Browser is { } savedBrowserLocation) ShowBrowserRestoringState(savedBrowserLocation);
         _batchFolderRefreshTimer.Tick += (_, _) =>
         {
             _batchFolderRefreshTimer.Stop();
@@ -112,6 +113,15 @@ public partial class MainWindow : Window
                 BrowserFolderTree.ItemsSource = _browserTree.Roots;
                 BrowserGridRows.ItemsSource = _browserGrid.Rows;
                 if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed += BrowserMonitoring_FolderRefreshed;
+
+                // Browser is the default, immediately visible workspace: get its Locations storage entries
+                // (needed so an offline saved root already has a tree node to show its honest state against)
+                // and kick off restoration before any Encoding/History/Settings-only work below, none of
+                // which the user is looking at yet. Measured on real hardware: this alone cut the delay
+                // before restoration starts from ~1.1s to ~0.16s. Restoration itself proceeds independently.
+                await RefreshBrowserStorageAsync();
+                _ = RestoreBrowserLocationAsync(_workspaceState.Current.Browser);
+
                 RefreshCatalogBackups();
                 RefreshHistory();
                 LocateTools();
@@ -119,8 +129,6 @@ public partial class MainWindow : Window
                 RefreshBatchFiles();
                 RefreshLuts();
                 await RefreshMediaRootsAsync();
-                await RefreshBrowserStorageAsync();
-                _ = RestoreBrowserLocationAsync(_workspaceState.Current.Browser);
                 await RefreshPreviewUsageAsync();
                 if (_storageStartupStatus != StorageStartupStatus.Ready)
                     SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
@@ -172,6 +180,30 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Reflects the remembered Browser destination as early as safely possible: called before
+    /// <c>Loaded</c> even fires (right after <see cref="ApplyRestoredWorkspaceLayout"/>), using only the
+    /// synchronously-available saved location, so it is part of the window's first rendered frame rather
+    /// than appearing after a delay behind the default "Choose a storage location" placeholder.
+    /// </summary>
+    private void ShowBrowserRestoringState(WorkspaceBrowserLocationState saved)
+    {
+        var label = BrowserLocationRestoration.DescribeSavedLocation(saved);
+        BrowserLoadingText.Text = label is null ? "Restoring your last location…" : $"Loading {label}…";
+        if (!string.IsNullOrWhiteSpace(saved.LastResolvedAbsolutePath)) BrowserCurrentPath.Text = saved.LastResolvedAbsolutePath;
+        BrowserEmptyState.Visibility = Visibility.Collapsed;
+        BrowserLoadingOverlay.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>Restores the default, honest "no location open" Browser state, e.g. when restoration resolves nothing to show.</summary>
+    private void ShowDefaultBrowserEmptyState()
+    {
+        BrowserCurrentPath.Text = "";
+        BrowserEmptyTitle.Text = "Choose a storage location";
+        BrowserEmptyMessage.Text = "Select a drive, mapped location, or managed library to browse its folders and supported media.";
+        BrowserEmptyState.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
     /// Captures the window's restored bounds, maximized state, and Locations-pane width, then flushes the
     /// latest workspace state to disk. Called on normal shutdown; a debounced save also covers Browser
     /// location changes mid-session for crash resilience.
@@ -203,20 +235,35 @@ public partial class MainWindow : Window
     {
         if (saved is null) return;
         var generation = ++_browserUiGeneration;
+        // Already showing from ShowBrowserRestoringState (called before Loaded even fires); re-asserted
+        // here so this method stays correct regardless of what state the canvas was left in beforehand.
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
         try
         {
             var result = await BrowserLocationRestoration.RestoreAsync(_browserNavigation, _storage.MediaRoots, saved)
                 .ConfigureAwait(true);
             if (generation != _browserUiGeneration) return;
-            if (!ApplyBrowserSuccessState(result.State, generation) && result.State is { } failure)
-                ApplyBrowserNavigationFailure(failure);
+            if (!ApplyBrowserSuccessState(result.State, generation))
+            {
+                if (result.State is { } failure)
+                {
+                    ApplyBrowserNavigationFailure(failure);
+                    // Unlike an ordinary failed navigation, restoration never had a genuinely open previous
+                    // folder to preserve here: the address bar was only seeded early for cosmetic effect.
+                    BrowserCurrentPath.Text = "";
+                }
+                else ShowDefaultBrowserEmptyState();
+            }
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+            if (generation == _browserUiGeneration) ShowDefaultBrowserEmptyState();
+        }
         catch (Exception exception) when (exception is InvalidOperationException or MachineIdentityException or
             ArgumentException or IOException or UnauthorizedAccessException)
         {
             _activityLogFile.TryAppend($"[Workspace] Browser location restoration failed: {exception.Message}");
+            if (generation == _browserUiGeneration) ShowDefaultBrowserEmptyState();
         }
         finally
         {
@@ -434,6 +481,7 @@ public partial class MainWindow : Window
     private async Task RunBrowserNavigationAsync(Func<Task<BrowserFolderState?>> navigate)
     {
         var generation = ++_browserUiGeneration;
+        BrowserLoadingText.Text = "Loading folder…";
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
         try
         {

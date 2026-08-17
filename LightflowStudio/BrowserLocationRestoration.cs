@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace LightflowStudio;
 
 internal enum BrowserRestorationOutcome { NoSavedLocation, RootNotFound, RootUnavailable, Restored, Unresolvable }
@@ -31,6 +33,25 @@ internal static class BrowserLocationRestoration
             candidates.Add(string.Join('/', segments.Take(count)));
         candidates.Add("");
         return candidates;
+    }
+
+    /// <summary>
+    /// A short, human-readable label for the saved location, safe to show before any restoration work has
+    /// run: it uses only synchronously-available data (the saved relative folder's last segment, falling
+    /// back to the diagnostic-only last-resolved path's file name). Never performs I/O or Catalog access.
+    /// Returns null when no reasonable label is available.
+    /// </summary>
+    internal static string? DescribeSavedLocation(WorkspaceBrowserLocationState saved)
+    {
+        if (saved.RelativeFolder.Length > 0)
+        {
+            var lastSegment = saved.RelativeFolder.Split('/')[^1];
+            if (lastSegment.Length > 0) return lastSegment;
+        }
+        if (string.IsNullOrWhiteSpace(saved.LastResolvedAbsolutePath)) return null;
+        var trimmed = saved.LastResolvedAbsolutePath.TrimEnd('\\', '/');
+        var name = Path.GetFileName(trimmed);
+        return string.IsNullOrEmpty(name) ? saved.LastResolvedAbsolutePath : name;
     }
 
     public static async Task<BrowserRestorationResult> RestoreAsync(BrowserNavigationSession session,

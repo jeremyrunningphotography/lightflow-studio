@@ -193,6 +193,11 @@ public partial class MainWindow : Window
         {
             var container = FindBrowserTreeItem(BrowserFolderTree, node);
             if (container is null) return;
+            // Programmatic selection only sets IsSelected (the background fill); the focus-ring outline is a
+            // separate IsKeyboardFocused-driven trigger for accessibility. Giving the revealed container real
+            // keyboard focus here makes direct-path/programmatic navigation look and behave the same as a
+            // manual click, matching Explorer-like navigation conventions.
+            container.Focus();
             var rowPosition = container.TranslatePoint(new System.Windows.Point(0, 0), BrowserFolderTree);
             var verticalOffset = BrowserTreeScroll.RevealVerticalOffset(BrowserFolderScrollViewer.VerticalOffset,
                 BrowserFolderScrollViewer.ViewportHeight, rowPosition.Y, container.ActualHeight);

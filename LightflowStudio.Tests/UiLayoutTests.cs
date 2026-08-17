@@ -175,6 +175,18 @@ public class UiLayoutTests
         Assert.Contains("BrowserFolderScrollViewer.ScrollToVerticalOffset", source);
         Assert.Contains("BrowserFolderScrollViewer.ScrollToHorizontalOffset", source);
         Assert.DoesNotContain("BringIntoView()", source);
+
+        // Regression: programmatic selection (direct-path entry, Back/Forward, etc.) only sets IsSelected,
+        // which drives the tree item's background fill. The focus-ring outline is a separate
+        // IsKeyboardFocused-driven style trigger, so revealing a node must also give its container real
+        // keyboard focus, or it visually differs from a manually clicked selection.
+        var revealStart = source.IndexOf("private void BringBrowserTreeNodeIntoView", StringComparison.Ordinal);
+        var revealEnd = source.IndexOf("\n    private", revealStart + 1, StringComparison.Ordinal);
+        Assert.True(revealStart >= 0 && revealEnd > revealStart);
+        var revealBody = source[revealStart..revealEnd];
+        Assert.Contains("container.Focus()", revealBody);
+        Assert.True(revealBody.IndexOf("container.Focus()", StringComparison.Ordinal) <
+            revealBody.IndexOf("ScrollToVerticalOffset", StringComparison.Ordinal));
         Assert.True(source.IndexOf("RequestBrowserTreeSelection(_browserNavigation.UpTarget);", StringComparison.Ordinal) <
             source.IndexOf("_browserNavigation.UpAsync()", StringComparison.Ordinal));
         Assert.True(source.IndexOf("RequestBrowserTreeSelection(_browserNavigation.BackTarget);", StringComparison.Ordinal) <

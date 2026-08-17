@@ -58,6 +58,9 @@ public partial class MainWindow : Window
     private static readonly int[] AudioSampleRates = [0, 44100, 48000, 96000];
     private long _browserUiGeneration;
     private bool _synchronizingBrowserTree;
+    private readonly WorkspaceStateService _workspaceState;
+    private readonly DispatcherTimer _workspaceSaveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+    private WindowState _lastNonMinimizedWindowState = WindowState.Normal;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -69,13 +72,25 @@ public partial class MainWindow : Window
             storage.MediaDiscovery, storage.MediaFolders);
         _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
+        _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
+        ApplyRestoredWorkspaceLayout();
+        if (_workspaceState.Current.Browser is { } savedBrowserLocation) ShowBrowserRestoringState(savedBrowserLocation);
         _batchFolderRefreshTimer.Tick += (_, _) =>
         {
             _batchFolderRefreshTimer.Stop();
             RefreshBatchFiles();
         };
+        _workspaceSaveTimer.Tick += (_, _) =>
+        {
+            _workspaceSaveTimer.Stop();
+            _workspaceState.Save();
+        };
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
+        StateChanged += (_, _) =>
+        {
+            if (WindowState != WindowState.Minimized) _lastNonMinimizedWindowState = WindowState;
+        };
         _commandLineFolder = Environment.GetCommandLineArgs().Skip(1).FirstOrDefault(Directory.Exists);
         Loaded += async (_, _) =>
         {
@@ -98,6 +113,15 @@ public partial class MainWindow : Window
                 BrowserFolderTree.ItemsSource = _browserTree.Roots;
                 BrowserGridRows.ItemsSource = _browserGrid.Rows;
                 if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed += BrowserMonitoring_FolderRefreshed;
+
+                // Browser is the default, immediately visible workspace: get its Locations storage entries
+                // (needed so an offline saved root already has a tree node to show its honest state against)
+                // and kick off restoration before any Encoding/History/Settings-only work below, none of
+                // which the user is looking at yet. Measured on real hardware: this alone cut the delay
+                // before restoration starts from ~1.1s to ~0.16s. Restoration itself proceeds independently.
+                await RefreshBrowserStorageAsync();
+                _ = RestoreBrowserLocationAsync(_workspaceState.Current.Browser);
+
                 RefreshCatalogBackups();
                 RefreshHistory();
                 LocateTools();
@@ -105,7 +129,6 @@ public partial class MainWindow : Window
                 RefreshBatchFiles();
                 RefreshLuts();
                 await RefreshMediaRootsAsync();
-                await RefreshBrowserStorageAsync();
                 await RefreshPreviewUsageAsync();
                 if (_storageStartupStatus != StorageStartupStatus.Ready)
                     SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
@@ -125,8 +148,127 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
+            _workspaceSaveTimer.Stop();
             _browserNavigation.Dispose();
         };
+    }
+
+    /// <summary>
+    /// Applies previously saved window bounds/maximized state and Locations-pane width before the window is
+    /// shown. A no-op on first launch (no saved state), leaving MainWindow.xaml's declared defaults in effect.
+    /// </summary>
+    private void ApplyRestoredWorkspaceLayout()
+    {
+        if (_workspaceState.Current.Window is { } window)
+        {
+            var workAreas = Forms.Screen.AllScreens.Select(screen => new ScreenWorkArea(screen.WorkingArea.Left,
+                screen.WorkingArea.Top, screen.WorkingArea.Width, screen.WorkingArea.Height)).ToArray();
+            var clamped = WorkspaceWindowPlacement.Clamp(window, workAreas, MinWidth, MinHeight);
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = clamped.Left;
+            Top = clamped.Top;
+            Width = clamped.Width;
+            Height = clamped.Height;
+            if (window.IsMaximized) WindowState = WindowState.Maximized;
+            // StateChanged does not fire for this initial programmatic assignment, so seed the tracked
+            // last-non-minimized state directly or a maximized restore would be read back as Normal at close.
+            _lastNonMinimizedWindowState = WindowState;
+        }
+
+        if (_workspaceState.Current.Layout?.BrowserLocationsPaneWidth is { } paneWidth)
+            BrowserNavigationColumn.Width = new GridLength(paneWidth);
+    }
+
+    /// <summary>
+    /// Reflects the remembered Browser destination as early as safely possible: called before
+    /// <c>Loaded</c> even fires (right after <see cref="ApplyRestoredWorkspaceLayout"/>), using only the
+    /// synchronously-available saved location, so it is part of the window's first rendered frame rather
+    /// than appearing after a delay behind the default "Choose a storage location" placeholder.
+    /// </summary>
+    private void ShowBrowserRestoringState(WorkspaceBrowserLocationState saved)
+    {
+        var label = BrowserLocationRestoration.DescribeSavedLocation(saved);
+        BrowserLoadingText.Text = label is null ? "Restoring your last location…" : $"Loading {label}…";
+        if (!string.IsNullOrWhiteSpace(saved.LastResolvedAbsolutePath)) BrowserCurrentPath.Text = saved.LastResolvedAbsolutePath;
+        BrowserEmptyState.Visibility = Visibility.Collapsed;
+        BrowserLoadingOverlay.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>Restores the default, honest "no location open" Browser state, e.g. when restoration resolves nothing to show.</summary>
+    private void ShowDefaultBrowserEmptyState()
+    {
+        BrowserCurrentPath.Text = "";
+        BrowserEmptyTitle.Text = "Choose a storage location";
+        BrowserEmptyMessage.Text = "Select a drive, mapped location, or managed library to browse its folders and supported media.";
+        BrowserEmptyState.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Captures the window's restored bounds, maximized state, and Locations-pane width, then flushes the
+    /// latest workspace state to disk. Called on normal shutdown; a debounced save also covers Browser
+    /// location changes mid-session for crash resilience.
+    /// </summary>
+    private void SaveWorkspaceState()
+    {
+        _workspaceSaveTimer.Stop();
+        var bounds = RestoreBounds;
+        if (bounds.Width > 0 && bounds.Height > 0)
+            _workspaceState.SetWindow(new WorkspaceWindowState
+            {
+                Width = bounds.Width,
+                Height = bounds.Height,
+                Left = bounds.Left,
+                Top = bounds.Top,
+                IsMaximized = _lastNonMinimizedWindowState == WindowState.Maximized
+            });
+        _workspaceState.SetBrowserLocationsPaneWidth(BrowserNavigationColumn.ActualWidth);
+        _workspaceState.Save();
+    }
+
+    /// <summary>
+    /// Restores the last Browser location saved by <see cref="ApplyBrowserState"/>, reusing the same
+    /// #98-#108 navigation session every manual Locations interaction uses (see
+    /// <see cref="BrowserLocationRestoration"/>). Restoration failures are logged and otherwise silent:
+    /// the Browser simply remains in its default empty state, and startup is never blocked.
+    /// </summary>
+    private async Task RestoreBrowserLocationAsync(WorkspaceBrowserLocationState? saved)
+    {
+        if (saved is null) return;
+        var generation = ++_browserUiGeneration;
+        // Already showing from ShowBrowserRestoringState (called before Loaded even fires); re-asserted
+        // here so this method stays correct regardless of what state the canvas was left in beforehand.
+        BrowserLoadingOverlay.Visibility = Visibility.Visible;
+        try
+        {
+            var result = await BrowserLocationRestoration.RestoreAsync(_browserNavigation, _storage.MediaRoots, saved)
+                .ConfigureAwait(true);
+            if (generation != _browserUiGeneration) return;
+            if (!ApplyBrowserSuccessState(result.State, generation))
+            {
+                if (result.State is { } failure)
+                {
+                    ApplyBrowserNavigationFailure(failure);
+                    // Unlike an ordinary failed navigation, restoration never had a genuinely open previous
+                    // folder to preserve here: the address bar was only seeded early for cosmetic effect.
+                    BrowserCurrentPath.Text = "";
+                }
+                else ShowDefaultBrowserEmptyState();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            if (generation == _browserUiGeneration) ShowDefaultBrowserEmptyState();
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or MachineIdentityException or
+            ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            _activityLogFile.TryAppend($"[Workspace] Browser location restoration failed: {exception.Message}");
+            if (generation == _browserUiGeneration) ShowDefaultBrowserEmptyState();
+        }
+        finally
+        {
+            if (generation == _browserUiGeneration) BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void BrowserMonitoring_FolderRefreshed(object? sender, MediaFolderEnumerationRequest request) =>
@@ -325,23 +467,27 @@ public partial class MainWindow : Window
     private async void BrowserRefresh_Click(object sender, RoutedEventArgs e) =>
         await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
 
+    /// <summary>Applies a successful navigation result and reveals its Locations-tree ancestors. Returns false (without side effects) for a stale, null, or non-success state.</summary>
+    private bool ApplyBrowserSuccessState(BrowserFolderState? state, long generation)
+    {
+        if (state is null || generation != _browserUiGeneration ||
+            state.Status is not (BrowserFolderStatus.Ready or BrowserFolderStatus.Empty))
+            return false;
+        ApplyBrowserState(state);
+        if (state.Location is { } location) _ = RevealBrowserTreeAncestorsAsync(location, generation);
+        return true;
+    }
+
     private async Task RunBrowserNavigationAsync(Func<Task<BrowserFolderState?>> navigate)
     {
         var generation = ++_browserUiGeneration;
+        BrowserLoadingText.Text = "Loading folder…";
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
         try
         {
             var state = await navigate();
-            if (state is not null && generation == _browserUiGeneration)
-            {
-                if (state.Status is BrowserFolderStatus.Ready or BrowserFolderStatus.Empty)
-                {
-                    ApplyBrowserState(state);
-                    if (state.Location is { } location) _ = RevealBrowserTreeAncestorsAsync(location, generation);
-                }
-                else
-                    ApplyBrowserNavigationFailure(state);
-            }
+            if (state is not null && generation == _browserUiGeneration && !ApplyBrowserSuccessState(state, generation))
+                ApplyBrowserNavigationFailure(state);
         }
         catch (OperationCanceledException)
         {
@@ -397,6 +543,14 @@ public partial class MainWindow : Window
         BrowserEmptyMessage.Text = state.Diagnostic ?? (state.Location is null
             ? "Select a drive, mapped location, or managed library to browse its folders and supported media."
             : "Choose another folder from the navigation pane or refresh this location.");
+
+        if (state.Location is { } location)
+        {
+            // Selection is intentionally never persisted here; only the folder identity is remembered.
+            _workspaceState.SetBrowserLocation(location.RootId, location.RelativeFolder, location.AbsolutePath);
+            _workspaceSaveTimer.Stop();
+            _workspaceSaveTimer.Start();
+        }
     }
 
     private void ApplyBrowserNavigationFailure(BrowserFolderState failure)
@@ -1904,6 +2058,7 @@ public partial class MainWindow : Window
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
         SaveBatchState();
+        SaveWorkspaceState();
         _previewMaintenanceCts?.Cancel();
         if (_jobCancellation is null || _forceClose) return;
 

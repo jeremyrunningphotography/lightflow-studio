@@ -166,7 +166,7 @@
           <TextBlock x:Name="BrowserEmptyMessage" Style="{StaticResource ShellPlaceholderText}" Margin="0,8,0,0" Text="Select a drive, mapped location, or managed library to browse its folders and supported media."/>
          </StackPanel>
          <Border x:Name="BrowserLoadingOverlay" Background="#B00D0F13" Visibility="Collapsed">
-          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><ProgressBar Width="180" Height="4" IsIndeterminate="True"/><TextBlock Margin="0,12,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Loading folder…"/></StackPanel>
+          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><ProgressBar Width="180" Height="4" IsIndeterminate="True"/><TextBlock x:Name="BrowserLoadingText" Margin="0,12,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Loading folder…"/></StackPanel>
          </Border>
         </Grid>
       </Border>

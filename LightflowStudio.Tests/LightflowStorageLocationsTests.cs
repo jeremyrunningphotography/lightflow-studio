@@ -21,6 +21,7 @@ public sealed class LightflowStorageLocationsTests : IDisposable
         Assert.Equal(Path.Combine(applicationData, "Temporary"), locations.TemporaryDirectory);
         Assert.Equal(Path.Combine(applicationData, "settings.json"), locations.SettingsPath);
         Assert.Equal(Path.Combine(applicationData, "state.json"), locations.StatePath);
+        Assert.Equal(Path.Combine(applicationData, "workspace-state.json"), locations.WorkspaceStatePath);
         Assert.Equal(Path.Combine(applicationData, "trim-history.json"), locations.TrimHistoryPath);
         Assert.Equal(Path.Combine(applicationData, "job-history.json"), locations.JobHistoryPath);
         Assert.Equal(Path.Combine(applicationData, "output-identities"), locations.OutputIdentityDirectory);
@@ -96,6 +97,7 @@ public sealed class LightflowStorageLocationsTests : IDisposable
 
         Assert.Equal(current.SettingsPath, AppSettingsStore.SettingsPath);
         Assert.Equal(current.StatePath, AppStateStore.StatePath);
+        Assert.Equal(Path.Combine(Path.GetDirectoryName(current.SettingsPath)!, "workspace-state.json"), current.WorkspaceStatePath);
         Assert.Equal(current.JobHistoryPath, JobHistoryStore.StorePath);
         Assert.Equal(current.TrimHistoryPath, TrimHistoryStore.StorePath);
         Assert.Equal(current.OutputIdentityDirectory, EncodingOutputIdentityStore.CacheDirectory);
@@ -122,6 +124,7 @@ public sealed class LightflowStorageLocationsTests : IDisposable
         Assert.Equal(original.ApplicationDataDirectory, changed.ApplicationDataDirectory);
         Assert.Equal(original.SettingsPath, changed.SettingsPath);
         Assert.Equal(original.StatePath, changed.StatePath);
+        Assert.Equal(original.WorkspaceStatePath, changed.WorkspaceStatePath);
         Assert.Equal(original.JobHistoryPath, changed.JobHistoryPath);
         Assert.Equal(original.TrimHistoryPath, changed.TrimHistoryPath);
         Assert.Equal(original.OutputIdentityDirectory, changed.OutputIdentityDirectory);

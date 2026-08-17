@@ -35,7 +35,8 @@ internal sealed record BrowserFolderState(
     string? Diagnostic,
     bool CanGoBack,
     bool CanGoForward,
-    bool CanGoUp)
+    bool CanGoUp,
+    IDerivedWorkBatch? DerivedWork = null)
 {
     public static BrowserFolderState Initial { get; } = new(null, BrowserFolderStatus.Empty, [],
         "Choose a storage location to begin browsing.", false, false, false);
@@ -223,7 +224,7 @@ internal sealed class BrowserNavigationSession(
             return Commit(operation.Generation, location with { RelativeFolder = listing.RelativeFolder }, kind,
                 listing.Succeeded
                     ? listing.Entries.Count == 0 ? BrowserFolderStatus.Empty : BrowserFolderStatus.Ready
-                    : Map(listing.Status), listing.Entries, listing.Diagnostic);
+                    : Map(listing.Status), listing.Entries, listing.Diagnostic, authoritative.DerivedWork);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -247,7 +248,8 @@ internal sealed class BrowserNavigationSession(
     }
 
     private BrowserFolderState? Commit(long generation, BrowserLocation location, NavigationKind kind,
-        BrowserFolderStatus status, IReadOnlyList<MediaFolderEntry> entries, string? diagnostic)
+        BrowserFolderStatus status, IReadOnlyList<MediaFolderEntry> entries, string? diagnostic,
+        IDerivedWorkBatch? derivedWork = null)
     {
         lock (_sync)
         {
@@ -272,7 +274,7 @@ internal sealed class BrowserNavigationSession(
                     break;
             }
             State = new(location, status, entries, diagnostic, _back.Count > 0, _forward.Count > 0,
-                ParentPath(location.AbsolutePath) is not null);
+                ParentPath(location.AbsolutePath) is not null, derivedWork);
             return State;
         }
     }

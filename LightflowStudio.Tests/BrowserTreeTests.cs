@@ -254,6 +254,80 @@ public sealed class BrowserTreeTests
     }
 
     [Fact]
+    public void DirectPathMaterializationExposesRealSiblingFoldersForEveryAncestor()
+    {
+        // Regression: direct-path navigation to a never-visited deep folder must not leave ancestors as a
+        // synthetic single-child chain that hides their real sibling folders.
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        var state = State(rootId, "Media/2026/Session", File(rootId, "Media/2026/Session/a.mp4"));
+
+        model.Synchronize(state);
+        var pending = model.GetUnmaterializedAncestors(state.Location!);
+
+        Assert.Equal([@"C:\", @"C:\Media", @"C:\Media\2026"], pending.Select(node => node.AbsolutePath));
+        Assert.All(pending, node => Assert.False(node.IsMaterialized));
+
+        // Simulate the real folder enumerations a materialization pass performs for each ancestor.
+        model.ApplyDirectoryListing(pending[0], @"C:\",
+            [Directory(rootId, "Media"), Directory(rootId, "OtherTopLevelFolder")]);
+        model.ApplyDirectoryListing(pending[1], @"C:\",
+            [Directory(rootId, "Media/2026"), Directory(rootId, "Media/2025")]);
+        model.ApplyDirectoryListing(pending[2], @"C:\",
+            [Directory(rootId, "Media/2026/Session"), Directory(rootId, "Media/2026/OtherSession")]);
+
+        Assert.NotNull(Find(model, @"C:\OtherTopLevelFolder"));
+        Assert.NotNull(Find(model, @"C:\Media\2025"));
+        Assert.NotNull(Find(model, @"C:\Media\2026\OtherSession"));
+        Assert.All(pending, node => Assert.True(node.IsMaterialized));
+        Assert.Equal(@"C:\Media\2026\Session", model.SelectedNode!.AbsolutePath);
+        Assert.True(model.SelectedNode!.IsSelected);
+        Assert.Single(Descendants(model.Roots), node => node.IsSelected);
+    }
+
+    [Fact]
+    public void AncestorsAlreadyMaterializedByOrdinaryNavigationNeedNoBackfill()
+    {
+        // The common case (Back/Forward, click-driven expansion, revisiting a folder) must stay a no-op:
+        // every ancestor already has a real listing from its own earlier Synchronize call.
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "", Directory(rootId, "Media")));
+        model.Synchronize(State(rootId, "Media", Directory(rootId, "Media/2026")));
+        model.Synchronize(State(rootId, "Media/2026", Directory(rootId, "Media/2026/Session")));
+        var state = State(rootId, "Media/2026/Session", File(rootId, "Media/2026/Session/a.mp4"));
+        model.Synchronize(state);
+
+        var pending = model.GetUnmaterializedAncestors(state.Location!);
+
+        Assert.Empty(pending);
+    }
+
+    [Fact]
+    public void AncestorMaterializationPreservesUnrelatedExpandedBranchesAndSelection()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "", Directory(rootId, "A"), Directory(rootId, "B")));
+        var branchB = Find(model, @"C:\B")!;
+        branchB.IsExpanded = true;
+
+        var state = State(rootId, "A/Deep/Target", File(rootId, "A/Deep/Target/a.mp4"));
+        model.Synchronize(state);
+        var pending = model.GetUnmaterializedAncestors(state.Location!);
+        Assert.Equal([@"C:\A", @"C:\A\Deep"], pending.Select(node => node.AbsolutePath));
+        model.ApplyDirectoryListing(pending[0], @"C:\", [Directory(rootId, "A/Deep"), Directory(rootId, "A/Sibling")]);
+        model.ApplyDirectoryListing(pending[1], @"C:\",
+            [Directory(rootId, "A/Deep/Target"), Directory(rootId, "A/Deep/OtherTarget")]);
+
+        Assert.True(branchB.IsExpanded);
+        Assert.NotNull(Find(model, @"C:\A\Sibling"));
+        Assert.NotNull(Find(model, @"C:\A\Deep\OtherTarget"));
+        Assert.Equal(@"C:\A\Deep\Target", model.SelectedNode!.AbsolutePath);
+        Assert.Single(Descendants(model.Roots), node => node.IsSelected);
+    }
+
+    [Fact]
     public void ProgrammaticPathSelectionExpandsAncestorsWithoutCollapsingOtherBranches()
     {
         var rootId = Guid.NewGuid();

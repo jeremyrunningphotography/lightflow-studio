@@ -31,7 +31,7 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserWorkspace_HasNoRedundantTitleBandAndStartsCloseToNavigation()
+    public void BrowserWorkspace_HasNoRedundantTitleBandOrStatusLabelAndStartsCloseToNavigation()
     {
         var root = FindRepositoryRoot();
         var document = XDocument.Load(Path.Combine(root, "LightflowStudio", "MainWindow.xaml"));
@@ -54,12 +54,14 @@ public class UiLayoutTests
             (string?)border.Attribute("BorderThickness") == "0,0,0,1");
         Assert.Null(browserRootGrid.Element(ns + "Grid.RowDefinitions"));
 
-        var status = Named(document, "BrowserWorkspaceStatus");
-        var toolbarGrid = status.Parent!;
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute(xNamespace + "Name") == "BrowserWorkspaceStatus");
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute("Text") == "Choose a Media Root");
+        var toolbarGrid = Named(document, "BrowserRefreshButton").Parent!;
         Assert.Contains(toolbarGrid.Elements(ns + "TextBox"), element =>
             (string?)element.Attribute(xNamespace + "Name") == "BrowserCurrentPath");
-        Assert.Contains(toolbarGrid.Elements(ns + "Button"), element =>
-            (string?)element.Attribute(xNamespace + "Name") == "BrowserRefreshButton");
+        Assert.Equal(4, toolbarGrid.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").Count());
 
         Assert.Equal("28,16,28,24", (string?)shell.Root.Elements(shell.Root.Name.Namespace + "Thickness")
             .Single(thickness => (string?)thickness.Attribute(xNamespace + "Key") == "ShellWorkspacePadding"));

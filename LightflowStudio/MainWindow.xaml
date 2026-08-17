@@ -82,7 +82,7 @@
        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="*"/></Grid.RowDefinitions>
        <Border Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>
-         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
          <StackPanel Orientation="Horizontal">
           <Button x:Name="BrowserBackButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Back" AutomationProperties.Name="Back" Click="BrowserBack_Click" Content="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
           <Button x:Name="BrowserForwardButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Forward" AutomationProperties.Name="Forward" Click="BrowserForward_Click" Content="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
@@ -91,7 +91,6 @@
          <TextBox Grid.Column="1" x:Name="BrowserCurrentPath" Margin="14,0,6,0" VerticalAlignment="Center" Text="" ToolTip="Type a local, mapped, or network folder path" AutomationProperties.Name="Current folder path" KeyDown="BrowserCurrentPath_KeyDown"/>
          <Button Grid.Column="2" x:Name="BrowserGoButton" Padding="12,7" Content="Go" ToolTip="Open the entered folder" AutomationProperties.Name="Open folder path" Click="BrowserGo_Click"/>
          <Button Grid.Column="3" x:Name="BrowserRefreshButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Refresh current folder" AutomationProperties.Name="Refresh current folder" Click="BrowserRefresh_Click" Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
-         <TextBlock Grid.Column="4" x:Name="BrowserWorkspaceStatus" Margin="14,0,4,0" MaxWidth="180" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, ElementName=BrowserWorkspaceStatus}" Text="Choose a Media Root"/>
         </Grid>
        </Border>
        <Border Grid.Row="2" Style="{StaticResource ShellPanel}" Background="#0D0F13">

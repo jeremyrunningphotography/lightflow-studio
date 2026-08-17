@@ -116,7 +116,6 @@ public partial class MainWindow : Window
             catch (Exception exception)
             {
                 _activityLogFile.TryAppend($"[App] Main window initialization failed: {exception}");
-                BrowserWorkspaceStatus.Text = "Browser initialization needs attention";
                 BrowserEmptyTitle.Text = "Storage locations could not be loaded";
                 BrowserEmptyMessage.Text = $"Lightflow remains available. Details were written to {_activityLogFile.Path}.";
                 BrowserEmptyState.Visibility = Visibility.Visible;
@@ -307,14 +306,6 @@ public partial class MainWindow : Window
         BrowserForwardButton.IsEnabled = state.CanGoForward;
         BrowserUpButton.IsEnabled = state.CanGoUp;
         BrowserRefreshButton.IsEnabled = state.Location is not null;
-        BrowserWorkspaceStatus.Text = state.Status switch
-        {
-            BrowserFolderStatus.Ready => $"{files.Count} media files",
-            BrowserFolderStatus.Empty => state.Location is null ? "Choose a storage location" : "Folder is empty",
-            BrowserFolderStatus.RootUnavailable => "Media Root unavailable",
-            BrowserFolderStatus.CatalogUnavailable => "Catalog unavailable",
-            _ => "Folder unavailable"
-        };
         BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready && files.Count > 0
             ? Visibility.Collapsed : Visibility.Visible;
         BrowserEmptyTitle.Text = state.Status switch
@@ -339,7 +330,6 @@ public partial class MainWindow : Window
     private void ApplyBrowserNavigationFailure(BrowserFolderState failure)
     {
         RestoreLoadedBrowserSelection();
-        BrowserWorkspaceStatus.Text = "Folder unavailable";
         BrowserEmptyTitle.Text = failure.Status switch
         {
             BrowserFolderStatus.RootUnavailable => "Media Root unavailable",
@@ -868,7 +858,6 @@ public partial class MainWindow : Window
         {
             MediaRootsEmptyText.Text = "The Catalog is unavailable. Encoding remains available, but Media Roots cannot be managed.";
             MediaRootsEmptyText.Visibility = Visibility.Visible;
-            BrowserWorkspaceStatus.Text = "Catalog unavailable";
             return;
         }
         try
@@ -881,7 +870,6 @@ public partial class MainWindow : Window
         {
             MediaRootsEmptyText.Text = $"Media Roots could not be loaded: {exception.Message}";
             MediaRootsEmptyText.Visibility = Visibility.Visible;
-            BrowserWorkspaceStatus.Text = "Media Roots unavailable";
         }
     }
 
@@ -899,7 +887,7 @@ public partial class MainWindow : Window
         catch (Exception exception)
         {
             BrowserRootsEmptyState.Visibility = Visibility.Visible;
-            BrowserWorkspaceStatus.Text = $"Storage locations unavailable: {exception.Message}";
+            _activityLogFile.TryAppend($"[App] Storage locations unavailable: {exception.Message}");
         }
     }
 

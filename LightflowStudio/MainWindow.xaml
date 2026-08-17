@@ -35,19 +35,7 @@
 
   <TabControl Grid.Row="1" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local">
    <TabItem>
-    <Grid Background="{StaticResource ShellCanvasBrush}" Margin="0">
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-     <Border Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1" Padding="28,18">
-      <Grid>
-       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-       <StackPanel>
-        <TextBlock Style="{StaticResource ShellEyebrow}" Text="MEDIA WORKSPACE"/>
-        <TextBlock Style="{StaticResource ShellWorkspaceTitle}" Margin="0,4,0,0" Text="Browser"/>
-       </StackPanel>
-       <TextBlock Grid.Column="1" x:Name="BrowserWorkspaceStatus" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="12" Text="Choose a Media Root"/>
-      </Grid>
-     </Border>
-     <Grid Grid.Row="1" Margin="{StaticResource ShellWorkspacePadding}">
+    <Grid Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}">
       <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource ShellPanel}">
        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
@@ -131,7 +119,6 @@
       </Border>
      </Grid>
     </Grid>
-   </Grid>
    </TabItem>
    <TabItem>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

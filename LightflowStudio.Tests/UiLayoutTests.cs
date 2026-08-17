@@ -31,6 +31,43 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserWorkspace_HasNoRedundantTitleBandOrStatusLabelAndStartsCloseToNavigation()
+    {
+        var root = FindRepositoryRoot();
+        var document = XDocument.Load(Path.Combine(root, "LightflowStudio", "MainWindow.xaml"));
+        var shell = XDocument.Load(Path.Combine(root, "LightflowStudio", "Themes", "LightflowShell.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute("Text") == "MEDIA WORKSPACE");
+        Assert.DoesNotContain(document.Descendants(), element =>
+            ((string?)element.Attribute("Style"))?.Contains("ShellWorkspaceTitle", StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(document.Descendants(), element =>
+            ((string?)element.Attribute("Style"))?.Contains("ShellEyebrow", StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(shell.Descendants(shell.Root!.Name.Namespace + "Style"), style =>
+            (string?)style.Attribute(xNamespace + "Key") is "ShellWorkspaceTitle" or "ShellEyebrow");
+
+        var browserTab = Named(document, "BrowserNavigationColumn").Ancestors(ns + "TabItem").Single();
+        var browserRootGrid = browserTab.Element(ns + "Grid")!;
+        Assert.DoesNotContain(browserRootGrid.Descendants(ns + "Border"), border =>
+            (string?)border.Attribute("BorderThickness") == "0,0,0,1");
+        Assert.Null(browserRootGrid.Element(ns + "Grid.RowDefinitions"));
+
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute(xNamespace + "Name") == "BrowserWorkspaceStatus");
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute("Text") == "Choose a Media Root");
+        var toolbarGrid = Named(document, "BrowserRefreshButton").Parent!;
+        Assert.Contains(toolbarGrid.Elements(ns + "TextBox"), element =>
+            (string?)element.Attribute(xNamespace + "Name") == "BrowserCurrentPath");
+        Assert.Equal(4, toolbarGrid.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").Count());
+
+        Assert.Equal("28,16,28,24", (string?)shell.Root.Elements(shell.Root.Name.Namespace + "Thickness")
+            .Single(thickness => (string?)thickness.Attribute(xNamespace + "Key") == "ShellWorkspacePadding"));
+    }
+
+    [Fact]
     public void BrowserFolderNavigation_IsBoundedResizableAndScrollsInBothDirections()
     {
         var root = FindRepositoryRoot();
@@ -311,7 +348,8 @@ public class UiLayoutTests
         Assert.Equal("0", (string?)Named(document, "MainTabs").Attribute("SelectedIndex"));
         Assert.Equal(["Browser", "Encoding", "Media Tools", "History", "Premiere Helper", "Settings", "About"], labels);
         Assert.Equal(labels.Count, tabs.Count);
-        Assert.Contains(tabs[0].Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "Browser");
+        Assert.Contains(tabs[0].Descendants(), element =>
+            (string?)element.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "BrowserFolderTree");
         Assert.Contains(tabs[1].Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "Batch Encode");
     }
 

@@ -126,11 +126,20 @@ internal static class BrowserGridLayout
     public const double TileWidth = 168;
     public const double TileSpacing = 12;
 
+    /// <summary>
+    /// Every tile's margin trails the tile itself (right and bottom), including the last tile in a row —
+    /// WPF measures that trailing margin as part of the tile's layout footprint regardless of position, so
+    /// each tile (not just the gaps between them) reserves exactly <paramref name="tileWidth"/> + <paramref name="spacing"/>.
+    /// Using a smaller per-tile footprint here (e.g. treating spacing as only between tiles) overcounts how
+    /// many tiles actually fit at specific boundary widths, producing a tile the row's panel cannot actually
+    /// place on that line — the previous cause of an orphaned/misaligned row.
+    /// </summary>
     public static int ComputeColumns(double availableWidth, double tileWidth = TileWidth, double spacing = TileSpacing)
     {
         if (tileWidth <= 0) throw new ArgumentOutOfRangeException(nameof(tileWidth));
-        if (availableWidth < tileWidth) return 1;
-        return Math.Max(1, (int)((availableWidth + spacing) / (tileWidth + spacing)));
+        var footprint = tileWidth + spacing;
+        if (availableWidth < footprint) return 1;
+        return Math.Max(1, (int)(availableWidth / footprint));
     }
 
     public static IReadOnlyList<IReadOnlyList<BrowserGridTile>> BuildRows(IReadOnlyList<BrowserGridTile> tiles, int columns)

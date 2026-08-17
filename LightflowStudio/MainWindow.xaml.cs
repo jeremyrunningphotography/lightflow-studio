@@ -205,6 +205,53 @@ public partial class MainWindow : Window
         });
     }
 
+    /// <summary>
+    /// Materializes every ancestor between the Locations root and <paramref name="location"/> that direct-path
+    /// or other programmatic navigation has not yet visited, so the tree shows real sibling folders along the
+    /// whole path instead of the synthetic single-child chain <see cref="BrowserTreeModel"/> creates just to
+    /// preserve node identity while the real listing is unknown. Ancestors already materialized by ordinary
+    /// click-driven expansion are skipped, so this is a no-op in the common case.
+    /// </summary>
+    private async Task RevealBrowserTreeAncestorsAsync(BrowserLocation location, long generation)
+    {
+        IReadOnlyList<BrowserTreeNode> pending;
+        _synchronizingBrowserTree = true;
+        try { pending = _browserTree.GetUnmaterializedAncestors(location); }
+        finally { _synchronizingBrowserTree = false; }
+
+        foreach (var ancestor in pending)
+        {
+            if (generation != _browserUiGeneration) return;
+            if (ancestor.AbsolutePath is not { } absolutePath) continue;
+
+            MediaFolderEnumerationResult listing;
+            try
+            {
+                listing = await _storage.MediaFolders.EnumerateAsync(
+                    new(location.RootId, RelativeFolderUnderRoot(location.RootPath, absolutePath))).ConfigureAwait(true);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                continue;
+            }
+            if (generation != _browserUiGeneration) return;
+            if (!listing.Succeeded) continue;
+
+            _synchronizingBrowserTree = true;
+            try { _browserTree.ApplyDirectoryListing(ancestor, location.RootPath, listing.Entries); }
+            finally { _synchronizingBrowserTree = false; }
+        }
+
+        if (generation == _browserUiGeneration && _browserTree.SelectedNode is { } selected)
+            BringBrowserTreeNodeIntoView(selected);
+    }
+
+    private static string? RelativeFolderUnderRoot(string rootPath, string absolutePath) =>
+        string.Equals(MediaPathSemantics.NormalizeRootPath(rootPath), MediaPathSemantics.NormalizeRootPath(absolutePath),
+            StringComparison.OrdinalIgnoreCase)
+            ? null
+            : MediaPathSemantics.NormalizeRelativePath(Path.GetRelativePath(rootPath, absolutePath));
+
     private static TreeViewItem? FindBrowserTreeItem(ItemsControl parent, BrowserTreeNode target)
     {
         foreach (var item in parent.Items)
@@ -283,7 +330,10 @@ public partial class MainWindow : Window
             if (state is not null && generation == _browserUiGeneration)
             {
                 if (state.Status is BrowserFolderStatus.Ready or BrowserFolderStatus.Empty)
+                {
                     ApplyBrowserState(state);
+                    if (state.Location is { } location) _ = RevealBrowserTreeAncestorsAsync(location, generation);
+                }
                 else
                     ApplyBrowserNavigationFailure(state);
             }

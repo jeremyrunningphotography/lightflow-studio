@@ -116,8 +116,11 @@
           <ItemsControl.ItemTemplate>
            <DataTemplate DataType="{x:Type local:BrowserGridRow}">
             <ItemsControl Focusable="False" ItemsSource="{Binding Tiles}">
+             <!-- Horizontal, non-wrapping: each row already contains exactly as many tiles as
+                  BrowserGridLayout.ComputeColumns fit, so this panel must never make its own
+                  independent wrap decision that could disagree with that count and misalign rows. -->
              <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
              </ItemsControl.ItemsPanel>
              <ItemsControl.ItemTemplate>
               <DataTemplate DataType="{x:Type local:BrowserGridTile}">

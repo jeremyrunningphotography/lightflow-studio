@@ -325,6 +325,54 @@ public sealed class BrowserGridTests
         Assert.Equal(expected, BrowserGridLayout.ComputeColumns(width));
 
     [Fact]
+    public void ComputeColumns_EveryTileReservesTrailingMarginIncludingTheLastInARow()
+    {
+        // Regression: the tile Border's Margin="0,0,12,12" trails every tile, including the last one in a
+        // row — WPF measures that as part of each tile's layout footprint regardless of position. The old
+        // formula assumed spacing sat only between tiles (no trailing margin on the last), which overcounted
+        // columns at boundary widths: at 348px, 2 tiles need 2*(168+12)=360px and do not fit, but the old
+        // formula returned 2 anyway. That produced a tile the row's panel could not actually place on the
+        // line — an orphaned/misaligned partial row, most visible at narrow (near-minimum-window) widths.
+        Assert.Equal(1, BrowserGridLayout.ComputeColumns(348));
+        Assert.Equal(1, BrowserGridLayout.ComputeColumns(359));
+        Assert.Equal(2, BrowserGridLayout.ComputeColumns(360));
+        Assert.Equal(2, BrowserGridLayout.ComputeColumns(361));
+        Assert.Equal(2, BrowserGridLayout.ComputeColumns(539));
+        Assert.Equal(3, BrowserGridLayout.ComputeColumns(540));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(100)]
+    [InlineData(167)]
+    [InlineData(168)]
+    [InlineData(179)]
+    [InlineData(180)]
+    [InlineData(181)]
+    [InlineData(347)]
+    [InlineData(348)]
+    [InlineData(349)]
+    [InlineData(359)]
+    [InlineData(360)]
+    [InlineData(361)]
+    [InlineData(528)] // approx. media-canvas width at the app's declared MinWidth with the default Locations pane
+    [InlineData(600)]
+    [InlineData(788)] // approx. media-canvas width at the app's declared MinWidth with the Locations pane at its own minimum
+    [InlineData(1000)]
+    [InlineData(4000)]
+    public void ComputeColumns_NeverClaimsMoreTilesFitThanTheirFootprintAllows(double availableWidth)
+    {
+        var columns = BrowserGridLayout.ComputeColumns(availableWidth);
+        var footprintNeeded = columns * (BrowserGridLayout.TileWidth + BrowserGridLayout.TileSpacing);
+
+        // A single column is always allowed even if it technically overflows narrow width, so at least one
+        // tile is always shown; for any larger column count the full row must actually fit.
+        Assert.True(columns == 1 || footprintNeeded <= availableWidth,
+            $"{columns} columns at width {availableWidth} would need {footprintNeeded}px and overflow.");
+    }
+
+    [Fact]
     public void BuildRows_GroupsTilesIntoFixedWidthRowsInOrder()
     {
         var tiles = Enumerable.Range(0, 7).Select(i => new BrowserGridTile(Image(Guid.NewGuid(), $"{i}.jpg"), i)).ToArray();
@@ -366,6 +414,53 @@ public sealed class BrowserGridTests
         model.SetColumns(2);
 
         Assert.Equal(rowsBefore, model.Rows.ToArray());
+    }
+
+    [Fact]
+    public void SetColumns_RepeatedNarrowToWideResizeReflowsWithoutLossDuplicationOrReordering()
+    {
+        // Models continuously resizing the application window (and dragging the Locations splitter) between
+        // narrow and wide: every intermediate column count driven by ComputeColumns at realistic widths,
+        // including the app's declared-minimum-size-equivalent canvas width, down to a single column.
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entries = Enumerable.Range(0, 17).Select(i => Image(rootId, $"{i:D2}.jpg")).ToArray();
+        model.Populate(entries);
+
+        double[] widths = [1200, 788, 348, 168, 528, 4000, 359, 1000, 180, 600, 0];
+        foreach (var width in widths)
+        {
+            model.SetColumns(BrowserGridLayout.ComputeColumns(width));
+
+            Assert.Equal(17, model.Tiles.Count);
+            Assert.Equal(entries.Select(e => e.Name), model.Tiles.Select(t => t.Name));
+            Assert.Equal(Enumerable.Range(0, 17), model.Tiles.Select(t => t.Index));
+            Assert.Equal(17, model.Rows.Sum(row => row.Tiles.Count));
+            Assert.Equal(model.Tiles, model.Rows.SelectMany(row => row.Tiles));
+            Assert.All(model.Rows.Take(model.Rows.Count - 1),
+                row => Assert.Equal(BrowserGridLayout.ComputeColumns(width), row.Tiles.Count));
+        }
+    }
+
+    [Fact]
+    public void SetColumns_LocationsPaneResizeAtApplicationMinimumWidthReflowsCleanly()
+    {
+        // Approximate media-canvas widths at the app's declared MinWidth=1120, before (default ~280px pane)
+        // and after dragging the Locations splitter to its own minimum (220px pane) — the exact scenario
+        // from the reported bug.
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entries = Enumerable.Range(0, 9).Select(i => Image(rootId, $"{i}.jpg")).ToArray();
+        model.Populate(entries);
+
+        model.SetColumns(BrowserGridLayout.ComputeColumns(528));
+        var afterDefaultPane = model.Rows.SelectMany(row => row.Tiles).ToArray();
+        Assert.Equal(entries.Select(e => e.Name), afterDefaultPane.Select(t => t.Name));
+
+        model.SetColumns(BrowserGridLayout.ComputeColumns(788));
+        var afterNarrowedPane = model.Rows.SelectMany(row => row.Tiles).ToArray();
+        Assert.Equal(entries.Select(e => e.Name), afterNarrowedPane.Select(t => t.Name));
+        Assert.Equal(afterDefaultPane.OrderBy(t => t.Index), afterNarrowedPane.OrderBy(t => t.Index));
     }
 
     [Fact]

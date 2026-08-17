@@ -75,6 +75,16 @@ internal sealed record BrowserQuery
 
     public BrowserQuery WithFilterRemoved(BrowserFilterPredicate predicate) =>
         Filters.Contains(predicate) ? this with { Filters = Filters.Where(existing => existing != predicate).ToArray() } : this;
+
+    /// <summary>Replaces every predicate for <paramref name="predicate"/>'s field with exactly this one — a quick single-value pick (e.g. a persistent "Video" button) rather than a stackable add.</summary>
+    public BrowserQuery WithOnlyFilter(BrowserFilterPredicate predicate) =>
+        this with { Filters = [.. Filters.Where(existing => existing.Field != predicate.Field), predicate] };
+
+    /// <summary>Clears every active predicate for one field (e.g. a persistent "All" button clearing the media-type facet entirely).</summary>
+    public BrowserQuery WithoutField(BrowserFilterField field) =>
+        Filters.Any(existing => existing.Field == field)
+            ? this with { Filters = Filters.Where(existing => existing.Field != field).ToArray() }
+            : this;
 }
 
 /// <summary>
@@ -90,10 +100,16 @@ internal static class BrowserQueryEngine
     public static IReadOnlyList<BrowserGridTile> Apply(IReadOnlyList<BrowserGridTile> tiles, BrowserQuery query)
     {
         IEnumerable<BrowserGridTile> filtered = tiles;
-        // AND semantics: each stacked predicate narrows the previous result further. Two predicates that
-        // describe mutually exclusive conditions on the same field (e.g. both "Video" and "Images") therefore
-        // yield nothing — an accepted consequence of AND-only composition for this first implementation.
-        foreach (var predicate in query.Filters) filtered = filtered.Where(predicate.Matches);
+        // Predicates for the SAME field are alternative values of one facet and OR together (checking both
+        // "Images" and "RAW" means either is acceptable — a still-photos view, not an impossible
+        // intersection); predicates for DIFFERENT fields AND together, each narrowing the previous group's
+        // result further (e.g. "Video" AND "Duration > 1:00"). This mirrors ordinary faceted search and is
+        // never exposed to the user as an explicit AND/OR choice — only which values are checked where.
+        foreach (var group in query.Filters.GroupBy(predicate => predicate.Field))
+        {
+            var predicatesInGroup = group.ToArray();
+            filtered = filtered.Where(tile => predicatesInGroup.Any(predicate => predicate.Matches(tile)));
+        }
 
         var search = query.SearchText.Trim();
         if (search.Length > 0)

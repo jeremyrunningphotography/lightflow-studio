@@ -4,9 +4,20 @@
  xmlns:local="clr-namespace:LightflowStudio"
  Title="Lightflow Studio" Icon="Assets/Branding/LightflowStudio.ico"
  Height="900" Width="1440" MinHeight="720" MinWidth="1120" WindowStartupLocation="CenterScreen"
- Closing="Window_Closing">
+ Closing="Window_Closing" PreviewKeyDown="MainWindow_PreviewKeyDown">
  <Window.Resources>
   <local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility"/>
+  <local:StringEmptyToVisibilityConverter x:Key="StringEmptyToVisibility"/>
+  <Style x:Key="BrowserQuickFilterButtonStyle" TargetType="ToggleButton">
+   <Setter Property="Padding" Value="10,7"/>
+   <Setter Property="Margin" Value="0,0,6,0"/>
+   <Style.Triggers>
+    <Trigger Property="IsChecked" Value="True">
+     <Setter Property="Background" Value="{StaticResource ShellSelectionBrush}"/>
+     <Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
+    </Trigger>
+   </Style.Triggers>
+  </Style>
  </Window.Resources>
  <Grid Background="{StaticResource WindowBrush}">
   <Grid.RowDefinitions><RowDefinition Height="60"/><RowDefinition Height="*"/><RowDefinition Height="34"/></Grid.RowDefinitions>
@@ -82,7 +93,7 @@
        <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template>
       </GridSplitter>
       <Grid Grid.Column="2" MinWidth="520">
-       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
        <Border Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>
          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -104,17 +115,36 @@
         <StackPanel>
          <Grid>
           <Grid.ColumnDefinitions>
+           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="14"/>
            <ColumnDefinition Width="200"/><ColumnDefinition Width="12"/>
            <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
            <ColumnDefinition Width="160"/><ColumnDefinition Width="6"/>
-           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
           </Grid.ColumnDefinitions>
-          <TextBox x:Name="BrowserSearchBox" VerticalAlignment="Center" ToolTip="Search filename or path within this scope"
-           AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged"/>
-          <!-- Progressive disclosure: the everyday toolbar stays to Search/Filter/Sort/status. Filter ▾ opens
-               a compact predicate editor rather than exposing permanent one-off media-type ComboBoxes; active
-               predicates surface as removable chips beneath, appearing only while at least one is active. -->
-          <ToggleButton Grid.Column="2" x:Name="BrowserFilterButton" Padding="10,7" Content="Filter &#x25BE;"
+          <!-- Quick, persistent single-value pick for the one everyday facet; Filter ▾ (below) additionally
+               supports stacking multiple values/fields for the compound case these four buttons cannot
+               express alone. Both read/write the same BrowserQuery.Filters and stay in sync — see
+               MainWindow.SyncBrowserQueryToolbarVisuals. -->
+          <StackPanel Orientation="Horizontal" ToolTip="Quick media-type filter">
+           <ToggleButton x:Name="BrowserQuickFilterAllButton" Style="{StaticResource BrowserQuickFilterButtonStyle}" Content="All"
+            AutomationProperties.Name="Show all media types" Click="BrowserQuickFilterAllButton_Click"/>
+           <ToggleButton x:Name="BrowserQuickFilterImagesButton" Style="{StaticResource BrowserQuickFilterButtonStyle}" Content="Images"
+            AutomationProperties.Name="Show only images" Click="BrowserQuickFilterImagesButton_Click"/>
+           <ToggleButton x:Name="BrowserQuickFilterRawButton" Style="{StaticResource BrowserQuickFilterButtonStyle}" Content="RAW"
+            AutomationProperties.Name="Show only RAW images" Click="BrowserQuickFilterRawButton_Click"/>
+           <ToggleButton x:Name="BrowserQuickFilterVideoButton" Style="{StaticResource BrowserQuickFilterButtonStyle}" Margin="0" Content="Video"
+            AutomationProperties.Name="Show only video" Click="BrowserQuickFilterVideoButton_Click"/>
+          </StackPanel>
+          <Grid Grid.Column="2">
+           <TextBox x:Name="BrowserSearchBox" VerticalAlignment="Center" ToolTip="Search filename or path within this scope (Ctrl+F)"
+            AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged"/>
+           <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{StaticResource MutedTextBrush}"
+            Text="Search assets…" Visibility="{Binding Text, ElementName=BrowserSearchBox, Converter={StaticResource StringEmptyToVisibility}}"/>
+          </Grid>
+          <!-- Progressive disclosure: Filter ▾ opens a compact predicate editor rather than exposing a
+               permanent row of one-off filter controls; active predicates surface as removable chips
+               beneath, appearing only while at least one is active. -->
+          <ToggleButton Grid.Column="4" x:Name="BrowserFilterButton" Padding="10,7" Content="Filter &#x25BE;"
            ToolTip="Add a filter" AutomationProperties.Name="Add a filter"/>
           <Popup x:Name="BrowserFilterPopup" IsOpen="{Binding IsChecked, ElementName=BrowserFilterButton, Mode=TwoWay}"
            PlacementTarget="{Binding ElementName=BrowserFilterButton}" Placement="Bottom" VerticalOffset="4"
@@ -130,13 +160,15 @@
               Checked="BrowserFilterRawCheck_Changed" Unchecked="BrowserFilterRawCheck_Changed"/>
              <CheckBox x:Name="BrowserFilterVideoCheck" Margin="0,8,0,0" Content="Video"
               Checked="BrowserFilterVideoCheck_Changed" Unchecked="BrowserFilterVideoCheck_Changed"/>
+             <TextBlock Margin="0,10,0,0" Foreground="#7F8998" FontSize="11" TextWrapping="Wrap"
+              Text="More filters (date, size, camera, and more) arrive here over time."/>
             </StackPanel>
            </Border>
           </Popup>
           <!-- SelectedIndex is set from code-behind (ResetBrowserQueryToolbar) once a folder actually loads,
                not declared here: WPF can raise SelectionChanged while InitializeComponent is still connecting
                later-declared named elements, and the handler reads sibling controls that would not exist yet. -->
-          <ComboBox Grid.Column="4" x:Name="BrowserSortCombo" VerticalAlignment="Center"
+          <ComboBox Grid.Column="6" x:Name="BrowserSortCombo" VerticalAlignment="Center"
            ToolTip="Sort by" AutomationProperties.Name="Sort by" SelectionChanged="BrowserSortCombo_SelectionChanged">
            <ComboBoxItem Content="Name"/>
            <ComboBoxItem Content="Capture date"/>
@@ -145,10 +177,9 @@
            <ComboBoxItem Content="File size"/>
            <ComboBoxItem Content="Duration"/>
           </ComboBox>
-          <Button Grid.Column="6" x:Name="BrowserSortDirectionButton" Width="34" Padding="0,7" Content="&#xE70E;"
+          <Button Grid.Column="8" x:Name="BrowserSortDirectionButton" Width="34" Padding="0,7" Content="&#xE70E;"
            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" ToolTip="Sort ascending (click to reverse)"
            AutomationProperties.Name="Toggle sort direction" Click="BrowserSortDirection_Click"/>
-          <TextBlock Grid.Column="8" x:Name="BrowserStatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"/>
          </Grid>
          <!-- Collapsed (and empty) whenever no predicate is active, so the toolbar stays a single quiet row
               for ordinary browsing — see MainWindow.SyncBrowserQueryToolbarVisuals. -->
@@ -244,6 +275,10 @@
           <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><ProgressBar Width="180" Height="4" IsIndeterminate="True"/><TextBlock x:Name="BrowserLoadingText" Margin="0,12,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Loading folder…"/></StackPanel>
          </Border>
         </Grid>
+      </Border>
+      <!-- Status stays with the media it describes, beneath the grid rather than competing with the toolbar's controls above it. -->
+      <Border Grid.Row="6" Style="{StaticResource ShellPanel}" Padding="12,7">
+       <TextBlock x:Name="BrowserStatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"/>
       </Border>
      </Grid>
     </Grid>

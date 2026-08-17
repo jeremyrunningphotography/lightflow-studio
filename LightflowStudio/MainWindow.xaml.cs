@@ -681,6 +681,17 @@ public partial class MainWindow : Window
             BrowserFilterVideoCheck.IsChecked = filters.Any(f => f.MediaTypeValue == MediaTypeCategory.Video);
             BrowserFilterChips.ItemsSource = filters;
             BrowserFilterChips.Visibility = filters.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            // The persistent quick buttons represent one exclusive value (or none, "All"); with more than
+            // one media-type predicate active (only reachable via Filter ▾'s stackable checkboxes) none of
+            // the four highlight, since that combination has no single-button representation.
+            var mediaTypeValues = filters.Where(f => f.Field == BrowserFilterField.MediaType)
+                .Select(f => f.MediaTypeValue).Where(value => value is not null).Select(value => value!.Value).Distinct().ToArray();
+            BrowserQuickFilterAllButton.IsChecked = mediaTypeValues.Length == 0;
+            BrowserQuickFilterImagesButton.IsChecked = mediaTypeValues is [MediaTypeCategory.StillImage];
+            BrowserQuickFilterRawButton.IsChecked = mediaTypeValues is [MediaTypeCategory.RawImage];
+            BrowserQuickFilterVideoButton.IsChecked = mediaTypeValues is [MediaTypeCategory.Video];
+
             UpdateBrowserSortDirectionGlyph();
         }
         finally { _synchronizingBrowserQuery = false; }
@@ -730,6 +741,34 @@ public partial class MainWindow : Window
     {
         if (((FrameworkElement)sender).DataContext is not BrowserFilterPredicate predicate) return;
         ApplyBrowserQuery(query => query.WithFilterRemoved(predicate));
+    }
+
+    /// <summary>"All": clears the media-type facet entirely rather than picking a value for it.</summary>
+    private void BrowserQuickFilterAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_synchronizingBrowserQuery) return;
+        ApplyBrowserQuery(query => query.WithoutField(BrowserFilterField.MediaType));
+    }
+
+    private void BrowserQuickFilterImagesButton_Click(object sender, RoutedEventArgs e) => SetSoleBrowserMediaTypeFilter(MediaTypeCategory.StillImage);
+    private void BrowserQuickFilterRawButton_Click(object sender, RoutedEventArgs e) => SetSoleBrowserMediaTypeFilter(MediaTypeCategory.RawImage);
+    private void BrowserQuickFilterVideoButton_Click(object sender, RoutedEventArgs e) => SetSoleBrowserMediaTypeFilter(MediaTypeCategory.Video);
+
+    /// <summary>Replaces the entire media-type facet with exactly one value — a quick pick, unlike Filter ▾'s stackable checkboxes.</summary>
+    private void SetSoleBrowserMediaTypeFilter(MediaTypeCategory category)
+    {
+        if (_synchronizingBrowserQuery) return;
+        ApplyBrowserQuery(query => query.WithOnlyFilter(BrowserFilterPredicate.ForMediaType(category)));
+    }
+
+    /// <summary>Ctrl+F focuses the Browser search box, but only while the Browser workspace is showing an open, filterable location.</summary>
+    private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != Key.F || !Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
+        if (MainTabs.SelectedIndex != ShellWorkspaceSelection.Index(ShellWorkspace.Browser) || !BrowserQueryToolbar.IsEnabled) return;
+        BrowserSearchBox.Focus();
+        BrowserSearchBox.SelectAll();
+        e.Handled = true;
     }
 
     /// <summary>

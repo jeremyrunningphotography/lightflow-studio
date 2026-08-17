@@ -769,3 +769,24 @@ public sealed class BrowserGridTests
     private static MediaFolderEntry SizedFile(Guid rootId, string name, MediaTypeCategory category, long sizeBytes) =>
         new(rootId, name, name.ToUpperInvariant(), name, false, new(category), sizeBytes, DateTimeOffset.UtcNow);
 }
+
+public sealed class StringEmptyToVisibilityConverterTests
+{
+    private readonly StringEmptyToVisibilityConverter _converter = new();
+
+    [Fact]
+    public void Convert_IsVisibleForNull() =>
+        Assert.Equal(System.Windows.Visibility.Visible, _converter.Convert(null, typeof(System.Windows.Visibility), null, null!));
+
+    [Fact]
+    public void Convert_IsVisibleForEmptyString() =>
+        Assert.Equal(System.Windows.Visibility.Visible, _converter.Convert("", typeof(System.Windows.Visibility), null, null!));
+
+    [Fact]
+    public void Convert_IsCollapsedWhenTextIsPresent() =>
+        Assert.Equal(System.Windows.Visibility.Collapsed, _converter.Convert("sunset.jpg", typeof(System.Windows.Visibility), null, null!));
+
+    [Fact]
+    public void ConvertBack_IsNotSupported() =>
+        Assert.Throws<NotSupportedException>(() => _converter.ConvertBack(null, typeof(string), null, null!));
+}

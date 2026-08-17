@@ -106,6 +106,71 @@ public sealed class BrowserQueryRegressionTests
     }
 
     [Fact]
+    public void SyncBrowserQueryToolbarVisuals_GivesTheQuickFilterButtonsExclusiveSingleValueState()
+    {
+        // The four persistent buttons represent one exclusive value (or none, "All") of the media-type
+        // facet; a multi-value combination (only reachable via Filter ▾'s stackable checkboxes) leaves all
+        // four unchecked rather than guessing which one to highlight.
+        var source = Source();
+        var methodStart = source.IndexOf("private void SyncBrowserQueryToolbarVisuals", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("BrowserQuickFilterAllButton.IsChecked = mediaTypeValues.Length == 0;", body);
+        Assert.Contains("BrowserQuickFilterImagesButton.IsChecked = mediaTypeValues is [MediaTypeCategory.StillImage];", body);
+        Assert.Contains("BrowserQuickFilterRawButton.IsChecked = mediaTypeValues is [MediaTypeCategory.RawImage];", body);
+        Assert.Contains("BrowserQuickFilterVideoButton.IsChecked = mediaTypeValues is [MediaTypeCategory.Video];", body);
+    }
+
+    [Fact]
+    public void QuickFilterButtonHandlers_AreGuardedAndRouteThroughApplyBrowserQuery()
+    {
+        var source = Source();
+        foreach (var (handler, category) in new[]
+        {
+            ("BrowserQuickFilterImagesButton_Click", "MediaTypeCategory.StillImage"),
+            ("BrowserQuickFilterRawButton_Click", "MediaTypeCategory.RawImage"),
+            ("BrowserQuickFilterVideoButton_Click", "MediaTypeCategory.Video"),
+        })
+        {
+            var methodStart = source.IndexOf($"private void {handler}", StringComparison.Ordinal);
+            Assert.True(methodStart >= 0, $"{handler} not found");
+            var methodEnd = source.IndexOf(';', methodStart);
+            var body = source[methodStart..methodEnd];
+            Assert.Contains("SetSoleBrowserMediaTypeFilter(", body);
+            Assert.Contains(category, body);
+        }
+
+        var allStart = source.IndexOf("private void BrowserQuickFilterAllButton_Click", StringComparison.Ordinal);
+        var allEnd = source.IndexOf("\n    private", allStart + 1, StringComparison.Ordinal);
+        var allBody = source[allStart..allEnd];
+        Assert.Contains("if (_synchronizingBrowserQuery) return;", allBody);
+        Assert.Contains("query.WithoutField(BrowserFilterField.MediaType)", allBody);
+
+        var soleStart = source.IndexOf("private void SetSoleBrowserMediaTypeFilter", StringComparison.Ordinal);
+        var soleEnd = source.IndexOf("\n    private", soleStart + 1, StringComparison.Ordinal);
+        var soleBody = source[soleStart..soleEnd];
+        Assert.Contains("if (_synchronizingBrowserQuery) return;", soleBody);
+        Assert.Contains("query.WithOnlyFilter(BrowserFilterPredicate.ForMediaType(category))", soleBody);
+    }
+
+    [Fact]
+    public void MainWindowPreviewKeyDown_ScopesCtrlFToAnOpenBrowserWorkspace()
+    {
+        var source = Source();
+        var methodStart = source.IndexOf("private void MainWindow_PreviewKeyDown", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("e.Key != Key.F", body);
+        Assert.Contains("ModifierKeys.Control", body);
+        Assert.Contains("ShellWorkspaceSelection.Index(ShellWorkspace.Browser)", body);
+        Assert.Contains("BrowserQueryToolbar.IsEnabled", body);
+        Assert.Contains("BrowserSearchBox.Focus();", body);
+        Assert.Contains("e.Handled = true;", body);
+    }
+
+    [Fact]
     public void AttachBrowserDerivedWork_ClearsTheActiveBatchEvenWhenNothingIsScheduled()
     {
         // Regression: assigning _activeBrowserDerivedWorkBatch only inside the "batch is not null" branch
@@ -167,7 +232,8 @@ public sealed class BrowserQueryRegressionTests
         var xaml = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         foreach (var name in new[]
         {
-            "BrowserSortCombo", "BrowserFilterImagesCheck", "BrowserFilterRawCheck", "BrowserFilterVideoCheck"
+            "BrowserSortCombo", "BrowserFilterImagesCheck", "BrowserFilterRawCheck", "BrowserFilterVideoCheck",
+            "BrowserQuickFilterAllButton", "BrowserQuickFilterImagesButton", "BrowserQuickFilterRawButton", "BrowserQuickFilterVideoButton"
         })
         {
             var start = xaml.IndexOf($"x:Name=\"{name}\"", StringComparison.Ordinal);

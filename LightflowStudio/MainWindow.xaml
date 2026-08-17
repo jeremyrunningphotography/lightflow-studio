@@ -8,15 +8,77 @@
  <Window.Resources>
   <local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility"/>
   <local:StringEmptyToVisibilityConverter x:Key="StringEmptyToVisibility"/>
-  <Style x:Key="BrowserQuickFilterButtonStyle" TargetType="ToggleButton">
-   <Setter Property="Padding" Value="10,7"/>
-   <Setter Property="Margin" Value="0,0,6,0"/>
-   <Style.Triggers>
-    <Trigger Property="IsChecked" Value="True">
-     <Setter Property="Background" Value="{StaticResource ShellSelectionBrush}"/>
-     <Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
-    </Trigger>
-   </Style.Triggers>
+
+  <!-- Shared dark "chip" chrome for every standalone Browser toolbar control (the search field, Sort, and
+       the quick-filter segmented group) so the row reads as one purpose-designed toolbar rather than a row
+       of default form controls with their own mismatched borders. -->
+  <Style x:Key="BrowserToolbarChipStyle" TargetType="Border">
+   <Setter Property="Background" Value="{StaticResource ShellSurfaceBrush}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/>
+   <Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="CornerRadius" Value="6"/>
+  </Style>
+
+  <!-- Standalone dark toggle chip — Filter ▾. Checked (popup open) uses the same restrained
+       selection/focus accent already used for the quick-filter segments and the grid's own tile selection,
+       rather than a bright default ToggleButton chrome. -->
+  <Style x:Key="BrowserToolbarToggleButtonStyle" TargetType="ToggleButton">
+   <Setter Property="Padding" Value="12,7"/>
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+   <Setter Property="FontSize" Value="12"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ToggleButton">
+      <Border x:Name="Chrome" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}"
+       BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger>
+       <Trigger Property="IsChecked" Value="True">
+        <Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/>
+        <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+
+  <!-- One segment of the All/Images/RAW/Video group. Segments share one BrowserToolbarChipStyle outer
+       Border (which clips their square corners into its own rounded shape) and divide with a thin right
+       border rather than each carrying its own chip chrome, so the four read as one control. -->
+  <Style x:Key="BrowserQuickFilterSegmentStyle" TargetType="ToggleButton">
+   <Setter Property="Padding" Value="12,7"/>
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+   <Setter Property="FontSize" Value="12"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/>
+   <Setter Property="BorderThickness" Value="0,0,1,0"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ToggleButton">
+      <Border x:Name="Chrome" Background="Transparent" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+       <Grid>
+        <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <!-- Restrained accent: a thin underline rather than a full bright fill, matching the rest of
+             Lightflow's "selected = dark tint + accent line/border" convention. -->
+        <Border x:Name="AccentBar" Height="2" VerticalAlignment="Bottom" Background="{StaticResource ShellFocusBrush}" Visibility="Collapsed"/>
+       </Grid>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger>
+       <Trigger Property="IsChecked" Value="True">
+        <Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/>
+        <Setter TargetName="AccentBar" Property="Visibility" Value="Visible"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
   </Style>
  </Window.Resources>
  <Grid Background="{StaticResource WindowBrush}">
@@ -111,45 +173,54 @@
         #109's media-area toolbar: narrows and presents the scope the Locations sidebar already chose.
         Search/filter/sort/status live here, never in the left sidebar, and never inside folder navigation.
        -->
-       <Border Grid.Row="2" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="12,8" IsEnabled="False">
+       <Border Grid.Row="2" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="10,8" IsEnabled="False">
         <StackPanel>
          <Grid>
           <Grid.ColumnDefinitions>
-           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="14"/>
-           <ColumnDefinition Width="200"/><ColumnDefinition Width="12"/>
            <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
-           <ColumnDefinition Width="160"/><ColumnDefinition Width="6"/>
-           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
+           <ColumnDefinition Width="*"/><ColumnDefinition Width="10"/>
+           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
+           <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
-          <!-- Quick, persistent single-value pick for the one everyday facet; Filter ▾ (below) additionally
-               supports stacking multiple values/fields for the compound case these four buttons cannot
-               express alone. Both read/write the same BrowserQuery.Filters and stay in sync — see
-               MainWindow.SyncBrowserQueryToolbarVisuals. -->
-          <StackPanel Orientation="Horizontal" ToolTip="Quick media-type filter">
-           <ToggleButton x:Name="BrowserQuickFilterAllButton" Style="{StaticResource BrowserQuickFilterButtonStyle}" Content="All"
-            AutomationProperties.Name="Show all media types" Click="BrowserQuickFilterAllButton_Click"/>
-           <ToggleButton x:Name="BrowserQuickFilterImagesButton" Style="{StaticResource BrowserQuickFilterButtonStyle}" Content="Images"
-            AutomationProperties.Name="Show only images" Click="BrowserQuickFilterImagesButton_Click"/>
-           <ToggleButton x:Name="BrowserQuickFilterRawButton" Style="{StaticResource BrowserQuickFilterButtonStyle}" Content="RAW"
-            AutomationProperties.Name="Show only RAW images" Click="BrowserQuickFilterRawButton_Click"/>
-           <ToggleButton x:Name="BrowserQuickFilterVideoButton" Style="{StaticResource BrowserQuickFilterButtonStyle}" Margin="0" Content="Video"
-            AutomationProperties.Name="Show only video" Click="BrowserQuickFilterVideoButton_Click"/>
-          </StackPanel>
-          <Grid Grid.Column="2">
-           <TextBox x:Name="BrowserSearchBox" VerticalAlignment="Center" ToolTip="Search filename or path within this scope (Ctrl+F)"
-            AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged"/>
-           <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{StaticResource MutedTextBrush}"
-            Text="Search assets…" Visibility="{Binding Text, ElementName=BrowserSearchBox, Converter={StaticResource StringEmptyToVisibility}}"/>
-          </Grid>
+          <!-- Quick, persistent single-value pick for the one everyday facet, presented as one segmented
+               control; Filter ▾ (below) additionally supports stacking multiple values/fields for the
+               compound case these four segments cannot express alone. Both read/write the same
+               BrowserQuery.Filters and stay in sync — see MainWindow.SyncBrowserQueryToolbarVisuals. -->
+          <Border Style="{StaticResource BrowserToolbarChipStyle}" ClipToBounds="True" ToolTip="Quick media-type filter">
+           <StackPanel Orientation="Horizontal">
+            <ToggleButton x:Name="BrowserQuickFilterAllButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Content="All"
+             AutomationProperties.Name="Show all media types" Click="BrowserQuickFilterAllButton_Click"/>
+            <ToggleButton x:Name="BrowserQuickFilterImagesButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Content="Images"
+             AutomationProperties.Name="Show only images" Click="BrowserQuickFilterImagesButton_Click"/>
+            <ToggleButton x:Name="BrowserQuickFilterRawButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Content="RAW"
+             AutomationProperties.Name="Show only RAW images" Click="BrowserQuickFilterRawButton_Click"/>
+            <ToggleButton x:Name="BrowserQuickFilterVideoButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" BorderThickness="0" Content="Video"
+             AutomationProperties.Name="Show only video" Click="BrowserQuickFilterVideoButton_Click"/>
+           </StackPanel>
+          </Border>
+          <Border Grid.Column="2" Style="{StaticResource BrowserToolbarChipStyle}" MinWidth="170">
+           <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
+             FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Text="&#xE721;"/>
+            <Grid Grid.Column="1" Margin="7,0,10,0">
+             <TextBox x:Name="BrowserSearchBox" Background="Transparent" BorderThickness="0" Margin="0" Padding="0,7"
+              VerticalAlignment="Center" ToolTip="Search filename or path within this scope (Ctrl+F)"
+              AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged"/>
+             <TextBlock VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{StaticResource MutedTextBrush}"
+              Text="Search assets…" Visibility="{Binding Text, ElementName=BrowserSearchBox, Converter={StaticResource StringEmptyToVisibility}}"/>
+            </Grid>
+           </Grid>
+          </Border>
           <!-- Progressive disclosure: Filter ▾ opens a compact predicate editor rather than exposing a
                permanent row of one-off filter controls; active predicates surface as removable chips
                beneath, appearing only while at least one is active. -->
-          <ToggleButton Grid.Column="4" x:Name="BrowserFilterButton" Padding="10,7" Content="Filter &#x25BE;"
+          <ToggleButton Grid.Column="4" x:Name="BrowserFilterButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Content="Filter &#x25BE;"
            ToolTip="Add a filter" AutomationProperties.Name="Add a filter"/>
           <Popup x:Name="BrowserFilterPopup" IsOpen="{Binding IsChecked, ElementName=BrowserFilterButton, Mode=TwoWay}"
            PlacementTarget="{Binding ElementName=BrowserFilterButton}" Placement="Bottom" VerticalOffset="4"
            StaysOpen="False" AllowsTransparency="True">
-           <Border Width="180" Padding="12" Background="#20242C" BorderBrush="#596270" BorderThickness="1" CornerRadius="8">
+           <Border Width="180" Padding="12" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="8">
             <StackPanel>
              <TextBlock Style="{StaticResource FieldLabel}" Text="MEDIA TYPE"/>
              <!-- IsChecked is synced from code-behind once a predicate is added/removed, not declared here —
@@ -160,26 +231,35 @@
               Checked="BrowserFilterRawCheck_Changed" Unchecked="BrowserFilterRawCheck_Changed"/>
              <CheckBox x:Name="BrowserFilterVideoCheck" Margin="0,8,0,0" Content="Video"
               Checked="BrowserFilterVideoCheck_Changed" Unchecked="BrowserFilterVideoCheck_Changed"/>
-             <TextBlock Margin="0,10,0,0" Foreground="#7F8998" FontSize="11" TextWrapping="Wrap"
+             <TextBlock Margin="0,10,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap"
               Text="More filters (date, size, camera, and more) arrive here over time."/>
             </StackPanel>
            </Border>
           </Popup>
-          <!-- SelectedIndex is set from code-behind (ResetBrowserQueryToolbar) once a folder actually loads,
-               not declared here: WPF can raise SelectionChanged while InitializeComponent is still connecting
-               later-declared named elements, and the handler reads sibling controls that would not exist yet. -->
-          <ComboBox Grid.Column="6" x:Name="BrowserSortCombo" VerticalAlignment="Center"
-           ToolTip="Sort by" AutomationProperties.Name="Sort by" SelectionChanged="BrowserSortCombo_SelectionChanged">
-           <ComboBoxItem Content="Name"/>
-           <ComboBoxItem Content="Capture date"/>
-           <ComboBoxItem Content="Modified date"/>
-           <ComboBoxItem Content="Media type"/>
-           <ComboBoxItem Content="File size"/>
-           <ComboBoxItem Content="Duration"/>
-          </ComboBox>
-          <Button Grid.Column="8" x:Name="BrowserSortDirectionButton" Width="34" Padding="0,7" Content="&#xE70E;"
-           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" ToolTip="Sort ascending (click to reverse)"
-           AutomationProperties.Name="Toggle sort direction" Click="BrowserSortDirection_Click"/>
+          <!-- Sort reads as one control — a muted "Sort" label plus the field and its direction affordance,
+               sharing one chip chrome — rather than a ComboBox next to a visually disconnected square
+               button. SelectedIndex is set from code-behind (ResetBrowserQueryToolbar) once a folder
+               actually loads, not declared here: WPF can raise SelectionChanged while InitializeComponent
+               is still connecting later-declared named elements, and the handler reads sibling controls
+               that would not exist yet. -->
+          <Border Grid.Column="6" Style="{StaticResource BrowserToolbarChipStyle}">
+           <StackPanel Orientation="Horizontal">
+            <TextBlock Margin="10,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Sort"/>
+            <ComboBox x:Name="BrowserSortCombo" MinWidth="132" Background="Transparent" BorderThickness="0" Margin="0" VerticalAlignment="Center"
+             ToolTip="Sort by" AutomationProperties.Name="Sort by" SelectionChanged="BrowserSortCombo_SelectionChanged">
+             <ComboBoxItem Content="Name"/>
+             <ComboBoxItem Content="Capture date"/>
+             <ComboBoxItem Content="Modified date"/>
+             <ComboBoxItem Content="Media type"/>
+             <ComboBoxItem Content="File size"/>
+             <ComboBoxItem Content="Duration"/>
+            </ComboBox>
+            <Border Width="1" Margin="0,7" Background="{StaticResource ShellDividerBrush}"/>
+            <Button x:Name="BrowserSortDirectionButton" Width="32" Padding="0,7" Background="Transparent" BorderThickness="0" Margin="0" Content="&#xE70E;"
+             FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" ToolTip="Sort ascending (click to reverse)"
+             AutomationProperties.Name="Toggle sort direction" Click="BrowserSortDirection_Click"/>
+           </StackPanel>
+          </Border>
          </Grid>
          <!-- Collapsed (and empty) whenever no predicate is active, so the toolbar stays a single quiet row
               for ordinary browsing — see MainWindow.SyncBrowserQueryToolbarVisuals. -->
@@ -188,7 +268,7 @@
           <ItemsControl.ItemTemplate>
            <DataTemplate DataType="{x:Type local:BrowserFilterPredicate}">
             <Border Background="{StaticResource ShellSelectionBrush}" BorderBrush="{StaticResource ShellDividerBrush}"
-             BorderThickness="1" CornerRadius="11" Padding="9,3" Margin="0,0,6,6">
+             BorderThickness="1" CornerRadius="6" Padding="8,3" Margin="0,0,6,6">
              <StackPanel Orientation="Horizontal">
               <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" FontSize="12" Text="{Binding Label}"/>
               <Button Margin="6,0,0,0" Padding="4,0" Background="Transparent" BorderThickness="0"
@@ -276,9 +356,13 @@
          </Border>
         </Grid>
       </Border>
-      <!-- Status stays with the media it describes, beneath the grid rather than competing with the toolbar's controls above it. -->
-      <Border Grid.Row="6" Style="{StaticResource ShellPanel}" Padding="12,7">
-       <TextBlock x:Name="BrowserStatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"/>
+      <!-- Status stays with the media it describes, beneath the grid rather than competing with the toolbar's
+           controls above it. Flatter and slimmer than the toolbar/grid's raised panels — a restrained status
+           strip, not another card — via a smaller corner radius, tighter padding, and the same recessed
+           surface tone used by the toolbar's chips. -->
+      <Border Grid.Row="6" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}"
+       BorderThickness="1" CornerRadius="4" Padding="12,6">
+       <TextBlock x:Name="BrowserStatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
       </Border>
      </Grid>
     </Grid>

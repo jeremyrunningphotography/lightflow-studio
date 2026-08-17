@@ -6,12 +6,12 @@ namespace LightflowStudio.Tests;
 public class UiLayoutTests
 {
     [Fact]
-    public void BrowserWorkspace_ExposesFilesystemFirstNavigationWithoutFutureGridFeatures()
+    public void BrowserWorkspace_ExposesFilesystemFirstNavigationAndMediaGrid()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
 
         Assert.NotNull(Named(document, "BrowserFolderTree"));
-        Assert.NotNull(Named(document, "BrowserEntries"));
+        Assert.NotNull(Named(document, "BrowserGridRows"));
         Assert.Equal("BrowserCurrentPath_KeyDown", (string?)Named(document, "BrowserCurrentPath").Attribute("KeyDown"));
         Assert.Equal("BrowserGo_Click", (string?)Named(document, "BrowserGoButton").Attribute("Click"));
         var ns = document.Root!.Name.Namespace;
@@ -19,8 +19,9 @@ public class UiLayoutTests
             (string?)Named(document, "BrowserFolderTree").Attribute("SelectedItemChanged"));
         Assert.DoesNotContain(document.Descendants(ns + "Button"), element =>
             (string?)element.Attribute("Click") == "BrowserFolder_Click");
-        var itemTemplate = Named(document, "BrowserEntries").Descendants(ns + "DataTemplate").Single();
-        Assert.DoesNotContain(itemTemplate.Descendants(), element =>
+        var itemTemplates = Named(document, "BrowserGridRows").Descendants(ns + "DataTemplate").ToList();
+        Assert.Equal(2, itemTemplates.Count);
+        Assert.DoesNotContain(itemTemplates.SelectMany(template => template.Descendants()), element =>
             ((string?)element.Attribute("Text"))?.Contains("Folder", StringComparison.Ordinal) == true);
         Assert.Equal("BrowserBack_Click", (string?)Named(document, "BrowserBackButton").Attribute("Click"));
         Assert.Equal("BrowserForward_Click", (string?)Named(document, "BrowserForwardButton").Attribute("Click"));
@@ -187,7 +188,7 @@ public class UiLayoutTests
         var runStart = source.IndexOf("private async Task RunBrowserNavigationAsync", StringComparison.Ordinal);
         var applyStart = source.IndexOf("private void ApplyBrowserState", runStart, StringComparison.Ordinal);
         var runBody = source[runStart..applyStart];
-        Assert.DoesNotContain("_browserEntries.Clear()", runBody);
+        Assert.DoesNotContain("_browserGrid.Populate", runBody);
     }
 
     [Fact]

@@ -59,6 +59,13 @@ internal interface IMediaRootMonitoringService : IAsyncDisposable
 {
     MediaRootMonitorState State { get; }
     event EventHandler<MediaRootMonitorState>? StateChanged;
+
+    /// <summary>
+    /// Raised after an authoritative refresh completes for one logical folder, whether or not it succeeded.
+    /// A responsiveness hint only; presentation must still treat explicit Refresh as authoritative.
+    /// </summary>
+    event EventHandler<MediaFolderEnumerationRequest>? FolderRefreshed;
+
     Task StartAsync(CancellationToken cancellationToken = default);
     Task SynchronizeAsync(CancellationToken cancellationToken = default);
     Task FlushAsync(CancellationToken cancellationToken = default);
@@ -96,6 +103,7 @@ internal sealed class MediaRootMonitoringService : IMediaRootMonitoringService
 
     public MediaRootMonitorState State { get; private set; } = new(MediaRootMonitorStatus.Stopped, 0);
     public event EventHandler<MediaRootMonitorState>? StateChanged;
+    public event EventHandler<MediaFolderEnumerationRequest>? FolderRefreshed;
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -207,6 +215,7 @@ internal sealed class MediaRootMonitoringService : IMediaRootMonitoringService
                 if (!result.Reconciliation.Succeeded)
                     SetState(MediaRootMonitorStatus.Degraded, result.Diagnostic ??
                         "An authoritative Media Root refresh could not be completed.");
+                FolderRefreshed?.Invoke(this, new(key.RootId, key.RelativeFolder));
             }
             catch (OperationCanceledException) when (_shutdown.IsCancellationRequested) { return; }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -262,6 +271,7 @@ internal sealed class MediaRootMonitoringService : IMediaRootMonitoringService
                 if (!result.Reconciliation.Succeeded)
                     SetState(MediaRootMonitorStatus.Degraded, result.Diagnostic ??
                         "An authoritative Media Root refresh could not be completed.");
+                FolderRefreshed?.Invoke(this, new(key.RootId, key.RelativeFolder));
             }
             catch (OperationCanceledException) when (_shutdown.IsCancellationRequested) { return; }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)

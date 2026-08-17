@@ -5,6 +5,10 @@
  Title="Lightflow Studio" Icon="Assets/Branding/LightflowStudio.ico"
  Height="900" Width="1440" MinHeight="720" MinWidth="1120" WindowStartupLocation="CenterScreen"
  Closing="Window_Closing">
+ <Window.Resources>
+  <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+  <local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility"/>
+ </Window.Resources>
  <Grid Background="{StaticResource WindowBrush}">
   <Grid.RowDefinitions><RowDefinition Height="60"/><RowDefinition Height="*"/><RowDefinition Height="34"/></Grid.RowDefinitions>
 
@@ -93,21 +97,71 @@
          <Button Grid.Column="3" x:Name="BrowserRefreshButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Refresh current folder" AutomationProperties.Name="Refresh current folder" Click="BrowserRefresh_Click" Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
         </Grid>
        </Border>
-       <Border Grid.Row="2" Style="{StaticResource ShellPanel}" Background="#0D0F13">
+       <Border Grid.Row="2" x:Name="BrowserGridHost" Style="{StaticResource ShellPanel}" Background="#0D0F13" Padding="14"
+        SizeChanged="BrowserGridHost_SizeChanged" MouseLeftButtonDown="BrowserGridHost_MouseLeftButtonDown">
         <Grid>
-         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-          <ItemsControl x:Name="BrowserEntries">
-           <ItemsControl.ItemTemplate>
-            <DataTemplate>
-             <Grid x:Name="FileRow" Margin="14,10"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-               <TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Text="&#xE8A5;"/>
-               <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
-               <TextBlock Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="{Binding MediaType}"/>
-              </Grid>
-            </DataTemplate>
-           </ItemsControl.ItemTemplate>
-          </ItemsControl>
-         </ScrollViewer>
+         <ItemsControl x:Name="BrowserGridRows" Focusable="True" KeyDown="BrowserGridRows_KeyDown"
+          AutomationProperties.Name="Media grid"
+          VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">
+          <ItemsControl.Template>
+           <ControlTemplate TargetType="ItemsControl">
+            <ScrollViewer Focusable="False" Padding="{TemplateBinding Padding}"
+             HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
+             <ItemsPresenter/>
+            </ScrollViewer>
+           </ControlTemplate>
+          </ItemsControl.Template>
+          <ItemsControl.ItemsPanel>
+           <ItemsPanelTemplate><VirtualizingStackPanel Orientation="Vertical"/></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+           <DataTemplate DataType="{x:Type local:BrowserGridRow}">
+            <ItemsControl Focusable="False" ItemsSource="{Binding Tiles}">
+             <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+             </ItemsControl.ItemsPanel>
+             <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type local:BrowserGridTile}">
+               <Border Width="168" Margin="0,0,12,12" Padding="7" CornerRadius="6" BorderThickness="1"
+                MouseLeftButtonDown="BrowserGridTile_MouseLeftButtonDown"
+                ToolTip="{Binding Name}" AutomationProperties.Name="{Binding AutomationLabel}">
+                <Border.Style>
+                 <Style TargetType="Border">
+                  <Setter Property="Background" Value="{StaticResource ShellPanelBrush}"/>
+                  <Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/>
+                  <Style.Triggers>
+                   <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource ShellSelectionBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
+                   </DataTrigger>
+                  </Style.Triggers>
+                 </Style>
+                </Border.Style>
+                <Grid>
+                 <Grid.RowDefinitions><RowDefinition Height="108"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                 <Border Background="#05070A" CornerRadius="4" ClipToBounds="True">
+                  <Grid>
+                   <Image Source="{Binding ThumbnailPath}" Stretch="Uniform"/>
+                   <TextBlock Text="{Binding CategoryGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="28"
+                    Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibility}}"/>
+                  </Grid>
+                 </Border>
+                 <StackPanel Grid.Row="1" Margin="1,7,1,0">
+                  <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" FontSize="12"
+                   TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
+                  <TextBlock Text="Unsupported" Foreground="{StaticResource MutedTextBrush}" FontSize="10"
+                   TextAlignment="Center" Margin="0,2,0,0"
+                   Visibility="{Binding IsUnsupported, Converter={StaticResource BoolToVisibility}}"/>
+                 </StackPanel>
+                </Grid>
+               </Border>
+              </DataTemplate>
+             </ItemsControl.ItemTemplate>
+            </ItemsControl>
+           </DataTemplate>
+          </ItemsControl.ItemTemplate>
+         </ItemsControl>
          <StackPanel x:Name="BrowserEmptyState" MaxWidth="460" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center">
           <TextBlock x:Name="BrowserEmptyTitle" Style="{StaticResource ShellPlaceholderTitle}" Text="Choose a storage location"/>
           <TextBlock x:Name="BrowserEmptyMessage" Style="{StaticResource ShellPlaceholderText}" Margin="0,8,0,0" Text="Select a drive, mapped location, or managed library to browse its folders and supported media."/>

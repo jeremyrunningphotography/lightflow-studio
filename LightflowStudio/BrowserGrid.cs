@@ -46,18 +46,20 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     public MediaTypeCategory Category { get; }
     public long? FileSizeBytes { get; }
     public Guid? AssetId { get; private set; }
-    public bool IsUnsupported => Category == MediaTypeCategory.Unknown;
 
+    /// <summary>
+    /// A tile only ever represents a supported still image, RAW image, or video asset — see
+    /// <see cref="BrowserGridModel.IsPresentable"/>. This glyph set is therefore exhaustive.
+    /// </summary>
     public string CategoryGlyph => Category switch
     {
         MediaTypeCategory.StillImage => "",
         MediaTypeCategory.RawImage => "",
         MediaTypeCategory.Video => "",
-        MediaTypeCategory.Audio => "",
-        _ => ""
+        _ => throw new InvalidOperationException($"{Category} is not a presentable Browser media category.")
     };
 
-    public string AutomationLabel => IsUnsupported ? $"{Name}, unsupported file" : $"{Name}, {Category} media";
+    public string AutomationLabel => $"{Name}, {Category} media";
 
     public int Index
     {
@@ -206,6 +208,16 @@ internal sealed class BrowserGridModel
     public IReadOnlySet<string> SelectedKeys => _selection.Snapshot();
 
     /// <summary>
+    /// Lightflow's Browser is a media browser, not a general-purpose file browser: the central canvas
+    /// presents only supported still image, RAW image, and video assets. This reads the classification
+    /// the existing #98 media type registry already assigned to the entry; it does not maintain a second,
+    /// WPF-owned extension list. Folders, standalone audio, and unknown/unsupported files are excluded
+    /// from presentation entirely rather than shown as a placeholder tile.
+    /// </summary>
+    public static bool IsPresentable(MediaFolderEntry entry) => !entry.IsDirectory && entry.MediaType.Category
+        is MediaTypeCategory.StillImage or MediaTypeCategory.RawImage or MediaTypeCategory.Video;
+
+    /// <summary>
     /// Replaces the tile set from the current folder's file entries in deterministic enumeration order,
     /// reusing existing tile instances by stable key so already-resolved thumbnails and selection survive
     /// a non-destructive refresh.
@@ -217,7 +229,7 @@ internal sealed class BrowserGridModel
         var index = 0;
         foreach (var entry in entries)
         {
-            if (entry.IsDirectory) continue;
+            if (!IsPresentable(entry)) continue;
             if (existingByKey.TryGetValue(entry.RelativePathKey, out var prior))
             {
                 prior.Index = index;
@@ -321,14 +333,25 @@ internal sealed class BrowserGridModel
 }
 
 /// <summary>
-/// Pure projection over derived-work results, used to decide which newly-completed assets still need
-/// their generated thumbnail path applied to the grid. Kept separate from Dispatcher/UI glue for testability.
+/// Pure projection over derived-work results, used to decide which completed assets still need their
+/// generated thumbnail path applied to the grid. Kept separate from Dispatcher/UI glue for testability.
 /// </summary>
 internal static class BrowserDerivedWorkProjection
 {
+    /// <summary>
+    /// A thumbnail is worth looking up whenever the scheduler reports the thumbnail component as
+    /// <see cref="DerivedWorkComponentOutcome.Succeeded"/> or <see cref="DerivedWorkComponentOutcome.Current"/>
+    /// (freshly generated or freshly verified this batch), or <see cref="DerivedWorkComponentOutcome.NotNeeded"/>
+    /// — which is what an asset reports when its thumbnail was already current *before* this batch started,
+    /// so the scheduler skipped calling the generator at all. That is the common case for any previously-viewed
+    /// folder and must still resolve the already-existing cached thumbnail, not just newly-generated ones.
+    /// <see cref="DerivedWorkComponentOutcome.Failed"/>, <see cref="DerivedWorkComponentOutcome.SkippedUnavailable"/>,
+    /// and <see cref="DerivedWorkComponentOutcome.Canceled"/> have no thumbnail to fetch.
+    /// </summary>
     public static IReadOnlyList<Guid> AssetsNeedingThumbnailLookup(
         IReadOnlyList<DerivedWorkItemResult> results, Func<Guid, bool> alreadyHasThumbnail) =>
-        results.Where(result => result.Thumbnail is DerivedWorkComponentOutcome.Succeeded or DerivedWorkComponentOutcome.Current)
+        results.Where(result => result.Thumbnail is DerivedWorkComponentOutcome.Succeeded or
+            DerivedWorkComponentOutcome.Current or DerivedWorkComponentOutcome.NotNeeded)
             .Select(result => result.AssetId)
             .Where(assetId => !alreadyHasThumbnail(assetId))
             .Distinct()

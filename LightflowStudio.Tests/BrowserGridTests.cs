@@ -26,30 +26,101 @@ public sealed class BrowserGridTests
     }
 
     [Fact]
-    public void Populate_ClassifiesStillImagesAsSupported() => AssertCategory(MediaTypeCategory.StillImage, unsupported: false);
+    public void Populate_SupportedStillImageAppears() => AssertAppears(MediaTypeCategory.StillImage, appears: true);
 
     [Fact]
-    public void Populate_ClassifiesRawImagesAsSupported() => AssertCategory(MediaTypeCategory.RawImage, unsupported: false);
+    public void Populate_SupportedRawImageAppears() => AssertAppears(MediaTypeCategory.RawImage, appears: true);
 
     [Fact]
-    public void Populate_ClassifiesVideoAsSupported() => AssertCategory(MediaTypeCategory.Video, unsupported: false);
+    public void Populate_SupportedVideoAppears() => AssertAppears(MediaTypeCategory.Video, appears: true);
 
     [Fact]
-    public void Populate_ClassifiesAudioAsSupported() => AssertCategory(MediaTypeCategory.Audio, unsupported: false);
+    public void Populate_StandaloneAudioDoesNotAppear() => AssertAppears(MediaTypeCategory.Audio, appears: false);
 
     [Fact]
-    public void Populate_ClassifiesUnknownFilesAsUnsupported() => AssertCategory(MediaTypeCategory.Unknown, unsupported: true);
+    public void Populate_UnknownUnsupportedFileDoesNotAppear() => AssertAppears(MediaTypeCategory.Unknown, appears: false);
 
-    private static void AssertCategory(MediaTypeCategory category, bool unsupported)
+    private static void AssertAppears(MediaTypeCategory category, bool appears)
     {
         var model = new BrowserGridModel();
         var rootId = Guid.NewGuid();
         model.Populate([File(rootId, "item.bin", category)]);
 
-        var tile = Assert.Single(model.Tiles);
-        Assert.Equal(category, tile.Category);
-        Assert.Equal(unsupported, tile.IsUnsupported);
-        Assert.False(string.IsNullOrEmpty(tile.CategoryGlyph));
+        if (appears)
+        {
+            var tile = Assert.Single(model.Tiles);
+            Assert.Equal(category, tile.Category);
+            Assert.False(string.IsNullOrEmpty(tile.CategoryGlyph));
+        }
+        else Assert.Empty(model.Tiles);
+    }
+
+    [Fact]
+    public void Populate_MixedFolderProducesTilesOnlyForSupportedImageRawAndVideoMedia()
+    {
+        // Lightflow's Browser is a media browser, not a general-purpose file browser: audio, sidecars/
+        // documents/archives/executables (Unknown), and folders must never reach the central canvas.
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entries = new[]
+        {
+            Directory(rootId, "Subfolder"),
+            File(rootId, "photo.jpg", MediaTypeCategory.StillImage),
+            File(rootId, "raw.cr2", MediaTypeCategory.RawImage),
+            File(rootId, "clip.mp4", MediaTypeCategory.Video),
+            File(rootId, "track.mp3", MediaTypeCategory.Audio),
+            File(rootId, "notes.txt", MediaTypeCategory.Unknown),
+            File(rootId, "clip.lrf", MediaTypeCategory.Unknown),
+        };
+
+        model.Populate(entries);
+
+        Assert.Equal(["photo.jpg", "raw.cr2", "clip.mp4"], model.Tiles.Select(tile => tile.Name));
+    }
+
+    [Fact]
+    public void Populate_IndexIsContiguousOverTheFilteredMediaSetOnly()
+    {
+        // Selection/shift-range math operates on tile.Index, which must count only presentable media —
+        // skipped folders/audio/unsupported entries must not leave gaps or shift later indices.
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entries = new[]
+        {
+            File(rootId, "a.jpg", MediaTypeCategory.StillImage),
+            File(rootId, "skip1.mp3", MediaTypeCategory.Audio),
+            Directory(rootId, "skip2"),
+            File(rootId, "b.mp4", MediaTypeCategory.Video),
+            File(rootId, "skip3.txt", MediaTypeCategory.Unknown),
+            File(rootId, "c.cr2", MediaTypeCategory.RawImage),
+        };
+
+        model.Populate(entries);
+
+        Assert.Equal(["a.jpg", "b.mp4", "c.cr2"], model.Tiles.Select(tile => tile.Name));
+        Assert.Equal([0, 1, 2], model.Tiles.Select(tile => tile.Index));
+    }
+
+    [Fact]
+    public void SelectRange_OperatesOnlyOverTheFilteredMediaSet()
+    {
+        // A shift-range selection must span only the presentable tiles at their filtered indices, not the
+        // raw folder-entry positions that included excluded audio/unsupported/folder items.
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entries = new[]
+        {
+            File(rootId, "a.jpg", MediaTypeCategory.StillImage),
+            File(rootId, "skip.mp3", MediaTypeCategory.Audio),
+            File(rootId, "b.mp4", MediaTypeCategory.Video),
+            File(rootId, "c.cr2", MediaTypeCategory.RawImage),
+        };
+        model.Populate(entries);
+        model.SelectSingle(0);
+
+        model.SelectRange(2);
+
+        Assert.Equal([true, true, true], model.Tiles.Select(tile => tile.IsSelected));
     }
 
     [Fact]
@@ -324,25 +395,58 @@ public sealed class BrowserGridTests
     }
 
     [Fact]
-    public void DerivedWorkProjection_OnlyReturnsAssetsWithASuccessfulOrCurrentThumbnailNotAlreadyApplied()
+    public void DerivedWorkProjection_IncludesFreshlyGeneratedAndFreshlyVerifiedThumbnails()
     {
         var generated = Guid.NewGuid();
         var current = Guid.NewGuid();
-        var failed = Guid.NewGuid();
-        var notNeeded = Guid.NewGuid();
-        var alreadyApplied = Guid.NewGuid();
         var results = new[]
         {
             new DerivedWorkItemResult(generated, DerivedWorkItemOutcome.Generated, DerivedWorkComponentOutcome.NotNeeded, DerivedWorkComponentOutcome.Succeeded),
             new DerivedWorkItemResult(current, DerivedWorkItemOutcome.Current, DerivedWorkComponentOutcome.NotNeeded, DerivedWorkComponentOutcome.Current),
+        };
+
+        var pending = BrowserDerivedWorkProjection.AssetsNeedingThumbnailLookup(results, _ => false);
+
+        Assert.Equal([generated, current], pending);
+    }
+
+    [Fact]
+    public void DerivedWorkProjection_IncludesAlreadyCurrentThumbnailsTheSchedulerSkippedRegenerating()
+    {
+        // Regression: on a previously-viewed folder the scheduler recognizes the cached thumbnail is
+        // already current and never calls the generator at all, reporting the thumbnail component as
+        // NotNeeded rather than Succeeded/Current. The grid must still resolve that already-existing
+        // cached path instead of leaving the tile on its placeholder forever.
+        var alreadyCurrentFromPriorSession = Guid.NewGuid();
+        var results = new[]
+        {
+            new DerivedWorkItemResult(alreadyCurrentFromPriorSession, DerivedWorkItemOutcome.Current,
+                DerivedWorkComponentOutcome.NotNeeded, DerivedWorkComponentOutcome.NotNeeded),
+        };
+
+        var pending = BrowserDerivedWorkProjection.AssetsNeedingThumbnailLookup(results, _ => false);
+
+        Assert.Equal([alreadyCurrentFromPriorSession], pending);
+    }
+
+    [Fact]
+    public void DerivedWorkProjection_ExcludesAssetsWithNoViableThumbnailAndAlreadyAppliedAssets()
+    {
+        var failed = Guid.NewGuid();
+        var skippedUnavailable = Guid.NewGuid();
+        var canceled = Guid.NewGuid();
+        var alreadyApplied = Guid.NewGuid();
+        var results = new[]
+        {
             new DerivedWorkItemResult(failed, DerivedWorkItemOutcome.Failed, DerivedWorkComponentOutcome.NotNeeded, DerivedWorkComponentOutcome.Failed),
-            new DerivedWorkItemResult(notNeeded, DerivedWorkItemOutcome.Current, DerivedWorkComponentOutcome.NotNeeded, DerivedWorkComponentOutcome.NotNeeded),
+            new DerivedWorkItemResult(skippedUnavailable, DerivedWorkItemOutcome.SkippedUnavailable, DerivedWorkComponentOutcome.SkippedUnavailable, DerivedWorkComponentOutcome.SkippedUnavailable),
+            new DerivedWorkItemResult(canceled, DerivedWorkItemOutcome.Canceled, DerivedWorkComponentOutcome.Canceled, DerivedWorkComponentOutcome.Canceled),
             new DerivedWorkItemResult(alreadyApplied, DerivedWorkItemOutcome.Current, DerivedWorkComponentOutcome.NotNeeded, DerivedWorkComponentOutcome.Current),
         };
 
         var pending = BrowserDerivedWorkProjection.AssetsNeedingThumbnailLookup(results, assetId => assetId == alreadyApplied);
 
-        Assert.Equal([generated, current], pending);
+        Assert.Empty(pending);
     }
 
     private static MediaFolderEntry Directory(Guid rootId, string name) =>

@@ -6,7 +6,6 @@
  Height="900" Width="1440" MinHeight="720" MinWidth="1120" WindowStartupLocation="CenterScreen"
  Closing="Window_Closing">
  <Window.Resources>
-  <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
   <local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility"/>
  </Window.Resources>
  <Grid Background="{StaticResource WindowBrush}">
@@ -150,9 +149,6 @@
                  <StackPanel Grid.Row="1" Margin="1,7,1,0">
                   <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" FontSize="12"
                    TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
-                  <TextBlock Text="Unsupported" Foreground="{StaticResource MutedTextBrush}" FontSize="10"
-                   TextAlignment="Center" Margin="0,2,0,0"
-                   Visibility="{Binding IsUnsupported, Converter={StaticResource BoolToVisibility}}"/>
                  </StackPanel>
                 </Grid>
                </Border>

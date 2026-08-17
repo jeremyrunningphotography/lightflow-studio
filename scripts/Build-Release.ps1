@@ -8,6 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 $versionProps = [xml](Get-Content -LiteralPath (Join-Path $repositoryRoot "Directory.Build.props") -Raw)
 $sourceVersion = [string]$versionProps.Project.PropertyGroup.VersionPrefix
 if ([string]::IsNullOrWhiteSpace($Version)) { $Version = $sourceVersion }
@@ -93,12 +94,15 @@ if (-not $SkipInstaller) {
     $compilerArguments = @(
         "/DMyAppVersion=$Version",
         "/DSourceDir=$appDirectory",
-        "/DOutputDir=$OutputDirectory"
+        "/DOutputDir=$OutputDirectory",
+        "/DInstallerAssetsDir=$(Join-Path $repositoryRoot 'installer\Assets')"
     )
     if ($Mode -eq "PullRequest") { $compilerArguments += "/DValidationBuild=1" }
     $compilerArguments += (Join-Path $repositoryRoot "installer\LightflowStudio.iss")
     & $compiler @compilerArguments
     if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed." }
+    $installerPath = Join-Path $OutputDirectory "LightflowStudio-$Version-win-x64-setup.exe"
+    & (Join-Path $PSScriptRoot "Test-InstallerArtifact.ps1") -InstallerPath $installerPath -Version $Version
     Write-StageTiming "installer ($Mode mode)" $installerTimer
 }
 

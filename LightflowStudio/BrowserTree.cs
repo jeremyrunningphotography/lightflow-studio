@@ -136,6 +136,24 @@ internal sealed class BrowserTreeModel
     public void ApplyDirectoryListing(BrowserTreeNode node, string rootPath, IReadOnlyList<MediaFolderEntry> entries) =>
         ReplaceDirectories(node, rootPath, entries);
 
+    /// <summary>
+    /// #124: the deepest node currently visible as a row underneath <paramref name="node"/> in the Locations
+    /// tree's own display order — i.e. <paramref name="node"/> itself if it is collapsed or has no real
+    /// children yet, otherwise the same recursive answer for its last non-placeholder child. A standard
+    /// TreeView renders a node's children (in order) immediately after that node's own row and before its
+    /// next sibling, so the last child's own subtree is always what renders last under a node — following
+    /// "last real child, recursively" therefore always lands on the true bottom-most visible row. Used to
+    /// bound the #124 recursive-scope outline honestly: a collapsed branch's hidden descendants are never
+    /// counted, and nothing is force-expanded/materialized merely to compute this.
+    /// </summary>
+    public static BrowserTreeNode LastVisibleDescendant(BrowserTreeNode node)
+    {
+        if (!node.IsExpanded) return node;
+        BrowserTreeNode? lastRealChild = null;
+        foreach (var child in node.Children) if (!child.IsPlaceholder) lastRealChild = child;
+        return lastRealChild is null ? node : LastVisibleDescendant(lastRealChild);
+    }
+
     public void RequestSelection(BrowserTreeNode node)
     {
         if (node.IsPlaceholder || !Roots.Any(root => ContainsNode(root, node))) return;

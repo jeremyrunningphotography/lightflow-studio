@@ -231,6 +231,46 @@ public sealed class BrowserRecursiveScopeTests
         Assert.Null(result.DerivedWork);
     }
 
+    [Fact]
+    public async Task DiscoverAsync_ReportsProgressWhoseFinalMaximumMatchesTheActualFolderCount()
+    {
+        // Assertions here are order-independent (Max across every received report, not "the last one") on
+        // purpose: FoldersDiscovered/FoldersVisited only ever increase, so the true final value is always the
+        // maximum ever reported regardless of exactly how concurrent folders' reports happened to interleave
+        // — a real race would only be a bug if a report's own pair were internally inconsistent or if the
+        // maximum undershot the actual total, neither of which this depends on wall-clock report ordering to
+        // detect.
+        var rootId = Guid.NewGuid();
+        var listings = new Dictionary<string, MediaFolderEnumerationResult>
+        {
+            [""] = Listing(rootId, "", Dir(rootId, "A"), Dir(rootId, "B")),
+            ["A"] = Listing(rootId, "A", FileEntry(rootId, "A/clip.mp4")),
+            ["B"] = Listing(rootId, "B", FileEntry(rootId, "B/clip.mp4")),
+        };
+        var service = new RecursiveMediaDiscoveryService(new MapFolders(listings), new MapDiscovery(rootId));
+        var progress = new RecordingProgress<RecursiveScopeProgress>();
+
+        var result = await service.DiscoverAsync(new(rootId, null), progress: progress);
+
+        Assert.True(result.Succeeded);
+        Assert.NotEmpty(progress.Reports);
+        Assert.All(progress.Reports, report => Assert.True(report.FoldersVisited <= report.FoldersDiscovered));
+        Assert.Equal(3, progress.Reports.Max(report => report.FoldersDiscovered)); // base + A + B
+        Assert.Equal(3, progress.Reports.Max(report => report.FoldersVisited));
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_NeverThrowsOrRequiresAProgressReporter()
+    {
+        var rootId = Guid.NewGuid();
+        var folders = new MapFolders(new() { [""] = Listing(rootId, "", FileEntry(rootId, "root.mp4")) });
+        var service = new RecursiveMediaDiscoveryService(folders, new MapDiscovery(rootId));
+
+        var result = await service.DiscoverAsync(new(rootId, null));
+
+        Assert.True(result.Succeeded);
+    }
+
     [Theory]
     [InlineData(null, "", true)]
     [InlineData(null, "Trips", true)]
@@ -383,6 +423,14 @@ public sealed class BrowserRecursiveScopeTests
         var batch = new DerivedWorkBatch(reconciliation, static _ => { });
         batch.Seal();
         return new(reconciliation, batch);
+    }
+
+    private sealed class RecordingProgress<T> : IProgress<T>
+    {
+        private readonly object _sync = new();
+        private readonly List<T> _reports = [];
+        public IReadOnlyList<T> Reports { get { lock (_sync) return _reports.ToArray(); } }
+        public void Report(T value) { lock (_sync) _reports.Add(value); }
     }
 
     private sealed class MapFolders(Dictionary<string, MediaFolderEnumerationResult> byFolder,

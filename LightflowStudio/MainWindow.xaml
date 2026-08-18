@@ -47,11 +47,15 @@
    </Setter>
   </Style>
 
-  <!-- #124: Include Subfolders lives in the folder-navigation bar (with Back/Forward/Up/Refresh), not the
-       #109 query toolbar below it — placement alone signals "this changes what folder scope you're
-       browsing", not "this filters what's shown". The icon+short-label chrome is deliberately its own style
-       rather than reusing BrowserToolbarToggleButtonStyle (Filter ▾'s chip), so it never reads as a filter
-       facet even though both share the restrained checked-state accent already used throughout the Browser. -->
+  <!-- #124: Include Subfolders lives in the media toolbar, immediately before the All/Images/RAW/Video
+       group — scope narrows first, then the media-type controls narrow further, so reading order matches
+       that pipeline. It keeps its own style rather than reusing BrowserToolbarToggleButtonStyle (Filter ▾'s
+       chip) or BrowserQuickFilterSegmentStyle (the segmented group), so it never reads as a filter facet or
+       as part of that segmented control, even though all three share the restrained checked-state accent
+       already used throughout the Browser. The icon is a compact two-folder composition (a smaller, dimmer
+       folder behind a full-size one) built entirely from the same verified folder glyph the Locations tree
+       already renders (U+E8B7) rather than a guessed/unverified "hierarchy" glyph or a new image asset —
+       stacked folders read as "this folder plus more folders", i.e. descendant scope. -->
   <Style x:Key="BrowserScopeToggleButtonStyle" TargetType="ToggleButton">
    <Setter Property="Padding" Value="10,7"/>
    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
@@ -63,7 +67,12 @@
       <Border x:Name="Chrome" Background="Transparent" BorderBrush="{StaticResource ShellDividerBrush}"
        BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
        <StackPanel Orientation="Horizontal">
-        <TextBlock VerticalAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Text="&#xE8B7;"/>
+        <Grid Width="16" Height="13" VerticalAlignment="Center">
+         <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Text="&#xE8B7;" Opacity="0.55"
+          HorizontalAlignment="Right" VerticalAlignment="Top"/>
+         <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Text="&#xE8B7;"
+          HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+        </Grid>
         <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="Subfolders"/>
        </StackPanel>
       </Border>
@@ -255,6 +264,13 @@
         <Grid Grid.Row="1" Margin="0,12,0,0">
          <ScrollViewer x:Name="BrowserFolderScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
           CanContentScroll="False" Padding="0,0,2,2" Focusable="False" Style="{StaticResource BrowserFolderScrollViewerStyle}">
+         <!-- #124: BrowserScopeOutline is a sibling of the TreeView inside the same scrolled content, not a
+              separate overlay layered on top of the ScrollViewer — so it scrolls in lockstep with the rows it
+              outlines (no manual scroll-offset math) and is clipped to the viewport for free by the
+              ScrollViewer's own content presenter. MainWindow.SyncBrowserScopeOutline positions it purely via
+              Margin/Height computed from the selected node's and BrowserTreeModel.LastVisibleDescendant's
+              container bounds; it never encodes recursive-scope membership as IsSelected or mutates selection. -->
+         <Grid>
          <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}"
           SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseWheel="BrowserFolderTree_PreviewMouseWheel"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
@@ -263,6 +279,7 @@
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
             <EventSetter Event="Expanded" Handler="BrowserFolderTreeItem_Expanded"/>
+            <EventSetter Event="Collapsed" Handler="BrowserFolderTreeItem_Collapsed"/>
            </Style>
           </TreeView.ItemContainerStyle>
           <TreeView.Resources>
@@ -277,6 +294,11 @@
            </HierarchicalDataTemplate>
           </TreeView.Resources>
          </TreeView>
+         <Border x:Name="BrowserScopeOutline" IsHitTestVisible="False" Visibility="Collapsed"
+          HorizontalAlignment="Stretch" VerticalAlignment="Top" BorderThickness="1.5" CornerRadius="6"
+          BorderBrush="{StaticResource ShellFocusBrush}" Background="Transparent"
+          AutomationProperties.Name="Include Subfolders active scope"/>
+         </Grid>
          </ScrollViewer>
          <StackPanel x:Name="BrowserRootsEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="14">
           <TextBlock Foreground="{StaticResource MutedTextBrush}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="26" HorizontalAlignment="Center" Text="&#xE838;"/>
@@ -294,7 +316,7 @@
        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
        <Border Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>
-         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
          <StackPanel Orientation="Horizontal">
           <Button x:Name="BrowserBackButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Back" AutomationProperties.Name="Back" Click="BrowserBack_Click" Content="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
           <Button x:Name="BrowserForwardButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Forward" AutomationProperties.Name="Forward" Click="BrowserForward_Click" Content="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
@@ -302,13 +324,7 @@
          </StackPanel>
          <TextBox Grid.Column="1" x:Name="BrowserCurrentPath" Margin="14,0,6,0" VerticalAlignment="Center" Text="" ToolTip="Type a local, mapped, or network folder path" AutomationProperties.Name="Current folder path" KeyDown="BrowserCurrentPath_KeyDown"/>
          <Button Grid.Column="2" x:Name="BrowserGoButton" Padding="12,7" Content="Go" ToolTip="Open the entered folder" AutomationProperties.Name="Open folder path" Click="BrowserGo_Click"/>
-         <!-- #124: a scope control, not a query control — see BrowserScopeToggleButtonStyle. Margin separates
-              it from Go/Refresh so it doesn't read as part of that action-button cluster. -->
-         <ToggleButton Grid.Column="3" x:Name="BrowserIncludeSubfoldersButton" Margin="8,0,0,0"
-          Style="{StaticResource BrowserScopeToggleButtonStyle}" IsEnabled="False"
-          ToolTip="Include Subfolders — browse this folder and every descendant folder as one media set"
-          AutomationProperties.Name="Include Subfolders" Click="BrowserIncludeSubfoldersButton_Click"/>
-         <Button Grid.Column="4" x:Name="BrowserRefreshButton" Width="38" Padding="0,7" Margin="8,0,0,0" IsEnabled="False" ToolTip="Refresh current folder" AutomationProperties.Name="Refresh current folder" Click="BrowserRefresh_Click" Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+         <Button Grid.Column="3" x:Name="BrowserRefreshButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Refresh current folder" AutomationProperties.Name="Refresh current folder" Click="BrowserRefresh_Click" Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
         </Grid>
        </Border>
        <!--
@@ -319,11 +335,22 @@
         <StackPanel>
          <Grid>
           <Grid.ColumnDefinitions>
+           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="16"/>
            <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
            <ColumnDefinition Width="*"/><ColumnDefinition Width="10"/>
            <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
            <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
+          <!-- #124: scope narrows the candidate set first; the media-type controls immediately to its right
+               then narrow that same query-facing view further — placement mirrors that pipeline order. The
+               wider (16px, vs. the 10px used everywhere else in this row) gap that follows is the only thing
+               separating it from the segmented group: enough that it doesn't read as one of those segments,
+               not so much that it reads as unrelated to the media controls it scopes. IsEnabled/IsChecked
+               reflect BrowserNavigationSession.ScopeMode — see MainWindow.SyncBrowserScopeToggle — and this
+               control never writes to BrowserQuery. -->
+          <ToggleButton x:Name="BrowserIncludeSubfoldersButton" Style="{StaticResource BrowserScopeToggleButtonStyle}" IsEnabled="False"
+           ToolTip="Include Subfolders — browse this folder and every descendant folder as one media set"
+           AutomationProperties.Name="Include Subfolders" Click="BrowserIncludeSubfoldersButton_Click"/>
           <!-- Independent per-category toggles (multiple may be active; OR within the facet), presented as
                one segmented control; Filter ▾ (below) additionally supports stacking with other, future
                fields for the compound case this row cannot express alone. Both read/write the same
@@ -332,13 +359,13 @@
                BrowserGridModel.PresentableCategories is appended after it from code-behind
                (InitializeBrowserQuickFilterButtons) so the row can never drift from what the grid actually
                presents. -->
-          <Border Style="{StaticResource BrowserToolbarChipStyle}" ClipToBounds="True" ToolTip="Toggle media types shown">
+          <Border Grid.Column="2" Style="{StaticResource BrowserToolbarChipStyle}" ClipToBounds="True" ToolTip="Toggle media types shown">
            <StackPanel x:Name="BrowserQuickFilterSegments" Orientation="Horizontal">
             <ToggleButton x:Name="BrowserQuickFilterAllButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Content="All"
              AutomationProperties.Name="Show all media types" Click="BrowserQuickFilterAllButton_Click"/>
            </StackPanel>
           </Border>
-          <Border Grid.Column="2" Style="{StaticResource BrowserToolbarChipStyle}" MinWidth="170">
+          <Border Grid.Column="4" Style="{StaticResource BrowserToolbarChipStyle}" MinWidth="170">
            <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
             <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
@@ -355,7 +382,7 @@
           <!-- Progressive disclosure: Filter ▾ opens a compact predicate editor rather than exposing a
                permanent row of one-off filter controls; active predicates surface as removable chips
                beneath, appearing only while at least one is active. -->
-          <ToggleButton Grid.Column="4" x:Name="BrowserFilterButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Content="Filter &#x25BE;"
+          <ToggleButton Grid.Column="6" x:Name="BrowserFilterButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Content="Filter &#x25BE;"
            ToolTip="Add a filter" AutomationProperties.Name="Add a filter"/>
           <Popup x:Name="BrowserFilterPopup" IsOpen="{Binding IsChecked, ElementName=BrowserFilterButton, Mode=TwoWay}"
            PlacementTarget="{Binding ElementName=BrowserFilterButton}" Placement="Bottom" VerticalOffset="4"
@@ -382,7 +409,7 @@
                actually loads, not declared here: WPF can raise SelectionChanged while InitializeComponent
                is still connecting later-declared named elements, and the handler reads sibling controls
                that would not exist yet. -->
-          <Border Grid.Column="6" Style="{StaticResource BrowserToolbarChipStyle}">
+          <Border Grid.Column="8" Style="{StaticResource BrowserToolbarChipStyle}">
            <StackPanel Orientation="Horizontal">
             <TextBlock Margin="10,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Sort"/>
             <ComboBox x:Name="BrowserSortCombo" MinWidth="132" Background="Transparent" BorderThickness="0" Margin="0" VerticalAlignment="Center"
@@ -497,7 +524,16 @@
           <TextBlock x:Name="BrowserEmptyMessage" Style="{StaticResource ShellPlaceholderText}" Margin="0,8,0,0" Text="Select a drive, mapped location, or managed library to browse its folders and supported media."/>
          </StackPanel>
          <Border x:Name="BrowserLoadingOverlay" Background="#B00D0F13" Visibility="Collapsed">
-          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><ProgressBar Width="180" Height="4" IsIndeterminate="True"/><TextBlock x:Name="BrowserLoadingText" Margin="0,12,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Loading folder…"/></StackPanel>
+          <!-- #124: a real progress indicator, not a decorative accent line — MainWindow.RunBrowserNavigationAsync
+               resets it to indeterminate at the start of every navigation, and
+               MainWindow.ApplyRecursiveScopeLoadingProgress switches it to determinate only once
+               BrowserNavigationSession.RecursiveScopeProgressChanged reports enough of the recursive walk is
+               known to be a truthful, non-fake percentage (see RecursiveScopeProgress). Direct-mode
+               navigation never receives progress events at all, so it stays indeterminate throughout. -->
+          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+           <ProgressBar x:Name="BrowserLoadingProgressBar" Width="180" Height="4" IsIndeterminate="True"/>
+           <TextBlock x:Name="BrowserLoadingText" Margin="0,12,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Loading folder…"/>
+          </StackPanel>
          </Border>
         </Grid>
       </Border>

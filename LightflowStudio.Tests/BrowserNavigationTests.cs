@@ -287,7 +287,7 @@ public sealed class BrowserNavigationTests
     {
         var root = Root("Library", @"C:\Library");
         var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, DirectoryEntry(root.RootId, "Sub"))));
-        var recursive = new FakeRecursiveDiscovery((request, _, _, _) => Task.FromResult(new RecursiveScopeResult(
+        var recursive = new FakeRecursiveDiscovery((request, _, _, _, _) => Task.FromResult(new RecursiveScopeResult(
             CatalogReconciliationStatus.Succeeded, request.RootId, request.RelativeFolder ?? "",
             [FileEntry(root.RootId, "clip.mp4"), FileEntry(root.RootId, "Sub/deep.mp4")], null)));
         using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursive);
@@ -336,7 +336,7 @@ public sealed class BrowserNavigationTests
         var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, FileEntry(root.RootId, "clip.mp4"))));
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var recursive = new FakeRecursiveDiscovery(async (request, _, _, _) =>
+        var recursive = new FakeRecursiveDiscovery(async (request, _, _, _, _) =>
         {
             entered.SetResult();
             await release.Task;
@@ -368,7 +368,7 @@ public sealed class BrowserNavigationTests
         var folders = new FakeFolders((request, _) => Task.FromResult(Success(request)));
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var recursive = new FakeRecursiveDiscovery(async (request, _, _, _) =>
+        var recursive = new FakeRecursiveDiscovery(async (request, _, _, _, _) =>
         {
             if (request.RootId == folderA.RootId) { entered.SetResult(); await release.Task; }
             return new RecursiveScopeResult(CatalogReconciliationStatus.Succeeded, request.RootId,
@@ -387,27 +387,90 @@ public sealed class BrowserNavigationTests
         Assert.Equal(folderB.RootId, session.State.Location!.RootId);
     }
 
+    [Fact]
+    public async Task RecursiveScopeProgressChanged_FiresWithReportsFromTheActiveRecursiveWalk()
+    {
+        var root = Root("Library", @"C:\Library");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request)));
+        IProgress<RecursiveScopeProgress>? capturedProgress = null;
+        var recursive = new FakeRecursiveDiscovery((request, _, _, _, progress) =>
+        {
+            capturedProgress = progress;
+            return Task.FromResult(new RecursiveScopeResult(CatalogReconciliationStatus.Succeeded,
+                request.RootId, request.RelativeFolder ?? "", [], null));
+        });
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursive);
+        await session.NavigateToRootAsync(root.RootId);
+        var received = new List<RecursiveScopeProgress>();
+        session.RecursiveScopeProgressChanged += (_, progress) => received.Add(progress);
+
+        // The fake resolves synchronously, so report while it is still the in-flight (current) generation is
+        // only observable via the reporter itself, but this still proves the wiring: a progress instance was
+        // handed to the discovery service and reporting through it reaches the session's event.
+        await session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+        Assert.NotNull(capturedProgress);
+        capturedProgress!.Report(new(4, 2));
+
+        Assert.Contains(received, report => report.FoldersDiscovered == 4 && report.FoldersVisited == 2);
+    }
+
+    [Fact]
+    public async Task RecursiveScopeProgressChanged_ObsoleteWalkReportsNeverReachSubscribersAfterANewerRequestSupersedesIt()
+    {
+        var root = Root("Library", @"C:\Library");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request)));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        IProgress<RecursiveScopeProgress>? capturedProgress = null;
+        var recursive = new FakeRecursiveDiscovery(async (request, _, _, _, progress) =>
+        {
+            capturedProgress = progress;
+            entered.SetResult();
+            await release.Task;
+            return new RecursiveScopeResult(CatalogReconciliationStatus.Succeeded, request.RootId,
+                request.RelativeFolder ?? "", [], null);
+        });
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursive);
+        await session.NavigateToRootAsync(root.RootId);
+        var received = new List<RecursiveScopeProgress>();
+        session.RecursiveScopeProgressChanged += (_, progress) => received.Add(progress);
+
+        var obsolete = session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+        await entered.Task;
+        capturedProgress!.Report(new(2, 1)); // reported while this walk is still the current generation
+        var latest = await session.SetScopeModeAsync(BrowserScopeMode.DirectFolder); // supersedes it
+        capturedProgress!.Report(new(9, 9)); // reported after supersession — must never reach subscribers
+        release.SetResult();
+        await obsolete;
+
+        Assert.Equal(BrowserScopeMode.DirectFolder, latest!.Mode);
+        Assert.Contains(received, report => report is { FoldersDiscovered: 2, FoldersVisited: 1 });
+        Assert.DoesNotContain(received, report => report is { FoldersDiscovered: 9, FoldersVisited: 9 });
+    }
+
     private static BrowserNavigationSession Session(FakeRoots roots, FakeDiscovery discovery, FakeFolders folders,
         IRecursiveMediaDiscoveryService? recursiveDiscovery = null) =>
         new(roots, new BrowserLocationResolver(roots, new ExistingFileSystem()), discovery, folders, recursiveDiscovery);
 
     private sealed class FakeRecursiveDiscovery : IRecursiveMediaDiscoveryService
     {
-        private readonly Func<MediaFolderEnumerationRequest, DerivedWorkPriority, CancellationToken, CancellationToken, Task<RecursiveScopeResult>> _discover;
+        private readonly Func<MediaFolderEnumerationRequest, DerivedWorkPriority, CancellationToken, CancellationToken,
+            IProgress<RecursiveScopeProgress>?, Task<RecursiveScopeResult>> _discover;
 
         public FakeRecursiveDiscovery(
-            Func<MediaFolderEnumerationRequest, DerivedWorkPriority, CancellationToken, CancellationToken, Task<RecursiveScopeResult>>? discover = null) =>
-            _discover = discover ?? ((request, _, _, _) => Task.FromResult(new RecursiveScopeResult(
+            Func<MediaFolderEnumerationRequest, DerivedWorkPriority, CancellationToken, CancellationToken,
+                IProgress<RecursiveScopeProgress>?, Task<RecursiveScopeResult>>? discover = null) =>
+            _discover = discover ?? ((request, _, _, _, _) => Task.FromResult(new RecursiveScopeResult(
                 CatalogReconciliationStatus.Succeeded, request.RootId, request.RelativeFolder ?? "", [], null)));
 
         public List<MediaFolderEnumerationRequest> Requests { get; } = [];
 
         public Task<RecursiveScopeResult> DiscoverAsync(MediaFolderEnumerationRequest request,
             DerivedWorkPriority priority = DerivedWorkPriority.Background, CancellationToken enumerationToken = default,
-            CancellationToken derivedWorkToken = default)
+            CancellationToken derivedWorkToken = default, IProgress<RecursiveScopeProgress>? progress = null)
         {
             Requests.Add(request);
-            return _discover(request, priority, enumerationToken, derivedWorkToken);
+            return _discover(request, priority, enumerationToken, derivedWorkToken, progress);
         }
     }
 

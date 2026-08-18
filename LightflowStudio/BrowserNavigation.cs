@@ -51,6 +51,21 @@ internal sealed record BrowserFolderState(
 }
 
 /// <summary>
+/// A plain, synchronous <see cref="IProgress{T}"/> that invokes its callback directly on the reporting
+/// thread. Deliberately not <see cref="System.Progress{T}"/>, which posts to the <see cref="System.Threading.SynchronizationContext"/>
+/// captured at construction — asynchronously, via the thread pool, when none is present (as in a unit test or
+/// any call already off a UI-owning context) — making exactly when a report is observed non-deterministic.
+/// <see cref="BrowserNavigationSession"/> only needs the report to reach <see cref="BrowserNavigationSession.RaiseRecursiveScopeProgress"/>
+/// promptly and in order; callers that must marshal onward to a UI thread (see <c>MainWindow</c>) do so
+/// explicitly at the point they consume the resulting event, exactly like every other cross-thread signal in
+/// this codebase already does.
+/// </summary>
+internal sealed class SynchronousProgress<T>(Action<T> callback) : IProgress<T>
+{
+    public void Report(T value) => callback(value);
+}
+
+/// <summary>
 /// UI-independent filesystem-first navigation session. Absolute paths are resolved to stable logical roots
 /// before the existing authoritative discovery and contained enumeration services run.
 /// </summary>
@@ -81,6 +96,16 @@ internal sealed class BrowserNavigationSession(
     /// the mode never pushes a back-stack entry for the folder that was already open.
     /// </summary>
     public BrowserScopeMode ScopeMode => _scopeMode;
+
+    /// <summary>
+    /// #124: fires with the live <see cref="RecursiveScopeProgress"/> of the current recursive walk, while
+    /// one is in flight. Generation-gated exactly like <see cref="Commit"/>: a report from a walk that has
+    /// since been superseded (mode toggled again, a different folder opened, disposal) is silently dropped
+    /// rather than reaching subscribers, so obsolete progress can never update a caller's UI after a newer
+    /// request has taken over. Never raised in <see cref="BrowserScopeMode.DirectFolder"/>, since no recursive
+    /// walk ever runs there.
+    /// </summary>
+    public event EventHandler<RecursiveScopeProgress>? RecursiveScopeProgressChanged;
 
     public BrowserLocation? BackTarget
     {
@@ -253,9 +278,11 @@ internal sealed class BrowserNavigationSession(
 
             if (mode == BrowserScopeMode.IncludeSubfolders)
             {
+                var progressReporter = new SynchronousProgress<RecursiveScopeProgress>(
+                    reported => RaiseRecursiveScopeProgress(operation.Generation, reported));
                 var recursive = await _recursiveDiscovery.DiscoverAsync(
                     new(location.RootId, EmptyToNull(location.RelativeFolder)), DerivedWorkPriority.Visible,
-                    operation.Request.Token, operation.Request.Token).ConfigureAwait(false);
+                    operation.Request.Token, operation.Request.Token, progressReporter).ConfigureAwait(false);
                 operation.Request.Token.ThrowIfCancellationRequested();
                 if (!recursive.Succeeded)
                     return Commit(operation.Generation, location, kind, Map(recursive.Status), [],
@@ -354,6 +381,13 @@ internal sealed class BrowserNavigationSession(
             return new(State.Location, status, [], diagnostic, State.CanGoBack, State.CanGoForward, State.CanGoUp,
                 Mode: _scopeMode);
         }
+    }
+
+    /// <summary>Drops a progress report from any walk that is no longer the current generation before it can reach subscribers.</summary>
+    private void RaiseRecursiveScopeProgress(long generation, RecursiveScopeProgress progress)
+    {
+        lock (_sync) { if (_disposed || generation != _generation) return; }
+        RecursiveScopeProgressChanged?.Invoke(this, progress);
     }
 
     private static string? EmptyToNull(string value) => value.Length == 0 ? null : value;

@@ -66,12 +66,25 @@ internal sealed record RecursiveScopeResult(
     public bool Succeeded => Status == CatalogReconciliationStatus.Succeeded;
 }
 
+/// <summary>
+/// Honest, in-progress folder counts for one recursive walk: how many folders have been identified so far
+/// (<see cref="FoldersDiscovered"/> — the denominator, itself still growing as the walk proceeds) and how many
+/// of those have finished their own enumerate+reconcile pass (<see cref="FoldersVisited"/> — the numerator).
+/// <see cref="FoldersVisited"/> never exceeds <see cref="FoldersDiscovered"/>; both are monotonically
+/// increasing for a given walk. This is deliberately not a final total — a true total is unknowable without a
+/// separate traversal pass this service does not perform — so it represents "done vs. currently known", the
+/// same honest denominator a caller like <c>MainWindow</c> can present as determinate progress once it has
+/// enough data to be meaningful.
+/// </summary>
+internal readonly record struct RecursiveScopeProgress(int FoldersDiscovered, int FoldersVisited);
+
 internal interface IRecursiveMediaDiscoveryService
 {
     Task<RecursiveScopeResult> DiscoverAsync(MediaFolderEnumerationRequest baseRequest,
         DerivedWorkPriority priority = DerivedWorkPriority.Background,
         CancellationToken enumerationToken = default,
-        CancellationToken derivedWorkToken = default);
+        CancellationToken derivedWorkToken = default,
+        IProgress<RecursiveScopeProgress>? progress = null);
 }
 
 /// <summary>
@@ -92,7 +105,8 @@ internal sealed class RecursiveMediaDiscoveryService(
     public async Task<RecursiveScopeResult> DiscoverAsync(MediaFolderEnumerationRequest baseRequest,
         DerivedWorkPriority priority = DerivedWorkPriority.Background,
         CancellationToken enumerationToken = default,
-        CancellationToken derivedWorkToken = default)
+        CancellationToken derivedWorkToken = default,
+        IProgress<RecursiveScopeProgress>? progress = null)
     {
         var baseFolder = NormalizeFolder(baseRequest.RelativeFolder);
 
@@ -110,11 +124,13 @@ internal sealed class RecursiveMediaDiscoveryService(
         var state = new WalkState(Math.Max(1, maximumFolders));
         state.TryReserveFolder();
         state.AddFolder(baseListing, baseRefresh);
+        state.MarkVisited();
+        progress?.Report(state.Snapshot());
 
         using var gate = new SemaphoreSlim(Math.Max(1, maximumConcurrentFolders));
         var subfolders = baseListing.Entries.Where(entry => entry.IsDirectory).Select(entry => entry.RelativePath);
         await Task.WhenAll(subfolders.Select(subfolder =>
-                VisitAsync(baseRequest.RootId, subfolder, priority, gate, state, enumerationToken, derivedWorkToken)))
+                VisitAsync(baseRequest.RootId, subfolder, priority, gate, state, enumerationToken, derivedWorkToken, progress)))
             .ConfigureAwait(false);
 
         var diagnostic = CombineDiagnostics(state.Diagnostics);
@@ -141,10 +157,15 @@ internal sealed class RecursiveMediaDiscoveryService(
     /// recursive-specific branch.
     /// </summary>
     private async Task VisitAsync(Guid rootId, string relativeFolder, DerivedWorkPriority priority,
-        SemaphoreSlim gate, WalkState state, CancellationToken enumerationToken, CancellationToken derivedWorkToken)
+        SemaphoreSlim gate, WalkState state, CancellationToken enumerationToken, CancellationToken derivedWorkToken,
+        IProgress<RecursiveScopeProgress>? progress)
     {
         enumerationToken.ThrowIfCancellationRequested();
         if (!state.TryReserveFolder()) return;
+        // Reserving this folder just grew the known denominator (FoldersDiscovered) even before it has been
+        // visited — report promptly so a caller's determinate progress reflects newly discovered folders as
+        // soon as they are known, not only when folders finish.
+        progress?.Report(state.Snapshot());
 
         MediaFolderEnumerationResult listing;
         MediaDiscoveryRefreshResult refresh;
@@ -160,7 +181,18 @@ internal sealed class RecursiveMediaDiscoveryService(
             refresh = await discovery.RefreshAsync(new(rootId, relativeFolder), priority, enumerationToken,
                 derivedWorkToken).ConfigureAwait(false);
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+            // Runs on every exit from the try above, including a thrown cancellation: if this folder's
+            // attempt was actually canceled, the whole walk is unwinding anyway (see the class doc — real
+            // cancellation propagates out of DiscoverAsync entirely rather than being caught here), so no
+            // caller ever observes this last, technically-premature "visited" report before the operation
+            // aborts. On an ordinary (non-canceled) exit — success or a recorded per-folder failure above —
+            // this correctly counts the folder's own enumerate+reconcile attempt as done.
+            state.MarkVisited();
+            progress?.Report(state.Snapshot());
+        }
 
         if (!refresh.Reconciliation.Succeeded)
         {
@@ -172,7 +204,7 @@ internal sealed class RecursiveMediaDiscoveryService(
 
         var subfolders = listing.Entries.Where(entry => entry.IsDirectory).Select(entry => entry.RelativePath);
         await Task.WhenAll(subfolders.Select(subfolder =>
-                VisitAsync(rootId, subfolder, priority, gate, state, enumerationToken, derivedWorkToken)))
+                VisitAsync(rootId, subfolder, priority, gate, state, enumerationToken, derivedWorkToken, progress)))
             .ConfigureAwait(false);
     }
 
@@ -205,6 +237,7 @@ internal sealed class RecursiveMediaDiscoveryService(
         private readonly List<string> _diagnostics = [];
         private int _unsupportedCount;
         private int _reservedFolders;
+        private int _visitedFolders;
         private bool _truncated;
 
         public IReadOnlyList<MediaFolderEntry> MediaEntries { get { lock (_sync) return _mediaEntries.ToArray(); } }
@@ -212,6 +245,12 @@ internal sealed class RecursiveMediaDiscoveryService(
         public IReadOnlyList<IDerivedWorkBatch> DerivedWorkBatches { get { lock (_sync) return _derivedWorkBatches.ToArray(); } }
         public IReadOnlyList<string> Diagnostics { get { lock (_sync) return _diagnostics.ToArray(); } }
         public int UnsupportedCount { get { lock (_sync) return _unsupportedCount; } }
+
+        /// <summary>Marks one reserved folder's own enumerate+reconcile attempt as finished (success or a recorded per-folder failure).</summary>
+        public void MarkVisited() { lock (_sync) _visitedFolders++; }
+
+        /// <summary>A consistent, same-instant snapshot of both progress counters — see <see cref="RecursiveScopeProgress"/>.</summary>
+        public RecursiveScopeProgress Snapshot() { lock (_sync) return new(_reservedFolders, _visitedFolders); }
 
         /// <summary>
         /// Reserves one slot toward the safety cap on total visited folders. Once the cap is reached, further

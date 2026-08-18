@@ -85,6 +85,7 @@ public partial class MainWindow : Window
         _storageDiagnostic = storageDiagnostic;
         _browserNavigation = new BrowserNavigationSession(storage.MediaRoots, storage.BrowserLocations,
             storage.MediaDiscovery, storage.MediaFolders, storage.RecursiveMediaDiscovery);
+        _browserNavigation.RecursiveScopeProgressChanged += BrowserNavigation_RecursiveScopeProgressChanged;
         _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
@@ -181,6 +182,7 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
+            _browserNavigation.RecursiveScopeProgressChanged -= BrowserNavigation_RecursiveScopeProgressChanged;
             _workspaceSaveTimer.Stop();
             _browserSearchDebounceTimer.Stop();
             _browserMetadataResortTimer.Stop();
@@ -234,7 +236,20 @@ public partial class MainWindow : Window
         BrowserLoadingText.Text = label is null ? "Restoring your last location…" : $"Loading {label}…";
         if (!string.IsNullOrWhiteSpace(saved.LastResolvedAbsolutePath)) BrowserCurrentPath.Text = saved.LastResolvedAbsolutePath;
         BrowserEmptyState.Visibility = Visibility.Collapsed;
+        ResetBrowserLoadingProgress();
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// #124: begins every loading sequence indeterminate — "begin indeterminate, transition to determinate
+    /// only once the traversal naturally knows enough" — regardless of whether this turns out to be a direct
+    /// or recursive load, or an ordinary navigation vs. workspace restoration. Never called mid-load; only at
+    /// the point a new loading sequence starts, before anything about its actual progress is known.
+    /// </summary>
+    private void ResetBrowserLoadingProgress()
+    {
+        BrowserLoadingProgressBar.IsIndeterminate = true;
+        BrowserLoadingProgressBar.Value = 0;
     }
 
     /// <summary>Restores the default, honest "no location open" Browser state, e.g. when restoration resolves nothing to show.</summary>
@@ -366,6 +381,7 @@ public partial class MainWindow : Window
 
     private async void BrowserFolderTreeItem_Expanded(object sender, RoutedEventArgs e)
     {
+        SyncBrowserScopeOutline();
         if (_synchronizingBrowserTree || (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node ||
             node.IsPlaceholder || !node.Children.Any(child => child.IsPlaceholder)) return;
         RequestBrowserTreeSelection(node);
@@ -374,6 +390,13 @@ public partial class MainWindow : Window
         else if (!string.IsNullOrWhiteSpace(node.AbsolutePath))
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(node.AbsolutePath));
     }
+
+    /// <summary>
+    /// #124: collapsing a node never changes scope/selection by itself (unlike Expanded above, which can
+    /// trigger navigation for a not-yet-loaded child), but it can shrink the visible extent of the active
+    /// recursive-scope outline, so the outline is resynchronized here too.
+    /// </summary>
+    private void BrowserFolderTreeItem_Collapsed(object sender, RoutedEventArgs e) => SyncBrowserScopeOutline();
 
     private void RequestBrowserTreeSelection(BrowserTreeNode node)
     {
@@ -463,8 +486,55 @@ public partial class MainWindow : Window
         }
 
         if (generation == _browserUiGeneration && _browserTree.SelectedNode is { } selected)
+        {
             BringBrowserTreeNodeIntoView(selected);
+            SyncBrowserScopeOutline();
+        }
     }
+
+    /// <summary>
+    /// #124: positions/shows the continuous recursive-scope outline spanning the selected base folder's row
+    /// through <see cref="BrowserTreeModel.LastVisibleDescendant"/>'s row, or hides it entirely outside
+    /// recursive mode. This is a pure presentation overlay derived from already-expanded tree state — scope
+    /// membership is never encoded as <c>IsSelected</c> and selection itself is never touched here, so exactly
+    /// one row remains individually selected regardless of how large the outlined group is. Deferred to
+    /// <see cref="DispatcherPriority.Loaded"/>, matching <see cref="BringBrowserTreeNodeIntoView"/>, so
+    /// container lookup runs after WPF has actually generated/measured containers for whatever just changed
+    /// (a fresh selection, a newly materialized ancestor, an expand/collapse) rather than racing it.
+    /// </summary>
+    private void SyncBrowserScopeOutline() => _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+    {
+        if (_browserNavigation.ScopeMode != BrowserScopeMode.IncludeSubfolders || _browserTree.SelectedNode is not { } selected)
+        {
+            BrowserScopeOutline.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var topContainer = FindBrowserTreeItem(BrowserFolderTree, selected);
+        var bottomNode = BrowserTreeModel.LastVisibleDescendant(selected);
+        var bottomContainer = ReferenceEquals(bottomNode, selected)
+            ? topContainer
+            : FindBrowserTreeItem(BrowserFolderTree, bottomNode);
+        if (topContainer is null || bottomContainer is null)
+        {
+            BrowserScopeOutline.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var top = topContainer.TranslatePoint(new System.Windows.Point(0, 0), BrowserFolderTree).Y;
+        var bottom = bottomContainer.TranslatePoint(new System.Windows.Point(0, 0), BrowserFolderTree).Y +
+            bottomContainer.ActualHeight;
+        if (bottom <= top)
+        {
+            // Containers exist but have not been measured yet (zero height) — nothing meaningful to draw yet.
+            BrowserScopeOutline.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        BrowserScopeOutline.Margin = new Thickness(0, top, 0, 0);
+        BrowserScopeOutline.Height = bottom - top;
+        BrowserScopeOutline.Visibility = Visibility.Visible;
+    });
 
     private static string? RelativeFolderUnderRoot(string rootPath, string absolutePath) =>
         string.Equals(MediaPathSemantics.NormalizeRootPath(rootPath), MediaPathSemantics.NormalizeRootPath(absolutePath),
@@ -581,6 +651,7 @@ public partial class MainWindow : Window
         var generation = ++_browserUiGeneration;
         BrowserLoadingText.Text = (scopeModeOverride ?? _browserNavigation.ScopeMode) == BrowserScopeMode.IncludeSubfolders
             ? "Scanning folder and subfolders…" : "Loading folder…";
+        ResetBrowserLoadingProgress();
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
         try
         {
@@ -605,6 +676,32 @@ public partial class MainWindow : Window
             if (generation == _browserUiGeneration)
                 BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
         }
+    }
+
+    /// <summary>
+    /// #124: <see cref="BrowserNavigationSession.RecursiveScopeProgressChanged"/> is generation-gated at the
+    /// source — a report from a superseded recursive walk (mode toggled off, a different folder opened, the
+    /// session disposed) never reaches this handler at all — so no additional staleness check is needed here;
+    /// this only ever applies progress for whichever recursive walk is still actually current. Marshaled onto
+    /// the UI thread like every other cross-thread signal in this file, since the event can fire from a
+    /// background/thread-pool continuation inside the recursive walk.
+    /// </summary>
+    private void BrowserNavigation_RecursiveScopeProgressChanged(object? sender, RecursiveScopeProgress progress) =>
+        Dispatcher.BeginInvoke(() => ApplyRecursiveScopeLoadingProgress(progress));
+
+    /// <summary>
+    /// Applies one live recursive-walk progress report to the shared loading progress bar. Stays indeterminate
+    /// until <see cref="RecursiveScopeProgress.FoldersDiscovered"/> grows past the trivial single-folder case,
+    /// so a small recursive scope (nothing left to discover beyond the base folder) never flashes a
+    /// near-instant, uninformative "1 of 1" determinate bar before the overlay disappears. Never fabricates a
+    /// percentage: both values come directly from the service-layer walk, never counted here.
+    /// </summary>
+    private void ApplyRecursiveScopeLoadingProgress(RecursiveScopeProgress progress)
+    {
+        if (progress.FoldersDiscovered < 2) { BrowserLoadingProgressBar.IsIndeterminate = true; return; }
+        BrowserLoadingProgressBar.IsIndeterminate = false;
+        BrowserLoadingProgressBar.Maximum = progress.FoldersDiscovered;
+        BrowserLoadingProgressBar.Value = Math.Min(progress.FoldersVisited, progress.FoldersDiscovered);
     }
 
     private void ApplyBrowserState(BrowserFolderState state)
@@ -649,6 +746,7 @@ public partial class MainWindow : Window
         BrowserQueryToolbar.IsEnabled = state.Location is not null;
         BrowserIncludeSubfoldersButton.IsEnabled = state.Location is not null;
         SyncBrowserScopeToggle();
+        SyncBrowserScopeOutline();
         var presentableCount = _browserGrid.TotalCount;
         BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready && presentableCount > 0
             ? Visibility.Collapsed : Visibility.Visible;
@@ -694,6 +792,7 @@ public partial class MainWindow : Window
     {
         RestoreLoadedBrowserSelection();
         SyncBrowserScopeToggle();
+        SyncBrowserScopeOutline();
         BrowserEmptyTitle.Text = failure.Status switch
         {
             BrowserFolderStatus.RootUnavailable => "Media Root unavailable",

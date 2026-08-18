@@ -346,6 +346,66 @@ public sealed class BrowserTreeTests
         Assert.Single(Descendants(model.Roots), node => node.IsSelected);
     }
 
+    [Fact]
+    public void LastVisibleDescendant_ReturnsTheNodeItselfWhenCollapsed()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "", Directory(rootId, "A")));
+        var a = Find(model, @"C:\A")!;
+        model.ApplyDirectoryListing(a, @"C:\", [Directory(rootId, "A/Child")]);
+        a.IsExpanded = false;
+
+        Assert.Same(a, BrowserTreeModel.LastVisibleDescendant(a));
+    }
+
+    [Fact]
+    public void LastVisibleDescendant_FollowsTheLastChildRecursivelyThroughEveryExpandedLevel()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "", Directory(rootId, "A")));
+        var a = Find(model, @"C:\A")!;
+        a.IsExpanded = true;
+        model.ApplyDirectoryListing(a, @"C:\", [Directory(rootId, "A/One"), Directory(rootId, "A/Two")]);
+        var two = Find(model, @"C:\A\Two")!;
+        two.IsExpanded = true;
+        model.ApplyDirectoryListing(two, @"C:\", [Directory(rootId, "A/Two/Deep")]);
+        var deep = Find(model, @"C:\A\Two\Deep")!;
+
+        Assert.Same(deep, BrowserTreeModel.LastVisibleDescendant(a));
+    }
+
+    [Fact]
+    public void LastVisibleDescendant_StopsAtACollapsedChildRatherThanDescendingIntoItsHiddenRows()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "", Directory(rootId, "A")));
+        var a = Find(model, @"C:\A")!;
+        a.IsExpanded = true;
+        model.ApplyDirectoryListing(a, @"C:\", [Directory(rootId, "A/Only")]);
+        var only = Find(model, @"C:\A\Only")!;
+        // Materialized (so real children exist) but collapsed — its own descendants must not be visited.
+        model.ApplyDirectoryListing(only, @"C:\", [Directory(rootId, "A/Only/Hidden")]);
+        only.IsExpanded = false;
+
+        Assert.Same(only, BrowserTreeModel.LastVisibleDescendant(a));
+    }
+
+    [Fact]
+    public void LastVisibleDescendant_TreatsAnUnmaterializedPlaceholderAsNoRealChildren()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        // A freshly-discovered folder gets a lazy-load placeholder child even before it is ever expanded.
+        model.Synchronize(State(rootId, "", Directory(rootId, "A")));
+        var a = Find(model, @"C:\A")!;
+        a.IsExpanded = true; // expanded, but its only child is still the unmaterialized placeholder stub
+
+        Assert.Same(a, BrowserTreeModel.LastVisibleDescendant(a));
+    }
+
     private static BrowserTreeModel Model(Guid rootId)
     {
         var model = new BrowserTreeModel();

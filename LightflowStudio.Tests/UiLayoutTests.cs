@@ -166,36 +166,71 @@ public class UiLayoutTests
         var toolbarGrid = Named(document, "BrowserRefreshButton").Parent!;
         Assert.Contains(toolbarGrid.Elements(ns + "TextBox"), element =>
             (string?)element.Attribute(xNamespace + "Name") == "BrowserCurrentPath");
-        // #124: 5, not 4 — Include Subfolders added one more Auto column between Go and Refresh.
-        Assert.Equal(5, toolbarGrid.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").Count());
+        // #124: Include Subfolders lives in the media toolbar (BrowserQueryToolbar), not here — see
+        // IncludeSubfoldersToggle_LivesInTheMediaToolbarImmediatelyBeforeTheMediaTypeControls.
+        Assert.Equal(4, toolbarGrid.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").Count());
 
         Assert.Equal("28,16,28,24", (string?)shell.Root.Elements(shell.Root.Name.Namespace + "Thickness")
             .Single(thickness => (string?)thickness.Attribute(xNamespace + "Key") == "ShellWorkspacePadding"));
     }
 
     [Fact]
-    public void IncludeSubfoldersToggle_LivesInTheFolderNavigationBarNotTheQueryToolbarOrAsANewRow()
+    public void IncludeSubfoldersToggle_LivesInTheMediaToolbarImmediatelyBeforeTheMediaTypeControls()
     {
-        // #124: placement communicates scope, not filtering — the control belongs beside Back/Forward/Up/
-        // Refresh, not inside #109's BrowserQueryToolbar, and must not introduce an additional toolbar row.
+        // #124 (revised): scope narrows the candidate set first, so Include Subfolders now sits in the media
+        // toolbar immediately before All/Images/RAW/Video, reading left-to-right as
+        // Include Subfolders -> media type -> Search -> Filter -> Sort. It must not live in the folder
+        // navigation bar, must not introduce a new toolbar row, and must not become (or merge visually into)
+        // the segmented media-type control.
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
         var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var toggle = Named(document, "BrowserIncludeSubfoldersButton");
+        var queryToolbar = Named(document, "BrowserQueryToolbar");
+        var mediaTypeSegments = Named(document, "BrowserQuickFilterSegments");
+        var searchBox = Named(document, "BrowserSearchBox");
+        var filterButton = Named(document, "BrowserFilterButton");
+        var sortCombo = Named(document, "BrowserSortCombo");
 
         Assert.Equal(ns + "ToggleButton", toggle.Name);
-        Assert.Same(toggle.Parent, Named(document, "BrowserRefreshButton").Parent);
-        Assert.Same(toggle.Parent, Named(document, "BrowserGoButton").Parent);
-        var queryToolbar = Named(document, "BrowserQueryToolbar");
-        Assert.DoesNotContain(queryToolbar.Descendants(), element =>
+        Assert.Contains(toggle.Ancestors(), ancestor => ancestor == queryToolbar);
+        Assert.DoesNotContain(toggle.Ancestors(), ancestor => ancestor == Named(document, "BrowserGoButton").Parent);
+
+        // Reading order: toggle, then media-type segments, then search, then filter, then sort — using the
+        // shared toolbar Grid's direct-child declaration order (WPF renders Grid children by Grid.Column,
+        // and declaration order here matches that column order exactly).
+        var toolbarRow = toggle.Parent!;
+        var mediaTypeChip = mediaTypeSegments.Parent!;
+        var searchChip = searchBox.Ancestors().First(ancestor => ancestor.Parent == toolbarRow);
+        var sortChip = sortCombo.Ancestors().First(ancestor => ancestor.Parent == toolbarRow);
+        var siblings = toolbarRow.Elements().ToList();
+        int IndexOf(XElement element) => siblings.IndexOf(element);
+        Assert.True(IndexOf(toggle) < IndexOf(mediaTypeChip));
+        Assert.True(IndexOf(mediaTypeChip) < IndexOf(searchChip));
+        Assert.True(IndexOf(searchChip) < IndexOf(filterButton));
+        Assert.True(IndexOf(filterButton) < IndexOf(sortChip));
+
+        // Visually distinct from, not merged into, the segmented All/Images/RAW/Video group.
+        Assert.NotSame(toggle.Parent, mediaTypeSegments);
+        Assert.DoesNotContain(mediaTypeSegments.Elements(ns + "ToggleButton"), element =>
             (string?)element.Attribute(xNamespace + "Name") == "BrowserIncludeSubfoldersButton");
 
         Assert.Equal("BrowserIncludeSubfoldersButton_Click", (string?)toggle.Attribute("Click"));
         Assert.Equal("Include Subfolders", (string?)toggle.Attribute("AutomationProperties.Name"));
         Assert.False((bool?)toggle.Attribute("IsEnabled") ?? true, "The toggle must start disabled until a location is open, like Refresh.");
 
-        // Its own style, not #109's Filter ▾ chip style — so it never reads as a filter facet.
+        // Its own style — not #109's Filter ▾ chip style, and not the segmented group's style — so it never
+        // reads as a filter facet or as one of the media-type segments.
         Assert.Equal("{StaticResource BrowserScopeToggleButtonStyle}", (string?)toggle.Attribute("Style"));
+
+        // Composed entirely from the already-verified folder glyph (U+E8B7, the same one the Locations
+        // tree already renders) rather than a new/unverified "hierarchy" codepoint or an image asset.
+        var scopeStyle = document.Descendants(ns + "Style")
+            .Single(style => (string?)style.Attribute(xNamespace + "Key") == "BrowserScopeToggleButtonStyle");
+        var iconGlyphs = scopeStyle.Descendants(ns + "TextBlock")
+            .Where(block => (string?)block.Attribute("Text") is { Length: 1 } text && text[0] == '\uE8B7').ToArray();
+        Assert.Equal(2, iconGlyphs.Length);
+        Assert.Contains(scopeStyle.Descendants(ns + "TextBlock"), block => (string?)block.Attribute("Text") == "Subfolders");
     }
 
     [Fact]
@@ -231,7 +266,11 @@ public class UiLayoutTests
             attribute.Name.LocalName == "ScrollViewer.HorizontalScrollBarVisibility").Value);
         Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
             attribute.Name.LocalName == "ScrollViewer.VerticalScrollBarVisibility").Value);
-        Assert.Equal(scroller, tree.Parent);
+        // #124: the TreeView's direct parent is now a plain Grid (holding the tree plus the recursive-scope
+        // outline overlay as a sibling), and that Grid is the ScrollViewer's single content child — so the
+        // whole group still scrolls as one unit with no manual scroll-offset math for the overlay.
+        Assert.Equal(ns + "Grid", tree.Parent!.Name);
+        Assert.Equal(scroller, tree.Parent!.Parent);
 
         var appNs = app.Root!.Name.Namespace;
         var horizontalTrigger = app.Descendants(appNs + "Trigger").Single(trigger =>
@@ -331,6 +370,38 @@ public class UiLayoutTests
         var applyStart = source.IndexOf("private void ApplyBrowserState", runStart, StringComparison.Ordinal);
         var runBody = source[runStart..applyStart];
         Assert.DoesNotContain("_browserGrid.Populate", runBody);
+    }
+
+    [Fact]
+    public void BrowserScopeOutline_IsAHitTestInvisibleSiblingOfTheTreeCollapsedByDefaultUsingTheFocusAccent()
+    {
+        // #124: the outline lives inside the same scrolled content as the tree (a sibling in the wrapping
+        // Grid) rather than as a separate overlay on top of the ScrollViewer, so it scrolls in lockstep with
+        // the rows it outlines and is clipped to the viewport for free.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var tree = Named(document, "BrowserFolderTree");
+        var outline = Named(document, "BrowserScopeOutline");
+
+        Assert.Equal(ns + "Border", outline.Name);
+        Assert.Same(tree.Parent, outline.Parent);
+        Assert.Equal("False", (string?)outline.Attribute("IsHitTestVisible"));
+        Assert.Equal("Collapsed", (string?)outline.Attribute("Visibility"));
+        Assert.Equal("Transparent", (string?)outline.Attribute("Background"));
+        Assert.Equal("{StaticResource ShellFocusBrush}", (string?)outline.Attribute("BorderBrush"));
+        Assert.False(string.IsNullOrWhiteSpace((string?)outline.Attribute(xNamespace + "Name")));
+
+        // A Collapsed EventSetter exists alongside the pre-existing Expanded one, so the outline stays in
+        // sync when a visible descendant branch is collapsed, not just when one is expanded.
+        var itemStyle = tree.Descendants(ns + "Style")
+            .Single(style => (string?)style.Attribute("TargetType") == "TreeViewItem");
+        Assert.Contains(itemStyle.Elements(ns + "EventSetter"), setter =>
+            (string?)setter.Attribute("Event") == "Expanded" &&
+            (string?)setter.Attribute("Handler") == "BrowserFolderTreeItem_Expanded");
+        Assert.Contains(itemStyle.Elements(ns + "EventSetter"), setter =>
+            (string?)setter.Attribute("Event") == "Collapsed" &&
+            (string?)setter.Attribute("Handler") == "BrowserFolderTreeItem_Collapsed");
     }
 
     [Fact]

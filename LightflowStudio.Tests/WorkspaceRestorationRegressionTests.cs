@@ -163,11 +163,15 @@ public sealed class WorkspaceRestorationRegressionTests
         var methodStart = source.IndexOf("private async Task RunBrowserNavigationAsync", StringComparison.Ordinal);
         var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
         var body = source[methodStart..methodEnd];
-        var textReset = body.IndexOf("BrowserLoadingText.Text = \"Loading folder…\";", StringComparison.Ordinal);
+        // #124: the label is scope-mode-aware (a plain "Loading folder…" assignment is now a ternary that
+        // also covers recursive scanning), so this only asserts the reset still happens before the overlay
+        // is shown, and that the original direct-mode text still exists somewhere in that assignment.
+        var textReset = body.IndexOf("BrowserLoadingText.Text =", StringComparison.Ordinal);
         var overlayShown = body.IndexOf("BrowserLoadingOverlay.Visibility = Visibility.Visible;", StringComparison.Ordinal);
 
         Assert.True(textReset >= 0 && overlayShown > textReset,
-            "Ordinary navigation must reset the loading label to its generic text before showing the overlay.");
+            "Ordinary navigation must reset the loading label before showing the overlay.");
+        Assert.Contains("\"Loading folder…\"", body);
     }
 
     [Fact]

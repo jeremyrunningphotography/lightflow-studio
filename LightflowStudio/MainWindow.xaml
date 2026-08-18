@@ -47,6 +47,39 @@
    </Setter>
   </Style>
 
+  <!-- #124: Include Subfolders lives in the folder-navigation bar (with Back/Forward/Up/Refresh), not the
+       #109 query toolbar below it — placement alone signals "this changes what folder scope you're
+       browsing", not "this filters what's shown". The icon+short-label chrome is deliberately its own style
+       rather than reusing BrowserToolbarToggleButtonStyle (Filter ▾'s chip), so it never reads as a filter
+       facet even though both share the restrained checked-state accent already used throughout the Browser. -->
+  <Style x:Key="BrowserScopeToggleButtonStyle" TargetType="ToggleButton">
+   <Setter Property="Padding" Value="10,7"/>
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+   <Setter Property="FontSize" Value="12"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ToggleButton">
+      <Border x:Name="Chrome" Background="Transparent" BorderBrush="{StaticResource ShellDividerBrush}"
+       BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
+       <StackPanel Orientation="Horizontal">
+        <TextBlock VerticalAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Text="&#xE8B7;"/>
+        <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="Subfolders"/>
+       </StackPanel>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger>
+       <Trigger Property="IsChecked" Value="True">
+        <Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/>
+        <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+
   <!-- One segment of the All/Images/RAW/Video group. Segments share one BrowserToolbarChipStyle outer
        Border (which clips their square corners into its own rounded shape) and divide with a thin right
        border rather than each carrying its own chip chrome, so the four read as one control. -->
@@ -261,7 +294,7 @@
        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
        <Border Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>
-         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
          <StackPanel Orientation="Horizontal">
           <Button x:Name="BrowserBackButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Back" AutomationProperties.Name="Back" Click="BrowserBack_Click" Content="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
           <Button x:Name="BrowserForwardButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Forward" AutomationProperties.Name="Forward" Click="BrowserForward_Click" Content="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
@@ -269,7 +302,13 @@
          </StackPanel>
          <TextBox Grid.Column="1" x:Name="BrowserCurrentPath" Margin="14,0,6,0" VerticalAlignment="Center" Text="" ToolTip="Type a local, mapped, or network folder path" AutomationProperties.Name="Current folder path" KeyDown="BrowserCurrentPath_KeyDown"/>
          <Button Grid.Column="2" x:Name="BrowserGoButton" Padding="12,7" Content="Go" ToolTip="Open the entered folder" AutomationProperties.Name="Open folder path" Click="BrowserGo_Click"/>
-         <Button Grid.Column="3" x:Name="BrowserRefreshButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Refresh current folder" AutomationProperties.Name="Refresh current folder" Click="BrowserRefresh_Click" Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+         <!-- #124: a scope control, not a query control — see BrowserScopeToggleButtonStyle. Margin separates
+              it from Go/Refresh so it doesn't read as part of that action-button cluster. -->
+         <ToggleButton Grid.Column="3" x:Name="BrowserIncludeSubfoldersButton" Margin="8,0,0,0"
+          Style="{StaticResource BrowserScopeToggleButtonStyle}" IsEnabled="False"
+          ToolTip="Include Subfolders — browse this folder and every descendant folder as one media set"
+          AutomationProperties.Name="Include Subfolders" Click="BrowserIncludeSubfoldersButton_Click"/>
+         <Button Grid.Column="4" x:Name="BrowserRefreshButton" Width="38" Padding="0,7" Margin="8,0,0,0" IsEnabled="False" ToolTip="Refresh current folder" AutomationProperties.Name="Refresh current folder" Click="BrowserRefresh_Click" Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
         </Grid>
        </Border>
        <!--

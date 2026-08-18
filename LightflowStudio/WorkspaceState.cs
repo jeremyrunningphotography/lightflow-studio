@@ -13,6 +13,14 @@ internal sealed record WorkspaceBrowserLocationState
     public Guid RootId { get; init; }
     public string RelativeFolder { get; init; } = "";
     public string? LastResolvedAbsolutePath { get; init; }
+
+    /// <summary>
+    /// #124: whether Include Subfolders was active for this remembered location. Browser workspace scope
+    /// state, not BrowserQuery/Catalog/Preview state — see BrowserScopeMode. Missing/legacy documents (an
+    /// older build's saved state, or a document predating #124) deserialize this as false, so restoration
+    /// always defaults to direct-folder mode rather than silently reviving a recursive view.
+    /// </summary>
+    public bool IncludeSubfolders { get; init; }
 }
 
 /// <summary>Desktop window bounds. <see cref="Width"/>/<see cref="Height"/>/<see cref="Left"/>/<see cref="Top"/> are always the restored (non-maximized, non-minimized) bounds.</summary>
@@ -174,14 +182,16 @@ internal sealed class WorkspaceStateService
 
     public WorkspaceState Current => _current;
 
-    public void SetBrowserLocation(Guid rootId, string relativeFolder, string? lastResolvedAbsolutePath) =>
+    public void SetBrowserLocation(Guid rootId, string relativeFolder, string? lastResolvedAbsolutePath,
+        bool includeSubfolders) =>
         _current = _current with
         {
             Browser = new WorkspaceBrowserLocationState
             {
                 RootId = rootId,
                 RelativeFolder = relativeFolder,
-                LastResolvedAbsolutePath = lastResolvedAbsolutePath
+                LastResolvedAbsolutePath = lastResolvedAbsolutePath,
+                IncludeSubfolders = includeSubfolders
             }
         };
 

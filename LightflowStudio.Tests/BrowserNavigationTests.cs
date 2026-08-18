@@ -244,8 +244,172 @@ public sealed class BrowserNavigationTests
         Assert.Equal(loaded, session.State);
     }
 
-    private static BrowserNavigationSession Session(FakeRoots roots, FakeDiscovery discovery, FakeFolders folders) =>
-        new(roots, new BrowserLocationResolver(roots, new ExistingFileSystem()), discovery, folders);
+    [Fact]
+    public void DefaultScopeModeIsDirectFolder()
+    {
+        using var session = Session(new FakeRoots(), new FakeDiscovery(), EmptyFolders());
+        Assert.Equal(BrowserScopeMode.DirectFolder, session.ScopeMode);
+    }
+
+    [Fact]
+    public async Task SetScopeModeAsync_WithNoLocationOpenOnlySetsTheFieldWithoutNavigating()
+    {
+        var discovery = new FakeDiscovery();
+        var folders = EmptyFolders();
+        using var session = Session(new FakeRoots(), discovery, folders);
+
+        var state = await session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+
+        Assert.Equal(BrowserScopeMode.IncludeSubfolders, session.ScopeMode);
+        Assert.Empty(discovery.Requests);
+        Assert.Empty(folders.Requests);
+        Assert.Same(session.State, state);
+    }
+
+    [Fact]
+    public async Task SetScopeModeAsync_UnchangedModeIsANoOpAndDoesNotReload()
+    {
+        var root = Root("Library", @"C:\Library");
+        var discovery = new FakeDiscovery();
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, FileEntry(root.RootId, "clip.mp4"))));
+        using var session = Session(new FakeRoots(root), discovery, folders);
+        await session.NavigateToRootAsync(root.RootId);
+        var requestsBefore = folders.Requests.Count;
+
+        var state = await session.SetScopeModeAsync(BrowserScopeMode.DirectFolder);
+
+        Assert.Equal(requestsBefore, folders.Requests.Count);
+        Assert.Same(session.State, state);
+    }
+
+    [Fact]
+    public async Task SetScopeModeAsync_ReloadsTheOpenFolderThroughRecursiveDiscoveryAndPopulatesRecursiveMediaEntries()
+    {
+        var root = Root("Library", @"C:\Library");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, DirectoryEntry(root.RootId, "Sub"))));
+        var recursive = new FakeRecursiveDiscovery((request, _, _, _) => Task.FromResult(new RecursiveScopeResult(
+            CatalogReconciliationStatus.Succeeded, request.RootId, request.RelativeFolder ?? "",
+            [FileEntry(root.RootId, "clip.mp4"), FileEntry(root.RootId, "Sub/deep.mp4")], null)));
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursive);
+        await session.NavigateToRootAsync(root.RootId);
+
+        var state = await session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+
+        Assert.Equal(BrowserScopeMode.IncludeSubfolders, state!.Mode);
+        Assert.NotNull(state.RecursiveMediaEntries);
+        Assert.Equal(2, state.RecursiveMediaEntries!.Count);
+        // The direct-child folder listing (Entries) is unaffected — the Locations tree still shows "Sub".
+        Assert.Contains(state.Entries, entry => entry.IsDirectory && entry.Name == "Sub");
+    }
+
+    [Fact]
+    public async Task DirectMode_RecursiveMediaEntriesIsAlwaysNull()
+    {
+        var root = Root("Library", @"C:\Library");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, FileEntry(root.RootId, "clip.mp4"))));
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders);
+
+        var result = await session.NavigateToRootAsync(root.RootId);
+
+        Assert.Equal(BrowserScopeMode.DirectFolder, result!.Mode);
+        Assert.Null(result.RecursiveMediaEntries);
+    }
+
+    [Fact]
+    public async Task SetScopeModeAsync_DoesNotPushABackStackEntryForTheFolderThatWasAlreadyOpen()
+    {
+        var root = Root("Library", @"C:\Library");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, FileEntry(root.RootId, "clip.mp4"))));
+        var recursive = new FakeRecursiveDiscovery();
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursive);
+        await session.NavigateToRootAsync(root.RootId);
+
+        await session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+
+        Assert.Null(session.BackTarget);
+    }
+
+    [Fact]
+    public async Task RecursiveScope_ObsoleteSlowRecursiveWalkNeverOverwritesANewerDirectModeToggle()
+    {
+        var root = Root("Library", @"C:\Library");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, FileEntry(root.RootId, "clip.mp4"))));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recursive = new FakeRecursiveDiscovery(async (request, _, _, _) =>
+        {
+            entered.SetResult();
+            await release.Task;
+            return new RecursiveScopeResult(CatalogReconciliationStatus.Succeeded, request.RootId,
+                request.RelativeFolder ?? "", [FileEntry(root.RootId, "recursive-only.mp4")], null);
+        });
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursive);
+        await session.NavigateToRootAsync(root.RootId);
+
+        var obsolete = session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+        await entered.Task;
+        // Turning recursion back off before the slow recursive walk finishes must win promptly rather than
+        // waiting for the obsolete recursive work — the same generation/cancellation guarantee every other
+        // rapid-navigation scenario already relies on.
+        var latest = await session.SetScopeModeAsync(BrowserScopeMode.DirectFolder);
+        release.SetResult();
+
+        Assert.Null(await obsolete);
+        Assert.Equal(BrowserScopeMode.DirectFolder, latest!.Mode);
+        Assert.Null(latest.RecursiveMediaEntries);
+        Assert.Equal(BrowserScopeMode.DirectFolder, session.ScopeMode);
+    }
+
+    [Fact]
+    public async Task RecursiveScope_NavigatingToADifferentFolderCancelsAnObsoleteRecursiveWalkOfThePreviousFolder()
+    {
+        var folderA = Root("A", @"C:\A");
+        var folderB = Root("B", @"C:\B");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request)));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recursive = new FakeRecursiveDiscovery(async (request, _, _, _) =>
+        {
+            if (request.RootId == folderA.RootId) { entered.SetResult(); await release.Task; }
+            return new RecursiveScopeResult(CatalogReconciliationStatus.Succeeded, request.RootId,
+                request.RelativeFolder ?? "", [], null);
+        });
+        using var session = Session(new FakeRoots(folderA, folderB), new FakeDiscovery(), folders, recursive);
+        await session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+
+        var obsolete = session.NavigateToRootAsync(folderA.RootId);
+        await entered.Task;
+        var latest = await session.NavigateToRootAsync(folderB.RootId);
+        release.SetResult();
+
+        Assert.Null(await obsolete);
+        Assert.Equal(folderB.RootId, latest!.Location!.RootId);
+        Assert.Equal(folderB.RootId, session.State.Location!.RootId);
+    }
+
+    private static BrowserNavigationSession Session(FakeRoots roots, FakeDiscovery discovery, FakeFolders folders,
+        IRecursiveMediaDiscoveryService? recursiveDiscovery = null) =>
+        new(roots, new BrowserLocationResolver(roots, new ExistingFileSystem()), discovery, folders, recursiveDiscovery);
+
+    private sealed class FakeRecursiveDiscovery : IRecursiveMediaDiscoveryService
+    {
+        private readonly Func<MediaFolderEnumerationRequest, DerivedWorkPriority, CancellationToken, CancellationToken, Task<RecursiveScopeResult>> _discover;
+
+        public FakeRecursiveDiscovery(
+            Func<MediaFolderEnumerationRequest, DerivedWorkPriority, CancellationToken, CancellationToken, Task<RecursiveScopeResult>>? discover = null) =>
+            _discover = discover ?? ((request, _, _, _) => Task.FromResult(new RecursiveScopeResult(
+                CatalogReconciliationStatus.Succeeded, request.RootId, request.RelativeFolder ?? "", [], null)));
+
+        public List<MediaFolderEnumerationRequest> Requests { get; } = [];
+
+        public Task<RecursiveScopeResult> DiscoverAsync(MediaFolderEnumerationRequest request,
+            DerivedWorkPriority priority = DerivedWorkPriority.Background, CancellationToken enumerationToken = default,
+            CancellationToken derivedWorkToken = default)
+        {
+            Requests.Add(request);
+            return _discover(request, priority, enumerationToken, derivedWorkToken);
+        }
+    }
 
     private static FakeFolders EmptyFolders() =>
         new((request, _) => Task.FromResult(Success(request)));

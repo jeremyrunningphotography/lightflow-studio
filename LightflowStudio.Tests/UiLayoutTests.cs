@@ -166,10 +166,36 @@ public class UiLayoutTests
         var toolbarGrid = Named(document, "BrowserRefreshButton").Parent!;
         Assert.Contains(toolbarGrid.Elements(ns + "TextBox"), element =>
             (string?)element.Attribute(xNamespace + "Name") == "BrowserCurrentPath");
-        Assert.Equal(4, toolbarGrid.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").Count());
+        // #124: 5, not 4 — Include Subfolders added one more Auto column between Go and Refresh.
+        Assert.Equal(5, toolbarGrid.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").Count());
 
         Assert.Equal("28,16,28,24", (string?)shell.Root.Elements(shell.Root.Name.Namespace + "Thickness")
             .Single(thickness => (string?)thickness.Attribute(xNamespace + "Key") == "ShellWorkspacePadding"));
+    }
+
+    [Fact]
+    public void IncludeSubfoldersToggle_LivesInTheFolderNavigationBarNotTheQueryToolbarOrAsANewRow()
+    {
+        // #124: placement communicates scope, not filtering — the control belongs beside Back/Forward/Up/
+        // Refresh, not inside #109's BrowserQueryToolbar, and must not introduce an additional toolbar row.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var toggle = Named(document, "BrowserIncludeSubfoldersButton");
+
+        Assert.Equal(ns + "ToggleButton", toggle.Name);
+        Assert.Same(toggle.Parent, Named(document, "BrowserRefreshButton").Parent);
+        Assert.Same(toggle.Parent, Named(document, "BrowserGoButton").Parent);
+        var queryToolbar = Named(document, "BrowserQueryToolbar");
+        Assert.DoesNotContain(queryToolbar.Descendants(), element =>
+            (string?)element.Attribute(xNamespace + "Name") == "BrowserIncludeSubfoldersButton");
+
+        Assert.Equal("BrowserIncludeSubfoldersButton_Click", (string?)toggle.Attribute("Click"));
+        Assert.Equal("Include Subfolders", (string?)toggle.Attribute("AutomationProperties.Name"));
+        Assert.False((bool?)toggle.Attribute("IsEnabled") ?? true, "The toggle must start disabled until a location is open, like Refresh.");
+
+        // Its own style, not #109's Filter ▾ chip style — so it never reads as a filter facet.
+        Assert.Equal("{StaticResource BrowserScopeToggleButtonStyle}", (string?)toggle.Attribute("Style"));
     }
 
     [Fact]

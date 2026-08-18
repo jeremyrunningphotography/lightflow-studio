@@ -70,6 +70,12 @@ public partial class MainWindow : Window
     private readonly Dictionary<MediaTypeCategory, ToggleButton> _browserQuickFilterButtons = [];
     private BrowserThumbnailSize _browserThumbnailSize = BrowserGridLayout.DefaultThumbnailSize;
     private bool _synchronizingBrowserThumbnailSize;
+    // #124: identity of the candidate media set currently populating the grid — folder + scope mode. Unlike
+    // _browserQueryScope (folder only, used to decide whether BrowserQuery resets), a change here always
+    // clears Browser selection, including toggling Include Subfolders while the same folder stays open.
+    private (Guid RootId, string RelativeFolder, BrowserScopeMode Mode)? _browserScopeIdentity;
+    private bool _synchronizingBrowserScopeMode;
+    private readonly DispatcherTimer _browserRecursiveRefreshDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -78,7 +84,7 @@ public partial class MainWindow : Window
         _storageStartupStatus = storageStartupStatus;
         _storageDiagnostic = storageDiagnostic;
         _browserNavigation = new BrowserNavigationSession(storage.MediaRoots, storage.BrowserLocations,
-            storage.MediaDiscovery, storage.MediaFolders);
+            storage.MediaDiscovery, storage.MediaFolders, storage.RecursiveMediaDiscovery);
         _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
@@ -107,6 +113,11 @@ public partial class MainWindow : Window
             _browserMetadataResortTimer.Stop();
             _browserGrid.ReapplyQuery();
             UpdateBrowserStatusText();
+        };
+        _browserRecursiveRefreshDebounceTimer.Tick += (_, _) =>
+        {
+            _browserRecursiveRefreshDebounceTimer.Stop();
+            _ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
         };
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
         StateChanged += (_, _) =>
@@ -173,6 +184,7 @@ public partial class MainWindow : Window
             _workspaceSaveTimer.Stop();
             _browserSearchDebounceTimer.Stop();
             _browserMetadataResortTimer.Stop();
+            _browserRecursiveRefreshDebounceTimer.Stop();
             _browserNavigation.Dispose();
         };
     }
@@ -275,6 +287,13 @@ public partial class MainWindow : Window
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
         try
         {
+            // #124: applied before restoration navigates anywhere. No folder is open yet, so this only sets
+            // the session's field (see BrowserNavigationSession.SetScopeModeAsync) — restoration then loads
+            // through the exact same direct/recursive branch an interactive toggle would use, never a
+            // separate startup-only recursive path.
+            await _browserNavigation.SetScopeModeAsync(
+                saved.IncludeSubfolders ? BrowserScopeMode.IncludeSubfolders : BrowserScopeMode.DirectFolder)
+                .ConfigureAwait(true);
             var result = await BrowserLocationRestoration.RestoreAsync(_browserNavigation, _storage.MediaRoots, saved)
                 .ConfigureAwait(true);
             if (generation != _browserUiGeneration) return;
@@ -306,14 +325,33 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// #101's monitoring hint reaches an open Browser view here. Direct mode preserves the exact-folder
+    /// behavior #108 established. #124 recursive mode additionally treats any descendant folder inside the
+    /// active base scope as relevant (via <see cref="BrowserScope.IsWithinFolderScope"/>) — unrelated
+    /// sibling/ancestor/other-root events are still ignored. Because a burst of filesystem activity across
+    /// many descendant folders can raise several <see cref="IMediaRootMonitoringService.FolderRefreshed"/>
+    /// events in quick succession, and each one would otherwise re-run the entire recursive scope, relevant
+    /// recursive events are coalesced through <see cref="_browserRecursiveRefreshDebounceTimer"/> into a
+    /// single authoritative refresh rather than one per event — a refresh-storm guard on top of #101's own
+    /// per-folder debounce, using the same debounce convention. Either way this is a hint only: explicit
+    /// Refresh remains authoritative regardless.
+    /// </summary>
     private void BrowserMonitoring_FolderRefreshed(object? sender, MediaFolderEnumerationRequest request) =>
-        Dispatcher.BeginInvoke(async () =>
+        Dispatcher.BeginInvoke(() =>
         {
             var location = _browserNavigation.State.Location;
-            if (location is null || location.RootId != request.RootId ||
-                !string.Equals(location.RelativeFolder ?? "", request.RelativeFolder ?? "", StringComparison.OrdinalIgnoreCase))
+            if (location is null || location.RootId != request.RootId) return;
+            if (_browserNavigation.ScopeMode == BrowserScopeMode.IncludeSubfolders)
+            {
+                if (!BrowserScope.IsWithinFolderScope(request.RelativeFolder, location.RelativeFolder)) return;
+                _browserRecursiveRefreshDebounceTimer.Stop();
+                _browserRecursiveRefreshDebounceTimer.Start();
                 return;
-            await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+            }
+            if (!string.Equals(location.RelativeFolder ?? "", request.RelativeFolder ?? "", StringComparison.OrdinalIgnoreCase))
+                return;
+            _ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
         });
 
     private async void BrowserFolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -502,6 +540,23 @@ public partial class MainWindow : Window
     private async void BrowserRefresh_Click(object sender, RoutedEventArgs e) =>
         await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
 
+    /// <summary>
+    /// #124: toggles Include Subfolders for whichever folder is currently open, via
+    /// <see cref="BrowserNavigationSession.SetScopeModeAsync"/> — the same generation/cancellation/latest-wins
+    /// machinery as any other navigation, so a rapid re-toggle or a folder change mid-scan safely supersedes
+    /// this request rather than racing it. Deliberately does not touch <see cref="_browserQueryScope"/> or
+    /// call <see cref="ResetBrowserQueryToolbar"/>: #124 requires the current search/filter/sort to survive a
+    /// scope change. Selection clearing happens in <see cref="ApplyBrowserState"/> once the new scope's
+    /// results actually arrive, not here, so a request that ends up superseded never touches selection at all.
+    /// </summary>
+    private async void BrowserIncludeSubfoldersButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_synchronizingBrowserScopeMode) return;
+        var mode = BrowserIncludeSubfoldersButton.IsChecked == true
+            ? BrowserScopeMode.IncludeSubfolders : BrowserScopeMode.DirectFolder;
+        await RunBrowserNavigationAsync(() => _browserNavigation.SetScopeModeAsync(mode), mode);
+    }
+
     /// <summary>Applies a successful navigation result and reveals its Locations-tree ancestors. Returns false (without side effects) for a stale, null, or non-success state.</summary>
     private bool ApplyBrowserSuccessState(BrowserFolderState? state, long generation)
     {
@@ -513,10 +568,19 @@ public partial class MainWindow : Window
         return true;
     }
 
-    private async Task RunBrowserNavigationAsync(Func<Task<BrowserFolderState?>> navigate)
+    /// <summary>
+    /// Drives one navigation/scope operation through the shared loading-overlay/generation machinery.
+    /// <paramref name="scopeModeOverride"/> lets a caller that is about to *change* the scope mode (the
+    /// Include Subfolders toggle) show the right label immediately, since <see cref="_browserNavigation"/>'s
+    /// own <see cref="BrowserNavigationSession.ScopeMode"/> does not update until <paramref name="navigate"/>
+    /// actually runs; every other caller passes nothing and simply reflects whichever mode is already active.
+    /// </summary>
+    private async Task RunBrowserNavigationAsync(Func<Task<BrowserFolderState?>> navigate,
+        BrowserScopeMode? scopeModeOverride = null)
     {
         var generation = ++_browserUiGeneration;
-        BrowserLoadingText.Text = "Loading folder…";
+        BrowserLoadingText.Text = (scopeModeOverride ?? _browserNavigation.ScopeMode) == BrowserScopeMode.IncludeSubfolders
+            ? "Scanning folder and subfolders…" : "Loading folder…";
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
         try
         {
@@ -550,14 +614,30 @@ public partial class MainWindow : Window
         // A genuinely new scope (different folder, or navigating away from/into a location entirely) starts
         // sort/filter/search over: the media-area toolbar narrows *the current* scope, not a remembered one.
         // Refreshing the same folder (monitoring, explicit Refresh) must not disturb the chosen view of it.
+        // Deliberately keyed on folder only, NOT scope mode: #124 requires BrowserQuery to survive toggling
+        // Include Subfolders, even though the candidate set itself changes.
         if (scope != _browserQueryScope) ResetBrowserQueryToolbar();
         _browserQueryScope = scope;
 
+        // #124: unlike _browserQueryScope above, selection identity DOES include scope mode — folder
+        // navigation and toggling Include Subfolders must both clear Browser selection unconditionally, so an
+        // asset outside the newly active scope can never remain invisibly selected (see #75). A true
+        // same-scope refresh (explicit Refresh, monitoring) leaves this identity unchanged and therefore
+        // preserves selection via BrowserGridModel.Populate's existing key-based retention.
+        var scopeIdentity = state.Location is { } identityLocation
+            ? (identityLocation.RootId, identityLocation.RelativeFolder, _browserNavigation.ScopeMode)
+            : ((Guid, string, BrowserScopeMode)?)null;
+        if (scopeIdentity != _browserScopeIdentity) _browserGrid.ClearSelection();
+        _browserScopeIdentity = scopeIdentity;
+
         _synchronizingBrowserTree = true;
-        IReadOnlyList<MediaFolderEntry> files;
-        try { files = _browserTree.Synchronize(state); }
+        IReadOnlyList<MediaFolderEntry> directFiles;
+        try { directFiles = _browserTree.Synchronize(state); }
         finally { _synchronizingBrowserTree = false; }
-        _browserGrid.Populate(files);
+        // #124: the tree always synchronizes against direct children (state.Entries, via Synchronize above);
+        // the grid's candidate set additionally expands to every descendant folder's media while recursive
+        // scope is active. See BrowserFolderState.RecursiveMediaEntries.
+        _browserGrid.Populate(state.RecursiveMediaEntries ?? directFiles);
         UpdateBrowserGridColumns();
         if (state.DerivedWork is { } batch) _browserGrid.ApplyAssetIdentities(batch.Reconciliation.Items);
         AttachBrowserDerivedWork(state.DerivedWork, _browserUiGeneration);
@@ -567,6 +647,8 @@ public partial class MainWindow : Window
         BrowserUpButton.IsEnabled = state.CanGoUp;
         BrowserRefreshButton.IsEnabled = state.Location is not null;
         BrowserQueryToolbar.IsEnabled = state.Location is not null;
+        BrowserIncludeSubfoldersButton.IsEnabled = state.Location is not null;
+        SyncBrowserScopeToggle();
         var presentableCount = _browserGrid.TotalCount;
         BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready && presentableCount > 0
             ? Visibility.Collapsed : Visibility.Visible;
@@ -591,16 +673,27 @@ public partial class MainWindow : Window
 
         if (state.Location is { } location)
         {
-            // Selection is intentionally never persisted here; only the folder identity is remembered.
-            _workspaceState.SetBrowserLocation(location.RootId, location.RelativeFolder, location.AbsolutePath);
+            // Selection is intentionally never persisted here; only the folder identity (and #124's scope
+            // mode) is remembered.
+            _workspaceState.SetBrowserLocation(location.RootId, location.RelativeFolder, location.AbsolutePath,
+                _browserNavigation.ScopeMode == BrowserScopeMode.IncludeSubfolders);
             _workspaceSaveTimer.Stop();
             _workspaceSaveTimer.Start();
         }
     }
 
+    /// <summary>Reflects the navigation session's current #124 scope mode on the toggle without re-entering its Click handler.</summary>
+    private void SyncBrowserScopeToggle()
+    {
+        _synchronizingBrowserScopeMode = true;
+        try { BrowserIncludeSubfoldersButton.IsChecked = _browserNavigation.ScopeMode == BrowserScopeMode.IncludeSubfolders; }
+        finally { _synchronizingBrowserScopeMode = false; }
+    }
+
     private void ApplyBrowserNavigationFailure(BrowserFolderState failure)
     {
         RestoreLoadedBrowserSelection();
+        SyncBrowserScopeToggle();
         BrowserEmptyTitle.Text = failure.Status switch
         {
             BrowserFolderStatus.RootUnavailable => "Media Root unavailable",

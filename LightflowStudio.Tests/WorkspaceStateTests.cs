@@ -25,7 +25,8 @@ public sealed class WorkspaceStateStoreTests : IDisposable
         var rootId = Guid.NewGuid();
         var state = new WorkspaceState
         {
-            Browser = new() { RootId = rootId, RelativeFolder = "Trips/Iceland", LastResolvedAbsolutePath = @"D:\Trips\Iceland" },
+            Browser = new() { RootId = rootId, RelativeFolder = "Trips/Iceland", LastResolvedAbsolutePath = @"D:\Trips\Iceland",
+                IncludeSubfolders = true },
             Window = new() { Width = 1500, Height = 950, Left = 40, Top = 20, IsMaximized = true },
             Layout = new() { BrowserLocationsPaneWidth = 300 }
         };
@@ -36,12 +37,43 @@ public sealed class WorkspaceStateStoreTests : IDisposable
         Assert.Equal(rootId, loaded.Browser!.RootId);
         Assert.Equal("Trips/Iceland", loaded.Browser.RelativeFolder);
         Assert.Equal(@"D:\Trips\Iceland", loaded.Browser.LastResolvedAbsolutePath);
+        Assert.True(loaded.Browser.IncludeSubfolders);
         Assert.Equal(1500, loaded.Window!.Width);
         Assert.Equal(950, loaded.Window.Height);
         Assert.Equal(40, loaded.Window.Left);
         Assert.Equal(20, loaded.Window.Top);
         Assert.True(loaded.Window.IsMaximized);
         Assert.Equal(300, loaded.Layout!.BrowserLocationsPaneWidth);
+    }
+
+    [Fact]
+    public void SaveAndLoad_DirectFolderModeRoundTripsAsFalse()
+    {
+        var state = new WorkspaceState
+        {
+            Browser = new() { RootId = Guid.NewGuid(), RelativeFolder = "Trips", IncludeSubfolders = false }
+        };
+
+        WorkspaceStateStore.Save(StatePath, state);
+        var loaded = WorkspaceStateStore.Load(StatePath);
+
+        Assert.False(loaded.Browser!.IncludeSubfolders);
+    }
+
+    [Fact]
+    public void Load_LegacyDocumentWithoutIncludeSubfoldersDefaultsToDirectFolderMode()
+    {
+        // #124 predates this field: a document written by an older build (or hand-edited without it) must
+        // never silently resurrect a recursive view on restore.
+        Directory.CreateDirectory(_folder);
+        var rootId = Guid.NewGuid();
+        File.WriteAllText(StatePath,
+            "{\"Version\":1,\"Browser\":{\"RootId\":\"" + rootId + "\",\"RelativeFolder\":\"Trips\"}}");
+
+        var loaded = WorkspaceStateStore.Load(StatePath);
+
+        Assert.Equal(rootId, loaded.Browser!.RootId);
+        Assert.False(loaded.Browser.IncludeSubfolders);
     }
 
     [Fact]
@@ -211,7 +243,7 @@ public sealed class WorkspaceStateServiceTests
         {
             var service = new WorkspaceStateService(path, WorkspaceState.Empty);
 
-            service.SetBrowserLocation(Guid.NewGuid(), "Trips/Iceland", @"D:\Trips\Iceland");
+            service.SetBrowserLocation(Guid.NewGuid(), "Trips/Iceland", @"D:\Trips\Iceland", includeSubfolders: false);
             service.Save();
 
             // WorkspaceBrowserLocationState has no selection-related member, so restoring the last folder
@@ -231,11 +263,12 @@ public sealed class WorkspaceStateServiceTests
         var service = new WorkspaceStateService(path, WorkspaceState.Empty);
         var rootId = Guid.NewGuid();
 
-        service.SetBrowserLocation(rootId, "Trips/Iceland", @"D:\Trips\Iceland");
+        service.SetBrowserLocation(rootId, "Trips/Iceland", @"D:\Trips\Iceland", includeSubfolders: true);
         service.SetWindow(new() { Width = 1300, Height = 800, Left = 10, Top = 10 });
         service.SetBrowserLocationsPaneWidth(310);
 
         Assert.Equal(rootId, service.Current.Browser!.RootId);
+        Assert.True(service.Current.Browser.IncludeSubfolders);
         Assert.Equal(1300, service.Current.Window!.Width);
         Assert.Equal(310, service.Current.Layout!.BrowserLocationsPaneWidth);
         Assert.False(File.Exists(path));

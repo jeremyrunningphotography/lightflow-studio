@@ -95,6 +95,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         CatalogReconciliation = new CatalogReconciliationService(MediaFolders, MediaAssets);
         DerivedWork = CreateDerivedWorkScheduler();
         MediaDiscovery = new MediaDiscoveryRefreshService(CatalogReconciliation, () => DerivedWork);
+        RecursiveMediaDiscovery = new RecursiveMediaDiscoveryService(MediaFolders, MediaDiscovery);
         MediaMonitoring = new MediaRootMonitoringService(MediaRoots, MediaDiscovery);
     }
 
@@ -114,6 +115,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public ICatalogReconciliationService CatalogReconciliation { get; }
     public IDerivedWorkScheduler? DerivedWork { get; private set; }
     public IMediaDiscoveryRefreshService MediaDiscovery { get; }
+    public IRecursiveMediaDiscoveryService RecursiveMediaDiscovery { get; }
     public IMediaRootMonitoringService? MediaMonitoring { get; private set; }
     public IPreviewStoreService? Previews { get; private set; }
     public IReadOnlyList<CatalogBackup> CatalogBackups => _recovery.ListBackups();

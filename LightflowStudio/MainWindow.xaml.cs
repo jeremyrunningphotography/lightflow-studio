@@ -68,6 +68,8 @@ public partial class MainWindow : Window
     private (Guid RootId, string RelativeFolder)? _browserQueryScope;
     private IDerivedWorkBatch? _activeBrowserDerivedWorkBatch;
     private readonly Dictionary<MediaTypeCategory, ToggleButton> _browserQuickFilterButtons = [];
+    private BrowserThumbnailSize _browserThumbnailSize = BrowserGridLayout.DefaultThumbnailSize;
+    private bool _synchronizingBrowserThumbnailSize;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -199,6 +201,13 @@ public partial class MainWindow : Window
 
         if (_workspaceState.Current.Layout?.BrowserLocationsPaneWidth is { } paneWidth)
             BrowserNavigationColumn.Width = new GridLength(paneWidth);
+
+        // Unconditional (not just inside an `if`): this is also what seeds Resources["BrowserTileWidth"]/
+        // ["BrowserTileThumbnailHeight"] for the very first frame, whether or not a size was ever saved.
+        var savedThumbnailSize = _workspaceState.Current.Layout?.BrowserThumbnailSizeLevel is { } level
+            ? BrowserGridLayout.ThumbnailSizeFromLevel(level)
+            : BrowserGridLayout.DefaultThumbnailSize;
+        ApplyBrowserThumbnailSize(savedThumbnailSize);
     }
 
     /// <summary>
@@ -226,9 +235,12 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Captures the window's restored bounds, maximized state, and Locations-pane width, then flushes the
-    /// latest workspace state to disk. Called on normal shutdown; a debounced save also covers Browser
-    /// location changes mid-session for crash resilience.
+    /// Captures the window's restored bounds, maximized state, Locations-pane width, and #125's Browser
+    /// thumbnail-size level, then flushes the latest workspace state to disk. Called on normal shutdown; a
+    /// debounced save also covers Browser location changes mid-session for crash resilience. The thumbnail
+    /// size is read from <see cref="_browserThumbnailSize"/> (kept current by every
+    /// <see cref="ApplyBrowserThumbnailSize"/> call) rather than persisted live on every slider tick,
+    /// mirroring how <see cref="BrowserNavigationColumn"/>'s width is only captured here too.
     /// </summary>
     private void SaveWorkspaceState()
     {
@@ -244,6 +256,7 @@ public partial class MainWindow : Window
                 IsMaximized = _lastNonMinimizedWindowState == WindowState.Maximized
             });
         _workspaceState.SetBrowserLocationsPaneWidth(BrowserNavigationColumn.ActualWidth);
+        _workspaceState.SetBrowserThumbnailSizeLevel((int)_browserThumbnailSize);
         _workspaceState.Save();
     }
 
@@ -614,10 +627,47 @@ public partial class MainWindow : Window
         const double scrollbarAllowance = 20;
         var width = BrowserGridHost.ActualWidth - BrowserGridHost.Padding.Left - BrowserGridHost.Padding.Right - scrollbarAllowance;
         if (width <= 0) return;
-        _browserGrid.SetColumns(BrowserGridLayout.ComputeColumns(width));
+        _browserGrid.SetColumns(BrowserGridLayout.ComputeColumns(width, BrowserGridLayout.TileWidthFor(_browserThumbnailSize)));
     }
 
     private void BrowserGridHost_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateBrowserGridColumns();
+
+    /// <summary>
+    /// #125's single authoritative apply point: tracks the chosen size, pushes it to the slider (guarded so
+    /// this can never re-enter <see cref="BrowserThumbnailSizeSlider_ValueChanged"/>), updates the
+    /// decrease/increase buttons' enabled state from the same authoritative range, updates the two
+    /// DynamicResource values every tile's Width/thumbnail-area-height template-binds to, and reflows the
+    /// grid at the new tile footprint. Deliberately touches nothing about <see cref="BrowserQuery"/>,
+    /// Browser scope, Catalog, or Preview generation — existing cached thumbnails are simply redrawn at the
+    /// new element size by WPF's own Image/Stretch handling, never re-fetched or regenerated. The slider and
+    /// the two step buttons are three inputs to this one method, never three separate sizing paths.
+    /// </summary>
+    private void ApplyBrowserThumbnailSize(BrowserThumbnailSize size)
+    {
+        _browserThumbnailSize = size;
+        _synchronizingBrowserThumbnailSize = true;
+        try { BrowserThumbnailSizeSlider.Value = (int)size; }
+        finally { _synchronizingBrowserThumbnailSize = false; }
+        BrowserThumbnailSizeDecreaseButton.IsEnabled = (int)size > 0;
+        BrowserThumbnailSizeIncreaseButton.IsEnabled = (int)size < BrowserGridLayout.ThumbnailSizes.Count - 1;
+        Resources["BrowserTileWidth"] = BrowserGridLayout.TileWidthFor(size);
+        Resources["BrowserTileThumbnailHeight"] = BrowserGridLayout.ThumbnailAreaHeightFor(size);
+        UpdateBrowserGridColumns();
+    }
+
+    private void BrowserThumbnailSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_synchronizingBrowserThumbnailSize) return;
+        ApplyBrowserThumbnailSize(BrowserGridLayout.ThumbnailSizeFromLevel((int)Math.Round(e.NewValue)));
+    }
+
+    /// <summary>Steps exactly one level toward Small; disabled (so unreachable by click) once already there — see <see cref="BrowserGridLayout.StepLevel"/>.</summary>
+    private void BrowserThumbnailSizeDecreaseButton_Click(object sender, RoutedEventArgs e) =>
+        ApplyBrowserThumbnailSize(BrowserGridLayout.StepLevel(_browserThumbnailSize, -1));
+
+    /// <summary>Steps exactly one level toward Maximum; disabled (so unreachable by click) once already there — see <see cref="BrowserGridLayout.StepLevel"/>.</summary>
+    private void BrowserThumbnailSizeIncreaseButton_Click(object sender, RoutedEventArgs e) =>
+        ApplyBrowserThumbnailSize(BrowserGridLayout.StepLevel(_browserThumbnailSize, 1));
 
     private void BrowserGridHost_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

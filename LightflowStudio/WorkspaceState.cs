@@ -33,6 +33,14 @@ internal sealed record WorkspaceWindowState
 internal sealed record WorkspaceLayoutState
 {
     public double? BrowserLocationsPaneWidth { get; init; }
+
+    /// <summary>
+    /// #125: the Browser's chosen thumbnail-size level, persisted as a plain index into
+    /// <see cref="BrowserGridLayout.ThumbnailSizes"/> rather than the <see cref="BrowserThumbnailSize"/> enum
+    /// itself or a raw pixel value — presentation/UI state only, never Catalog or Preview data. Null means
+    /// "no preference saved yet"; the Browser falls back to <see cref="BrowserGridLayout.DefaultThumbnailSize"/>.
+    /// </summary>
+    public int? BrowserThumbnailSizeLevel { get; init; }
 }
 
 /// <summary>Versioned, tolerant root document for per-user/per-machine workspace UI state. Never Catalog or Preview data.</summary>
@@ -91,9 +99,15 @@ internal sealed record WorkspaceState
     private static WorkspaceLayoutState? NormalizeLayout(WorkspaceLayoutState? layout)
     {
         if (layout is null) return null;
-        if (layout.BrowserLocationsPaneWidth is not { } width || !double.IsFinite(width))
-            return layout with { BrowserLocationsPaneWidth = null };
-        return layout with { BrowserLocationsPaneWidth = Math.Clamp(width, MinLocationsPaneWidth, MaxLocationsPaneWidth) };
+        var paneWidth = layout.BrowserLocationsPaneWidth is { } width && double.IsFinite(width)
+            ? Math.Clamp(width, MinLocationsPaneWidth, MaxLocationsPaneWidth)
+            : (double?)null;
+        // Clamped rather than discarded: an out-of-range level (e.g. from a future build with more sizes,
+        // opened by an older one) still lands on a valid size instead of silently reverting to the default.
+        var thumbnailSizeLevel = layout.BrowserThumbnailSizeLevel is { } level
+            ? Math.Clamp(level, 0, BrowserGridLayout.ThumbnailSizes.Count - 1)
+            : (int?)null;
+        return layout with { BrowserLocationsPaneWidth = paneWidth, BrowserThumbnailSizeLevel = thumbnailSizeLevel };
     }
 }
 
@@ -173,8 +187,15 @@ internal sealed class WorkspaceStateService
 
     public void SetWindow(WorkspaceWindowState window) => _current = _current with { Window = window };
 
+    // Both layout setters merge into the existing Layout section rather than replacing it outright — with
+    // two independent properties now living there (#125 added BrowserThumbnailSizeLevel alongside #121's
+    // BrowserLocationsPaneWidth), a wholesale replacement would silently drop whichever one was set most
+    // recently, since SaveWorkspaceState calls both setters back-to-back at the same shutdown/debounce point.
     public void SetBrowserLocationsPaneWidth(double width) =>
-        _current = _current with { Layout = new WorkspaceLayoutState { BrowserLocationsPaneWidth = width } };
+        _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { BrowserLocationsPaneWidth = width } };
+
+    public void SetBrowserThumbnailSizeLevel(int level) =>
+        _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { BrowserThumbnailSizeLevel = level } };
 
     /// <summary>Writes the current in-memory document atomically. Never throws: a failed save must not disrupt shutdown or navigation.</summary>
     public void Save()

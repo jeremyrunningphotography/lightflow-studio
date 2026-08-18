@@ -163,11 +163,13 @@ public sealed class WorkspaceStateNormalizationTests
     [Theory]
     [InlineData(-1, 0)]
     [InlineData(-100, 0)]
-    [InlineData(99, 3)]
+    [InlineData(6, 5)]
+    [InlineData(99, 5)]
     public void Normalize_ClampsAnOutOfRangeThumbnailSizeLevelRatherThanDiscardingIt(int saved, int expected)
     {
         // Clamped (not nulled): a future build with more levels, opened by an older one, should still land
-        // on a valid size rather than silently reverting all the way to the default.
+        // on a valid size rather than silently reverting all the way to the default. The upper bound (5)
+        // reflects #125's revision adding Huge/Maximum after the original four-level range topped out.
         var state = new WorkspaceState { Layout = new() { BrowserThumbnailSizeLevel = saved } };
 
         Assert.Equal(expected, WorkspaceState.Normalize(state).Layout!.BrowserThumbnailSizeLevel);
@@ -178,6 +180,8 @@ public sealed class WorkspaceStateNormalizationTests
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
     public void Normalize_PreservesEveryValidThumbnailSizeLevelUnchanged(int level)
     {
         var state = new WorkspaceState { Layout = new() { BrowserThumbnailSizeLevel = level } };

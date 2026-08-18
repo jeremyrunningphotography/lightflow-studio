@@ -104,7 +104,9 @@
        <!-- Decorative notch marks, one per BrowserGridLayout.ThumbnailSizes entry; purely visual (the real
             discrete stops come from IsSnapToTickEnabled/TickFrequency on the Slider itself), so a minor
             approximation versus the thumb's exact travel positions is acceptable. -->
-       <UniformGrid Columns="4" VerticalAlignment="Center" Height="4" IsHitTestVisible="False">
+       <UniformGrid Columns="6" VerticalAlignment="Center" Height="4" IsHitTestVisible="False">
+        <Ellipse Width="3" Height="3" HorizontalAlignment="Center" Fill="{StaticResource ShellDividerBrush}"/>
+        <Ellipse Width="3" Height="3" HorizontalAlignment="Center" Fill="{StaticResource ShellDividerBrush}"/>
         <Ellipse Width="3" Height="3" HorizontalAlignment="Center" Fill="{StaticResource ShellDividerBrush}"/>
         <Ellipse Width="3" Height="3" HorizontalAlignment="Center" Fill="{StaticResource ShellDividerBrush}"/>
         <Ellipse Width="3" Height="3" HorizontalAlignment="Center" Fill="{StaticResource ShellDividerBrush}"/>
@@ -787,7 +789,7 @@
      <TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9" Text="&#xE80A;"/>
      <Slider x:Name="BrowserThumbnailSizeSlider" Style="{StaticResource BrowserThumbnailSizeSliderStyle}" Margin="6,0"
-      Minimum="0" Maximum="3" IsSnapToTickEnabled="True" TickFrequency="1"
+      Minimum="0" Maximum="5" IsSnapToTickEnabled="True" TickFrequency="1"
       ToolTip="Thumbnail size" AutomationProperties.Name="Thumbnail size"
       ValueChanged="BrowserThumbnailSizeSlider_ValueChanged"/>
      <TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"

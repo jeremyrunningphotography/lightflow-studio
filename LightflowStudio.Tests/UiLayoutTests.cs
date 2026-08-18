@@ -613,18 +613,19 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserPresentationControls_ReservesTheTrailingEdgeForFutureThumbnailSizing()
+    public void BrowserPresentationControls_HostsTheThumbnailSizeSliderAtTheTrailingEdge()
     {
-        // #125 integration point: an empty, named container docked to the right of the Browser status text
-        // (i.e., the outermost trailing element), so it can be populated later without restructuring this bar.
+        // #125 occupies the integration point #126 reserved: the container docked to the right of the
+        // Browser status text (i.e., the outermost trailing element in the shared status bar).
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
         var statusText = Named(document, "BrowserStatusText");
         var presentationControls = Named(document, "BrowserPresentationControls");
+        var slider = Named(document, "BrowserThumbnailSizeSlider");
         var statusBar = statusText.Ancestors(ns + "Border").First();
         var dockPanel = statusBar.Descendants(ns + "DockPanel").Single();
 
-        Assert.Empty(presentationControls.Elements());
+        Assert.Contains(presentationControls.Descendants(), element => element == slider);
         Assert.Equal("Right", (string?)presentationControls.Attribute("DockPanel.Dock"));
         Assert.Equal("Right", (string?)statusText.Attribute("DockPanel.Dock"));
         var dockedRightInOrder = dockPanel.Elements()
@@ -632,6 +633,61 @@ public class UiLayoutTests
         // Declaration order for same-side DockPanel children maps to right-to-left visual order, so
         // BrowserPresentationControls must be declared first among them to land at the true trailing edge.
         Assert.Equal(presentationControls, dockedRightInOrder.First());
+    }
+
+    [Fact]
+    public void BrowserThumbnailSizeSlider_DoesNotDeclareAValueDefaultInXaml()
+    {
+        // Same InitializeComponent-timing hazard already documented for BrowserSortCombo/the filter
+        // checkboxes/MainTabs (see #126): a literal Value would let WPF raise ValueChanged before
+        // BrowserGridHost and the tile DynamicResources are connected. The restored/default size is applied
+        // from code only, in ApplyRestoredWorkspaceLayout, after InitializeComponent returns.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var slider = Named(document, "BrowserThumbnailSizeSlider");
+
+        Assert.DoesNotContain("Value", slider.Attributes().Select(attribute => attribute.Name.LocalName));
+        Assert.Equal("BrowserThumbnailSizeSlider_ValueChanged", (string?)slider.Attribute("ValueChanged"));
+    }
+
+    [Fact]
+    public void BrowserThumbnailSizeSlider_RangeMatchesTheRealThumbnailSizeLevelCountAndSnapsToDiscreteNotches()
+    {
+        // Cross-checked against the actual enum/list, not a hardcoded duplicate: if a future change adds or
+        // removes a BrowserThumbnailSize level without updating the slider's Minimum/Maximum, this fails.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var slider = Named(document, "BrowserThumbnailSizeSlider");
+
+        Assert.Equal("0", (string?)slider.Attribute("Minimum"));
+        Assert.Equal((BrowserGridLayout.ThumbnailSizes.Count - 1).ToString(), (string?)slider.Attribute("Maximum"));
+        Assert.Equal("True", (string?)slider.Attribute("IsSnapToTickEnabled"));
+        Assert.Equal("1", (string?)slider.Attribute("TickFrequency"));
+    }
+
+    [Fact]
+    public void BrowserThumbnailSizeSlider_IsAccessibleThroughToolTipAndAutomationNameRatherThanAPermanentLabel()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var slider = Named(document, "BrowserThumbnailSizeSlider");
+
+        Assert.False(string.IsNullOrWhiteSpace((string?)slider.Attribute("ToolTip")));
+        Assert.False(string.IsNullOrWhiteSpace((string?)slider.Attribute("AutomationProperties.Name")));
+    }
+
+    [Fact]
+    public void BrowserGridTile_WidthAndThumbnailAreaHeightComeFromTheSharedDynamicResourcesRatherThanHardcodedLiterals()
+    {
+        // #125: these must be DynamicResource (not StaticResource or a literal) so every realized/recycled
+        // tile picks up MainWindow.ApplyBrowserThumbnailSize's updates live, including tiles the slider
+        // changes while virtualized out of view.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var tileTemplate = document.Descendants(ns + "DataTemplate")
+            .Single(template => (string?)template.Attribute("DataType") == "{x:Type local:BrowserGridTile}");
+        var tileBorder = tileTemplate.Elements(ns + "Border").Single();
+        var thumbnailBorder = tileBorder.Descendants(ns + "Border").First();
+
+        Assert.Equal("{DynamicResource BrowserTileWidth}", (string?)tileBorder.Attribute("Width"));
+        Assert.Equal("{DynamicResource BrowserTileThumbnailHeight}", (string?)thumbnailBorder.Attribute("Height"));
     }
 
     [Fact]

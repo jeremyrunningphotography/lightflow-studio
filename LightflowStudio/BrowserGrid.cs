@@ -162,13 +162,63 @@ internal sealed class BrowserGridRow(IReadOnlyList<BrowserGridTile> tiles)
 }
 
 /// <summary>
+/// #125: the Browser's discrete, user-adjustable thumbnail presentation sizes — presentation state only,
+/// never <see cref="BrowserQuery"/>, Browser scope, Catalog, or Preview-generation policy. A small semantic
+/// setting (an ordered level, see <see cref="BrowserGridLayout.ThumbnailSizes"/>) rather than a raw pixel
+/// value scattered through WPF code, so a future list/alternate presentation mode can extend the same shape.
+/// </summary>
+internal enum BrowserThumbnailSize { Small, Medium, Large, ExtraLarge }
+
+/// <summary>
 /// Pure column/row arithmetic for the responsive thumbnail grid. Kept independent of WPF so reflow
 /// behavior is directly unit-testable.
 /// </summary>
 internal static class BrowserGridLayout
 {
+    /// <summary>The Medium/default tile footprint — unchanged from the single fixed size that existed before #125, so a legacy/missing persisted size restores pixel-identical behavior.</summary>
     public const double TileWidth = 168;
     public const double TileSpacing = 12;
+
+    /// <summary>The Medium/default thumbnail-image area height — unchanged from before #125.</summary>
+    public const double ThumbnailAreaHeight = 108;
+
+    /// <summary>
+    /// Every level in display/slider order — the single authoritative source for both "how many levels
+    /// exist" (the slider's Minimum/Maximum and persisted-value clamping both derive from this) and "what
+    /// index does a level occupy" (persisted/restored as a plain level index, see <see cref="ThumbnailSizeFromLevel"/>).
+    /// </summary>
+    public static readonly IReadOnlyList<BrowserThumbnailSize> ThumbnailSizes =
+        [BrowserThumbnailSize.Small, BrowserThumbnailSize.Medium, BrowserThumbnailSize.Large, BrowserThumbnailSize.ExtraLarge];
+
+    public const BrowserThumbnailSize DefaultThumbnailSize = BrowserThumbnailSize.Medium;
+
+    /// <summary>Clamps an arbitrary (e.g. persisted, possibly stale or out-of-range) level index into a valid <see cref="BrowserThumbnailSize"/>. Never throws.</summary>
+    public static BrowserThumbnailSize ThumbnailSizeFromLevel(int level) =>
+        ThumbnailSizes[Math.Clamp(level, 0, ThumbnailSizes.Count - 1)];
+
+    /// <summary>
+    /// Tile footprint per size level. All four stay well under the #70 thumbnail generator's 512px maximum
+    /// source dimension (see <c>WicImageThumbnailRenderer</c>/<c>FfmpegVideoThumbnailRenderer</c>), so even
+    /// the largest presentation size never upscales a cached thumbnail beyond its generated resolution.
+    /// </summary>
+    public static double TileWidthFor(BrowserThumbnailSize size) => size switch
+    {
+        BrowserThumbnailSize.Small => 120,
+        BrowserThumbnailSize.Medium => TileWidth,
+        BrowserThumbnailSize.Large => 224,
+        BrowserThumbnailSize.ExtraLarge => 288,
+        _ => throw new ArgumentOutOfRangeException(nameof(size))
+    };
+
+    /// <summary>Thumbnail-image area height per size level, proportional to <see cref="TileWidthFor"/>.</summary>
+    public static double ThumbnailAreaHeightFor(BrowserThumbnailSize size) => size switch
+    {
+        BrowserThumbnailSize.Small => 78,
+        BrowserThumbnailSize.Medium => ThumbnailAreaHeight,
+        BrowserThumbnailSize.Large => 144,
+        BrowserThumbnailSize.ExtraLarge => 184,
+        _ => throw new ArgumentOutOfRangeException(nameof(size))
+    };
 
     /// <summary>
     /// Every tile's margin trails the tile itself (right and bottom), including the last tile in a row —

@@ -493,6 +493,82 @@ public sealed class BrowserGridTests
         Assert.Equal(4000, model.Rows.Sum(row => row.Tiles.Count));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void TileWidthFor_EveryLevelStaysWithinThePreviewGeneratorsMaximumDimension(int levelIndex)
+    {
+        // #70's thumbnail generator caps source resolution at 512px (see ThumbnailGeneration.cs); every
+        // presentation size must stay at or under that so the largest setting never visibly upscales a
+        // cached thumbnail beyond what was actually generated. (Theory takes an int, not BrowserThumbnailSize
+        // directly: an internal enum as an xunit Theory parameter fails CS0051 inconsistent-accessibility.)
+        var size = BrowserGridLayout.ThumbnailSizes[levelIndex];
+        Assert.True(BrowserGridLayout.TileWidthFor(size) <= 512);
+        Assert.True(BrowserGridLayout.ThumbnailAreaHeightFor(size) <= 512);
+    }
+
+    [Fact]
+    public void TileWidthFor_MediumIsExactlyTheOriginalPreThumbnailSizingConstant()
+    {
+        // The default level must render pixel-identical to the single fixed size that existed before #125,
+        // so a legacy/missing persisted value (or simply never touching the slider) changes nothing visually.
+        Assert.Equal(BrowserGridLayout.TileWidth, BrowserGridLayout.TileWidthFor(BrowserThumbnailSize.Medium));
+        Assert.Equal(BrowserGridLayout.ThumbnailAreaHeight, BrowserGridLayout.ThumbnailAreaHeightFor(BrowserThumbnailSize.Medium));
+    }
+
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(0, 0)]
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    [InlineData(3, 3)]
+    [InlineData(4, 3)]
+    [InlineData(99, 3)]
+    public void ThumbnailSizeFromLevel_ClampsOutOfRangeLevelsRatherThanThrowing(int level, int expectedLevelIndex) =>
+        Assert.Equal(BrowserGridLayout.ThumbnailSizes[expectedLevelIndex], BrowserGridLayout.ThumbnailSizeFromLevel(level));
+
+    [Theory]
+    [InlineData(0, 528, 4)]   // Small; widest at the app's declared-minimum-width canvas
+    [InlineData(1, 528, 2)]   // Medium
+    [InlineData(2, 528, 2)]   // Large
+    [InlineData(3, 528, 1)]   // ExtraLarge; only one tile fits — must use one column cleanly
+    [InlineData(3, 100, 1)]   // ExtraLarge; narrower than even one ExtraLarge tile
+    [InlineData(0, 4000, 30)] // Small
+    public void ComputeColumns_AtEveryThumbnailSizeLevel_FitsTilesToTheAvailableCanvasWidth(
+        int levelIndex, double availableWidth, int expectedColumns) =>
+        Assert.Equal(expectedColumns, BrowserGridLayout.ComputeColumns(availableWidth, BrowserGridLayout.TileWidthFor(BrowserGridLayout.ThumbnailSizes[levelIndex])));
+
+    [Fact]
+    public void ThumbnailSizeChange_PreservesSelectionOrderAndCountAcrossTheResultingReflow()
+    {
+        // Simulates dragging the #125 slider through every level while items remain selected: each level
+        // change is exactly a BrowserGridModel.SetColumns call at that size's tile width, the same
+        // mechanism window/Locations-pane resizing already uses — selection must survive it identically.
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entries = Enumerable.Range(0, 13).Select(i => Image(rootId, $"{i:D2}.jpg")).ToArray();
+        model.Populate(entries);
+        model.SelectSingle(2);
+        model.ToggleCtrl(5);
+        model.ToggleCtrl(9);
+        var expectedSelection = model.SelectedKeys;
+
+        const double canvasWidth = 700;
+        foreach (var size in BrowserGridLayout.ThumbnailSizes)
+        {
+            model.SetColumns(BrowserGridLayout.ComputeColumns(canvasWidth, BrowserGridLayout.TileWidthFor(size)));
+
+            Assert.Equal(13, model.Tiles.Count);
+            Assert.Equal(entries.Select(e => e.Name), model.Tiles.Select(t => t.Name));
+            Assert.Equal(Enumerable.Range(0, 13), model.Tiles.Select(t => t.Index));
+            Assert.Equal(expectedSelection, model.SelectedKeys);
+            Assert.Equal(3, model.SelectedKeys.Count);
+            Assert.All(model.Tiles.Where(t => expectedSelection.Contains(t.Key)), t => Assert.True(t.IsSelected));
+        }
+    }
+
     [Fact]
     public void Populate_EmptyFolderProducesNoTilesOrRows()
     {

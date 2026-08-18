@@ -202,6 +202,17 @@ internal static class BrowserGridLayout
         ThumbnailSizes[Math.Clamp(level, 0, ThumbnailSizes.Count - 1)];
 
     /// <summary>
+    /// Moves exactly one level up (<paramref name="delta"/> = 1) or down (-1) within the valid range,
+    /// clamped rather than wrapping at either end — the shared step operation behind the presentation
+    /// control's decrease/increase buttons. <see cref="BrowserThumbnailSize"/>'s declared order matches
+    /// <see cref="ThumbnailSizes"/>' index order exactly, so the enum's own underlying value already *is*
+    /// its list index; this reuses <see cref="ThumbnailSizeFromLevel"/>'s existing clamp rather than a
+    /// second bounds check.
+    /// </summary>
+    public static BrowserThumbnailSize StepLevel(BrowserThumbnailSize current, int delta) =>
+        ThumbnailSizeFromLevel((int)current + delta);
+
+    /// <summary>
     /// Tile footprint per size level. <c>Maximum</c>'s 512px width sits exactly at the #70 thumbnail
     /// generator's maximum source dimension (see <c>WicImageThumbnailRenderer</c>/<c>FfmpegVideoThumbnailRenderer</c>,
     /// both <c>maximumPixelDimension = 512</c>) — the largest size a landscape-oriented cached thumbnail can

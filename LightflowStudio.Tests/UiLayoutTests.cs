@@ -636,6 +636,81 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserPresentationControls_OrdersDecreaseButtonSliderThenIncreaseButton()
+    {
+        // The small icon (decrease) reads left-to-right before the slider before the large icon (increase),
+        // matching the visual "small ... large" convention the mockup called for.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var presentationControls = Named(document, "BrowserPresentationControls");
+        var decreaseButton = Named(document, "BrowserThumbnailSizeDecreaseButton");
+        var slider = Named(document, "BrowserThumbnailSizeSlider");
+        var increaseButton = Named(document, "BrowserThumbnailSizeIncreaseButton");
+
+        Assert.Equal([decreaseButton, slider, increaseButton], presentationControls.Elements());
+    }
+
+    [Fact]
+    public void BrowserThumbnailSizeStepButtons_AreRealButtonsNotDecorativeElementsWithRawMouseHandling()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var decreaseButton = Named(document, "BrowserThumbnailSizeDecreaseButton");
+        var increaseButton = Named(document, "BrowserThumbnailSizeIncreaseButton");
+
+        Assert.Equal("Button", decreaseButton.Name.LocalName);
+        Assert.Equal("Button", increaseButton.Name.LocalName);
+        Assert.Equal("{StaticResource BrowserThumbnailSizeStepButtonStyle}", (string?)decreaseButton.Attribute("Style"));
+        Assert.Equal("{StaticResource BrowserThumbnailSizeStepButtonStyle}", (string?)increaseButton.Attribute("Style"));
+        Assert.Equal("BrowserThumbnailSizeDecreaseButton_Click", (string?)decreaseButton.Attribute("Click"));
+        Assert.Equal("BrowserThumbnailSizeIncreaseButton_Click", (string?)increaseButton.Attribute("Click"));
+        // Not a raw MouseDown/MouseLeftButtonDown handler on a TextBlock/Border — Button's own Click already
+        // gives keyboard (Enter/Space) activation and focus for free.
+        Assert.Null(decreaseButton.Attribute("MouseLeftButtonDown"));
+        Assert.Null(increaseButton.Attribute("MouseLeftButtonDown"));
+    }
+
+    [Fact]
+    public void BrowserThumbnailSizeStepButtons_HaveDistinctAccessibleNamesAndTooltips()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var decreaseButton = Named(document, "BrowserThumbnailSizeDecreaseButton");
+        var increaseButton = Named(document, "BrowserThumbnailSizeIncreaseButton");
+
+        Assert.Equal("Decrease thumbnail size", (string?)decreaseButton.Attribute("ToolTip"));
+        Assert.Equal("Decrease thumbnail size", (string?)decreaseButton.Attribute("AutomationProperties.Name"));
+        Assert.Equal("Increase thumbnail size", (string?)increaseButton.Attribute("ToolTip"));
+        Assert.Equal("Increase thumbnail size", (string?)increaseButton.Attribute("AutomationProperties.Name"));
+    }
+
+    [Fact]
+    public void BrowserThumbnailSizeStepButtons_DoNotDeclareAnIsEnabledDefaultInXaml()
+    {
+        // Same InitializeComponent-timing hazard already documented for the slider/BrowserSortCombo/the
+        // filter checkboxes (see #126): IsEnabled is set purely from code, in
+        // MainWindow.ApplyBrowserThumbnailSize, so it can never be stale or fire mid-InitializeComponent.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var decreaseButton = Named(document, "BrowserThumbnailSizeDecreaseButton");
+        var increaseButton = Named(document, "BrowserThumbnailSizeIncreaseButton");
+
+        Assert.DoesNotContain("IsEnabled", decreaseButton.Attributes().Select(attribute => attribute.Name.LocalName));
+        Assert.DoesNotContain("IsEnabled", increaseButton.Attributes().Select(attribute => attribute.Name.LocalName));
+    }
+
+    [Fact]
+    public void BrowserThumbnailSizeStepButtonStyle_HasDisabledFocusAndHoverTreatmentConsistentWithTheDarkTheme()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var style = document.Descendants(ns + "Style")
+            .Single(element => element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "BrowserThumbnailSizeStepButtonStyle"));
+        var triggers = style.Descendants(ns + "Trigger").ToList();
+
+        Assert.Contains(triggers, trigger => (string?)trigger.Attribute("Property") == "IsEnabled" && (string?)trigger.Attribute("Value") == "False");
+        Assert.Contains(triggers, trigger => (string?)trigger.Attribute("Property") == "IsMouseOver" && (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(triggers, trigger => (string?)trigger.Attribute("Property") == "IsPressed" && (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(triggers, trigger => (string?)trigger.Attribute("Property") == "IsKeyboardFocused" && (string?)trigger.Attribute("Value") == "True");
+    }
+
+    [Fact]
     public void BrowserThumbnailSizeSlider_DoesNotDeclareAValueDefaultInXaml()
     {
         // Same InitializeComponent-timing hazard already documented for BrowserSortCombo/the filter

@@ -634,11 +634,13 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// #125's single authoritative apply point: tracks the chosen size, pushes it to the slider (guarded so
-    /// this can never re-enter <see cref="BrowserThumbnailSizeSlider_ValueChanged"/>), updates the two
+    /// this can never re-enter <see cref="BrowserThumbnailSizeSlider_ValueChanged"/>), updates the
+    /// decrease/increase buttons' enabled state from the same authoritative range, updates the two
     /// DynamicResource values every tile's Width/thumbnail-area-height template-binds to, and reflows the
     /// grid at the new tile footprint. Deliberately touches nothing about <see cref="BrowserQuery"/>,
     /// Browser scope, Catalog, or Preview generation — existing cached thumbnails are simply redrawn at the
-    /// new element size by WPF's own Image/Stretch handling, never re-fetched or regenerated.
+    /// new element size by WPF's own Image/Stretch handling, never re-fetched or regenerated. The slider and
+    /// the two step buttons are three inputs to this one method, never three separate sizing paths.
     /// </summary>
     private void ApplyBrowserThumbnailSize(BrowserThumbnailSize size)
     {
@@ -646,6 +648,8 @@ public partial class MainWindow : Window
         _synchronizingBrowserThumbnailSize = true;
         try { BrowserThumbnailSizeSlider.Value = (int)size; }
         finally { _synchronizingBrowserThumbnailSize = false; }
+        BrowserThumbnailSizeDecreaseButton.IsEnabled = (int)size > 0;
+        BrowserThumbnailSizeIncreaseButton.IsEnabled = (int)size < BrowserGridLayout.ThumbnailSizes.Count - 1;
         Resources["BrowserTileWidth"] = BrowserGridLayout.TileWidthFor(size);
         Resources["BrowserTileThumbnailHeight"] = BrowserGridLayout.ThumbnailAreaHeightFor(size);
         UpdateBrowserGridColumns();
@@ -656,6 +660,14 @@ public partial class MainWindow : Window
         if (_synchronizingBrowserThumbnailSize) return;
         ApplyBrowserThumbnailSize(BrowserGridLayout.ThumbnailSizeFromLevel((int)Math.Round(e.NewValue)));
     }
+
+    /// <summary>Steps exactly one level toward Small; disabled (so unreachable by click) once already there — see <see cref="BrowserGridLayout.StepLevel"/>.</summary>
+    private void BrowserThumbnailSizeDecreaseButton_Click(object sender, RoutedEventArgs e) =>
+        ApplyBrowserThumbnailSize(BrowserGridLayout.StepLevel(_browserThumbnailSize, -1));
+
+    /// <summary>Steps exactly one level toward Maximum; disabled (so unreachable by click) once already there — see <see cref="BrowserGridLayout.StepLevel"/>.</summary>
+    private void BrowserThumbnailSizeIncreaseButton_Click(object sender, RoutedEventArgs e) =>
+        ApplyBrowserThumbnailSize(BrowserGridLayout.StepLevel(_browserThumbnailSize, 1));
 
     private void BrowserGridHost_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

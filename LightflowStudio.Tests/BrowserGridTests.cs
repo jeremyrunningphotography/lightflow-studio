@@ -573,6 +573,53 @@ public sealed class BrowserGridTests
     public void ThumbnailSizeFromLevel_ClampsOutOfRangeLevelsRatherThanThrowing(int level, int expectedLevelIndex) =>
         Assert.Equal(BrowserGridLayout.ThumbnailSizes[expectedLevelIndex], BrowserGridLayout.ThumbnailSizeFromLevel(level));
 
+    [Fact]
+    public void StepLevel_IncreasingByOneMovesExactlyOneLevelAtATime()
+    {
+        // The behavior behind the presentation control's increase button: one click, one level, regardless
+        // of where in the range the current size sits.
+        Assert.Equal(BrowserThumbnailSize.Medium, BrowserGridLayout.StepLevel(BrowserThumbnailSize.Small, 1));
+        Assert.Equal(BrowserThumbnailSize.Large, BrowserGridLayout.StepLevel(BrowserThumbnailSize.Medium, 1));
+        Assert.Equal(BrowserThumbnailSize.ExtraLarge, BrowserGridLayout.StepLevel(BrowserThumbnailSize.Large, 1));
+        Assert.Equal(BrowserThumbnailSize.Huge, BrowserGridLayout.StepLevel(BrowserThumbnailSize.ExtraLarge, 1));
+        Assert.Equal(BrowserThumbnailSize.Maximum, BrowserGridLayout.StepLevel(BrowserThumbnailSize.Huge, 1));
+    }
+
+    [Fact]
+    public void StepLevel_DecreasingByOneMovesExactlyOneLevelAtATime()
+    {
+        // The behavior behind the decrease button — the exact mirror of the increase test above.
+        Assert.Equal(BrowserThumbnailSize.Huge, BrowserGridLayout.StepLevel(BrowserThumbnailSize.Maximum, -1));
+        Assert.Equal(BrowserThumbnailSize.ExtraLarge, BrowserGridLayout.StepLevel(BrowserThumbnailSize.Huge, -1));
+        Assert.Equal(BrowserThumbnailSize.Large, BrowserGridLayout.StepLevel(BrowserThumbnailSize.ExtraLarge, -1));
+        Assert.Equal(BrowserThumbnailSize.Medium, BrowserGridLayout.StepLevel(BrowserThumbnailSize.Large, -1));
+        Assert.Equal(BrowserThumbnailSize.Small, BrowserGridLayout.StepLevel(BrowserThumbnailSize.Medium, -1));
+    }
+
+    [Fact]
+    public void StepLevel_ClampsAtSmallRatherThanWrappingToMaximum() =>
+        Assert.Equal(BrowserThumbnailSize.Small, BrowserGridLayout.StepLevel(BrowserThumbnailSize.Small, -1));
+
+    [Fact]
+    public void StepLevel_ClampsAtMaximumRatherThanWrappingToSmall() =>
+        Assert.Equal(BrowserThumbnailSize.Maximum, BrowserGridLayout.StepLevel(BrowserThumbnailSize.Maximum, 1));
+
+    [Fact]
+    public void StepLevel_RepeatedIncreaseFromSmallTraversesEveryLevelInOrderUsingOnlyTheButtonOperation()
+    {
+        // Simulates clicking the increase button five times in a row from the bottom of the range — every
+        // level must be reachable this way, in the same order BrowserGridLayout.ThumbnailSizes declares.
+        var current = BrowserThumbnailSize.Small;
+        var visited = new List<BrowserThumbnailSize> { current };
+        for (var i = 0; i < 5; i++)
+        {
+            current = BrowserGridLayout.StepLevel(current, 1);
+            visited.Add(current);
+        }
+
+        Assert.Equal(BrowserGridLayout.ThumbnailSizes, visited);
+    }
+
     [Theory]
     [InlineData(0, 528, 4)]   // Small; widest at the app's declared-minimum-width canvas
     [InlineData(1, 528, 2)]   // Medium

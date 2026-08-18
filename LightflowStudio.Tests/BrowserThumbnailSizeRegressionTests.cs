@@ -25,6 +25,12 @@ public sealed class BrowserThumbnailSizeRegressionTests
         Assert.Contains("Resources[\"BrowserTileThumbnailHeight\"] = BrowserGridLayout.ThumbnailAreaHeightFor(size);", body);
         Assert.Contains("UpdateBrowserGridColumns();", body);
 
+        // The step buttons' enabled state is derived from BrowserGridLayout.ThumbnailSizes.Count here — not
+        // a hardcoded "5" or a second copy of the level list — so it can never drift if levels are added or
+        // removed again.
+        Assert.Contains("BrowserThumbnailSizeDecreaseButton.IsEnabled = (int)size > 0;", body);
+        Assert.Contains("BrowserThumbnailSizeIncreaseButton.IsEnabled = (int)size < BrowserGridLayout.ThumbnailSizes.Count - 1;", body);
+
         // The Slider.Value assignment must be guarded, or setting it here would re-enter
         // BrowserThumbnailSizeSlider_ValueChanged.
         var guardOn = body.IndexOf("_synchronizingBrowserThumbnailSize = true;", StringComparison.Ordinal);
@@ -105,17 +111,20 @@ public sealed class BrowserThumbnailSizeRegressionTests
     public void ThumbnailSizeWiring_NeverTouchesBrowserQueryScopeCatalogOrPreviewApis()
     {
         // #125 is presentation state — architecturally separate from BrowserQuery/scope (#109/#124) and from
-        // Catalog/Preview generation policy. None of the three methods that actually change or apply the
-        // size may reference those systems.
+        // Catalog/Preview generation policy. None of the methods that actually change or apply the size may
+        // reference those systems — including the two step-button handlers added alongside the slider.
         var source = Source();
         foreach (var method in new[]
         {
-            "ApplyBrowserThumbnailSize", "BrowserThumbnailSizeSlider_ValueChanged", "UpdateBrowserGridColumns"
+            "ApplyBrowserThumbnailSize", "BrowserThumbnailSizeSlider_ValueChanged", "UpdateBrowserGridColumns",
+            "BrowserThumbnailSizeDecreaseButton_Click", "BrowserThumbnailSizeIncreaseButton_Click"
         })
         {
             var methodStart = source.IndexOf($"private void {method}", StringComparison.Ordinal);
             Assert.True(methodStart >= 0, $"{method} not found");
-            var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+            var methodEnd = method.EndsWith("_Click", StringComparison.Ordinal)
+                ? source.IndexOf(';', methodStart) // expression-bodied: private void X(...) => ...;
+                : source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
             var body = source[methodStart..methodEnd];
 
             Assert.DoesNotContain("SetQuery", body);
@@ -123,6 +132,45 @@ public sealed class BrowserThumbnailSizeRegressionTests
             Assert.DoesNotContain(".Populate(", body);
             Assert.DoesNotContain("Previews.", body);
             Assert.DoesNotContain("_storage.Catalog", body);
+        }
+    }
+
+    [Fact]
+    public void StepButtonClicks_RouteThroughTheSameApplyMethodAsTheSliderUsingTheSharedStepOperation()
+    {
+        // Both buttons are just two more callers of ApplyBrowserThumbnailSize — the same single sizing path
+        // the slider uses — via BrowserGridLayout.StepLevel rather than a second increment/decrement
+        // implementation or a hardcoded +1/-1 index computed inline.
+        var source = Source();
+
+        var decreaseStart = source.IndexOf("private void BrowserThumbnailSizeDecreaseButton_Click", StringComparison.Ordinal);
+        Assert.True(decreaseStart >= 0, "BrowserThumbnailSizeDecreaseButton_Click not found");
+        var decreaseEnd = source.IndexOf(';', decreaseStart);
+        var decreaseBody = source[decreaseStart..decreaseEnd];
+        Assert.Contains("ApplyBrowserThumbnailSize(BrowserGridLayout.StepLevel(_browserThumbnailSize, -1))", decreaseBody);
+
+        var increaseStart = source.IndexOf("private void BrowserThumbnailSizeIncreaseButton_Click", StringComparison.Ordinal);
+        Assert.True(increaseStart >= 0, "BrowserThumbnailSizeIncreaseButton_Click not found");
+        var increaseEnd = source.IndexOf(';', increaseStart);
+        var increaseBody = source[increaseStart..increaseEnd];
+        Assert.Contains("ApplyBrowserThumbnailSize(BrowserGridLayout.StepLevel(_browserThumbnailSize, 1))", increaseBody);
+    }
+
+    [Fact]
+    public void StepButtonClicks_NeverCallWorkspaceStateDirectlySoPersistenceStaysOnTheExistingLifecycleOnly()
+    {
+        // A click must not save workspace state itself — persistence remains #125's existing
+        // shutdown/debounce-timer lifecycle (SaveWorkspaceState), read from _browserThumbnailSize whenever
+        // that already-scheduled save happens to run, exactly like slider changes.
+        var source = Source();
+        foreach (var method in new[] { "BrowserThumbnailSizeDecreaseButton_Click", "BrowserThumbnailSizeIncreaseButton_Click" })
+        {
+            var methodStart = source.IndexOf($"private void {method}", StringComparison.Ordinal);
+            Assert.True(methodStart >= 0, $"{method} not found");
+            var methodEnd = source.IndexOf(';', methodStart);
+            var body = source[methodStart..methodEnd];
+
+            Assert.DoesNotContain("_workspaceState", body);
         }
     }
 

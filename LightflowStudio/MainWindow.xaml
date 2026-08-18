@@ -141,6 +141,47 @@
     </Setter.Value>
    </Setter>
   </Style>
+
+  <!-- #125: the small/large glyphs flanking the thumbnail-size slider are real, keyboard-reachable Buttons
+       (one step per click, see MainWindow.ApplyBrowserThumbnailSize/StepLevel) rather than a decorative
+       TextBlock with raw mouse handling. At rest they look identical to the plain glyph they replaced;
+       hover/press/focus/disabled are the only visual difference, kept restrained to match this status bar's
+       subdued language rather than reading as a conventional button. -->
+  <Style x:Key="BrowserThumbnailSizeStepButtonStyle" TargetType="Button">
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="Padding" Value="3"/>
+   <Setter Property="Margin" Value="0"/>
+   <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1"
+       CornerRadius="4" Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+       </Trigger>
+       <Trigger Property="IsPressed" Value="True">
+        <Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/>
+       </Trigger>
+       <Trigger Property="IsKeyboardFocused" Value="True">
+        <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
+       </Trigger>
+       <Trigger Property="IsEnabled" Value="False">
+        <Setter Property="Opacity" Value="0.4"/>
+        <Setter Property="Cursor" Value="Arrow"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
  </Window.Resources>
  <Grid Background="{StaticResource WindowBrush}">
   <Grid.RowDefinitions><RowDefinition Height="60"/><RowDefinition Height="*"/><RowDefinition Height="34"/></Grid.RowDefinitions>
@@ -783,17 +824,23 @@
   <Border Grid.Row="2" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,1,0,0" Padding="14,0">
    <DockPanel LastChildFill="True">
     <!-- #125: thumbnail-size control, the integration point #126 reserved here. No permanent text label —
-         a small/large rendering of the same glyph flanks the slider, and the slider itself carries the
-         accessible name/tooltip; understandable through iconography/tooltip/accessibility text alone. -->
+         a small/large rendering of the same glyph flanks the slider (now clickable one-step decrease/
+         increase buttons, not just decorative), and every control here carries its own accessible name/
+         tooltip; understandable through iconography/tooltip/accessibility text alone. IsEnabled on the two
+         buttons is kept current by MainWindow.ApplyBrowserThumbnailSize, the same single apply point the
+         slider already used — no XAML default declared here, matching that method being the sole source of
+         truth for every visual this control shows. -->
     <StackPanel x:Name="BrowserPresentationControls" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
-     <TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
-      FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9" Text="&#xE80A;"/>
+     <Button x:Name="BrowserThumbnailSizeDecreaseButton" Style="{StaticResource BrowserThumbnailSizeStepButtonStyle}" FontSize="9"
+      Content="&#xE80A;" ToolTip="Decrease thumbnail size" AutomationProperties.Name="Decrease thumbnail size"
+      Click="BrowserThumbnailSizeDecreaseButton_Click"/>
      <Slider x:Name="BrowserThumbnailSizeSlider" Style="{StaticResource BrowserThumbnailSizeSliderStyle}" Margin="6,0"
       Minimum="0" Maximum="5" IsSnapToTickEnabled="True" TickFrequency="1"
       ToolTip="Thumbnail size" AutomationProperties.Name="Thumbnail size"
       ValueChanged="BrowserThumbnailSizeSlider_ValueChanged"/>
-     <TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
-      FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE80A;"/>
+     <Button x:Name="BrowserThumbnailSizeIncreaseButton" Style="{StaticResource BrowserThumbnailSizeStepButtonStyle}" FontSize="15"
+      Content="&#xE80A;" ToolTip="Increase thumbnail size" AutomationProperties.Name="Increase thumbnail size"
+      Click="BrowserThumbnailSizeIncreaseButton_Click"/>
     </StackPanel>
     <TextBlock x:Name="BrowserStatusText" DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
      FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="380" Margin="0,0,14,0" Visibility="Collapsed"/>

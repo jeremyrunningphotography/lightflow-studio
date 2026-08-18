@@ -6,6 +6,20 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserGridTests
 {
     [Fact]
+    public void PresentableCategories_IsExactlyTheSetIsPresentableAccepts()
+    {
+        // The single authoritative source for "does the Browser show this category" — a category that's
+        // presentable but missing from this list (or vice versa) would leave the quick-filter toolbar
+        // (built from PresentableCategories) silently out of sync with what the grid actually shows.
+        var rootId = Guid.NewGuid();
+        foreach (var category in Enum.GetValues<MediaTypeCategory>())
+        {
+            var isPresentable = BrowserGridModel.IsPresentable(File(rootId, "a", category));
+            Assert.Equal(BrowserGridModel.PresentableCategories.Contains(category), isPresentable);
+        }
+    }
+
+    [Fact]
     public void Populate_ExcludesDirectoriesAndNeverCreatesFolderTiles()
     {
         var model = new BrowserGridModel();

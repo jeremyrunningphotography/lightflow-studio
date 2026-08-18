@@ -293,14 +293,22 @@ internal sealed class BrowserGridModel
     }
 
     /// <summary>
+    /// The Browser's supported presentation categories, in display order. The single authoritative source
+    /// for "is this category presentable" (<see cref="IsPresentable"/>) and for generating one UI control
+    /// per category (e.g. the quick-filter buttons) — never duplicated as a second, hand-maintained list
+    /// that could silently drift from what the grid actually shows.
+    /// </summary>
+    public static readonly IReadOnlyList<MediaTypeCategory> PresentableCategories =
+        [MediaTypeCategory.StillImage, MediaTypeCategory.RawImage, MediaTypeCategory.Video];
+
+    /// <summary>
     /// Lightflow's Browser is a media browser, not a general-purpose file browser: the central canvas
     /// presents only supported still image, RAW image, and video assets. This reads the classification
     /// the existing #98 media type registry already assigned to the entry; it does not maintain a second,
     /// WPF-owned extension list. Folders, standalone audio, and unknown/unsupported files are excluded
     /// from presentation entirely rather than shown as a placeholder tile.
     /// </summary>
-    public static bool IsPresentable(MediaFolderEntry entry) => !entry.IsDirectory && entry.MediaType.Category
-        is MediaTypeCategory.StillImage or MediaTypeCategory.RawImage or MediaTypeCategory.Video;
+    public static bool IsPresentable(MediaFolderEntry entry) => !entry.IsDirectory && PresentableCategories.Contains(entry.MediaType.Category);
 
     /// <summary>
     /// Replaces the master tile set from the current folder's file entries, reusing existing tile instances

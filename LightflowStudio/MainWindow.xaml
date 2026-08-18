@@ -182,20 +182,18 @@
            <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
            <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
-          <!-- Quick, persistent single-value pick for the one everyday facet, presented as one segmented
-               control; Filter ▾ (below) additionally supports stacking multiple values/fields for the
-               compound case these four segments cannot express alone. Both read/write the same
-               BrowserQuery.Filters and stay in sync — see MainWindow.SyncBrowserQueryToolbarVisuals. -->
-          <Border Style="{StaticResource BrowserToolbarChipStyle}" ClipToBounds="True" ToolTip="Quick media-type filter">
-           <StackPanel Orientation="Horizontal">
+          <!-- Independent per-category toggles (multiple may be active; OR within the facet), presented as
+               one segmented control; Filter ▾ (below) additionally supports stacking with other, future
+               fields for the compound case this row cannot express alone. Both read/write the same
+               BrowserQuery.Filters and stay in sync — see MainWindow.SyncBrowserQueryToolbarVisuals.
+               "All" is the only statically-declared segment (it isn't a media type); one toggle per
+               BrowserGridModel.PresentableCategories is appended after it from code-behind
+               (InitializeBrowserQuickFilterButtons) so the row can never drift from what the grid actually
+               presents. -->
+          <Border Style="{StaticResource BrowserToolbarChipStyle}" ClipToBounds="True" ToolTip="Toggle media types shown">
+           <StackPanel x:Name="BrowserQuickFilterSegments" Orientation="Horizontal">
             <ToggleButton x:Name="BrowserQuickFilterAllButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Content="All"
              AutomationProperties.Name="Show all media types" Click="BrowserQuickFilterAllButton_Click"/>
-            <ToggleButton x:Name="BrowserQuickFilterImagesButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Content="Images"
-             AutomationProperties.Name="Show only images" Click="BrowserQuickFilterImagesButton_Click"/>
-            <ToggleButton x:Name="BrowserQuickFilterRawButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Content="RAW"
-             AutomationProperties.Name="Show only RAW images" Click="BrowserQuickFilterRawButton_Click"/>
-            <ToggleButton x:Name="BrowserQuickFilterVideoButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" BorderThickness="0" Content="Video"
-             AutomationProperties.Name="Show only video" Click="BrowserQuickFilterVideoButton_Click"/>
            </StackPanel>
           </Border>
           <Border Grid.Column="2" Style="{StaticResource BrowserToolbarChipStyle}" MinWidth="170">
@@ -220,18 +218,18 @@
           <Popup x:Name="BrowserFilterPopup" IsOpen="{Binding IsChecked, ElementName=BrowserFilterButton, Mode=TwoWay}"
            PlacementTarget="{Binding ElementName=BrowserFilterButton}" Placement="Bottom" VerticalOffset="4"
            StaysOpen="False" AllowsTransparency="True">
-           <Border Width="180" Padding="12" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="8">
+           <Border Width="208" Padding="14" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="8">
             <StackPanel>
-             <TextBlock Style="{StaticResource FieldLabel}" Text="MEDIA TYPE"/>
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,0,4,4" Text="MEDIA TYPE"/>
              <!-- IsChecked is synced from code-behind once a predicate is added/removed, not declared here —
                   see the SelectedIndex note on BrowserSortCombo below for why nothing here sets a XAML default. -->
-             <CheckBox x:Name="BrowserFilterImagesCheck" Margin="0,8,0,0" Content="Images"
+             <CheckBox x:Name="BrowserFilterImagesCheck" Margin="4,7,4,0" Content="Images"
               Checked="BrowserFilterImagesCheck_Changed" Unchecked="BrowserFilterImagesCheck_Changed"/>
-             <CheckBox x:Name="BrowserFilterRawCheck" Margin="0,8,0,0" Content="RAW"
+             <CheckBox x:Name="BrowserFilterRawCheck" Margin="4,11,4,0" Content="RAW"
               Checked="BrowserFilterRawCheck_Changed" Unchecked="BrowserFilterRawCheck_Changed"/>
-             <CheckBox x:Name="BrowserFilterVideoCheck" Margin="0,8,0,0" Content="Video"
+             <CheckBox x:Name="BrowserFilterVideoCheck" Margin="4,11,4,0" Content="Video"
               Checked="BrowserFilterVideoCheck_Changed" Unchecked="BrowserFilterVideoCheck_Changed"/>
-             <TextBlock Margin="0,10,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap"
+             <TextBlock Margin="4,14,4,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" LineHeight="16" TextWrapping="Wrap"
               Text="More filters (date, size, camera, and more) arrive here over time."/>
             </StackPanel>
            </Border>

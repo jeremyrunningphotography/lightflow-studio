@@ -530,28 +530,27 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserQuickFilterButtons_AreAnExclusivePickRowThatDoesNotDeclareIsCheckedInXaml()
+    public void BrowserQuickFilterSegments_OnlyDeclaresTheAllButtonStaticallyLeavingEachCategoryToCodeBehind()
     {
-        // Mockup-driven: All/Images/RAW/Video sit permanently in the toolbar for the common single-value
-        // case, alongside (not instead of) Filter ▾'s stackable checkboxes for the same field.
+        // "All" isn't a media type, so it alone is hand-declared; one toggle per
+        // BrowserGridModel.PresentableCategories is appended in code (InitializeBrowserQuickFilterButtons)
+        // so the row can never drift from what the grid actually presents. A hardcoded per-category button
+        // here (Images/RAW/Video) would be exactly the drift risk this design avoids.
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var segments = Named(document, "BrowserQuickFilterSegments");
         var all = Named(document, "BrowserQuickFilterAllButton");
-        var images = Named(document, "BrowserQuickFilterImagesButton");
-        var raw = Named(document, "BrowserQuickFilterRawButton");
-        var video = Named(document, "BrowserQuickFilterVideoButton");
         var toolbar = Named(document, "BrowserQueryToolbar");
 
-        foreach (var button in new[] { all, images, raw, video })
-        {
-            Assert.Equal("ToggleButton", button.Name.LocalName);
-            Assert.Contains(toolbar.Descendants(), element => element == button);
-            Assert.DoesNotContain("IsChecked", button.Attributes().Select(attribute => attribute.Name.LocalName));
-        }
-
+        Assert.Equal("ToggleButton", all.Name.LocalName);
+        Assert.Contains(toolbar.Descendants(), element => element == all);
+        Assert.DoesNotContain("IsChecked", all.Attributes().Select(attribute => attribute.Name.LocalName));
         Assert.Equal("BrowserQuickFilterAllButton_Click", (string?)all.Attribute("Click"));
-        Assert.Equal("BrowserQuickFilterImagesButton_Click", (string?)images.Attribute("Click"));
-        Assert.Equal("BrowserQuickFilterRawButton_Click", (string?)raw.Attribute("Click"));
-        Assert.Equal("BrowserQuickFilterVideoButton_Click", (string?)video.Attribute("Click"));
+
+        Assert.Equal([all], segments.Elements(ns + "ToggleButton"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" &&
+                attribute.Value is "BrowserQuickFilterImagesButton" or "BrowserQuickFilterRawButton" or "BrowserQuickFilterVideoButton"));
     }
 
     [Fact]

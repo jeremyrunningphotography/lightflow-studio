@@ -94,64 +94,86 @@ public sealed class BrowserQueryRegressionTests
     }
 
     [Fact]
-    public void SyncBrowserQueryToolbarVisuals_ShowsTheChipRowOnlyWhenAtLeastOnePredicateIsActive()
+    public void SyncBrowserQueryToolbarVisuals_ExcludesMediaTypeFromTheChipRowSinceTheQuickButtonsAlreadyShowIt()
     {
+        // The permanent media-type toggles already communicate that facet's complete state; a "Video ×"
+        // chip beneath a highlighted Video button would be redundant. The chip row (and the space it would
+        // occupy) exists only for predicates — future fields — with no permanent toolbar representation.
         var source = Source();
         var methodStart = source.IndexOf("private void SyncBrowserQueryToolbarVisuals", StringComparison.Ordinal);
         var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
         var body = source[methodStart..methodEnd];
 
-        Assert.Contains("BrowserFilterChips.ItemsSource = filters;", body);
-        Assert.Contains("filters.Count > 0 ? Visibility.Visible : Visibility.Collapsed", body);
+        Assert.Contains("filters.Where(f => f.Field != BrowserFilterField.MediaType)", body);
+        Assert.Contains("BrowserFilterChips.ItemsSource = advancedFilters;", body);
+        Assert.Contains("advancedFilters.Length > 0 ? Visibility.Visible : Visibility.Collapsed", body);
     }
 
     [Fact]
-    public void SyncBrowserQueryToolbarVisuals_GivesTheQuickFilterButtonsExclusiveSingleValueState()
+    public void SyncBrowserQueryToolbarVisuals_GivesEachMediaTypeButtonAnIndependentToggleStateAndDerivesAllFromZeroPredicates()
     {
-        // The four persistent buttons represent one exclusive value (or none, "All") of the media-type
-        // facet; a multi-value combination (only reachable via Filter ▾'s stackable checkboxes) leaves all
-        // four unchecked rather than guessing which one to highlight.
+        // Every media-type button reflects only its own category (multiple may be checked at once); "All"
+        // must come from there being zero active predicates, never from every individual button happening
+        // to be checked, so "no filter" and "every type explicitly selected" stay visually distinct even
+        // though they show the same tiles.
         var source = Source();
         var methodStart = source.IndexOf("private void SyncBrowserQueryToolbarVisuals", StringComparison.Ordinal);
         var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
         var body = source[methodStart..methodEnd];
 
-        Assert.Contains("BrowserQuickFilterAllButton.IsChecked = mediaTypeValues.Length == 0;", body);
-        Assert.Contains("BrowserQuickFilterImagesButton.IsChecked = mediaTypeValues is [MediaTypeCategory.StillImage];", body);
-        Assert.Contains("BrowserQuickFilterRawButton.IsChecked = mediaTypeValues is [MediaTypeCategory.RawImage];", body);
-        Assert.Contains("BrowserQuickFilterVideoButton.IsChecked = mediaTypeValues is [MediaTypeCategory.Video];", body);
+        Assert.Contains("BrowserQuickFilterAllButton.IsChecked = activeMediaTypes.Count == 0;", body);
+        Assert.Contains("foreach (var (category, button) in _browserQuickFilterButtons) button.IsChecked = activeMediaTypes.Contains(category);", body);
+        Assert.DoesNotContain("mediaTypeValues.Length == 1", body);
+        Assert.DoesNotContain(" is [", body);
     }
 
     [Fact]
-    public void QuickFilterButtonHandlers_AreGuardedAndRouteThroughApplyBrowserQuery()
+    public void BrowserQuickFilterCategoryButtonClick_IsSharedAcrossEveryCategoryAndRoutesThroughTheGuardedToggleHelper()
     {
         var source = Source();
-        foreach (var (handler, category) in new[]
-        {
-            ("BrowserQuickFilterImagesButton_Click", "MediaTypeCategory.StillImage"),
-            ("BrowserQuickFilterRawButton_Click", "MediaTypeCategory.RawImage"),
-            ("BrowserQuickFilterVideoButton_Click", "MediaTypeCategory.Video"),
-        })
-        {
-            var methodStart = source.IndexOf($"private void {handler}", StringComparison.Ordinal);
-            Assert.True(methodStart >= 0, $"{handler} not found");
-            var methodEnd = source.IndexOf(';', methodStart);
-            var body = source[methodStart..methodEnd];
-            Assert.Contains("SetSoleBrowserMediaTypeFilter(", body);
-            Assert.Contains(category, body);
-        }
+        var methodStart = source.IndexOf("private void BrowserQuickFilterCategoryButton_Click", StringComparison.Ordinal);
+        Assert.True(methodStart >= 0, "BrowserQuickFilterCategoryButton_Click not found");
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("if (_synchronizingBrowserQuery) return;", body);
+        Assert.Contains("ToggleBrowserMediaTypeFilter((MediaTypeCategory)button.Tag, button.IsChecked == true);", body);
+        // No hardcoded per-category handler should remain — one shared handler for every dynamically
+        // created segment, unlike the removed BrowserQuickFilterImagesButton_Click/RawButton_Click/VideoButton_Click.
+        Assert.DoesNotContain("BrowserQuickFilterImagesButton_Click", source);
+        Assert.DoesNotContain("BrowserQuickFilterRawButton_Click", source);
+        Assert.DoesNotContain("BrowserQuickFilterVideoButton_Click", source);
+        Assert.DoesNotContain("SetSoleBrowserMediaTypeFilter", source);
+        Assert.DoesNotContain("WithOnlyFilter", source);
 
         var allStart = source.IndexOf("private void BrowserQuickFilterAllButton_Click", StringComparison.Ordinal);
         var allEnd = source.IndexOf("\n    private", allStart + 1, StringComparison.Ordinal);
         var allBody = source[allStart..allEnd];
         Assert.Contains("if (_synchronizingBrowserQuery) return;", allBody);
         Assert.Contains("query.WithoutField(BrowserFilterField.MediaType)", allBody);
+    }
 
-        var soleStart = source.IndexOf("private void SetSoleBrowserMediaTypeFilter", StringComparison.Ordinal);
-        var soleEnd = source.IndexOf("\n    private", soleStart + 1, StringComparison.Ordinal);
-        var soleBody = source[soleStart..soleEnd];
-        Assert.Contains("if (_synchronizingBrowserQuery) return;", soleBody);
-        Assert.Contains("query.WithOnlyFilter(BrowserFilterPredicate.ForMediaType(category))", soleBody);
+    [Fact]
+    public void InitializeBrowserQuickFilterButtons_GeneratesOneSegmentPerPresentableCategoryRatherThanAHardcodedList()
+    {
+        var source = Source();
+        var methodStart = source.IndexOf("private void InitializeBrowserQuickFilterButtons", StringComparison.Ordinal);
+        Assert.True(methodStart >= 0, "InitializeBrowserQuickFilterButtons not found");
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("BrowserGridModel.PresentableCategories", body);
+        Assert.Contains("button.Click += BrowserQuickFilterCategoryButton_Click;", body);
+        Assert.Contains("BrowserQuickFilterSegments.Children.Add(button);", body);
+        Assert.Contains("_browserQuickFilterButtons[category] = button;", body);
+        // The Click handler is wired after construction and IsChecked is never set in the object
+        // initializer, so no Checked event can fire before the button is fully set up.
+        var initializerEnd = body.IndexOf("};", body.IndexOf("new ToggleButton", StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.DoesNotContain("IsChecked", body[..initializerEnd]);
+
+        var constructorStart = source.IndexOf("InitializeComponent();", StringComparison.Ordinal);
+        var constructorEnd = source.IndexOf('\n', constructorStart);
+        Assert.Contains("InitializeBrowserQuickFilterButtons();", source[constructorStart..(constructorEnd + 60)]);
     }
 
     [Fact]
@@ -233,7 +255,7 @@ public sealed class BrowserQueryRegressionTests
         foreach (var name in new[]
         {
             "BrowserSortCombo", "BrowserFilterImagesCheck", "BrowserFilterRawCheck", "BrowserFilterVideoCheck",
-            "BrowserQuickFilterAllButton", "BrowserQuickFilterImagesButton", "BrowserQuickFilterRawButton", "BrowserQuickFilterVideoButton"
+            "BrowserQuickFilterAllButton"
         })
         {
             var start = xaml.IndexOf($"x:Name=\"{name}\"", StringComparison.Ordinal);

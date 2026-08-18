@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using System.Windows.Controls.Primitives;
+using System.Windows.Automation;
 using System.Windows.Input;
 using Microsoft.Data.Sqlite;
 using Forms = System.Windows.Forms;
@@ -66,6 +67,7 @@ public partial class MainWindow : Window
     private bool _synchronizingBrowserQuery;
     private (Guid RootId, string RelativeFolder)? _browserQueryScope;
     private IDerivedWorkBatch? _activeBrowserDerivedWorkBatch;
+    private readonly Dictionary<MediaTypeCategory, ToggleButton> _browserQuickFilterButtons = [];
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -79,6 +81,7 @@ public partial class MainWindow : Window
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
+        InitializeBrowserQuickFilterButtons();
         ApplyRestoredWorkspaceLayout();
         if (_workspaceState.Current.Browser is { } savedBrowserLocation) ShowBrowserRestoringState(savedBrowserLocation);
         _batchFolderRefreshTimer.Tick += (_, _) =>
@@ -669,6 +672,35 @@ public partial class MainWindow : Window
         SyncBrowserQueryToolbarVisuals();
     }
 
+    /// <summary>
+    /// Appends one independent toggle per <see cref="BrowserGridModel.PresentableCategories"/> after the
+    /// static "All" segment, so the row can never silently lack a button for a category the grid actually
+    /// presents. Called once from the constructor — these controls live for the app's lifetime, unlike the
+    /// per-folder state <see cref="ResetBrowserQueryToolbar"/> resets.
+    /// </summary>
+    private void InitializeBrowserQuickFilterButtons()
+    {
+        var categories = BrowserGridModel.PresentableCategories;
+        for (var i = 0; i < categories.Count; i++)
+        {
+            var category = categories[i];
+            var label = BrowserFilterPredicate.ForMediaType(category).Label;
+            var button = new ToggleButton
+            {
+                Style = (Style)FindResource("BrowserQuickFilterSegmentStyle"),
+                Content = label,
+                Tag = category,
+                // Every segment divides from its neighbor with a thin right border except the last, which
+                // instead meets the shared chip's own rounded right edge — see BrowserQuickFilterSegmentStyle.
+                BorderThickness = i == categories.Count - 1 ? new Thickness(0) : new Thickness(0, 0, 1, 0)
+            };
+            AutomationProperties.SetName(button, $"Toggle {label} media type");
+            button.Click += BrowserQuickFilterCategoryButton_Click;
+            _browserQuickFilterButtons[category] = button;
+            BrowserQuickFilterSegments.Children.Add(button);
+        }
+    }
+
     /// <summary>Reflects the grid's current query onto every toolbar control that displays it, guarded so this never re-enters the controls' own change handlers.</summary>
     private void SyncBrowserQueryToolbarVisuals()
     {
@@ -676,21 +708,26 @@ public partial class MainWindow : Window
         try
         {
             var filters = _browserGrid.Query.Filters;
-            BrowserFilterImagesCheck.IsChecked = filters.Any(f => f.MediaTypeValue == MediaTypeCategory.StillImage);
-            BrowserFilterRawCheck.IsChecked = filters.Any(f => f.MediaTypeValue == MediaTypeCategory.RawImage);
-            BrowserFilterVideoCheck.IsChecked = filters.Any(f => f.MediaTypeValue == MediaTypeCategory.Video);
-            BrowserFilterChips.ItemsSource = filters;
-            BrowserFilterChips.Visibility = filters.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            var activeMediaTypes = filters.Where(f => f.Field == BrowserFilterField.MediaType)
+                .Select(f => f.MediaTypeValue).Where(value => value is not null).Select(value => value!.Value).ToHashSet();
+            BrowserFilterImagesCheck.IsChecked = activeMediaTypes.Contains(MediaTypeCategory.StillImage);
+            BrowserFilterRawCheck.IsChecked = activeMediaTypes.Contains(MediaTypeCategory.RawImage);
+            BrowserFilterVideoCheck.IsChecked = activeMediaTypes.Contains(MediaTypeCategory.Video);
 
-            // The persistent quick buttons represent one exclusive value (or none, "All"); with more than
-            // one media-type predicate active (only reachable via Filter ▾'s stackable checkboxes) none of
-            // the four highlight, since that combination has no single-button representation.
-            var mediaTypeValues = filters.Where(f => f.Field == BrowserFilterField.MediaType)
-                .Select(f => f.MediaTypeValue).Where(value => value is not null).Select(value => value!.Value).Distinct().ToArray();
-            BrowserQuickFilterAllButton.IsChecked = mediaTypeValues.Length == 0;
-            BrowserQuickFilterImagesButton.IsChecked = mediaTypeValues is [MediaTypeCategory.StillImage];
-            BrowserQuickFilterRawButton.IsChecked = mediaTypeValues is [MediaTypeCategory.RawImage];
-            BrowserQuickFilterVideoButton.IsChecked = mediaTypeValues is [MediaTypeCategory.Video];
+            // The permanent media-type toggles already communicate that whole facet's state, so a Media
+            // Type predicate never also produces a chip; the chip row exists only for predicates (future
+            // fields) that have no permanent toolbar representation of their own.
+            var advancedFilters = filters.Where(f => f.Field != BrowserFilterField.MediaType).ToArray();
+            BrowserFilterChips.ItemsSource = advancedFilters;
+            BrowserFilterChips.Visibility = advancedFilters.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            // Each media-type button is an independent toggle — multiple may be active at once, ORed
+            // together. "All" reflects the neutral "no explicit predicate" state and is derived only from
+            // there being zero active predicates, never inferred from every button happening to be checked:
+            // "no filter" and "every type explicitly selected" produce the same visible tiles but must stay
+            // two distinct, faithfully-preserved selections.
+            BrowserQuickFilterAllButton.IsChecked = activeMediaTypes.Count == 0;
+            foreach (var (category, button) in _browserQuickFilterButtons) button.IsChecked = activeMediaTypes.Contains(category);
 
             UpdateBrowserSortDirectionGlyph();
         }
@@ -750,15 +787,14 @@ public partial class MainWindow : Window
         ApplyBrowserQuery(query => query.WithoutField(BrowserFilterField.MediaType));
     }
 
-    private void BrowserQuickFilterImagesButton_Click(object sender, RoutedEventArgs e) => SetSoleBrowserMediaTypeFilter(MediaTypeCategory.StillImage);
-    private void BrowserQuickFilterRawButton_Click(object sender, RoutedEventArgs e) => SetSoleBrowserMediaTypeFilter(MediaTypeCategory.RawImage);
-    private void BrowserQuickFilterVideoButton_Click(object sender, RoutedEventArgs e) => SetSoleBrowserMediaTypeFilter(MediaTypeCategory.Video);
-
-    /// <summary>Replaces the entire media-type facet with exactly one value — a quick pick, unlike Filter ▾'s stackable checkboxes.</summary>
-    private void SetSoleBrowserMediaTypeFilter(MediaTypeCategory category)
+    /// <summary>Shared by every dynamically-created quick-filter segment (see InitializeBrowserQuickFilterButtons):
+    /// each is an independent toggle for its own category, routing through the same guarded helper the Filter ▾
+    /// checkboxes use so both stay mutually consistent.</summary>
+    private void BrowserQuickFilterCategoryButton_Click(object sender, RoutedEventArgs e)
     {
         if (_synchronizingBrowserQuery) return;
-        ApplyBrowserQuery(query => query.WithOnlyFilter(BrowserFilterPredicate.ForMediaType(category)));
+        var button = (ToggleButton)sender;
+        ToggleBrowserMediaTypeFilter((MediaTypeCategory)button.Tag, button.IsChecked == true);
     }
 
     /// <summary>Ctrl+F focuses the Browser search box, but only while the Browser workspace is showing an open, filterable location.</summary>

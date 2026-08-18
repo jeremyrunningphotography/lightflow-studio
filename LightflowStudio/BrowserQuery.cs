@@ -76,10 +76,6 @@ internal sealed record BrowserQuery
     public BrowserQuery WithFilterRemoved(BrowserFilterPredicate predicate) =>
         Filters.Contains(predicate) ? this with { Filters = Filters.Where(existing => existing != predicate).ToArray() } : this;
 
-    /// <summary>Replaces every predicate for <paramref name="predicate"/>'s field with exactly this one — a quick single-value pick (e.g. a persistent "Video" button) rather than a stackable add.</summary>
-    public BrowserQuery WithOnlyFilter(BrowserFilterPredicate predicate) =>
-        this with { Filters = [.. Filters.Where(existing => existing.Field != predicate.Field), predicate] };
-
     /// <summary>Clears every active predicate for one field (e.g. a persistent "All" button clearing the media-type facet entirely).</summary>
     public BrowserQuery WithoutField(BrowserFilterField field) =>
         Filters.Any(existing => existing.Field == field)

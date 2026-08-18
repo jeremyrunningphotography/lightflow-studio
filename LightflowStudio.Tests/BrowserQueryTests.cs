@@ -119,6 +119,29 @@ public sealed class BrowserQueryTests
     }
 
     [Fact]
+    public void Apply_EveryIndividualMediaTypeExplicitlyActiveYieldsTheSameTilesAsNoFilterAtAll()
+    {
+        // The two states are results-equivalent but must stay distinct selections in the query itself —
+        // Filters here still literally holds three predicates, not an empty/normalized list.
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([
+            Entry(rootId, "a.jpg", MediaTypeCategory.StillImage),
+            Entry(rootId, "b.mp4", MediaTypeCategory.Video),
+            Entry(rootId, "c.raw", MediaTypeCategory.RawImage)
+        ]);
+        var query = BrowserQuery.Default with
+        {
+            Filters = [.. BrowserGridModel.PresentableCategories.Select(BrowserFilterPredicate.ForMediaType)]
+        };
+
+        var result = BrowserQueryEngine.Apply(model.Tiles, query);
+
+        Assert.Equal(3, query.Filters.Count);
+        Assert.Equal(BrowserQueryEngine.Apply(model.Tiles, BrowserQuery.Default).Select(t => t.Name), result.Select(t => t.Name));
+    }
+
+    [Fact]
     public void Apply_SortDescendingReversesTheEntireOrderIncludingTieBreakers()
     {
         var tiles = Tiles(("a.jpg", 1), ("b.jpg", 2), ("c.jpg", 3));
@@ -380,33 +403,6 @@ public sealed class BrowserQueryFilterMutationTests
     [Fact]
     public void DefaultQuery_HasNoActiveFilters() =>
         Assert.Empty(BrowserQuery.Default.Filters);
-
-    [Fact]
-    public void WithOnlyFilter_ReplacesAnExistingPredicateForTheSameFieldRatherThanStacking()
-    {
-        var video = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video);
-        var images = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.StillImage);
-        var query = BrowserQuery.Default.WithFilterAdded(video);
-
-        var result = query.WithOnlyFilter(images);
-
-        Assert.Equal([images], result.Filters);
-    }
-
-    [Fact]
-    public void WithOnlyFilter_LeavesPredicatesForOtherFieldsUntouched()
-    {
-        // Only MediaType is implemented today, so this exercises the same field twice via a synthetic
-        // second predicate to prove WithOnlyFilter scopes its replacement to Field, not the whole list.
-        var video = BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video);
-        var other = new BrowserFilterPredicate { Field = (BrowserFilterField)999 };
-        var query = BrowserQuery.Default.WithFilterAdded(video).WithFilterAdded(other);
-
-        var result = query.WithOnlyFilter(BrowserFilterPredicate.ForMediaType(MediaTypeCategory.StillImage));
-
-        Assert.Contains(other, result.Filters);
-        Assert.DoesNotContain(video, result.Filters);
-    }
 
     [Fact]
     public void WithoutField_ClearsEveryPredicateForThatFieldOnly()

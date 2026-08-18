@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using System.Windows.Controls.Primitives;
+using System.Windows.Automation;
 using System.Windows.Input;
 using Microsoft.Data.Sqlite;
 using Forms = System.Windows.Forms;
@@ -61,6 +62,12 @@ public partial class MainWindow : Window
     private readonly WorkspaceStateService _workspaceState;
     private readonly DispatcherTimer _workspaceSaveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private WindowState _lastNonMinimizedWindowState = WindowState.Normal;
+    private readonly DispatcherTimer _browserSearchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
+    private readonly DispatcherTimer _browserMetadataResortTimer = new() { Interval = TimeSpan.FromMilliseconds(800) };
+    private bool _synchronizingBrowserQuery;
+    private (Guid RootId, string RelativeFolder)? _browserQueryScope;
+    private IDerivedWorkBatch? _activeBrowserDerivedWorkBatch;
+    private readonly Dictionary<MediaTypeCategory, ToggleButton> _browserQuickFilterButtons = [];
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -74,6 +81,7 @@ public partial class MainWindow : Window
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
+        InitializeBrowserQuickFilterButtons();
         ApplyRestoredWorkspaceLayout();
         if (_workspaceState.Current.Browser is { } savedBrowserLocation) ShowBrowserRestoringState(savedBrowserLocation);
         _batchFolderRefreshTimer.Tick += (_, _) =>
@@ -85,6 +93,17 @@ public partial class MainWindow : Window
         {
             _workspaceSaveTimer.Stop();
             _workspaceState.Save();
+        };
+        _browserSearchDebounceTimer.Tick += (_, _) =>
+        {
+            _browserSearchDebounceTimer.Stop();
+            ApplyBrowserQuery(query => query with { SearchText = BrowserSearchBox.Text });
+        };
+        _browserMetadataResortTimer.Tick += (_, _) =>
+        {
+            _browserMetadataResortTimer.Stop();
+            _browserGrid.ReapplyQuery();
+            UpdateBrowserStatusText();
         };
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
         StateChanged += (_, _) =>
@@ -149,6 +168,8 @@ public partial class MainWindow : Window
         {
             if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
             _workspaceSaveTimer.Stop();
+            _browserSearchDebounceTimer.Stop();
+            _browserMetadataResortTimer.Stop();
             _browserNavigation.Dispose();
         };
     }
@@ -511,6 +532,13 @@ public partial class MainWindow : Window
     private void ApplyBrowserState(BrowserFolderState state)
     {
         _lastLoadedBrowserState = state;
+        var scope = state.Location is { } scopeLocation ? (scopeLocation.RootId, scopeLocation.RelativeFolder) : ((Guid, string)?)null;
+        // A genuinely new scope (different folder, or navigating away from/into a location entirely) starts
+        // sort/filter/search over: the media-area toolbar narrows *the current* scope, not a remembered one.
+        // Refreshing the same folder (monitoring, explicit Refresh) must not disturb the chosen view of it.
+        if (scope != _browserQueryScope) ResetBrowserQueryToolbar();
+        _browserQueryScope = scope;
+
         _synchronizingBrowserTree = true;
         IReadOnlyList<MediaFolderEntry> files;
         try { files = _browserTree.Synchronize(state); }
@@ -524,11 +552,13 @@ public partial class MainWindow : Window
         BrowserForwardButton.IsEnabled = state.CanGoForward;
         BrowserUpButton.IsEnabled = state.CanGoUp;
         BrowserRefreshButton.IsEnabled = state.Location is not null;
-        BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready && files.Count > 0
+        BrowserQueryToolbar.IsEnabled = state.Location is not null;
+        var presentableCount = _browserGrid.TotalCount;
+        BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready && presentableCount > 0
             ? Visibility.Collapsed : Visibility.Visible;
         BrowserEmptyTitle.Text = state.Status switch
         {
-            BrowserFolderStatus.Ready when files.Count == 0 => "No media files in this folder",
+            BrowserFolderStatus.Ready when presentableCount == 0 => "No media files in this folder",
             BrowserFolderStatus.Empty when state.Location is not null => "No media files in this folder",
             BrowserFolderStatus.RootUnavailable => "Media Root unavailable",
             BrowserFolderStatus.RootNotFound => "Media Root not found",
@@ -543,6 +573,7 @@ public partial class MainWindow : Window
         BrowserEmptyMessage.Text = state.Diagnostic ?? (state.Location is null
             ? "Select a drive, mapped location, or managed library to browse its folders and supported media."
             : "Choose another folder from the navigation pane or refresh this location.");
+        UpdateBrowserStatusText();
 
         if (state.Location is { } location)
         {
@@ -591,6 +622,7 @@ public partial class MainWindow : Window
     {
         _browserGrid.ClearSelection();
         BrowserGridRows.Focus();
+        UpdateBrowserStatusText();
     }
 
     private void BrowserGridTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -600,6 +632,7 @@ public partial class MainWindow : Window
         else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) _browserGrid.ToggleCtrl(tile.Index);
         else _browserGrid.SelectSingle(tile.Index);
         BrowserGridRows.Focus();
+        UpdateBrowserStatusText();
         e.Handled = true;
     }
 
@@ -607,11 +640,192 @@ public partial class MainWindow : Window
     {
         if (e.Key != Key.A || !Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
         _browserGrid.SelectAll();
+        UpdateBrowserStatusText();
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Applies <paramref name="transform"/> to the grid's current query and keeps every toolbar visual
+    /// (filter checkboxes, chip row, sort-direction glyph) in sync with the result — the single place that
+    /// touches <see cref="BrowserGridModel.SetQuery"/> so those visuals can never drift from the model.
+    /// </summary>
+    private void ApplyBrowserQuery(Func<BrowserQuery, BrowserQuery> transform)
+    {
+        _browserGrid.SetQuery(transform(_browserGrid.Query));
+        SyncBrowserQueryToolbarVisuals();
+        UpdateBrowserStatusText();
+    }
+
+    /// <summary>Returns the toolbar to its defaults for a newly opened scope, without re-triggering each control's own change handler.</summary>
+    private void ResetBrowserQueryToolbar()
+    {
+        _synchronizingBrowserQuery = true;
+        try
+        {
+            _browserSearchDebounceTimer.Stop();
+            BrowserSearchBox.Text = "";
+            BrowserSortCombo.SelectedIndex = 0;
+            BrowserFilterButton.IsChecked = false;
+        }
+        finally { _synchronizingBrowserQuery = false; }
+        _browserGrid.SetQuery(BrowserQuery.Default);
+        SyncBrowserQueryToolbarVisuals();
+    }
+
+    /// <summary>
+    /// Appends one independent toggle per <see cref="BrowserGridModel.PresentableCategories"/> after the
+    /// static "All" segment, so the row can never silently lack a button for a category the grid actually
+    /// presents. Called once from the constructor — these controls live for the app's lifetime, unlike the
+    /// per-folder state <see cref="ResetBrowserQueryToolbar"/> resets.
+    /// </summary>
+    private void InitializeBrowserQuickFilterButtons()
+    {
+        var categories = BrowserGridModel.PresentableCategories;
+        for (var i = 0; i < categories.Count; i++)
+        {
+            var category = categories[i];
+            var label = BrowserFilterPredicate.ForMediaType(category).Label;
+            var button = new ToggleButton
+            {
+                Style = (Style)FindResource("BrowserQuickFilterSegmentStyle"),
+                Content = label,
+                Tag = category,
+                // Every segment divides from its neighbor with a thin right border except the last, which
+                // instead meets the shared chip's own rounded right edge — see BrowserQuickFilterSegmentStyle.
+                BorderThickness = i == categories.Count - 1 ? new Thickness(0) : new Thickness(0, 0, 1, 0)
+            };
+            AutomationProperties.SetName(button, $"Toggle {label} media type");
+            button.Click += BrowserQuickFilterCategoryButton_Click;
+            _browserQuickFilterButtons[category] = button;
+            BrowserQuickFilterSegments.Children.Add(button);
+        }
+    }
+
+    /// <summary>Reflects the grid's current query onto every toolbar control that displays it, guarded so this never re-enters the controls' own change handlers.</summary>
+    private void SyncBrowserQueryToolbarVisuals()
+    {
+        _synchronizingBrowserQuery = true;
+        try
+        {
+            var filters = _browserGrid.Query.Filters;
+            var activeMediaTypes = filters.Where(f => f.Field == BrowserFilterField.MediaType)
+                .Select(f => f.MediaTypeValue).Where(value => value is not null).Select(value => value!.Value).ToHashSet();
+            BrowserFilterImagesCheck.IsChecked = activeMediaTypes.Contains(MediaTypeCategory.StillImage);
+            BrowserFilterRawCheck.IsChecked = activeMediaTypes.Contains(MediaTypeCategory.RawImage);
+            BrowserFilterVideoCheck.IsChecked = activeMediaTypes.Contains(MediaTypeCategory.Video);
+
+            // The permanent media-type toggles already communicate that whole facet's state, so a Media
+            // Type predicate never also produces a chip; the chip row exists only for predicates (future
+            // fields) that have no permanent toolbar representation of their own.
+            var advancedFilters = filters.Where(f => f.Field != BrowserFilterField.MediaType).ToArray();
+            BrowserFilterChips.ItemsSource = advancedFilters;
+            BrowserFilterChips.Visibility = advancedFilters.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            // Each media-type button is an independent toggle — multiple may be active at once, ORed
+            // together. "All" reflects the neutral "no explicit predicate" state and is derived only from
+            // there being zero active predicates, never inferred from every button happening to be checked:
+            // "no filter" and "every type explicitly selected" produce the same visible tiles but must stay
+            // two distinct, faithfully-preserved selections.
+            BrowserQuickFilterAllButton.IsChecked = activeMediaTypes.Count == 0;
+            foreach (var (category, button) in _browserQuickFilterButtons) button.IsChecked = activeMediaTypes.Contains(category);
+
+            UpdateBrowserSortDirectionGlyph();
+        }
+        finally { _synchronizingBrowserQuery = false; }
+    }
+
+    private void UpdateBrowserSortDirectionGlyph()
+    {
+        var descending = _browserGrid.Query.SortDescending;
+        BrowserSortDirectionButton.Content = descending ? "\uE70D" : "\uE70E";
+        BrowserSortDirectionButton.ToolTip = descending
+            ? "Sort descending (click to reverse)" : "Sort ascending (click to reverse)";
+    }
+
+    private void BrowserSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_synchronizingBrowserQuery) return;
+        _browserSearchDebounceTimer.Stop();
+        _browserSearchDebounceTimer.Start();
+    }
+
+    private void BrowserSortCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_synchronizingBrowserQuery) return;
+        ApplyBrowserQuery(query => query with { SortMode = (BrowserSortMode)BrowserSortCombo.SelectedIndex });
+    }
+
+    private void BrowserSortDirection_Click(object sender, RoutedEventArgs e) =>
+        ApplyBrowserQuery(query => query with { SortDescending = !query.SortDescending });
+
+    private void BrowserFilterImagesCheck_Changed(object sender, RoutedEventArgs e) =>
+        ToggleBrowserMediaTypeFilter(MediaTypeCategory.StillImage, BrowserFilterImagesCheck.IsChecked == true);
+
+    private void BrowserFilterRawCheck_Changed(object sender, RoutedEventArgs e) =>
+        ToggleBrowserMediaTypeFilter(MediaTypeCategory.RawImage, BrowserFilterRawCheck.IsChecked == true);
+
+    private void BrowserFilterVideoCheck_Changed(object sender, RoutedEventArgs e) =>
+        ToggleBrowserMediaTypeFilter(MediaTypeCategory.Video, BrowserFilterVideoCheck.IsChecked == true);
+
+    private void ToggleBrowserMediaTypeFilter(MediaTypeCategory category, bool isActive)
+    {
+        if (_synchronizingBrowserQuery) return;
+        var predicate = BrowserFilterPredicate.ForMediaType(category);
+        ApplyBrowserQuery(query => isActive ? query.WithFilterAdded(predicate) : query.WithFilterRemoved(predicate));
+    }
+
+    private void BrowserFilterChip_Remove_Click(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not BrowserFilterPredicate predicate) return;
+        ApplyBrowserQuery(query => query.WithFilterRemoved(predicate));
+    }
+
+    /// <summary>"All": clears the media-type facet entirely rather than picking a value for it.</summary>
+    private void BrowserQuickFilterAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_synchronizingBrowserQuery) return;
+        ApplyBrowserQuery(query => query.WithoutField(BrowserFilterField.MediaType));
+    }
+
+    /// <summary>Shared by every dynamically-created quick-filter segment (see InitializeBrowserQuickFilterButtons):
+    /// each is an independent toggle for its own category, routing through the same guarded helper the Filter ▾
+    /// checkboxes use so both stay mutually consistent.</summary>
+    private void BrowserQuickFilterCategoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_synchronizingBrowserQuery) return;
+        var button = (ToggleButton)sender;
+        ToggleBrowserMediaTypeFilter((MediaTypeCategory)button.Tag, button.IsChecked == true);
+    }
+
+    /// <summary>Ctrl+F focuses the Browser search box, but only while the Browser workspace is showing an open, filterable location.</summary>
+    private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != Key.F || !Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
+        if (MainTabs.SelectedIndex != ShellWorkspaceSelection.Index(ShellWorkspace.Browser) || !BrowserQueryToolbar.IsEnabled) return;
+        BrowserSearchBox.Focus();
+        BrowserSearchBox.SelectAll();
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Lightweight Browser status: visible/total item counts, selection count/size (scoped to the whole
+    /// selection, not just what the current filter shows — see <see cref="BrowserGridModel.SelectedTotalSizeBytes"/>),
+    /// and whether Preview generation is still active for this folder.
+    /// </summary>
+    private void UpdateBrowserStatusText()
+    {
+        var progress = _activeBrowserDerivedWorkBatch?.Progress;
+        var isGenerating = progress?.Status == DerivedWorkBatchStatus.Running;
+        var remaining = progress is null ? 0 : progress.Pending + progress.Running;
+        BrowserStatusText.Text = BrowserStatusPresentation.Describe(_browserGrid.VisibleCount, _browserGrid.TotalCount,
+            _browserGrid.SelectedKeys.Count, _browserGrid.SelectedTotalSizeBytes, isGenerating, remaining);
     }
 
     private void AttachBrowserDerivedWork(IDerivedWorkBatch? batch, long generation)
     {
+        // Assigned unconditionally (including null) so a folder with nothing scheduled never keeps showing
+        // "Generating previews…" left over from whichever folder was open before it.
+        _activeBrowserDerivedWorkBatch = batch;
         if (batch is null) return;
         EventHandler<DerivedWorkProgress> handler = null!;
         handler = (_, _) => Dispatcher.BeginInvoke(() => _ = ApplyBrowserDerivedWorkResultsAsync(batch, generation));
@@ -623,19 +837,43 @@ public partial class MainWindow : Window
     private async Task ApplyBrowserDerivedWorkResultsAsync(IDerivedWorkBatch batch, long generation)
     {
         if (generation != _browserUiGeneration || _storage.Previews is not { } previews) return;
-        var pending = BrowserDerivedWorkProjection.AssetsNeedingThumbnailLookup(batch.Results, _browserGrid.HasThumbnail);
-        foreach (var assetId in pending)
+        var pendingThumbnails = new HashSet<Guid>(
+            BrowserDerivedWorkProjection.AssetsNeedingThumbnailLookup(batch.Results, _browserGrid.HasThumbnail));
+        var pendingMetadata = new HashSet<Guid>(
+            BrowserDerivedWorkProjection.AssetsNeedingMetadataLookup(batch.Results, _browserGrid.HasMetadataApplied));
+        var sortRelevantMetadataChanged = false;
+
+        foreach (var assetId in pendingThumbnails.Union(pendingMetadata))
         {
             if (generation != _browserUiGeneration) return;
             PreviewRecord? record;
             try { record = await previews.GetAsync(assetId).ConfigureAwait(true); }
             catch { continue; }
-            if (generation != _browserUiGeneration || record?.ThumbnailRelativePath is null ||
-                record.ThumbnailState != PreviewComponentState.Current) continue;
-            string absolute;
-            try { absolute = MediaPathSemantics.ResolveContained(_storage.Locations.PreviewsDirectory, record.ThumbnailRelativePath); }
-            catch { continue; }
-            if (File.Exists(absolute)) _browserGrid.ApplyThumbnail(assetId, absolute);
+            if (generation != _browserUiGeneration || record is null) continue;
+
+            if (pendingThumbnails.Contains(assetId) && record.ThumbnailRelativePath is not null &&
+                record.ThumbnailState == PreviewComponentState.Current)
+            {
+                string? absolute = null;
+                try { absolute = MediaPathSemantics.ResolveContained(_storage.Locations.PreviewsDirectory, record.ThumbnailRelativePath); }
+                catch { /* leave the placeholder; a later refresh may resolve a valid path */ }
+                if (absolute is not null && File.Exists(absolute)) _browserGrid.ApplyThumbnail(assetId, absolute);
+            }
+
+            if (pendingMetadata.Contains(assetId) && record.MetadataState == PreviewComponentState.Current)
+            {
+                var (captureDate, durationSeconds) = BrowserQueryEngine.ExtractSortableMetadata(record.MetadataJson);
+                if (_browserGrid.ApplyMetadata(assetId, captureDate, durationSeconds)) sortRelevantMetadataChanged = true;
+            }
+        }
+
+        UpdateBrowserStatusText();
+        if (sortRelevantMetadataChanged && _browserGrid.Query.SortMode is BrowserSortMode.CaptureDate or BrowserSortMode.Duration)
+        {
+            // Coalesce into one re-sort ~800ms after updates settle, rather than resorting/reflowing per
+            // asset while a large folder's metadata is still streaming in — see #109's responsiveness goal.
+            _browserMetadataResortTimer.Stop();
+            _browserMetadataResortTimer.Start();
         }
     }
 

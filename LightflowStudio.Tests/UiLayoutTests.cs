@@ -32,6 +32,94 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserQueryToolbar_LivesInTheMediaAreaAndNeverInTheLocationsSidebar()
+    {
+        // #109's UX boundary: the left sidebar chooses scope only; search/filter/sort/view controls belong
+        // exclusively to the media-area toolbar. No permanent Filters section is ever added to the sidebar.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var locationsPanel = document.Descendants(ns + "TextBlock").Single(tb => (string?)tb.Attribute("Text") == "Locations")
+            .Ancestors(ns + "Border").First();
+        var toolbar = Named(document, "BrowserQueryToolbar");
+        var searchBox = Named(document, "BrowserSearchBox");
+        var filterButton = Named(document, "BrowserFilterButton");
+        var filterChips = Named(document, "BrowserFilterChips");
+        var sortCombo = Named(document, "BrowserSortCombo");
+        var directionButton = Named(document, "BrowserSortDirectionButton");
+        // Status now lives in its own bar beneath the grid (mockup-driven revision), not inside the toolbar,
+        // so it stays with the media it describes instead of competing with the toolbar's controls.
+        var statusText = Named(document, "BrowserStatusText");
+
+        Assert.DoesNotContain(locationsPanel.Descendants(), element => element == toolbar);
+        Assert.DoesNotContain(locationsPanel.Descendants(), element =>
+            element == searchBox || element == filterButton || element == sortCombo || element == directionButton || element == statusText);
+        Assert.DoesNotContain(locationsPanel.Descendants(ns + "TextBlock"), tb =>
+            ((string?)tb.Attribute("Text"))?.Contains("Filter", StringComparison.OrdinalIgnoreCase) == true);
+
+        Assert.Contains(toolbar.Descendants(), element => element == searchBox);
+        Assert.Contains(toolbar.Descendants(), element => element == filterButton);
+        Assert.Contains(toolbar.Descendants(), element => element == filterChips);
+        Assert.Contains(toolbar.Descendants(), element => element == sortCombo);
+        Assert.Contains(toolbar.Descendants(), element => element == directionButton);
+        Assert.DoesNotContain(toolbar.Descendants(), element => element == statusText);
+
+        Assert.Equal("BrowserSearchBox_TextChanged", (string?)searchBox.Attribute("TextChanged"));
+        Assert.Equal("BrowserSortCombo_SelectionChanged", (string?)sortCombo.Attribute("SelectionChanged"));
+        Assert.Equal("BrowserSortDirection_Click", (string?)directionButton.Attribute("Click"));
+        Assert.Equal("False", (string?)toolbar.Attribute("IsEnabled"));
+    }
+
+    [Fact]
+    public void BrowserFilterButton_OpensAPopupOfStackableMediaTypePredicatesRatherThanAPermanentComboBox()
+    {
+        // Progressive disclosure per #109's revised interaction model: Filter ▾ opens a compact predicate
+        // editor; it must not be a permanent one-off ComboBox sitting in the everyday toolbar.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var filterButton = Named(document, "BrowserFilterButton");
+        var popup = Named(document, "BrowserFilterPopup");
+        var imagesCheck = Named(document, "BrowserFilterImagesCheck");
+        var rawCheck = Named(document, "BrowserFilterRawCheck");
+        var videoCheck = Named(document, "BrowserFilterVideoCheck");
+
+        Assert.Equal("ToggleButton", filterButton.Name.LocalName);
+        Assert.Equal("Popup", popup.Name.LocalName);
+        Assert.Equal("BrowserFilterButton", ((string?)popup.Attribute("PlacementTarget"))?.Replace("{Binding ElementName=", "").TrimEnd('}'));
+        Assert.Contains(popup.Descendants(), element => element == imagesCheck || element == rawCheck || element == videoCheck);
+        Assert.DoesNotContain(document.Descendants(ns + "ComboBox"), combo =>
+            (string?)combo.Attribute("Name") == "BrowserMediaFilterCombo");
+
+        foreach (var checkBox in new[] { imagesCheck, rawCheck, videoCheck })
+            Assert.DoesNotContain("IsChecked", checkBox.Attributes().Select(attribute => attribute.Name.LocalName));
+    }
+
+    [Fact]
+    public void BrowserFilterChips_TemplateBindsToRemovablePredicatesWithAKeyboardAccessibleRemoveControl()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var chips = Named(document, "BrowserFilterChips");
+        var template = chips.Descendants(ns + "DataTemplate").Single();
+
+        Assert.Equal("{x:Type local:BrowserFilterPredicate}", (string?)template.Attribute("DataType"));
+        Assert.Contains(template.Descendants(ns + "TextBlock"), tb => (string?)tb.Attribute("Text") == "{Binding Label}");
+        // A Button (not a bare clickable TextBlock) so the remove control is reachable and activatable by keyboard.
+        var removeButton = template.Descendants(ns + "Button").Single();
+        Assert.Equal("BrowserFilterChip_Remove_Click", (string?)removeButton.Attribute("Click"));
+        Assert.Equal("{Binding RemoveAutomationLabel}", (string?)removeButton.Attribute("AutomationProperties.Name"));
+    }
+
+    [Fact]
+    public void BrowserQueryToolbar_SortComboItemCountMatchesItsEnumSoASelectedIndexCastCannotSilentlyMismatch()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+
+        var sortItems = Named(document, "BrowserSortCombo").Elements(ns + "ComboBoxItem").ToList();
+        Assert.Equal(Enum.GetValues<LightflowStudio.BrowserSortMode>().Length, sortItems.Count);
+    }
+
+    [Fact]
     public void BrowserLoadingOverlay_IsARestrainedInCanvasIndicatorRatherThanAModalOrSplashSurface()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
@@ -440,6 +528,69 @@ public class UiLayoutTests
         Assert.Contains(document.Descendants(ns + "Border"), element =>
             (string?)element.Attribute("Background") == "{StaticResource BrandGradient}");
     }
+
+    [Fact]
+    public void BrowserQuickFilterSegments_OnlyDeclaresTheAllButtonStaticallyLeavingEachCategoryToCodeBehind()
+    {
+        // "All" isn't a media type, so it alone is hand-declared; one toggle per
+        // BrowserGridModel.PresentableCategories is appended in code (InitializeBrowserQuickFilterButtons)
+        // so the row can never drift from what the grid actually presents. A hardcoded per-category button
+        // here (Images/RAW/Video) would be exactly the drift risk this design avoids.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var segments = Named(document, "BrowserQuickFilterSegments");
+        var all = Named(document, "BrowserQuickFilterAllButton");
+        var toolbar = Named(document, "BrowserQueryToolbar");
+
+        Assert.Equal("ToggleButton", all.Name.LocalName);
+        Assert.Contains(toolbar.Descendants(), element => element == all);
+        Assert.DoesNotContain("IsChecked", all.Attributes().Select(attribute => attribute.Name.LocalName));
+        Assert.Equal("BrowserQuickFilterAllButton_Click", (string?)all.Attribute("Click"));
+
+        Assert.Equal([all], segments.Elements(ns + "ToggleButton"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" &&
+                attribute.Value is "BrowserQuickFilterImagesButton" or "BrowserQuickFilterRawButton" or "BrowserQuickFilterVideoButton"));
+    }
+
+    [Fact]
+    public void BrowserSearchBox_HasAPlaceholderOverlayDrivenByItsOwnEmptyText()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var searchBox = Named(document, "BrowserSearchBox");
+        var placeholder = document.Descendants(ns + "TextBlock")
+            .Single(tb => (string?)tb.Attribute("Text") == "Search assets…");
+
+        Assert.Equal("False", (string?)placeholder.Attribute("IsHitTestVisible"));
+        Assert.Equal("{Binding Text, ElementName=BrowserSearchBox, Converter={StaticResource StringEmptyToVisibility}}",
+            (string?)placeholder.Attribute("Visibility"));
+        Assert.Contains("Ctrl+F", (string?)searchBox.Attribute("ToolTip"));
+        Assert.Contains(document.Descendants(), element => element.Name.LocalName == "StringEmptyToVisibilityConverter" &&
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "StringEmptyToVisibility"));
+    }
+
+    [Fact]
+    public void BrowserStatusBar_IsItsOwnBarBeneathTheGridRatherThanPartOfTheToolbar()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var statusText = Named(document, "BrowserStatusText");
+        var statusBar = statusText.Ancestors(ns + "Border").First();
+        var gridHost = Named(document, "BrowserGridHost");
+
+        Assert.Equal("6", (string?)statusBar.Attribute("Grid.Row"));
+        Assert.Equal(gridHost.Parent, statusBar.Parent);
+        Assert.DoesNotContain(gridHost.Descendants(), element => element == statusText);
+    }
+
+    [Fact]
+    public void Window_WiresCtrlFToTheBrowserSearchBoxScopedHandler()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        Assert.Equal("MainWindow_PreviewKeyDown", (string?)document.Root!.Attribute("PreviewKeyDown"));
+    }
+
     private static XElement Named(XDocument document, string name) =>
         document.Descendants().Single(element => element.Attributes().Any(attribute =>
             attribute.Name.LocalName == "Name" && attribute.Value == name));

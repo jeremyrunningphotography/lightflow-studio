@@ -347,63 +347,92 @@ public sealed class BrowserTreeTests
     }
 
     [Fact]
-    public void LastVisibleDescendant_ReturnsTheNodeItselfWhenCollapsed()
+    public void Synchronize_SetsRootIdentityOnTheNewlyCreatedRootNode()
     {
         var rootId = Guid.NewGuid();
         var model = Model(rootId);
-        model.Synchronize(State(rootId, "", Directory(rootId, "A")));
-        var a = Find(model, @"C:\A")!;
-        model.ApplyDirectoryListing(a, @"C:\", [Directory(rootId, "A/Child")]);
-        a.IsExpanded = false;
 
-        Assert.Same(a, BrowserTreeModel.LastVisibleDescendant(a));
+        model.Synchronize(State(rootId, ""));
+
+        var root = Find(model, @"C:\")!;
+        Assert.Equal(rootId, root.RootId);
+        Assert.Equal("", root.RelativeFolder);
     }
 
     [Fact]
-    public void LastVisibleDescendant_FollowsTheLastChildRecursivelyThroughEveryExpandedLevel()
+    public void ReplaceDirectories_SetsChildIdentityFromTheFolderEntrysRelativePath()
     {
         var rootId = Guid.NewGuid();
         var model = Model(rootId);
-        model.Synchronize(State(rootId, "", Directory(rootId, "A")));
-        var a = Find(model, @"C:\A")!;
-        a.IsExpanded = true;
-        model.ApplyDirectoryListing(a, @"C:\", [Directory(rootId, "A/One"), Directory(rootId, "A/Two")]);
-        var two = Find(model, @"C:\A\Two")!;
-        two.IsExpanded = true;
-        model.ApplyDirectoryListing(two, @"C:\", [Directory(rootId, "A/Two/Deep")]);
-        var deep = Find(model, @"C:\A\Two\Deep")!;
 
-        Assert.Same(deep, BrowserTreeModel.LastVisibleDescendant(a));
+        model.Synchronize(State(rootId, "", Directory(rootId, "Trips")));
+
+        var trips = Find(model, @"C:\Trips")!;
+        Assert.Equal(rootId, trips.RootId);
+        Assert.Equal("Trips", trips.RelativeFolder);
     }
 
     [Fact]
-    public void LastVisibleDescendant_StopsAtACollapsedChildRatherThanDescendingIntoItsHiddenRows()
+    public void ReplaceDirectories_SetsNestedChildIdentityFromItsOwnRelativePathNotItsParents()
     {
         var rootId = Guid.NewGuid();
         var model = Model(rootId);
-        model.Synchronize(State(rootId, "", Directory(rootId, "A")));
-        var a = Find(model, @"C:\A")!;
-        a.IsExpanded = true;
-        model.ApplyDirectoryListing(a, @"C:\", [Directory(rootId, "A/Only")]);
-        var only = Find(model, @"C:\A\Only")!;
-        // Materialized (so real children exist) but collapsed — its own descendants must not be visited.
-        model.ApplyDirectoryListing(only, @"C:\", [Directory(rootId, "A/Only/Hidden")]);
-        only.IsExpanded = false;
+        model.Synchronize(State(rootId, "", Directory(rootId, "Trips")));
+        var trips = Find(model, @"C:\Trips")!;
 
-        Assert.Same(only, BrowserTreeModel.LastVisibleDescendant(a));
+        model.ApplyDirectoryListing(trips, @"C:\", [Directory(rootId, "Trips/Iceland")]);
+
+        var iceland = Find(model, @"C:\Trips\Iceland")!;
+        Assert.Equal(rootId, iceland.RootId);
+        Assert.Equal("Trips/Iceland", iceland.RelativeFolder);
     }
 
     [Fact]
-    public void LastVisibleDescendant_TreatsAnUnmaterializedPlaceholderAsNoRealChildren()
+    public void RequestSelection_ByPathSetsIdentityOnSyntheticAncestorChainNodes()
     {
+        // A deep path selected before its ancestors were ever enumerated (e.g. restoring a remembered
+        // location) still needs correct RootId/RelativeFolder on every synthetic chain node, so tree icons
+        // can be computed for it immediately without waiting for a real folder listing.
         var rootId = Guid.NewGuid();
         var model = Model(rootId);
-        // A freshly-discovered folder gets a lazy-load placeholder child even before it is ever expanded.
-        model.Synchronize(State(rootId, "", Directory(rootId, "A")));
-        var a = Find(model, @"C:\A")!;
-        a.IsExpanded = true; // expanded, but its only child is still the unmaterialized placeholder stub
 
-        Assert.Same(a, BrowserTreeModel.LastVisibleDescendant(a));
+        var selected = model.RequestSelection(@"C:\Trips\Iceland\Reykjavik");
+
+        Assert.NotNull(selected);
+        Assert.Equal(rootId, selected!.RootId);
+        Assert.Equal("Trips/Iceland/Reykjavik", selected.RelativeFolder);
+        var iceland = Find(model, @"C:\Trips\Iceland")!;
+        Assert.Equal(rootId, iceland.RootId);
+        Assert.Equal("Trips/Iceland", iceland.RelativeFolder);
+    }
+
+    [Fact]
+    public void IsRecursiveScope_RaisesPropertyChangedOnlyWhenTheValueActuallyChanges()
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips");
+        var raised = 0;
+        node.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(BrowserTreeNode.IsRecursiveScope)) raised++; };
+
+        node.IsRecursiveScope = true;
+        node.IsRecursiveScope = true;
+        node.IsRecursiveScope = false;
+
+        Assert.Equal(2, raised);
+    }
+
+    [Fact]
+    public void IsRecursiveScope_IsIndependentOfIsSelected()
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips");
+
+        node.IsRecursiveScope = true;
+        node.IsSelected = true;
+        Assert.True(node.IsRecursiveScope);
+        Assert.True(node.IsSelected);
+
+        node.IsSelected = false;
+
+        Assert.True(node.IsRecursiveScope); // deselecting never clears the recursive-scope icon state
     }
 
     private static BrowserTreeModel Model(Guid rootId)

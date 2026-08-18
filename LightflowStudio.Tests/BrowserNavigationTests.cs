@@ -248,27 +248,35 @@ public sealed class BrowserNavigationTests
     public void DefaultScopeModeIsDirectFolder()
     {
         using var session = Session(new FakeRoots(), new FakeDiscovery(), EmptyFolders());
-        Assert.Equal(BrowserScopeMode.DirectFolder, session.ScopeMode);
+        Assert.Equal(BrowserScopeMode.DirectFolder, session.State.Mode);
     }
 
     [Fact]
-    public async Task SetScopeModeAsync_WithNoLocationOpenOnlySetsTheFieldWithoutNavigating()
+    public async Task SetIncludeSubfoldersAsync_WithNoLocationOpenIsANoOp()
     {
+        // #124 (revised): there is no folder to attach a Catalog recursive root to yet, so this must not
+        // create one, reload, or touch anything — unlike the pre-revision design, effective mode is never a
+        // standalone field that can be set ahead of navigating anywhere.
         var discovery = new FakeDiscovery();
         var folders = EmptyFolders();
-        using var session = Session(new FakeRoots(), discovery, folders);
+        var recursiveRoots = new BrowserRecursiveRootService(new InMemoryRecursiveRootRepository());
+        using var session = Session(new FakeRoots(), discovery, folders, recursiveRoots: recursiveRoots);
 
-        var state = await session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+        var state = await session.SetIncludeSubfoldersAsync(true);
 
-        Assert.Equal(BrowserScopeMode.IncludeSubfolders, session.ScopeMode);
+        Assert.Equal(BrowserScopeMode.DirectFolder, session.State.Mode);
         Assert.Empty(discovery.Requests);
         Assert.Empty(folders.Requests);
+        Assert.Empty(await recursiveRoots.ListAsync());
         Assert.Same(session.State, state);
     }
 
     [Fact]
-    public async Task SetScopeModeAsync_UnchangedModeIsANoOpAndDoesNotReload()
+    public async Task SetIncludeSubfoldersAsync_DisablingAnAlreadyDirectFolderStillReloadsAsASameFolderRefresh()
     {
+        // ApplyIncludeSubfoldersAsync always reloads through the normal generation/cancellation machinery —
+        // IBrowserRecursiveRootService.DisableAsync itself no-ops the Catalog write when nothing governs this
+        // folder, but the reload still happens, as a same-folder refresh that never pushes a back-stack entry.
         var root = Root("Library", @"C:\Library");
         var discovery = new FakeDiscovery();
         var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, FileEntry(root.RootId, "clip.mp4"))));
@@ -276,14 +284,15 @@ public sealed class BrowserNavigationTests
         await session.NavigateToRootAsync(root.RootId);
         var requestsBefore = folders.Requests.Count;
 
-        var state = await session.SetScopeModeAsync(BrowserScopeMode.DirectFolder);
+        var state = await session.SetIncludeSubfoldersAsync(false);
 
-        Assert.Equal(requestsBefore, folders.Requests.Count);
-        Assert.Same(session.State, state);
+        Assert.Equal(requestsBefore + 1, folders.Requests.Count);
+        Assert.Equal(BrowserScopeMode.DirectFolder, state!.Mode);
+        Assert.Null(session.BackTarget);
     }
 
     [Fact]
-    public async Task SetScopeModeAsync_ReloadsTheOpenFolderThroughRecursiveDiscoveryAndPopulatesRecursiveMediaEntries()
+    public async Task SetIncludeSubfoldersAsync_EnablingReloadsTheOpenFolderThroughRecursiveDiscoveryAndPopulatesRecursiveMediaEntries()
     {
         var root = Root("Library", @"C:\Library");
         var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, DirectoryEntry(root.RootId, "Sub"))));
@@ -293,7 +302,7 @@ public sealed class BrowserNavigationTests
         using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursive);
         await session.NavigateToRootAsync(root.RootId);
 
-        var state = await session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+        var state = await session.SetIncludeSubfoldersAsync(true);
 
         Assert.Equal(BrowserScopeMode.IncludeSubfolders, state!.Mode);
         Assert.NotNull(state.RecursiveMediaEntries);
@@ -316,7 +325,7 @@ public sealed class BrowserNavigationTests
     }
 
     [Fact]
-    public async Task SetScopeModeAsync_DoesNotPushABackStackEntryForTheFolderThatWasAlreadyOpen()
+    public async Task SetIncludeSubfoldersAsync_DoesNotPushABackStackEntryForTheFolderThatWasAlreadyOpen()
     {
         var root = Root("Library", @"C:\Library");
         var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, FileEntry(root.RootId, "clip.mp4"))));
@@ -324,7 +333,7 @@ public sealed class BrowserNavigationTests
         using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursive);
         await session.NavigateToRootAsync(root.RootId);
 
-        await session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+        await session.SetIncludeSubfoldersAsync(true);
 
         Assert.Null(session.BackTarget);
     }
@@ -346,18 +355,18 @@ public sealed class BrowserNavigationTests
         using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursive);
         await session.NavigateToRootAsync(root.RootId);
 
-        var obsolete = session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+        var obsolete = session.SetIncludeSubfoldersAsync(true);
         await entered.Task;
         // Turning recursion back off before the slow recursive walk finishes must win promptly rather than
         // waiting for the obsolete recursive work — the same generation/cancellation guarantee every other
         // rapid-navigation scenario already relies on.
-        var latest = await session.SetScopeModeAsync(BrowserScopeMode.DirectFolder);
+        var latest = await session.SetIncludeSubfoldersAsync(false);
         release.SetResult();
 
         Assert.Null(await obsolete);
         Assert.Equal(BrowserScopeMode.DirectFolder, latest!.Mode);
         Assert.Null(latest.RecursiveMediaEntries);
-        Assert.Equal(BrowserScopeMode.DirectFolder, session.ScopeMode);
+        Assert.Equal(BrowserScopeMode.DirectFolder, session.State.Mode);
     }
 
     [Fact]
@@ -374,8 +383,12 @@ public sealed class BrowserNavigationTests
             return new RecursiveScopeResult(CatalogReconciliationStatus.Succeeded, request.RootId,
                 request.RelativeFolder ?? "", [], null);
         });
-        using var session = Session(new FakeRoots(folderA, folderB), new FakeDiscovery(), folders, recursive);
-        await session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+        // Both folders are independent, already-established recursive roots (#124 revised: multiple disjoint
+        // roots persist independently) rather than a single pre-navigation mode toggle, since effective mode
+        // is now always derived per-folder from the Catalog rather than settable ahead of any navigation.
+        var recursiveRoots = new BrowserRecursiveRootService(new InMemoryRecursiveRootRepository(
+            new(Guid.NewGuid(), folderA.RootId, ""), new(Guid.NewGuid(), folderB.RootId, "")));
+        using var session = Session(new FakeRoots(folderA, folderB), new FakeDiscovery(), folders, recursive, recursiveRoots);
 
         var obsolete = session.NavigateToRootAsync(folderA.RootId);
         await entered.Task;
@@ -407,7 +420,7 @@ public sealed class BrowserNavigationTests
         // The fake resolves synchronously, so report while it is still the in-flight (current) generation is
         // only observable via the reporter itself, but this still proves the wiring: a progress instance was
         // handed to the discovery service and reporting through it reaches the session's event.
-        await session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+        await session.SetIncludeSubfoldersAsync(true);
         Assert.NotNull(capturedProgress);
         capturedProgress!.Report(new(4, 2));
 
@@ -435,10 +448,10 @@ public sealed class BrowserNavigationTests
         var received = new List<RecursiveScopeProgress>();
         session.RecursiveScopeProgressChanged += (_, progress) => received.Add(progress);
 
-        var obsolete = session.SetScopeModeAsync(BrowserScopeMode.IncludeSubfolders);
+        var obsolete = session.SetIncludeSubfoldersAsync(true);
         await entered.Task;
         capturedProgress!.Report(new(2, 1)); // reported while this walk is still the current generation
-        var latest = await session.SetScopeModeAsync(BrowserScopeMode.DirectFolder); // supersedes it
+        var latest = await session.SetIncludeSubfoldersAsync(false); // supersedes it
         capturedProgress!.Report(new(9, 9)); // reported after supersession — must never reach subscribers
         release.SetResult();
         await obsolete;
@@ -449,8 +462,27 @@ public sealed class BrowserNavigationTests
     }
 
     private static BrowserNavigationSession Session(FakeRoots roots, FakeDiscovery discovery, FakeFolders folders,
-        IRecursiveMediaDiscoveryService? recursiveDiscovery = null) =>
-        new(roots, new BrowserLocationResolver(roots, new ExistingFileSystem()), discovery, folders, recursiveDiscovery);
+        IRecursiveMediaDiscoveryService? recursiveDiscovery = null, IBrowserRecursiveRootService? recursiveRoots = null) =>
+        new(roots, new BrowserLocationResolver(roots, new ExistingFileSystem()), discovery, folders,
+            recursiveRoots ?? new BrowserRecursiveRootService(new InMemoryRecursiveRootRepository()), recursiveDiscovery);
+
+    /// <summary>In-memory <see cref="IBrowserRecursiveRootRepository"/> — reuses the real <see cref="BrowserRecursiveRootService"/> normalization logic rather than duplicating it in test doubles.</summary>
+    private sealed class InMemoryRecursiveRootRepository(params BrowserRecursiveRoot[] seed) : IBrowserRecursiveRootRepository
+    {
+        private readonly List<BrowserRecursiveRoot> _roots = [.. seed];
+
+        public Task<IReadOnlyList<BrowserRecursiveRoot>> ListAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<BrowserRecursiveRoot>>([.. _roots]);
+
+        public Task CreateAsync(Guid rootId, string relativeFolder, CancellationToken cancellationToken = default)
+        {
+            _roots.Add(new(Guid.NewGuid(), rootId, relativeFolder));
+            return Task.CompletedTask;
+        }
+
+        public Task<int> DeleteAsync(IReadOnlyCollection<Guid> scopeIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_roots.RemoveAll(root => scopeIds.Contains(root.ScopeId)));
+    }
 
     private sealed class FakeRecursiveDiscovery : IRecursiveMediaDiscoveryService
     {

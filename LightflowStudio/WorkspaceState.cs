@@ -15,10 +15,13 @@ internal sealed record WorkspaceBrowserLocationState
     public string? LastResolvedAbsolutePath { get; init; }
 
     /// <summary>
-    /// #124: whether Include Subfolders was active for this remembered location. Browser workspace scope
-    /// state, not BrowserQuery/Catalog/Preview state — see BrowserScopeMode. Missing/legacy documents (an
-    /// older build's saved state, or a document predating #124) deserialize this as false, so restoration
-    /// always defaults to direct-folder mode rather than silently reviving a recursive view.
+    /// #124 (superseded): recursive-scope configuration is now durable, user-authored Catalog data — see
+    /// <see cref="BrowserRecursiveRoot"/> — not workspace/session state, since it must survive application
+    /// restarts, navigating elsewhere, and Media Root remapping independent of whatever Browser folder
+    /// happens to be open when Lightflow closes. This property is kept only so a document written by the
+    /// short-lived earlier revision of this feature still deserializes without error; it is never written by
+    /// <see cref="WorkspaceStateService.SetBrowserLocation"/> and never read to control effective recursive
+    /// mode. Do not use it for anything new.
     /// </summary>
     public bool IncludeSubfolders { get; init; }
 }
@@ -182,16 +185,14 @@ internal sealed class WorkspaceStateService
 
     public WorkspaceState Current => _current;
 
-    public void SetBrowserLocation(Guid rootId, string relativeFolder, string? lastResolvedAbsolutePath,
-        bool includeSubfolders) =>
+    public void SetBrowserLocation(Guid rootId, string relativeFolder, string? lastResolvedAbsolutePath) =>
         _current = _current with
         {
             Browser = new WorkspaceBrowserLocationState
             {
                 RootId = rootId,
                 RelativeFolder = relativeFolder,
-                LastResolvedAbsolutePath = lastResolvedAbsolutePath,
-                IncludeSubfolders = includeSubfolders
+                LastResolvedAbsolutePath = lastResolvedAbsolutePath
             }
         };
 

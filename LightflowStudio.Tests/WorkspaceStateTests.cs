@@ -22,6 +22,8 @@ public sealed class WorkspaceStateStoreTests : IDisposable
     [Fact]
     public void SaveAndLoad_RoundTripsEveryPersistedSection()
     {
+        // IncludeSubfolders is deprecated/inert (#124 revised: recursive-scope state now lives in the Catalog)
+        // but must still round-trip for documents that already contain it — legacy-read-compatibility only.
         var rootId = Guid.NewGuid();
         var state = new WorkspaceState
         {
@@ -243,7 +245,7 @@ public sealed class WorkspaceStateServiceTests
         {
             var service = new WorkspaceStateService(path, WorkspaceState.Empty);
 
-            service.SetBrowserLocation(Guid.NewGuid(), "Trips/Iceland", @"D:\Trips\Iceland", includeSubfolders: false);
+            service.SetBrowserLocation(Guid.NewGuid(), "Trips/Iceland", @"D:\Trips\Iceland");
             service.Save();
 
             // WorkspaceBrowserLocationState has no selection-related member, so restoring the last folder
@@ -263,12 +265,14 @@ public sealed class WorkspaceStateServiceTests
         var service = new WorkspaceStateService(path, WorkspaceState.Empty);
         var rootId = Guid.NewGuid();
 
-        service.SetBrowserLocation(rootId, "Trips/Iceland", @"D:\Trips\Iceland", includeSubfolders: true);
+        service.SetBrowserLocation(rootId, "Trips/Iceland", @"D:\Trips\Iceland");
         service.SetWindow(new() { Width = 1300, Height = 800, Left = 10, Top = 10 });
         service.SetBrowserLocationsPaneWidth(310);
 
         Assert.Equal(rootId, service.Current.Browser!.RootId);
-        Assert.True(service.Current.Browser.IncludeSubfolders);
+        // #124 (revised): recursive-scope state now lives in the Catalog, not workspace state — SetBrowserLocation
+        // never sets IncludeSubfolders, so it stays at its default even after a location is remembered.
+        Assert.False(service.Current.Browser.IncludeSubfolders);
         Assert.Equal(1300, service.Current.Window!.Width);
         Assert.Equal(310, service.Current.Layout!.BrowserLocationsPaneWidth);
         Assert.False(File.Exists(path));

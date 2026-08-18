@@ -32,9 +32,11 @@ public sealed class BrowserRecursiveScopeRegressionTests
 
         // #124 requires BrowserQuery to survive toggling Include Subfolders, so the query-reset comparison
         // must stay keyed on folder alone (the pre-existing _browserQueryScope tuple), while selection
-        // clearing is a separate, scope-mode-aware identity.
+        // clearing is a separate, scope-mode-aware identity — including when navigating between two folders
+        // that inherit the very same Catalog recursive root (e.g. 2026 -> 2026/August): they are still
+        // different RelativeFolder values, so this identity still changes and selection still clears.
         Assert.Contains("if (scope != _browserQueryScope) ResetBrowserQueryToolbar();", body);
-        Assert.Contains("_browserNavigation.ScopeMode)", body);
+        Assert.Contains("(identityLocation.RootId, identityLocation.RelativeFolder, state.Mode)", body);
         Assert.Contains("if (scopeIdentity != _browserScopeIdentity) _browserGrid.ClearSelection();", body);
 
         var fieldDeclaration = Source().Split('\n')
@@ -50,27 +52,35 @@ public sealed class BrowserRecursiveScopeRegressionTests
     }
 
     [Fact]
-    public void ApplyBrowserState_SyncsTheScopeToggleAndItsEnabledState()
+    public void ApplyBrowserState_SyncsTheScopeToggleAndItsEnabledStateAndTheTreesRecursiveIcons()
     {
         var body = MethodBody("private void ApplyBrowserState");
         Assert.Contains("BrowserIncludeSubfoldersButton.IsEnabled = state.Location is not null;", body);
         Assert.Contains("SyncBrowserScopeToggle();", body);
+        Assert.Contains("SyncBrowserTreeRecursiveIcons();", body);
+        // The full stored Catalog root list arrives on the very state that already determined effective mode
+        // — reused here for tree iconography rather than a second Catalog round-trip.
+        Assert.Contains("_browserRecursiveRoots = state.RecursiveRoots ?? [];", body);
     }
 
     [Fact]
-    public void ApplyBrowserState_PersistsScopeModeAlongsideTheRememberedLocation()
+    public void ApplyBrowserState_PersistsOnlyThePlainFolderIdentityNeverScopeModeToWorkspaceState()
     {
+        // #124 (revised): recursive-root configuration is durable Catalog data now, not workspace state (see
+        // BrowserRecursiveRoot) — only the plain folder identity is remembered here, and WorkspaceStateService
+        // no longer even accepts a scope-mode argument.
         var body = MethodBody("private void ApplyBrowserState");
-        Assert.Contains("_workspaceState.SetBrowserLocation(location.RootId, location.RelativeFolder, location.AbsolutePath,", body);
-        Assert.Contains("_browserNavigation.ScopeMode == BrowserScopeMode.IncludeSubfolders);", body);
+        // The call takes exactly three arguments and ends the statement right there — no fourth
+        // scope-mode/IncludeSubfolders argument is threaded through to workspace state.
+        Assert.Contains("_workspaceState.SetBrowserLocation(location.RootId, location.RelativeFolder, location.AbsolutePath);", body);
     }
 
     [Fact]
-    public void BrowserIncludeSubfoldersButtonClick_UsesSetScopeModeAsyncAndNeverResetsTheQueryToolbar()
+    public void BrowserIncludeSubfoldersButtonClick_UsesSetIncludeSubfoldersAsyncAndNeverResetsTheQueryToolbar()
     {
         var body = MethodBody("private async void BrowserIncludeSubfoldersButton_Click");
 
-        Assert.Contains("_browserNavigation.SetScopeModeAsync(mode)", body);
+        Assert.Contains("_browserNavigation.SetIncludeSubfoldersAsync(enabled)", body);
         Assert.DoesNotContain("ResetBrowserQueryToolbar", body);
         Assert.DoesNotContain("_browserQueryScope", body);
         Assert.DoesNotContain("ClearSelection", body);
@@ -101,16 +111,17 @@ public sealed class BrowserRecursiveScopeRegressionTests
     }
 
     [Fact]
-    public void RestoreBrowserLocationAsync_AppliesTheSavedScopeModeBeforeRestoringThroughTheNormalNavigationPath()
+    public void RestoreBrowserLocationAsync_NeedsNoScopeModeStepBecauseEffectiveModeIsAlwaysDerivedDuringNavigation()
     {
+        // #124 (revised): there is no longer a settable scope-mode field to prime before restoring — effective
+        // mode is derived live from the Catalog as part of ordinary navigation, so restoration just drives the
+        // same BrowserLocationRestoration.RestoreAsync path every other Locations interaction uses.
         var body = MethodBody("private async Task RestoreBrowserLocationAsync");
 
-        var scopeModeApplied = body.IndexOf("_browserNavigation.SetScopeModeAsync(", StringComparison.Ordinal);
-        var restoreCalled = body.IndexOf("BrowserLocationRestoration.RestoreAsync(", StringComparison.Ordinal);
-        Assert.True(scopeModeApplied >= 0 && restoreCalled >= 0);
-        Assert.True(scopeModeApplied < restoreCalled,
-            "The saved scope mode must be applied before restoration navigates, so restoration uses the normal direct/recursive loading path rather than a separate startup-only recursive path.");
-        Assert.Contains("saved.IncludeSubfolders", body);
+        Assert.Contains("BrowserLocationRestoration.RestoreAsync(_browserNavigation, _storage.MediaRoots, saved)", body);
+        Assert.DoesNotContain("SetIncludeSubfoldersAsync", body);
+        Assert.DoesNotContain("SetScopeModeAsync", body);
+        Assert.DoesNotContain("saved.IncludeSubfolders", body);
     }
 
     [Fact]
@@ -118,6 +129,15 @@ public sealed class BrowserRecursiveScopeRegressionTests
     {
         var source = Source();
         Assert.Contains("storage.RecursiveMediaDiscovery", source);
+    }
+
+    [Fact]
+    public void Constructor_WiresTheCatalogBackedRecursiveRootServiceIntoTheNavigationSession()
+    {
+        // #124 (revised): effective recursive mode is derived from durable Catalog roots, not a settable
+        // session field — the navigation session needs the Catalog-backed service to do that derivation.
+        var source = Source();
+        Assert.Contains("storage.BrowserRecursiveRoots", source);
     }
 
     [Fact]
@@ -187,50 +207,45 @@ public sealed class BrowserRecursiveScopeRegressionTests
     }
 
     [Fact]
-    public void SyncBrowserScopeOutline_HidesOutsideRecursiveModeOrWithNoSelectionAndNeverTouchesSelection()
+    public void SyncBrowserTreeRecursiveIcon_DerivesTheIconPurelyFromNodeIdentityWithoutMaterializingOrTouchingSelection()
     {
-        var body = MethodBody("private void SyncBrowserScopeOutline");
+        var body = MethodBody("private void SyncBrowserTreeRecursiveIcon(BrowserTreeNode node)");
 
+        Assert.Contains("if (!node.IsPlaceholder && node.RootId is { } rootId && node.RelativeFolder is { } relativeFolder)", body);
         Assert.Contains(
-            "if (_browserNavigation.ScopeMode != BrowserScopeMode.IncludeSubfolders || _browserTree.SelectedNode is not { } selected)",
+            "node.IsRecursiveScope = BrowserRecursiveRootLogic.IsEffectivelyRecursive(_browserRecursiveRoots, rootId, relativeFolder);",
             body);
-        Assert.Contains("BrowserScopeOutline.Visibility = Visibility.Collapsed;", body);
-        // Scope membership must never be encoded as IsSelected, and this method must never mutate selection —
-        // exactly one row stays individually selected regardless of how large the outlined group is.
-        Assert.DoesNotContain("IsSelected", body);
-        Assert.DoesNotContain(".Select(", body);
-        Assert.DoesNotContain("RequestSelection", body);
-    }
-
-    [Fact]
-    public void SyncBrowserScopeOutline_BoundsTheOutlineUsingLastVisibleDescendantRatherThanForcingExpansion()
-    {
-        var body = MethodBody("private void SyncBrowserScopeOutline");
-
-        Assert.Contains("BrowserTreeModel.LastVisibleDescendant(selected)", body);
-        // No filesystem/materialization calls here — purely derived from already-expanded tree state.
+        // Purely identity-derived: no filesystem/Catalog work, no forced expansion/materialization of
+        // collapsed nodes, and selection/focus styling stays fully independent of the icon.
         Assert.DoesNotContain("EnumerateAsync", body);
-        Assert.DoesNotContain("ApplyDirectoryListing", body);
         Assert.DoesNotContain("IsExpanded = true", body);
+        Assert.DoesNotContain("IsSelected", body);
     }
 
     [Fact]
-    public void SyncBrowserScopeOutline_DefersToLoadedPriorityMatchingBringBrowserTreeNodeIntoView()
+    public void SyncBrowserTreeRecursiveIcons_WalksEveryTreeRootRecursively()
     {
-        var body = MethodBody("private void SyncBrowserScopeOutline");
-        Assert.Contains("Dispatcher.BeginInvoke(DispatcherPriority.Loaded,", body);
+        var body = MethodBody("private void SyncBrowserTreeRecursiveIcons");
+        Assert.Contains("foreach (var root in _browserTree.Roots) SyncBrowserTreeRecursiveIcon(root);", body);
     }
 
     [Theory]
     [InlineData("private void ApplyBrowserState")]
-    [InlineData("private void ApplyBrowserNavigationFailure")]
-    [InlineData("private async void BrowserFolderTreeItem_Expanded")]
-    [InlineData("private void BrowserFolderTreeItem_Collapsed")]
     [InlineData("private async Task RevealBrowserTreeAncestorsAsync")]
-    public void SyncBrowserScopeOutline_IsCalledFromEveryPlaceTheVisibleScopeGroupCanChange(string signaturePrefix)
+    public void SyncBrowserTreeRecursiveIcons_IsCalledFromEveryPlaceTheTreeGainsOrChangesNodes(string signaturePrefix)
     {
         var body = MethodBody(signaturePrefix);
-        Assert.Contains("SyncBrowserScopeOutline();", body);
+        Assert.Contains("SyncBrowserTreeRecursiveIcons();", body);
+    }
+
+    [Fact]
+    public void NoOutlineOrLastVisibleDescendantRemnantsSurviveTheHashtag124Revision()
+    {
+        var source = Source();
+        Assert.DoesNotContain("BrowserScopeOutline", source);
+        Assert.DoesNotContain("SyncBrowserScopeOutline", source);
+        Assert.DoesNotContain("LastVisibleDescendant", source);
+        Assert.DoesNotContain("BrowserFolderTreeItem_Collapsed", source);
     }
 
     private static string MethodBody(string signaturePrefix)

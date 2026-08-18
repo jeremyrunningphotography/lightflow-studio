@@ -264,13 +264,6 @@
         <Grid Grid.Row="1" Margin="0,12,0,0">
          <ScrollViewer x:Name="BrowserFolderScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
           CanContentScroll="False" Padding="0,0,2,2" Focusable="False" Style="{StaticResource BrowserFolderScrollViewerStyle}">
-         <!-- #124: BrowserScopeOutline is a sibling of the TreeView inside the same scrolled content, not a
-              separate overlay layered on top of the ScrollViewer — so it scrolls in lockstep with the rows it
-              outlines (no manual scroll-offset math) and is clipped to the viewport for free by the
-              ScrollViewer's own content presenter. MainWindow.SyncBrowserScopeOutline positions it purely via
-              Margin/Height computed from the selected node's and BrowserTreeModel.LastVisibleDescendant's
-              container bounds; it never encodes recursive-scope membership as IsSelected or mutates selection. -->
-         <Grid>
          <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}"
           SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseWheel="BrowserFolderTree_PreviewMouseWheel"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
@@ -279,26 +272,35 @@
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
             <EventSetter Event="Expanded" Handler="BrowserFolderTreeItem_Expanded"/>
-            <EventSetter Event="Collapsed" Handler="BrowserFolderTreeItem_Collapsed"/>
            </Style>
           </TreeView.ItemContainerStyle>
           <TreeView.Resources>
+           <!-- #124 (revised): the small dim glyph behind the full-size one (FolderIconBehind, shown only when
+                IsRecursiveScope) reuses exactly the toolbar's two-folder composition (BrowserScopeToggleButtonStyle)
+                so "this folder's icon looks recursive" and "the toolbar toggle reads ON" are visibly the same
+                language. It communicates only "selecting this folder browses it and its descendants" — never
+                IsSelected, never "this is the stored root" vs. "this inherits it" (deliberately not distinguished),
+                and it is computed per-row from RootId/RelativeFolder without materializing collapsed descendants. -->
            <HierarchicalDataTemplate DataType="{x:Type local:BrowserTreeNode}" ItemsSource="{Binding Children, Mode=OneWay}">
             <Grid Height="26" ToolTip="{Binding Diagnostic, Mode=OneWay}">
              <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-             <TextBlock VerticalAlignment="Center" TextAlignment="Center" Foreground="#E4B85A" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Text="&#xE8B7;"/>
+             <Grid Width="16" Height="13" VerticalAlignment="Center">
+              <TextBlock x:Name="FolderIconBehind" Visibility="Collapsed" Foreground="#E4B85A" Opacity="0.55"
+               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Text="&#xE8B7;"
+               HorizontalAlignment="Right" VerticalAlignment="Top"/>
+              <TextBlock Foreground="#E4B85A" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Text="&#xE8B7;"
+               HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+             </Grid>
              <TextBlock x:Name="FolderLabel" Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding DisplayName, Mode=OneWay}" TextTrimming="CharacterEllipsis"/>
              <TextBlock Grid.Column="2" Margin="7,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="{Binding StorageStatus, Mode=OneWay}"/>
             </Grid>
-            <HierarchicalDataTemplate.Triggers><DataTrigger Binding="{Binding IsStorageLocation}" Value="True"><Setter TargetName="FolderLabel" Property="FontWeight" Value="SemiBold"/></DataTrigger></HierarchicalDataTemplate.Triggers>
+            <HierarchicalDataTemplate.Triggers>
+             <DataTrigger Binding="{Binding IsStorageLocation}" Value="True"><Setter TargetName="FolderLabel" Property="FontWeight" Value="SemiBold"/></DataTrigger>
+             <DataTrigger Binding="{Binding IsRecursiveScope}" Value="True"><Setter TargetName="FolderIconBehind" Property="Visibility" Value="Visible"/></DataTrigger>
+            </HierarchicalDataTemplate.Triggers>
            </HierarchicalDataTemplate>
           </TreeView.Resources>
          </TreeView>
-         <Border x:Name="BrowserScopeOutline" IsHitTestVisible="False" Visibility="Collapsed"
-          HorizontalAlignment="Stretch" VerticalAlignment="Top" BorderThickness="1.5" CornerRadius="6"
-          BorderBrush="{StaticResource ShellFocusBrush}" Background="Transparent"
-          AutomationProperties.Name="Include Subfolders active scope"/>
-         </Grid>
          </ScrollViewer>
          <StackPanel x:Name="BrowserRootsEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="14">
           <TextBlock Foreground="{StaticResource MutedTextBrush}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="26" HorizontalAlignment="Center" Text="&#xE838;"/>

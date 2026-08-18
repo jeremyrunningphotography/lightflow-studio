@@ -9,6 +9,7 @@ internal sealed class BrowserTreeNode : INotifyPropertyChanged
 {
     private bool _isExpanded;
     private bool _isSelected;
+    private bool _isRecursiveScope;
 
     public BrowserTreeNode(string displayName, string? absolutePath, BrowserStorageEntry? storage = null,
         bool placeholder = false)
@@ -24,6 +25,35 @@ internal sealed class BrowserTreeNode : INotifyPropertyChanged
     public BrowserStorageEntry? Storage { get; private set; }
     public bool IsPlaceholder { get; }
     public ObservableCollection<BrowserTreeNode> Children { get; } = [];
+
+    /// <summary>
+    /// #124 (revised): this node's root-agnostic Catalog identity — null only for storage rows that are not a
+    /// Media Root (e.g. a bare Volume) and therefore can never be a recursive-root scope. Set once, at the
+    /// same point the node's <see cref="AbsolutePath"/> identity is established, via <see cref="SetIdentity"/>.
+    /// </summary>
+    public Guid? RootId { get; private set; }
+
+    /// <summary>The folder's path relative to <see cref="RootId"/>, in the same normalized form as <see cref="BrowserRecursiveRoot.RelativeFolder"/> — "" for the Media Root's own top level.</summary>
+    public string? RelativeFolder { get; private set; }
+
+    /// <summary>
+    /// #124 (revised): whether selecting this folder would browse it and all of its descendants — driven
+    /// entirely by <see cref="RootId"/>/<see cref="RelativeFolder"/> against the Catalog's stored recursive
+    /// roots (see <c>MainWindow.SyncBrowserTreeRecursiveIcon</c>). Deliberately independent of
+    /// <see cref="IsSelected"/>: a folder can be the recursive scope without being the selected row, and vice
+    /// versa.
+    /// </summary>
+    public bool IsRecursiveScope
+    {
+        get => _isRecursiveScope;
+        set { if (_isRecursiveScope != value) { _isRecursiveScope = value; OnPropertyChanged(); } }
+    }
+
+    internal void SetIdentity(Guid rootId, string relativeFolder)
+    {
+        RootId = rootId;
+        RelativeFolder = relativeFolder;
+    }
 
     /// <summary>
     /// True once <see cref="Children"/> reflects a real folder enumeration for this node rather than only a
@@ -90,6 +120,7 @@ internal sealed class BrowserTreeModel
             else
             {
                 node = new BrowserTreeNode(entry.DisplayName, entry.PhysicalPath, entry);
+                if (entry.RootId is { } entryRootId) node.SetIdentity(entryRootId, "");
                 if (entry.Availability == MediaRootAvailability.Online && entry.PhysicalPath is not null)
                     node.Children.Add(NewPlaceholder());
             }
@@ -135,24 +166,6 @@ internal sealed class BrowserTreeModel
     /// <summary>Backfills a tree node's real children (siblings) from an actual folder enumeration.</summary>
     public void ApplyDirectoryListing(BrowserTreeNode node, string rootPath, IReadOnlyList<MediaFolderEntry> entries) =>
         ReplaceDirectories(node, rootPath, entries);
-
-    /// <summary>
-    /// #124: the deepest node currently visible as a row underneath <paramref name="node"/> in the Locations
-    /// tree's own display order — i.e. <paramref name="node"/> itself if it is collapsed or has no real
-    /// children yet, otherwise the same recursive answer for its last non-placeholder child. A standard
-    /// TreeView renders a node's children (in order) immediately after that node's own row and before its
-    /// next sibling, so the last child's own subtree is always what renders last under a node — following
-    /// "last real child, recursively" therefore always lands on the true bottom-most visible row. Used to
-    /// bound the #124 recursive-scope outline honestly: a collapsed branch's hidden descendants are never
-    /// counted, and nothing is force-expanded/materialized merely to compute this.
-    /// </summary>
-    public static BrowserTreeNode LastVisibleDescendant(BrowserTreeNode node)
-    {
-        if (!node.IsExpanded) return node;
-        BrowserTreeNode? lastRealChild = null;
-        foreach (var child in node.Children) if (!child.IsPlaceholder) lastRealChild = child;
-        return lastRealChild is null ? node : LastVisibleDescendant(lastRealChild);
-    }
 
     public void RequestSelection(BrowserTreeNode node)
     {
@@ -208,6 +221,7 @@ internal sealed class BrowserTreeModel
         var storage = new BrowserStorageEntry($"root:{location.RootId}", location.RootName, location.RootPath,
             BrowserStorageKind.ManagedRoot, MediaRootAvailability.Online, location.RootId);
         var node = new BrowserTreeNode(location.RootName, location.RootPath, storage);
+        node.SetIdentity(location.RootId, "");
         node.Children.Add(NewPlaceholder());
         Roots.Add(node);
         return node;
@@ -244,6 +258,8 @@ internal sealed class BrowserTreeModel
             {
                 RemovePlaceholder(current);
                 child = new BrowserTreeNode(segment, currentPath);
+                if (root.RootId is { } rootId)
+                    child.SetIdentity(rootId, MediaPathSemantics.RelativeFolder(rootPath, currentPath));
                 child.Children.Add(NewPlaceholder());
                 current.Children.Add(child);
             }
@@ -264,6 +280,7 @@ internal sealed class BrowserTreeModel
             if (!existing.TryGetValue(path, out var child))
             {
                 child = new BrowserTreeNode(entry.Name, path);
+                child.SetIdentity(entry.RootId, entry.RelativePath);
                 child.Children.Add(NewPlaceholder());
             }
             desired.Add(child);

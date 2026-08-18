@@ -209,7 +209,25 @@ public sealed class BrowserLocationRestorationTests
     }
 
     private static BrowserNavigationSession Session(FakeRoots roots, FakeDiscovery discovery, FakeFolders folders,
-        FakeFileSystem fileSystem) => new(roots, new BrowserLocationResolver(roots, fileSystem), discovery, folders);
+        FakeFileSystem fileSystem) => new(roots, new BrowserLocationResolver(roots, fileSystem), discovery, folders,
+        new BrowserRecursiveRootService(new InMemoryRecursiveRootRepository()));
+
+    private sealed class InMemoryRecursiveRootRepository : IBrowserRecursiveRootRepository
+    {
+        private readonly List<BrowserRecursiveRoot> _roots = [];
+
+        public Task<IReadOnlyList<BrowserRecursiveRoot>> ListAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<BrowserRecursiveRoot>>([.. _roots]);
+
+        public Task CreateAsync(Guid rootId, string relativeFolder, CancellationToken cancellationToken = default)
+        {
+            _roots.Add(new(Guid.NewGuid(), rootId, relativeFolder));
+            return Task.CompletedTask;
+        }
+
+        public Task<int> DeleteAsync(IReadOnlyCollection<Guid> scopeIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_roots.RemoveAll(root => scopeIds.Contains(root.ScopeId)));
+    }
 
     private static FakeFolders EmptyFolders() => new((request, _) => Task.FromResult(Success(request)));
 

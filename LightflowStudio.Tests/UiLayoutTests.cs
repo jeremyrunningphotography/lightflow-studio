@@ -266,11 +266,9 @@ public class UiLayoutTests
             attribute.Name.LocalName == "ScrollViewer.HorizontalScrollBarVisibility").Value);
         Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
             attribute.Name.LocalName == "ScrollViewer.VerticalScrollBarVisibility").Value);
-        // #124: the TreeView's direct parent is now a plain Grid (holding the tree plus the recursive-scope
-        // outline overlay as a sibling), and that Grid is the ScrollViewer's single content child — so the
-        // whole group still scrolls as one unit with no manual scroll-offset math for the overlay.
-        Assert.Equal(ns + "Grid", tree.Parent!.Name);
-        Assert.Equal(scroller, tree.Parent!.Parent);
+        // #124 (revised): the recursive-scope outline is gone — folder icons communicate recursive-mode
+        // inheritance instead — so the TreeView is once again the ScrollViewer's direct content child.
+        Assert.Equal(scroller, tree.Parent);
 
         var appNs = app.Root!.Name.Namespace;
         var horizontalTrigger = app.Descendants(appNs + "Trigger").Single(trigger =>
@@ -373,35 +371,40 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserScopeOutline_IsAHitTestInvisibleSiblingOfTheTreeCollapsedByDefaultUsingTheFocusAccent()
+    public void BrowserFolderTreeRow_HasARecursiveScopeIconTriggerReusingTheToolbarsTwoFolderGlyphComposition()
     {
-        // #124: the outline lives inside the same scrolled content as the tree (a sibling in the wrapping
-        // Grid) rather than as a separate overlay on top of the ScrollViewer, so it scrolls in lockstep with
-        // the rows it outlines and is clipped to the viewport for free.
+        // #124 (revised): the continuous outline is gone. A folder's icon communicates recursive-mode
+        // inheritance instead — a second, dim folder glyph appears behind the normal one only when
+        // IsRecursiveScope is true, matching BrowserScopeToggleButtonStyle's own two-folder composition.
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
         var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var tree = Named(document, "BrowserFolderTree");
-        var outline = Named(document, "BrowserScopeOutline");
+        var behindIcon = Named(document, "FolderIconBehind");
 
-        Assert.Equal(ns + "Border", outline.Name);
-        Assert.Same(tree.Parent, outline.Parent);
-        Assert.Equal("False", (string?)outline.Attribute("IsHitTestVisible"));
-        Assert.Equal("Collapsed", (string?)outline.Attribute("Visibility"));
-        Assert.Equal("Transparent", (string?)outline.Attribute("Background"));
-        Assert.Equal("{StaticResource ShellFocusBrush}", (string?)outline.Attribute("BorderBrush"));
-        Assert.False(string.IsNullOrWhiteSpace((string?)outline.Attribute(xNamespace + "Name")));
+        Assert.Equal(ns + "TextBlock", behindIcon.Name);
+        Assert.Equal("Collapsed", (string?)behindIcon.Attribute("Visibility"));
+        Assert.False(string.IsNullOrWhiteSpace((string?)behindIcon.Attribute(xNamespace + "Name")));
 
-        // A Collapsed EventSetter exists alongside the pre-existing Expanded one, so the outline stays in
-        // sync when a visible descendant branch is collapsed, not just when one is expanded.
+        var template = tree.Descendants(ns + "HierarchicalDataTemplate").Single();
+        var triggers = template.Element(ns + "HierarchicalDataTemplate.Triggers")!;
+        var recursiveTrigger = triggers.Elements(ns + "DataTrigger").Single(trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsRecursiveScope") == true);
+        Assert.Equal("True", (string?)recursiveTrigger.Attribute("Value"));
+        Assert.Contains(recursiveTrigger.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("TargetName") == "FolderIconBehind" &&
+            (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Visible");
+
+        // Only the pre-existing Expanded handler remains — no Collapsed EventSetter (unneeded now that
+        // icon state is derived per-row from Catalog data rather than the outline's live selection bounds).
         var itemStyle = tree.Descendants(ns + "Style")
             .Single(style => (string?)style.Attribute("TargetType") == "TreeViewItem");
         Assert.Contains(itemStyle.Elements(ns + "EventSetter"), setter =>
             (string?)setter.Attribute("Event") == "Expanded" &&
             (string?)setter.Attribute("Handler") == "BrowserFolderTreeItem_Expanded");
-        Assert.Contains(itemStyle.Elements(ns + "EventSetter"), setter =>
-            (string?)setter.Attribute("Event") == "Collapsed" &&
-            (string?)setter.Attribute("Handler") == "BrowserFolderTreeItem_Collapsed");
+        Assert.DoesNotContain(itemStyle.Elements(ns + "EventSetter"), setter =>
+            (string?)setter.Attribute("Event") == "Collapsed");
     }
 
     [Fact]

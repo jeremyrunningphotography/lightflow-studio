@@ -13,7 +13,8 @@ internal static class CatalogMigrations
 {
     public static IReadOnlyList<CatalogMigration> All { get; } =
     [
-        new(1, "Initial catalog identity, roots, mappings, and assets", ApplyVersion1)
+        new(1, "Initial catalog identity, roots, mappings, and assets", ApplyVersion1),
+        new(2, "Browser recursive-scope roots", ApplyVersion2)
     ];
 
     private static void ApplyVersion1(
@@ -104,6 +105,40 @@ internal static class CatalogMigrations
         identity.Parameters.AddWithValue("$catalogId", context.CatalogId.ToString("D"));
         identity.Parameters.AddWithValue("$createdUtc", context.AppliedUtc);
         identity.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// #124 (revised): durable, user-authored Browser recursive-scope configuration — "Include Subfolders"
+    /// established on a folder. Deliberately Catalog data, not workspace/session state: it must survive
+    /// application restarts, navigating elsewhere, and Media Root physical-path remapping, independent of
+    /// whatever Browser folder happens to be open when Lightflow closes. Identity is root-agnostic
+    /// (<c>RootId</c> + normalized relative folder), matching every other logical-identity table in this
+    /// schema; no absolute physical path is ever persisted here. <c>RelativeFolder</c> is empty for a
+    /// recursive root established at a Media Root's own top level. <c>RelativeFolderKey</c> is the
+    /// case-insensitive comparison key (mirrors <c>MediaAssets.RelativePathKey</c>); the unique constraint on
+    /// it is what makes establishing an already-recursive folder idempotent at the database level, on top of
+    /// the service-layer normalization that keeps the table free of redundant nested roots.
+    /// </summary>
+    private static void ApplyVersion2(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CatalogMigrationContext context)
+    {
+        Execute(connection, transaction, """
+            CREATE TABLE BrowserRecursiveScopes (
+                ScopeId TEXT NOT NULL PRIMARY KEY CHECK (length(ScopeId) = 36),
+                RootId TEXT NOT NULL,
+                RelativeFolder TEXT NOT NULL CHECK (instr(RelativeFolder, '\') = 0),
+                RelativeFolderKey TEXT NOT NULL,
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                FOREIGN KEY (RootId) REFERENCES MediaRoots (RootId) ON DELETE CASCADE,
+                UNIQUE (RootId, RelativeFolderKey)
+            );
+
+            CREATE INDEX IX_BrowserRecursiveScopes_RootId
+                ON BrowserRecursiveScopes (RootId);
+            """);
     }
 
     private static void Execute(SqliteConnection connection, SqliteTransaction transaction, string sql)

@@ -76,6 +76,10 @@ public partial class MainWindow : Window
     private (Guid RootId, string RelativeFolder, BrowserScopeMode Mode)? _browserScopeIdentity;
     private bool _synchronizingBrowserScopeMode;
     private readonly DispatcherTimer _browserRecursiveRefreshDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    // #124 (revised): every stored Catalog recursive root, as of the most recent navigation — see
+    // BrowserFolderState.RecursiveRoots. Cached here so Locations-tree icon sync never needs its own Catalog
+    // round-trip; refreshed unconditionally in ApplyBrowserState alongside everything else that state drives.
+    private IReadOnlyList<BrowserRecursiveRoot> _browserRecursiveRoots = [];
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -84,7 +88,7 @@ public partial class MainWindow : Window
         _storageStartupStatus = storageStartupStatus;
         _storageDiagnostic = storageDiagnostic;
         _browserNavigation = new BrowserNavigationSession(storage.MediaRoots, storage.BrowserLocations,
-            storage.MediaDiscovery, storage.MediaFolders, storage.RecursiveMediaDiscovery);
+            storage.MediaDiscovery, storage.MediaFolders, storage.BrowserRecursiveRoots, storage.RecursiveMediaDiscovery);
         _browserNavigation.RecursiveScopeProgressChanged += BrowserNavigation_RecursiveScopeProgressChanged;
         _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
@@ -302,13 +306,10 @@ public partial class MainWindow : Window
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
         try
         {
-            // #124: applied before restoration navigates anywhere. No folder is open yet, so this only sets
-            // the session's field (see BrowserNavigationSession.SetScopeModeAsync) — restoration then loads
-            // through the exact same direct/recursive branch an interactive toggle would use, never a
-            // separate startup-only recursive path.
-            await _browserNavigation.SetScopeModeAsync(
-                saved.IncludeSubfolders ? BrowserScopeMode.IncludeSubfolders : BrowserScopeMode.DirectFolder)
-                .ConfigureAwait(true);
+            // #124 (revised): recursive mode is no longer a session field to pre-set before restoring —
+            // it is derived live from the Catalog's stored recursive roots against whatever folder actually
+            // loads, exactly like an interactive navigation. Restoration therefore needs no scope-mode step
+            // of its own; it simply drives the same navigation path every other Locations interaction uses.
             var result = await BrowserLocationRestoration.RestoreAsync(_browserNavigation, _storage.MediaRoots, saved)
                 .ConfigureAwait(true);
             if (generation != _browserUiGeneration) return;
@@ -357,7 +358,7 @@ public partial class MainWindow : Window
         {
             var location = _browserNavigation.State.Location;
             if (location is null || location.RootId != request.RootId) return;
-            if (_browserNavigation.ScopeMode == BrowserScopeMode.IncludeSubfolders)
+            if (_browserNavigation.State.Mode == BrowserScopeMode.IncludeSubfolders)
             {
                 if (!BrowserScope.IsWithinFolderScope(request.RelativeFolder, location.RelativeFolder)) return;
                 _browserRecursiveRefreshDebounceTimer.Stop();
@@ -381,7 +382,6 @@ public partial class MainWindow : Window
 
     private async void BrowserFolderTreeItem_Expanded(object sender, RoutedEventArgs e)
     {
-        SyncBrowserScopeOutline();
         if (_synchronizingBrowserTree || (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node ||
             node.IsPlaceholder || !node.Children.Any(child => child.IsPlaceholder)) return;
         RequestBrowserTreeSelection(node);
@@ -390,13 +390,6 @@ public partial class MainWindow : Window
         else if (!string.IsNullOrWhiteSpace(node.AbsolutePath))
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(node.AbsolutePath));
     }
-
-    /// <summary>
-    /// #124: collapsing a node never changes scope/selection by itself (unlike Expanded above, which can
-    /// trigger navigation for a not-yet-loaded child), but it can shrink the visible extent of the active
-    /// recursive-scope outline, so the outline is resynchronized here too.
-    /// </summary>
-    private void BrowserFolderTreeItem_Collapsed(object sender, RoutedEventArgs e) => SyncBrowserScopeOutline();
 
     private void RequestBrowserTreeSelection(BrowserTreeNode node)
     {
@@ -488,53 +481,34 @@ public partial class MainWindow : Window
         if (generation == _browserUiGeneration && _browserTree.SelectedNode is { } selected)
         {
             BringBrowserTreeNodeIntoView(selected);
-            SyncBrowserScopeOutline();
+            // Newly materialized ancestors just received real RootId/RelativeFolder identity (see
+            // BrowserTreeModel.ApplyDirectoryListing) but not yet an icon — the ApplyBrowserState pass that
+            // triggered this whole reveal ran before these nodes existed.
+            SyncBrowserTreeRecursiveIcons();
         }
     }
 
     /// <summary>
-    /// #124: positions/shows the continuous recursive-scope outline spanning the selected base folder's row
-    /// through <see cref="BrowserTreeModel.LastVisibleDescendant"/>'s row, or hides it entirely outside
-    /// recursive mode. This is a pure presentation overlay derived from already-expanded tree state — scope
-    /// membership is never encoded as <c>IsSelected</c> and selection itself is never touched here, so exactly
-    /// one row remains individually selected regardless of how large the outlined group is. Deferred to
-    /// <see cref="DispatcherPriority.Loaded"/>, matching <see cref="BringBrowserTreeNodeIntoView"/>, so
-    /// container lookup runs after WPF has actually generated/measured containers for whatever just changed
-    /// (a fresh selection, a newly materialized ancestor, an expand/collapse) rather than racing it.
+    /// #124 (revised): reflects effective recursive mode as Locations-tree iconography rather than a group
+    /// outline. Walks every currently-materialized node (never forces expansion/materialization — a
+    /// collapsed branch's <see cref="BrowserTreeNode.Children"/> is just its one lazy-load placeholder, which
+    /// this skips) and sets each node's <see cref="BrowserTreeNode.IsRecursiveScope"/> purely from its already
+    /// carried <see cref="BrowserTreeNode.RootId"/>/<see cref="BrowserTreeNode.RelativeFolder"/> identity
+    /// against <see cref="_browserRecursiveRoots"/> — no filesystem/Catalog work happens here. Cheap enough to
+    /// call unconditionally on every successful navigation, matching this file's existing preference for
+    /// always-recompute over a fragile equality short-circuit.
     /// </summary>
-    private void SyncBrowserScopeOutline() => _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+    private void SyncBrowserTreeRecursiveIcons()
     {
-        if (_browserNavigation.ScopeMode != BrowserScopeMode.IncludeSubfolders || _browserTree.SelectedNode is not { } selected)
-        {
-            BrowserScopeOutline.Visibility = Visibility.Collapsed;
-            return;
-        }
+        foreach (var root in _browserTree.Roots) SyncBrowserTreeRecursiveIcon(root);
+    }
 
-        var topContainer = FindBrowserTreeItem(BrowserFolderTree, selected);
-        var bottomNode = BrowserTreeModel.LastVisibleDescendant(selected);
-        var bottomContainer = ReferenceEquals(bottomNode, selected)
-            ? topContainer
-            : FindBrowserTreeItem(BrowserFolderTree, bottomNode);
-        if (topContainer is null || bottomContainer is null)
-        {
-            BrowserScopeOutline.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        var top = topContainer.TranslatePoint(new System.Windows.Point(0, 0), BrowserFolderTree).Y;
-        var bottom = bottomContainer.TranslatePoint(new System.Windows.Point(0, 0), BrowserFolderTree).Y +
-            bottomContainer.ActualHeight;
-        if (bottom <= top)
-        {
-            // Containers exist but have not been measured yet (zero height) — nothing meaningful to draw yet.
-            BrowserScopeOutline.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        BrowserScopeOutline.Margin = new Thickness(0, top, 0, 0);
-        BrowserScopeOutline.Height = bottom - top;
-        BrowserScopeOutline.Visibility = Visibility.Visible;
-    });
+    private void SyncBrowserTreeRecursiveIcon(BrowserTreeNode node)
+    {
+        if (!node.IsPlaceholder && node.RootId is { } rootId && node.RelativeFolder is { } relativeFolder)
+            node.IsRecursiveScope = BrowserRecursiveRootLogic.IsEffectivelyRecursive(_browserRecursiveRoots, rootId, relativeFolder);
+        foreach (var child in node.Children) SyncBrowserTreeRecursiveIcon(child);
+    }
 
     private static string? RelativeFolderUnderRoot(string rootPath, string absolutePath) =>
         string.Equals(MediaPathSemantics.NormalizeRootPath(rootPath), MediaPathSemantics.NormalizeRootPath(absolutePath),
@@ -611,20 +585,22 @@ public partial class MainWindow : Window
         await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
 
     /// <summary>
-    /// #124: toggles Include Subfolders for whichever folder is currently open, via
-    /// <see cref="BrowserNavigationSession.SetScopeModeAsync"/> — the same generation/cancellation/latest-wins
-    /// machinery as any other navigation, so a rapid re-toggle or a folder change mid-scan safely supersedes
-    /// this request rather than racing it. Deliberately does not touch <see cref="_browserQueryScope"/> or
-    /// call <see cref="ResetBrowserQueryToolbar"/>: #124 requires the current search/filter/sort to survive a
-    /// scope change. Selection clearing happens in <see cref="ApplyBrowserState"/> once the new scope's
-    /// results actually arrive, not here, so a request that ends up superseded never touches selection at all.
+    /// #124 (revised): toggles Include Subfolders for whichever folder is currently open, via
+    /// <see cref="BrowserNavigationSession.SetIncludeSubfoldersAsync"/> — establishing/removing a durable
+    /// Catalog recursive root rather than flipping a settable field — through the same
+    /// generation/cancellation/latest-wins machinery as any other navigation, so a rapid re-toggle or a folder
+    /// change mid-scan safely supersedes this request rather than racing it. Deliberately does not touch
+    /// <see cref="_browserQueryScope"/> or call <see cref="ResetBrowserQueryToolbar"/>: #124 requires the
+    /// current search/filter/sort to survive a scope change. Selection clearing happens in
+    /// <see cref="ApplyBrowserState"/> once the new scope's results actually arrive, not here, so a request
+    /// that ends up superseded never touches selection at all.
     /// </summary>
     private async void BrowserIncludeSubfoldersButton_Click(object sender, RoutedEventArgs e)
     {
         if (_synchronizingBrowserScopeMode) return;
-        var mode = BrowserIncludeSubfoldersButton.IsChecked == true
-            ? BrowserScopeMode.IncludeSubfolders : BrowserScopeMode.DirectFolder;
-        await RunBrowserNavigationAsync(() => _browserNavigation.SetScopeModeAsync(mode), mode);
+        var enabled = BrowserIncludeSubfoldersButton.IsChecked == true;
+        var mode = enabled ? BrowserScopeMode.IncludeSubfolders : BrowserScopeMode.DirectFolder;
+        await RunBrowserNavigationAsync(() => _browserNavigation.SetIncludeSubfoldersAsync(enabled), mode);
     }
 
     /// <summary>Applies a successful navigation result and reveals its Locations-tree ancestors. Returns false (without side effects) for a stale, null, or non-success state.</summary>
@@ -641,15 +617,17 @@ public partial class MainWindow : Window
     /// <summary>
     /// Drives one navigation/scope operation through the shared loading-overlay/generation machinery.
     /// <paramref name="scopeModeOverride"/> lets a caller that is about to *change* the scope mode (the
-    /// Include Subfolders toggle) show the right label immediately, since <see cref="_browserNavigation"/>'s
-    /// own <see cref="BrowserNavigationSession.ScopeMode"/> does not update until <paramref name="navigate"/>
-    /// actually runs; every other caller passes nothing and simply reflects whichever mode is already active.
+    /// Include Subfolders toggle) show the right label immediately, since effective mode for the folder about
+    /// to load is not known synchronously — it is derived live from the Catalog partway through
+    /// <paramref name="navigate"/> — every other caller passes nothing and simply reflects whichever mode the
+    /// last successfully committed state (<see cref="BrowserFolderState.Mode"/>) already showed, a reasonable
+    /// best-available guess for the label that self-corrects once the load actually completes.
     /// </summary>
     private async Task RunBrowserNavigationAsync(Func<Task<BrowserFolderState?>> navigate,
         BrowserScopeMode? scopeModeOverride = null)
     {
         var generation = ++_browserUiGeneration;
-        BrowserLoadingText.Text = (scopeModeOverride ?? _browserNavigation.ScopeMode) == BrowserScopeMode.IncludeSubfolders
+        BrowserLoadingText.Text = (scopeModeOverride ?? _browserNavigation.State.Mode) == BrowserScopeMode.IncludeSubfolders
             ? "Scanning folder and subfolders…" : "Loading folder…";
         ResetBrowserLoadingProgress();
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
@@ -722,10 +700,13 @@ public partial class MainWindow : Window
         // same-scope refresh (explicit Refresh, monitoring) leaves this identity unchanged and therefore
         // preserves selection via BrowserGridModel.Populate's existing key-based retention.
         var scopeIdentity = state.Location is { } identityLocation
-            ? (identityLocation.RootId, identityLocation.RelativeFolder, _browserNavigation.ScopeMode)
+            ? (identityLocation.RootId, identityLocation.RelativeFolder, state.Mode)
             : ((Guid, string, BrowserScopeMode)?)null;
         if (scopeIdentity != _browserScopeIdentity) _browserGrid.ClearSelection();
         _browserScopeIdentity = scopeIdentity;
+        // #124 (revised): the same round-trip that determined effective mode already fetched every stored
+        // Catalog recursive root — reused here for Locations-tree iconography rather than querying again.
+        _browserRecursiveRoots = state.RecursiveRoots ?? [];
 
         _synchronizingBrowserTree = true;
         IReadOnlyList<MediaFolderEntry> directFiles;
@@ -746,7 +727,7 @@ public partial class MainWindow : Window
         BrowserQueryToolbar.IsEnabled = state.Location is not null;
         BrowserIncludeSubfoldersButton.IsEnabled = state.Location is not null;
         SyncBrowserScopeToggle();
-        SyncBrowserScopeOutline();
+        SyncBrowserTreeRecursiveIcons();
         var presentableCount = _browserGrid.TotalCount;
         BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready && presentableCount > 0
             ? Visibility.Collapsed : Visibility.Visible;
@@ -771,20 +752,20 @@ public partial class MainWindow : Window
 
         if (state.Location is { } location)
         {
-            // Selection is intentionally never persisted here; only the folder identity (and #124's scope
-            // mode) is remembered.
-            _workspaceState.SetBrowserLocation(location.RootId, location.RelativeFolder, location.AbsolutePath,
-                _browserNavigation.ScopeMode == BrowserScopeMode.IncludeSubfolders);
+            // Selection is intentionally never persisted here, and #124 (revised) no longer persists scope
+            // mode here either — recursive-root configuration is durable Catalog data now, not workspace
+            // state (see BrowserRecursiveRoot); only the plain folder identity is remembered.
+            _workspaceState.SetBrowserLocation(location.RootId, location.RelativeFolder, location.AbsolutePath);
             _workspaceSaveTimer.Stop();
             _workspaceSaveTimer.Start();
         }
     }
 
-    /// <summary>Reflects the navigation session's current #124 scope mode on the toggle without re-entering its Click handler.</summary>
+    /// <summary>Reflects the navigation session's current #124 effective scope mode on the toggle without re-entering its Click handler.</summary>
     private void SyncBrowserScopeToggle()
     {
         _synchronizingBrowserScopeMode = true;
-        try { BrowserIncludeSubfoldersButton.IsChecked = _browserNavigation.ScopeMode == BrowserScopeMode.IncludeSubfolders; }
+        try { BrowserIncludeSubfoldersButton.IsChecked = _browserNavigation.State.Mode == BrowserScopeMode.IncludeSubfolders; }
         finally { _synchronizingBrowserScopeMode = false; }
     }
 
@@ -792,7 +773,6 @@ public partial class MainWindow : Window
     {
         RestoreLoadedBrowserSelection();
         SyncBrowserScopeToggle();
-        SyncBrowserScopeOutline();
         BrowserEmptyTitle.Text = failure.Status switch
         {
             BrowserFolderStatus.RootUnavailable => "Media Root unavailable",

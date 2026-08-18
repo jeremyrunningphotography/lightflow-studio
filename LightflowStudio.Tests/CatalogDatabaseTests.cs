@@ -65,12 +65,15 @@ public sealed class CatalogDatabaseTests : IDisposable
     public async Task InitialMigration_HasOrderedHistoryAndExpectedApplicationIdentity()
     {
         var result = await CreateService().CreateNewAsync();
-        Assert.Equal(1L, Scalar(result.Session!, "PRAGMA user_version;"));
+        var lastVersion = CatalogMigrations.All[^1].Version;
+        Assert.Equal((long)lastVersion, Scalar(result.Session!, "PRAGMA user_version;"));
         Assert.Equal(CatalogDatabaseService.SqliteApplicationId,
             Convert.ToInt32(Scalar(result.Session!, "PRAGMA application_id;")));
-        Assert.Equal("1:Initial catalog identity, roots, mappings, and assets",
+        var expectedHistory = string.Join(",",
+            CatalogMigrations.All.Select(migration => $"{migration.Version}:{migration.Name}"));
+        Assert.Equal(expectedHistory,
             Convert.ToString(Scalar(result.Session!,
-                "SELECT Version || ':' || Name FROM SchemaMigrations ORDER BY Version;")));
+                "SELECT group_concat(Version || ':' || Name, ',') FROM (SELECT Version, Name FROM SchemaMigrations ORDER BY Version);")));
         await result.Session!.DisposeAsync();
     }
 
@@ -86,9 +89,10 @@ public sealed class CatalogDatabaseTests : IDisposable
 
         var backup = new RecordingBackup();
         var migrated = await new CatalogDatabaseService(locations, backup).OpenExistingAsync();
+        var lastVersion = CatalogMigrations.All[^1].Version;
         Assert.Equal(CatalogOpenStatus.Ready, migrated.Status);
-        Assert.Equal([(0, 1)], backup.Requests);
-        Assert.Equal(1, migrated.SchemaVersion);
+        Assert.Equal([(0, lastVersion)], backup.Requests);
+        Assert.Equal(lastVersion, migrated.SchemaVersion);
         await migrated.Session!.DisposeAsync();
     }
 
@@ -111,9 +115,10 @@ public sealed class CatalogDatabaseTests : IDisposable
         var locations = CreateLocations();
         var initial = await new CatalogDatabaseService(locations).CreateNewAsync();
         await initial.Session!.DisposeAsync();
+        var lastRealVersion = CatalogMigrations.All[^1].Version;
         var migrations = CatalogMigrations.All.Concat(
         [
-            new CatalogMigration(2, "Deliberately failing test migration", (connection, transaction, _) =>
+            new CatalogMigration(lastRealVersion + 1, "Deliberately failing test migration", (connection, transaction, _) =>
             {
                 using var command = connection.CreateCommand();
                 command.Transaction = transaction;
@@ -127,7 +132,7 @@ public sealed class CatalogDatabaseTests : IDisposable
             .OpenExistingAsync();
 
         Assert.Equal(CatalogOpenStatus.MigrationFailed, failed.Status);
-        Assert.Equal(1, ReadUserVersion(locations.CatalogDatabasePath));
+        Assert.Equal(lastRealVersion, ReadUserVersion(locations.CatalogDatabasePath));
         Assert.False(TableExists(locations.CatalogDatabasePath, "MustRollBack"));
         var recovered = await new CatalogDatabaseService(locations).OpenExistingAsync();
         Assert.Equal(CatalogOpenStatus.Ready, recovered.Status);
@@ -137,32 +142,39 @@ public sealed class CatalogDatabaseTests : IDisposable
     [Fact]
     public async Task MultipleMigrations_AreAppliedInVersionOrder()
     {
+        // Starts from a raw version-zero file (rather than CreateNewAsync, which would apply the real
+        // CatalogMigrations.All and leave the catalog already past version 1) so this fabricated,
+        // deliberately-unordered migration set is what actually brings the schema from 0 to its top version.
         var locations = CreateLocations();
-        var initial = await new CatalogDatabaseService(locations).CreateNewAsync();
-        await initial.Session!.DisposeAsync();
-        var version2 = new CatalogMigration(2, "Create ordering probe", (connection, transaction, _) =>
+        CreateVersionZeroCatalog(locations.CatalogDatabasePath);
+        var probeVersion = CatalogMigrations.All[^1].Version + 1;
+        var version1 = CatalogMigrations.All[0];
+        var probeCreate = new CatalogMigration(probeVersion, "Create ordering probe", (connection, transaction, _) =>
         {
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = "CREATE TABLE MigrationOrderProbe (Value INTEGER NOT NULL);";
             command.ExecuteNonQuery();
         });
-        var version3 = new CatalogMigration(3, "Use ordering probe", (connection, transaction, _) =>
+        var probeUse = new CatalogMigration(probeVersion + 1, "Use ordering probe", (connection, transaction, _) =>
         {
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
-            command.CommandText = "INSERT INTO MigrationOrderProbe (Value) VALUES (3);";
+            command.CommandText = "INSERT INTO MigrationOrderProbe (Value) VALUES ($value);";
+            command.Parameters.AddWithValue("$value", probeVersion + 1);
             command.ExecuteNonQuery();
         });
-        var deliberatelyUnordered = new[] { version3, CatalogMigrations.All[0], version2 };
+        var deliberatelyUnordered = CatalogMigrations.All.Skip(1)
+            .Concat([probeUse, version1, probeCreate]).ToArray();
 
         var migrated = await new CatalogDatabaseService(
             locations, new RecordingBackup(), deliberatelyUnordered).OpenExistingAsync();
 
         Assert.Equal(CatalogOpenStatus.Ready, migrated.Status);
-        Assert.Equal(3, migrated.SchemaVersion);
-        Assert.Equal(3L, Scalar(migrated.Session!, "SELECT Value FROM MigrationOrderProbe;"));
-        Assert.Equal("1,2,3", Convert.ToString(Scalar(migrated.Session!,
+        Assert.Equal(probeVersion + 1, migrated.SchemaVersion);
+        Assert.Equal((long)(probeVersion + 1), Scalar(migrated.Session!, "SELECT Value FROM MigrationOrderProbe;"));
+        var expectedOrder = string.Join(",", deliberatelyUnordered.Select(migration => migration.Version).Order());
+        Assert.Equal(expectedOrder, Convert.ToString(Scalar(migrated.Session!,
             "SELECT group_concat(Version, ',') FROM (SELECT Version FROM SchemaMigrations ORDER BY Version);")));
         await migrated.Session!.DisposeAsync();
     }

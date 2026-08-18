@@ -109,7 +109,8 @@
    </Grid>
   </Border>
 
-  <TabControl Grid.Row="1" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local">
+  <TabControl Grid.Row="1" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
+   SelectionChanged="MainTabs_SelectionChanged">
    <TabItem>
     <Grid Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}">
       <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -155,7 +156,7 @@
        <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template>
       </GridSplitter>
       <Grid Grid.Column="2" MinWidth="520">
-       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
        <Border Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>
          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -353,14 +354,6 @@
           <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><ProgressBar Width="180" Height="4" IsIndeterminate="True"/><TextBlock x:Name="BrowserLoadingText" Margin="0,12,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Loading folder…"/></StackPanel>
          </Border>
         </Grid>
-      </Border>
-      <!-- Status stays with the media it describes, beneath the grid rather than competing with the toolbar's
-           controls above it. Flatter and slimmer than the toolbar/grid's raised panels — a restrained status
-           strip, not another card — via a smaller corner radius, tighter padding, and the same recessed
-           surface tone used by the toolbar's chips. -->
-      <Border Grid.Row="6" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}"
-       BorderThickness="1" CornerRadius="4" Padding="12,6">
-       <TextBlock x:Name="BrowserStatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
       </Border>
      </Grid>
     </Grid>
@@ -715,8 +708,23 @@
    </TabItem>
   </TabControl>
 
-  <Border Grid.Row="2" Background="#111319" BorderBrush="#252832" BorderThickness="0,1,0,0" Padding="14,0">
-   <DockPanel><Ellipse Width="7" Height="7" Fill="{StaticResource SuccessBrush}" Margin="0,0,8,0"/><TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Checking FFmpeg…"/></DockPanel>
+  <!--
+   One application-wide status strip rather than a Browser-specific bar stacked above an unrelated global
+   one (#126): app health (Ellipse + StatusText) always occupies the left/fill side; the Browser-specific
+   segment (count/selection/Preview activity, then a reserved slot for #125's thumbnail-size control) docks
+   to the right and is shown only while the Browser tab is active — see MainWindow.SyncBrowserStatusBarVisibility.
+  -->
+  <Border Grid.Row="2" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,1,0,0" Padding="14,0">
+   <DockPanel LastChildFill="True">
+    <!-- Reserved integration point for #125's thumbnail-size slider; empty and zero-width until then. -->
+    <StackPanel x:Name="BrowserPresentationControls" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed"/>
+    <TextBlock x:Name="BrowserStatusText" DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
+     FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="380" Margin="0,0,14,0" Visibility="Collapsed"/>
+    <Border x:Name="BrowserStatusDivider" DockPanel.Dock="Right" Width="1" Margin="0,9,14,9" Background="{StaticResource ShellDividerBrush}" Visibility="Collapsed"/>
+    <Ellipse DockPanel.Dock="Left" Width="7" Height="7" Fill="{StaticResource SuccessBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+    <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"
+     TextTrimming="CharacterEllipsis" Text="Checking FFmpeg…"/>
+   </DockPanel>
   </Border>
  </Grid>
 </Window>

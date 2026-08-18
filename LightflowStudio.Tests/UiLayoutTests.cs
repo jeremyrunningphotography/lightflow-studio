@@ -571,17 +571,107 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserStatusBar_IsItsOwnBarBeneathTheGridRatherThanPartOfTheToolbar()
+    public void BrowserStatusText_LivesInTheSharedApplicationStatusBarRatherThanItsOwnBrowserOnlyStrip()
     {
+        // #126: one intentional application-wide status strip, not a Browser-specific bar stacked above an
+        // unrelated global one. BrowserStatusText is part of the same Border as the global StatusText.
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
         var statusText = Named(document, "BrowserStatusText");
+        var appStatusText = Named(document, "StatusText");
         var statusBar = statusText.Ancestors(ns + "Border").First();
         var gridHost = Named(document, "BrowserGridHost");
+        var mainTabs = Named(document, "MainTabs");
 
-        Assert.Equal("6", (string?)statusBar.Attribute("Grid.Row"));
-        Assert.Equal(gridHost.Parent, statusBar.Parent);
+        Assert.Equal("2", (string?)statusBar.Attribute("Grid.Row"));
+        Assert.Equal(statusBar, appStatusText.Ancestors(ns + "Border").First());
+        // The shared bar is a sibling of MainTabs (outside the TabControl entirely), not nested inside the
+        // Browser tab's own content, so it's unaffected by which tab is active.
+        Assert.Equal(mainTabs.Parent, statusBar.Parent);
         Assert.DoesNotContain(gridHost.Descendants(), element => element == statusText);
+        Assert.DoesNotContain(mainTabs.Descendants(), element => element == statusText);
+    }
+
+    [Fact]
+    public void BrowserStatusBarSegment_DefaultsToCollapsedInXamlAndTrimsLongText()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var statusText = Named(document, "BrowserStatusText");
+        var divider = Named(document, "BrowserStatusDivider");
+        var presentationControls = Named(document, "BrowserPresentationControls");
+
+        // Visibility is driven from code (SyncBrowserStatusBarVisibility) based on the active tab, not a
+        // XAML default that would show Browser status while some other workspace is active on first paint.
+        Assert.Equal("Collapsed", (string?)statusText.Attribute("Visibility"));
+        Assert.Equal("Collapsed", (string?)divider.Attribute("Visibility"));
+        Assert.Equal("Collapsed", (string?)presentationControls.Attribute("Visibility"));
+
+        // Long/transient status text (e.g. "Generating previews… (N left)") must not crowd out the reserved
+        // #125 presentation-control slot at the trailing edge.
+        Assert.Equal("CharacterEllipsis", (string?)statusText.Attribute("TextTrimming"));
+        Assert.NotNull(statusText.Attribute("MaxWidth"));
+    }
+
+    [Fact]
+    public void BrowserPresentationControls_ReservesTheTrailingEdgeForFutureThumbnailSizing()
+    {
+        // #125 integration point: an empty, named container docked to the right of the Browser status text
+        // (i.e., the outermost trailing element), so it can be populated later without restructuring this bar.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var statusText = Named(document, "BrowserStatusText");
+        var presentationControls = Named(document, "BrowserPresentationControls");
+        var statusBar = statusText.Ancestors(ns + "Border").First();
+        var dockPanel = statusBar.Descendants(ns + "DockPanel").Single();
+
+        Assert.Empty(presentationControls.Elements());
+        Assert.Equal("Right", (string?)presentationControls.Attribute("DockPanel.Dock"));
+        Assert.Equal("Right", (string?)statusText.Attribute("DockPanel.Dock"));
+        var dockedRightInOrder = dockPanel.Elements()
+            .Where(element => (string?)element.Attribute("DockPanel.Dock") == "Right").ToList();
+        // Declaration order for same-side DockPanel children maps to right-to-left visual order, so
+        // BrowserPresentationControls must be declared first among them to land at the true trailing edge.
+        Assert.Equal(presentationControls, dockedRightInOrder.First());
+    }
+
+    [Fact]
+    public void GlobalStatusText_HasNoXamlVisibilityToggleAndAlwaysOccupiesTheFillArea()
+    {
+        // App health must never disappear just because the Browser tab isn't active — only the Browser
+        // segment is conditionally shown; the global segment is the DockPanel's fill (undocked, last child).
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var appStatusText = Named(document, "StatusText");
+        var statusBar = appStatusText.Ancestors(ns + "Border").First();
+        var dockPanel = statusBar.Descendants(ns + "DockPanel").Single();
+
+        Assert.Null(appStatusText.Attribute("Visibility"));
+        Assert.Null(appStatusText.Attribute("DockPanel.Dock"));
+        Assert.Equal(appStatusText, dockPanel.Elements().Last());
+    }
+
+    [Fact]
+    public void MainTabs_WiresSelectionChangedToKeepTheStatusBarSegmentInSync()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var mainTabs = Named(document, "MainTabs");
+        Assert.Equal("MainTabs_SelectionChanged", (string?)mainTabs.Attribute("SelectionChanged"));
+    }
+
+    [Fact]
+    public void BrowserWorkspaceGrid_NoLongerReservesRowsForItsOwnStatusBar()
+    {
+        // Reclaimed vertical space: the Browser tab's inner Grid goes back to 5 rows (folder toolbar, gap,
+        // query toolbar/chips, gap, grid) now that status lives in the shared application-wide bar.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var gridHost = Named(document, "BrowserGridHost");
+        var browserWorkspaceGrid = gridHost.Parent!;
+        var rowDefinitions = browserWorkspaceGrid.Element(ns + "Grid.RowDefinitions")!.Elements(ns + "RowDefinition").ToList();
+
+        Assert.Equal(5, rowDefinitions.Count);
+        Assert.Equal("4", (string?)gridHost.Attribute("Grid.Row"));
+        Assert.Equal("*", (string?)rowDefinitions[4].Attribute("Height"));
     }
 
     [Fact]

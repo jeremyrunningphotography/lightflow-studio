@@ -82,6 +82,7 @@ public partial class MainWindow : Window
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
         InitializeBrowserQuickFilterButtons();
+        SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
         if (_workspaceState.Current.Browser is { } savedBrowserLocation) ShowBrowserRestoringState(savedBrowserLocation);
         _batchFolderRefreshTimer.Tick += (_, _) =>
@@ -810,7 +811,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Lightweight Browser status: visible/total item counts, selection count/size (scoped to the whole
     /// selection, not just what the current filter shows — see <see cref="BrowserGridModel.SelectedTotalSizeBytes"/>),
-    /// and whether Preview generation is still active for this folder.
+    /// and whether Preview generation is still active for this folder. Always kept current regardless of
+    /// which tab is active — see <see cref="SyncBrowserStatusBarVisibility"/> for when it's actually shown.
     /// </summary>
     private void UpdateBrowserStatusText()
     {
@@ -819,6 +821,29 @@ public partial class MainWindow : Window
         var remaining = progress is null ? 0 : progress.Pending + progress.Running;
         BrowserStatusText.Text = BrowserStatusPresentation.Describe(_browserGrid.VisibleCount, _browserGrid.TotalCount,
             _browserGrid.SelectedKeys.Count, _browserGrid.SelectedTotalSizeBytes, isGenerating, remaining);
+    }
+
+    private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e) => SyncBrowserStatusBarVisibility();
+
+    /// <summary>
+    /// #126: one application-wide status strip rather than a Browser-specific bar stacked above an unrelated
+    /// global one. The Browser segment (count/selection/Preview activity, plus the reserved slot for #125's
+    /// thumbnail control) is part of that same strip and only shown while the Browser tab is active; app
+    /// health (<see cref="StatusText"/>) is unaffected and always visible regardless of tab. Guarded with a
+    /// null check, not the usual <c>_synchronizingBrowserQuery</c> flag, because <c>SelectedIndex="0"</c> is
+    /// a XAML-declared default on <see cref="MainTabs"/> — WPF can raise <c>SelectionChanged</c> for it while
+    /// InitializeComponent is still connecting these later-declared elements, so the explicit call after
+    /// InitializeComponent in the constructor is what actually establishes the correct initial state.
+    /// </summary>
+    private void SyncBrowserStatusBarVisibility()
+    {
+        if (BrowserStatusText is null) return;
+        var isBrowserActive = MainTabs.SelectedIndex == ShellWorkspaceSelection.Index(ShellWorkspace.Browser);
+        var visibility = isBrowserActive ? Visibility.Visible : Visibility.Collapsed;
+        BrowserStatusText.Visibility = visibility;
+        BrowserStatusDivider.Visibility = visibility;
+        BrowserPresentationControls.Visibility = visibility;
+        if (isBrowserActive) UpdateBrowserStatusText();
     }
 
     private void AttachBrowserDerivedWork(IDerivedWorkBatch? batch, long generation)

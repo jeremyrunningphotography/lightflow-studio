@@ -100,9 +100,34 @@ public sealed class WorkspaceRestorationRegressionTests
         var body = source[methodStart..methodEnd];
 
         Assert.DoesNotContain("await", body);
-        Assert.Contains("BrowserLoadingText.Text", body);
-        Assert.Contains("BrowserLoadingOverlay.Visibility = Visibility.Visible;", body);
-        Assert.Contains("BrowserEmptyState.Visibility = Visibility.Collapsed;", body);
+        // #124 (further revised): the actual text/overlay/empty-state mechanics now live centrally in
+        // ShowBrowserLoadingState (see ShowBrowserLoadingState_RetiresStaleEmptyStateBeforeShowingIndeterminateLoading
+        // below), shared with ordinary navigation, so both paths retire a stale empty state identically.
+        Assert.Contains("ShowBrowserLoadingState(", body);
+    }
+
+    [Fact]
+    public void ShowBrowserLoadingState_RetiresStaleEmptyStateBeforeShowingIndeterminateLoading()
+    {
+        // The root cause of a stale empty/failure message overlapping a new navigation's loading presentation
+        // was that entering Loading never retired the previous Empty state. This is the single authoritative
+        // entry point for that transition — both ShowBrowserRestoringState (startup restoration) and
+        // RunBrowserNavigationAsync (every ordinary navigation) go through it, so a completed scope's empty
+        // state can never survive into a new navigation generation's loading presentation.
+        var source = Source();
+        var methodStart = source.IndexOf("private void ShowBrowserLoadingState", StringComparison.Ordinal);
+        Assert.True(methodStart >= 0, "ShowBrowserLoadingState not found in MainWindow.xaml.cs");
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.DoesNotContain("await", body);
+        var textSet = body.IndexOf("BrowserLoadingText.Text = label;", StringComparison.Ordinal);
+        var emptyHidden = body.IndexOf("BrowserEmptyState.Visibility = Visibility.Collapsed;", StringComparison.Ordinal);
+        var progressReset = body.IndexOf("ResetBrowserLoadingProgress();", StringComparison.Ordinal);
+        var overlayShown = body.IndexOf("BrowserLoadingOverlay.Visibility = Visibility.Visible;", StringComparison.Ordinal);
+        Assert.True(textSet >= 0 && emptyHidden > textSet && progressReset > emptyHidden && overlayShown > progressReset,
+            "A new loading sequence must retire the stale empty/failure state and begin indeterminate before " +
+            "the overlay appears, so empty/failure and loading presentations can never render simultaneously.");
     }
 
     [Fact]
@@ -163,14 +188,10 @@ public sealed class WorkspaceRestorationRegressionTests
         var methodStart = source.IndexOf("private async Task RunBrowserNavigationAsync", StringComparison.Ordinal);
         var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
         var body = source[methodStart..methodEnd];
-        // #124: the label is scope-mode-aware (a plain "Loading folder…" assignment is now a ternary that
-        // also covers recursive scanning), so this only asserts the reset still happens before the overlay
-        // is shown, and that the original direct-mode text still exists somewhere in that assignment.
-        var textReset = body.IndexOf("BrowserLoadingText.Text =", StringComparison.Ordinal);
-        var overlayShown = body.IndexOf("BrowserLoadingOverlay.Visibility = Visibility.Visible;", StringComparison.Ordinal);
-
-        Assert.True(textReset >= 0 && overlayShown > textReset,
-            "Ordinary navigation must reset the loading label before showing the overlay.");
+        // #124 (further revised): the label is scope-mode-aware (a ternary covering recursive scanning too)
+        // and passed straight into ShowBrowserLoadingState, which now owns clearing any stale presentation —
+        // this only asserts the direct-mode text still exists and is routed through that shared entry point.
+        Assert.Contains("ShowBrowserLoadingState(", body);
         Assert.Contains("\"Loading folder…\"", body);
     }
 

@@ -461,6 +461,99 @@ public sealed class BrowserNavigationTests
         Assert.DoesNotContain(received, report => report is { FoldersDiscovered: 9, FoldersVisited: 9 });
     }
 
+    [Fact]
+    public async Task EffectiveScopeDetermined_FiresWithLocationAndModeForAnOrdinaryDirectFolderNavigation()
+    {
+        var root = Root("Library", @"C:\Library");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, FileEntry(root.RootId, "clip.mp4"))));
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders);
+        BrowserEffectiveScope? captured = null;
+        session.EffectiveScopeDetermined += (_, scope) => captured = scope;
+
+        await session.NavigateToRootAsync(root.RootId);
+
+        Assert.NotNull(captured);
+        Assert.Equal(root.RootId, captured!.Location.RootId);
+        Assert.Equal(BrowserScopeMode.DirectFolder, captured.Mode);
+    }
+
+    [Fact]
+    public async Task EffectiveScopeDetermined_FiresWithIncludeSubfoldersModeBeforeTheSlowRecursiveWalkCompletes()
+    {
+        // #124 (further revised): tree icons/toolbar toggle must reflect effective mode immediately once the
+        // Catalog mutation succeeds, not once the (potentially slow) recursive walk it triggers finishes.
+        var root = Root("Library", @"C:\Library");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request)));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recursive = new FakeRecursiveDiscovery(async (request, _, _, _, _) =>
+        {
+            entered.SetResult();
+            await release.Task;
+            return new RecursiveScopeResult(CatalogReconciliationStatus.Succeeded, request.RootId,
+                request.RelativeFolder ?? "", [], null);
+        });
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursive);
+        await session.NavigateToRootAsync(root.RootId);
+        BrowserEffectiveScope? captured = null;
+        session.EffectiveScopeDetermined += (_, scope) => captured = scope;
+
+        var enabling = session.SetIncludeSubfoldersAsync(true);
+        await entered.Task; // the recursive walk is now blocked mid-flight
+
+        Assert.NotNull(captured);
+        Assert.Equal(BrowserScopeMode.IncludeSubfolders, captured!.Mode);
+        Assert.False(enabling.IsCompleted); // proves the event above really did fire before the walk finished
+
+        release.SetResult();
+        await enabling;
+    }
+
+    [Fact]
+    public async Task EffectiveScopeDetermined_ObsoleteDeterminationsNeverReachSubscribersAfterANewerRequestSupersedesThem()
+    {
+        var root = Root("Library", @"C:\Library");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request)));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gatedRoots = new BrowserRecursiveRootService(new GatedRecursiveRootRepository(entered, release));
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursiveRoots: gatedRoots);
+        var received = new List<BrowserEffectiveScope>();
+        session.EffectiveScopeDetermined += (_, scope) => received.Add(scope);
+
+        var obsolete = session.NavigateToRootAsync(root.RootId);
+        await entered.Task; // obsolete's Catalog root list fetch is now blocked mid-flight
+        var latest = await session.NavigateToRootAsync(root.RootId); // begins a newer generation first
+        release.SetResult();
+        await obsolete;
+
+        Assert.Single(received); // only the current generation's determination ever reached the subscriber
+        Assert.NotNull(latest);
+    }
+
+    /// <summary>Blocks only its first ListAsync call (the "obsolete" generation) — later calls (a superseding generation) return immediately, otherwise the test itself would deadlock waiting for a release that comes after the superseding call.</summary>
+    private sealed class GatedRecursiveRootRepository(TaskCompletionSource entered, TaskCompletionSource release)
+        : IBrowserRecursiveRootRepository
+    {
+        private int _calls;
+
+        public async Task<IReadOnlyList<BrowserRecursiveRoot>> ListAsync(CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _calls) == 1)
+            {
+                entered.TrySetResult();
+                await release.Task;
+            }
+            return [];
+        }
+
+        public Task CreateAsync(Guid rootId, string relativeFolder, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<int> DeleteAsync(IReadOnlyCollection<Guid> scopeIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+    }
+
     private static BrowserNavigationSession Session(FakeRoots roots, FakeDiscovery discovery, FakeFolders folders,
         IRecursiveMediaDiscoveryService? recursiveDiscovery = null, IBrowserRecursiveRootService? recursiveRoots = null) =>
         new(roots, new BrowserLocationResolver(roots, new ExistingFileSystem()), discovery, folders,

@@ -89,6 +89,7 @@ public partial class MainWindow : Window
         _storageDiagnostic = storageDiagnostic;
         _browserNavigation = new BrowserNavigationSession(storage.MediaRoots, storage.BrowserLocations,
             storage.MediaDiscovery, storage.MediaFolders, storage.BrowserRecursiveRoots, storage.RecursiveMediaDiscovery);
+        _browserNavigation.EffectiveScopeDetermined += BrowserNavigation_EffectiveScopeDetermined;
         _browserNavigation.RecursiveScopeProgressChanged += BrowserNavigation_RecursiveScopeProgressChanged;
         _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
@@ -187,6 +188,7 @@ public partial class MainWindow : Window
         {
             if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
             _browserNavigation.RecursiveScopeProgressChanged -= BrowserNavigation_RecursiveScopeProgressChanged;
+            _browserNavigation.EffectiveScopeDetermined -= BrowserNavigation_EffectiveScopeDetermined;
             _workspaceSaveTimer.Stop();
             _browserSearchDebounceTimer.Stop();
             _browserMetadataResortTimer.Stop();
@@ -237,8 +239,25 @@ public partial class MainWindow : Window
     private void ShowBrowserRestoringState(WorkspaceBrowserLocationState saved)
     {
         var label = BrowserLocationRestoration.DescribeSavedLocation(saved);
-        BrowserLoadingText.Text = label is null ? "Restoring your last location…" : $"Loading {label}…";
         if (!string.IsNullOrWhiteSpace(saved.LastResolvedAbsolutePath)) BrowserCurrentPath.Text = saved.LastResolvedAbsolutePath;
+        ShowBrowserLoadingState(label is null ? "Restoring your last location…" : $"Loading {label}…");
+    }
+
+    /// <summary>
+    /// The single authoritative entry point into the Browser center presentation's Loading state — the one
+    /// place a new navigation generation retires whatever the previous generation was showing. The Browser
+    /// center presentation (<see cref="BrowserEmptyState"/>/<see cref="BrowserLoadingOverlay"/>/the populated
+    /// grid) represents exactly one authoritative state at a time; a completed scope's empty/failure messaging
+    /// must never remain visible once a new navigation begins; only <see cref="ApplyBrowserState"/>/
+    /// <see cref="ApplyBrowserNavigationFailure"/> — themselves already gated on the current
+    /// <see cref="_browserUiGeneration"/> — are allowed to show <see cref="BrowserEmptyState"/> again, once
+    /// this same generation's loading actually finishes. Called at every point a new loading sequence starts
+    /// (an ordinary navigation via <see cref="RunBrowserNavigationAsync"/>, and workspace restoration via
+    /// <see cref="ShowBrowserRestoringState"/>), so both paths retire the previous presentation identically.
+    /// </summary>
+    private void ShowBrowserLoadingState(string label)
+    {
+        BrowserLoadingText.Text = label;
         BrowserEmptyState.Visibility = Visibility.Collapsed;
         ResetBrowserLoadingProgress();
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
@@ -627,10 +646,8 @@ public partial class MainWindow : Window
         BrowserScopeMode? scopeModeOverride = null)
     {
         var generation = ++_browserUiGeneration;
-        BrowserLoadingText.Text = (scopeModeOverride ?? _browserNavigation.State.Mode) == BrowserScopeMode.IncludeSubfolders
-            ? "Scanning folder and subfolders…" : "Loading folder…";
-        ResetBrowserLoadingProgress();
-        BrowserLoadingOverlay.Visibility = Visibility.Visible;
+        ShowBrowserLoadingState((scopeModeOverride ?? _browserNavigation.State.Mode) == BrowserScopeMode.IncludeSubfolders
+            ? "Scanning folder and subfolders…" : "Loading folder…");
         try
         {
             var state = await navigate();
@@ -762,12 +779,34 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Reflects the navigation session's current #124 effective scope mode on the toggle without re-entering its Click handler.</summary>
-    private void SyncBrowserScopeToggle()
+    private void SyncBrowserScopeToggle() => SyncBrowserScopeToggle(_browserNavigation.State.Mode);
+
+    private void SyncBrowserScopeToggle(BrowserScopeMode mode)
     {
         _synchronizingBrowserScopeMode = true;
-        try { BrowserIncludeSubfoldersButton.IsChecked = _browserNavigation.State.Mode == BrowserScopeMode.IncludeSubfolders; }
+        try { BrowserIncludeSubfoldersButton.IsChecked = mode == BrowserScopeMode.IncludeSubfolders; }
         finally { _synchronizingBrowserScopeMode = false; }
     }
+
+    /// <summary>
+    /// #124 (further revised): applies the fast, purely Catalog-derived half of a navigation's outcome —
+    /// toolbar toggle and Locations-tree icons — the moment it is known, rather than waiting for the
+    /// (potentially slow) recursive discovery or authoritative reconciliation <see cref="BrowserNavigationSession.EffectiveScopeDetermined"/>
+    /// precedes. This is what makes enabling/disabling Include Subfolders, and navigating into or out of an
+    /// existing recursive subtree, feel immediate: the tree/toolbar reflect location + Catalog recursive-root
+    /// configuration on their own, never gated on the eventual media result set. <see cref="ApplyBrowserState"/>
+    /// still redundantly re-applies the same two effects once the full state commits — cheap, and a safety net
+    /// for the rare case a later navigation's full commit lands after this event but is for the same folder.
+    /// Marshaled onto the UI thread like every other cross-thread <see cref="BrowserNavigationSession"/> signal,
+    /// since the event can fire from a background/thread-pool continuation.
+    /// </summary>
+    private void BrowserNavigation_EffectiveScopeDetermined(object? sender, BrowserEffectiveScope scope) =>
+        Dispatcher.BeginInvoke(() =>
+        {
+            _browserRecursiveRoots = scope.RecursiveRoots;
+            SyncBrowserTreeRecursiveIcons();
+            SyncBrowserScopeToggle(scope.Mode);
+        });
 
     private void ApplyBrowserNavigationFailure(BrowserFolderState failure)
     {

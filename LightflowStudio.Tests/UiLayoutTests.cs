@@ -223,13 +223,20 @@ public class UiLayoutTests
         // reads as a filter facet or as one of the media-type segments.
         Assert.Equal("{StaticResource BrowserScopeToggleButtonStyle}", (string?)toggle.Attribute("Style"));
 
-        // Composed entirely from the already-verified folder glyph (U+E8B7, the same one the Locations
-        // tree already renders) rather than a new/unverified "hierarchy" codepoint or an image asset.
+        // Shares the Locations tree's outline/filled folder vocabulary: an outline folder glyph (U+E8B7, the
+        // same one the Locations tree renders while unchecked) that swaps to an already-rendering-verified
+        // filled glyph (U+E838, already used elsewhere in this file) once checked, rather than a new/
+        // unverified codepoint, an image asset, or the earlier two-folder stack composition.
         var scopeStyle = document.Descendants(ns + "Style")
             .Single(style => (string?)style.Attribute(xNamespace + "Key") == "BrowserScopeToggleButtonStyle");
-        var iconGlyphs = scopeStyle.Descendants(ns + "TextBlock")
-            .Where(block => (string?)block.Attribute("Text") is { Length: 1 } text && text[0] == '\uE8B7').ToArray();
-        Assert.Equal(2, iconGlyphs.Length);
+        var scopeGlyph = scopeStyle.Descendants(ns + "TextBlock")
+            .Single(block => (string?)block.Attribute(xNamespace + "Name") == "ScopeGlyph");
+        Assert.Equal("\uE8B7", (string?)scopeGlyph.Attribute("Text"));
+        var checkedTrigger = scopeStyle.Descendants(ns + "Trigger")
+            .Single(trigger => (string?)trigger.Attribute("Property") == "IsChecked" && (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(checkedTrigger.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("TargetName") == "ScopeGlyph" && (string?)setter.Attribute("Property") == "Text" &&
+            (string?)setter.Attribute("Value") == "\uE838");
         Assert.Contains(scopeStyle.Descendants(ns + "TextBlock"), block => (string?)block.Attribute("Text") == "Subfolders");
     }
 
@@ -371,30 +378,38 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserFolderTreeRow_HasARecursiveScopeIconTriggerReusingTheToolbarsTwoFolderGlyphComposition()
+    public void BrowserFolderTreeRow_UsesOutlineFilledFolderIconSemanticsForSelectionAndRecursiveScope()
     {
-        // #124 (revised): the continuous outline is gone. A folder's icon communicates recursive-mode
-        // inheritance instead — a second, dim folder glyph appears behind the normal one only when
-        // IsRecursiveScope is true, matching BrowserScopeToggleButtonStyle's own two-folder composition.
+        // #124 (further revised): the two-folder-stack composition read as too subtle in a large tree. A
+        // single FolderIcon glyph now swaps between an outline glyph (default) and a filled one, driven by two
+        // independent DataTriggers (OR semantics via the same Setter/value) — IsSelected (an ordinary selected
+        // direct folder) or IsRecursiveScope (the stored recursive root or an inherited descendant).
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
         var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var tree = Named(document, "BrowserFolderTree");
-        var behindIcon = Named(document, "FolderIconBehind");
+        var folderIcon = Named(document, "FolderIcon");
 
-        Assert.Equal(ns + "TextBlock", behindIcon.Name);
-        Assert.Equal("Collapsed", (string?)behindIcon.Attribute("Visibility"));
-        Assert.False(string.IsNullOrWhiteSpace((string?)behindIcon.Attribute(xNamespace + "Name")));
+        Assert.Equal(ns + "TextBlock", folderIcon.Name);
+        Assert.Equal("\uE8B7", (string?)folderIcon.Attribute("Text"));
+        Assert.False(string.IsNullOrWhiteSpace((string?)folderIcon.Attribute(xNamespace + "Name")));
 
         var template = tree.Descendants(ns + "HierarchicalDataTemplate").Single();
         var triggers = template.Element(ns + "HierarchicalDataTemplate.Triggers")!;
+
+        var selectedTrigger = triggers.Elements(ns + "DataTrigger").Single(trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsSelected") == true);
+        Assert.Equal("True", (string?)selectedTrigger.Attribute("Value"));
+        Assert.Contains(selectedTrigger.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("TargetName") == "FolderIcon" && (string?)setter.Attribute("Property") == "Text" &&
+            (string?)setter.Attribute("Value") == "\uE838");
+
         var recursiveTrigger = triggers.Elements(ns + "DataTrigger").Single(trigger =>
             ((string?)trigger.Attribute("Binding"))?.Contains("IsRecursiveScope") == true);
         Assert.Equal("True", (string?)recursiveTrigger.Attribute("Value"));
         Assert.Contains(recursiveTrigger.Elements(ns + "Setter"), setter =>
-            (string?)setter.Attribute("TargetName") == "FolderIconBehind" &&
-            (string?)setter.Attribute("Property") == "Visibility" &&
-            (string?)setter.Attribute("Value") == "Visible");
+            (string?)setter.Attribute("TargetName") == "FolderIcon" && (string?)setter.Attribute("Property") == "Text" &&
+            (string?)setter.Attribute("Value") == "\uE838");
 
         // Only the pre-existing Expanded handler remains — no Collapsed EventSetter (unneeded now that
         // icon state is derived per-row from Catalog data rather than the outline's live selection bounds).

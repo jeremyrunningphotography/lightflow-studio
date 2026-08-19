@@ -14,6 +14,14 @@ internal sealed record BrowserLocation(
     public string DisplayPath => AbsolutePath;
 }
 
+/// <summary>
+/// #124 (revised): the fast, purely Catalog-derived half of a navigation's outcome — location, effective
+/// recursive mode, and the full stored root list — surfaced via <see cref="BrowserNavigationSession.EffectiveScopeDetermined"/>
+/// well before the (potentially slow) media discovery <see cref="BrowserNavigationSession"/> runs afterward.
+/// </summary>
+internal sealed record BrowserEffectiveScope(BrowserLocation Location, BrowserScopeMode Mode,
+    IReadOnlyList<BrowserRecursiveRoot> RecursiveRoots);
+
 internal enum BrowserFolderStatus
 {
     Ready,
@@ -93,6 +101,21 @@ internal sealed class BrowserNavigationSession(
     private bool _disposed;
 
     public BrowserFolderState State { get; private set; } = BrowserFolderState.Initial;
+
+    /// <summary>
+    /// #124 (revised): fires as soon as effective recursive mode for the folder being loaded is known —
+    /// immediately after fetching the Catalog's stored recursive roots, before the (potentially slow)
+    /// recursive discovery or authoritative reconciliation that follows even begins. A caller's tree
+    /// icons/toolbar toggle are presentation derived purely from location + Catalog recursive-root
+    /// configuration, never from the eventual media result set, so they should never wait on discovery to
+    /// finish — this event is what lets a caller apply that presentation immediately while <see cref="Commit"/>
+    /// (and the full <see cref="BrowserFolderState"/> it produces) is still pending. Generation-gated exactly
+    /// like <see cref="Commit"/>: a report from a navigation superseded before reaching this point (a different
+    /// folder opened, a scope toggle, disposal) is silently dropped rather than reaching subscribers, so a
+    /// stale determination can never overwrite a newer one's presentation. Fires for every navigation,
+    /// direct or recursive alike.
+    /// </summary>
+    public event EventHandler<BrowserEffectiveScope>? EffectiveScopeDetermined;
 
     /// <summary>
     /// #124: fires with the live <see cref="RecursiveScopeProgress"/> of the current recursive walk, while
@@ -303,6 +326,7 @@ internal sealed class BrowserNavigationSession(
             var mode = BrowserRecursiveRootLogic.IsEffectivelyRecursive(recursiveRootList, location.RootId, location.RelativeFolder)
                 ? BrowserScopeMode.IncludeSubfolders
                 : BrowserScopeMode.DirectFolder;
+            RaiseEffectiveScopeDetermined(operation.Generation, new(location, mode, recursiveRootList));
 
             if (mode == BrowserScopeMode.IncludeSubfolders)
             {
@@ -409,6 +433,13 @@ internal sealed class BrowserNavigationSession(
             if (_disposed || generation != _generation) return null;
             return new(State.Location, status, [], diagnostic, State.CanGoBack, State.CanGoForward, State.CanGoUp);
         }
+    }
+
+    /// <summary>Drops an effective-scope determination from any navigation that is no longer the current generation before it can reach subscribers.</summary>
+    private void RaiseEffectiveScopeDetermined(long generation, BrowserEffectiveScope scope)
+    {
+        lock (_sync) { if (_disposed || generation != _generation) return; }
+        EffectiveScopeDetermined?.Invoke(this, scope);
     }
 
     /// <summary>Drops a progress report from any walk that is no longer the current generation before it can reach subscribers.</summary>

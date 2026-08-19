@@ -47,15 +47,17 @@
    </Setter>
   </Style>
 
-  <!-- #124: Include Subfolders lives in the media toolbar, immediately before the All/Images/RAW/Video
+  <!-- #124 (revised): Include Subfolders lives in the media toolbar, immediately before the All/Images/RAW/Video
        group — scope narrows first, then the media-type controls narrow further, so reading order matches
        that pipeline. It keeps its own style rather than reusing BrowserToolbarToggleButtonStyle (Filter ▾'s
        chip) or BrowserQuickFilterSegmentStyle (the segmented group), so it never reads as a filter facet or
        as part of that segmented control, even though all three share the restrained checked-state accent
-       already used throughout the Browser. The icon is a compact two-folder composition (a smaller, dimmer
-       folder behind a full-size one) built entirely from the same verified folder glyph the Locations tree
-       already renders (U+E8B7) rather than a guessed/unverified "hierarchy" glyph or a new image asset —
-       stacked folders read as "this folder plus more folders", i.e. descendant scope. -->
+       already used throughout the Browser. The glyph now shares the Locations tree's outline/filled folder
+       vocabulary (see the HierarchicalDataTemplate below and MainWindow.SyncBrowserTreeRecursiveIcon) instead
+       of a two-folder stack, which read as too subtle in a large tree: an outline folder (U+E8B7, already
+       rendering elsewhere in this file) while unchecked, switching to a bulkier, already-rendering-verified
+       folder glyph (U+E838, already used for BrowserRootsEmptyState below) once checked. The "Subfolders"
+       label already names the operation, so the glyph itself only needs to read as on/off. -->
   <Style x:Key="BrowserScopeToggleButtonStyle" TargetType="ToggleButton">
    <Setter Property="Padding" Value="10,7"/>
    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
@@ -67,12 +69,8 @@
       <Border x:Name="Chrome" Background="Transparent" BorderBrush="{StaticResource ShellDividerBrush}"
        BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
        <StackPanel Orientation="Horizontal">
-        <Grid Width="16" Height="13" VerticalAlignment="Center">
-         <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Text="&#xE8B7;" Opacity="0.55"
-          HorizontalAlignment="Right" VerticalAlignment="Top"/>
-         <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Text="&#xE8B7;"
-          HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
-        </Grid>
+        <TextBlock x:Name="ScopeGlyph" Width="16" VerticalAlignment="Center" TextAlignment="Center"
+         FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Text="&#xE8B7;"/>
         <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="Subfolders"/>
        </StackPanel>
       </Border>
@@ -82,6 +80,7 @@
         <Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/>
         <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter TargetName="ScopeGlyph" Property="Text" Value="&#xE838;"/>
        </Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
@@ -275,28 +274,35 @@
            </Style>
           </TreeView.ItemContainerStyle>
           <TreeView.Resources>
-           <!-- #124 (revised): the small dim glyph behind the full-size one (FolderIconBehind, shown only when
-                IsRecursiveScope) reuses exactly the toolbar's two-folder composition (BrowserScopeToggleButtonStyle)
-                so "this folder's icon looks recursive" and "the toolbar toggle reads ON" are visibly the same
-                language. It communicates only "selecting this folder browses it and its descendants" — never
-                IsSelected, never "this is the stored root" vs. "this inherits it" (deliberately not distinguished),
-                and it is computed per-row from RootId/RelativeFolder without materializing collapsed descendants. -->
+           <!-- #124 (further revised): folder icon uses filled/outline semantics rather than a two-folder
+                stack, which read as too subtle in a large tree. FILLED means this row is active in Browser
+                scope semantics — either it is the selected direct folder, or its effective Include Subfolders
+                mode is ON (the stored recursive root or a visible/materialized inherited descendant); OUTLINE
+                is everything else. Two independent DataTriggers set the same FolderIcon.Text/value, giving OR
+                semantics without a computed backing property — selection alone (IsSelected) already drives one
+                trigger with no code involved, live-updating the instant WPF's own selection binding changes;
+                IsRecursiveScope drives the other, kept in sync by MainWindow.SyncBrowserTreeRecursiveIcon(s),
+                including immediately once a Catalog recursive-root mutation succeeds, before the (potentially
+                slow) recursive discovery it triggers has finished — see BrowserNavigationSession.EffectiveScopeDetermined.
+                FolderIcon.Text swaps between the two already-rendering-verified folder glyphs used elsewhere in
+                this file (U+E8B7 outline, U+E838 filled) rather than composing a second overlapping glyph, so
+                switching states never shifts FolderLabel's position. Selection remains a separate row concern
+                (background/outline) entirely independent of this icon — a recursive descendant is never
+                selected merely because its icon is filled, and moving selection away from an ordinary direct
+                folder returns it to outline while a recursive folder stays filled. Computed per-row from
+                RootId/RelativeFolder without materializing collapsed descendants. -->
            <HierarchicalDataTemplate DataType="{x:Type local:BrowserTreeNode}" ItemsSource="{Binding Children, Mode=OneWay}">
             <Grid Height="26" ToolTip="{Binding Diagnostic, Mode=OneWay}">
              <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-             <Grid Width="16" Height="13" VerticalAlignment="Center">
-              <TextBlock x:Name="FolderIconBehind" Visibility="Collapsed" Foreground="#E4B85A" Opacity="0.55"
-               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Text="&#xE8B7;"
-               HorizontalAlignment="Right" VerticalAlignment="Top"/>
-              <TextBlock Foreground="#E4B85A" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Text="&#xE8B7;"
-               HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
-             </Grid>
+             <TextBlock x:Name="FolderIcon" VerticalAlignment="Center" TextAlignment="Center" Foreground="#E4B85A"
+              FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Text="&#xE8B7;"/>
              <TextBlock x:Name="FolderLabel" Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding DisplayName, Mode=OneWay}" TextTrimming="CharacterEllipsis"/>
              <TextBlock Grid.Column="2" Margin="7,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="{Binding StorageStatus, Mode=OneWay}"/>
             </Grid>
             <HierarchicalDataTemplate.Triggers>
              <DataTrigger Binding="{Binding IsStorageLocation}" Value="True"><Setter TargetName="FolderLabel" Property="FontWeight" Value="SemiBold"/></DataTrigger>
-             <DataTrigger Binding="{Binding IsRecursiveScope}" Value="True"><Setter TargetName="FolderIconBehind" Property="Visibility" Value="Visible"/></DataTrigger>
+             <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter TargetName="FolderIcon" Property="Text" Value="&#xE838;"/></DataTrigger>
+             <DataTrigger Binding="{Binding IsRecursiveScope}" Value="True"><Setter TargetName="FolderIcon" Property="Text" Value="&#xE838;"/></DataTrigger>
             </HierarchicalDataTemplate.Triggers>
            </HierarchicalDataTemplate>
           </TreeView.Resources>

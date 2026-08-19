@@ -155,6 +155,20 @@ public sealed class BrowserRecursiveScopeRegressionTests
     }
 
     [Fact]
+    public void Constructor_SubscribesToEffectiveScopeDeterminedRightAfterConstructingTheSession()
+    {
+        var source = Source();
+        var constructed = source.IndexOf(
+            "_browserNavigation = new BrowserNavigationSession(", StringComparison.Ordinal);
+        var subscribed = source.IndexOf(
+            "_browserNavigation.EffectiveScopeDetermined += BrowserNavigation_EffectiveScopeDetermined;",
+            StringComparison.Ordinal);
+        Assert.True(constructed >= 0 && subscribed >= 0);
+        Assert.True(subscribed > constructed && subscribed - constructed < 400,
+            "The subscription should sit right beside session construction, not somewhere unrelated.");
+    }
+
+    [Fact]
     public void Closed_StopsTheRecursiveRefreshDebounceTimer()
     {
         var body = MethodBody("Closed += (_, _) =>");
@@ -174,13 +188,27 @@ public sealed class BrowserRecursiveScopeRegressionTests
     }
 
     [Fact]
-    public void RunBrowserNavigationAsync_ResetsLoadingProgressBeforeShowingTheOverlay()
+    public void Closed_UnsubscribesFromEffectiveScopeDeterminedBeforeDisposingTheSession()
     {
+        var body = MethodBody("Closed += (_, _) =>");
+        var unsubscribed = body.IndexOf(
+            "_browserNavigation.EffectiveScopeDetermined -= BrowserNavigation_EffectiveScopeDetermined;",
+            StringComparison.Ordinal);
+        var disposed = body.IndexOf("_browserNavigation.Dispose();", StringComparison.Ordinal);
+        Assert.True(unsubscribed >= 0 && disposed >= 0);
+        Assert.True(unsubscribed < disposed, "Unsubscribing before Dispose avoids a handler firing against a disposed session.");
+    }
+
+    [Fact]
+    public void RunBrowserNavigationAsync_EntersLoadingThroughTheSharedShowBrowserLoadingStateEntryPoint()
+    {
+        // #124 (further revised): the reset-progress-before-overlay ordering, and retiring any stale empty
+        // state, now both live centrally in ShowBrowserLoadingState (see WorkspaceRestorationRegressionTests
+        // for that ordering) — this only confirms RunBrowserNavigationAsync goes through it rather than
+        // duplicating those steps inline, which is what previously let a stale BrowserEmptyState survive
+        // into a new navigation's loading presentation.
         var body = MethodBody("private async Task RunBrowserNavigationAsync");
-        var reset = body.IndexOf("ResetBrowserLoadingProgress();", StringComparison.Ordinal);
-        var shown = body.IndexOf("BrowserLoadingOverlay.Visibility = Visibility.Visible;", StringComparison.Ordinal);
-        Assert.True(reset >= 0 && shown >= 0);
-        Assert.True(reset < shown, "Every navigation must begin indeterminate before the overlay (and any stale determinate state) is shown.");
+        Assert.Contains("ShowBrowserLoadingState(", body);
     }
 
     [Fact]
@@ -195,6 +223,16 @@ public sealed class BrowserRecursiveScopeRegressionTests
     {
         var body = MethodBody("private void BrowserNavigation_RecursiveScopeProgressChanged");
         Assert.Contains("Dispatcher.BeginInvoke(() => ApplyRecursiveScopeLoadingProgress(progress));", body);
+    }
+
+    [Fact]
+    public void BrowserNavigationEffectiveScopeDetermined_MarshalsToTheUiThreadAndUpdatesIconsAndToggleWithoutWaitingForDiscovery()
+    {
+        var body = MethodBody("private void BrowserNavigation_EffectiveScopeDetermined");
+        Assert.Contains("Dispatcher.BeginInvoke(() =>", body);
+        Assert.Contains("_browserRecursiveRoots = scope.RecursiveRoots;", body);
+        Assert.Contains("SyncBrowserTreeRecursiveIcons();", body);
+        Assert.Contains("SyncBrowserScopeToggle(scope.Mode);", body);
     }
 
     [Fact]

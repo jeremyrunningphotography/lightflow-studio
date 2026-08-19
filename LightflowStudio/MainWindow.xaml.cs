@@ -423,8 +423,10 @@ public partial class MainWindow : Window
         _synchronizingBrowserTree = true;
         BrowserTreeNode? node;
         try { node = _browserTree.RequestSelection(location); }
-        finally { _synchronizingBrowserTree = false; }
-        if (node is not null) BringBrowserTreeNodeIntoView(node);
+        catch { _synchronizingBrowserTree = false; throw; }
+        if (node is null) { _synchronizingBrowserTree = false; return; }
+        BringBrowserTreeNodeIntoView(node);
+        DeferBrowserTreeSynchronizingReset();
     }
 
     private void RequestBrowserTreeSelection(string absolutePath)
@@ -432,9 +434,31 @@ public partial class MainWindow : Window
         _synchronizingBrowserTree = true;
         BrowserTreeNode? node;
         try { node = _browserTree.RequestSelection(absolutePath); }
-        finally { _synchronizingBrowserTree = false; }
-        if (node is not null) BringBrowserTreeNodeIntoView(node);
+        catch { _synchronizingBrowserTree = false; throw; }
+        if (node is null) { _synchronizingBrowserTree = false; return; }
+        BringBrowserTreeNodeIntoView(node);
+        DeferBrowserTreeSynchronizingReset();
     }
+
+    /// <summary>
+    /// For a node whose container WPF has not yet realized — routine for a deep path visited for the first
+    /// time, exactly the startup-restoration case — setting <see cref="BrowserTreeNode.IsSelected"/>/
+    /// <see cref="BrowserTreeNode.IsExpanded"/> here does not synchronously produce the corresponding
+    /// <see cref="TreeViewItem.IsSelected"/>/<see cref="TreeViewItem.Expanded"/> WPF-side effects the
+    /// <c>TreeView.ItemContainerStyle</c> bindings drive: those only apply once WPF actually generates a
+    /// container for the node, deferred to a later layout pass. If <see cref="_synchronizingBrowserTree"/> had
+    /// already been reset to false by then (as it used to be, synchronously, right after
+    /// <see cref="BrowserTreeModel.RequestSelection(BrowserLocation)"/> returned), that deferred
+    /// <c>SelectedItemChanged</c>/<c>Expanded</c> would reach <see cref="BrowserFolderTree_SelectedItemChanged"/>/
+    /// <see cref="BrowserFolderTreeItem_Expanded"/> unguarded and be mistaken for a real interactive action,
+    /// re-triggering navigation and bumping <see cref="_browserUiGeneration"/> — which then made the actually-
+    /// in-flight navigation's own generation check fail, silently skipping <see cref="ApplyBrowserSuccessState"/>
+    /// for it entirely. Deferring the reset to the same <see cref="DispatcherPriority.Loaded"/> pass
+    /// <see cref="BringBrowserTreeNodeIntoView"/> already waits for (by which point container generation for a
+    /// freshly revealed node has reliably caught up) keeps the guard open across that gap instead.
+    /// </summary>
+    private void DeferBrowserTreeSynchronizingReset() =>
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => _synchronizingBrowserTree = false);
 
     private void BringBrowserTreeNodeIntoView(BrowserTreeNode node)
     {

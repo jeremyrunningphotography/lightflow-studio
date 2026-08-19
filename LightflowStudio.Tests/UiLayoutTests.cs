@@ -224,19 +224,27 @@ public class UiLayoutTests
         Assert.Equal("{StaticResource BrowserScopeToggleButtonStyle}", (string?)toggle.Attribute("Style"));
 
         // Shares the Locations tree's outline/filled folder vocabulary: an outline folder glyph (U+E8B7, the
-        // same one the Locations tree renders while unchecked) that swaps to an already-rendering-verified
-        // filled glyph (U+E838, already used elsewhere in this file) once checked, rather than a new/
-        // unverified codepoint, an image asset, or the earlier two-folder stack composition.
+        // same one the Locations tree renders while unchecked) that swaps to a small hand-authored Path
+        // silhouette (a genuinely solid folder, not a font glyph \u2014 every available Segoe Fluent Icons/MDL2
+        // Assets folder codepoint read as "open" rather than filled in hands-on testing) once checked, using
+        // only straight-line path segments so its rendering never depends on font/curve fidelity.
         var scopeStyle = document.Descendants(ns + "Style")
             .Single(style => (string?)style.Attribute(xNamespace + "Key") == "BrowserScopeToggleButtonStyle");
-        var scopeGlyph = scopeStyle.Descendants(ns + "TextBlock")
-            .Single(block => (string?)block.Attribute(xNamespace + "Name") == "ScopeGlyph");
-        Assert.Equal("\uE8B7", (string?)scopeGlyph.Attribute("Text"));
+        var outlineGlyph = scopeStyle.Descendants(ns + "TextBlock")
+            .Single(block => (string?)block.Attribute(xNamespace + "Name") == "ScopeGlyphOutline");
+        Assert.Equal("\uE8B7", (string?)outlineGlyph.Attribute("Text"));
+        var filledGlyph = scopeStyle.Descendants(ns + "Path")
+            .Single(path => (string?)path.Attribute(xNamespace + "Name") == "ScopeGlyphFilled");
+        Assert.Equal("Collapsed", (string?)filledGlyph.Attribute("Visibility"));
+        Assert.False(string.IsNullOrWhiteSpace((string?)filledGlyph.Attribute("Data")));
         var checkedTrigger = scopeStyle.Descendants(ns + "Trigger")
             .Single(trigger => (string?)trigger.Attribute("Property") == "IsChecked" && (string?)trigger.Attribute("Value") == "True");
         Assert.Contains(checkedTrigger.Elements(ns + "Setter"), setter =>
-            (string?)setter.Attribute("TargetName") == "ScopeGlyph" && (string?)setter.Attribute("Property") == "Text" &&
-            (string?)setter.Attribute("Value") == "\uE838");
+            (string?)setter.Attribute("TargetName") == "ScopeGlyphOutline" && (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Collapsed");
+        Assert.Contains(checkedTrigger.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("TargetName") == "ScopeGlyphFilled" && (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Visible");
         Assert.Contains(scopeStyle.Descendants(ns + "TextBlock"), block => (string?)block.Attribute("Text") == "Subfolders");
     }
 
@@ -380,19 +388,28 @@ public class UiLayoutTests
     [Fact]
     public void BrowserFolderTreeRow_UsesOutlineFilledFolderIconSemanticsForSelectionAndRecursiveScope()
     {
-        // #124 (further revised): the two-folder-stack composition read as too subtle in a large tree. A
-        // single FolderIcon glyph now swaps between an outline glyph (default) and a filled one, driven by two
-        // independent DataTriggers (OR semantics via the same Setter/value) — IsSelected (an ordinary selected
-        // direct folder) or IsRecursiveScope (the stored recursive root or an inherited descendant).
+        // #124 (further revised): the FolderIcon font glyph still read as an "open" folder rather than a
+        // genuinely filled one for the active state (every available Segoe Fluent Icons/MDL2 Assets folder
+        // codepoint did, in hands-on testing), so the filled state is now a separate, overlaid FolderIconFilled
+        // Path silhouette (straight-edged, no arcs, so its rendering cannot depend on font/curve fidelity)
+        // toggled via Visibility rather than swapping the outline glyphs own Text. Two independent DataTriggers
+        // per element (OR semantics via the same Setter/value) - IsSelected (an ordinary selected direct
+        // folder) or IsRecursiveScope (the stored recursive root or an inherited descendant) - hide the
+        // outline and reveal the filled Path.
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
         var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var tree = Named(document, "BrowserFolderTree");
         var folderIcon = Named(document, "FolderIcon");
+        var folderIconFilled = Named(document, "FolderIconFilled");
 
         Assert.Equal(ns + "TextBlock", folderIcon.Name);
         Assert.Equal("\uE8B7", (string?)folderIcon.Attribute("Text"));
         Assert.False(string.IsNullOrWhiteSpace((string?)folderIcon.Attribute(xNamespace + "Name")));
+
+        Assert.Equal(ns + "Path", folderIconFilled.Name);
+        Assert.Equal("Collapsed", (string?)folderIconFilled.Attribute("Visibility"));
+        Assert.False(string.IsNullOrWhiteSpace((string?)folderIconFilled.Attribute("Data")));
 
         var template = tree.Descendants(ns + "HierarchicalDataTemplate").Single();
         var triggers = template.Element(ns + "HierarchicalDataTemplate.Triggers")!;
@@ -401,15 +418,21 @@ public class UiLayoutTests
             ((string?)trigger.Attribute("Binding"))?.Contains("IsSelected") == true);
         Assert.Equal("True", (string?)selectedTrigger.Attribute("Value"));
         Assert.Contains(selectedTrigger.Elements(ns + "Setter"), setter =>
-            (string?)setter.Attribute("TargetName") == "FolderIcon" && (string?)setter.Attribute("Property") == "Text" &&
-            (string?)setter.Attribute("Value") == "\uE838");
+            (string?)setter.Attribute("TargetName") == "FolderIcon" && (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Collapsed");
+        Assert.Contains(selectedTrigger.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("TargetName") == "FolderIconFilled" && (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Visible");
 
         var recursiveTrigger = triggers.Elements(ns + "DataTrigger").Single(trigger =>
             ((string?)trigger.Attribute("Binding"))?.Contains("IsRecursiveScope") == true);
         Assert.Equal("True", (string?)recursiveTrigger.Attribute("Value"));
         Assert.Contains(recursiveTrigger.Elements(ns + "Setter"), setter =>
-            (string?)setter.Attribute("TargetName") == "FolderIcon" && (string?)setter.Attribute("Property") == "Text" &&
-            (string?)setter.Attribute("Value") == "\uE838");
+            (string?)setter.Attribute("TargetName") == "FolderIcon" && (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Collapsed");
+        Assert.Contains(recursiveTrigger.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("TargetName") == "FolderIconFilled" && (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Visible");
 
         // Only the pre-existing Expanded handler remains — no Collapsed EventSetter (unneeded now that
         // icon state is derived per-row from Catalog data rather than the outline's live selection bounds).
@@ -420,6 +443,34 @@ public class UiLayoutTests
             (string?)setter.Attribute("Handler") == "BrowserFolderTreeItem_Expanded");
         Assert.DoesNotContain(itemStyle.Elements(ns + "EventSetter"), setter =>
             (string?)setter.Attribute("Event") == "Collapsed");
+    }
+
+    [Fact]
+    public void RecursiveFilledIconGlyphs_AreVectorPathsNotFontGlyphSwapsAndMatchTheOutlineIconsLayoutFootprint()
+    {
+        // The "filled" state used to swap a font glyph's Text property (first to a two-folder stack, then to
+        // U+E838) - both read as an "open" folder rather than a genuinely filled one in hands-on testing. The
+        // fix is a small hand-authored Path silhouette shown/hidden via Visibility instead, so this confirms
+        // that swap pattern is fully gone (in both the tree row and the toolbar toggle) and that the two icon
+        // states occupy the same on-screen footprint (no Margin difference that would shift anything beside them).
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+
+        var textSwapSetters = document.Descendants(ns + "Setter")
+            .Where(setter => (string?)setter.Attribute("Property") == "Text" &&
+                new[] { "FolderIcon", "ScopeGlyph", "ScopeGlyphOutline" }.Contains((string?)setter.Attribute("TargetName")))
+            .ToArray();
+        Assert.Empty(textSwapSetters);
+
+        var folderIconFilled = Named(document, "FolderIconFilled");
+        Assert.Null(folderIconFilled.Attribute("Margin"));
+        Assert.Equal("15", (string?)folderIconFilled.Attribute("Width"));
+        Assert.Equal("13", (string?)folderIconFilled.Attribute("Height"));
+
+        var scopeGlyphFilled = Named(document, "ScopeGlyphFilled");
+        Assert.Null(scopeGlyphFilled.Attribute("Margin"));
+        Assert.Equal("15", (string?)scopeGlyphFilled.Attribute("Width"));
+        Assert.Equal("13", (string?)scopeGlyphFilled.Attribute("Height"));
     }
 
     [Fact]

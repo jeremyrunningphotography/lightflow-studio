@@ -789,16 +789,20 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// #124 (further revised): applies the fast, purely Catalog-derived half of a navigation's outcome —
-    /// toolbar toggle and Locations-tree icons — the moment it is known, rather than waiting for the
-    /// (potentially slow) recursive discovery or authoritative reconciliation <see cref="BrowserNavigationSession.EffectiveScopeDetermined"/>
-    /// precedes. This is what makes enabling/disabling Include Subfolders, and navigating into or out of an
-    /// existing recursive subtree, feel immediate: the tree/toolbar reflect location + Catalog recursive-root
-    /// configuration on their own, never gated on the eventual media result set. <see cref="ApplyBrowserState"/>
-    /// still redundantly re-applies the same two effects once the full state commits — cheap, and a safety net
-    /// for the rare case a later navigation's full commit lands after this event but is for the same folder.
-    /// Marshaled onto the UI thread like every other cross-thread <see cref="BrowserNavigationSession"/> signal,
-    /// since the event can fire from a background/thread-pool continuation.
+    /// #124 (further revised): applies the fast, purely Catalog/location-derived half of a navigation's
+    /// outcome — Locations-tree selection/reveal/scroll, toolbar toggle, and tree icons — the moment it is
+    /// known, rather than waiting for the (potentially slow) recursive discovery or authoritative
+    /// reconciliation <see cref="BrowserNavigationSession.EffectiveScopeDetermined"/> precedes. This is what
+    /// makes startup restoration (and enabling/disabling Include Subfolders, and navigating into or out of an
+    /// existing recursive subtree) feel immediate: the tree reveals/selects/scrolls to the location that is
+    /// actually loading, and the toolbar/icons reflect its effective mode, all before the eventual media
+    /// result set arrives — reusing exactly the same tree machinery (<see cref="RequestBrowserTreeSelection(BrowserLocation?)"/>,
+    /// <see cref="RevealBrowserTreeAncestorsAsync"/>, <see cref="BringBrowserTreeNodeIntoView"/>) every
+    /// interactive navigation already drives, never a second startup-only implementation. <see cref="ApplyBrowserState"/>
+    /// still redundantly re-applies all of this once the full state commits — cheap, and a safety net for the
+    /// rare case a later navigation's full commit lands after this event but is for the same folder. Marshaled
+    /// onto the UI thread like every other cross-thread <see cref="BrowserNavigationSession"/> signal, since
+    /// the event can fire from a background/thread-pool continuation.
     /// </summary>
     private void BrowserNavigation_EffectiveScopeDetermined(object? sender, BrowserEffectiveScope scope) =>
         Dispatcher.BeginInvoke(() =>
@@ -806,6 +810,8 @@ public partial class MainWindow : Window
             _browserRecursiveRoots = scope.RecursiveRoots;
             SyncBrowserTreeRecursiveIcons();
             SyncBrowserScopeToggle(scope.Mode);
+            RequestBrowserTreeSelection(scope.Location);
+            _ = RevealBrowserTreeAncestorsAsync(scope.Location, _browserUiGeneration);
         });
 
     private void ApplyBrowserNavigationFailure(BrowserFolderState failure)

@@ -236,6 +236,20 @@ public sealed class BrowserRecursiveScopeRegressionTests
     }
 
     [Fact]
+    public void BrowserNavigationEffectiveScopeDetermined_RevealsSelectsAndScrollsTheTreeThroughExistingMachineryWithoutWaitingForContent()
+    {
+        // #124 (further revised): startup restoration previously only revealed/selected the Locations tree
+        // once the full navigation (including the potentially slow media load) committed — the tree stayed
+        // collapsed at the storage-root list until then. This is the fix: the same fast, Catalog/location-only
+        // signal that already updates icons/toggle immediately now also drives tree reveal, reusing the exact
+        // RequestBrowserTreeSelection/RevealBrowserTreeAncestorsAsync machinery every interactive navigation
+        // already uses — never a second, restoration-only tree navigation implementation.
+        var body = MethodBody("private void BrowserNavigation_EffectiveScopeDetermined");
+        Assert.Contains("RequestBrowserTreeSelection(scope.Location);", body);
+        Assert.Contains("RevealBrowserTreeAncestorsAsync(scope.Location, _browserUiGeneration);", body);
+    }
+
+    [Fact]
     public void ApplyRecursiveScopeLoadingProgress_NeverFabricatesAPercentageAndStaysIndeterminateBelowThreshold()
     {
         var body = MethodBody("private void ApplyRecursiveScopeLoadingProgress");

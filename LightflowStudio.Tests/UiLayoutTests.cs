@@ -392,10 +392,11 @@ public class UiLayoutTests
         // genuinely filled one for the active state (every available Segoe Fluent Icons/MDL2 Assets folder
         // codepoint did, in hands-on testing), so the filled state is now a separate, overlaid FolderIconFilled
         // Path silhouette (straight-edged, no arcs, so its rendering cannot depend on font/curve fidelity)
-        // toggled via Visibility rather than swapping the outline glyphs own Text. Two independent DataTriggers
-        // per element (OR semantics via the same Setter/value) - IsSelected (an ordinary selected direct
-        // folder) or IsRecursiveScope (the stored recursive root or an inherited descendant) - hide the
-        // outline and reveal the filled Path.
+        // toggled via Visibility rather than swapping the outline glyphs own Text. A single DataTrigger, bound
+        // to the model's own derived BrowserTreeNode.IsFilledFolderIcon (IsSelected OR IsRecursiveScope,
+        // computed once in the model rather than as two independently firing triggers on the same properties
+        // \u2014 see BrowserTreeInteractionRegressionTests.TreeRowIconIsDrivenByExactlyOneAuthoritativeDataTriggerNotTwoCompetingOnes
+        // for why two competing triggers here was itself a bug), hides the outline and reveals the filled Path.
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
         var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
@@ -414,25 +415,22 @@ public class UiLayoutTests
         var template = tree.Descendants(ns + "HierarchicalDataTemplate").Single();
         var triggers = template.Element(ns + "HierarchicalDataTemplate.Triggers")!;
 
-        var selectedTrigger = triggers.Elements(ns + "DataTrigger").Single(trigger =>
-            ((string?)trigger.Attribute("Binding"))?.Contains("IsSelected") == true);
-        Assert.Equal("True", (string?)selectedTrigger.Attribute("Value"));
-        Assert.Contains(selectedTrigger.Elements(ns + "Setter"), setter =>
+        var filledTrigger = triggers.Elements(ns + "DataTrigger").Single(trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsFilledFolderIcon") == true);
+        Assert.Equal("True", (string?)filledTrigger.Attribute("Value"));
+        Assert.Contains(filledTrigger.Elements(ns + "Setter"), setter =>
             (string?)setter.Attribute("TargetName") == "FolderIcon" && (string?)setter.Attribute("Property") == "Visibility" &&
             (string?)setter.Attribute("Value") == "Collapsed");
-        Assert.Contains(selectedTrigger.Elements(ns + "Setter"), setter =>
+        Assert.Contains(filledTrigger.Elements(ns + "Setter"), setter =>
             (string?)setter.Attribute("TargetName") == "FolderIconFilled" && (string?)setter.Attribute("Property") == "Visibility" &&
             (string?)setter.Attribute("Value") == "Visible");
 
-        var recursiveTrigger = triggers.Elements(ns + "DataTrigger").Single(trigger =>
-            ((string?)trigger.Attribute("Binding"))?.Contains("IsRecursiveScope") == true);
-        Assert.Equal("True", (string?)recursiveTrigger.Attribute("Value"));
-        Assert.Contains(recursiveTrigger.Elements(ns + "Setter"), setter =>
-            (string?)setter.Attribute("TargetName") == "FolderIcon" && (string?)setter.Attribute("Property") == "Visibility" &&
-            (string?)setter.Attribute("Value") == "Collapsed");
-        Assert.Contains(recursiveTrigger.Elements(ns + "Setter"), setter =>
-            (string?)setter.Attribute("TargetName") == "FolderIconFilled" && (string?)setter.Attribute("Property") == "Visibility" &&
-            (string?)setter.Attribute("Value") == "Visible");
+        // Neither IsSelected nor IsRecursiveScope drives the icon directly anymore \u2014 both feed only the
+        // derived IsFilledFolderIcon, so trigger-precedence ordering can never let one mask the other.
+        Assert.DoesNotContain(triggers.Elements(ns + "DataTrigger"),
+            trigger => (string?)trigger.Attribute("Binding") == "{Binding IsSelected}");
+        Assert.DoesNotContain(triggers.Elements(ns + "DataTrigger"),
+            trigger => (string?)trigger.Attribute("Binding") == "{Binding IsRecursiveScope}");
 
         // Only the pre-existing Expanded handler remains — no Collapsed EventSetter (unneeded now that
         // icon state is derived per-row from Catalog data rather than the outline's live selection bounds).

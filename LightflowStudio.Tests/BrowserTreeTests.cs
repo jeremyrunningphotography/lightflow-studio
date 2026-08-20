@@ -435,6 +435,83 @@ public sealed class BrowserTreeTests
         Assert.True(node.IsRecursiveScope); // deselecting never clears the recursive-scope icon state
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
+    public void IsFilledFolderIcon_IsTrueWheneverEitherSelectedOrRecursive(bool selected, bool recursive, bool expected)
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips") { IsSelected = selected, IsRecursiveScope = recursive };
+
+        Assert.Equal(expected, node.IsFilledFolderIcon);
+    }
+
+    [Fact]
+    public void IsFilledFolderIcon_ARecursiveRootStaysFilledWhenSelectionMovesToAnUnrelatedFolder()
+    {
+        // #124: a stored recursive root's filled icon is derived from Catalog configuration
+        // (IsRecursiveScope), never from tree selection — selecting a completely different folder must not
+        // make it revert to the outline icon.
+        var recursiveRoot = new BrowserTreeNode("2026", @"C:\Media\2026") { IsRecursiveScope = true, IsSelected = true };
+        var unrelated = new BrowserTreeNode("Archive", @"C:\Media\Archive");
+        Assert.True(recursiveRoot.IsFilledFolderIcon);
+
+        recursiveRoot.IsSelected = false;
+        unrelated.IsSelected = true;
+
+        Assert.True(recursiveRoot.IsFilledFolderIcon); // still the governing recursive root, though no longer selected
+        Assert.True(unrelated.IsFilledFolderIcon); // now the selected direct folder
+        recursiveRoot.IsSelected = false; // already false, but pin the intent: not selected, still recursive
+        Assert.False(recursiveRoot.IsSelected);
+        Assert.True(recursiveRoot.IsRecursiveScope);
+    }
+
+    [Fact]
+    public void IsFilledFolderIcon_OrdinarySelectedFolderLosesItsFilledIconOnceDeselected()
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips") { IsSelected = true };
+        Assert.True(node.IsFilledFolderIcon);
+
+        node.IsSelected = false;
+
+        Assert.False(node.IsFilledFolderIcon);
+    }
+
+    [Fact]
+    public void IsFilledFolderIcon_RaisesPropertyChangedWheneverEitherUnderlyingInputChanges()
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips");
+        var raised = 0;
+        node.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(BrowserTreeNode.IsFilledFolderIcon)) raised++; };
+
+        node.IsSelected = true;
+        node.IsRecursiveScope = true;
+        node.IsSelected = false;
+        node.IsRecursiveScope = false;
+
+        Assert.Equal(4, raised);
+    }
+
+    [Fact]
+    public void Synchronize_ReselectsTheSameNodeInstanceWhenOnlyScopeModeChangesForTheSameLocation()
+    {
+        // #124: turning Include Subfolders off for the currently open folder must not move tree selection to
+        // a different node — SetIncludeSubfoldersAsync returns a new BrowserFolderState instance for the same
+        // RootId+RelativeFolder, and Synchronize must resolve back to the identical, already-selected node.
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "2026/August/Wedding", File(rootId, "2026/August/Wedding/a.mp4")));
+        var selectedBefore = model.SelectedNode;
+        Assert.Equal(@"C:\2026\August\Wedding", selectedBefore!.AbsolutePath);
+
+        model.Synchronize(State(rootId, "2026/August/Wedding", File(rootId, "2026/August/Wedding/a.mp4")));
+
+        Assert.Same(selectedBefore, model.SelectedNode);
+        Assert.True(model.SelectedNode!.IsSelected);
+        Assert.Single(Descendants(model.Roots), node => node.IsSelected);
+    }
+
     private static BrowserTreeModel Model(Guid rootId)
     {
         var model = new BrowserTreeModel();

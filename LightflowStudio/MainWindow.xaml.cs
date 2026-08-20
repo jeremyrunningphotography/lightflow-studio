@@ -260,19 +260,27 @@ public partial class MainWindow : Window
     /// <summary>
     /// The single authoritative entry point into the Browser center presentation's Loading state — the one
     /// place a new navigation generation retires whatever the previous generation was showing. The Browser
-    /// center presentation (<see cref="BrowserEmptyState"/>/<see cref="BrowserLoadingOverlay"/>/the populated
-    /// grid) represents exactly one authoritative state at a time; a completed scope's empty/failure messaging
-    /// must never remain visible once a new navigation begins; only <see cref="ApplyBrowserState"/>/
-    /// <see cref="ApplyBrowserNavigationFailure"/> — themselves already gated on the current
-    /// <see cref="_browserUiGeneration"/> — are allowed to show <see cref="BrowserEmptyState"/> again, once
-    /// this same generation's loading actually finishes. Called at every point a new loading sequence starts
-    /// (an ordinary navigation via <see cref="RunBrowserNavigationAsync"/>, and workspace restoration via
-    /// <see cref="ShowBrowserRestoringState"/>), so both paths retire the previous presentation identically.
+    /// center presentation (<see cref="BrowserEmptyState"/>/<see cref="BrowserGridRows"/>/<see cref="BrowserLoadingOverlay"/>)
+    /// represents exactly one authoritative state at a time; a completed scope's content, empty, or failure
+    /// presentation must never remain visible once a new navigation begins — <see cref="BrowserLoadingOverlay"/>'s
+    /// own background is deliberately semi-transparent (so the truthful progress bar it hosts stays legible
+    /// against the shell), which previously let a previous folder's media tiles show faintly through it rather
+    /// than actually disappearing; hiding the grid outright here, not merely painting over it, is what "the
+    /// prior scope stops being presented" actually requires. <see cref="BrowserGridModel"/>'s own tile data is
+    /// untouched — only its visual presentation is collapsed — so a same-folder refresh or a failure that falls
+    /// back to the last-loaded content never has to re-fetch or repopulate anything. Only
+    /// <see cref="ApplyBrowserState"/>/<see cref="ApplyBrowserNavigationFailure"/> — themselves already gated on
+    /// the current <see cref="_browserUiGeneration"/> — are allowed to show <see cref="BrowserEmptyState"/> or
+    /// <see cref="BrowserGridRows"/> again, once this same generation's loading actually finishes. Called at
+    /// every point a new loading sequence starts (an ordinary navigation via <see cref="RunBrowserNavigationAsync"/>,
+    /// and workspace restoration via <see cref="ShowBrowserRestoringState"/>), so both paths retire the
+    /// previous presentation identically.
     /// </summary>
     private void ShowBrowserLoadingState(string label)
     {
         BrowserLoadingText.Text = label;
         BrowserEmptyState.Visibility = Visibility.Collapsed;
+        BrowserGridRows.Visibility = Visibility.Collapsed;
         ResetBrowserLoadingProgress();
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
     }
@@ -849,6 +857,9 @@ public partial class MainWindow : Window
         BrowserIncludeSubfoldersButton.IsEnabled = state.Location is not null;
         SyncBrowserScopeToggle();
         SyncBrowserTreeRecursiveIcons();
+        // Reveals the (now-current) grid content that ShowBrowserLoadingState hid at the start of this
+        // navigation — the underlying BrowserGridModel data was never cleared, only its presentation.
+        BrowserGridRows.Visibility = Visibility.Visible;
         var presentableCount = _browserGrid.TotalCount;
         BrowserEmptyState.Visibility = state.Status == BrowserFolderStatus.Ready && presentableCount > 0
             ? Visibility.Collapsed : Visibility.Visible;
@@ -922,6 +933,10 @@ public partial class MainWindow : Window
     {
         RestoreLoadedBrowserSelection();
         SyncBrowserScopeToggle();
+        // Unlike ShowBrowserLoadingState's hide (a new scope is being fetched, so the old one is no longer
+        // relevant), a failure means the previously loaded folder is still exactly what "remains loaded" per
+        // the message below — restore its content presentation rather than leaving the grid hidden.
+        BrowserGridRows.Visibility = Visibility.Visible;
         BrowserEmptyTitle.Text = failure.Status switch
         {
             BrowserFolderStatus.RootUnavailable => "Media Root unavailable",

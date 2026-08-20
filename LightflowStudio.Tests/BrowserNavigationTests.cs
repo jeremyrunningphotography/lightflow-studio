@@ -292,6 +292,89 @@ public sealed class BrowserNavigationTests
     }
 
     [Fact]
+    public async Task SetIncludeSubfoldersAsync_DisablingFromAnInheritedDescendantKeepsTheSameLocationAndRemovesTheGoverningRootFromTheRepository()
+    {
+        // #124: disabling Include Subfolders from a folder that only INHERITS recursion (not the stored root
+        // itself) must (a) never change BrowserNavigationSession.State.Location — the same folder stays open,
+        // just in direct mode — and (b) actually delete the governing ancestor root from the Catalog
+        // repository, not merely stop showing it as recursive in memory. Proven directly against the
+        // repository here, independent of any WPF/tree-selection concern, to isolate whether the session/
+        // service layer itself is correct.
+        var root = Root("Library", @"C:\Library");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request)));
+        var repository = new InMemoryRecursiveRootRepository(new BrowserRecursiveRoot(Guid.NewGuid(), root.RootId, "2026"));
+        var recursiveRoots = new BrowserRecursiveRootService(repository);
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursiveRoots: recursiveRoots);
+        var deep = await session.NavigateToPathAsync(@"C:\Library\2026\August\Wedding");
+        Assert.Equal(BrowserScopeMode.IncludeSubfolders, deep!.Mode); // inherited from the stored "2026" root
+
+        var state = await session.SetIncludeSubfoldersAsync(false);
+
+        Assert.Equal("2026/August/Wedding", state!.Location!.RelativeFolder);
+        Assert.Equal("2026/August/Wedding", session.State.Location!.RelativeFolder);
+        Assert.Equal(BrowserScopeMode.DirectFolder, state.Mode);
+        Assert.Empty(await repository.ListAsync()); // the governing "2026" root is actually gone, not just hidden
+    }
+
+    [Fact]
+    public async Task SetIncludeSubfoldersAsync_ToggleOffSequence_PreservesTreeSelectionAndRevertsIconsAcrossSessionAndTreeLayersTogether()
+    {
+        // #124: end-to-end proof spanning the session layer AND MainWindow's own BrowserTreeModel/icon-sync
+        // logic in a single sequence (mirroring exactly what MainWindow does on a successful toggle: re-run
+        // BrowserTreeModel.Synchronize against the new BrowserFolderState, then recompute every materialized
+        // node's IsRecursiveScope from the returned RecursiveRoots) — not just the repository, and not just the
+        // tree model in isolation, so a bug at the seam between them (e.g. stale RecursiveRoots reused across
+        // the toggle) would show up here even if each layer's own isolated tests stayed green.
+        var root = Root("Library", @"C:\Library");
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request)));
+        var repository = new InMemoryRecursiveRootRepository(new BrowserRecursiveRoot(Guid.NewGuid(), root.RootId, "2026"));
+        var recursiveRoots = new BrowserRecursiveRootService(repository);
+        using var session = Session(new FakeRoots(root), new FakeDiscovery(), folders, recursiveRoots: recursiveRoots);
+        var tree = new BrowserTreeModel();
+        tree.SetStorageEntries([new($"root:{root.RootId}", root.DisplayName, root.PhysicalPath!,
+            BrowserStorageKind.ManagedRoot, MediaRootAvailability.Online, root.RootId)]);
+
+        var before = await session.NavigateToPathAsync(@"C:\Library\2026\August\Wedding");
+        tree.Synchronize(before!);
+        SyncIcons(tree, before!.RecursiveRoots ?? []);
+        var weddingNode = tree.SelectedNode!;
+        var ancestorRootNode = Descendants(tree.Roots)
+            .Single(node => node.RootId == root.RootId && node.RelativeFolder == "2026");
+        Assert.True(weddingNode.IsRecursiveScope); // inherited
+        Assert.True(ancestorRootNode.IsRecursiveScope); // the stored root itself
+        Assert.True(weddingNode.IsFilledFolderIcon);
+        Assert.True(ancestorRootNode.IsFilledFolderIcon);
+
+        var after = await session.SetIncludeSubfoldersAsync(false);
+        tree.Synchronize(after!);
+        SyncIcons(tree, after!.RecursiveRoots ?? []);
+
+        Assert.Same(weddingNode, tree.SelectedNode); // exact same node instance, never a different row
+        Assert.True(weddingNode.IsSelected);
+        Assert.False(weddingNode.IsRecursiveScope); // no longer effectively recursive
+        Assert.True(weddingNode.IsFilledFolderIcon); // still filled — it is the selected folder
+        Assert.False(ancestorRootNode.IsRecursiveScope); // the governing root is actually gone
+        Assert.False(ancestorRootNode.IsFilledFolderIcon); // not selected, no longer recursive: outline
+        Assert.Single(Descendants(tree.Roots), node => node.IsSelected);
+        Assert.Empty(await repository.ListAsync());
+    }
+
+    private static void SyncIcons(BrowserTreeModel tree, IReadOnlyList<BrowserRecursiveRoot> roots)
+    {
+        foreach (var node in Descendants(tree.Roots).Where(node => node.RootId is not null))
+            node.IsRecursiveScope = BrowserRecursiveRootLogic.IsEffectivelyRecursive(roots, node.RootId!.Value, node.RelativeFolder!);
+    }
+
+    private static IEnumerable<BrowserTreeNode> Descendants(IEnumerable<BrowserTreeNode> nodes)
+    {
+        foreach (var node in nodes)
+        {
+            yield return node;
+            foreach (var child in Descendants(node.Children)) yield return child;
+        }
+    }
+
+    [Fact]
     public async Task SetIncludeSubfoldersAsync_EnablingReloadsTheOpenFolderThroughRecursiveDiscoveryAndPopulatesRecursiveMediaEntries()
     {
         var root = Root("Library", @"C:\Library");

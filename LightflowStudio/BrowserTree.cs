@@ -46,8 +46,23 @@ internal sealed class BrowserTreeNode : INotifyPropertyChanged
     public bool IsRecursiveScope
     {
         get => _isRecursiveScope;
-        set { if (_isRecursiveScope != value) { _isRecursiveScope = value; OnPropertyChanged(); } }
+        set
+        {
+            if (_isRecursiveScope == value) return;
+            _isRecursiveScope = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsFilledFolderIcon));
+        }
     }
+
+    /// <summary>
+    /// #124 (further revised): the single authoritative "should this row's folder icon read as filled" answer
+    /// — a selected direct folder, or effectively recursive (the stored root or an inherited descendant) —
+    /// combining <see cref="IsSelected"/> and <see cref="IsRecursiveScope"/> in exactly one place so the tree
+    /// row's icon can never depend on trigger-precedence ordering between two independently-firing XAML
+    /// <c>DataTrigger</c>s. Never persisted; always recomputed live from the two underlying inputs.
+    /// </summary>
+    public bool IsFilledFolderIcon => _isSelected || _isRecursiveScope;
 
     internal void SetIdentity(Guid rootId, string relativeFolder)
     {
@@ -75,7 +90,13 @@ internal sealed class BrowserTreeNode : INotifyPropertyChanged
     public bool IsSelected
     {
         get => _isSelected;
-        set { if (_isSelected != value) { _isSelected = value; OnPropertyChanged(); } }
+        set
+        {
+            if (_isSelected == value) return;
+            _isSelected = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsFilledFolderIcon));
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

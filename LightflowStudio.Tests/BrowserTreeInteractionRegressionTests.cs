@@ -139,6 +139,99 @@ public sealed class BrowserTreeInteractionRegressionTests
         Assert.DoesNotContain("Fill=\"#E4B85A\"", source);
     }
 
+    [Fact]
+    public void TreeRowIconIsDrivenByExactlyOneAuthoritativeDataTriggerNotTwoCompetingOnes()
+    {
+        // #124 (further revised): a stored recursive root's filled icon must never depend on which folder is
+        // currently selected. Two independently-firing DataTriggers (IsSelected, IsRecursiveScope) each
+        // targeting the same FolderIcon/FolderIconFilled Visibility could let one state's Setter application
+        // order mask the other, letting the icon incorrectly fall back to outline when selection moved away
+        // even though the row's own recursive-scope state never changed. Pinning this to exactly one trigger,
+        // bound to the single derived BrowserTreeNode.IsFilledFolderIcon, removes any dependency on WPF
+        // trigger-precedence ordering.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+
+        var template = document.Descendants(ns + "HierarchicalDataTemplate").Single();
+        var iconTriggers = template.Descendants(ns + "DataTrigger")
+            .Where(trigger => (string?)trigger.Attribute("Binding") is { } binding &&
+                (binding.Contains("IsSelected") || binding.Contains("IsRecursiveScope") || binding.Contains("IsFilledFolderIcon")))
+            .ToList();
+
+        var onlyTrigger = Assert.Single(iconTriggers);
+        Assert.Equal("{Binding IsFilledFolderIcon}", (string?)onlyTrigger.Attribute("Binding"));
+        Assert.DoesNotContain(template.Descendants(ns + "DataTrigger"),
+            trigger => (string?)trigger.Attribute("Binding") == "{Binding IsSelected}");
+        Assert.DoesNotContain(template.Descendants(ns + "DataTrigger"),
+            trigger => (string?)trigger.Attribute("Binding") == "{Binding IsRecursiveScope}");
+    }
+
+    [Fact]
+    public void ShowBrowserLoadingState_HidesTheStalePreviousGridInsteadOfLettingItShowThroughTheOverlay()
+    {
+        // #124: BrowserLoadingOverlay's own background is deliberately semi-transparent (so the progress bar
+        // it hosts stays legible against the shell) — that previously let the previous folder's media tiles
+        // remain faintly visible underneath it while a new scope loaded. Hiding the grid outright here, not
+        // merely painting over it, is what "the prior scope stops being presented" actually requires.
+        var body = MethodBody("private void ShowBrowserLoadingState");
+
+        var emptyHidden = body.IndexOf("BrowserEmptyState.Visibility = Visibility.Collapsed;", StringComparison.Ordinal);
+        var gridHidden = body.IndexOf("BrowserGridRows.Visibility = Visibility.Collapsed;", StringComparison.Ordinal);
+        var overlayShown = body.IndexOf("BrowserLoadingOverlay.Visibility = Visibility.Visible;", StringComparison.Ordinal);
+        Assert.True(emptyHidden >= 0, "ShowBrowserLoadingState must hide the stale empty state.");
+        Assert.True(gridHidden >= 0, "ShowBrowserLoadingState must hide the stale grid content.");
+        Assert.True(overlayShown > gridHidden,
+            "The stale grid must be hidden before (or alongside) showing the loading overlay, never left visible under it.");
+    }
+
+    [Fact]
+    public void ApplyBrowserState_RestoresGridVisibilityThatLoadingHidForTheNewlyAcceptedScope()
+    {
+        var body = MethodBody("private void ApplyBrowserState");
+        Assert.Contains("BrowserGridRows.Visibility = Visibility.Visible;", body);
+    }
+
+    [Fact]
+    public void ApplyBrowserSuccessState_RejectsAStaleGenerationBeforeEverTouchingGridOrEmptyStateVisibility()
+    {
+        // #124: a superseded navigation's late completion (A accepted, request B, request C before B finishes)
+        // must never reach ApplyBrowserState/its grid-visibility restore — the generation check happens first,
+        // as an early return, so a stale B can't flicker C's already-current presentation back to B's content.
+        var body = MethodBody("private bool ApplyBrowserSuccessState");
+        var generationCheck = body.IndexOf("generation != _browserUiGeneration", StringComparison.Ordinal);
+        var applyCall = body.IndexOf("ApplyBrowserState(state);", StringComparison.Ordinal);
+        Assert.True(generationCheck >= 0 && applyCall > generationCheck,
+            "The generation check must guard ApplyBrowserState, not run after it.");
+    }
+
+    [Fact]
+    public void ApplyBrowserNavigationFailure_RestoresGridVisibilityForThePreviousFolderThatRemainsLoaded()
+    {
+        // A failed navigation never replaced the still-current BrowserGridModel data — only ShowBrowserLoadingState's
+        // presentation-level hide needs undoing here, consistent with this method's own diagnostic text ("The
+        // previous folder remains loaded").
+        var body = MethodBody("private void ApplyBrowserNavigationFailure");
+        Assert.Contains("BrowserGridRows.Visibility = Visibility.Visible;", body);
+        Assert.Contains("previous folder remains loaded", body);
+    }
+
+    [Fact]
+    public void BrowserIncludeSubfoldersButtonClick_NeverTouchesTreeSelectionDirectlyOnlyReloadsTheCurrentLocation()
+    {
+        // #124: toggling Include Subfolders must change scope MODE for whichever folder is already open, never
+        // BROWSER LOCATION — this handler must never call RequestBrowserTreeSelection itself (which would imply
+        // picking a *different* node); the existing selection is left exactly where it already is, and
+        // BrowserNavigationSession.SetIncludeSubfoldersAsync (proven via
+        // SetIncludeSubfoldersAsync_ToggleOffSequence_PreservesTreeSelectionAndRevertsIconsAcrossSessionAndTreeLayersTogether
+        // in BrowserNavigationTests.cs) reloads that exact same location.
+        var body = MethodBody("private async void BrowserIncludeSubfoldersButton_Click");
+
+        Assert.Contains("_browserNavigation.SetIncludeSubfoldersAsync(enabled)", body);
+        Assert.DoesNotContain("RequestBrowserTreeSelection", body);
+        Assert.DoesNotContain("NavigateToRootAsync", body);
+        Assert.DoesNotContain("NavigateToPathAsync", body);
+    }
+
     private static string MethodBody(string signaturePrefix)
     {
         var source = Source();

@@ -292,22 +292,22 @@
                 stack, which read as too subtle in a large tree. FILLED means this row is active in Browser
                 scope semantics — either it is the selected direct folder, or its effective Include Subfolders
                 mode is ON (the stored recursive root or a visible/materialized inherited descendant); OUTLINE
-                is everything else. Selection alone (IsSelected) already drives one pair of triggers with no
-                code involved, live-updating the instant WPF's own selection binding changes; IsRecursiveScope
-                drives the other pair, kept in sync by MainWindow.SyncBrowserTreeRecursiveIcon(s), including
-                immediately once a Catalog recursive-root mutation succeeds, before the (potentially slow)
-                recursive discovery it triggers has finished — see BrowserNavigationSession.EffectiveScopeDetermined.
-                The filled state is a small hand-authored Path silhouette (FolderIconFilled), not a font glyph:
-                hands-on testing found every available Segoe Fluent Icons/MDL2 Assets folder codepoint —
-                including U+E838, tried first — still read as an "open" folder rather than a genuinely filled
-                one. The Path uses only straight edges (no arcs), so its rendering can't depend on font/curve
-                fidelity, and is sized/centered to occupy the same 18px icon column the outline glyph
-                (FolderIcon, still U+E8B7) does, so switching states never shifts FolderLabel's position.
-                Selection remains a separate row concern (background/outline) entirely independent of this
-                icon — a recursive descendant is never selected merely because its icon is filled, and moving
-                selection away from an ordinary direct folder returns it to outline while a recursive folder
-                stays filled. Computed per-row from RootId/RelativeFolder without materializing collapsed
-                descendants. -->
+                is everything else. Bound to the single authoritative BrowserTreeNode.IsFilledFolderIcon (OR of
+                IsSelected and IsRecursiveScope, computed once in the model) rather than two independently
+                firing DataTriggers each targeting the same properties — a prior revision's two-trigger version
+                could visually behave as if only the most-recently-changed input mattered, letting a stored
+                recursive root's icon incorrectly revert to outline whenever selection moved elsewhere, even
+                though IsRecursiveScope itself never changed. One derived boolean removes any dependency on
+                WPF trigger-precedence ordering entirely. The filled state is a small hand-authored Path
+                silhouette (FolderIconFilled), not a font glyph: hands-on testing found every available Segoe
+                Fluent Icons/MDL2 Assets folder codepoint — including U+E838, tried first — still read as an
+                "open" folder rather than a genuinely filled one. The Path uses only straight edges (no arcs),
+                so its rendering can't depend on font/curve fidelity, and is sized/centered to occupy the same
+                18px icon column the outline glyph (FolderIcon, still U+E8B7) does, so switching states never
+                shifts FolderLabel's position. Selection remains a separate row concern (background/outline)
+                entirely independent of this icon — a recursive descendant is never selected merely because
+                its icon is filled. Computed per-row from RootId/RelativeFolder without materializing
+                collapsed descendants. -->
            <HierarchicalDataTemplate DataType="{x:Type local:BrowserTreeNode}" ItemsSource="{Binding Children, Mode=OneWay}">
             <Grid Height="26" ToolTip="{Binding Diagnostic, Mode=OneWay}">
              <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -325,11 +325,7 @@
             </Grid>
             <HierarchicalDataTemplate.Triggers>
              <DataTrigger Binding="{Binding IsStorageLocation}" Value="True"><Setter TargetName="FolderLabel" Property="FontWeight" Value="SemiBold"/></DataTrigger>
-             <DataTrigger Binding="{Binding IsSelected}" Value="True">
-              <Setter TargetName="FolderIcon" Property="Visibility" Value="Collapsed"/>
-              <Setter TargetName="FolderIconFilled" Property="Visibility" Value="Visible"/>
-             </DataTrigger>
-             <DataTrigger Binding="{Binding IsRecursiveScope}" Value="True">
+             <DataTrigger Binding="{Binding IsFilledFolderIcon}" Value="True">
               <Setter TargetName="FolderIcon" Property="Visibility" Value="Collapsed"/>
               <Setter TargetName="FolderIconFilled" Property="Visibility" Value="Visible"/>
              </DataTrigger>

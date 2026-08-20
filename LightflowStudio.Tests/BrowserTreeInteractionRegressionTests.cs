@@ -125,6 +125,38 @@ public sealed class BrowserTreeInteractionRegressionTests
     }
 
     [Fact]
+    public void RevealBrowserTreeAncestorsAsync_SyncsRecursiveIconsImmediatelyAfterEachAncestorRatherThanOnlyAtTheEndOfTheLoop()
+    {
+        // #124: this loop can exit early (the two generation checks below) when a newer navigation supersedes
+        // it mid-materialization — a real, multi-await path with no synchronous alternative, and specifically
+        // the common case for the very FIRST visit to a recursive subtree in a session (every ancestor
+        // genuinely needs a real enumeration; an already-visited subtree's ancestors are already materialized
+        // and this whole loop is a same-generation no-op for it) — exactly startup restoration into a
+        // recursive descendant. When SyncBrowserTreeRecursiveIcons was only called once, after the whole loop,
+        // any ancestor this call HAD already materialized (ApplyDirectoryListing sets real RootId/RelativeFolder
+        // identity) before an abort never received an IsRecursiveScope value at all — defaulting to false — and
+        // nothing downstream was guaranteed to revisit a node that only became known moments before the abort.
+        // Reported specifically as the startup-restored recursive root (and its siblings) never showing the
+        // filled icon, persisting even after disabling and re-enabling Include Subfolders. The fix: sync
+        // immediately after each individual ApplyDirectoryListing call, inside the loop, so every ancestor this
+        // method successfully materializes gets a correct icon state before any later generation check can
+        // ever skip it.
+        var body = MethodBody("private async Task RevealBrowserTreeAncestorsAsync");
+
+        var applyDirectoryListing = body.IndexOf("_browserTree.ApplyDirectoryListing(ancestor, location.RootPath, listing.Entries);", StringComparison.Ordinal);
+        Assert.True(applyDirectoryListing >= 0, "ApplyDirectoryListing call not found in RevealBrowserTreeAncestorsAsync.");
+        var syncAfterApply = body.IndexOf("SyncBrowserTreeRecursiveIcons();", applyDirectoryListing, StringComparison.Ordinal);
+        Assert.True(syncAfterApply >= 0, "SyncBrowserTreeRecursiveIcons() must be called after ApplyDirectoryListing inside the loop.");
+
+        // The sync call must be reachable regardless of whether the loop's own foreach body continues to a
+        // next iteration or the method returns right after — i.e. it must not be gated behind the loop's own
+        // closing brace/the trailing post-loop generation check.
+        var loopEnd = body.IndexOf("if (generation == _browserUiGeneration && _browserTree.SelectedNode is { } selected)", StringComparison.Ordinal);
+        Assert.True(loopEnd < 0 || syncAfterApply < loopEnd,
+            "SyncBrowserTreeRecursiveIcons() must run inside the loop, not deferred to a post-loop check that a generation change can skip.");
+    }
+
+    [Fact]
     public void RecursiveRefreshDebounceTick_SkipsRestartingANavigationThatIsAlreadyLoading()
     {
         // #124: a relevant monitoring event (most commonly the recursive scan's own folder reads, which some

@@ -603,6 +603,25 @@ public partial class MainWindow : Window
     /// preserve node identity while the real listing is unknown. Ancestors already materialized by ordinary
     /// click-driven expansion are skipped, so this is a no-op in the common case.
     /// </summary>
+    /// <remarks>
+    /// #124: <see cref="SyncBrowserTreeRecursiveIcons"/> used to be called only once, after the whole loop —
+    /// exactly the case a generation change mid-loop (a newer navigation superseding this one, most often the
+    /// very first visit to a subtree, e.g. straight out of startup restoration, where every ancestor genuinely
+    /// needs a real enumeration and this loop is not a same-generation no-op) exits early for at the two
+    /// generation checks below, on a real, multi-await materialization path with no synchronous alternative.
+    /// When that happened, whichever ancestors HAD already been materialized in this same call (their
+    /// RootId/RelativeFolder identity freshly set by <see cref="BrowserTreeModel.ApplyDirectoryListing"/>)
+    /// never received an <see cref="BrowserTreeNode.IsRecursiveScope"/> value at all — defaulting to false —
+    /// and nothing downstream was guaranteed to revisit them: a later navigation elsewhere in the same
+    /// recursive subtree resyncs every node <em>already</em> known to <see cref="_browserTree"/>, but these
+    /// ones only became known moments before this method's own abort, so a governing recursive root (and
+    /// every sibling under it) could end up permanently stuck showing the outline icon despite the Catalog
+    /// correctly still covering it — reported specifically against the startup-restored subtree, since an
+    /// already-visited-this-session subtree's ancestors are already materialized and this loop is a same-
+    /// generation no-op for it. Syncing immediately after each individual materialization — not deferred to
+    /// the end of the loop — means every ancestor this call successfully materializes gets a correct icon
+    /// state before any later generation check can ever skip it.
+    /// </remarks>
     private async Task RevealBrowserTreeAncestorsAsync(BrowserLocation location, long generation)
     {
         IReadOnlyList<BrowserTreeNode> pending;
@@ -631,16 +650,11 @@ public partial class MainWindow : Window
             _synchronizingBrowserTree = true;
             try { _browserTree.ApplyDirectoryListing(ancestor, location.RootPath, listing.Entries); }
             finally { _synchronizingBrowserTree = false; }
+            SyncBrowserTreeRecursiveIcons();
         }
 
         if (generation == _browserUiGeneration && _browserTree.SelectedNode is { } selected)
-        {
             BringBrowserTreeNodeIntoView(selected);
-            // Newly materialized ancestors just received real RootId/RelativeFolder identity (see
-            // BrowserTreeModel.ApplyDirectoryListing) but not yet an icon — the ApplyBrowserState pass that
-            // triggered this whole reveal ran before these nodes existed.
-            SyncBrowserTreeRecursiveIcons();
-        }
     }
 
     /// <summary>

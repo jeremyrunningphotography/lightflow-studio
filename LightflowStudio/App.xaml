@@ -343,7 +343,20 @@
           <Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/>
           <Style.Triggers>
            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#20242C"/></Trigger>
+           <!-- #124: the current Browser location's row must read as unmistakably selected even when keyboard
+                focus is elsewhere (media grid, toolbar, search) — ShellSelectionBrush's own fill (#282129) is
+                deliberately subtle and, on its own, reads as barely distinguishable from an unselected row
+                against this dark theme; the accent ShellFocusBrush border is what actually carries the
+                "selected" read. Keying that border to IsSelected (persistent, current-location semantics)
+                rather than IsKeyboardFocused (true only while this exact TreeViewItem literally holds keyboard
+                focus, false the instant focus moves anywhere else in the window) keeps it visible for as long
+                as this row remains the current Browser location, matching every other "current" indicator in
+                the app. IsKeyboardFocused is kept as a second condition on the identical Setter/value — not a
+                competing one, since both conditions produce the same result — so genuine keyboard-focus
+                traversal (e.g. Tab reaching the tree without yet reselecting) still gets the same accessible
+                feedback it always had. -->
            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource TemplatedParent}}" Value="True"><Setter Property="Background" Value="{StaticResource ShellSelectionBrush}"/></DataTrigger>
+           <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource TemplatedParent}}" Value="True"><Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
            <DataTrigger Binding="{Binding IsKeyboardFocused, RelativeSource={RelativeSource TemplatedParent}}" Value="True"><Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
           </Style.Triggers>
          </Style>

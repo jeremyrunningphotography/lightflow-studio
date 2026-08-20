@@ -444,6 +444,46 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserTreeItemStyle_SelectedRowsKeepTheirAccentBorderRegardlessOfKeyboardFocusLocation()
+    {
+        // #124: hands-on testing found the current Browser location's row appeared to lose its "selected" look
+        // entirely the moment keyboard focus moved away from the tree (to the media grid, toolbar, or search
+        // box) — the accent HeaderChrome BorderBrush was keyed only to IsKeyboardFocused (true only while this
+        // exact TreeViewItem literally holds keyboard focus), while ShellSelectionBrush's own row fill
+        // (#282129) is deliberately subtle and, alone, reads as barely distinguishable from an unselected row
+        // against this dark theme. The border must persist for as long as the row IS the selected/current
+        // location, independent of where keyboard focus currently sits.
+        var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
+        var ns = app.Root!.Name.Namespace;
+        var itemStyle = app.Descendants(ns + "Style").Single(style => style.Attributes()
+            .Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "BrowserTreeItemStyle"));
+        var chromeStyleTriggers = itemStyle.Descendants(ns + "Style")
+            .Single(style => (string?)style.Attribute("TargetType") == "Border").Element(ns + "Style.Triggers")!;
+
+        var selectedBorderTrigger = chromeStyleTriggers.Elements(ns + "DataTrigger").Where(trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsSelected") == true &&
+            trigger.Elements(ns + "Setter").Any(setter => (string?)setter.Attribute("Property") == "BorderBrush"));
+        Assert.NotEmpty(selectedBorderTrigger);
+        Assert.All(selectedBorderTrigger, trigger => Assert.Equal("{StaticResource ShellFocusBrush}",
+            (string?)trigger.Elements(ns + "Setter").Single(setter => (string?)setter.Attribute("Property") == "BorderBrush")
+                .Attribute("Value")));
+
+        // The background fill still persists for a selected row regardless of focus too.
+        var selectedBackgroundTrigger = chromeStyleTriggers.Elements(ns + "DataTrigger").Single(trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsSelected") == true &&
+            trigger.Elements(ns + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Background"));
+        Assert.Equal("{StaticResource ShellSelectionBrush}", (string?)selectedBackgroundTrigger
+            .Elements(ns + "Setter").Single(setter => (string?)setter.Attribute("Property") == "Background").Attribute("Value"));
+
+        // Keyboard-focus feedback is preserved (not removed), it just no longer gates the selected treatment.
+        Assert.Contains(chromeStyleTriggers.Elements(ns + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsKeyboardFocused") == true &&
+            trigger.Elements(ns + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "BorderBrush" &&
+                (string?)setter.Attribute("Value") == "{StaticResource ShellFocusBrush}"));
+    }
+
+    [Fact]
     public void RecursiveFilledIconGlyphs_AreVectorPathsNotFontGlyphSwapsAndMatchTheOutlineIconsLayoutFootprint()
     {
         // The "filled" state used to swap a font glyph's Text property (first to a two-folder stack, then to

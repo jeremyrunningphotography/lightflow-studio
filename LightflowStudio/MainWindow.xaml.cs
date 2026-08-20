@@ -59,6 +59,8 @@ public partial class MainWindow : Window
     private static readonly int[] AudioSampleRates = [0, 44100, 48000, 96000];
     private long _browserUiGeneration;
     private bool _synchronizingBrowserTree;
+    /// <summary>The node most recently targeted by a passive (non-interactive) tree reveal, consumed by <see cref="BrowserFolderTree_SelectedItemChanged"/> the first time a matching event arrives. See that method's doc comment.</summary>
+    private BrowserTreeNode? _browserTreeRevealedNode;
     private readonly WorkspaceStateService _workspaceState;
     private readonly DispatcherTimer _workspaceSaveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private WindowState _lastNonMinimizedWindowState = WindowState.Normal;
@@ -76,6 +78,8 @@ public partial class MainWindow : Window
     private (Guid RootId, string RelativeFolder, BrowserScopeMode Mode)? _browserScopeIdentity;
     private bool _synchronizingBrowserScopeMode;
     private readonly DispatcherTimer _browserRecursiveRefreshDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    /// <summary>Denominator as of the last recursive-progress report, so <see cref="ApplyRecursiveScopeLoadingProgress"/> can tell whether discovery is still actively growing. Reset alongside everything else in <see cref="ResetBrowserLoadingProgress"/>.</summary>
+    private int _browserRecursiveProgressLastDiscovered;
     // #124 (revised): every stored Catalog recursive root, as of the most recent navigation — see
     // BrowserFolderState.RecursiveRoots. Cached here so Locations-tree icon sync never needs its own Catalog
     // round-trip; refreshed unconditionally in ApplyBrowserState alongside everything else that state drives.
@@ -283,6 +287,7 @@ public partial class MainWindow : Window
     {
         BrowserLoadingProgressBar.IsIndeterminate = true;
         BrowserLoadingProgressBar.Value = 0;
+        _browserRecursiveProgressLastDiscovered = 0;
     }
 
     /// <summary>Restores the default, honest "no location open" Browser state, e.g. when restoration resolves nothing to show.</summary>
@@ -399,9 +404,28 @@ public partial class MainWindow : Window
             _ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
         });
 
+    /// <summary>
+    /// Selecting a row is the one action that changes Browser scope/contents. <see cref="_browserTreeRevealedNode"/>
+    /// guards against a WPF-internal hazard that timing alone cannot reliably close: <c>TreeView.SelectedItemChanged</c>
+    /// fires whenever <c>TreeView.SelectedItem</c> changes for *any* reason, including a purely passive,
+    /// programmatic <see cref="BrowserTreeNode.IsSelected"/> push (see <see cref="RequestBrowserTreeSelection(BrowserLocation?)"/>)
+    /// — and for a node whose container WPF has not yet realized (routine for a folder never visited before,
+    /// especially several levels deep — exactly the startup-restoration case), that event is deferred to a
+    /// later, unpredictable layout pass rather than firing synchronously, so no fixed dispatcher-priority delay
+    /// can be relied on to still be "inside" a synchronization window by the time it lands. Comparing the
+    /// event's node against the SPECIFIC node the most recent passive reveal targeted — set only by
+    /// <see cref="RequestBrowserTreeSelection(BrowserLocation?)"/>/<see cref="RequestBrowserTreeSelection(string)"/>,
+    /// the two "sync the tree to a navigation already happening elsewhere" call sites, never by an interactive
+    /// click — closes the gap regardless of how long WPF defers it: that reveal's own navigation (if any) is
+    /// already being driven independently through <see cref="BrowserNavigationSession"/>, so this event must
+    /// never start a second, competing one that would cancel it via the ordinary latest-wins path. The field is
+    /// consumed (cleared) the first time it matches, so a later, genuinely new interactive selection of that
+    /// same row is never suppressed.
+    /// </summary>
     private async void BrowserFolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (_synchronizingBrowserTree || e.NewValue is not BrowserTreeNode { IsPlaceholder: false } node) return;
+        if (ReferenceEquals(node, _browserTreeRevealedNode)) { _browserTreeRevealedNode = null; return; }
         RequestBrowserTreeSelection(node);
         if (node.Storage is { Kind: BrowserStorageKind.ManagedRoot, RootId: { } rootId })
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(rootId));
@@ -470,6 +494,7 @@ public partial class MainWindow : Window
         try { node = _browserTree.RequestSelection(location); }
         catch { _synchronizingBrowserTree = false; throw; }
         if (node is null) { _synchronizingBrowserTree = false; return; }
+        _browserTreeRevealedNode = node;
         BringBrowserTreeNodeIntoView(node);
         DeferBrowserTreeSynchronizingReset();
     }
@@ -481,6 +506,7 @@ public partial class MainWindow : Window
         try { node = _browserTree.RequestSelection(absolutePath); }
         catch { _synchronizingBrowserTree = false; throw; }
         if (node is null) { _synchronizingBrowserTree = false; return; }
+        _browserTreeRevealedNode = node;
         BringBrowserTreeNodeIntoView(node);
         DeferBrowserTreeSynchronizingReset();
     }
@@ -757,12 +783,21 @@ public partial class MainWindow : Window
     /// Applies one live recursive-walk progress report to the shared loading progress bar. Stays indeterminate
     /// until <see cref="RecursiveScopeProgress.FoldersDiscovered"/> grows past the trivial single-folder case,
     /// so a small recursive scope (nothing left to discover beyond the base folder) never flashes a
-    /// near-instant, uninformative "1 of 1" determinate bar before the overlay disappears. Never fabricates a
+    /// near-instant, uninformative "1 of 1" determinate bar before the overlay disappears — and, just as
+    /// importantly, stays indeterminate for as long as the denominator is still actively growing report to
+    /// report, via <see cref="_browserRecursiveProgressLastDiscovered"/>: flipping to determinate the instant
+    /// <see cref="RecursiveScopeProgress.FoldersDiscovered"/> first reaches 2 previously produced a jarring
+    /// visual — a brief, misleadingly high percentage immediately followed by a hard leftward jump as the rest
+    /// of a wide folder's siblings were discovered a moment later, in the very next report. Waiting for
+    /// discovery to hold steady for at least one report keeps the percentage honest without ever showing a
+    /// value that is about to be immediately superseded by a much larger denominator. Never fabricates a
     /// percentage: both values come directly from the service-layer walk, never counted here.
     /// </summary>
     private void ApplyRecursiveScopeLoadingProgress(RecursiveScopeProgress progress)
     {
-        if (progress.FoldersDiscovered < 2) { BrowserLoadingProgressBar.IsIndeterminate = true; return; }
+        var stillDiscovering = progress.FoldersDiscovered > _browserRecursiveProgressLastDiscovered;
+        _browserRecursiveProgressLastDiscovered = progress.FoldersDiscovered;
+        if (progress.FoldersDiscovered < 2 || stillDiscovering) { BrowserLoadingProgressBar.IsIndeterminate = true; return; }
         BrowserLoadingProgressBar.IsIndeterminate = false;
         BrowserLoadingProgressBar.Maximum = progress.FoldersDiscovered;
         BrowserLoadingProgressBar.Value = Math.Min(progress.FoldersVisited, progress.FoldersDiscovered);

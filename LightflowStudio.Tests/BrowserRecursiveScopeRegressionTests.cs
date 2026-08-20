@@ -253,9 +253,24 @@ public sealed class BrowserRecursiveScopeRegressionTests
     public void ApplyRecursiveScopeLoadingProgress_NeverFabricatesAPercentageAndStaysIndeterminateBelowThreshold()
     {
         var body = MethodBody("private void ApplyRecursiveScopeLoadingProgress");
-        Assert.Contains("if (progress.FoldersDiscovered < 2) { BrowserLoadingProgressBar.IsIndeterminate = true; return; }", body);
+        Assert.Contains("if (progress.FoldersDiscovered < 2 || stillDiscovering) { BrowserLoadingProgressBar.IsIndeterminate = true; return; }", body);
         Assert.Contains("BrowserLoadingProgressBar.Maximum = progress.FoldersDiscovered;", body);
         Assert.Contains("BrowserLoadingProgressBar.Value = Math.Min(progress.FoldersVisited, progress.FoldersDiscovered);", body);
+    }
+
+    [Fact]
+    public void ApplyRecursiveScopeLoadingProgress_StaysIndeterminateWhileTheDenominatorIsStillActivelyGrowing()
+    {
+        // A wide folder's siblings are typically all discovered within a rapid burst of consecutive reports —
+        // flipping to determinate the instant FoldersDiscovered first reaches 2 produced a jarring visual: a
+        // brief, misleadingly high percentage immediately followed by a hard leftward jump moments later as
+        // the rest of the burst arrived. Only trust the denominator once it has held steady for a report.
+        var body = MethodBody("private void ApplyRecursiveScopeLoadingProgress");
+        Assert.Contains("var stillDiscovering = progress.FoldersDiscovered > _browserRecursiveProgressLastDiscovered;", body);
+        Assert.Contains("_browserRecursiveProgressLastDiscovered = progress.FoldersDiscovered;", body);
+
+        var resetBody = MethodBody("private void ResetBrowserLoadingProgress");
+        Assert.Contains("_browserRecursiveProgressLastDiscovered = 0;", resetBody);
     }
 
     [Fact]

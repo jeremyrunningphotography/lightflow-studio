@@ -55,6 +55,32 @@ public sealed class BrowserTreeInteractionRegressionTests
     }
 
     [Fact]
+    public void BrowserFolderTreeSelectedItemChanged_IgnoresADeferredEventForANodeItPassivelyRevealed()
+    {
+        // TreeView.SelectedItemChanged fires whenever TreeView.SelectedItem changes for any reason, including
+        // a purely passive, programmatic IsSelected push — and for a node whose container WPF has not yet
+        // realized (routine for a folder never visited before), that event is deferred to a later,
+        // unpredictable layout pass rather than firing synchronously, so no fixed dispatcher-priority delay
+        // can reliably still be "inside" a synchronization window by the time it lands. Comparing against the
+        // specific node the most recent passive reveal targeted closes that gap regardless of how long WPF
+        // defers it, since that reveal's own navigation (if any) is already being driven independently and
+        // must never be raced by a second, competing one here.
+        var body = MethodBody("private async void BrowserFolderTree_SelectedItemChanged");
+        Assert.Contains(
+            "if (ReferenceEquals(node, _browserTreeRevealedNode)) { _browserTreeRevealedNode = null; return; }",
+            body);
+
+        // Set only by the two passive-reveal overloads — never by the interactive-click overload, which is
+        // always immediately followed by an actual navigation call from its own caller.
+        var locationOverload = MethodBody("private void RequestBrowserTreeSelection(BrowserLocation? location)");
+        Assert.Contains("_browserTreeRevealedNode = node;", locationOverload);
+        var pathOverload = MethodBody("private void RequestBrowserTreeSelection(string absolutePath)");
+        Assert.Contains("_browserTreeRevealedNode = node;", pathOverload);
+        var nodeOverload = MethodBody("private void RequestBrowserTreeSelection(BrowserTreeNode node)");
+        Assert.DoesNotContain("_browserTreeRevealedNode", nodeOverload);
+    }
+
+    [Fact]
     public void RecursiveRefreshDebounceTick_SkipsRestartingANavigationThatIsAlreadyLoading()
     {
         // #124: a relevant monitoring event (most commonly the recursive scan's own folder reads, which some

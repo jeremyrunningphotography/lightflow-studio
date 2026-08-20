@@ -174,7 +174,7 @@ internal sealed class BrowserTreeModel
 
         var root = FindRoot(state.Location) ?? AddCurrentRoot(state.Location);
 
-        var current = EnsurePath(root, state.Location.AbsolutePath);
+        var current = EnsurePath(root, state.Location.AbsolutePath, state.Location.RootId, state.Location.RootPath);
         Select(current);
         ReplaceDirectories(current, state.Location.RootPath, state.Entries);
         return state.Entries.Where(entry => !entry.IsDirectory).ToArray();
@@ -191,7 +191,7 @@ internal sealed class BrowserTreeModel
     public IReadOnlyList<BrowserTreeNode> GetUnmaterializedAncestors(BrowserLocation location)
     {
         var root = FindRoot(location) ?? AddCurrentRoot(location);
-        var chain = EnsurePathChain(root, location.AbsolutePath);
+        var chain = EnsurePathChain(root, location.AbsolutePath, location.RootId, location.RootPath);
         return chain.Take(chain.Count - 1).Where(node => !node.IsMaterialized).ToArray();
     }
 
@@ -209,7 +209,7 @@ internal sealed class BrowserTreeModel
     {
         if (location is null) return null;
         var root = FindRoot(location) ?? AddCurrentRoot(location);
-        var node = EnsurePath(root, location.AbsolutePath);
+        var node = EnsurePath(root, location.AbsolutePath, location.RootId, location.RootPath);
         Select(node);
         return node;
     }
@@ -221,7 +221,7 @@ internal sealed class BrowserTreeModel
             .OrderByDescending(node => node.AbsolutePath!.Length)
             .FirstOrDefault();
         if (root is null) return null;
-        var node = EnsurePath(root, absolutePath);
+        var node = EnsurePath(root, absolutePath, root.RootId, root.AbsolutePath);
         Select(node);
         return node;
     }
@@ -235,7 +235,7 @@ internal sealed class BrowserTreeModel
             return;
         }
         var root = FindRoot(location) ?? AddCurrentRoot(location);
-        Select(EnsurePath(root, location.AbsolutePath));
+        Select(EnsurePath(root, location.AbsolutePath, location.RootId, location.RootPath));
     }
 
     private BrowserTreeNode? FindRoot(BrowserLocation location)
@@ -259,8 +259,8 @@ internal sealed class BrowserTreeModel
         return node;
     }
 
-    private static BrowserTreeNode EnsurePath(BrowserTreeNode root, string targetPath) =>
-        EnsurePathChain(root, targetPath)[^1];
+    private static BrowserTreeNode EnsurePath(BrowserTreeNode root, string targetPath, Guid? rootId, string? rootBasePath) =>
+        EnsurePathChain(root, targetPath, rootId, rootBasePath)[^1];
 
     /// <summary>
     /// Walks/creates the node chain from <paramref name="root"/> down to <paramref name="targetPath"/>,
@@ -269,9 +269,31 @@ internal sealed class BrowserTreeModel
     /// other children — callers that need real sibling folders must materialize those ancestors separately
     /// via <see cref="ApplyDirectoryListing"/> (see <see cref="GetUnmaterializedAncestors"/>).
     /// </summary>
-    private static IReadOnlyList<BrowserTreeNode> EnsurePathChain(BrowserTreeNode root, string targetPath)
+    /// <remarks>
+    /// #124: <paramref name="rootId"/>/<paramref name="rootBasePath"/> carry the confirmed Catalog identity for
+    /// the target's Media Root, known from a resolved <see cref="BrowserLocation"/> at every call site except
+    /// <see cref="RequestSelection(string)"/> (which has no such location and passes <paramref name="root"/>'s
+    /// own identity/path, reproducing the old root-relative behavior exactly). Previously this method only
+    /// stamped identity on newly-created nodes, sourced from <c>root.RootId</c>/<c>root</c>-relative paths —
+    /// wrong whenever <paramref name="root"/> is a generic, unanchored ancestor row (e.g. a bare drive/volume
+    /// with no Catalog <c>RootId</c> of its own) sitting above the real Media Root, which left every synthetic
+    /// node in the chain — including the selected target itself — permanently stuck with <c>RootId = null</c>
+    /// the first time a not-yet-materialized location was reached this way (startup restoration and
+    /// direct-path entry, both of which build this synthetic chain before any real enumeration). Reused nodes
+    /// were never corrected afterward either, since <see cref="ReplaceDirectories"/> only calls
+    /// <c>SetIdentity</c> for a node it creates fresh. That stale identity was invisible while the node stayed
+    /// selected (<c>IsFilledFolderIcon</c> is true from <c>IsSelected</c> alone) but broke the moment selection
+    /// moved elsewhere, and could never self-heal even after a later Include Subfolders change, since
+    /// <c>SyncBrowserTreeRecursiveIcon</c> silently skips any node whose <c>RootId</c> is null. Now every node
+    /// in the chain — new or reused — has its identity (re)confirmed unconditionally against the authoritative
+    /// source, and only once its own path actually reaches or descends into <paramref name="rootBasePath"/>,
+    /// so a generic ancestor row above the real Media Root is never mislabeled as that root itself.
+    /// </remarks>
+    private static IReadOnlyList<BrowserTreeNode> EnsurePathChain(BrowserTreeNode root, string targetPath, Guid? rootId, string? rootBasePath)
     {
         var rootPath = MediaPathSemantics.NormalizeRootPath(root.AbsolutePath!);
+        ConfirmIdentity(root, rootPath, rootId, rootBasePath);
+
         var target = MediaPathSemantics.NormalizeRootPath(targetPath);
         if (string.Equals(rootPath, target, StringComparison.OrdinalIgnoreCase)) return [root];
 
@@ -290,15 +312,29 @@ internal sealed class BrowserTreeModel
             {
                 RemovePlaceholder(current);
                 child = new BrowserTreeNode(segment, currentPath);
-                if (root.RootId is { } rootId)
-                    child.SetIdentity(rootId, MediaPathSemantics.RelativeFolder(rootPath, currentPath));
                 child.Children.Add(NewPlaceholder());
                 current.Children.Add(child);
             }
+            ConfirmIdentity(child, currentPath, rootId, rootBasePath);
             chain.Add(child);
             current = child;
         }
         return chain;
+    }
+
+    /// <summary>
+    /// Stamps <paramref name="node"/>'s Catalog identity from the authoritative <paramref name="rootId"/>/
+    /// <paramref name="rootBasePath"/> — unconditionally, even if <paramref name="node"/> already carries an
+    /// identity, so a previously-null or stale value from an earlier incomplete pass is always corrected. A
+    /// no-op when no authoritative root was supplied, or when <paramref name="nodePath"/> sits above/outside
+    /// <paramref name="rootBasePath"/> (an ancestor row — e.g. a bare drive/volume — is never mislabeled as
+    /// the Media Root nested beneath it).
+    /// </summary>
+    private static void ConfirmIdentity(BrowserTreeNode node, string nodePath, Guid? rootId, string? rootBasePath)
+    {
+        if (rootId is not { } confirmedRootId || rootBasePath is null) return;
+        if (!MediaPathSemantics.Contains(rootBasePath, nodePath)) return;
+        node.SetIdentity(confirmedRootId, MediaPathSemantics.RelativeFolder(rootBasePath, nodePath));
     }
 
     private static void ReplaceDirectories(BrowserTreeNode current, string rootPath, IReadOnlyList<MediaFolderEntry> entries)

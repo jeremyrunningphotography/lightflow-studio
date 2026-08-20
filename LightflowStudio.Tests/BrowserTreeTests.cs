@@ -76,6 +76,45 @@ public sealed class BrowserTreeTests
     }
 
     [Fact]
+    public void SyntheticAncestorChainGetsConfirmedIdentityEvenWhenTopLevelRowIsUnanchored()
+    {
+        // #124: proven via BROWSER-RECURSIVE-TRACE against a real packaged-app reproduction - when the
+        // top-level Locations row is a bare, not-yet-anchored volume (RootId null on the storage entry, exactly
+        // like a detected drive that has never been clicked into) and the real Catalog Media Root is nested
+        // underneath it rather than being its own top-level row, FindRoot can only reach the target through the
+        // path-containment fallback, returning that unanchored volume as `root`. The old EnsurePathChain
+        // propagated identity from `root.RootId` alone, which is null here - so every synthetic node created
+        // for a not-yet-materialized location (startup restoration and direct-path entry both build this exact
+        // chain), including the selected target itself, was permanently stuck with RootId = null. That silently
+        // broke IsRecursiveScope for the affected node forever (SyncBrowserTreeRecursiveIcon skips a null
+        // RootId), invisibly so while the node stayed selected (IsFilledFolderIcon is true from IsSelected
+        // alone) but visibly the moment selection moved elsewhere - never self-healing, even after a later
+        // Include Subfolders change, since nothing ever revisited the node's identity.
+        var rootId = Guid.NewGuid();
+        var model = new BrowserTreeModel();
+        model.SetStorageEntries([
+            new("volume:C", "C:", @"C:\", BrowserStorageKind.Volume, MediaRootAvailability.Online)
+        ]);
+
+        var files = model.Synchronize(new(new(rootId, "Photos", @"C:\Libraries\Photos", "Trips"),
+            BrowserFolderStatus.Ready, [], null, false, false, true));
+
+        var volume = Assert.Single(model.Roots);
+        Assert.Null(volume.RootId); // the unanchored ancestor itself must never be mislabeled as the Media Root
+        Assert.Null(Find(model, @"C:\Libraries")!.RootId); // an ancestor above the real root, likewise untouched
+
+        var photos = Find(model, @"C:\Libraries\Photos")!;
+        Assert.Equal(rootId, photos.RootId);
+        Assert.Equal("", photos.RelativeFolder);
+
+        var trips = model.SelectedNode!;
+        Assert.Equal(@"C:\Libraries\Photos\Trips", trips.AbsolutePath);
+        Assert.Equal(rootId, trips.RootId);
+        Assert.Equal("Trips", trips.RelativeFolder);
+        Assert.Empty(files);
+    }
+
+    [Fact]
     public void DirectUncPathAddsItsLogicalShareToTheHierarchy()
     {
         var rootId = Guid.NewGuid();

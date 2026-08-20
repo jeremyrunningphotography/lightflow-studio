@@ -76,6 +76,45 @@ public sealed class BrowserTreeTests
     }
 
     [Fact]
+    public void SyntheticAncestorChainGetsConfirmedIdentityEvenWhenTopLevelRowIsUnanchored()
+    {
+        // #124: proven via BROWSER-RECURSIVE-TRACE against a real packaged-app reproduction - when the
+        // top-level Locations row is a bare, not-yet-anchored volume (RootId null on the storage entry, exactly
+        // like a detected drive that has never been clicked into) and the real Catalog Media Root is nested
+        // underneath it rather than being its own top-level row, FindRoot can only reach the target through the
+        // path-containment fallback, returning that unanchored volume as `root`. The old EnsurePathChain
+        // propagated identity from `root.RootId` alone, which is null here - so every synthetic node created
+        // for a not-yet-materialized location (startup restoration and direct-path entry both build this exact
+        // chain), including the selected target itself, was permanently stuck with RootId = null. That silently
+        // broke IsRecursiveScope for the affected node forever (SyncBrowserTreeRecursiveIcon skips a null
+        // RootId), invisibly so while the node stayed selected (IsFilledFolderIcon is true from IsSelected
+        // alone) but visibly the moment selection moved elsewhere - never self-healing, even after a later
+        // Include Subfolders change, since nothing ever revisited the node's identity.
+        var rootId = Guid.NewGuid();
+        var model = new BrowserTreeModel();
+        model.SetStorageEntries([
+            new("volume:C", "C:", @"C:\", BrowserStorageKind.Volume, MediaRootAvailability.Online)
+        ]);
+
+        var files = model.Synchronize(new(new(rootId, "Photos", @"C:\Libraries\Photos", "Trips"),
+            BrowserFolderStatus.Ready, [], null, false, false, true));
+
+        var volume = Assert.Single(model.Roots);
+        Assert.Null(volume.RootId); // the unanchored ancestor itself must never be mislabeled as the Media Root
+        Assert.Null(Find(model, @"C:\Libraries")!.RootId); // an ancestor above the real root, likewise untouched
+
+        var photos = Find(model, @"C:\Libraries\Photos")!;
+        Assert.Equal(rootId, photos.RootId);
+        Assert.Equal("", photos.RelativeFolder);
+
+        var trips = model.SelectedNode!;
+        Assert.Equal(@"C:\Libraries\Photos\Trips", trips.AbsolutePath);
+        Assert.Equal(rootId, trips.RootId);
+        Assert.Equal("Trips", trips.RelativeFolder);
+        Assert.Empty(files);
+    }
+
+    [Fact]
     public void DirectUncPathAddsItsLogicalShareToTheHierarchy()
     {
         var rootId = Guid.NewGuid();
@@ -344,6 +383,203 @@ public sealed class BrowserTreeTests
         Assert.True(Find(model, @"C:\A\Deep")!.IsExpanded);
         Assert.True(branchB.IsExpanded);
         Assert.Single(Descendants(model.Roots), node => node.IsSelected);
+    }
+
+    [Fact]
+    public void Synchronize_SetsRootIdentityOnTheNewlyCreatedRootNode()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+
+        model.Synchronize(State(rootId, ""));
+
+        var root = Find(model, @"C:\")!;
+        Assert.Equal(rootId, root.RootId);
+        Assert.Equal("", root.RelativeFolder);
+    }
+
+    [Fact]
+    public void ReplaceDirectories_SetsChildIdentityFromTheFolderEntrysRelativePath()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+
+        model.Synchronize(State(rootId, "", Directory(rootId, "Trips")));
+
+        var trips = Find(model, @"C:\Trips")!;
+        Assert.Equal(rootId, trips.RootId);
+        Assert.Equal("Trips", trips.RelativeFolder);
+    }
+
+    [Fact]
+    public void ReplaceDirectories_SetsNestedChildIdentityFromItsOwnRelativePathNotItsParents()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "", Directory(rootId, "Trips")));
+        var trips = Find(model, @"C:\Trips")!;
+
+        model.ApplyDirectoryListing(trips, @"C:\", [Directory(rootId, "Trips/Iceland")]);
+
+        var iceland = Find(model, @"C:\Trips\Iceland")!;
+        Assert.Equal(rootId, iceland.RootId);
+        Assert.Equal("Trips/Iceland", iceland.RelativeFolder);
+    }
+
+    [Fact]
+    public void RequestSelection_ByPathSetsIdentityOnSyntheticAncestorChainNodes()
+    {
+        // A deep path selected before its ancestors were ever enumerated (e.g. restoring a remembered
+        // location) still needs correct RootId/RelativeFolder on every synthetic chain node, so tree icons
+        // can be computed for it immediately without waiting for a real folder listing.
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+
+        var selected = model.RequestSelection(@"C:\Trips\Iceland\Reykjavik");
+
+        Assert.NotNull(selected);
+        Assert.Equal(rootId, selected!.RootId);
+        Assert.Equal("Trips/Iceland/Reykjavik", selected.RelativeFolder);
+        var iceland = Find(model, @"C:\Trips\Iceland")!;
+        Assert.Equal(rootId, iceland.RootId);
+        Assert.Equal("Trips/Iceland", iceland.RelativeFolder);
+    }
+
+    [Fact]
+    public void IsRecursiveScope_RaisesPropertyChangedOnlyWhenTheValueActuallyChanges()
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips");
+        var raised = 0;
+        node.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(BrowserTreeNode.IsRecursiveScope)) raised++; };
+
+        node.IsRecursiveScope = true;
+        node.IsRecursiveScope = true;
+        node.IsRecursiveScope = false;
+
+        Assert.Equal(2, raised);
+    }
+
+    [Fact]
+    public void IsRecursiveScope_IsIndependentOfIsSelected()
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips");
+
+        node.IsRecursiveScope = true;
+        node.IsSelected = true;
+        Assert.True(node.IsRecursiveScope);
+        Assert.True(node.IsSelected);
+
+        node.IsSelected = false;
+
+        Assert.True(node.IsRecursiveScope); // deselecting never clears the recursive-scope icon state
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
+    public void IsFilledFolderIcon_IsTrueWheneverEitherSelectedOrRecursive(bool selected, bool recursive, bool expected)
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips") { IsSelected = selected, IsRecursiveScope = recursive };
+
+        Assert.Equal(expected, node.IsFilledFolderIcon);
+    }
+
+    [Fact]
+    public void IsFilledFolderIcon_ARecursiveRootStaysFilledWhenSelectionMovesToAnUnrelatedFolder()
+    {
+        // #124: a stored recursive root's filled icon is derived from Catalog configuration
+        // (IsRecursiveScope), never from tree selection — selecting a completely different folder must not
+        // make it revert to the outline icon.
+        var recursiveRoot = new BrowserTreeNode("2026", @"C:\Media\2026") { IsRecursiveScope = true, IsSelected = true };
+        var unrelated = new BrowserTreeNode("Archive", @"C:\Media\Archive");
+        Assert.True(recursiveRoot.IsFilledFolderIcon);
+
+        recursiveRoot.IsSelected = false;
+        unrelated.IsSelected = true;
+
+        Assert.True(recursiveRoot.IsFilledFolderIcon); // still the governing recursive root, though no longer selected
+        Assert.True(unrelated.IsFilledFolderIcon); // now the selected direct folder
+        recursiveRoot.IsSelected = false; // already false, but pin the intent: not selected, still recursive
+        Assert.False(recursiveRoot.IsSelected);
+        Assert.True(recursiveRoot.IsRecursiveScope);
+    }
+
+    [Fact]
+    public void IsFilledFolderIcon_OrdinarySelectedFolderLosesItsFilledIconOnceDeselected()
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips") { IsSelected = true };
+        Assert.True(node.IsFilledFolderIcon);
+
+        node.IsSelected = false;
+
+        Assert.False(node.IsFilledFolderIcon);
+    }
+
+    [Fact]
+    public void IsFilledFolderIcon_RaisesPropertyChangedWheneverEitherUnderlyingInputChanges()
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips");
+        var raised = 0;
+        node.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(BrowserTreeNode.IsFilledFolderIcon)) raised++; };
+
+        node.IsSelected = true;
+        node.IsRecursiveScope = true;
+        node.IsSelected = false;
+        node.IsRecursiveScope = false;
+
+        Assert.Equal(4, raised);
+    }
+
+    [Fact]
+    public void Synchronize_ReselectsTheSameNodeInstanceWhenOnlyScopeModeChangesForTheSameLocation()
+    {
+        // #124: turning Include Subfolders off for the currently open folder must not move tree selection to
+        // a different node — SetIncludeSubfoldersAsync returns a new BrowserFolderState instance for the same
+        // RootId+RelativeFolder, and Synchronize must resolve back to the identical, already-selected node.
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+        model.Synchronize(State(rootId, "2026/August/Wedding", File(rootId, "2026/August/Wedding/a.mp4")));
+        var selectedBefore = model.SelectedNode;
+        Assert.Equal(@"C:\2026\August\Wedding", selectedBefore!.AbsolutePath);
+
+        model.Synchronize(State(rootId, "2026/August/Wedding", File(rootId, "2026/August/Wedding/a.mp4")));
+
+        Assert.Same(selectedBefore, model.SelectedNode);
+        Assert.True(model.SelectedNode!.IsSelected);
+        Assert.Single(Descendants(model.Roots), node => node.IsSelected);
+    }
+
+    [Fact]
+    public void HasSubfolders_IsNullWhileOnlyTheLazyLoadPlaceholderIsPresent()
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips");
+        node.Children.Add(new BrowserTreeNode("Loading…", null, placeholder: true));
+
+        Assert.Null(node.HasSubfolders);
+    }
+
+    [Fact]
+    public void HasSubfolders_IsFalseOnceARealListingReplacesThePlaceholderWithZeroDirectories()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+
+        model.Synchronize(State(rootId, "", File(rootId, "leaf.mp4"))); // no directory entries
+
+        Assert.False(model.Roots[0].HasSubfolders);
+    }
+
+    [Fact]
+    public void HasSubfolders_IsTrueOnceARealListingIncludesAtLeastOneDirectory()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+
+        model.Synchronize(State(rootId, "", Directory(rootId, "Trips")));
+
+        Assert.True(model.Roots[0].HasSubfolders);
     }
 
     private static BrowserTreeModel Model(Guid rootId)

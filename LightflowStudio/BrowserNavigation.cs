@@ -14,6 +14,14 @@ internal sealed record BrowserLocation(
     public string DisplayPath => AbsolutePath;
 }
 
+/// <summary>
+/// #124 (revised): the fast, purely Catalog-derived half of a navigation's outcome — location, effective
+/// recursive mode, and the full stored root list — surfaced via <see cref="BrowserNavigationSession.EffectiveScopeDetermined"/>
+/// well before the (potentially slow) media discovery <see cref="BrowserNavigationSession"/> runs afterward.
+/// </summary>
+internal sealed record BrowserEffectiveScope(BrowserLocation Location, BrowserScopeMode Mode,
+    IReadOnlyList<BrowserRecursiveRoot> RecursiveRoots);
+
 internal enum BrowserFolderStatus
 {
     Ready,
@@ -36,10 +44,39 @@ internal sealed record BrowserFolderState(
     bool CanGoBack,
     bool CanGoForward,
     bool CanGoUp,
-    IDerivedWorkBatch? DerivedWork = null)
+    IDerivedWorkBatch? DerivedWork = null,
+    // #124: the flattened, files-only candidate set across Location and every descendant folder, populated
+    // only while Mode is BrowserScopeMode.IncludeSubfolders. Null in direct-folder mode, where Entries (this
+    // folder's own direct listing) is already the grid's candidate set. Kept separate from Entries rather
+    // than replacing it, because Entries also feeds the Locations tree's direct-child folder listing —
+    // recursive scope is a media-canvas concern, not a navigation-tree concern, so the tree always reflects
+    // direct children regardless of scope mode.
+    IReadOnlyList<MediaFolderEntry>? RecursiveMediaEntries = null,
+    // #124 (revised): the effective mode actually used for this commit — derived live from RecursiveRoots
+    // against Location, never a manually toggled field. See BrowserRecursiveRootLogic.IsEffectivelyRecursive.
+    BrowserScopeMode Mode = BrowserScopeMode.DirectFolder,
+    // Every stored Catalog recursive root, as of this navigation — reused by MainWindow to sync Locations
+    // tree iconography without a second Catalog round-trip. Empty for states committed before any root list
+    // was ever fetched (e.g. an early RootNotFound/RootUnavailable failure).
+    IReadOnlyList<BrowserRecursiveRoot>? RecursiveRoots = null)
 {
     public static BrowserFolderState Initial { get; } = new(null, BrowserFolderStatus.Empty, [],
         "Choose a storage location to begin browsing.", false, false, false);
+}
+
+/// <summary>
+/// A plain, synchronous <see cref="IProgress{T}"/> that invokes its callback directly on the reporting
+/// thread. Deliberately not <see cref="System.Progress{T}"/>, which posts to the <see cref="System.Threading.SynchronizationContext"/>
+/// captured at construction — asynchronously, via the thread pool, when none is present (as in a unit test or
+/// any call already off a UI-owning context) — making exactly when a report is observed non-deterministic.
+/// <see cref="BrowserNavigationSession"/> only needs the report to reach <see cref="BrowserNavigationSession.RaiseRecursiveScopeProgress"/>
+/// promptly and in order; callers that must marshal onward to a UI thread (see <c>MainWindow</c>) do so
+/// explicitly at the point they consume the resulting event, exactly like every other cross-thread signal in
+/// this codebase already does.
+/// </summary>
+internal sealed class SynchronousProgress<T>(Action<T> callback) : IProgress<T>
+{
+    public void Report(T value) => callback(value);
 }
 
 /// <summary>
@@ -50,8 +87,12 @@ internal sealed class BrowserNavigationSession(
     IMediaRootService roots,
     IBrowserLocationResolver locations,
     IMediaDiscoveryRefreshService discovery,
-    IMediaFolderEnumerator folders) : IDisposable
+    IMediaFolderEnumerator folders,
+    IBrowserRecursiveRootService recursiveRoots,
+    IRecursiveMediaDiscoveryService? recursiveDiscovery = null) : IDisposable
 {
+    private readonly IRecursiveMediaDiscoveryService _recursiveDiscovery =
+        recursiveDiscovery ?? new RecursiveMediaDiscoveryService(folders, discovery);
     private readonly object _sync = new();
     private readonly List<BrowserLocation> _back = [];
     private readonly List<BrowserLocation> _forward = [];
@@ -60,6 +101,31 @@ internal sealed class BrowserNavigationSession(
     private bool _disposed;
 
     public BrowserFolderState State { get; private set; } = BrowserFolderState.Initial;
+
+    /// <summary>
+    /// #124 (revised): fires as soon as effective recursive mode for the folder being loaded is known —
+    /// immediately after fetching the Catalog's stored recursive roots, before the (potentially slow)
+    /// recursive discovery or authoritative reconciliation that follows even begins. A caller's tree
+    /// icons/toolbar toggle are presentation derived purely from location + Catalog recursive-root
+    /// configuration, never from the eventual media result set, so they should never wait on discovery to
+    /// finish — this event is what lets a caller apply that presentation immediately while <see cref="Commit"/>
+    /// (and the full <see cref="BrowserFolderState"/> it produces) is still pending. Generation-gated exactly
+    /// like <see cref="Commit"/>: a report from a navigation superseded before reaching this point (a different
+    /// folder opened, a scope toggle, disposal) is silently dropped rather than reaching subscribers, so a
+    /// stale determination can never overwrite a newer one's presentation. Fires for every navigation,
+    /// direct or recursive alike.
+    /// </summary>
+    public event EventHandler<BrowserEffectiveScope>? EffectiveScopeDetermined;
+
+    /// <summary>
+    /// #124: fires with the live <see cref="RecursiveScopeProgress"/> of the current recursive walk, while
+    /// one is in flight. Generation-gated exactly like <see cref="Commit"/>: a report from a walk that has
+    /// since been superseded (mode toggled again, a different folder opened, disposal) is silently dropped
+    /// rather than reaching subscribers, so obsolete progress can never update a caller's UI after a newer
+    /// request has taken over. Never raised in <see cref="BrowserScopeMode.DirectFolder"/>, since no recursive
+    /// walk ever runs there.
+    /// </summary>
+    public event EventHandler<RecursiveScopeProgress>? RecursiveScopeProgressChanged;
 
     public BrowserLocation? BackTarget
     {
@@ -162,6 +228,47 @@ internal sealed class BrowserNavigationSession(
             : NavigateResolvedAsync(current.AbsolutePath, NavigationKind.Refresh, cancellationToken);
     }
 
+    /// <summary>
+    /// #124 (revised): establishes or removes a durable Catalog recursive root governing the currently
+    /// selected folder — <see cref="IBrowserRecursiveRootService.EnableAsync"/>/<see cref="IBrowserRecursiveRootService.DisableAsync"/>,
+    /// never a settable field — then reloads the current folder through the same generation/cancellation
+    /// machinery as any other navigation, as a same-folder "refresh" rather than a "New" navigation, so
+    /// toggling never pushes a back-stack entry and never disturbs the current <see cref="BrowserQuery"/> the
+    /// caller owns separately. Disabling from an inherited descendant removes the governing ancestor root —
+    /// see <see cref="IBrowserRecursiveRootService.DisableAsync"/> — never creates a per-folder override. A
+    /// no-op when no location is open yet. Any exception from the Catalog operation (e.g. Catalog
+    /// unavailable) propagates unchanged, matching every other Catalog-backed navigation failure in this
+    /// class — no separate error UI path for this feature.
+    /// </summary>
+    public Task<BrowserFolderState?> SetIncludeSubfoldersAsync(bool enabled, CancellationToken cancellationToken = default)
+    {
+        var current = State.Location;
+        if (current is null) return Task.FromResult<BrowserFolderState?>(State);
+        return ApplyIncludeSubfoldersAsync(current, enabled, cancellationToken);
+    }
+
+    private async Task<BrowserFolderState?> ApplyIncludeSubfoldersAsync(BrowserLocation current, bool enabled,
+        CancellationToken cancellationToken)
+    {
+        // Begin() here (rather than only inside the eventual LoadAndCommitAsync) so the Catalog mutation
+        // itself immediately supersedes/cancels any still-in-flight prior request — latest-request-wins
+        // applies to the whole toggle operation, not just its reload half.
+        var operation = Begin(cancellationToken);
+        try
+        {
+            if (enabled)
+                await recursiveRoots.EnableAsync(current.RootId, current.RelativeFolder, operation.Request.Token).ConfigureAwait(false);
+            else
+                await recursiveRoots.DisableAsync(current.RootId, current.RelativeFolder, operation.Request.Token).ConfigureAwait(false);
+            return await LoadAndCommitAsync(operation, current, NavigationKind.Refresh, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (operation.Request.IsCancellationRequested)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return null;
+        }
+    }
+
     private async Task<BrowserFolderState?> NavigateResolvedAsync(string absoluteFolder,
         NavigationKind kind, CancellationToken cancellationToken)
     {
@@ -210,13 +317,50 @@ internal sealed class BrowserNavigationSession(
                     "This storage location is currently unavailable.");
             location = location with { RootName = root.DisplayName, RootPath = root.PhysicalPath! };
 
+            // #124 (revised): effective mode is derived live from the Catalog's stored recursive roots against
+            // this location — never a manually toggled field. The fetched list is also carried on the
+            // committed state (see BrowserFolderState.RecursiveRoots) so MainWindow can sync Locations-tree
+            // iconography from the same round-trip rather than querying the Catalog a second time.
+            var recursiveRootList = await recursiveRoots.ListAsync(operation.Request.Token).ConfigureAwait(false);
+            operation.Request.Token.ThrowIfCancellationRequested();
+            var mode = BrowserRecursiveRootLogic.IsEffectivelyRecursive(recursiveRootList, location.RootId, location.RelativeFolder)
+                ? BrowserScopeMode.IncludeSubfolders
+                : BrowserScopeMode.DirectFolder;
+            RaiseEffectiveScopeDetermined(operation.Generation, new(location, mode, recursiveRootList));
+
+            if (mode == BrowserScopeMode.IncludeSubfolders)
+            {
+                var progressReporter = new SynchronousProgress<RecursiveScopeProgress>(
+                    reported => RaiseRecursiveScopeProgress(operation.Generation, reported));
+                var recursive = await _recursiveDiscovery.DiscoverAsync(
+                    new(location.RootId, EmptyToNull(location.RelativeFolder)), DerivedWorkPriority.Visible,
+                    operation.Request.Token, operation.Request.Token, progressReporter).ConfigureAwait(false);
+                operation.Request.Token.ThrowIfCancellationRequested();
+                if (!recursive.Succeeded)
+                    return Commit(operation.Generation, location, kind, Map(recursive.Status), [],
+                        recursive.Diagnostic, mode: mode, recursiveRoots: recursiveRootList);
+
+                // Still needed for the Locations tree's direct-child folder listing, which always reflects
+                // direct children regardless of scope mode — see BrowserFolderState.RecursiveMediaEntries.
+                var directListing = await folders.EnumerateAsync(
+                    new(location.RootId, EmptyToNull(location.RelativeFolder)), operation.Request.Token).ConfigureAwait(false);
+                operation.Request.Token.ThrowIfCancellationRequested();
+                return Commit(operation.Generation, location with { RelativeFolder = recursive.RelativeFolder }, kind,
+                    directListing.Succeeded
+                        ? recursive.MediaEntries.Count == 0 ? BrowserFolderStatus.Empty : BrowserFolderStatus.Ready
+                        : Map(directListing.Status),
+                    directListing.Succeeded ? directListing.Entries : [],
+                    directListing.Diagnostic ?? recursive.Diagnostic, recursive.DerivedWork,
+                    recursive.MediaEntries, mode, recursiveRootList);
+            }
+
             var authoritative = await discovery.RefreshAsync(
                 new(location.RootId, EmptyToNull(location.RelativeFolder)), DerivedWorkPriority.Visible,
                 operation.Request.Token, operation.Request.Token).ConfigureAwait(false);
             operation.Request.Token.ThrowIfCancellationRequested();
             if (!authoritative.Reconciliation.Succeeded)
                 return Commit(operation.Generation, location, kind, Map(authoritative.Reconciliation.Status), [],
-                    authoritative.Diagnostic ?? authoritative.Reconciliation.Diagnostic);
+                    authoritative.Diagnostic ?? authoritative.Reconciliation.Diagnostic, mode: mode, recursiveRoots: recursiveRootList);
 
             var listing = await folders.EnumerateAsync(
                 new(location.RootId, EmptyToNull(location.RelativeFolder)), operation.Request.Token).ConfigureAwait(false);
@@ -224,7 +368,8 @@ internal sealed class BrowserNavigationSession(
             return Commit(operation.Generation, location with { RelativeFolder = listing.RelativeFolder }, kind,
                 listing.Succeeded
                     ? listing.Entries.Count == 0 ? BrowserFolderStatus.Empty : BrowserFolderStatus.Ready
-                    : Map(listing.Status), listing.Entries, listing.Diagnostic, authoritative.DerivedWork);
+                    : Map(listing.Status), listing.Entries, listing.Diagnostic, authoritative.DerivedWork,
+                mode: mode, recursiveRoots: recursiveRootList);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -249,14 +394,16 @@ internal sealed class BrowserNavigationSession(
 
     private BrowserFolderState? Commit(long generation, BrowserLocation location, NavigationKind kind,
         BrowserFolderStatus status, IReadOnlyList<MediaFolderEntry> entries, string? diagnostic,
-        IDerivedWorkBatch? derivedWork = null)
+        IDerivedWorkBatch? derivedWork = null, IReadOnlyList<MediaFolderEntry>? recursiveMediaEntries = null,
+        BrowserScopeMode mode = BrowserScopeMode.DirectFolder,
+        IReadOnlyList<BrowserRecursiveRoot>? recursiveRoots = null)
     {
         lock (_sync)
         {
             if (_disposed || generation != _generation) return null;
             if (status is not (BrowserFolderStatus.Ready or BrowserFolderStatus.Empty))
                 return new(location, status, [], diagnostic, State.CanGoBack, State.CanGoForward,
-                    State.CanGoUp);
+                    State.CanGoUp, Mode: mode, RecursiveRoots: recursiveRoots);
             var previous = State.Location;
             switch (kind)
             {
@@ -274,7 +421,7 @@ internal sealed class BrowserNavigationSession(
                     break;
             }
             State = new(location, status, entries, diagnostic, _back.Count > 0, _forward.Count > 0,
-                ParentPath(location.AbsolutePath) is not null, derivedWork);
+                ParentPath(location.AbsolutePath) is not null, derivedWork, recursiveMediaEntries, mode, recursiveRoots);
             return State;
         }
     }
@@ -286,6 +433,20 @@ internal sealed class BrowserNavigationSession(
             if (_disposed || generation != _generation) return null;
             return new(State.Location, status, [], diagnostic, State.CanGoBack, State.CanGoForward, State.CanGoUp);
         }
+    }
+
+    /// <summary>Drops an effective-scope determination from any navigation that is no longer the current generation before it can reach subscribers.</summary>
+    private void RaiseEffectiveScopeDetermined(long generation, BrowserEffectiveScope scope)
+    {
+        lock (_sync) { if (_disposed || generation != _generation) return; }
+        EffectiveScopeDetermined?.Invoke(this, scope);
+    }
+
+    /// <summary>Drops a progress report from any walk that is no longer the current generation before it can reach subscribers.</summary>
+    private void RaiseRecursiveScopeProgress(long generation, RecursiveScopeProgress progress)
+    {
+        lock (_sync) { if (_disposed || generation != _generation) return; }
+        RecursiveScopeProgressChanged?.Invoke(this, progress);
     }
 
     private static string? EmptyToNull(string value) => value.Length == 0 ? null : value;

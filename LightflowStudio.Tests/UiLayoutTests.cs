@@ -136,6 +136,52 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserGridHost_IsTheOneAuthoritativeMediaCanvasBackgroundWithEveryDescendantSurfaceLayerExplicitlyTransparent()
+    {
+        // #124: hands-on testing found visible vertical bands/seams across the media canvas — present with
+        // populated thumbnails, not just the empty state, ruling out an empty-state-specific cause. Two
+        // contributing structural issues, fixed together: (1) several layers between BrowserGridHost's own
+        // opaque background and an individual tile's own card chrome (the ScrollViewer, the row-virtualizing
+        // panel, and each row's own tile-StackPanel) had no Background at all — implicitly transparent in
+        // practice, but never guaranteed so by anything other than the absence of a Setter, leaving room for a
+        // future implicit style to introduce one unnoticed; (2) UseLayoutRounding was never set anywhere in
+        // this subtree, so adjacent same-color panels/rows positioned at fractional device-pixel offsets (this
+        // Grid.Row is "*"-sized alongside several "Auto" siblings) could render a faint anti-aliased seam
+        // between them even when their fill colors matched exactly. BrowserGridHost's own Background is now
+        // the single authoritative source every other layer is explicitly Transparent against, and
+        // UseLayoutRounding scopes pixel-snapping to exactly this subtree (deliberately not the whole Window,
+        // to keep this change scoped to the reported area).
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var gridHost = Named(document, "BrowserGridHost");
+
+        Assert.Equal("#0D0F13", (string?)gridHost.Attribute("Background"));
+        Assert.Equal("True", (string?)gridHost.Attribute("UseLayoutRounding"));
+
+        var outerGrid = gridHost.Element(ns + "Grid")!;
+        Assert.Equal("Transparent", (string?)outerGrid.Attribute("Background"));
+
+        var gridRows = Named(document, "BrowserGridRows");
+        Assert.Equal("Transparent", (string?)gridRows.Attribute("Background"));
+
+        var scrollViewer = gridRows.Descendants(ns + "ScrollViewer").Single();
+        Assert.Equal("Transparent", (string?)scrollViewer.Attribute("Background"));
+
+        var rowVirtualizingPanel = gridRows.Descendants(ns + "VirtualizingStackPanel").Single();
+        Assert.Equal("Transparent", (string?)rowVirtualizingPanel.Attribute("Background"));
+
+        // The per-row tile ItemsControl and its own horizontal StackPanel — the layer immediately hosting each
+        // BrowserGridTile card.
+        var rowTemplate = gridRows.Descendants(ns + "DataTemplate")
+            .Single(template => (string?)template.Attribute("DataType") == "{x:Type local:BrowserGridRow}");
+        var tileItemsControl = rowTemplate.Element(ns + "ItemsControl")!;
+        Assert.Equal("Transparent", (string?)tileItemsControl.Attribute("Background"));
+        var tileStackPanel = tileItemsControl.Element(ns + "ItemsControl.ItemsPanel")!
+            .Descendants(ns + "StackPanel").Single();
+        Assert.Equal("Transparent", (string?)tileStackPanel.Attribute("Background"));
+    }
+
+    [Fact]
     public void BrowserWorkspace_HasNoRedundantTitleBandOrStatusLabelAndStartsCloseToNavigation()
     {
         var root = FindRepositoryRoot();
@@ -166,10 +212,86 @@ public class UiLayoutTests
         var toolbarGrid = Named(document, "BrowserRefreshButton").Parent!;
         Assert.Contains(toolbarGrid.Elements(ns + "TextBox"), element =>
             (string?)element.Attribute(xNamespace + "Name") == "BrowserCurrentPath");
+        // #124: Include Subfolders lives in the media toolbar (BrowserQueryToolbar), not here — see
+        // IncludeSubfoldersToggle_LivesInTheMediaToolbarImmediatelyBeforeTheMediaTypeControls.
         Assert.Equal(4, toolbarGrid.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").Count());
 
         Assert.Equal("28,16,28,24", (string?)shell.Root.Elements(shell.Root.Name.Namespace + "Thickness")
             .Single(thickness => (string?)thickness.Attribute(xNamespace + "Key") == "ShellWorkspacePadding"));
+    }
+
+    [Fact]
+    public void IncludeSubfoldersToggle_LivesInTheMediaToolbarImmediatelyBeforeTheMediaTypeControls()
+    {
+        // #124 (revised): scope narrows the candidate set first, so Include Subfolders now sits in the media
+        // toolbar immediately before All/Images/RAW/Video, reading left-to-right as
+        // Include Subfolders -> media type -> Search -> Filter -> Sort. It must not live in the folder
+        // navigation bar, must not introduce a new toolbar row, and must not become (or merge visually into)
+        // the segmented media-type control.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var toggle = Named(document, "BrowserIncludeSubfoldersButton");
+        var queryToolbar = Named(document, "BrowserQueryToolbar");
+        var mediaTypeSegments = Named(document, "BrowserQuickFilterSegments");
+        var searchBox = Named(document, "BrowserSearchBox");
+        var filterButton = Named(document, "BrowserFilterButton");
+        var sortCombo = Named(document, "BrowserSortCombo");
+
+        Assert.Equal(ns + "ToggleButton", toggle.Name);
+        Assert.Contains(toggle.Ancestors(), ancestor => ancestor == queryToolbar);
+        Assert.DoesNotContain(toggle.Ancestors(), ancestor => ancestor == Named(document, "BrowserGoButton").Parent);
+
+        // Reading order: toggle, then media-type segments, then search, then filter, then sort — using the
+        // shared toolbar Grid's direct-child declaration order (WPF renders Grid children by Grid.Column,
+        // and declaration order here matches that column order exactly).
+        var toolbarRow = toggle.Parent!;
+        var mediaTypeChip = mediaTypeSegments.Parent!;
+        var searchChip = searchBox.Ancestors().First(ancestor => ancestor.Parent == toolbarRow);
+        var sortChip = sortCombo.Ancestors().First(ancestor => ancestor.Parent == toolbarRow);
+        var siblings = toolbarRow.Elements().ToList();
+        int IndexOf(XElement element) => siblings.IndexOf(element);
+        Assert.True(IndexOf(toggle) < IndexOf(mediaTypeChip));
+        Assert.True(IndexOf(mediaTypeChip) < IndexOf(searchChip));
+        Assert.True(IndexOf(searchChip) < IndexOf(filterButton));
+        Assert.True(IndexOf(filterButton) < IndexOf(sortChip));
+
+        // Visually distinct from, not merged into, the segmented All/Images/RAW/Video group.
+        Assert.NotSame(toggle.Parent, mediaTypeSegments);
+        Assert.DoesNotContain(mediaTypeSegments.Elements(ns + "ToggleButton"), element =>
+            (string?)element.Attribute(xNamespace + "Name") == "BrowserIncludeSubfoldersButton");
+
+        Assert.Equal("BrowserIncludeSubfoldersButton_Click", (string?)toggle.Attribute("Click"));
+        Assert.Equal("Include Subfolders", (string?)toggle.Attribute("AutomationProperties.Name"));
+        Assert.False((bool?)toggle.Attribute("IsEnabled") ?? true, "The toggle must start disabled until a location is open, like Refresh.");
+
+        // Its own style — not #109's Filter ▾ chip style, and not the segmented group's style — so it never
+        // reads as a filter facet or as one of the media-type segments.
+        Assert.Equal("{StaticResource BrowserScopeToggleButtonStyle}", (string?)toggle.Attribute("Style"));
+
+        // Shares the Locations tree's outline/filled folder vocabulary: an outline folder glyph (U+E8B7, the
+        // same one the Locations tree renders while unchecked) that swaps to a small hand-authored Path
+        // silhouette (a genuinely solid folder, not a font glyph \u2014 every available Segoe Fluent Icons/MDL2
+        // Assets folder codepoint read as "open" rather than filled in hands-on testing) once checked, using
+        // only straight-line path segments so its rendering never depends on font/curve fidelity.
+        var scopeStyle = document.Descendants(ns + "Style")
+            .Single(style => (string?)style.Attribute(xNamespace + "Key") == "BrowserScopeToggleButtonStyle");
+        var outlineGlyph = scopeStyle.Descendants(ns + "TextBlock")
+            .Single(block => (string?)block.Attribute(xNamespace + "Name") == "ScopeGlyphOutline");
+        Assert.Equal("\uE8B7", (string?)outlineGlyph.Attribute("Text"));
+        var filledGlyph = scopeStyle.Descendants(ns + "Path")
+            .Single(path => (string?)path.Attribute(xNamespace + "Name") == "ScopeGlyphFilled");
+        Assert.Equal("Collapsed", (string?)filledGlyph.Attribute("Visibility"));
+        Assert.False(string.IsNullOrWhiteSpace((string?)filledGlyph.Attribute("Data")));
+        var checkedTrigger = scopeStyle.Descendants(ns + "Trigger")
+            .Single(trigger => (string?)trigger.Attribute("Property") == "IsChecked" && (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(checkedTrigger.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("TargetName") == "ScopeGlyphOutline" && (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Collapsed");
+        Assert.Contains(checkedTrigger.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("TargetName") == "ScopeGlyphFilled" && (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Visible");
+        Assert.Contains(scopeStyle.Descendants(ns + "TextBlock"), block => (string?)block.Attribute("Text") == "Subfolders");
     }
 
     [Fact]
@@ -205,6 +327,8 @@ public class UiLayoutTests
             attribute.Name.LocalName == "ScrollViewer.HorizontalScrollBarVisibility").Value);
         Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
             attribute.Name.LocalName == "ScrollViewer.VerticalScrollBarVisibility").Value);
+        // #124 (revised): the recursive-scope outline is gone — folder icons communicate recursive-mode
+        // inheritance instead — so the TreeView is once again the ScrollViewer's direct content child.
         Assert.Equal(scroller, tree.Parent);
 
         var appNs = app.Root!.Name.Namespace;
@@ -305,6 +429,132 @@ public class UiLayoutTests
         var applyStart = source.IndexOf("private void ApplyBrowserState", runStart, StringComparison.Ordinal);
         var runBody = source[runStart..applyStart];
         Assert.DoesNotContain("_browserGrid.Populate", runBody);
+    }
+
+    [Fact]
+    public void BrowserFolderTreeRow_UsesOutlineFilledFolderIconSemanticsForSelectionAndRecursiveScope()
+    {
+        // #124 (further revised): the FolderIcon font glyph still read as an "open" folder rather than a
+        // genuinely filled one for the active state (every available Segoe Fluent Icons/MDL2 Assets folder
+        // codepoint did, in hands-on testing), so the filled state is now a separate, overlaid FolderIconFilled
+        // Path silhouette (straight-edged, no arcs, so its rendering cannot depend on font/curve fidelity)
+        // toggled via Visibility rather than swapping the outline glyphs own Text. A single DataTrigger, bound
+        // to the model's own derived BrowserTreeNode.IsFilledFolderIcon (IsSelected OR IsRecursiveScope,
+        // computed once in the model rather than as two independently firing triggers on the same properties
+        // \u2014 see BrowserTreeInteractionRegressionTests.TreeRowIconIsDrivenByExactlyOneAuthoritativeDataTriggerNotTwoCompetingOnes
+        // for why two competing triggers here was itself a bug), hides the outline and reveals the filled Path.
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var tree = Named(document, "BrowserFolderTree");
+        var folderIcon = Named(document, "FolderIcon");
+        var folderIconFilled = Named(document, "FolderIconFilled");
+
+        Assert.Equal(ns + "TextBlock", folderIcon.Name);
+        Assert.Equal("\uE8B7", (string?)folderIcon.Attribute("Text"));
+        Assert.False(string.IsNullOrWhiteSpace((string?)folderIcon.Attribute(xNamespace + "Name")));
+
+        Assert.Equal(ns + "Path", folderIconFilled.Name);
+        Assert.Equal("Collapsed", (string?)folderIconFilled.Attribute("Visibility"));
+        Assert.False(string.IsNullOrWhiteSpace((string?)folderIconFilled.Attribute("Data")));
+
+        var template = tree.Descendants(ns + "HierarchicalDataTemplate").Single();
+        var triggers = template.Element(ns + "HierarchicalDataTemplate.Triggers")!;
+
+        var filledTrigger = triggers.Elements(ns + "DataTrigger").Single(trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsFilledFolderIcon") == true);
+        Assert.Equal("True", (string?)filledTrigger.Attribute("Value"));
+        Assert.Contains(filledTrigger.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("TargetName") == "FolderIcon" && (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Collapsed");
+        Assert.Contains(filledTrigger.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("TargetName") == "FolderIconFilled" && (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Visible");
+
+        // Neither IsSelected nor IsRecursiveScope drives the icon directly anymore \u2014 both feed only the
+        // derived IsFilledFolderIcon, so trigger-precedence ordering can never let one mask the other.
+        Assert.DoesNotContain(triggers.Elements(ns + "DataTrigger"),
+            trigger => (string?)trigger.Attribute("Binding") == "{Binding IsSelected}");
+        Assert.DoesNotContain(triggers.Elements(ns + "DataTrigger"),
+            trigger => (string?)trigger.Attribute("Binding") == "{Binding IsRecursiveScope}");
+
+        // Only the pre-existing Expanded handler remains — no Collapsed EventSetter (unneeded now that
+        // icon state is derived per-row from Catalog data rather than the outline's live selection bounds).
+        var itemStyle = tree.Descendants(ns + "Style")
+            .Single(style => (string?)style.Attribute("TargetType") == "TreeViewItem");
+        Assert.Contains(itemStyle.Elements(ns + "EventSetter"), setter =>
+            (string?)setter.Attribute("Event") == "Expanded" &&
+            (string?)setter.Attribute("Handler") == "BrowserFolderTreeItem_Expanded");
+        Assert.DoesNotContain(itemStyle.Elements(ns + "EventSetter"), setter =>
+            (string?)setter.Attribute("Event") == "Collapsed");
+    }
+
+    [Fact]
+    public void BrowserTreeItemStyle_SelectedRowsKeepTheirAccentBorderRegardlessOfKeyboardFocusLocation()
+    {
+        // #124: hands-on testing found the current Browser location's row appeared to lose its "selected" look
+        // entirely the moment keyboard focus moved away from the tree (to the media grid, toolbar, or search
+        // box) — the accent HeaderChrome BorderBrush was keyed only to IsKeyboardFocused (true only while this
+        // exact TreeViewItem literally holds keyboard focus), while ShellSelectionBrush's own row fill
+        // (#282129) is deliberately subtle and, alone, reads as barely distinguishable from an unselected row
+        // against this dark theme. The border must persist for as long as the row IS the selected/current
+        // location, independent of where keyboard focus currently sits.
+        var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
+        var ns = app.Root!.Name.Namespace;
+        var itemStyle = app.Descendants(ns + "Style").Single(style => style.Attributes()
+            .Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "BrowserTreeItemStyle"));
+        var chromeStyleTriggers = itemStyle.Descendants(ns + "Style")
+            .Single(style => (string?)style.Attribute("TargetType") == "Border").Element(ns + "Style.Triggers")!;
+
+        var selectedBorderTrigger = chromeStyleTriggers.Elements(ns + "DataTrigger").Where(trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsSelected") == true &&
+            trigger.Elements(ns + "Setter").Any(setter => (string?)setter.Attribute("Property") == "BorderBrush"));
+        Assert.NotEmpty(selectedBorderTrigger);
+        Assert.All(selectedBorderTrigger, trigger => Assert.Equal("{StaticResource ShellFocusBrush}",
+            (string?)trigger.Elements(ns + "Setter").Single(setter => (string?)setter.Attribute("Property") == "BorderBrush")
+                .Attribute("Value")));
+
+        // The background fill still persists for a selected row regardless of focus too.
+        var selectedBackgroundTrigger = chromeStyleTriggers.Elements(ns + "DataTrigger").Single(trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsSelected") == true &&
+            trigger.Elements(ns + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Background"));
+        Assert.Equal("{StaticResource ShellSelectionBrush}", (string?)selectedBackgroundTrigger
+            .Elements(ns + "Setter").Single(setter => (string?)setter.Attribute("Property") == "Background").Attribute("Value"));
+
+        // Keyboard-focus feedback is preserved (not removed), it just no longer gates the selected treatment.
+        Assert.Contains(chromeStyleTriggers.Elements(ns + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsKeyboardFocused") == true &&
+            trigger.Elements(ns + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "BorderBrush" &&
+                (string?)setter.Attribute("Value") == "{StaticResource ShellFocusBrush}"));
+    }
+
+    [Fact]
+    public void RecursiveFilledIconGlyphs_AreVectorPathsNotFontGlyphSwapsAndMatchTheOutlineIconsLayoutFootprint()
+    {
+        // The "filled" state used to swap a font glyph's Text property (first to a two-folder stack, then to
+        // U+E838) - both read as an "open" folder rather than a genuinely filled one in hands-on testing. The
+        // fix is a small hand-authored Path silhouette shown/hidden via Visibility instead, so this confirms
+        // that swap pattern is fully gone (in both the tree row and the toolbar toggle) and that the two icon
+        // states occupy the same on-screen footprint (no Margin difference that would shift anything beside them).
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+
+        var textSwapSetters = document.Descendants(ns + "Setter")
+            .Where(setter => (string?)setter.Attribute("Property") == "Text" &&
+                new[] { "FolderIcon", "ScopeGlyph", "ScopeGlyphOutline" }.Contains((string?)setter.Attribute("TargetName")))
+            .ToArray();
+        Assert.Empty(textSwapSetters);
+
+        var folderIconFilled = Named(document, "FolderIconFilled");
+        Assert.Null(folderIconFilled.Attribute("Margin"));
+        Assert.Equal("15", (string?)folderIconFilled.Attribute("Width"));
+        Assert.Equal("13", (string?)folderIconFilled.Attribute("Height"));
+
+        var scopeGlyphFilled = Named(document, "ScopeGlyphFilled");
+        Assert.Null(scopeGlyphFilled.Attribute("Margin"));
+        Assert.Equal("15", (string?)scopeGlyphFilled.Attribute("Width"));
+        Assert.Equal("13", (string?)scopeGlyphFilled.Attribute("Height"));
     }
 
     [Fact]

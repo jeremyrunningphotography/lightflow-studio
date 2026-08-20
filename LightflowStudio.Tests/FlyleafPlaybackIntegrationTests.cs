@@ -6,7 +6,7 @@ using Xunit;
 
 namespace LightflowStudio.Tests;
 
-[Collection("Flyleaf playback integration")]
+[Collection("STA dispatcher tests")]
 public sealed class FlyleafPlaybackIntegrationTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-playback-integration-").FullName;
@@ -32,6 +32,13 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
 
         await StaDispatcher.RunAsync(async () =>
         {
+            // Flyleaf's own player engine creates (and, on disposal, shuts down) its own
+            // System.Windows.Application if none exists yet when it first needs one — WPF permits only one
+            // Application per process, ever, and once shut down, Application.Current goes back to null with no
+            // way to construct a replacement. Establishing ours first, here, means Flyleaf finds one already
+            // present and (being a well-behaved WPF citizen) reuses rather than owns/tears it down, so it stays
+            // valid for every other live-WPF test (Browser*LiveInteractionTests) later in the same process.
+            TestWpfApplication.EnsureLoaded();
             await using var backend = new FlyleafPlaybackBackend(dependencies);
             await using var playback = new MediaPlaybackService(backend);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -107,6 +114,7 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
 
         await StaDispatcher.RunAsync(async () =>
         {
+            TestWpfApplication.EnsureLoaded();
             await using var coordinator = new MediaPlaybackCoordinator(() =>
                 new MediaPlaybackService(new FlyleafPlaybackBackend(dependencies)));
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
@@ -173,8 +181,19 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
     }
 }
 
-[CollectionDefinition("Flyleaf playback integration", DisableParallelization = true)]
-public sealed class FlyleafPlaybackIntegrationCollection;
+/// <summary>
+/// Every test that drives StaDispatcher's one shared background STA thread — real media playback here, real
+/// WPF Window/Application construction in the Browser*LiveInteractionTests classes — shares this single
+/// collection. xUnit only serializes tests *within* one collection; different collections are free to run
+/// concurrently on separate xUnit worker threads, and since BeginInvoke-queued async callbacks yield control
+/// back to the dispatcher's own queue at their first await (returning to the message loop before the whole
+/// callback finishes), two callbacks queued from two different, concurrently-running collections can genuinely
+/// interleave their bodies on that one shared thread — which is exactly how two Application/Window-related
+/// callbacks each seeing a consistent snapshot of Application.Current could still race WPF's "only one
+/// Application per process, ever" restriction. One collection removes that interleaving entirely.
+/// </summary>
+[CollectionDefinition("STA dispatcher tests", DisableParallelization = true)]
+public sealed class StaDispatcherTestsCollection;
 
 internal static class StaDispatcher
 {

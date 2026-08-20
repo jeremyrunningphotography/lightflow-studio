@@ -100,9 +100,34 @@ public sealed class WorkspaceRestorationRegressionTests
         var body = source[methodStart..methodEnd];
 
         Assert.DoesNotContain("await", body);
-        Assert.Contains("BrowserLoadingText.Text", body);
-        Assert.Contains("BrowserLoadingOverlay.Visibility = Visibility.Visible;", body);
-        Assert.Contains("BrowserEmptyState.Visibility = Visibility.Collapsed;", body);
+        // #124 (further revised): the actual text/overlay/empty-state mechanics now live centrally in
+        // ShowBrowserLoadingState (see ShowBrowserLoadingState_RetiresStaleEmptyStateBeforeShowingIndeterminateLoading
+        // below), shared with ordinary navigation, so both paths retire a stale empty state identically.
+        Assert.Contains("ShowBrowserLoadingState(", body);
+    }
+
+    [Fact]
+    public void ShowBrowserLoadingState_RetiresStaleEmptyStateBeforeShowingIndeterminateLoading()
+    {
+        // The root cause of a stale empty/failure message overlapping a new navigation's loading presentation
+        // was that entering Loading never retired the previous Empty state. This is the single authoritative
+        // entry point for that transition — both ShowBrowserRestoringState (startup restoration) and
+        // RunBrowserNavigationAsync (every ordinary navigation) go through it, so a completed scope's empty
+        // state can never survive into a new navigation generation's loading presentation.
+        var source = Source();
+        var methodStart = source.IndexOf("private void ShowBrowserLoadingState", StringComparison.Ordinal);
+        Assert.True(methodStart >= 0, "ShowBrowserLoadingState not found in MainWindow.xaml.cs");
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.DoesNotContain("await", body);
+        var textSet = body.IndexOf("BrowserLoadingText.Text = label;", StringComparison.Ordinal);
+        var emptyHidden = body.IndexOf("BrowserEmptyState.Visibility = Visibility.Collapsed;", StringComparison.Ordinal);
+        var progressReset = body.IndexOf("ResetBrowserLoadingProgress();", StringComparison.Ordinal);
+        var overlayShown = body.IndexOf("BrowserLoadingOverlay.Visibility = Visibility.Visible;", StringComparison.Ordinal);
+        Assert.True(textSet >= 0 && emptyHidden > textSet && progressReset > emptyHidden && overlayShown > progressReset,
+            "A new loading sequence must retire the stale empty/failure state and begin indeterminate before " +
+            "the overlay appears, so empty/failure and loading presentations can never render simultaneously.");
     }
 
     [Fact]
@@ -157,17 +182,73 @@ public sealed class WorkspaceRestorationRegressionTests
     }
 
     [Fact]
+    public void RestoreBrowserLocationAsync_RoutesSuccessThroughTheSameSharedFinalizationOrdinaryNavigationUses()
+    {
+        // A restored navigation that reaches Ready/Empty must finalize through the exact same
+        // ApplyBrowserSuccessState (and therefore ApplyBrowserState) every interactive navigation already
+        // uses — never a separate, restoration-only path for toolbar-enabling/empty-state/grid visibility.
+        var source = Source();
+        var methodStart = source.IndexOf("private async Task RestoreBrowserLocationAsync", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("ApplyBrowserSuccessState(result.State, generation)", body);
+    }
+
+    [Fact]
+    public void RequestBrowserTreeSelection_DefersTheSynchronizingResetPastAsyncContainerRealization()
+    {
+        // Root cause of a startup-restoration regression: for a folder never visited before (the routine
+        // startup-restoration case, especially several levels deep), setting BrowserTreeNode.IsSelected/
+        // IsExpanded does not synchronously produce the TreeViewItem-side IsSelected/Expanded WPF raises
+        // SelectedItemChanged/Expanded from — that only happens once WPF actually generates a container for
+        // the node, deferred to a later layout pass. Resetting _synchronizingBrowserTree back to false
+        // synchronously (immediately after BrowserTreeModel.RequestSelection returns) let that later, deferred
+        // event slip past the guard unprotected, get mistaken for a real interactive selection, and
+        // re-trigger navigation — bumping _browserUiGeneration and silently invalidating the restoration
+        // that was still genuinely in flight, so it never reached ApplyBrowserSuccessState at all. The fix:
+        // both overloads defer the reset to the same DispatcherPriority.Loaded pass
+        // BringBrowserTreeNodeIntoView already waits for, rather than resetting synchronously in a `finally`.
+        var source = Source();
+
+        var locationMethodStart = source.IndexOf("private void RequestBrowserTreeSelection(BrowserLocation? location)", StringComparison.Ordinal);
+        var locationMethodEnd = source.IndexOf("\n    private", locationMethodStart + 1, StringComparison.Ordinal);
+        var locationBody = source[locationMethodStart..locationMethodEnd];
+        Assert.Contains("DeferBrowserTreeSynchronizingReset();", locationBody);
+        Assert.DoesNotContain("finally { _synchronizingBrowserTree = false; }", locationBody);
+
+        var pathMethodStart = source.IndexOf("private void RequestBrowserTreeSelection(string absolutePath)", StringComparison.Ordinal);
+        var pathMethodEnd = source.IndexOf("\n    private", pathMethodStart + 1, StringComparison.Ordinal);
+        var pathBody = source[pathMethodStart..pathMethodEnd];
+        Assert.Contains("DeferBrowserTreeSynchronizingReset();", pathBody);
+        Assert.DoesNotContain("finally { _synchronizingBrowserTree = false; }", pathBody);
+
+        var deferMethodStart = source.IndexOf("private void DeferBrowserTreeSynchronizingReset()", StringComparison.Ordinal);
+        Assert.True(deferMethodStart >= 0, "DeferBrowserTreeSynchronizingReset not found in MainWindow.xaml.cs");
+        var deferMethodEnd = source.IndexOf("\n    private", deferMethodStart + 1, StringComparison.Ordinal);
+        var deferBody = source[deferMethodStart..deferMethodEnd];
+        Assert.Contains("Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => _synchronizingBrowserTree = false)", deferBody);
+
+        // The interactive-click overload (an already-realized row) is deliberately unchanged — its target
+        // node's container already exists, so its selection applies synchronously and needs no deferral.
+        var nodeMethodStart = source.IndexOf("private void RequestBrowserTreeSelection(BrowserTreeNode node)", StringComparison.Ordinal);
+        var nodeMethodEnd = source.IndexOf("\n    private", nodeMethodStart + 1, StringComparison.Ordinal);
+        var nodeBody = source[nodeMethodStart..nodeMethodEnd];
+        Assert.Contains("finally { _synchronizingBrowserTree = false; }", nodeBody);
+    }
+
+    [Fact]
     public void RunBrowserNavigationAsync_ResetsTheLoadingLabelSoRestorationsCustomTextNeverLeaksIntoOrdinaryNavigation()
     {
         var source = Source();
         var methodStart = source.IndexOf("private async Task RunBrowserNavigationAsync", StringComparison.Ordinal);
         var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
         var body = source[methodStart..methodEnd];
-        var textReset = body.IndexOf("BrowserLoadingText.Text = \"Loading folder…\";", StringComparison.Ordinal);
-        var overlayShown = body.IndexOf("BrowserLoadingOverlay.Visibility = Visibility.Visible;", StringComparison.Ordinal);
-
-        Assert.True(textReset >= 0 && overlayShown > textReset,
-            "Ordinary navigation must reset the loading label to its generic text before showing the overlay.");
+        // #124 (further revised): the label is scope-mode-aware (a ternary covering recursive scanning too)
+        // and passed straight into ShowBrowserLoadingState, which now owns clearing any stale presentation —
+        // this only asserts the direct-mode text still exists and is routed through that shared entry point.
+        Assert.Contains("ShowBrowserLoadingState(", body);
+        Assert.Contains("\"Loading folder…\"", body);
     }
 
     [Fact]

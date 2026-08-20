@@ -22,10 +22,13 @@ public sealed class WorkspaceStateStoreTests : IDisposable
     [Fact]
     public void SaveAndLoad_RoundTripsEveryPersistedSection()
     {
+        // IncludeSubfolders is deprecated/inert (#124 revised: recursive-scope state now lives in the Catalog)
+        // but must still round-trip for documents that already contain it — legacy-read-compatibility only.
         var rootId = Guid.NewGuid();
         var state = new WorkspaceState
         {
-            Browser = new() { RootId = rootId, RelativeFolder = "Trips/Iceland", LastResolvedAbsolutePath = @"D:\Trips\Iceland" },
+            Browser = new() { RootId = rootId, RelativeFolder = "Trips/Iceland", LastResolvedAbsolutePath = @"D:\Trips\Iceland",
+                IncludeSubfolders = true },
             Window = new() { Width = 1500, Height = 950, Left = 40, Top = 20, IsMaximized = true },
             Layout = new() { BrowserLocationsPaneWidth = 300 }
         };
@@ -36,12 +39,43 @@ public sealed class WorkspaceStateStoreTests : IDisposable
         Assert.Equal(rootId, loaded.Browser!.RootId);
         Assert.Equal("Trips/Iceland", loaded.Browser.RelativeFolder);
         Assert.Equal(@"D:\Trips\Iceland", loaded.Browser.LastResolvedAbsolutePath);
+        Assert.True(loaded.Browser.IncludeSubfolders);
         Assert.Equal(1500, loaded.Window!.Width);
         Assert.Equal(950, loaded.Window.Height);
         Assert.Equal(40, loaded.Window.Left);
         Assert.Equal(20, loaded.Window.Top);
         Assert.True(loaded.Window.IsMaximized);
         Assert.Equal(300, loaded.Layout!.BrowserLocationsPaneWidth);
+    }
+
+    [Fact]
+    public void SaveAndLoad_DirectFolderModeRoundTripsAsFalse()
+    {
+        var state = new WorkspaceState
+        {
+            Browser = new() { RootId = Guid.NewGuid(), RelativeFolder = "Trips", IncludeSubfolders = false }
+        };
+
+        WorkspaceStateStore.Save(StatePath, state);
+        var loaded = WorkspaceStateStore.Load(StatePath);
+
+        Assert.False(loaded.Browser!.IncludeSubfolders);
+    }
+
+    [Fact]
+    public void Load_LegacyDocumentWithoutIncludeSubfoldersDefaultsToDirectFolderMode()
+    {
+        // #124 predates this field: a document written by an older build (or hand-edited without it) must
+        // never silently resurrect a recursive view on restore.
+        Directory.CreateDirectory(_folder);
+        var rootId = Guid.NewGuid();
+        File.WriteAllText(StatePath,
+            "{\"Version\":1,\"Browser\":{\"RootId\":\"" + rootId + "\",\"RelativeFolder\":\"Trips\"}}");
+
+        var loaded = WorkspaceStateStore.Load(StatePath);
+
+        Assert.Equal(rootId, loaded.Browser!.RootId);
+        Assert.False(loaded.Browser.IncludeSubfolders);
     }
 
     [Fact]
@@ -236,6 +270,9 @@ public sealed class WorkspaceStateServiceTests
         service.SetBrowserLocationsPaneWidth(310);
 
         Assert.Equal(rootId, service.Current.Browser!.RootId);
+        // #124 (revised): recursive-scope state now lives in the Catalog, not workspace state — SetBrowserLocation
+        // never sets IncludeSubfolders, so it stays at its default even after a location is remembered.
+        Assert.False(service.Current.Browser.IncludeSubfolders);
         Assert.Equal(1300, service.Current.Window!.Width);
         Assert.Equal(310, service.Current.Layout!.BrowserLocationsPaneWidth);
         Assert.False(File.Exists(path));

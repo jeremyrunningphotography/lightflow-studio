@@ -13,6 +13,17 @@ internal sealed record WorkspaceBrowserLocationState
     public Guid RootId { get; init; }
     public string RelativeFolder { get; init; } = "";
     public string? LastResolvedAbsolutePath { get; init; }
+
+    /// <summary>
+    /// #124 (superseded): recursive-scope configuration is now durable, user-authored Catalog data — see
+    /// <see cref="BrowserRecursiveRoot"/> — not workspace/session state, since it must survive application
+    /// restarts, navigating elsewhere, and Media Root remapping independent of whatever Browser folder
+    /// happens to be open when Lightflow closes. This property is kept only so a document written by the
+    /// short-lived earlier revision of this feature still deserializes without error; it is never written by
+    /// <see cref="WorkspaceStateService.SetBrowserLocation"/> and never read to control effective recursive
+    /// mode. Do not use it for anything new.
+    /// </summary>
+    public bool IncludeSubfolders { get; init; }
 }
 
 /// <summary>Desktop window bounds. <see cref="Width"/>/<see cref="Height"/>/<see cref="Left"/>/<see cref="Top"/> are always the restored (non-maximized, non-minimized) bounds.</summary>

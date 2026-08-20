@@ -91,7 +91,10 @@
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         <Setter TargetName="ScopeGlyphOutline" Property="Visibility" Value="Collapsed"/>
         <Setter TargetName="ScopeGlyphFilled" Property="Visibility" Value="Visible"/>
-        <Setter TargetName="ScopeGlyphFilled" Property="Fill" Value="{StaticResource TextBrush}"/>
+        <!-- Same accent this style already uses for its own checked-state Chrome border, so the active
+             toolbar icon and filled recursive tree icons read as one coherent Lightflow accent language
+             rather than the tree's own separate folder color. -->
+        <Setter TargetName="ScopeGlyphFilled" Property="Fill" Value="{StaticResource ShellFocusBrush}"/>
        </Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
@@ -310,7 +313,11 @@
              <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
              <TextBlock x:Name="FolderIcon" VerticalAlignment="Center" TextAlignment="Center" Foreground="#E4B85A"
               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Text="&#xE8B7;"/>
-             <Path x:Name="FolderIconFilled" Visibility="Collapsed" Fill="#E4B85A" Stretch="Uniform"
+             <!-- Filled icons use the same Lightflow accent brush BrowserScopeToggleButtonStyle's own
+                  checked-state border already uses (ShellFocusBrush), not the outline glyph's own folder
+                  color — a folder being active in Browser scope semantics reads as distinctly Lightflow
+                  rather than as a generic (Explorer-like) filled-folder color. -->
+             <Path x:Name="FolderIconFilled" Visibility="Collapsed" Fill="{StaticResource ShellFocusBrush}" Stretch="Uniform"
               Width="15" Height="13" HorizontalAlignment="Center" VerticalAlignment="Center"
               Data="M1,2 L6,2 L7.5,4 L15,4 L15,12 L1,12 Z"/>
              <TextBlock x:Name="FolderLabel" Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding DisplayName, Mode=OneWay}" TextTrimming="CharacterEllipsis"/>

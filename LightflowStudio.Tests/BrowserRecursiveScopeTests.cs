@@ -260,6 +260,37 @@ public sealed class BrowserRecursiveScopeTests
     }
 
     [Fact]
+    public async Task DiscoverAsync_FoldersVisitedNeverDecreasesAcrossConsecutiveReportsForOneRecursiveWalk()
+    {
+        // The progress bar represents ONE continuous recursive-scope operation — FoldersVisited must never
+        // regress mid-walk (it may only hold steady or grow), even though FoldersDiscovered can grow faster
+        // than FoldersVisited as wide folders are found (a proportional step backward in the on-screen
+        // percentage is expected and fine; an outright reset to a lower absolute visited count is not).
+        const int width = 12;
+        var rootId = Guid.NewGuid();
+        var listings = new Dictionary<string, MediaFolderEnumerationResult>
+        {
+            [""] = Listing(rootId, "", [.. Enumerable.Range(0, width).Select(index => Dir(rootId, $"F{index}"))])
+        };
+        foreach (var index in Enumerable.Range(0, width))
+            listings[$"F{index}"] = Listing(rootId, $"F{index}", FileEntry(rootId, $"F{index}/clip.mp4"));
+        var service = new RecursiveMediaDiscoveryService(new MapFolders(listings), new MapDiscovery(rootId),
+            maximumConcurrentFolders: 3);
+        var progress = new RecordingProgress<RecursiveScopeProgress>();
+
+        var result = await service.DiscoverAsync(new(rootId, null), progress: progress);
+
+        Assert.True(result.Succeeded);
+        Assert.True(progress.Reports.Count > width, "Expected at least one report per discovered/visited folder.");
+        var visited = progress.Reports.Select(report => report.FoldersVisited).ToArray();
+        for (var index = 1; index < visited.Length; index++)
+            Assert.True(visited[index] >= visited[index - 1],
+                $"FoldersVisited regressed from {visited[index - 1]} to {visited[index]} at report {index} — " +
+                "one recursive walk must never look like it restarted partway through.");
+        Assert.Equal(width + 1, visited[^1]); // base folder + every descendant, all ultimately visited
+    }
+
+    [Fact]
     public async Task DiscoverAsync_NeverThrowsOrRequiresAProgressReporter()
     {
         var rootId = Guid.NewGuid();

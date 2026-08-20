@@ -123,6 +123,16 @@ public partial class MainWindow : Window
         _browserRecursiveRefreshDebounceTimer.Tick += (_, _) =>
         {
             _browserRecursiveRefreshDebounceTimer.Stop();
+            // #124: a relevant monitoring event arriving while a load is already in flight — most commonly the
+            // recursive scan's own folder reads, which some drives/watchers (particularly removable/network
+            // media) report back as spurious "changed" notifications — must never restart it from scratch. The
+            // in-flight load already performs a full, current enumerate+reconcile pass over the same scope and
+            // will reflect this change once it completes; starting a second one here would cancel it mid-walk
+            // (Begin() latest-wins) and silently reset FoldersVisited to zero, making one continuous recursive
+            // scan look like it keeps restarting. Monitoring is a hint only — explicit Refresh stays
+            // authoritative regardless — so it is safe to simply drop a hint that arrives mid-load rather than
+            // rescheduling it.
+            if (BrowserLoadingOverlay.Visibility == Visibility.Visible) return;
             _ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
         };
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
@@ -399,16 +409,51 @@ public partial class MainWindow : Window
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(node.AbsolutePath));
     }
 
+    /// <summary>
+    /// Expanding a folder — via the disclosure chevron, a double-click, or the keyboard — materializes its real
+    /// children (siblings) for lazy-loading, exactly like <see cref="RevealBrowserTreeAncestorsAsync"/> already
+    /// does for ancestors, but never selects it or navigates into it: hierarchy exploration and
+    /// selection/navigation are deliberately separate actions, matching a conventional tree control. Only a row
+    /// click or keyboard selection (<see cref="BrowserFolderTree_SelectedItemChanged"/>) changes Browser scope/
+    /// contents. Previously this called <c>RunBrowserNavigationAsync</c> directly — reusing "navigate here" as
+    /// the mechanism for fetching a real listing — which also selected the row and replaced the grid/address
+    /// bar on every expand, and (since <see cref="BrowserTreeModel.EnsurePathChain"/> expands every ancestor
+    /// while revealing a deep restored/direct-path location) could race a startup restoration's own in-flight
+    /// navigation for a completely different, shallower folder — the root cause of a startup fallback and of a
+    /// concurrent recursive scan losing its progress and silently restarting. Requires the node to already
+    /// carry a <see cref="BrowserTreeNode.RootId"/>: a bare, not-yet-anchored Volume row (a raw drive letter
+    /// never yet navigated into) has none, so its chevron is a no-op until the row is clicked once to establish
+    /// its Catalog anchor — a narrow, honest trade-off (never silently mis-navigating) rather than duplicating
+    /// filesystem-listing logic in WPF just to materialize an unanchored drive's children without a Catalog root.
+    /// </summary>
     private async void BrowserFolderTreeItem_Expanded(object sender, RoutedEventArgs e)
     {
         if (_synchronizingBrowserTree || (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node ||
-            node.IsPlaceholder || !node.Children.Any(child => child.IsPlaceholder)) return;
-        RequestBrowserTreeSelection(node);
-        if (node.Storage is { Kind: BrowserStorageKind.ManagedRoot, RootId: { } rootId })
-            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(rootId));
-        else if (!string.IsNullOrWhiteSpace(node.AbsolutePath))
-            await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(node.AbsolutePath));
+            node.IsPlaceholder || !node.Children.Any(child => child.IsPlaceholder) ||
+            node.RootId is not { } rootId || node.RelativeFolder is not { } relativeFolder)
+            return;
+
+        var root = await _storage.MediaRoots.GetAsync(rootId).ConfigureAwait(true);
+        if (root?.PhysicalPath is not { } rootPath) return;
+
+        MediaFolderEnumerationResult listing;
+        try
+        {
+            listing = await _storage.MediaFolders.EnumerateAsync(new(rootId, EmptyToNull(relativeFolder))).ConfigureAwait(true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            return;
+        }
+        if (!listing.Succeeded) return;
+
+        _synchronizingBrowserTree = true;
+        try { _browserTree.ApplyDirectoryListing(node, rootPath, listing.Entries); }
+        finally { _synchronizingBrowserTree = false; }
+        SyncBrowserTreeRecursiveIcons();
     }
+
+    private static string? EmptyToNull(string value) => value.Length == 0 ? null : value;
 
     private void RequestBrowserTreeSelection(BrowserTreeNode node)
     {

@@ -155,6 +155,27 @@ public sealed class BrowserLocationRestorationTests
     }
 
     [Fact]
+    public async Task RestoreAsync_ValidDeeplyNestedFolderRestoresExactlyWithoutFallingBackToAnAncestor()
+    {
+        // The remembered location itself (e.g. "Photography/DJI Neo 2", several levels deep) is still valid —
+        // restoration must settle on that exact folder and never walk further down the ancestor-fallback
+        // chain toward the Media Root, since the first (most specific) candidate already resolves.
+        var root = Root("Library", @"J:\Photography");
+        var roots = new FakeRoots(root);
+        var fileSystem = new FakeFileSystem(@"J:\Photography", @"J:\Photography\DJI Neo 2");
+        var discovery = new FakeDiscovery();
+        var folders = new FakeFolders((request, _) => Task.FromResult(Success(request, FileEntry(root.RootId, "DJI Neo 2/clip.mp4"))));
+        using var session = Session(roots, discovery, folders, fileSystem);
+
+        var result = await BrowserLocationRestoration.RestoreAsync(session, roots,
+            new() { RootId = root.RootId, RelativeFolder = "DJI Neo 2" });
+
+        Assert.Equal(BrowserRestorationOutcome.Restored, result.Outcome);
+        Assert.Equal("DJI Neo 2", result.State!.Location!.RelativeFolder);
+        Assert.Equal("DJI Neo 2", Assert.Single(discovery.Requests).RelativeFolder);
+    }
+
+    [Fact]
     public async Task RestoreAsync_DeletedDeepFolderFallsBackToTheNearestStillValidAncestor()
     {
         var root = Root("Library", @"C:\Library");

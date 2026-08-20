@@ -141,15 +141,17 @@ public partial class TrimEditorWindow : Window
         catch (Exception exception) { MessageText.Text = exception.Message; }
     }
 
+    /// <summary>
+    /// Before #110, this called <c>StepForwardAsync</c>/<c>StepBackwardAsync</c> with an implicit
+    /// <see cref="CancellationToken.None"/> — every repeated Next Frame click at the last decoded frame hung
+    /// for the engine's own internal 10-second timeout before showing an error. <see cref="PlaybackFrameStep"/>
+    /// (shared with #110's new <c>PlayerViewerHost</c>, the other UI consumer of this same underlying call)
+    /// bounds that instead — see <see cref="PlaybackFrameStep"/> for why its timeout is 5, not 2, seconds.
+    /// </summary>
     private async Task StepAsync(bool forward)
     {
         if (_service is null) return;
-        try
-        {
-            if (forward) await _service.StepForwardAsync();
-            else await _service.StepBackwardAsync();
-        }
-        catch (OperationCanceledException) { }
+        try { await PlaybackFrameStep.RunAsync(_service, forward); }
         catch (Exception exception) { MessageText.Text = exception.Message; }
     }
 

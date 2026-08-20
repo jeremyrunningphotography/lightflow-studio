@@ -85,6 +85,14 @@ public partial class MainWindow : Window
     // BrowserFolderState.RecursiveRoots. Cached here so Locations-tree icon sync never needs its own Catalog
     // round-trip; refreshed unconditionally in ApplyBrowserState alongside everything else that state drives.
     private IReadOnlyList<BrowserRecursiveRoot> _browserRecursiveRoots = [];
+    // #110: which content the Browser's central area currently shows. PlayerViewerHost is created lazily
+    // (first open) and reused for the rest of the app's lifetime rather than recreated per-asset — see
+    // EnsurePlayerViewerHost. _browserGridScrollViewer is resolved once from BrowserGridRows' own templated
+    // ScrollViewer (it lives inside a ControlTemplate, so it has no x:Name field of its own) and cached.
+    private BrowserPresentationMode _browserPresentation = BrowserPresentationMode.Grid;
+    private PlayerViewerHost? _playerViewerHost;
+    private ScrollViewer? _browserGridScrollViewer;
+    private double _browserGridScrollOffset;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -973,6 +981,12 @@ public partial class MainWindow : Window
         var scopeIdentity = state.Location is { } identityLocation
             ? (identityLocation.RootId, identityLocation.RelativeFolder, state.Mode)
             : ((Guid, string, BrowserScopeMode)?)null;
+        // #110: a genuine navigation/scope change (not a same-folder refresh) leaves whatever asset the
+        // Player/Viewer was showing behind — it belonged to the scope being left. A same-folder refresh
+        // (explicit Refresh, a relevant monitoring event) reaches this with an unchanged scopeIdentity and
+        // therefore never disturbs an open Player/Viewer, exactly like it already preserves selection below.
+        if (scopeIdentity != _browserScopeIdentity && _browserPresentation == BrowserPresentationMode.PlayerViewer)
+            _ = ReturnToBrowserGridAsync(restoreScrollOffset: false, focusGrid: false);
         if (scopeIdentity != _browserScopeIdentity) _browserGrid.ClearSelection();
         _browserScopeIdentity = scopeIdentity;
         // #124 (revised): the same round-trip that determined effective mode already fetched every stored
@@ -1184,6 +1198,16 @@ public partial class MainWindow : Window
     private void BrowserGridTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
+        // #110: a real double-click always opens, matching ordinary Explorer/media-browser convention,
+        // regardless of an incidental modifier key still down from the first click.
+        if (e.ClickCount >= 2)
+        {
+            _browserGrid.SelectSingle(tile.Index);
+            UpdateBrowserStatusText();
+            e.Handled = true;
+            _ = OpenBrowserPlayerViewerAsync(tile);
+            return;
+        }
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) _browserGrid.SelectRange(tile.Index);
         else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) _browserGrid.ToggleCtrl(tile.Index);
         else _browserGrid.SelectSingle(tile.Index);
@@ -1194,11 +1218,123 @@ public partial class MainWindow : Window
 
     private void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key != Key.A || !Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
-        _browserGrid.SelectAll();
-        UpdateBrowserStatusText();
-        e.Handled = true;
+        if (e.Key == Key.A && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            _browserGrid.SelectAll();
+            UpdateBrowserStatusText();
+            e.Handled = true;
+            return;
+        }
+        // #110: Enter opens the single selected item — a conservative reading of "open" for a keyboard user;
+        // opening a multi-selection is #111's filmstrip/review-set territory, deliberately not decided here.
+        if (e.Key == Key.Enter && _browserGrid.SelectedKeys.Count == 1)
+        {
+            var tile = _browserGrid.Tiles.FirstOrDefault(t => _browserGrid.SelectedKeys.Contains(t.Key));
+            if (tile is null) return;
+            e.Handled = true;
+            _ = OpenBrowserPlayerViewerAsync(tile);
+        }
     }
+
+    /// <summary>
+    /// #110: opens one tile into the Browser's Player/Viewer presentation state. Resolves the tile's stable
+    /// <c>RootId</c>+<c>RelativePath</c> identity to an absolute path through the same <see cref="IMediaRootService"/>
+    /// every other Catalog-identity consumer already uses (no second path-resolution mechanism), then always
+    /// switches presentation — an offline/missing file still opens into the Player/Viewer, which shows the
+    /// resolution's own diagnostic and leaves Back/Esc available, rather than silently failing on the grid.
+    /// Guarded by <see cref="_browserUiGeneration"/> — the same generation every other navigation-triggered
+    /// update already checks — so a fast Locations-tree click landing while this is still awaiting
+    /// <c>ResolveAsync</c> can never open a stale tile from the folder just left over the newly navigated one.
+    /// </summary>
+    private async Task OpenBrowserPlayerViewerAsync(BrowserGridTile tile)
+    {
+        var generation = _browserUiGeneration;
+        var asset = new PlayerViewerAsset(tile.RootId, tile.RelativePath, tile.Key, tile.Name,
+            MediaPresentationClassification.KindFor(tile.Category));
+        MediaPathResolution resolution;
+        // Unfiltered: this is a fire-and-forget UI entry point (invoked as `_ = OpenBrowserPlayerViewerAsync(tile)`
+        // from the tile double-click/Enter handler), matching RunBrowserNavigationAsync's own catch-all
+        // convention for the same reason — an unanticipated exception type here must still resolve to the
+        // "file unavailable" diagnostic path rather than silently do nothing as an unobserved task fault.
+        try { resolution = await _storage.MediaRoots.ResolveAsync(tile.RootId, tile.RelativePath).ConfigureAwait(true); }
+        catch (Exception exception)
+        {
+            resolution = new(tile.RootId, tile.RelativePath, tile.Key, null, MediaRootAvailability.Unavailable, false, exception.Message);
+        }
+        if (generation != _browserUiGeneration) return;
+
+        CaptureBrowserGridScrollOffset();
+        EnsurePlayerViewerHost();
+        SetBrowserPresentationMode(BrowserPresentationMode.PlayerViewer);
+        await _playerViewerHost!.OpenAsync(asset, resolution).ConfigureAwait(true);
+    }
+
+    private void EnsurePlayerViewerHost()
+    {
+        if (_playerViewerHost is not null) return;
+        _playerViewerHost = new PlayerViewerHost(App.Playback);
+        _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
+        BrowserPlayerHost.Content = _playerViewerHost;
+    }
+
+    private void SetBrowserPresentationMode(BrowserPresentationMode mode)
+    {
+        _browserPresentation = mode;
+        BrowserGridHost.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
+        BrowserPlayerHost.Visibility = mode == BrowserPresentationMode.PlayerViewer ? Visibility.Visible : Visibility.Collapsed;
+        // Presentation controls (thumbnail size) are Grid-specific; SyncBrowserStatusBarVisibility's own
+        // Browser-tab-active condition already covers whether the whole trailing group shows at all.
+        SyncBrowserStatusBarVisibility();
+    }
+
+    /// <summary>
+    /// Returns to Grid presentation, releasing whatever the Player/Viewer had open. Idempotent — safe to call
+    /// when already showing the grid. Presentation switches synchronously, <em>before</em> awaiting the actual
+    /// close: the underlying <see cref="PlayerViewerHost.CloseAsync"/> teardown is real async backend/native
+    /// work, and leaving the Player/Viewer (and any still-playing video/audio) visible until it settles would
+    /// mean the user keeps seeing/hearing the old asset even after <see cref="ApplyBrowserState"/> has already
+    /// repopulated the grid underneath it for a newly navigated folder. Switching first also means
+    /// <c>_browserPresentation != PlayerViewer</c> alone is enough to guard re-entry — a second trigger arriving
+    /// while the first's close is still pending sees Grid already active and no-ops, without needing a separate
+    /// in-flight flag. A throw from the close itself is therefore no longer presentation-state-critical (Grid
+    /// is already showing); it is still awaited so the caller's own fire-and-forget task fault (observed by
+    /// <c>App</c>'s unobserved-task-exception logging) reflects a genuine teardown failure rather than being
+    /// silently dropped. <paramref name="restoreScrollOffset"/>/<paramref name="focusGrid"/> are false only for
+    /// <see cref="ApplyBrowserState"/>'s auto-return on a genuine scope change: the captured scroll offset
+    /// belongs to the folder being left (applying it to the newly navigated folder's freshly populated grid
+    /// would scroll to an arbitrary, unrelated position instead of the top), and focus already belongs to
+    /// whatever the navigation that triggered this itself just focused (e.g. a Locations-tree row).
+    /// </summary>
+    private async Task ReturnToBrowserGridAsync(bool restoreScrollOffset = true, bool focusGrid = true)
+    {
+        if (_browserPresentation != BrowserPresentationMode.PlayerViewer) return;
+        var playerViewerHost = _playerViewerHost;
+        SetBrowserPresentationMode(BrowserPresentationMode.Grid);
+        if (restoreScrollOffset) RestoreBrowserGridScrollOffset();
+        if (focusGrid) BrowserGridRows.Focus();
+        if (playerViewerHost is not null) await playerViewerHost.CloseAsync().ConfigureAwait(true);
+    }
+
+    private void CaptureBrowserGridScrollOffset()
+    {
+        var scrollViewer = FindBrowserGridScrollViewer();
+        if (scrollViewer is not null) _browserGridScrollOffset = scrollViewer.VerticalOffset;
+    }
+
+    private void RestoreBrowserGridScrollOffset()
+    {
+        var scrollViewer = FindBrowserGridScrollViewer();
+        scrollViewer?.ScrollToVerticalOffset(_browserGridScrollOffset);
+    }
+
+    /// <summary>
+    /// BrowserGridRows' ScrollViewer lives inside its own ControlTemplate (see MainWindow.xaml's
+    /// BrowserGridScrollViewer), so it has no x:Name codegen field of its own — resolved once via the existing
+    /// FindDescendantByName visual-tree walk (already used for the #124 tree-icon diagnostics above) and
+    /// cached, rather than walked on every capture/restore.
+    /// </summary>
+    private ScrollViewer? FindBrowserGridScrollViewer() =>
+        _browserGridScrollViewer ??= FindDescendantByName(BrowserGridRows, "BrowserGridScrollViewer") as ScrollViewer;
 
     /// <summary>
     /// Applies <paramref name="transform"/> to the grid's current query and keeps every toolbar visual
@@ -1378,7 +1514,16 @@ public partial class MainWindow : Window
             _browserGrid.SelectedKeys.Count, _browserGrid.SelectedTotalSizeBytes, isGenerating, remaining);
     }
 
-    private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e) => SyncBrowserStatusBarVisibility();
+    private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        SyncBrowserStatusBarVisibility();
+        // #110: switching to another workspace while a video is open in the Player/Viewer must not leave it
+        // silently playing audio in a hidden tab. This pauses rather than returning to Grid — switching tabs
+        // is not "leaving" the Browser, so the open asset and its position stay exactly as the user left them.
+        if (MainTabs.SelectedIndex != ShellWorkspaceSelection.Index(ShellWorkspace.Browser) &&
+            _browserPresentation == BrowserPresentationMode.PlayerViewer && _playerViewerHost is not null)
+            _ = _playerViewerHost.PauseIfPlayingAsync();
+    }
 
     /// <summary>
     /// #126: one application-wide status strip rather than a Browser-specific bar stacked above an unrelated
@@ -1397,7 +1542,10 @@ public partial class MainWindow : Window
         var visibility = isBrowserActive ? Visibility.Visible : Visibility.Collapsed;
         BrowserStatusText.Visibility = visibility;
         BrowserStatusDivider.Visibility = visibility;
-        BrowserPresentationControls.Visibility = visibility;
+        // #110: thumbnail size only applies to Grid presentation — hidden while the Player/Viewer is showing,
+        // exactly as it is already hidden outside the Browser tab entirely.
+        BrowserPresentationControls.Visibility = isBrowserActive && _browserPresentation == BrowserPresentationMode.Grid
+            ? Visibility.Visible : Visibility.Collapsed;
         if (isBrowserActive) UpdateBrowserStatusText();
     }
 

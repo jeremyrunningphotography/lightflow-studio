@@ -109,7 +109,8 @@ internal sealed class WicImageThumbnailRenderer(int maximumPixelDimension = 512)
         }
     }
 
-    private static int ReadOrientation(BitmapMetadata? metadata)
+    /// <summary>Internal (not private) so <see cref="PlayerViewerHost"/> can reuse the identical EXIF-orientation read for its full-resolution Viewer decode rather than a second copy of this parsing.</summary>
+    internal static int ReadOrientation(BitmapMetadata? metadata)
     {
         try
         {

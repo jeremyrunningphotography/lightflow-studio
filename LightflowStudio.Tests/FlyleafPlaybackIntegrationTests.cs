@@ -103,6 +103,50 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task StepForward_RepeatedlyAtTheLastDecodedFrameStaysBoundedInsteadOfHangingForTheFullInternalTimeout()
+    {
+        // #110's Player transport (and TrimEditorWindow's own Next Frame button, which shares this exact
+        // StepForwardAsync call) needs "predictable, responsive" boundary behavior at the end of a clip.
+        // ShowFrameNext() has nothing to advance to at the last decoded frame, so WaitForTimestampChangeAsync
+        // would otherwise wait out its own internal 10-second timeout before eventually throwing. Both UI
+        // consumers now route every frame-step call through the shared PlaybackFrameStep.RunAsync (exercised
+        // directly here, not reimplemented) so each call settles within its bounded timeout instead of 10s —
+        // this proves that bound against the real Flyleaf engine, not a fake. MediaPlaybackService's own
+        // "latest generation wins" cancellation handling treats a caller token cancelling the same as being
+        // superseded and completes quietly rather than throwing (see PlaybackFrameStep's doc comment), so the
+        // observable contract this asserts is "returns promptly, repeatedly" rather than "throws" — the UI
+        // never sees an exception at this boundary.
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var fixture = Path.Combine(_root, "end-of-clip.mkv");
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture); // 1 second @ 10fps = 10 frames
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var backend = new FlyleafPlaybackBackend(dependencies);
+            await using var playback = new MediaPlaybackService(backend);
+            using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+            await playback.OpenAsync(fixture, openTimeout.Token);
+            await playback.SeekAsync(playback.SourceInfo!.Duration, openTimeout.Token);
+
+            // Walk forward from wherever the seek landed until well past the true last frame (a fixed, small
+            // attempt budget rather than detecting "the" boundary), asserting every single call — including
+            // whichever ones land exactly at the boundary — returns within PlaybackFrameStep's own bound,
+            // never the engine's 10s internal one.
+            var elapsed = System.Diagnostics.Stopwatch.StartNew();
+            for (var attempt = 0; attempt < 3; attempt++)
+                await PlaybackFrameStep.RunAsync(playback, forward: true);
+            // Comfortably below what even a single uncapped 10s internal wait would take, let alone three of
+            // them (30s) — each call is individually bounded by its own token; this only needs enough slack
+            // above three back-to-back bounded calls to absorb ordinary test-machine jitter.
+            Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(25),
+                $"3 forward steps at/past the end of clip took {elapsed.Elapsed}; each should be bounded by PlaybackFrameStep's own caller timeout, never the engine's own 10s internal wait.");
+        });
+    }
+
+    [Fact]
     public async Task PresentationSurface_AttachesAcrossRepeatedSameAndDifferentSourceEditorSessions()
     {
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()

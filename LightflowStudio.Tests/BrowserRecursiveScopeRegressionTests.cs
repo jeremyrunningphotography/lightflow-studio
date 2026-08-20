@@ -55,7 +55,10 @@ public sealed class BrowserRecursiveScopeRegressionTests
     public void ApplyBrowserState_SyncsTheScopeToggleAndItsEnabledStateAndTheTreesRecursiveIcons()
     {
         var body = MethodBody("private void ApplyBrowserState");
-        Assert.Contains("BrowserIncludeSubfoldersButton.IsEnabled = state.Location is not null;", body);
+        // #124: superseded by SyncBrowserSubfoldersCapability(state) — Include Subfolders additionally
+        // disables itself for a folder that definitively has no child folders of its own, unless it is already
+        // effectively recursive (see BrowserTreeInteractionRegressionTests for that method's own coverage).
+        Assert.Contains("SyncBrowserSubfoldersCapability(state);", body);
         Assert.Contains("SyncBrowserScopeToggle();", body);
         Assert.Contains("SyncBrowserTreeRecursiveIcons();", body);
         // The full stored Catalog root list arrives on the very state that already determined effective mode

@@ -454,19 +454,32 @@ public partial class MainWindow : Window
     /// navigation for a completely different, shallower folder — the root cause of a startup fallback and of a
     /// concurrent recursive scan losing its progress and silently restarting. Requires the node to already
     /// carry a <see cref="BrowserTreeNode.RootId"/>: a bare, not-yet-anchored Volume row (a raw drive letter
-    /// never yet navigated into) has none, so its chevron is a no-op until the row is clicked once to establish
-    /// its Catalog anchor — a narrow, honest trade-off (never silently mis-navigating) rather than duplicating
-    /// filesystem-listing logic in WPF just to materialize an unanchored drive's children without a Catalog root.
+    /// never yet navigated into) has none, so materialization cannot proceed until the row is clicked once to
+    /// establish its Catalog anchor — a narrow, honest trade-off (never silently mis-navigating) rather than
+    /// duplicating filesystem-listing logic in WPF just to materialize an unanchored drive's children without a
+    /// Catalog root. Every path that cannot materialize real children (missing anchor, a root that no longer
+    /// resolves to a physical path, an enumeration failure or exception) collapses the node back via
+    /// <see cref="CollapseUnmaterializableNode"/> rather than returning early and leaving its "Loading…"
+    /// placeholder child stuck showing forever with no further feedback — an honest closed/re-expandable
+    /// chevron, not a false promise of in-progress work.
     /// </summary>
     private async void BrowserFolderTreeItem_Expanded(object sender, RoutedEventArgs e)
     {
         if (_synchronizingBrowserTree || (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node ||
-            node.IsPlaceholder || !node.Children.Any(child => child.IsPlaceholder) ||
-            node.RootId is not { } rootId || node.RelativeFolder is not { } relativeFolder)
+            node.IsPlaceholder || !node.Children.Any(child => child.IsPlaceholder))
             return;
+        if (node.RootId is not { } rootId || node.RelativeFolder is not { } relativeFolder)
+        {
+            CollapseUnmaterializableNode(node);
+            return;
+        }
 
         var root = await _storage.MediaRoots.GetAsync(rootId).ConfigureAwait(true);
-        if (root?.PhysicalPath is not { } rootPath) return;
+        if (root?.PhysicalPath is not { } rootPath)
+        {
+            CollapseUnmaterializableNode(node);
+            return;
+        }
 
         MediaFolderEnumerationResult listing;
         try
@@ -475,14 +488,34 @@ public partial class MainWindow : Window
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
+            CollapseUnmaterializableNode(node);
             return;
         }
-        if (!listing.Succeeded) return;
+        if (!listing.Succeeded)
+        {
+            CollapseUnmaterializableNode(node);
+            return;
+        }
 
         _synchronizingBrowserTree = true;
         try { _browserTree.ApplyDirectoryListing(node, rootPath, listing.Entries); }
         finally { _synchronizingBrowserTree = false; }
         SyncBrowserTreeRecursiveIcons();
+    }
+
+    /// <summary>
+    /// Reverts a node's disclosure state to closed (still showing its lazy-load placeholder, untouched) after
+    /// an expand attempt that could not materialize real children — never leaves the "Loading…" placeholder
+    /// visibly stuck with no further feedback. The same reentrancy guard every other programmatic tree
+    /// mutation uses keeps this from re-triggering <see cref="BrowserFolderTreeItem_Expanded"/> itself. A
+    /// later, genuine expand attempt (e.g. after the row's own click has established a Catalog anchor, or once
+    /// a transient enumeration failure has cleared) runs this handler fresh and can still succeed.
+    /// </summary>
+    private void CollapseUnmaterializableNode(BrowserTreeNode node)
+    {
+        _synchronizingBrowserTree = true;
+        try { node.IsExpanded = false; }
+        finally { _synchronizingBrowserTree = false; }
     }
 
     private static string? EmptyToNull(string value) => value.Length == 0 ? null : value;
@@ -854,7 +887,7 @@ public partial class MainWindow : Window
         BrowserUpButton.IsEnabled = state.CanGoUp;
         BrowserRefreshButton.IsEnabled = state.Location is not null;
         BrowserQueryToolbar.IsEnabled = state.Location is not null;
-        BrowserIncludeSubfoldersButton.IsEnabled = state.Location is not null;
+        SyncBrowserSubfoldersCapability(state);
         SyncBrowserScopeToggle();
         SyncBrowserTreeRecursiveIcons();
         // Reveals the (now-current) grid content that ShowBrowserLoadingState hid at the start of this
@@ -891,6 +924,32 @@ public partial class MainWindow : Window
             _workspaceSaveTimer.Stop();
             _workspaceSaveTimer.Start();
         }
+    }
+
+    private const string BrowserIncludeSubfoldersDefaultToolTip =
+        "Include Subfolders — browse this folder and every descendant folder as one media set";
+
+    /// <summary>
+    /// #124: Include Subfolders only makes sense where establishing it would actually do something — a folder
+    /// with zero immediate child folders can never become a recursive root. <see cref="BrowserTreeNode.HasSubfolders"/>
+    /// answers this for free from data <see cref="ApplyBrowserState"/> (the only caller, right after
+    /// <see cref="BrowserTreeModel.Synchronize"/> populates the newly-selected node's real children) already
+    /// has on hand — never a synchronous filesystem probe from this control itself, and never forces the tree
+    /// to expand merely to answer the question. Effective recursive mode always wins regardless of the
+    /// selected folder's own children: disabling from an inherited recursive LEAF must stay possible (that is
+    /// how its governing ancestor root gets removed), so "no subfolders" only ever disables the OFF state, not
+    /// the ability to turn OFF an inherited ON. While the answer is still unknown (a not-yet-materialized
+    /// node, e.g. immediately after <see cref="BrowserNavigation_EffectiveScopeDetermined"/>'s early fast path
+    /// but before this method next runs), this method simply has not run yet for that generation — the button
+    /// keeps showing whatever its previous, still-valid state was rather than flashing disabled and back.
+    /// </summary>
+    private void SyncBrowserSubfoldersCapability(BrowserFolderState state)
+    {
+        var effectiveRecursive = state.Mode == BrowserScopeMode.IncludeSubfolders;
+        var definitelyNoSubfolders = _browserTree.SelectedNode?.HasSubfolders == false;
+        var noSubfolders = state.Location is not null && !effectiveRecursive && definitelyNoSubfolders;
+        BrowserIncludeSubfoldersButton.IsEnabled = state.Location is not null && !noSubfolders;
+        BrowserIncludeSubfoldersButton.ToolTip = noSubfolders ? "No subfolders" : BrowserIncludeSubfoldersDefaultToolTip;
     }
 
     /// <summary>Reflects the navigation session's current #124 effective scope mode on the toggle without re-entering its Click handler.</summary>

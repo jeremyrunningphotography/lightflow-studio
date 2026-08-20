@@ -76,6 +76,17 @@ internal sealed class BrowserTreeNode : INotifyPropertyChanged
     /// toward a not-yet-visited deep folder. Sibling folders are only trustworthy once this is true.
     /// </summary>
     public bool IsMaterialized { get; set; }
+
+    /// <summary>
+    /// #124: whether this folder has at least one immediate child folder — the "does Include Subfolders make
+    /// sense here" question, immediate-child-existence only, never descendant media. <see langword="null"/>
+    /// (unknown) while <see cref="Children"/> is still just the one lazy-load placeholder; otherwise a real
+    /// answer from an actual folder enumeration, with no separate filesystem probe of its own. For the
+    /// currently OPEN folder specifically, this becomes known "for free": <see cref="BrowserTreeModel.Synchronize"/>
+    /// already populates its direct children from the same <c>BrowserFolderState.Entries</c> every navigation
+    /// already fetches — this property just reads that existing data rather than duplicating discovery.
+    /// </summary>
+    public bool? HasSubfolders => Children.Count == 1 && Children[0].IsPlaceholder ? null : Children.Count > 0;
     public string? Diagnostic => Storage?.Diagnostic;
     public MediaRootAvailability Availability => Storage?.Availability ?? MediaRootAvailability.Online;
     public bool IsStorageLocation => Storage is not null;

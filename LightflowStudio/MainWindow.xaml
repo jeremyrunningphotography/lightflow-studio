@@ -483,31 +483,40 @@
          </ItemsControl>
         </StackPanel>
        </Border>
+       <!-- The one authoritative background for the whole media canvas (loading/content/empty/failure alike)
+            — every descendant surface between this Border and an individual tile's own card chrome is
+            deliberately Transparent (never merely unset) so nothing but this single Background can ever paint
+            behind the grid. UseLayoutRounding scopes pixel-snapping to this subtree specifically (rather than
+            the whole Window) — adjacent same-color panels/rows positioned at fractional device-pixel offsets
+            (routine for a "*"-sized row inside a Grid with several "Auto" siblings, see the toolbar rows
+            above) render with a faint anti-aliased seam between them even when their fill colors are
+            identical; rounding every descendant's layout to whole device pixels here removes that seam at its
+            source instead of papering over it with an opaque overlay. -->
        <Border Grid.Row="4" x:Name="BrowserGridHost" Style="{StaticResource ShellPanel}" Background="#0D0F13" Padding="14"
-        SizeChanged="BrowserGridHost_SizeChanged" MouseLeftButtonDown="BrowserGridHost_MouseLeftButtonDown">
-        <Grid>
-         <ItemsControl x:Name="BrowserGridRows" Focusable="True" KeyDown="BrowserGridRows_KeyDown"
+        UseLayoutRounding="True" SizeChanged="BrowserGridHost_SizeChanged" MouseLeftButtonDown="BrowserGridHost_MouseLeftButtonDown">
+        <Grid Background="Transparent">
+         <ItemsControl x:Name="BrowserGridRows" Background="Transparent" Focusable="True" KeyDown="BrowserGridRows_KeyDown"
           AutomationProperties.Name="Media grid"
           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">
           <ItemsControl.Template>
            <ControlTemplate TargetType="ItemsControl">
-            <ScrollViewer Focusable="False" Padding="{TemplateBinding Padding}"
+            <ScrollViewer Background="Transparent" Focusable="False" Padding="{TemplateBinding Padding}"
              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
              <ItemsPresenter/>
             </ScrollViewer>
            </ControlTemplate>
           </ItemsControl.Template>
           <ItemsControl.ItemsPanel>
-           <ItemsPanelTemplate><VirtualizingStackPanel Orientation="Vertical"/></ItemsPanelTemplate>
+           <ItemsPanelTemplate><VirtualizingStackPanel Orientation="Vertical" Background="Transparent"/></ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
            <DataTemplate DataType="{x:Type local:BrowserGridRow}">
-            <ItemsControl Focusable="False" ItemsSource="{Binding Tiles}">
+            <ItemsControl Background="Transparent" Focusable="False" ItemsSource="{Binding Tiles}">
              <!-- Horizontal, non-wrapping: each row already contains exactly as many tiles as
                   BrowserGridLayout.ComputeColumns fit, so this panel must never make its own
                   independent wrap decision that could disagree with that count and misalign rows. -->
              <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Background="Transparent"/></ItemsPanelTemplate>
              </ItemsControl.ItemsPanel>
              <ItemsControl.ItemTemplate>
               <DataTemplate DataType="{x:Type local:BrowserGridTile}">

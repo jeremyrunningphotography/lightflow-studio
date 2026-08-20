@@ -136,6 +136,52 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserGridHost_IsTheOneAuthoritativeMediaCanvasBackgroundWithEveryDescendantSurfaceLayerExplicitlyTransparent()
+    {
+        // #124: hands-on testing found visible vertical bands/seams across the media canvas — present with
+        // populated thumbnails, not just the empty state, ruling out an empty-state-specific cause. Two
+        // contributing structural issues, fixed together: (1) several layers between BrowserGridHost's own
+        // opaque background and an individual tile's own card chrome (the ScrollViewer, the row-virtualizing
+        // panel, and each row's own tile-StackPanel) had no Background at all — implicitly transparent in
+        // practice, but never guaranteed so by anything other than the absence of a Setter, leaving room for a
+        // future implicit style to introduce one unnoticed; (2) UseLayoutRounding was never set anywhere in
+        // this subtree, so adjacent same-color panels/rows positioned at fractional device-pixel offsets (this
+        // Grid.Row is "*"-sized alongside several "Auto" siblings) could render a faint anti-aliased seam
+        // between them even when their fill colors matched exactly. BrowserGridHost's own Background is now
+        // the single authoritative source every other layer is explicitly Transparent against, and
+        // UseLayoutRounding scopes pixel-snapping to exactly this subtree (deliberately not the whole Window,
+        // to keep this change scoped to the reported area).
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var gridHost = Named(document, "BrowserGridHost");
+
+        Assert.Equal("#0D0F13", (string?)gridHost.Attribute("Background"));
+        Assert.Equal("True", (string?)gridHost.Attribute("UseLayoutRounding"));
+
+        var outerGrid = gridHost.Element(ns + "Grid")!;
+        Assert.Equal("Transparent", (string?)outerGrid.Attribute("Background"));
+
+        var gridRows = Named(document, "BrowserGridRows");
+        Assert.Equal("Transparent", (string?)gridRows.Attribute("Background"));
+
+        var scrollViewer = gridRows.Descendants(ns + "ScrollViewer").Single();
+        Assert.Equal("Transparent", (string?)scrollViewer.Attribute("Background"));
+
+        var rowVirtualizingPanel = gridRows.Descendants(ns + "VirtualizingStackPanel").Single();
+        Assert.Equal("Transparent", (string?)rowVirtualizingPanel.Attribute("Background"));
+
+        // The per-row tile ItemsControl and its own horizontal StackPanel — the layer immediately hosting each
+        // BrowserGridTile card.
+        var rowTemplate = gridRows.Descendants(ns + "DataTemplate")
+            .Single(template => (string?)template.Attribute("DataType") == "{x:Type local:BrowserGridRow}");
+        var tileItemsControl = rowTemplate.Element(ns + "ItemsControl")!;
+        Assert.Equal("Transparent", (string?)tileItemsControl.Attribute("Background"));
+        var tileStackPanel = tileItemsControl.Element(ns + "ItemsControl.ItemsPanel")!
+            .Descendants(ns + "StackPanel").Single();
+        Assert.Equal("Transparent", (string?)tileStackPanel.Attribute("Background"));
+    }
+
+    [Fact]
     public void BrowserWorkspace_HasNoRedundantTitleBandOrStatusLabelAndStartsCloseToNavigation()
     {
         var root = FindRepositoryRoot();

@@ -44,6 +44,50 @@ public sealed class BrowserTreeInteractionRegressionTests
     }
 
     [Fact]
+    public void BrowserFolderTreeItemExpanded_NeverLeavesTheLoadingPlaceholderStuckOnAFailedMaterialization()
+    {
+        // #124: every early-return path in this method (no Catalog anchor yet — a bare, never-clicked Volume
+        // row; the anchor no longer resolves to a physical path; an enumeration exception; an unsuccessful
+        // listing) used to simply `return`, leaving the node's "Loading…" placeholder child visibly stuck
+        // forever with no further feedback — reported as some top-level/source folders' disclosure expansion
+        // getting permanently stuck on "Loading…". Every one of those paths must instead collapse the node
+        // back to a closed, re-expandable state.
+        var body = MethodBody("private async void BrowserFolderTreeItem_Expanded");
+
+        var noAnchor = body.IndexOf("node.RootId is not { } rootId || node.RelativeFolder is not { } relativeFolder)", StringComparison.Ordinal);
+        var noPhysicalPath = body.IndexOf("root?.PhysicalPath is not { } rootPath)", StringComparison.Ordinal);
+        var enumerationException = body.IndexOf("catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)", StringComparison.Ordinal);
+        var unsuccessfulListing = body.IndexOf("if (!listing.Succeeded)", StringComparison.Ordinal);
+        Assert.True(noAnchor >= 0 && noPhysicalPath > noAnchor && enumerationException > noPhysicalPath &&
+            unsuccessfulListing > enumerationException, "Expected all four early-return sites, in order, in BrowserFolderTreeItem_Expanded.");
+
+        // Every one of the four sites calls CollapseUnmaterializableNode before its own next early-return path
+        // begins (or, for the last, before the method body ends) — none of the four falls through to a bare
+        // `return;` on its own.
+        var afterNoAnchor = body[noAnchor..noPhysicalPath];
+        var afterNoPhysicalPath = body[noPhysicalPath..enumerationException];
+        var afterEnumerationException = body[enumerationException..unsuccessfulListing];
+        var afterUnsuccessfulListing = body[unsuccessfulListing..];
+        Assert.Contains("CollapseUnmaterializableNode(node);", afterNoAnchor);
+        Assert.Contains("CollapseUnmaterializableNode(node);", afterNoPhysicalPath);
+        Assert.Contains("CollapseUnmaterializableNode(node);", afterEnumerationException);
+        Assert.Contains("CollapseUnmaterializableNode(node);", afterUnsuccessfulListing);
+    }
+
+    [Fact]
+    public void CollapseUnmaterializableNode_ClosesTheNodeUnderTheSameReentrancyGuardAsEveryOtherProgrammaticTreeMutation()
+    {
+        var body = MethodBody("private void CollapseUnmaterializableNode");
+
+        Assert.Contains("_synchronizingBrowserTree = true;", body);
+        Assert.Contains("node.IsExpanded = false;", body);
+        Assert.Contains("_synchronizingBrowserTree = false;", body);
+        // Never selects/navigates — only ever touches IsExpanded.
+        Assert.DoesNotContain("RequestBrowserTreeSelection", body);
+        Assert.DoesNotContain("RunBrowserNavigationAsync", body);
+    }
+
+    [Fact]
     public void BrowserFolderTreeSelectedItemChanged_IsTheOnlyHandlerThatNavigates()
     {
         // Selecting a row (mouse click or keyboard) is still the one and only action that changes Browser
@@ -230,6 +274,38 @@ public sealed class BrowserTreeInteractionRegressionTests
         Assert.DoesNotContain("RequestBrowserTreeSelection", body);
         Assert.DoesNotContain("NavigateToRootAsync", body);
         Assert.DoesNotContain("NavigateToPathAsync", body);
+    }
+
+    [Fact]
+    public void SyncBrowserSubfoldersCapability_NeverProbesTheFilesystemAndAlwaysLetsEffectiveRecursiveModeOverrideNoSubfolders()
+    {
+        // #124: the toggle must disable itself when the selected folder definitively has no child folders and
+        // isn't already effectively recursive — but effective recursive mode must always win regardless, since
+        // an inherited recursive LEAF must remain able to turn itself OFF (that's how its governing ancestor
+        // root gets removed). Reuses BrowserTreeNode.HasSubfolders (already-known data from the same folder
+        // listing every navigation already fetches) rather than any synchronous filesystem/IO call of its own.
+        var body = MethodBody("private void SyncBrowserSubfoldersCapability");
+
+        Assert.Contains("_browserTree.SelectedNode?.HasSubfolders", body);
+        Assert.Contains("!effectiveRecursive && definitelyNoSubfolders", body);
+        Assert.DoesNotContain("Directory.", body);
+        Assert.DoesNotContain("EnumerateAsync", body);
+        Assert.DoesNotContain("File.", body);
+
+        var callSite = MethodBody("private void ApplyBrowserState");
+        Assert.Contains("SyncBrowserSubfoldersCapability(state);", callSite);
+        // Runs after Synchronize populates the newly-selected node's real children, not before.
+        var synchronizeIndex = callSite.IndexOf("_browserTree.Synchronize(state)", StringComparison.Ordinal);
+        var capabilityIndex = callSite.IndexOf("SyncBrowserSubfoldersCapability(state);", StringComparison.Ordinal);
+        Assert.True(synchronizeIndex >= 0 && capabilityIndex > synchronizeIndex);
+    }
+
+    [Fact]
+    public void SyncBrowserSubfoldersCapability_ShowsAConciseTooltipOnlyWhenActuallyDisabledForLackOfSubfolders()
+    {
+        var body = MethodBody("private void SyncBrowserSubfoldersCapability");
+        Assert.Contains("\"No subfolders\"", body);
+        Assert.Contains("BrowserIncludeSubfoldersDefaultToolTip", body);
     }
 
     private static string MethodBody(string signaturePrefix)

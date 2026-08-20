@@ -19,7 +19,7 @@ namespace LightflowStudio.Tests;
 /// testing here could not reproduce the reported symptom — see the PR description for what this does and does
 /// not rule out.
 /// </summary>
-[Collection("MainWindow live interaction")]
+[Collection("STA dispatcher tests")]
 public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
 {
     private readonly string _appDataRoot = Path.Combine(Path.GetTempPath(), $"lightflow-live-app-{Guid.NewGuid():N}");
@@ -48,7 +48,7 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
         {
             await StaDispatcher.RunAsync(async () =>
             {
-                EnsureApplicationResourcesLoaded();
+                TestWpfApplication.EnsureLoaded();
 
                 var startup = await LightflowStorageCoordinator.StartAsync(_appDataRoot);
                 Assert.True(startup.IsReady, startup.Diagnostic);
@@ -125,7 +125,7 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
         {
             await StaDispatcher.RunAsync(async () =>
             {
-                EnsureApplicationResourcesLoaded();
+                TestWpfApplication.EnsureLoaded();
 
                 var startup = await LightflowStorageCoordinator.StartAsync(_appDataRoot);
                 Assert.True(startup.IsReady, startup.Diagnostic);
@@ -227,37 +227,6 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
         }
     }
 
-    /// <summary>
-    /// MainWindow.xaml's StaticResource lookups (e.g. WindowBrush) fall back to Application.Current's merged
-    /// App.xaml resources, exactly like the real packaged app — never created automatically outside of the
-    /// generated Main() entry point, so a real (but never Run()) Application instance is needed here for the
-    /// same resource lookups a live app performs to succeed in-process. WPF permits constructing only ONE
-    /// System.Windows.Application per process, ever — the check below only guards the common case (two tests
-    /// in this class); ShutdownMode=OnExplicitShutdown is what actually matters, since without it closing this
-    /// test's only Window trips WPF's default OnLastWindowClose shutdown, which clears Application.Current back
-    /// to null (so a *second* test's null-check would try to construct a second Application and hit "Cannot
-    /// create more than one Application instance" — WPF tracks "an Application was ever created" separately
-    /// from the public, nullable Current property, and never resets that internal flag).
-    /// </summary>
-    private static void EnsureApplicationResourcesLoaded()
-    {
-        if (System.Windows.Application.Current is not null) return;
-        try
-        {
-            var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-            app.InitializeComponent();
-        }
-        catch (InvalidOperationException)
-        {
-            // Another StaDispatcher-queued callback (this class's own other [Fact], interleaved on the shared
-            // background dispatcher — see StaDispatcher.RunAsync) already constructed one first; WPF permits
-            // only one System.Windows.Application per process, ever, so losing this race is fine as long as
-            // Application.Current ends up set, which the caller (a StaticResource lookup during
-            // InitializeComponent()) is the one that actually needs.
-            if (System.Windows.Application.Current is null) throw;
-        }
-    }
-
     private static MainWindow NewOffscreenWindow(LightflowStorageCoordinator storage, StorageStartupResult startup) =>
         new(storage, startup.Status, startup.Diagnostic)
         {
@@ -329,6 +298,3 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
         try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); } catch { /* best-effort cleanup */ }
     }
 }
-
-[CollectionDefinition("MainWindow live interaction", DisableParallelization = true)]
-public sealed class MainWindowLiveInteractionCollection;

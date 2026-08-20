@@ -512,6 +512,37 @@ public sealed class BrowserTreeTests
         Assert.Single(Descendants(model.Roots), node => node.IsSelected);
     }
 
+    [Fact]
+    public void HasSubfolders_IsNullWhileOnlyTheLazyLoadPlaceholderIsPresent()
+    {
+        var node = new BrowserTreeNode("Trips", @"C:\Trips");
+        node.Children.Add(new BrowserTreeNode("Loading…", null, placeholder: true));
+
+        Assert.Null(node.HasSubfolders);
+    }
+
+    [Fact]
+    public void HasSubfolders_IsFalseOnceARealListingReplacesThePlaceholderWithZeroDirectories()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+
+        model.Synchronize(State(rootId, "", File(rootId, "leaf.mp4"))); // no directory entries
+
+        Assert.False(model.Roots[0].HasSubfolders);
+    }
+
+    [Fact]
+    public void HasSubfolders_IsTrueOnceARealListingIncludesAtLeastOneDirectory()
+    {
+        var rootId = Guid.NewGuid();
+        var model = Model(rootId);
+
+        model.Synchronize(State(rootId, "", Directory(rootId, "Trips")));
+
+        Assert.True(model.Roots[0].HasSubfolders);
+    }
+
     private static BrowserTreeModel Model(Guid rootId)
     {
         var model = new BrowserTreeModel();

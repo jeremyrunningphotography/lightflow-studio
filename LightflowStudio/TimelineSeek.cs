@@ -54,14 +54,18 @@ internal static class PlaybackFrameStep
         // event that will never come" hazard at this layer — VFR-correct reconstruction re-seeks and decodes
         // forward toward the target, already bounded by its own attempt/frame-count limits (up to 8
         // doubling-window attempts, each up to ~2000 forward steps) rather than a wall clock, and settles for
-        // its closest confirmed predecessor rather than hanging if the engine cannot decode any further (see
-        // FlyleafPlaybackBackend.TryBoundedStepForwardAsync's own doc comment for that inner-layer bound and
-        // the proven near-end-of-source engine limitation it protects against). It still throws a genuine
-        // InvalidOperationException in the residual case where no predecessor could be found at all. An earlier revision of this method
-        // applied the *same* short external timeout uniformly to both directions; that was the proven root
-        // cause of a rapid-Previous-Frame crash. A single reconstruction genuinely needing many forward steps
-        // routinely took longer than that timeout (confirmed empirically — see
-        // FlyleafPlaybackIntegrationTests' own comment on real decode being slow in this environment), so the
+        // its closest confirmed predecessor rather than retrying once the engine's own internal completion wait
+        // has genuinely concluded (by timing out) for a decode step it cannot advance any further — see
+        // FlyleafPlaybackBackend.StepBackwardAsync's own doc comment for the proven near-end-of-source engine
+        // limitation this handles and why every internal step is awaited to its own genuine conclusion rather
+        // than abandoned early (an earlier revision abandoned a stuck internal step via an additional short
+        // timeout and let reconstruction proceed while that step could still genuinely be running natively —
+        // this reproduced a crash from as few as two sequential backward requests; removed). It still throws a
+        // genuine InvalidOperationException in the residual case where no predecessor could be found at all. An
+        // earlier revision of this method applied the *same* short external timeout uniformly to both
+        // directions; that was the proven root cause of a rapid-Previous-Frame crash. A single reconstruction
+        // genuinely needing many forward steps routinely took longer than that timeout (confirmed empirically —
+        // see FlyleafPlaybackIntegrationTests' own comment on real decode being slow in this environment), so the
         // external token fired mid-reconstruction far more often than at a genuine boundary: cancelling the C#
         // wait for whichever native seek/step was currently in flight, exactly like the original forward-only
         // bug, but now abandoning a multi-operation sequence mid-flight rather than one call — leaving Flyleaf

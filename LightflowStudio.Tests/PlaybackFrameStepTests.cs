@@ -55,6 +55,8 @@ public sealed class PlaybackFrameStepTests
         public bool WasCancelled { get; private set; }
 
         public MediaPlaybackSnapshot Snapshot { get; } = new(MediaPlaybackState.Paused, "clip.mp4", new(TimeSpan.Zero), TimeSpan.FromSeconds(60));
+        public int Volume { get; set; } = 100;
+        public bool Mute { get; set; }
         public MediaPlaybackSourceInfo? SourceInfo { get; } = new("clip.mp4", TimeSpan.FromSeconds(60), TimeSpan.Zero, 1920, 1080, [], null, false);
         public event EventHandler<MediaPlaybackSnapshot>? StateChanged { add { } remove { } }
         public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }

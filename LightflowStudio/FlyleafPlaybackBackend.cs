@@ -20,6 +20,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     private CancellationTokenSource _pending = new();
     private Player? _player;
     private bool _disposed;
+    private int _desiredVolume = 100;
+    private bool _desiredMute;
 
     public FlyleafPlaybackBackend(string? ffmpegPath = null)
     {
@@ -31,6 +33,33 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
     public event EventHandler<MediaPresentationTimestamp>? FramePresented;
     public event EventHandler<MediaPlaybackError>? Failed;
+
+    /// <summary>
+    /// Backed by <see cref="_desiredVolume"/>/<see cref="_desiredMute"/> rather than reading straight through to
+    /// <c>_player.Audio</c> so a volume/mute choice survives across <see cref="OpenAsync"/> calls (a fresh
+    /// <see cref="Player"/> is created per source — see <see cref="CreatePlayer"/> — and would otherwise reset
+    /// to its own default volume every time a different asset is opened). Reapplied to the live player, when one
+    /// exists, immediately on every set and again right after each <see cref="OpenAsync"/> completes.
+    /// </summary>
+    public int Volume
+    {
+        get => _desiredVolume;
+        set
+        {
+            _desiredVolume = Math.Clamp(value, 0, 100);
+            if (_player is { } player) RunOnUi(() => player.Audio.Volume = _desiredVolume);
+        }
+    }
+
+    public bool Mute
+    {
+        get => _desiredMute;
+        set
+        {
+            _desiredMute = value;
+            if (_player is { } player) RunOnUi(() => player.Audio.Mute = _desiredMute);
+        }
+    }
 
     public FrameworkElement CreatePresentationSurface()
     {
@@ -71,7 +100,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
         var player = RunOnUi(CreatePlayer);
         _player = player;
-        RunOnUi(() => { if (_host is not null) _host.Player = player; });
+        RunOnUi(() => { if (_host is not null) _host.Player = player; player.Audio.Volume = _desiredVolume; player.Audio.Mute = _desiredMute; });
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _pending.Token);
         var opened = await WaitForOpenAsync(player, sourcePath, linked.Token).ConfigureAwait(false);
         if (!opened.Success)
@@ -113,81 +142,57 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     public Task PlayAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        RequirePlayer().Play();
+        RunOnUi(() => RequirePlayer().Play());
         return Task.CompletedTask;
     }
 
     public Task PauseAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        RequirePlayer().Pause();
+        RunOnUi(() => RequirePlayer().Pause());
         return Task.CompletedTask;
     }
 
     public Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token) =>
         SeekPlayerAsync(RequirePlayer(), position, token);
 
+    /// <summary>
+    /// Every method in this class that mutates the native <see cref="Player"/> (Pause, Play, SeekAccurate,
+    /// ShowFrameNext, OpenAsync) marshals that call onto <see cref="_dispatcher"/> — the thread that created the
+    /// Player (and, for hardware-accelerated sources, its D3D11 device) via <see cref="CreatePlayer"/> — via
+    /// <see cref="RunOnUi{T}"/>, rather than calling it directly wherever the surrounding async method happens to
+    /// be executing. This is required, not defensive style: every async method in this class awaits with
+    /// <c>ConfigureAwait(false)</c> (as does every caller up through <c>MediaPlaybackService</c>), so by the time
+    /// execution reaches a native call past the method's first <see langword="await"/>, it is running on
+    /// whichever arbitrary thread-pool thread the prior continuation happened to resume on — not necessarily the
+    /// dispatcher thread, and not necessarily the *same* thread as the previous native call in the same logical
+    /// operation. Proven root cause of a reproducible access violation (two sequential, fully-serialized Previous
+    /// Frame clicks against a real, hardware-decoded source with a live D3D11 render surface attached — see
+    /// FlyleafPlaybackIntegrationTests' hardware-decode regression test): Windows Error Reporting captured
+    /// <c>System.AccessViolationException</c> inside Flyleaf's own demuxer read thread
+    /// (<c>Flyleaf.FFmpeg.Raw.av_read_frame</c> via <c>Demuxer.RunInternal</c>/<c>RunThreadBase.Run</c>),
+    /// consistent with a native call issued from a thread other than the one the Player/decoder/renderer was
+    /// created on racing that background thread's own use of the same native context — a hazard specific to this
+    /// process's own calling pattern, not something <c>FrameStepQueue</c>'s C#-level serialization (which was
+    /// already correct) could prevent, since the two clicks in the repro were already fully sequential at the C#
+    /// await level. A short experimental settle delay after Pause() (before the next native call) was tested and
+    /// did not reliably prevent the crash, ruling out "just needs more time" as the explanation and confirming
+    /// this is a thread-affinity defect, not a timing one.
+    /// </summary>
     public async Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token)
     {
         var player = RequirePlayer();
-        player.Pause();
-        var before = player.CurTime;
-        player.ShowFrameNext();
+        // Pause/read/ShowFrameNext issued together in one dispatcher round-trip so no other native call from
+        // this method's own logic can interleave between them.
+        var before = RunOnUi(() => { player.Pause(); var current = player.CurTime; player.ShowFrameNext(); return current; });
         return await WaitForTimestampChangeAsync(player, before, token).ConfigureAwait(false);
     }
-
-    /// <summary>
-    /// A single internal forward step used while reconstructing a backward-step predecessor (both the main
-    /// search loop below and <see cref="SettleOnKnownTimestampAsync"/>), bounded to
-    /// <see cref="InternalReconstructionStepTimeout"/> rather than <see cref="StepForwardAsync"/>'s own
-    /// unbounded-by-default contract. This exists because of a proven, position-dependent engine limitation:
-    /// <c>ShowFrameNext()</c> can genuinely fail to decode any further at all — not merely fail to raise its
-    /// completion event — within roughly the last few frames of a source (confirmed empirically two ways:
-    /// identical <c>SeekAsync</c>-then-<c>StepForwardAsync</c> calls succeed in milliseconds everywhere else in
-    /// a real clip and reliably stall only in that trailing window regardless of total clip length; and
-    /// directly polling <c>Player.CurTime</c> for 4+ seconds after issuing <c>ShowFrameNext()</c> there, with no
-    /// dependency on <c>PropertyChanged</c> at all, shows the position never moves — ruling out a missed
-    /// notification and confirming the decode itself does not advance). Backward reconstruction searches
-    /// forward from an earlier seek point toward the current position and can therefore reach that trailing
-    /// window even when the *current* position is not near the end at all. Direct forward stepping already has
-    /// an equivalent external bound (<c>PlaybackFrameStep</c>'s boundary timeout); this gives the
-    /// reconstruction's own internal steps the same protection without needing a single overall wall-clock
-    /// budget for the whole (potentially legitimately multi-second) reconstruction — see
-    /// <c>PlaybackFrameStep</c>'s own doc comment for why that would be wrong. Returns <see langword="null"/>
-    /// (never throws for its own bound firing) so the caller can treat this as "the engine cannot decode any
-    /// further from here" and settle for the closest already-confirmed predecessor rather than aborting the
-    /// whole backward step — see the main search loop below for why retrying with a different window cannot
-    /// help (the wall is inherent to approaching the target position, not to the window's starting point).
-    /// </summary>
-    private async Task<long?> TryBoundedStepForwardAsync(CancellationToken token)
-    {
-        using var stepGuard = CancellationTokenSource.CreateLinkedTokenSource(token);
-        stepGuard.CancelAfter(InternalReconstructionStepTimeout);
-        try
-        {
-            var timestamp = await StepForwardAsync(stepGuard.Token).ConfigureAwait(false);
-            return timestamp.Position.Ticks;
-        }
-        catch (OperationCanceledException) when (!token.IsCancellationRequested)
-        {
-            // Our own bound fired, not the caller's token — the caller's session is still fine.
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Generous relative to the low-hundreds-of-milliseconds a normal internal step takes even in a slow
-    /// environment, but far short of <see cref="WaitForTimestampChangeAsync"/>'s own internal 10-second
-    /// fallback — cuts a trailing-window stall down from 10 seconds to 2 per affected internal step, letting
-    /// reconstruction settle for its closest confirmed predecessor promptly rather than hanging.
-    /// </summary>
-    private static readonly TimeSpan InternalReconstructionStepTimeout = TimeSpan.FromSeconds(2);
 
     public async Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token)
     {
         var player = RequirePlayer();
-        player.Pause();
-        var original = player.CurTime;
+        // See StepForwardAsync's doc comment above: every native Player call is marshaled onto the dispatcher thread.
+        var original = RunOnUi(() => { player.Pause(); return player.CurTime; });
         if (original <= 0) return Timestamp(0);
 
         // Flyleaf's built-in ShowFramePrev maps timestamps through nominal FPS. That is not
@@ -199,17 +204,34 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             var start = TimeSpan.FromTicks(Math.Max(0, original - window.Ticks));
             var current = (await SeekPlayerAsync(player, start, token).ConfigureAwait(false)).Position.Ticks;
             long? predecessor = current < original ? current : null;
-            for (var frames = 0; frames < 2000 && current < original; frames++)
+            try
             {
-                var next = await TryBoundedStepForwardAsync(token).ConfigureAwait(false);
-                // The engine cannot decode any further from `current` — settle for the closest predecessor
-                // already confirmed via genuine decoded steps (or the seek landing itself) rather than
-                // discarding it: a larger window's final approach would hit the exact same wall, since the
-                // wall is inherent to how close we are to `original`, not to where the window started.
-                if (next is null) break;
-                if (next.Value >= original) break;
-                predecessor = next.Value;
-                current = next.Value;
+                for (var frames = 0; frames < 2000 && current < original; frames++)
+                {
+                    var next = await StepForwardAsync(token).ConfigureAwait(false);
+                    if (next.Position.Ticks >= original) break;
+                    predecessor = next.Position.Ticks;
+                    current = next.Position.Ticks;
+                }
+            }
+            catch (TimeoutException)
+            {
+                // WaitForTimestampChangeAsync's own internal completion wait genuinely gave up — proven
+                // empirically (direct Player.CurTime polling for 4+ seconds, no dependency on the completion
+                // event at all) that ShowFrameNext() can fail to decode any further within roughly the last few
+                // frames of a source, and backward reconstruction's forward walk can reach that same trailing
+                // window even when `original` is not near the end at all. An earlier revision abandoned the
+                // native step early via its own short additional timeout once this was discovered, returning
+                // control to this loop (and letting it issue a new seek) while the native ShowFrameNext() call
+                // could still genuinely be in flight — Flyleaf offers no signal to distinguish "abandoned but
+                // still running" from "actually finished," and issuing a new native operation in that window is
+                // exactly what produced the two-click crash this catch replaces. Only once this exception has
+                // been thrown has the *existing*, already-relied-upon (see StepForwardAsync's own direct callers
+                // and PlaybackFrameStep's forward path) internal wait genuinely concluded, so it is safe to issue
+                // the next native operation below. Settling for the closest predecessor already confirmed via
+                // genuine decoded steps (or the seek landing itself) rather than retrying a larger window: a
+                // larger window's final approach reaches the exact same wall, since it is inherent to how close
+                // the search gets to `original`, not to where the window started.
             }
 
             if (predecessor is null) continue;
@@ -222,9 +244,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     public async Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token)
     {
         var player = RequirePlayer();
-        var wasPlaying = player.IsPlaying;
-        var restore = TimeSpan.FromTicks(player.CurTime);
-        player.Pause();
+        // See StepForwardAsync's doc comment: native calls always marshaled onto the dispatcher thread.
+        var (wasPlaying, restore) = RunOnUi(() => { var playing = player.IsPlaying; var position = TimeSpan.FromTicks(player.CurTime); player.Pause(); return (playing, position); });
         try
         {
             var timestamp = await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
@@ -245,7 +266,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             if (!token.IsCancellationRequested && ReferenceEquals(player, _player))
             {
                 await SeekPlayerAsync(player, restore, token).ConfigureAwait(false);
-                if (wasPlaying) player.Play();
+                if (wasPlaying) RunOnUi(() => player.Play());
             }
         }
     }
@@ -277,7 +298,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         FramePresented?.Invoke(this, Timestamp(player.CurTime));
     }
 
-    private static async Task<OpenCompletedArgs> WaitForOpenAsync(Player player, string sourcePath, CancellationToken token)
+    private async Task<OpenCompletedArgs> WaitForOpenAsync(Player player, string sourcePath, CancellationToken token)
     {
         var completion = new TaskCompletionSource<OpenCompletedArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
         EventHandler<OpenCompletedArgs>? handler = null;
@@ -286,13 +307,17 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         using var registration = token.Register(() => completion.TrySetCanceled(token));
         try
         {
-            player.OpenAsync(sourcePath, defaultSubtitles: false);
+            // Every native Player call must run on the dispatcher thread that created it (see StepBackwardAsync's
+            // own doc comment for the proven access-violation this fixes): once this method's own await
+            // completes, .ConfigureAwait(false) resumes on an arbitrary threadpool thread, so RunOnUi is required
+            // even though this call itself starts on the thread OpenAsync was invoked from.
+            RunOnUi(() => player.OpenAsync(sourcePath, defaultSubtitles: false));
             return await completion.Task.ConfigureAwait(false);
         }
         finally { player.OpenCompleted -= handler; }
     }
 
-    private static async Task<MediaPresentationTimestamp> SeekPlayerAsync(Player player, TimeSpan position, CancellationToken token)
+    private async Task<MediaPresentationTimestamp> SeekPlayerAsync(Player player, TimeSpan position, CancellationToken token)
     {
         var clamped = Math.Clamp(position.TotalMilliseconds, 0, TimeSpan.FromTicks(player.Duration).TotalMilliseconds);
         var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -302,10 +327,13 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         using var registration = token.Register(() => completion.TrySetCanceled(token));
         try
         {
-            player.SeekAccurate((int)Math.Min(int.MaxValue, clamped));
+            // See StepBackwardAsync's doc comment: every native Player call must run on the dispatcher thread
+            // that created the Player, never on whatever threadpool thread a prior .ConfigureAwait(false)
+            // continuation happens to resume on.
+            RunOnUi(() => player.SeekAccurate((int)Math.Min(int.MaxValue, clamped)));
             var result = await completion.Task.ConfigureAwait(false);
             if (result < 0) throw new InvalidOperationException("The playback seek failed.");
-            return Timestamp(player.CurTime);
+            return RunOnUi(() => Timestamp(player.CurTime));
         }
         finally { player.SeekCompleted -= handler; }
     }
@@ -333,11 +361,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         var player = RequirePlayer();
         var timestamp = await SeekPlayerAsync(player, TimeSpan.FromTicks(targetTicks), token).ConfigureAwait(false);
         for (var frames = 0; timestamp.Position.Ticks < targetTicks && frames < 120; frames++)
-        {
-            var next = await TryBoundedStepForwardAsync(token).ConfigureAwait(false)
-                ?? throw new InvalidOperationException("Playback could not settle on the preceding decoded timestamp.");
-            timestamp = Timestamp(next);
-        }
+            timestamp = await StepForwardAsync(token).ConfigureAwait(false);
         if (timestamp.Position.Ticks != targetTicks)
             throw new InvalidOperationException("Playback could not settle on the preceding decoded timestamp.");
         return timestamp;

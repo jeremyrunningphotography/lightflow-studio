@@ -239,11 +239,103 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task TwoSequentialPreviousFrameClicksOnHardwareDecodedRealVideoWithLiveRenderSurfaceNeverCrash()
+    {
+        // Every other backward-stepping test in this file uses the FFV1 fixture, which the codebase's own
+        // existing assertion confirms forces SOFTWARE decode (see
+        // VfrFixture_UsesDecodedPtsForSeekAndForwardBackwardStepping's Assert.False(UsesHardwareDecode)) and
+        // never attaches the presentation surface to a real, shown window (MediaPlaybackView is always
+        // constructed standalone elsewhere, never added to a visible Window) — so none of them exercise the
+        // GPU-driven DXVA2/D3D11VA hardware decode path or the live D3D11 render surface that
+        // FlyleafPlaybackBackend.CreatePlayer() actually requests (config.Video.VideoAcceleration = true) and
+        // that PlayerViewerHost actually uses. This covers real H.264 content with hardware decode and a
+        // genuinely shown, rendering window: open, then exactly two sequential (fully awaited, not rapid)
+        // Previous Frame clicks through the full production stack (MediaPlaybackService -> FrameStepQueue ->
+        // PlaybackFrameStep), at several positions including near end-of-source and far from any keyframe.
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var fixture = Path.Combine(_root, "two-click-h264.mkv");
+        GenerateH264Fixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, durationSeconds: 30, keyframeIntervalFrames: 300); // 10s GOP @ 30fps: sparse keyframes force a long forward walk during reconstruction
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var playback = new MediaPlaybackService(new FlyleafPlaybackBackend(dependencies));
+            using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await playback.OpenAsync(fixture, openTimeout.Token);
+
+            using var view = new MediaPlaybackView(playback);
+            var window = new System.Windows.Window { Content = view, Width = 320, Height = 240, ShowActivated = false, ShowInTaskbar = false };
+            window.Show();
+            try
+            {
+                await Task.Delay(300); // let the render surface actually initialize/attach a frame
+                Assert.True(playback.SourceInfo!.UsesHardwareDecode, "This fixture is expected to hardware-decode; the test would not cover the reported scenario otherwise.");
+
+                foreach (var seconds in new[] { 29.5, 15.0, 5.0 })
+                {
+                    await playback.SeekAsync(TimeSpan.FromSeconds(seconds), openTimeout.Token);
+                    var queue = new FrameStepQueue();
+                    var errors = new List<Exception>();
+
+                    queue.RequestStep(playback, forward: false, errors.Add);
+                    await WaitUntilIdleAsync(queue);
+                    queue.RequestStep(playback, forward: false, errors.Add);
+                    await WaitUntilIdleAsync(queue);
+
+                    Assert.Empty(errors);
+                    Assert.Equal(MediaPlaybackState.Paused, playback.Snapshot.State);
+                }
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Fact]
+    public async Task RapidPreviousFrameClicksOnHardwareDecodedRealVideoWithLiveRenderSurfaceNeverCrash()
+    {
+        // Rapid-clicking counterpart to the two-click test above: many backward requests fired through
+        // FrameStepQueue without waiting between them (matching a user holding/mashing Previous Frame), still
+        // against real hardware-decoded H.264 content with a live rendering surface attached.
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var fixture = Path.Combine(_root, "rapid-h264.mkv");
+        GenerateH264Fixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, durationSeconds: 30, keyframeIntervalFrames: 300);
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var playback = new MediaPlaybackService(new FlyleafPlaybackBackend(dependencies));
+            using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await playback.OpenAsync(fixture, openTimeout.Token);
+
+            using var view = new MediaPlaybackView(playback);
+            var window = new System.Windows.Window { Content = view, Width = 320, Height = 240, ShowActivated = false, ShowInTaskbar = false };
+            window.Show();
+            try
+            {
+                await Task.Delay(300);
+                Assert.True(playback.SourceInfo!.UsesHardwareDecode, "This fixture is expected to hardware-decode; the test would not cover the reported scenario otherwise.");
+                await playback.SeekAsync(TimeSpan.FromSeconds(20), openTimeout.Token);
+
+                var queue = new FrameStepQueue();
+                var errors = new List<Exception>();
+                for (var i = 0; i < 15; i++) queue.RequestStep(playback, forward: false, errors.Add);
+                await WaitUntilIdleAsync(queue);
+
+                Assert.Empty(errors);
+                Assert.Equal(MediaPlaybackState.Paused, playback.Snapshot.State);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Fact]
     public async Task RapidBackwardOnlyFrameStepRequests_MidClipNeverHangOrCrashTheRealEngine()
     {
         // Directly reproduces the reported #132 bug: rapid Next Frame was fixed by FrameStepQueue's
         // serialization, but rapid Previous Frame still crashed. Proven root cause (see
-        // FlyleafPlaybackBackend.TryBoundedStepForwardAsync's own doc comment): WaitForTimestampChangeAsync's
+        // FlyleafPlaybackBackend.StepBackwardAsync's own catch (TimeoutException) comment): WaitForTimestampChangeAsync's
         // wait for a CurTime change can fail to settle — hanging for its own internal 10-second fallback —
         // whenever a step lands within roughly the last ~1.5-2 seconds of a source, confirmed empirically via
         // direct position-sweep testing against this real engine (not backend documentation). Backward
@@ -409,6 +501,51 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
         });
     }
 
+    [Fact]
+    public async Task Volume_ReachesTheNativePlayerAndPersistsAcrossASourceSwitch()
+    {
+        // Mute is deliberately not asserted against the native player here: direct investigation (setting
+        // player.Audio.Mute = true immediately followed by reading it back — bypassing this backend's own
+        // wrapper entirely) showed the native property does not durably persist a Mute in this environment,
+        // consistent with the separately-documented audio-playback investigation (see the #110 PR discussion).
+        // This backend's own Mute get/set contract (below) is still verified, since callers depend on it
+        // round-tripping regardless of whether the underlying engine currently honors it.
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var first = Path.Combine(_root, "volume-first.mkv");
+        var second = Path.Combine(_root, "volume-second.mkv");
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), first);
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), second);
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FlyleafPlaybackBackend(dependencies);
+            await using var playback = new MediaPlaybackService(backend);
+            var playerField = typeof(FlyleafPlaybackBackend).GetField("_player", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?? throw new InvalidOperationException("_player field not found");
+            using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+            await playback.OpenAsync(first, openTimeout.Token);
+            playback.Volume = 42;
+            playback.Mute = true;
+
+            var player = (FlyleafLib.MediaPlayer.Player)(playerField.GetValue(backend) ?? throw new InvalidOperationException("player is null"));
+            Assert.Equal(42, player.Audio.Volume);
+            Assert.Equal(42, playback.Volume);
+            Assert.True(playback.Mute);
+
+            // A new source creates a fresh native Player (see FlyleafPlaybackBackend.CreatePlayer) — the
+            // volume/mute choice must survive that, matching how a physical volume knob behaves regardless of
+            // what's currently loaded.
+            await playback.OpenAsync(second, openTimeout.Token);
+            var secondPlayer = (FlyleafLib.MediaPlayer.Player)(playerField.GetValue(backend) ?? throw new InvalidOperationException("player is null"));
+            Assert.Equal(42, secondPlayer.Audio.Volume);
+            Assert.Equal(42, playback.Volume);
+            Assert.True(playback.Mute);
+        });
+    }
+
     private static async Task WaitUntilIdleAsync(FrameStepQueue queue)
     {
         var deadline = DateTime.UtcNow.AddSeconds(90);
@@ -465,6 +602,12 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
         "-f", "lavfi", "-i", "sine=frequency=660:duration=2",
         "-filter:v", "setpts=if(lt(N\\,10)\\,N/(20*TB)\\,(0.5+(N-10)/7)/TB)",
         "-fps_mode", "vfr", "-c:v", "ffv1", "-c:a", "pcm_s16le", "-shortest", output);
+
+    private static void GenerateH264Fixture(string ffmpeg, string output, int durationSeconds, int keyframeIntervalFrames = 30) => Run(ffmpeg,
+        "-hide_banner", "-loglevel", "error", "-y",
+        "-f", "lavfi", "-i", $"testsrc2=size=640x360:rate=30:duration={durationSeconds}",
+        "-f", "lavfi", "-i", $"sine=frequency=440:duration={durationSeconds}",
+        "-c:v", "libopenh264", "-g", keyframeIntervalFrames.ToString(CultureInfo.InvariantCulture), "-c:a", "aac", "-shortest", output);
 
     private static IReadOnlyList<TimeSpan> ProbeVideoPts(string ffprobe, string source)
     {

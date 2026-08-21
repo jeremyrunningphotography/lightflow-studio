@@ -42,16 +42,19 @@ namespace LightflowStudio;
 /// the native decode it triggered was still genuinely unsettled. That was confirmed to be exactly what
 /// happened for backward stepping specifically: rapid Previous Frame still crashed after this class first
 /// shipped, even though rapid Next Frame was fixed. Removing that external timeout from backward stepping
-/// (see <see cref="PlaybackFrameStep"/>'s own doc comment) then exposed a second, deeper issue: backward
-/// reconstruction's own internal forward-decode steps could land within roughly the last few frames of a
-/// source, where <c>ShowFrameNext()</c> genuinely cannot decode any further at all (proven by directly polling
-/// the engine's position with no dependency on its completion event — see
-/// <c>FlyleafPlaybackBackend.TryBoundedStepForwardAsync</c>'s doc comment) — leaving reconstruction to hang for
-/// its internal steps' own 10-second fallback with no bound at this layer. That inner layer now bounds each
-/// individual internal step and settles for the closest already-confirmed predecessor instead of waiting.
-/// This class's own serialization contract — genuinely never starting step N+1 before step N's call returns —
-/// was correct throughout both fixes; the defect was in what "returned" was allowed to mean, at two different
-/// layers, not in this class.</para>
+/// (see <see cref="PlaybackFrameStep"/>'s own doc comment) then exposed a second instance of the exact same
+/// hazard one layer deeper: a follow-up revision bounded backward reconstruction's own internal forward-decode
+/// steps with a short additional per-step timeout and abandoned a step once it fired, treating "our own bound
+/// fired" as safe to proceed on — but Flyleaf gives no signal distinguishing "abandoned but still running
+/// natively" from "actually finished," so issuing the next native seek/step while the abandoned one could still
+/// genuinely be in flight reproduced the same crash with as few as two sequential backward requests, not just
+/// rapid ones. <see cref="FlyleafPlaybackBackend.StepBackwardAsync"/> no longer imposes any such per-step bound
+/// on its internal decode steps — it waits out the same internal completion signal
+/// <see cref="FlyleafPlaybackBackend.StepForwardAsync"/> already relies on for direct forward stepping, and only
+/// settles for the closest already-confirmed predecessor once that signal has itself genuinely concluded (by
+/// throwing), never before. This class's own serialization contract — genuinely never starting step N+1 before
+/// step N's call returns — was correct throughout every fix; the defect was in what "returned" was allowed to
+/// mean, at deeper and deeper layers, not in this class.</para>
 /// </summary>
 internal sealed class FrameStepQueue
 {

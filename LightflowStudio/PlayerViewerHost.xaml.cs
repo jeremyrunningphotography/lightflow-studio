@@ -32,6 +32,7 @@ public partial class PlayerViewerHost : UserControl
     private MediaPlaybackView? _mediaView;
     private PlayerViewerAsset? _currentAsset;
     private bool _updatingPosition;
+    private bool _updatingVolume;
     private readonly FrameStepQueue _frameStepQueue = new();
 
     internal PlayerViewerHost(MediaPlaybackCoordinator coordinator)
@@ -141,6 +142,8 @@ public partial class PlayerViewerHost : UserControl
             DurationText.Text = FormatTimestamp(info.Duration);
             UpdateFromSnapshot(service.Snapshot);
             SetTransportEnabled(true);
+            SetAudioControlsEnabled(info.AudioStreams.Count > 0);
+            UpdateAudioControlsFromService();
             TransportBar.Visibility = Visibility.Visible;
             SetStatus(null);
         }
@@ -204,6 +207,7 @@ public partial class PlayerViewerHost : UserControl
         ImageSurface.Visibility = Visibility.Collapsed;
         TransportBar.Visibility = Visibility.Collapsed;
         SetTransportEnabled(false);
+        SetAudioControlsEnabled(false);
     }
 
     private void SetStatus(string? message)
@@ -218,6 +222,33 @@ public partial class PlayerViewerHost : UserControl
         PreviousFrameButton.IsEnabled = enabled;
         NextFrameButton.IsEnabled = enabled;
         PlayPauseButton.IsEnabled = enabled;
+    }
+
+    /// <summary>
+    /// Volume/mute are gated separately from the rest of the transport: a video-only source (no audio stream)
+    /// keeps Play/seek/frame-step usable while these stay disabled rather than controlling nothing meaningfully.
+    /// </summary>
+    private void SetAudioControlsEnabled(bool enabled)
+    {
+        MuteButton.IsEnabled = enabled;
+        VolumeSlider.IsEnabled = enabled;
+    }
+
+    /// <summary>Reflects the shared playback session's current volume/mute — called once per open, since the
+    /// session (and therefore its volume/mute) persists across whichever asset is currently showing.</summary>
+    private void UpdateAudioControlsFromService()
+    {
+        if (_service is null) return;
+        _updatingVolume = true;
+        VolumeSlider.Value = _service.Volume;
+        _updatingVolume = false;
+        UpdateMuteIcon(_service.Mute);
+    }
+
+    private void UpdateMuteIcon(bool muted)
+    {
+        MuteIcon.Text = muted ? "" : "";
+        MuteButton.ToolTip = muted ? "Unmute" : "Mute";
     }
 
     private void Playback_StateChanged(object? sender, MediaPlaybackSnapshot snapshot) =>
@@ -326,6 +357,19 @@ public partial class PlayerViewerHost : UserControl
 
     private void PreviousFrame_Click(object sender, RoutedEventArgs e) => RequestStep(forward: false);
     private void NextFrame_Click(object sender, RoutedEventArgs e) => RequestStep(forward: true);
+
+    private void MuteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_service is null) return;
+        _service.Mute = !_service.Mute;
+        UpdateMuteIcon(_service.Mute);
+    }
+
+    private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_updatingVolume || _service is null) return;
+        _service.Volume = (int)e.NewValue;
+    }
 
     /// <summary>
     /// Queues one frame step through <see cref="_frameStepQueue"/> rather than calling

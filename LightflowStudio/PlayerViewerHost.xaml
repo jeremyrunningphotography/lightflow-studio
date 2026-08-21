@@ -78,8 +78,17 @@
        <Button x:Name="NextFrameButton" Content="Frame &#x25BA;" Click="NextFrame_Click" IsEnabled="False"
         ToolTip="Next decoded frame (.)" AutomationProperties.Name="Next frame"/>
       </StackPanel>
-      <TextBlock Grid.Column="2" x:Name="DurationText" HorizontalAlignment="Right" VerticalAlignment="Center"
-       Foreground="{StaticResource MutedTextBrush}" Text="00:00:00.000"/>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+       <TextBlock x:Name="DurationText" VerticalAlignment="Center" Margin="0,0,12,0"
+        Foreground="{StaticResource MutedTextBrush}" Text="00:00:00.000"/>
+       <Button x:Name="MuteButton" Padding="6,4" Click="MuteButton_Click" IsEnabled="False"
+        ToolTip="Mute" AutomationProperties.Name="Mute or unmute">
+        <TextBlock x:Name="MuteIcon" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE767;"/>
+       </Button>
+       <Slider x:Name="VolumeSlider" Style="{StaticResource PlaybackTimelineSlider}" Width="70" Margin="6,0,0,0"
+        Minimum="0" Maximum="100" ValueChanged="VolumeSlider_ValueChanged" IsEnabled="False"
+        ToolTip="Volume" AutomationProperties.Name="Volume"/>
+      </StackPanel>
      </Grid>
     </Grid>
    </Border>

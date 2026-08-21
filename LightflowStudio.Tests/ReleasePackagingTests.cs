@@ -27,8 +27,8 @@ public sealed class ReleasePackagingTests
         var root = document.RootElement;
         Assert.Equal("lgpl-shared", root.GetProperty("variant").GetString());
         Assert.Equal("LGPL-2.1-or-later", root.GetProperty("license").GetString());
-        Assert.Equal("3.10.4", root.GetProperty("flyleafVersion").GetString());
-        Assert.Equal("8.1.0", root.GetProperty("flyleafBindingsVersion").GetString());
+        Assert.Equal("3.11.2", root.GetProperty("flyleafVersion").GetString());
+        Assert.Equal("9.0.0", root.GetProperty("flyleafBindingsVersion").GetString());
         Assert.Matches("^[a-f0-9]{64}$", root.GetProperty("sha256").GetString()!);
         Assert.Contains("lgpl-shared", root.GetProperty("archiveName").GetString());
 
@@ -36,8 +36,8 @@ public sealed class ReleasePackagingTests
         var packages = project.Descendants("PackageReference").ToDictionary(
             element => element.Attribute("Include")!.Value,
             element => element.Attribute("Version")!.Value);
-        Assert.Equal("3.10.4", packages["FlyleafLib"]);
-        Assert.Equal("8.1.0", packages["Flyleaf.FFmpeg.Bindings"]);
+        Assert.Equal("3.11.2", packages["FlyleafLib"]);
+        Assert.Equal("9.0.0", packages["Flyleaf.FFmpeg.Bindings"]);
     }
 
     [Fact]

@@ -77,6 +77,8 @@ public sealed class MediaPlaybackLeaseSessionTests
         public int ActiveSessions { get; private set; }
         public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
+        public int Volume { get; set; } = 100;
+        public bool Mute { get; set; }
         public FrameworkElement CreatePresentationSurface() => new();
         public void ReleasePresentationSurface(FrameworkElement surface) { }
         public void CancelPending() { }

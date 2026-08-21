@@ -77,6 +77,58 @@ public sealed class PlayerViewerHostLeaseTests
         });
     }
 
+    [Fact]
+    public async Task VideoOnlySource_LeavesVolumeAndMuteControlsDisabledButKeepsTheRestOfTransportUsable()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend(hasAudio: false);
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var host = new PlayerViewerHost(coordinator);
+
+            var asset = new PlayerViewerAsset(Guid.NewGuid(), "silent.mp4", "silent.mp4", "silent.mp4", MediaPresentationKind.Video);
+            var resolution = new MediaPathResolution(asset.RootId, asset.RelativePath, asset.Key,
+                Path.GetFullPath("silent.mp4"), MediaRootAvailability.Online, true);
+            await host.OpenAsync(asset, resolution);
+
+            Assert.False(host.MuteButton.IsEnabled);
+            Assert.False(host.VolumeSlider.IsEnabled);
+            Assert.True(host.PlayPauseButton.IsEnabled);
+        });
+    }
+
+    [Fact]
+    public async Task SourceWithAudio_EnablesVolumeAndMuteAndClickingMuteTogglesTheSharedSession()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend(hasAudio: true);
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var host = new PlayerViewerHost(coordinator);
+
+            var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video);
+            var resolution = new MediaPathResolution(asset.RootId, asset.RelativePath, asset.Key,
+                Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true);
+            await host.OpenAsync(asset, resolution);
+
+            Assert.True(host.MuteButton.IsEnabled);
+            Assert.True(host.VolumeSlider.IsEnabled);
+            Assert.Equal(100, host.VolumeSlider.Value);
+            Assert.False(backend.Mute);
+
+            host.MuteButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Assert.True(backend.Mute);
+
+            host.MuteButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Assert.False(backend.Mute);
+
+            host.VolumeSlider.Value = 40;
+            Assert.Equal(40, backend.Volume);
+        });
+    }
+
     private static void Space(PlayerViewerHost host, Window window) => host.RaiseEvent(
         new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Space)
         { RoutedEvent = UIElement.PreviewKeyDownEvent });
@@ -91,18 +143,21 @@ public sealed class PlayerViewerHostLeaseTests
         }
     }
 
-    private sealed class FakeBackend(TimeSpan? duration = null) : IMediaPlaybackBackend
+    private sealed class FakeBackend(TimeSpan? duration = null, bool hasAudio = false) : IMediaPlaybackBackend
     {
         public int PlayCallCount { get; private set; }
         public int PauseCallCount { get; private set; }
         public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
+        public int Volume { get; set; } = 100;
+        public bool Mute { get; set; }
         public FrameworkElement CreatePresentationSurface() => new();
         public void ReleasePresentationSurface(FrameworkElement surface) { }
         public void CancelPending() { }
         public Task<PlaybackBackendOpened> OpenAsync(string sourcePath, CancellationToken token)
         {
-            var source = new MediaPlaybackSourceInfo(sourcePath, duration ?? TimeSpan.FromSeconds(60), TimeSpan.Zero, 1920, 1080, [], null, false);
+            var audioStreams = hasAudio ? new[] { new MediaAudioStreamInfo(0, null, null, 2, true) } : [];
+            var source = new MediaPlaybackSourceInfo(sourcePath, duration ?? TimeSpan.FromSeconds(60), TimeSpan.Zero, 1920, 1080, audioStreams, hasAudio ? 0 : null, false);
             return Task.FromResult(new PlaybackBackendOpened(source, new(TimeSpan.Zero)));
         }
         public Task CloseAsync(CancellationToken token) => Task.CompletedTask;

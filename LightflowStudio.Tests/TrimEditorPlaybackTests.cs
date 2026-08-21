@@ -106,6 +106,8 @@ public sealed class TrimEditorPlaybackTests
         public TimeSpan? LastSeekPosition { get; private set; }
         public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
+        public int Volume { get; set; } = 100;
+        public bool Mute { get; set; }
         public FrameworkElement CreatePresentationSurface()
         {
             if (PresentationAttached) throw new InvalidOperationException("The previous editor still owns the presentation surface.");

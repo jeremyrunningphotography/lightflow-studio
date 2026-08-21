@@ -27,6 +27,9 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
     public event EventHandler<MediaPlaybackSnapshot>? StateChanged;
     public event EventHandler<MediaPresentationTimestamp>? FramePresented;
 
+    public int Volume { get => _backend.Volume; set => _backend.Volume = value; }
+    public bool Mute { get => _backend.Mute; set => _backend.Mute = value; }
+
     public MediaPlaybackPresentation CreatePresentation() =>
         new(_backend.CreatePresentationSurface(), _backend.ReleasePresentationSurface);
 

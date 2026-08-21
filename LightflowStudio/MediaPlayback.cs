@@ -81,6 +81,11 @@ internal interface IMediaPlaybackService : IAsyncDisposable
     event EventHandler<MediaPlaybackSnapshot>? StateChanged;
     event EventHandler<MediaPresentationTimestamp>? FramePresented;
 
+    /// <summary>0-100. Persists across sources opened through the same service (matches how a physical volume
+    /// control behaves) rather than resetting on every <see cref="OpenAsync"/>.</summary>
+    int Volume { get; set; }
+    bool Mute { get; set; }
+
     MediaPlaybackPresentation CreatePresentation();
     Task OpenAsync(string sourcePath, CancellationToken token = default);
     Task CloseAsync(CancellationToken token = default);
@@ -98,6 +103,12 @@ internal interface IMediaPlaybackBackend : IAsyncDisposable
 {
     event EventHandler<MediaPresentationTimestamp>? FramePresented;
     event EventHandler<MediaPlaybackError>? Failed;
+
+    /// <summary>0-100. Readable/settable even with no source open (applied to the next-opened source), so a
+    /// user's volume choice survives switching between assets.</summary>
+    int Volume { get; set; }
+    bool Mute { get; set; }
+
     FrameworkElement CreatePresentationSurface();
     void ReleasePresentationSurface(FrameworkElement surface);
     void CancelPending();

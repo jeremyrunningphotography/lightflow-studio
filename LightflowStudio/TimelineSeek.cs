@@ -21,33 +21,57 @@ internal static class TimelineSeek
 
 /// <summary>
 /// Shared by every UI consumer of <see cref="IMediaPlaybackService.StepForwardAsync"/>/<see cref="IMediaPlaybackService.StepBackwardAsync"/>
-/// (<c>TrimEditorWindow</c>, <c>PlayerViewerHost</c>) so the boundary-responsiveness bound is defined exactly
-/// once. At the last decoded frame, the engine's own wait for a timestamp change that will never come only
-/// gives up after its own internal 10-second timeout; a bounded caller-supplied token limits this instead.
-/// <see cref="MediaPlaybackService"/>'s "latest generation wins" operation-cancellation handling already
-/// treats a caller token cancelling as equivalent to being superseded by a newer request and completes quietly
-/// rather than throwing, so swallowing <see cref="OperationCanceledException"/> here reflects that existing
-/// contract rather than adding new boundary-detection logic. Other exceptions propagate for the caller's own
-/// status/message handling — this only owns the boundary-timeout concern, not general error presentation.
-/// <see cref="BoundaryTimeout"/> applies to every step, not only ones that actually hit a boundary: backward
-/// stepping over VFR source can legitimately re-seek and decode forward through up to ~2000 frames per attempt
-/// across up to 8 doubling-window attempts (see <c>FlyleafPlaybackBackend.StepBackwardAsync</c>), so this is
-/// deliberately more generous than the minimum needed to fix the boundary case alone — halving the previous
-/// unbounded-up-to-10-second worst case rather than capping tight enough to risk truncating a legitimate, if
-/// slow, reconstruction on a large/high-bitrate or network-hosted source.
+/// (<c>TrimEditorWindow</c>, <c>PlayerViewerHost</c>) so per-direction step-completion handling is defined
+/// exactly once. Forward and backward stepping have genuinely different completion contracts at the backend
+/// (<c>FlyleafPlaybackBackend</c>) and are handled differently here — see each direction's own remarks below.
+/// <see cref="MediaPlaybackService"/>'s "latest generation wins" operation-cancellation handling already treats
+/// a caller token cancelling as equivalent to being superseded by a newer request and completes quietly rather
+/// than throwing, so swallowing <see cref="OperationCanceledException"/> here reflects that existing contract
+/// rather than adding new boundary-detection logic. Other exceptions propagate for the caller's own
+/// status/message handling — this only owns step-completion timing, not general error presentation.
 /// </summary>
 internal static class PlaybackFrameStep
 {
-    private static readonly TimeSpan BoundaryTimeout = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// At the last decoded frame, <c>FlyleafPlaybackBackend.StepForwardAsync</c> calls <c>ShowFrameNext()</c>
+    /// and then waits for a <c>CurTime</c> change that will provably never arrive — nothing internal to the
+    /// engine bounds that wait (its own internal fallback only gives up after 10 seconds), so this external
+    /// token is what keeps repeated forward stepping at a clip boundary responsive.
+    /// </summary>
+    private static readonly TimeSpan ForwardBoundaryTimeout = TimeSpan.FromSeconds(5);
 
     public static async Task RunAsync(IMediaPlaybackService service, bool forward)
     {
-        using var boundaryGuard = new CancellationTokenSource(BoundaryTimeout);
-        try
+        if (forward)
         {
-            if (forward) await service.StepForwardAsync(boundaryGuard.Token).ConfigureAwait(true);
-            else await service.StepBackwardAsync(boundaryGuard.Token).ConfigureAwait(true);
+            using var boundaryGuard = new CancellationTokenSource(ForwardBoundaryTimeout);
+            try { await service.StepForwardAsync(boundaryGuard.Token).ConfigureAwait(true); }
+            catch (OperationCanceledException) { }
+            return;
         }
+
+        // Backward stepping (FlyleafPlaybackBackend.StepBackwardAsync) has no equivalent OUTER "wait for an
+        // event that will never come" hazard at this layer — VFR-correct reconstruction re-seeks and decodes
+        // forward toward the target, already bounded by its own attempt/frame-count limits (up to 8
+        // doubling-window attempts, each up to ~2000 forward steps) rather than a wall clock, and settles for
+        // its closest confirmed predecessor rather than hanging if the engine cannot decode any further (see
+        // FlyleafPlaybackBackend.TryBoundedStepForwardAsync's own doc comment for that inner-layer bound and
+        // the proven near-end-of-source engine limitation it protects against). It still throws a genuine
+        // InvalidOperationException in the residual case where no predecessor could be found at all. An earlier revision of this method
+        // applied the *same* short external timeout uniformly to both directions; that was the proven root
+        // cause of a rapid-Previous-Frame crash. A single reconstruction genuinely needing many forward steps
+        // routinely took longer than that timeout (confirmed empirically — see
+        // FlyleafPlaybackIntegrationTests' own comment on real decode being slow in this environment), so the
+        // external token fired mid-reconstruction far more often than at a genuine boundary: cancelling the C#
+        // wait for whichever native seek/step was currently in flight, exactly like the original forward-only
+        // bug, but now abandoning a multi-operation sequence mid-flight rather than one call — leaving Flyleaf
+        // in a non-quiescent state right before the queue's drain loop, seeing that (falsely) "returned" call,
+        // issued the next backward step. Passing no additional token here does not remove cancellation safety:
+        // MediaPlaybackService links its own session-lifetime token into every operation regardless of what
+        // caller token is supplied, so a genuine session close/teardown still cancels an in-flight
+        // reconstruction correctly (FrameStepQueue.Reset, called from both hosts' close paths, still discards
+        // the result); only the redundant, too-short external wall-clock cutoff is removed.
+        try { await service.StepBackwardAsync().ConfigureAwait(true); }
         catch (OperationCanceledException) { }
     }
 }

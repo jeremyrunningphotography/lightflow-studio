@@ -238,6 +238,177 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
         });
     }
 
+    [Fact]
+    public async Task RapidBackwardOnlyFrameStepRequests_MidClipNeverHangOrCrashTheRealEngine()
+    {
+        // Directly reproduces the reported #132 bug: rapid Next Frame was fixed by FrameStepQueue's
+        // serialization, but rapid Previous Frame still crashed. Proven root cause (see
+        // FlyleafPlaybackBackend.TryBoundedStepForwardAsync's own doc comment): WaitForTimestampChangeAsync's
+        // wait for a CurTime change can fail to settle — hanging for its own internal 10-second fallback —
+        // whenever a step lands within roughly the last ~1.5-2 seconds of a source, confirmed empirically via
+        // direct position-sweep testing against this real engine (not backend documentation). Backward
+        // reconstruction searches forward from an earlier seek point toward the current position, so it can
+        // enter that trailing window on its own *internal* forward steps even when the current position itself
+        // is what's being stepped away from. This fires many backward-only requests, unawaited between clicks,
+        // starting deep inside that confirmed trailing window in a real 12s clip, and requires the whole burst
+        // to complete cleanly and promptly rather than stalling on the internal per-step fallback.
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var fixture = Path.Combine(_root, "rapid-backward-mid.mkv");
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, durationSeconds: 12); // 12s @ 10fps = 120 frames
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var backend = new FlyleafPlaybackBackend(dependencies);
+            await using var playback = new MediaPlaybackService(backend);
+            using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await playback.OpenAsync(fixture, openTimeout.Token);
+            await playback.SeekAsync(TimeSpan.FromSeconds(11.5), openTimeout.Token); // inside the confirmed trailing "trouble zone"
+
+            var queue = new FrameStepQueue();
+            var errors = new List<Exception>();
+            var elapsed = Stopwatch.StartNew();
+
+            for (var i = 0; i < 10; i++) queue.RequestStep(playback, forward: false, errors.Add);
+            await WaitUntilIdleAsync(queue);
+
+            Assert.Empty(errors);
+            Assert.Equal(MediaPlaybackState.Paused, playback.Snapshot.State);
+            Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(30),
+                $"10 rapid-fire backward-only steps starting in the trailing trouble zone took {elapsed.Elapsed} against the real engine; expected the per-internal-step bound to keep this responsive, not stall for the internal 10s-per-step fallback.");
+        });
+    }
+
+    [Fact]
+    public async Task RapidBackwardOnlyFrameStepRequests_NearClipStartNeverHangOrCrashTheRealEngine()
+    {
+        // The backward-reconstruction boundary case: stepping back repeatedly starting very close to frame 0,
+        // where the search window can run out of clip before finding ~8 predecessors and the original<=0 fast
+        // path only covers exactly the first frame, not "close to" it.
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var fixture = Path.Combine(_root, "rapid-backward-start.mkv");
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, durationSeconds: 2); // 2s @ 10fps = 20 frames
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var backend = new FlyleafPlaybackBackend(dependencies);
+            await using var playback = new MediaPlaybackService(backend);
+            using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await playback.OpenAsync(fixture, openTimeout.Token);
+            await playback.SeekAsync(TimeSpan.FromMilliseconds(400), openTimeout.Token); // a few frames in, not frame 0
+
+            var queue = new FrameStepQueue();
+            var errors = new List<Exception>();
+            var elapsed = Stopwatch.StartNew();
+
+            for (var i = 0; i < 8; i++) queue.RequestStep(playback, forward: false, errors.Add);
+            await WaitUntilIdleAsync(queue);
+
+            Assert.Empty(errors);
+            Assert.Equal(MediaPlaybackState.Paused, playback.Snapshot.State);
+            Assert.True(elapsed.Elapsed < TimeSpan.FromMinutes(3),
+                $"8 rapid-fire backward-only steps near clip start took {elapsed.Elapsed} against the real engine; expected completion rather than a hang.");
+        });
+    }
+
+    [Fact]
+    public async Task AlternatingForwardAndBackward_AfterSeveralBackwardStepsNeverHangsOrCrashesTheRealEngine()
+    {
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var fixture = Path.Combine(_root, "alternating-after-backward.mkv");
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, durationSeconds: 3);
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var backend = new FlyleafPlaybackBackend(dependencies);
+            await using var playback = new MediaPlaybackService(backend);
+            using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await playback.OpenAsync(fixture, openTimeout.Token);
+            await playback.SeekAsync(TimeSpan.FromSeconds(2), openTimeout.Token);
+
+            var queue = new FrameStepQueue();
+            var errors = new List<Exception>();
+
+            for (var i = 0; i < 5; i++) queue.RequestStep(playback, forward: false, errors.Add);
+            await WaitUntilIdleAsync(queue);
+
+            for (var i = 0; i < 8; i++) queue.RequestStep(playback, forward: i % 2 == 0, errors.Add);
+            await WaitUntilIdleAsync(queue);
+
+            Assert.Empty(errors);
+            Assert.Equal(MediaPlaybackState.Paused, playback.Snapshot.State);
+        });
+    }
+
+    [Fact]
+    public async Task ClosingImmediatelyAfterABackwardStepRequest_NeverHangsOrCrashesTheRealEngine()
+    {
+        // Backward-direction counterpart to ClosingImmediatelyAfterAFrameStepRequest above — now that backward
+        // stepping can legitimately run for longer (no external wall-clock cutoff), a close/Back landing while
+        // its reconstruction is genuinely in flight is a real, not just theoretical, window.
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+
+            for (var attempt = 0; attempt < 8; attempt++)
+            {
+                var fixture = Path.Combine(_root, $"close-during-backward-step-{attempt}.mkv");
+                GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, durationSeconds: 2);
+
+                await using var backend = new FlyleafPlaybackBackend(dependencies);
+                await using var playback = new MediaPlaybackService(backend);
+                using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await playback.OpenAsync(fixture, openTimeout.Token);
+                await playback.SeekAsync(TimeSpan.FromSeconds(1.5), openTimeout.Token);
+
+                var step = playback.StepBackwardAsync();
+                await playback.CloseAsync();
+                try { await step; } catch (Exception) { /* superseded/cancelled by the close is expected */ }
+            }
+        });
+    }
+
+    [Fact]
+    public async Task SourceSwitch_AfterRepeatedBackwardSteppingNeverHangsOrCrashesTheRealEngine()
+    {
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var first = Path.Combine(_root, "backward-then-switch-a.mkv");
+        var second = Path.Combine(_root, "backward-then-switch-b.mkv");
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), first, durationSeconds: 3);
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), second, durationSeconds: 3);
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var backend = new FlyleafPlaybackBackend(dependencies);
+            await using var playback = new MediaPlaybackService(backend);
+            using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+            await playback.OpenAsync(first, openTimeout.Token);
+            await playback.SeekAsync(TimeSpan.FromSeconds(2), openTimeout.Token);
+            var queue = new FrameStepQueue();
+            var errors = new List<Exception>();
+            for (var i = 0; i < 5; i++) queue.RequestStep(playback, forward: false, errors.Add);
+            // Deliberately does not wait for the backward burst to fully drain before switching sources —
+            // exactly what PlayerViewerHost/TrimEditorWindow's ReleaseCurrentAsync (FrameStepQueue.Reset, then
+            // opening a new source) does when the user opens a different asset mid-step.
+            queue.Reset();
+
+            await playback.OpenAsync(second, openTimeout.Token);
+            Assert.Equal(Path.GetFullPath(second), playback.SourceInfo!.SourcePath);
+            Assert.Equal(MediaPlaybackState.Paused, playback.Snapshot.State);
+        });
+    }
+
     private static async Task WaitUntilIdleAsync(FrameStepQueue queue)
     {
         var deadline = DateTime.UtcNow.AddSeconds(90);

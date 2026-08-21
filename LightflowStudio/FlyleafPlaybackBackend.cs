@@ -136,6 +136,53 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         return await WaitForTimestampChangeAsync(player, before, token).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// A single internal forward step used while reconstructing a backward-step predecessor (both the main
+    /// search loop below and <see cref="SettleOnKnownTimestampAsync"/>), bounded to
+    /// <see cref="InternalReconstructionStepTimeout"/> rather than <see cref="StepForwardAsync"/>'s own
+    /// unbounded-by-default contract. This exists because of a proven, position-dependent engine limitation:
+    /// <c>ShowFrameNext()</c> can genuinely fail to decode any further at all — not merely fail to raise its
+    /// completion event — within roughly the last few frames of a source (confirmed empirically two ways:
+    /// identical <c>SeekAsync</c>-then-<c>StepForwardAsync</c> calls succeed in milliseconds everywhere else in
+    /// a real clip and reliably stall only in that trailing window regardless of total clip length; and
+    /// directly polling <c>Player.CurTime</c> for 4+ seconds after issuing <c>ShowFrameNext()</c> there, with no
+    /// dependency on <c>PropertyChanged</c> at all, shows the position never moves — ruling out a missed
+    /// notification and confirming the decode itself does not advance). Backward reconstruction searches
+    /// forward from an earlier seek point toward the current position and can therefore reach that trailing
+    /// window even when the *current* position is not near the end at all. Direct forward stepping already has
+    /// an equivalent external bound (<c>PlaybackFrameStep</c>'s boundary timeout); this gives the
+    /// reconstruction's own internal steps the same protection without needing a single overall wall-clock
+    /// budget for the whole (potentially legitimately multi-second) reconstruction — see
+    /// <c>PlaybackFrameStep</c>'s own doc comment for why that would be wrong. Returns <see langword="null"/>
+    /// (never throws for its own bound firing) so the caller can treat this as "the engine cannot decode any
+    /// further from here" and settle for the closest already-confirmed predecessor rather than aborting the
+    /// whole backward step — see the main search loop below for why retrying with a different window cannot
+    /// help (the wall is inherent to approaching the target position, not to the window's starting point).
+    /// </summary>
+    private async Task<long?> TryBoundedStepForwardAsync(CancellationToken token)
+    {
+        using var stepGuard = CancellationTokenSource.CreateLinkedTokenSource(token);
+        stepGuard.CancelAfter(InternalReconstructionStepTimeout);
+        try
+        {
+            var timestamp = await StepForwardAsync(stepGuard.Token).ConfigureAwait(false);
+            return timestamp.Position.Ticks;
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            // Our own bound fired, not the caller's token — the caller's session is still fine.
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Generous relative to the low-hundreds-of-milliseconds a normal internal step takes even in a slow
+    /// environment, but far short of <see cref="WaitForTimestampChangeAsync"/>'s own internal 10-second
+    /// fallback — cuts a trailing-window stall down from 10 seconds to 2 per affected internal step, letting
+    /// reconstruction settle for its closest confirmed predecessor promptly rather than hanging.
+    /// </summary>
+    private static readonly TimeSpan InternalReconstructionStepTimeout = TimeSpan.FromSeconds(2);
+
     public async Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token)
     {
         var player = RequirePlayer();
@@ -154,14 +201,19 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             long? predecessor = current < original ? current : null;
             for (var frames = 0; frames < 2000 && current < original; frames++)
             {
-                var next = (await StepForwardAsync(token).ConfigureAwait(false)).Position.Ticks;
-                if (next >= original) break;
-                predecessor = next;
-                current = next;
+                var next = await TryBoundedStepForwardAsync(token).ConfigureAwait(false);
+                // The engine cannot decode any further from `current` — settle for the closest predecessor
+                // already confirmed via genuine decoded steps (or the seek landing itself) rather than
+                // discarding it: a larger window's final approach would hit the exact same wall, since the
+                // wall is inherent to how close we are to `original`, not to where the window started.
+                if (next is null) break;
+                if (next.Value >= original) break;
+                predecessor = next.Value;
+                current = next.Value;
             }
 
             if (predecessor is null) continue;
-            return await SettleOnKnownTimestampAsync(player, predecessor.Value, token).ConfigureAwait(false);
+            return await SettleOnKnownTimestampAsync(predecessor.Value, token).ConfigureAwait(false);
         }
 
         throw new InvalidOperationException("The previous decoded frame could not be located reliably.");
@@ -276,24 +328,19 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         finally { player.PropertyChanged -= handler; }
     }
 
-    private static async Task<MediaPresentationTimestamp> SettleOnKnownTimestampAsync(Player player, long targetTicks, CancellationToken token)
+    private async Task<MediaPresentationTimestamp> SettleOnKnownTimestampAsync(long targetTicks, CancellationToken token)
     {
+        var player = RequirePlayer();
         var timestamp = await SeekPlayerAsync(player, TimeSpan.FromTicks(targetTicks), token).ConfigureAwait(false);
         for (var frames = 0; timestamp.Position.Ticks < targetTicks && frames < 120; frames++)
-            timestamp = await new FlyleafStepForward(player).RunAsync(token).ConfigureAwait(false);
+        {
+            var next = await TryBoundedStepForwardAsync(token).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("Playback could not settle on the preceding decoded timestamp.");
+            timestamp = Timestamp(next);
+        }
         if (timestamp.Position.Ticks != targetTicks)
             throw new InvalidOperationException("Playback could not settle on the preceding decoded timestamp.");
         return timestamp;
-    }
-
-    private sealed class FlyleafStepForward(Player player)
-    {
-        public async Task<MediaPresentationTimestamp> RunAsync(CancellationToken token)
-        {
-            var before = player.CurTime;
-            player.ShowFrameNext();
-            return await WaitForTimestampChangeAsync(player, before, token).ConfigureAwait(false);
-        }
     }
 
     private static BitmapSource EnsureBgra32(BitmapSource source)

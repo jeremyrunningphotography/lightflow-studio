@@ -42,9 +42,13 @@ public sealed class BrowserStatusBarRegressionTests
         Assert.Contains("BrowserStatusDivider.Visibility = visibility;", body);
         // #110: BrowserPresentationControls (the thumbnail-size slider) is Grid-presentation-specific, so it
         // additionally hides while the Player/Viewer is showing, unlike BrowserStatusText/BrowserStatusDivider
-        // which stay tied only to whether the Browser tab itself is active.
-        Assert.Contains("BrowserPresentationControls.Visibility = isBrowserActive", body);
-        Assert.Contains("_browserPresentation == BrowserPresentationMode.Grid", body);
+        // which stay tied only to whether the Browser tab itself is active. Asserted as one contiguous
+        // substring spanning the full conditional (not two independent Assert.Contains calls) so this only
+        // passes if both conditions actually join the same expression, not merely both appear anywhere in the
+        // method body (e.g. one in an unrelated branch or a comment).
+        Assert.Contains(
+            "BrowserPresentationControls.Visibility = isBrowserActive && _browserPresentation == BrowserPresentationMode.Grid",
+            body);
         Assert.Contains("if (isBrowserActive) UpdateBrowserStatusText();", body);
     }
 

@@ -147,6 +147,108 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task RapidAlternatingFrameStepRequests_ThroughFrameStepQueueNeverHangOrCrashTheRealEngine()
+    {
+        // Reproduces the hands-on report against #132: rapidly clicking Previous/Next Frame could hang or
+        // crash the application. Proven root cause (see FrameStepQueue's doc comment): the old per-click call
+        // pattern could let a new StepForwardAsync/StepBackwardAsync request reach FlyleafPlaybackBackend
+        // before the previous one's native ShowFrameNext() decode had genuinely finished — cancelling the C#
+        // wait for that signal never told the native engine to abandon it. FrameStepQueue.RequestStep never
+        // starts request N+1 until request N has genuinely returned, so this fires a real rapid-fire burst —
+        // alternating direction, faster than a human could click, including runs at both the clip start and
+        // end — directly against the real Flyleaf engine and requires the whole thing to complete cleanly
+        // within a bounded time, with no hang and (trivially, since the test process is still running to
+        // check it) no crash.
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var fixture = Path.Combine(_root, "rapid-step.mkv");
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, durationSeconds: 3); // 3s @ 10fps = 30 frames
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var backend = new FlyleafPlaybackBackend(dependencies);
+            await using var playback = new MediaPlaybackService(backend);
+            using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await playback.OpenAsync(fixture, openTimeout.Token);
+
+            var queue = new FrameStepQueue();
+            var errors = new List<Exception>();
+            var elapsed = Stopwatch.StartNew();
+
+            // Rapid-fire forward from the start (stresses the start boundary), then rapid-fire alternating
+            // (stresses genuine reentrancy under direction changes), then seek to the end and rapid-fire
+            // forward again (stresses the end boundary) — all issued in tight loops, not sequentially awaited.
+            // Real decode work is genuinely slow in this environment, so these bursts are deliberately smaller
+            // than the isolated fake-backed tests above — still far faster than a human could physically
+            // click, which is the property under test, not a specific burst size.
+            for (var i = 0; i < 8; i++) queue.RequestStep(playback, forward: true, errors.Add);
+            await WaitUntilIdleAsync(queue);
+
+            for (var i = 0; i < 12; i++) queue.RequestStep(playback, forward: i % 2 == 0, errors.Add);
+            await WaitUntilIdleAsync(queue);
+
+            using var seekTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await playback.SeekAsync(playback.SourceInfo!.Duration, seekTimeout.Token);
+            for (var i = 0; i < 6; i++) queue.RequestStep(playback, forward: true, errors.Add);
+            await WaitUntilIdleAsync(queue);
+
+            Assert.Empty(errors);
+            Assert.Equal(MediaPlaybackState.Paused, playback.Snapshot.State);
+            Assert.True(elapsed.Elapsed < TimeSpan.FromMinutes(2),
+                $"Rapid alternating frame-step burst took {elapsed.Elapsed} against the real engine; expected it to complete promptly rather than hang.");
+        });
+    }
+
+    [Fact]
+    public async Task ClosingImmediatelyAfterAFrameStepRequest_NeverHangsOrCrashesTheRealEngine()
+    {
+        // Covers "Back/Esc while a step is in flight" from #132's lifecycle-safety requirements. This is a
+        // narrower, pre-existing race than the rapid-click one above (present since #52-#55's original Trim
+        // editor, not introduced by FrameStepQueue): MediaPlaybackService.CloseAsync cancels the current
+        // operation's C# wait and releases its semaphore as soon as that cancellation is observed, not once
+        // the backend's fire-and-forget native ShowFrameNext() decode has actually finished — the same
+        // "cancelling the wait doesn't abort the native decode" gap FrameStepQueue's own doc comment describes
+        // for the rapid-click case, just triggered by a close instead of a second step. Repeating the
+        // request-then-immediately-close sequence many times against a real source maximizes the chance of
+        // actually landing inside that narrow window if it is unsafe in practice.
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+
+            for (var attempt = 0; attempt < 12; attempt++)
+            {
+                var fixture = Path.Combine(_root, $"close-during-step-{attempt}.mkv");
+                GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, durationSeconds: 2);
+
+                await using var backend = new FlyleafPlaybackBackend(dependencies);
+                await using var playback = new MediaPlaybackService(backend);
+                using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await playback.OpenAsync(fixture, openTimeout.Token);
+
+                // Fire the step but do not await it — this is exactly the "genuinely in flight" window a real
+                // rapid Next-Frame-then-Back sequence produces, then close immediately behind it.
+                var step = playback.StepForwardAsync();
+                await playback.CloseAsync();
+                try { await step; } catch (Exception) { /* superseded/cancelled by the close is expected */ }
+            }
+        });
+    }
+
+    private static async Task WaitUntilIdleAsync(FrameStepQueue queue)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(90);
+        while (queue.IsDraining)
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("Timed out waiting for the frame-step queue to finish draining against the real engine.");
+            await Task.Delay(15);
+        }
+    }
+
+    [Fact]
     public async Task PresentationSurface_AttachesAcrossRepeatedSameAndDifferentSourceEditorSessions()
     {
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
@@ -180,10 +282,10 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
         });
     }
 
-    private static void GenerateCfrFixture(string ffmpeg, string output) => Run(ffmpeg,
+    private static void GenerateCfrFixture(string ffmpeg, string output, int durationSeconds = 1) => Run(ffmpeg,
         "-hide_banner", "-loglevel", "error", "-y",
-        "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=10:duration=1",
-        "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+        "-f", "lavfi", "-i", $"testsrc2=size=160x90:rate=10:duration={durationSeconds}",
+        "-f", "lavfi", "-i", $"sine=frequency=440:duration={durationSeconds}",
         "-c:v", "ffv1", "-c:a", "pcm_s16le", "-shortest", output);
 
     private static void GenerateVfrFixture(string ffmpeg, string output) => Run(ffmpeg,

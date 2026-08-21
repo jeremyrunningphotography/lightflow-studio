@@ -32,6 +32,7 @@ public partial class PlayerViewerHost : UserControl
     private MediaPlaybackView? _mediaView;
     private PlayerViewerAsset? _currentAsset;
     private bool _updatingPosition;
+    private readonly FrameStepQueue _frameStepQueue = new();
 
     internal PlayerViewerHost(MediaPlaybackCoordinator coordinator)
     {
@@ -102,11 +103,19 @@ public partial class PlayerViewerHost : UserControl
         }
     }
 
-    /// <summary>Releases playback and clears presentation. Safe to call whether or not anything is currently open.</summary>
+    /// <summary>
+    /// Releases playback and clears presentation. Safe to call whether or not anything is currently open.
+    /// Generation-guarded exactly like <see cref="OpenAsync"/>: <see cref="ReleaseCurrentAsync"/>'s actual
+    /// resource teardown always runs unconditionally, but a stale/superseded Close's UI-state clearing (asset
+    /// name, status) is skipped if a newer Open has already published a different asset's state by the time
+    /// this Close's own await settles — otherwise a slow-to-tear-down Close from a lease-theft recovery
+    /// (<see cref="HandleStateChanged"/>) could clobber a newly-opened asset's header/status after the fact.
+    /// </summary>
     internal async Task CloseAsync()
     {
-        _generation++;
+        var generation = ++_generation;
         await ReleaseCurrentAsync().ConfigureAwait(true);
+        if (generation != _generation) return;
         _currentAsset = null;
         AssetNameText.Text = "";
         SetStatus(null);
@@ -175,6 +184,12 @@ public partial class PlayerViewerHost : UserControl
 
     private async Task ReleaseCurrentAsync()
     {
+        // Invalidates the frame-step backlog before releasing _service — no further queued steps are applied
+        // or reported to a service that may now hold a different source or none at all. This does not itself
+        // wait for a step already genuinely in flight; that one native decode keeps running regardless (see
+        // FrameStepQueue's own doc comment — there is no way to abort it), and MediaPlaybackService's existing
+        // cancel-on-close/generation handling governs what happens when the close below reaches it.
+        _frameStepQueue.Reset();
         var mediaView = _mediaView;
         _mediaView = null;
         VideoHost.Children.Clear();
@@ -309,14 +324,20 @@ public partial class PlayerViewerHost : UserControl
         catch (Exception exception) { SetStatus(exception.Message); }
     }
 
-    private async void PreviousFrame_Click(object sender, RoutedEventArgs e) => await StepAsync(forward: false);
-    private async void NextFrame_Click(object sender, RoutedEventArgs e) => await StepAsync(forward: true);
+    private void PreviousFrame_Click(object sender, RoutedEventArgs e) => RequestStep(forward: false);
+    private void NextFrame_Click(object sender, RoutedEventArgs e) => RequestStep(forward: true);
 
-    private async Task StepAsync(bool forward)
+    /// <summary>
+    /// Queues one frame step through <see cref="_frameStepQueue"/> rather than calling
+    /// <see cref="PlaybackFrameStep"/> directly — see <see cref="FrameStepQueue"/>'s own doc comment for why
+    /// rapid repeated requests must never reach the engine concurrently/overlapping. Returns immediately; the
+    /// queue's own drain loop applies steps one at a time, so this stays safe and responsive no matter how
+    /// fast the button is clicked or the keyboard shortcut repeated.
+    /// </summary>
+    private void RequestStep(bool forward)
     {
         if (_service is null || !PositionSlider.IsEnabled) return;
-        try { await PlaybackFrameStep.RunAsync(_service, forward); }
-        catch (Exception exception) { SetStatus(exception.Message); }
+        _frameStepQueue.RequestStep(_service, forward, exception => SetStatus(exception.Message));
     }
 
     private void BackButton_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
@@ -327,7 +348,7 @@ public partial class PlayerViewerHost : UserControl
     /// Left/Right — #111 reserves the arrow keys for filmstrip asset-to-asset navigation, and this control
     /// must not stake a conflicting claim on them ahead of that work.
     /// </summary>
-    private async void PlayerViewerHost_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private void PlayerViewerHost_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         switch (e.Key)
         {
@@ -341,11 +362,11 @@ public partial class PlayerViewerHost : UserControl
                 return;
             case Key.OemComma when _service is not null && PositionSlider.IsEnabled:
                 e.Handled = true;
-                await StepAsync(forward: false);
+                RequestStep(forward: false);
                 return;
             case Key.OemPeriod when _service is not null && PositionSlider.IsEnabled:
                 e.Handled = true;
-                await StepAsync(forward: true);
+                RequestStep(forward: true);
                 return;
         }
     }

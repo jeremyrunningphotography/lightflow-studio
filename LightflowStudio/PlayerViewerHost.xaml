@@ -36,9 +36,15 @@
    <DockPanel Grid.Row="0" Margin="12,10,12,8">
     <Button x:Name="BackButton" DockPanel.Dock="Left" Padding="10,6" Click="BackButton_Click"
      ToolTip="Back to Browser (Esc)" AutomationProperties.Name="Back to Browser">
+     <!-- A horizontal StackPanel top-aligns its children by default rather than stretching them, and the
+          Segoe Fluent Icons/Segoe MDL2 Assets glyph's own line-height/baseline differs from the plain-text
+          run's — without an explicit VerticalAlignment on each child, that natural-height difference reads as
+          the arrow sitting visibly higher than "Back". Centering both independently (not just the StackPanel
+          itself, which only affects its position within the Button's own content area) aligns their vertical
+          centers as one control regardless of that font-metric mismatch. -->
      <StackPanel Orientation="Horizontal">
-      <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE72B;" Margin="0,0,6,0"/>
-      <TextBlock Text="Back"/>
+      <TextBlock VerticalAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE72B;" Margin="0,0,6,0"/>
+      <TextBlock VerticalAlignment="Center" Text="Back"/>
      </StackPanel>
     </Button>
     <TextBlock x:Name="AssetNameText" DockPanel.Dock="Left" Margin="14,0,0,0" VerticalAlignment="Center"

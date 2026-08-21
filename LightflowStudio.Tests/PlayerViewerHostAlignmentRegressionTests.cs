@@ -39,6 +39,23 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("VerticalAlignment=\"Center\"", backTextElement);
     }
 
+    [Fact]
+    public void VolumeSlider_HandlesClickToSetTheSameWayThePositionSliderDoes()
+    {
+        var source = Source();
+        var sliderStart = source.IndexOf("x:Name=\"VolumeSlider\"", StringComparison.Ordinal);
+        Assert.True(sliderStart >= 0, "VolumeSlider not found");
+        var elementStart = source.LastIndexOf("<Slider", sliderStart, StringComparison.Ordinal);
+        var elementEnd = source.IndexOf('>', sliderStart);
+        var element = source[elementStart..elementEnd];
+
+        // The PlaybackTimelineSlider style's own track RepeatButtons only nudge by DecreaseLarge/IncreaseLarge
+        // on a click (ordinary WPF Slider default) — PreviewMouseLeftButtonDown is what actually makes a click
+        // anywhere on the track jump straight to that position, exactly like PositionSlider already does.
+        Assert.Contains("PreviewMouseLeftButtonDown=\"VolumeSlider_PreviewMouseLeftButtonDown\"", element);
+        Assert.Contains("PlaybackTimelineSlider", element);
+    }
+
     private static string Source() =>
         File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml"));
 

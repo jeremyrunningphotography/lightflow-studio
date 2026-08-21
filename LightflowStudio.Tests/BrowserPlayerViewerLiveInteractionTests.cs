@@ -83,6 +83,12 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                     window.BrowserGridHost.Visibility == Visibility.Collapsed,
                     "the Player/Viewer presentation to become visible");
 
+                // #110: the query toolbar (Subfolders/All-Images-RAW-Video/Search/Filter/Sort) describes the
+                // Grid's own result set and must be hidden while reviewing one open asset — presentation only,
+                // BrowserQuery/filter/sort/search state itself is untouched (checked via BrowserCurrentPath
+                // below once back in Grid mode).
+                Assert.Equal(Visibility.Collapsed, window.BrowserQueryToolbar.Visibility);
+
                 var host = Assert.IsType<PlayerViewerHost>(window.BrowserPlayerHost.Content);
                 await WaitUntilAsync(() => host.CurrentAsset?.Name == "photo.jpg", "the Viewer to finish opening the photo");
 
@@ -96,6 +102,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                     window.BrowserPlayerHost.Visibility == Visibility.Collapsed,
                     "the Browser Grid presentation to return");
                 Assert.Equal(BrowserPresentationMode.Grid, GetPresentationMode(window));
+                Assert.Equal(Visibility.Visible, window.BrowserQueryToolbar.Visibility);
 
                 // Browser context — location and the selection the tile click made — survived the round trip.
                 Assert.Equal(_mediaRoot, window.BrowserCurrentPath.Text, ignoreCase: true);

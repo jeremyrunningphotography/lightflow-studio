@@ -271,6 +271,30 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         }
     }
 
+    /// <summary>
+    /// Captures whatever the live render surface currently shows, without seeking/pausing/restoring anything —
+    /// see <see cref="IMediaPlaybackBackend.SnapshotCurrentFrameAsync"/> for why this differs from
+    /// <see cref="GetFrameAsync"/>. No <c>EnsureOffscreenSurface</c>/settle delay is needed here (unlike
+    /// <see cref="GetFrameAsync"/>): this is only ever called by a caller that already has a live presentation
+    /// surface attached (see <c>PlayerViewerHost</c>'s use around backward stepping), so a decoded frame is
+    /// already on screen to capture immediately.
+    /// </summary>
+    public Task<MediaDecodedFrame> SnapshotCurrentFrameAsync(CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var player = RequirePlayer();
+        return Task.FromResult(RunOnUi(() =>
+        {
+            var bitmap = player.TakeSnapshotToBitmapSource()
+                ?? throw new InvalidOperationException("No decoded video frame is available.");
+            var converted = EnsureBgra32(bitmap);
+            var stride = converted.PixelWidth * 4;
+            var pixels = new byte[stride * converted.PixelHeight];
+            converted.CopyPixels(pixels, stride, 0);
+            return new MediaDecodedFrame(Timestamp(player.CurTime), converted.PixelWidth, converted.PixelHeight, stride, pixels);
+        }));
+    }
+
     private Player CreatePlayer()
     {
         var config = new Config();

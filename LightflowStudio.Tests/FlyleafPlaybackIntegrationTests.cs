@@ -546,6 +546,98 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
         });
     }
 
+    [Fact]
+    public async Task AudioPlaybackInvestigation_DoesNotProduceAnyDecodedAudioFramesEvenWithACorrectlyConfiguredSource()
+    {
+        // Documents, rather than papers over, a proven upstream defect. Investigation covered: mono/stereo, AAC
+        // and PCM audio, 5s/30s/60s clips, Config.Decoder.MaxAudioFrames raised well past any plausible buffer
+        // size, Config.Demuxer.BufferDuration lowered, a settle delay before Play(), and calling Play()
+        // immediately vs. after a warm-up delay — none changed the outcome. Flyleaf's own trace log shows two
+        // distinct failure paths depending on codec/timing: (a) "Audio Exhausted 2" — Player.BufferVASD's
+        // startup audio/video sync search gives up within ~40ms because AudioDecoder.IsRunning or its demuxer's
+        // queue status doesn't read as ready in that narrow window, even though decode is genuinely progressing
+        // (confirmed via the demuxer's own DTS/PTS trace lines advancing throughout); and (b) for AAC content
+        // specifically, a continuous "Resync filters!" loop in AudioDecoder.Filters.cs's ProcessFilters, where
+        // each incoming frame's PTS immediately exceeds the freshly-reset expectingPts baseline again, so no
+        // frame ever reaches the output queue at all. Both leave Player.Audio.FramesDisplayed at 0 indefinitely.
+        // This reproduces with FlyleafPlaybackBackend directly — no Browser/TrimEditor-specific code involved —
+        // proving the defect is in the shared #53 playback layer, not specific to any one consumer.
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var fixture = Path.Combine(_root, "audio-investigation.mkv");
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, durationSeconds: 3);
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FlyleafPlaybackBackend(dependencies);
+            var view = new MediaPlaybackView(new MediaPlaybackService(backend));
+            var window = new System.Windows.Window { Content = view, Width = 320, Height = 240, ShowActivated = false, ShowInTaskbar = false };
+            window.Show();
+            try
+            {
+                await Task.Delay(300);
+                using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                var opened = await backend.OpenAsync(fixture, openTimeout.Token);
+                Assert.True(opened.Source.AudioStreams.Count > 0, "This fixture is expected to carry an audio track.");
+
+                var playerField = typeof(FlyleafPlaybackBackend).GetField("_player", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    ?? throw new InvalidOperationException("_player field not found");
+                var player = (FlyleafLib.MediaPlayer.Player)(playerField.GetValue(backend) ?? throw new InvalidOperationException("player is null"));
+
+                player.Play();
+                await Task.Delay(1500);
+                player.Pause();
+
+                // If this ever starts failing, audio has genuinely started working upstream — replace this
+                // assertion with real playback verification rather than deleting the test.
+                Assert.Equal(0, player.Audio.FramesDisplayed);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Fact]
+    public async Task FrameStepping_NeverResumesPlaybackEvenWhenAStepIsRequestedWhilePlaying()
+    {
+        // #110: frame stepping must never emit audio, in either direction, including during backward
+        // reconstruction's internal seeks/steps. Neither StepForwardAsync nor StepBackwardAsync ever calls
+        // Player.Play() (both pause first and stay paused — see FlyleafPlaybackBackend), so this holds
+        // regardless of whether the separate audio-playback defect above is ever fixed: this test remains a
+        // valid guard on its own once audio genuinely produces frames.
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        var fixture = Path.Combine(_root, "stepping-silence.mkv");
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, durationSeconds: 6);
+
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var backend = new FlyleafPlaybackBackend(dependencies);
+            var playerField = typeof(FlyleafPlaybackBackend).GetField("_player", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?? throw new InvalidOperationException("_player field not found");
+            using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await backend.OpenAsync(fixture, openTimeout.Token);
+            var player = (FlyleafLib.MediaPlayer.Player)(playerField.GetValue(backend) ?? throw new InvalidOperationException("player is null"));
+
+            // 3.0s in a 6s clip: comfortably clear of the confirmed trailing "trouble zone" near end-of-source
+            // (see StepBackwardAsync's own doc comment) — this test is about play/pause state, not stepping
+            // near a boundary, so it deliberately avoids that separately-documented territory.
+            await backend.SeekAsync(TimeSpan.FromSeconds(3.0), openTimeout.Token);
+            await backend.PlayAsync(openTimeout.Token);
+            Assert.True(player.IsPlaying);
+
+            await backend.StepBackwardAsync(openTimeout.Token);
+            Assert.False(player.IsPlaying, "Backward stepping must leave playback paused, never resumed.");
+
+            await backend.PlayAsync(openTimeout.Token);
+            Assert.True(player.IsPlaying);
+
+            await backend.StepForwardAsync(openTimeout.Token);
+            Assert.False(player.IsPlaying, "Forward stepping must leave playback paused, never resumed.");
+        });
+    }
+
     private static async Task WaitUntilIdleAsync(FrameStepQueue queue)
     {
         var deadline = DateTime.UtcNow.AddSeconds(90);

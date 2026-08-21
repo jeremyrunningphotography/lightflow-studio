@@ -298,6 +298,8 @@ public sealed class MediaPlaybackServiceTests
             Assert.Equal(source, CurrentSource);
             return new(new(position), 1, 1, 4, [0, 0, 0, 255]);
         }
+        public Task<MediaDecodedFrame> SnapshotCurrentFrameAsync(CancellationToken token) =>
+            Task.FromResult(new MediaDecodedFrame(new(TimeSpan.Zero), 1, 1, 4, [0, 0, 0, 255]));
         public ValueTask DisposeAsync() { ActiveSessions = 0; _pending.Dispose(); return ValueTask.CompletedTask; }
     }
 }

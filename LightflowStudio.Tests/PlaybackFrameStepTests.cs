@@ -67,6 +67,7 @@ public sealed class PlaybackFrameStepTests
         public Task PauseAsync(CancellationToken token = default) => throw new NotSupportedException();
         public Task SeekAsync(TimeSpan position, CancellationToken token = default) => throw new NotSupportedException();
         public Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token = default) => throw new NotSupportedException();
+        public Task<MediaDecodedFrame> SnapshotCurrentFrameAsync(CancellationToken token = default) => throw new NotSupportedException();
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public async Task StepForwardAsync(CancellationToken token = default)

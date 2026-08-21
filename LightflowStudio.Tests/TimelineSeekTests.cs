@@ -62,3 +62,33 @@ public sealed class TimelineSeekTests
         Assert.False(TimelineSeek.ShouldSeek(TimelinePointerTarget.TrimMarker));
     }
 }
+
+/// <summary>Backs PlayerViewerHost's VolumeSlider click-to-set behavior — see SliderClickToSet's own doc comment.</summary>
+public sealed class SliderClickToSetTests
+{
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(25, 25)]
+    [InlineData(50, 50)]
+    [InlineData(100, 100)]
+    public void CoordinateMapsDirectlyAcrossTheSliderRange(double x, double expectedValue) =>
+        Assert.Equal(expectedValue, SliderClickToSet.ValueFromCoordinate(x, 100, 0, 100));
+
+    [Theory]
+    [InlineData(-10, 0)]
+    [InlineData(110, 100)]
+    [InlineData(double.NaN, 0)]
+    public void CoordinateClampsSafelyToTheSliderRange(double x, double expectedValue) =>
+        Assert.Equal(expectedValue, SliderClickToSet.ValueFromCoordinate(x, 100, 0, 100));
+
+    [Fact]
+    public void NonZeroMinimum_OffsetsTheMappedValue() =>
+        Assert.Equal(30, SliderClickToSet.ValueFromCoordinate(50, 100, 10, 50));
+
+    [Fact]
+    public void InvalidSliderGeometry_ReturnsMinimum()
+    {
+        Assert.Equal(0, SliderClickToSet.ValueFromCoordinate(10, 0, 0, 100));
+        Assert.Equal(0, SliderClickToSet.ValueFromCoordinate(10, 100, 0, 0));
+    }
+}

@@ -97,6 +97,22 @@ public sealed class BrowserStatusBarRegressionTests
         Assert.DoesNotContain("Visibility", body);
     }
 
+    [Fact]
+    public void SetBrowserPresentationMode_HidesTheQueryToolbarInPlayerViewerModeAndRestoresItInGridMode()
+    {
+        // #110: the query toolbar (Subfolders, All/Images/RAW/Video, Search, Filter, Sort) describes/manipulates
+        // the Grid's own result set and is irrelevant while reviewing one open asset in the Player/Viewer.
+        var source = Source();
+        var methodStart = source.IndexOf("private void SetBrowserPresentationMode", StringComparison.Ordinal);
+        Assert.True(methodStart >= 0, "SetBrowserPresentationMode not found");
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains(
+            "BrowserQueryToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;",
+            body);
+    }
+
     private static string Source() =>
         File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
 

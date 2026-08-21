@@ -64,6 +64,31 @@ internal sealed class FrameStepQueue
     private long _generation;
 
     /// <summary>
+    /// Awaited (on the caller's original thread — see <see cref="RequestStep"/>'s own threading note), if set,
+    /// immediately before a backward step is issued to the backend — genuinely awaited, not fire-and-forget, so
+    /// a caller can freeze the presentation surface on the currently-displayed frame and know that capture has
+    /// actually completed before reconstruction can move the underlying position out from under it. VFR-correct
+    /// backward reconstruction (see <see cref="FlyleafPlaybackBackend.StepBackwardAsync"/>) internally seeks and
+    /// decodes forward through however many frames it takes to relocate the predecessor — every one of those
+    /// intermediate positions is genuinely presented by the live render surface along the way, since it is the
+    /// same native Player driving both, so a single Previous Frame click can otherwise visibly flash/play
+    /// forward before settling on the correct predecessor. Never awaited for a forward step, which has no such
+    /// intermediate-frame problem. A single delegate (not a multicast event) — this class is already documented
+    /// as one instance per player session with one owner, so there is only ever one caller to coordinate with.
+    /// </summary>
+    public Func<Task>? BeforeBackwardStepAsync { get; set; }
+
+    /// <summary>
+    /// Fires once this drain loop has genuinely finished applying every request queued for its generation (not
+    /// merely between individual steps) — the correct moment to un-freeze a presentation surface frozen by
+    /// <see cref="BeforeBackwardStepAsync"/>, since only now is whatever the render surface is currently showing
+    /// guaranteed to be the final, user-intended resting frame rather than one of reconstruction's own
+    /// intermediate positions. Does not fire for a generation <see cref="Reset"/> has since superseded — that
+    /// generation's own teardown (a new asset opening, or none) governs presentation instead.
+    /// </summary>
+    public event Action? DrainCompleted;
+
+    /// <summary>
     /// The generation a drain loop is currently running for, or -1 if none is active. Generation-scoped
     /// (rather than a plain bool) so that a request arriving for a <em>new</em> generation right after
     /// <see cref="Reset"/> always starts its own loop immediately, even while the previous generation's loop is
@@ -138,6 +163,20 @@ internal sealed class FrameStepQueue
                     _pending += stepForward ? -1 : 1;
                 }
 
+                if (!stepForward && BeforeBackwardStepAsync is { } freeze)
+                {
+                    // A failure to freeze the presentation surface is a visual nicety lost, not a correctness
+                    // failure — reported through the same onError channel, but must never prevent the step
+                    // itself (the user's actual movement intent) from still running below.
+                    try { await freeze().ConfigureAwait(true); }
+                    catch (Exception exception)
+                    {
+                        bool stillCurrent;
+                        lock (_gate) { stillCurrent = generation == _generation; }
+                        if (stillCurrent) onError(exception);
+                    }
+                }
+
                 try { await PlaybackFrameStep.RunAsync(service, stepForward).ConfigureAwait(true); }
                 catch (Exception exception)
                 {
@@ -152,7 +191,13 @@ internal sealed class FrameStepQueue
             // Only clears ownership if this loop still owns it — a generation this loop no longer represents
             // (Reset already moved on and a new loop already claimed _activeDrainGeneration) must never have
             // its ownership stolen out from under it by this now-stale loop's own cleanup.
-            lock (_gate) { if (_activeDrainGeneration == generation) _activeDrainGeneration = -1; }
+            bool notSuperseded;
+            lock (_gate)
+            {
+                if (_activeDrainGeneration == generation) _activeDrainGeneration = -1;
+                notSuperseded = generation == _generation;
+            }
+            if (notSuperseded) DrainCompleted?.Invoke();
         }
     }
 }

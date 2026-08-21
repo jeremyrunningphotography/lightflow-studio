@@ -20,6 +20,22 @@ internal static class TimelineSeek
 }
 
 /// <summary>
+/// Generic click-anywhere-to-set support for a plain numeric Slider (see PlayerViewerHost's VolumeSlider) —
+/// the PlaybackTimelineSlider style's track RepeatButtons only nudge by Slider.DecreaseLarge/IncreaseLarge on a
+/// click (the ordinary WPF Slider default), so a caller intercepts PreviewMouseLeftButtonDown on the track
+/// (never the thumb, which must still start an ordinary drag) and uses this to compute the value to jump to.
+/// </summary>
+internal static class SliderClickToSet
+{
+    public static double ValueFromCoordinate(double x, double usableWidth, double minimum, double maximum)
+    {
+        if (maximum <= minimum || !double.IsFinite(usableWidth) || usableWidth <= 0) return minimum;
+        var boundedX = double.IsFinite(x) ? Math.Clamp(x, 0, usableWidth) : 0;
+        return minimum + (maximum - minimum) * boundedX / usableWidth;
+    }
+}
+
+/// <summary>
 /// Shared by every UI consumer of <see cref="IMediaPlaybackService.StepForwardAsync"/>/<see cref="IMediaPlaybackService.StepBackwardAsync"/>
 /// (<c>TrimEditorWindow</c>, <c>PlayerViewerHost</c>) so per-direction step-completion handling is defined
 /// exactly once. Forward and backward stepping have genuinely different completion contracts at the backend

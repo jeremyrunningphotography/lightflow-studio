@@ -55,6 +55,15 @@
         background convention so no seam can appear between this and the surrounding chrome. -->
    <Grid Grid.Row="1" x:Name="MediaSurfaceHost" Background="Black">
     <Grid x:Name="VideoHost"/>
+    <!-- Covers VideoHost with a still capture of the frame in place when backward frame-step reconstruction
+         begins (see FrameStepQueue.BeforeBackwardStep/DrainCompleted) and is hidden again once it settles.
+         Backward reconstruction seeks/decodes forward through however many frames it takes to relocate the
+         predecessor on the SAME live Player the video surface renders, so without this, those intermediate
+         positions are genuinely visible for a moment — VideoHost hosts a native child window (FlyleafHost),
+         which is not something Flyleaf exposes a "decode without presenting" switch for, so a WPF-rendered
+         Image overlay is the mechanism that can actually sit in front of it. IsHitTestVisible="False" so it
+         never blocks a further click landing on the transport underneath while frozen. -->
+    <Image x:Name="FreezeOverlay" Stretch="Uniform" IsHitTestVisible="False" Visibility="Collapsed"/>
     <Image x:Name="ImageSurface" Stretch="Uniform" Visibility="Collapsed"/>
     <TextBlock x:Name="StatusText" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440"
      TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Visibility="Collapsed"/>
@@ -86,8 +95,8 @@
         <TextBlock x:Name="MuteIcon" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE767;"/>
        </Button>
        <Slider x:Name="VolumeSlider" Style="{StaticResource PlaybackTimelineSlider}" Width="70" Margin="6,0,0,0"
-        Minimum="0" Maximum="100" ValueChanged="VolumeSlider_ValueChanged" IsEnabled="False"
-        ToolTip="Volume" AutomationProperties.Name="Volume"/>
+        Minimum="0" Maximum="100" ValueChanged="VolumeSlider_ValueChanged" PreviewMouseLeftButtonDown="VolumeSlider_PreviewMouseLeftButtonDown"
+        IsEnabled="False" ToolTip="Click anywhere to set the volume, or drag the thumb" AutomationProperties.Name="Volume"/>
       </StackPanel>
      </Grid>
     </Grid>

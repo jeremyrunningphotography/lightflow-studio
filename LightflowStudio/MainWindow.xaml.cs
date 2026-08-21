@@ -1282,6 +1282,13 @@ public partial class MainWindow : Window
         _browserPresentation = mode;
         BrowserGridHost.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
         BrowserPlayerHost.Visibility = mode == BrowserPresentationMode.PlayerViewer ? Visibility.Visible : Visibility.Collapsed;
+        // #110: the query toolbar (Subfolders, All/Images/RAW/Video, Search, Filter, Sort) describes/manipulates
+        // the Grid's own result set — irrelevant while reviewing one open asset, and hiding it is presentation
+        // only: BrowserQueryToolbar's Grid row is Auto-height, so collapsing it reclaims its space automatically
+        // without touching BrowserQuery/filter/sort/search state, which ApplyBrowserState continues to own
+        // exactly as before. Restored (and IsEnabled re-evaluated by the same ApplyBrowserState path) the
+        // instant Grid mode is reselected, so returning via Back/Esc shows it exactly as the user left it.
+        BrowserQueryToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
         // Presentation controls (thumbnail size) are Grid-specific; SyncBrowserStatusBarVisibility's own
         // Browser-tab-active condition already covers whether the whole trailing group shows at all.
         SyncBrowserStatusBarVisibility();

@@ -52,6 +52,80 @@ public sealed class FrameStepQueueTests
     }
 
     [Fact]
+    public async Task BeforeBackwardStepAsync_IsAwaitedToCompletionBeforeTheBackwardStepIsIssued()
+    {
+        // A caller (PlayerViewerHost) uses this hook to capture a "freeze frame" before backward reconstruction
+        // can move the underlying position — that only works if the hook is genuinely awaited, not merely
+        // started, before the step itself begins. A fake hook that itself asserts ordering (records to a
+        // shared log both the hook running and the step running) pins that this isn't a fire-and-forget race.
+        var service = new CountingFakeService();
+        var queue = new FrameStepQueue();
+        var log = new List<string>();
+        queue.BeforeBackwardStepAsync = async () =>
+        {
+            await Task.Delay(30);
+            log.Add("hook");
+        };
+        service.OnBackwardCalled = () => log.Add("step");
+
+        queue.RequestStep(service, forward: false, _ => { });
+        await WaitUntilIdleAsync(queue);
+
+        Assert.Equal(["hook", "step"], log);
+    }
+
+    [Fact]
+    public async Task BeforeBackwardStepAsync_IsNeverAwaitedForAForwardStep()
+    {
+        var service = new CountingFakeService();
+        var queue = new FrameStepQueue();
+        var hookCalls = 0;
+        queue.BeforeBackwardStepAsync = () => { hookCalls++; return Task.CompletedTask; };
+
+        queue.RequestStep(service, forward: true, _ => { });
+        await WaitUntilIdleAsync(queue);
+
+        Assert.Equal(0, hookCalls);
+        Assert.Equal(1, service.ForwardCalls);
+    }
+
+    [Fact]
+    public async Task DrainCompleted_FiresOnceAfterTheWholeBurstSettlesNotBetweenEachIndividualStep()
+    {
+        var service = new CountingFakeService();
+        var queue = new FrameStepQueue();
+        var completedCount = 0;
+        queue.DrainCompleted += () => completedCount++;
+
+        for (var i = 0; i < 5; i++) queue.RequestStep(service, forward: false, _ => { });
+        await WaitUntilIdleAsync(queue);
+
+        Assert.Equal(1, completedCount);
+        Assert.Equal(5, service.BackwardCalls);
+    }
+
+    [Fact]
+    public async Task DrainCompleted_DoesNotFireForAGenerationResetHasSuperseded()
+    {
+        var service = new CountingFakeService();
+        var queue = new FrameStepQueue();
+        var completedCount = 0;
+        queue.DrainCompleted += () => completedCount++;
+        var releaseFirstStep = new TaskCompletionSource();
+        service.OnBackwardCalled = () => releaseFirstStep.TrySetResult();
+
+        queue.RequestStep(service, forward: false, _ => { });
+        await releaseFirstStep.Task; // the single in-flight step has started, matching a Reset landing mid-step
+        queue.Reset();
+        await WaitUntilIdleAsync(queue);
+
+        // The completed step's own drain loop must not report completion for a generation Reset already moved
+        // past — a caller (PlayerViewerHost) uses DrainCompleted to un-freeze presentation, and un-freezing for
+        // a superseded generation could reveal a stale frame from the asset being torn down.
+        Assert.Equal(0, completedCount);
+    }
+
+    [Fact]
     public async Task RapidForwardRequests_BeyondTheClampStillNeverOverlaps()
     {
         // A genuinely extreme burst (60 requests issued faster than the drain loop could possibly keep up,
@@ -253,6 +327,7 @@ public sealed class FrameStepQueueTests
         public Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token) => StepAsync(token);
         public Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token) => StepAsync(token);
         public Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token) => throw new NotSupportedException();
+        public Task<MediaDecodedFrame> SnapshotCurrentFrameAsync(CancellationToken token) => throw new NotSupportedException();
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         private async Task<MediaPresentationTimestamp> StepAsync(CancellationToken token)
@@ -298,6 +373,7 @@ public sealed class FrameStepQueueTests
         public int ForwardCalls { get; private set; }
         public int BackwardCalls { get; private set; }
         public int MaxObservedConcurrentSteps { get; private set; }
+        public Action? OnBackwardCalled { get; set; }
 
         public MediaPlaybackSnapshot Snapshot { get; } = new(MediaPlaybackState.Paused, "clip.mp4", new(TimeSpan.Zero), TimeSpan.FromSeconds(60));
         public int Volume { get; set; } = 100;
@@ -312,6 +388,7 @@ public sealed class FrameStepQueueTests
         public Task PauseAsync(CancellationToken token = default) => throw new NotSupportedException();
         public Task SeekAsync(TimeSpan position, CancellationToken token = default) => throw new NotSupportedException();
         public Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token = default) => throw new NotSupportedException();
+        public Task<MediaDecodedFrame> SnapshotCurrentFrameAsync(CancellationToken token = default) => throw new NotSupportedException();
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public Task StepForwardAsync(CancellationToken token = default) => StepAsync(forward: true, token);
@@ -321,6 +398,11 @@ public sealed class FrameStepQueueTests
         {
             var active = Interlocked.Increment(ref _activeSteps);
             MaxObservedConcurrentSteps = Math.Max(MaxObservedConcurrentSteps, active);
+            // Signals "genuinely started, not yet complete" — fired before the delay so a caller synchronizing
+            // on it (see DrainCompleted_DoesNotFireForAGenerationResetHasSuperseded) gets the full _stepDelay
+            // window to act while the step is still in flight, not a race against this same step's own
+            // near-simultaneous completion.
+            if (!forward) OnBackwardCalled?.Invoke();
             try
             {
                 if (_throwCancelled) throw new OperationCanceledException();

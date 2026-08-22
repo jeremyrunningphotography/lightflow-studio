@@ -52,4 +52,41 @@ public sealed class BrowserPlayerViewerTests
         Assert.False(ReviewRangePlaybackPolicy.HasReachedArmedOutBoundary(range, false, TimeSpan.FromSeconds(90)));
         Assert.False(ReviewRangePlaybackPolicy.ShouldArmOutBoundary(null, TimeSpan.Zero));
     }
+
+    [Fact]
+    public void TimelineWithNoBoundaries_SelectsFullSourceWithoutMarkers()
+    {
+        var presentation = PlayerRangeTimelinePresentation.For(null, TimeSpan.FromSeconds(100));
+
+        Assert.True(presentation.HasSelectedSpan);
+        Assert.True(presentation.HasProportions);
+        Assert.False(presentation.ShowBoundaries);
+        Assert.Equal(0, presentation.StartFraction);
+        Assert.Equal(1, presentation.WidthFraction);
+
+        var explicitFullSourceValue = PlayerRangeTimelinePresentation.For(
+            new MediaRange(TimeSpan.FromSeconds(100)), TimeSpan.FromSeconds(100));
+        Assert.Equal(presentation, explicitFullSourceValue);
+    }
+
+    [Theory]
+    [InlineData(null, 70d, 0d, .7)]
+    [InlineData(20d, null, .2, .8)]
+    [InlineData(20d, 70d, .2, .5)]
+    public void TimelineWithSavedBoundaries_ProjectsEffectiveSpanAndShowsMarkers(
+        double? rangeIn, double? rangeOut, double expectedStart, double expectedWidth)
+    {
+        var duration = TimeSpan.FromSeconds(100);
+        var range = new MediaRange(duration,
+            rangeIn is null ? null : TimeSpan.FromSeconds(rangeIn.Value),
+            rangeOut is null ? null : TimeSpan.FromSeconds(rangeOut.Value));
+
+        var presentation = PlayerRangeTimelinePresentation.For(range, duration);
+
+        Assert.True(presentation.HasSelectedSpan);
+        Assert.True(presentation.HasProportions);
+        Assert.True(presentation.ShowBoundaries);
+        Assert.Equal(expectedStart, presentation.StartFraction, 6);
+        Assert.Equal(expectedWidth, presentation.WidthFraction, 6);
+    }
 }

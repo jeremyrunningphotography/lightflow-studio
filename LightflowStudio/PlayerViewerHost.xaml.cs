@@ -485,9 +485,10 @@ public partial class PlayerViewerHost : UserControl
     private void UpdateRangePresentation()
     {
         var duration = _service?.SourceInfo?.Duration;
-        var presentation = TrimIndicatorPresentation.For(_reviewRange, duration);
-        ReviewRangeIndicator.HasActiveTrim = presentation.HasActiveTrim;
+        var presentation = PlayerRangeTimelinePresentation.For(_reviewRange, duration);
+        ReviewRangeIndicator.HasActiveTrim = presentation.HasSelectedSpan;
         ReviewRangeIndicator.HasProportions = presentation.HasProportions;
+        ReviewRangeIndicator.ShowBoundaries = presentation.ShowBoundaries;
         ReviewRangeIndicator.StartFraction = presentation.StartFraction;
         ReviewRangeIndicator.WidthFraction = presentation.WidthFraction;
         var hasIn = _reviewRange?.In is not null;

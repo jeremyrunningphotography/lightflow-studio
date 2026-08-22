@@ -45,3 +45,24 @@ internal static class ReviewRangePlaybackPolicy
     public static bool HasReachedArmedOutBoundary(MediaRange? range, bool armed, TimeSpan displayed) =>
         armed && range is not null && displayed >= range.EffectiveOut;
 }
+
+internal sealed record PlayerRangeTimelinePresentation(
+    bool HasSelectedSpan,
+    bool HasProportions,
+    bool ShowBoundaries,
+    double StartFraction,
+    double WidthFraction)
+{
+    public static PlayerRangeTimelinePresentation For(MediaRange? range, TimeSpan? knownDuration)
+    {
+        if (range is null || range.IsFullSource)
+        {
+            var hasDuration = knownDuration > TimeSpan.Zero;
+            return new(hasDuration, hasDuration, false, 0, hasDuration ? 1 : 0);
+        }
+
+        var projected = TrimIndicatorPresentation.For(range, knownDuration);
+        return new(projected.HasActiveTrim, projected.HasProportions, true,
+            projected.StartFraction, projected.WidthFraction);
+    }
+}

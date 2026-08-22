@@ -88,12 +88,15 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.True(indicatorStart >= 0, "ReviewRangeIndicator not found");
         var elementStart = xaml.LastIndexOf("<local:TrimRangeIndicator", indicatorStart, StringComparison.Ordinal);
         var element = xaml[elementStart..xaml.IndexOf("/>", indicatorStart, StringComparison.Ordinal)];
-        Assert.Contains("ShowBoundaries=\"True\"", element);
+        Assert.DoesNotContain("ShowBoundaries=", element);
 
         var rendering = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "TrimRangeIndicator.cs"));
         Assert.DoesNotContain("DrawRectangle", rendering);
         Assert.DoesNotContain("DimOutside", rendering);
         Assert.Contains("if (ShowBoundaries)", rendering);
+
+        var behavior = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
+        Assert.Contains("ReviewRangeIndicator.ShowBoundaries = presentation.ShowBoundaries;", behavior);
     }
 
     [Fact]

@@ -56,6 +56,30 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("PlaybackTimelineSlider", element);
     }
 
+    [Fact]
+    public void MuteButton_ReservesAStableFootprintForEveryVisualState()
+    {
+        var source = Source();
+        var start = source.IndexOf("x:Name=\"MuteButton\"", StringComparison.Ordinal);
+        var end = source.IndexOf('>', start);
+        var element = source[start..end];
+        Assert.Contains("Width=\"34\"", element);
+        Assert.Contains("Height=\"30\"", element);
+        Assert.Contains("BorderThickness=\"1\"", element);
+        Assert.Contains("FocusVisualStyle=\"{x:Null}\"", element);
+    }
+
+    [Fact]
+    public void ArrowKeys_UseTheSharedStepPathAndPreserveSliderTextAndSelectorInteraction()
+    {
+        var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
+        Assert.Contains("case Key.Left when _service is not null && PositionSlider.IsEnabled:", source);
+        Assert.Contains("case Key.Right when _service is not null && PositionSlider.IsEnabled:", source);
+        Assert.Contains("IsArrowKeyOwnedByFocusedControl", source);
+        Assert.Contains("TextBoxBase or System.Windows.Controls.Slider", source);
+        Assert.Contains("System.Windows.Controls.Primitives.Selector", source);
+    }
+
     private static string Source() =>
         File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml"));
 

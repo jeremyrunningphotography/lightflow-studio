@@ -1289,6 +1289,8 @@ public partial class MainWindow : Window
         // exactly as before. Restored (and IsEnabled re-evaluated by the same ApplyBrowserState path) the
         // instant Grid mode is reselected, so returning via Back/Esc shows it exactly as the user left it.
         BrowserQueryToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
+        BrowserNavigationToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
+        BrowserNavigationGap.Height = mode == BrowserPresentationMode.Grid ? new GridLength(8) : new GridLength(0);
         // Presentation controls (thumbnail size) are Grid-specific; SyncBrowserStatusBarVisibility's own
         // Browser-tab-active condition already covers whether the whole trailing group shows at all.
         SyncBrowserStatusBarVisibility();

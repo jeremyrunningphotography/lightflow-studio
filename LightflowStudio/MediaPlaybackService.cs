@@ -97,21 +97,6 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
         }
     }
 
-    public async Task<MediaDecodedFrame> SnapshotCurrentFrameAsync(CancellationToken token = default)
-    {
-        EnsureLoaded();
-        var operation = BeginSourceOperation(token);
-        await _operations.WaitAsync(operation.Token).ConfigureAwait(false);
-        try
-        {
-            EnsureCurrent(operation);
-            var frame = await _backend.SnapshotCurrentFrameAsync(operation.Token).ConfigureAwait(false);
-            EnsureCurrent(operation);
-            return frame;
-        }
-        finally { _operations.Release(); }
-    }
-
     private async Task RunOpenAsync(string sourcePath, PlaybackOperation operation)
     {
         await _operations.WaitAsync(operation.Token).ConfigureAwait(false);

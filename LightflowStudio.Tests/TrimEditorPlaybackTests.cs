@@ -141,7 +141,6 @@ public sealed class TrimEditorPlaybackTests
         public Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token) => Task.FromResult(new MediaPresentationTimestamp(NextFrame));
         public Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token) => Task.FromResult(new MediaPresentationTimestamp(PreviousFrame));
         public Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token) => throw new NotSupportedException();
-        public Task<MediaDecodedFrame> SnapshotCurrentFrameAsync(CancellationToken token) => throw new NotSupportedException();
         public ValueTask DisposeAsync() { ActiveSessions = 0; return ValueTask.CompletedTask; }
     }
 }

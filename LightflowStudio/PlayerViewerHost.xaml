@@ -55,15 +55,6 @@
         background convention so no seam can appear between this and the surrounding chrome. -->
    <Grid Grid.Row="1" x:Name="MediaSurfaceHost" Background="Black">
     <Grid x:Name="VideoHost"/>
-    <!-- Covers VideoHost with a still capture of the frame in place when backward frame-step reconstruction
-         begins (see FrameStepQueue.BeforeBackwardStep/DrainCompleted) and is hidden again once it settles.
-         Backward reconstruction seeks/decodes forward through however many frames it takes to relocate the
-         predecessor on the SAME live Player the video surface renders, so without this, those intermediate
-         positions are genuinely visible for a moment — VideoHost hosts a native child window (FlyleafHost),
-         which is not something Flyleaf exposes a "decode without presenting" switch for, so a WPF-rendered
-         Image overlay is the mechanism that can actually sit in front of it. IsHitTestVisible="False" so it
-         never blocks a further click landing on the transport underneath while frozen. -->
-    <Image x:Name="FreezeOverlay" Stretch="Uniform" IsHitTestVisible="False" Visibility="Collapsed"/>
     <Image x:Name="ImageSurface" Stretch="Uniform" Visibility="Collapsed"/>
     <TextBlock x:Name="StatusText" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440"
      TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Visibility="Collapsed"/>
@@ -90,7 +81,8 @@
       <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
        <TextBlock x:Name="DurationText" VerticalAlignment="Center" Margin="0,0,12,0"
         Foreground="{StaticResource MutedTextBrush}" Text="00:00:00.000"/>
-       <Button x:Name="MuteButton" Padding="6,4" Click="MuteButton_Click" IsEnabled="False"
+       <Button x:Name="MuteButton" Width="34" Height="30" Padding="0" BorderThickness="1"
+        FocusVisualStyle="{x:Null}" Click="MuteButton_Click" IsEnabled="False"
         ToolTip="Mute" AutomationProperties.Name="Mute or unmute">
         <TextBlock x:Name="MuteIcon" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE767;"/>
        </Button>

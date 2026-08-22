@@ -129,61 +129,6 @@ public sealed class PlayerViewerHostLeaseTests
         });
     }
 
-    [Fact]
-    public async Task PreviousFrame_FreezesTheSurfaceOnASnapshotWhileReconstructingAndUnfreezesOnceSettled()
-    {
-        await StaDispatcher.RunAsync(async () =>
-        {
-            TestWpfApplication.EnsureLoaded();
-            // Long enough that the assertions below can observe the frozen state mid-step without a race
-            // against the fake's own completion.
-            var backend = new FakeBackend(stepBackwardDelay: TimeSpan.FromMilliseconds(200));
-            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
-            var host = new PlayerViewerHost(coordinator);
-
-            var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video);
-            var resolution = new MediaPathResolution(asset.RootId, asset.RelativePath, asset.Key,
-                Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true);
-            await host.OpenAsync(asset, resolution);
-
-            Assert.Equal(Visibility.Collapsed, host.FreezeOverlay.Visibility);
-
-            host.PreviousFrameButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-
-            await WaitUntilAsync(() => host.FreezeOverlay.Visibility == Visibility.Visible,
-                "the freeze overlay to appear before backward reconstruction settles");
-            Assert.Equal(1, backend.SnapshotCallCount);
-            Assert.NotNull(host.FreezeOverlay.Source);
-
-            await WaitUntilAsync(() => host.FreezeOverlay.Visibility == Visibility.Collapsed,
-                "the freeze overlay to disappear once the step settles");
-            Assert.Null(host.FreezeOverlay.Source);
-        });
-    }
-
-    [Fact]
-    public async Task NextFrame_NeverFreezesTheSurface()
-    {
-        await StaDispatcher.RunAsync(async () =>
-        {
-            TestWpfApplication.EnsureLoaded();
-            var backend = new FakeBackend();
-            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
-            var host = new PlayerViewerHost(coordinator);
-
-            var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video);
-            var resolution = new MediaPathResolution(asset.RootId, asset.RelativePath, asset.Key,
-                Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true);
-            await host.OpenAsync(asset, resolution);
-
-            host.NextFrameButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-            await Task.Delay(100); // the fake's forward step is instant; this only needs to outlast its own dispatch
-
-            Assert.Equal(0, backend.SnapshotCallCount);
-            Assert.Equal(Visibility.Collapsed, host.FreezeOverlay.Visibility);
-        });
-    }
-
     private static void Space(PlayerViewerHost host, Window window) => host.RaiseEvent(
         new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Space)
         { RoutedEvent = UIElement.PreviewKeyDownEvent });
@@ -198,11 +143,10 @@ public sealed class PlayerViewerHostLeaseTests
         }
     }
 
-    private sealed class FakeBackend(TimeSpan? duration = null, bool hasAudio = false, TimeSpan? stepBackwardDelay = null) : IMediaPlaybackBackend
+    private sealed class FakeBackend(TimeSpan? duration = null, bool hasAudio = false) : IMediaPlaybackBackend
     {
         public int PlayCallCount { get; private set; }
         public int PauseCallCount { get; private set; }
-        public int SnapshotCallCount { get; private set; }
         public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
         public int Volume { get; set; } = 100;
@@ -222,16 +166,8 @@ public sealed class PlayerViewerHostLeaseTests
         public Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token) =>
             Task.FromResult(new MediaPresentationTimestamp(position));
         public Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token) => Task.FromResult(new MediaPresentationTimestamp(TimeSpan.Zero));
-        public async Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token)
-        {
-            if (stepBackwardDelay is { } delay) await Task.Delay(delay, token);
-            return new MediaPresentationTimestamp(TimeSpan.Zero);
-        }
-        public Task<MediaDecodedFrame> SnapshotCurrentFrameAsync(CancellationToken token)
-        {
-            SnapshotCallCount++;
-            return Task.FromResult(new MediaDecodedFrame(new(TimeSpan.Zero), 1, 1, 4, [0, 0, 0, 255]));
-        }
+        public Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token) =>
+            Task.FromResult(new MediaPresentationTimestamp(TimeSpan.Zero));
         public Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token) => throw new NotSupportedException();
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

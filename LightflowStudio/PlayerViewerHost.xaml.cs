@@ -39,13 +39,6 @@ public partial class PlayerViewerHost : UserControl
     {
         _coordinator = coordinator;
         InitializeComponent();
-        // See FreezeOverlay's own XAML comment and FrameStepQueue.BeforeBackwardStepAsync's doc comment: VFR
-        // backward reconstruction visibly moves the live render surface through however many intermediate
-        // frames it takes to relocate the predecessor, since it runs on the same Player the surface renders.
-        // Freezing on the frame in place before it starts (awaited — genuinely completes before reconstruction
-        // can move anything) and un-freezing only once the whole queued burst has settled keeps that invisible.
-        _frameStepQueue.BeforeBackwardStepAsync = FreezeCurrentFrameAsync;
-        _frameStepQueue.DrainCompleted += UnfreezeCurrentFrame;
     }
 
     /// <summary>Raised by the Back button or Esc. The host decides what "back" means (for the Browser, returning to Grid presentation at its preserved context).</summary>
@@ -215,7 +208,6 @@ public partial class PlayerViewerHost : UserControl
         TransportBar.Visibility = Visibility.Collapsed;
         SetTransportEnabled(false);
         SetAudioControlsEnabled(false);
-        UnfreezeCurrentFrame();
     }
 
     private void SetStatus(string? message)
@@ -395,52 +387,13 @@ public partial class PlayerViewerHost : UserControl
     }
 
     /// <summary>
-    /// Queues one frame step through <see cref="_frameStepQueue"/> rather than calling
-    /// <see cref="PlaybackFrameStep"/> directly — see <see cref="FrameStepQueue"/>'s own doc comment for why
-    /// rapid repeated requests must never reach the engine concurrently/overlapping. Returns immediately; the
-    /// queue's own drain loop applies steps one at a time, so this stays safe and responsive no matter how
-    /// fast the button is clicked or the keyboard shortcut repeated.
+    /// Queues one request through the shared bounded interaction queue. The queue serializes calls while the
+    /// playback service remains responsible for completing each frame-step operation correctly.
     /// </summary>
     private void RequestStep(bool forward)
     {
         if (_service is null || !PositionSlider.IsEnabled) return;
         _frameStepQueue.RequestStep(_service, forward, exception => SetStatus(exception.Message));
-    }
-
-    /// <summary>
-    /// Captures whatever the live surface currently shows and covers it with that still image — see
-    /// FreezeOverlay's own XAML comment for why an Image overlay, not a Flyleaf-level suppression, is the
-    /// mechanism used. Idempotent: a second backward step queued while the first is still reconstructing must
-    /// not re-capture (that would freeze on an already-intermediate position instead of the frame the user
-    /// actually saw before the burst began), so this only captures when the overlay isn't already showing one.
-    /// A capture failure is swallowed rather than surfaced as a status message — see FrameStepQueue's own doc
-    /// comment: losing the visual freeze for one click is a cosmetic regression, not a reason to block the
-    /// step itself, which FrameStepQueue guarantees still runs regardless of this outcome.
-    /// </summary>
-    private async Task FreezeCurrentFrameAsync()
-    {
-        if (_service is null || FreezeOverlay.Visibility == Visibility.Visible) return;
-        try
-        {
-            var frame = await _service.SnapshotCurrentFrameAsync().ConfigureAwait(true);
-            FreezeOverlay.Source = ToBitmapSource(frame);
-            FreezeOverlay.Visibility = Visibility.Visible;
-        }
-        catch (OperationCanceledException) { }
-    }
-
-    private void UnfreezeCurrentFrame()
-    {
-        if (FreezeOverlay.Visibility == Visibility.Collapsed) return;
-        FreezeOverlay.Visibility = Visibility.Collapsed;
-        FreezeOverlay.Source = null;
-    }
-
-    private static BitmapSource ToBitmapSource(MediaDecodedFrame frame)
-    {
-        var bitmap = BitmapSource.Create(frame.Width, frame.Height, 96, 96, PixelFormats.Bgra32, null, frame.BgraPixels, frame.Stride);
-        bitmap.Freeze();
-        return bitmap;
     }
 
     private void BackButton_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
@@ -453,6 +406,8 @@ public partial class PlayerViewerHost : UserControl
     /// </summary>
     private void PlayerViewerHost_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (e.Key is Key.Left or Key.Right && IsArrowKeyOwnedByFocusedControl(e.OriginalSource as DependencyObject))
+            return;
         switch (e.Key)
         {
             case Key.Escape:
@@ -464,14 +419,28 @@ public partial class PlayerViewerHost : UserControl
                 PlayPause_Click(this, new RoutedEventArgs());
                 return;
             case Key.OemComma when _service is not null && PositionSlider.IsEnabled:
+            case Key.Left when _service is not null && PositionSlider.IsEnabled:
                 e.Handled = true;
                 RequestStep(forward: false);
                 return;
             case Key.OemPeriod when _service is not null && PositionSlider.IsEnabled:
+            case Key.Right when _service is not null && PositionSlider.IsEnabled:
                 e.Handled = true;
                 RequestStep(forward: true);
                 return;
         }
+    }
+
+    private static bool IsArrowKeyOwnedByFocusedControl(DependencyObject? element)
+    {
+        while (element is not null)
+        {
+            if (element is System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.Slider or
+                System.Windows.Controls.Primitives.Thumb or System.Windows.Controls.Primitives.Selector)
+                return true;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return false;
     }
 
     private static string FormatTimestamp(TimeSpan value)

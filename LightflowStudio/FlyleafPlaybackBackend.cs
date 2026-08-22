@@ -227,7 +227,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
                 // still running" from "actually finished," and issuing a new native operation in that window is
                 // exactly what produced the two-click crash this catch replaces. Only once this exception has
                 // been thrown has the *existing*, already-relied-upon (see StepForwardAsync's own direct callers
-                // and PlaybackFrameStep's forward path) internal wait genuinely concluded, so it is safe to issue
+                // and direct forward callers) internal wait genuinely concluded, so it is safe to issue
                 // the next native operation below. Settling for the closest predecessor already confirmed via
                 // genuine decoded steps (or the seek landing itself) rather than retrying a larger window: a
                 // larger window's final approach reaches the exact same wall, since it is inherent to how close
@@ -269,30 +269,6 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
                 if (wasPlaying) RunOnUi(() => player.Play());
             }
         }
-    }
-
-    /// <summary>
-    /// Captures whatever the live render surface currently shows, without seeking/pausing/restoring anything —
-    /// see <see cref="IMediaPlaybackBackend.SnapshotCurrentFrameAsync"/> for why this differs from
-    /// <see cref="GetFrameAsync"/>. No <c>EnsureOffscreenSurface</c>/settle delay is needed here (unlike
-    /// <see cref="GetFrameAsync"/>): this is only ever called by a caller that already has a live presentation
-    /// surface attached (see <c>PlayerViewerHost</c>'s use around backward stepping), so a decoded frame is
-    /// already on screen to capture immediately.
-    /// </summary>
-    public Task<MediaDecodedFrame> SnapshotCurrentFrameAsync(CancellationToken token)
-    {
-        token.ThrowIfCancellationRequested();
-        var player = RequirePlayer();
-        return Task.FromResult(RunOnUi(() =>
-        {
-            var bitmap = player.TakeSnapshotToBitmapSource()
-                ?? throw new InvalidOperationException("No decoded video frame is available.");
-            var converted = EnsureBgra32(bitmap);
-            var stride = converted.PixelWidth * 4;
-            var pixels = new byte[stride * converted.PixelHeight];
-            converted.CopyPixels(pixels, stride, 0);
-            return new MediaDecodedFrame(Timestamp(player.CurTime), converted.PixelWidth, converted.PixelHeight, stride, pixels);
-        }));
     }
 
     private Player CreatePlayer()

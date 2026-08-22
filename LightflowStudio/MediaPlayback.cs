@@ -96,14 +96,6 @@ internal interface IMediaPlaybackService : IAsyncDisposable
     Task StepBackwardAsync(CancellationToken token = default);
     Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token = default);
 
-    /// <summary>
-    /// Captures whatever the presentation surface is showing right now, without seeking or otherwise disturbing
-    /// playback — unlike <see cref="GetFrameAsync"/>, which seeks to a target position and restores afterward.
-    /// Exists so a caller (see <c>PlayerViewerHost</c>'s use around backward frame-stepping) can freeze a still
-    /// image over the live surface before an operation that will visibly move the underlying position, then
-    /// remove it once that operation genuinely settles.
-    /// </summary>
-    Task<MediaDecodedFrame> SnapshotCurrentFrameAsync(CancellationToken token = default);
 }
 
 internal sealed record PlaybackBackendOpened(MediaPlaybackSourceInfo Source, MediaPresentationTimestamp FirstFrame);
@@ -129,5 +121,4 @@ internal interface IMediaPlaybackBackend : IAsyncDisposable
     Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token);
     Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token);
     Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token);
-    Task<MediaDecodedFrame> SnapshotCurrentFrameAsync(CancellationToken token);
 }

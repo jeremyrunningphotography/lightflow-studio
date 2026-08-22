@@ -38,6 +38,7 @@ public sealed class ReleasePackagingTests
             element => element.Attribute("Version")!.Value);
         Assert.Equal("3.11.2", packages["FlyleafLib"]);
         Assert.Equal("9.0.0", packages["Flyleaf.FFmpeg.Bindings"]);
+        Assert.Equal("2.3.0", packages["NAudio.WinMM"]);
     }
 
     [Fact]

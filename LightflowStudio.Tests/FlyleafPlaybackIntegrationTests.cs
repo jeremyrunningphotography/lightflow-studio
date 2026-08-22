@@ -45,6 +45,13 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
 
             await playback.OpenAsync(fixture, timeout.Token);
             Assert.Equal(MediaPlaybackState.Paused, playback.Snapshot.State);
+            var openMetrics = Assert.IsType<MediaPlaybackOpenMetrics>(playback.SourceInfo!.OpenMetrics);
+            Assert.True(openMetrics.SourceOpen > TimeSpan.Zero);
+            Assert.True(openMetrics.FirstFrameSettle > TimeSpan.Zero);
+            Assert.True(openMetrics.Total >= openMetrics.SourceOpen + openMetrics.FirstFrameSettle);
+            Console.WriteLine(
+                $"OPEN_METRICS source={openMetrics.SourceOpen.TotalMilliseconds:n0}ms " +
+                $"firstFrame={openMetrics.FirstFrameSettle.TotalMilliseconds:n0}ms total={openMetrics.Total.TotalMilliseconds:n0}ms");
             Assert.False(playback.SourceInfo!.UsesHardwareDecode,
                 "The FFV1 fixture must open through software decoding when hardware acceleration is requested.");
             AssertTimestamp(expectedPts[0], playback.Snapshot.DisplayedTimestamp!);
@@ -53,8 +60,12 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
             AssertTimestamp(expectedPts[1], playback.Snapshot.DisplayedTimestamp!);
             await playback.StepForwardAsync(timeout.Token);
             AssertTimestamp(expectedPts[2], playback.Snapshot.DisplayedTimestamp!);
+            var reversePresentation = new List<MediaPresentationTimestamp>();
+            playback.FramePresented += (_, timestamp) => reversePresentation.Add(timestamp);
             await playback.StepBackwardAsync(timeout.Token);
             AssertTimestamp(expectedPts[1], playback.Snapshot.DisplayedTimestamp!);
+            Assert.Single(reversePresentation);
+            AssertTimestamp(expectedPts[1], reversePresentation[0]);
 
             await playback.SeekAsync(expectedPts[5], timeout.Token);
             Assert.Contains(expectedPts, expected => Close(expected, playback.Snapshot.DisplayedTimestamp!.Position));
@@ -102,20 +113,11 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
             using (File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
     }
 
-    [Fact(Skip = "#135 owns backend frame-step boundary responsiveness.")]
+    [Fact]
     public async Task StepForward_RepeatedlyAtTheLastDecodedFrameStaysBoundedInsteadOfHangingForTheFullInternalTimeout()
     {
-        // #110's Player transport (and TrimEditorWindow's own Next Frame button, which shares this exact
-        // StepForwardAsync call) needs "predictable, responsive" boundary behavior at the end of a clip.
-        // ShowFrameNext() has nothing to advance to at the last decoded frame, so WaitForTimestampChangeAsync
-        // would otherwise wait out its own internal 10-second timeout before eventually throwing. Both UI
-        // consumers now route every frame-step call through the shared PlaybackFrameStep.RunAsync (exercised
-        // directly here, not reimplemented) so each call settles within its bounded timeout instead of 10s —
-        // this proves that bound against the real Flyleaf engine, not a fake. MediaPlaybackService's own
-        // "latest generation wins" cancellation handling treats a caller token cancelling the same as being
-        // superseded and completes quietly rather than throwing (see PlaybackFrameStep's doc comment), so the
-        // observable contract this asserts is "returns promptly, repeatedly" rather than "throws" — the UI
-        // never sees an exception at this boundary.
+        // Flyleaf's ShowFrameNext synchronously updates CurTime or leaves it unchanged at the end boundary.
+        // The backend must return that stable boundary immediately rather than waiting for an event that cannot fire.
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
             ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
         var fixture = Path.Combine(_root, "end-of-clip.mkv");
@@ -131,18 +133,13 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
             await playback.OpenAsync(fixture, openTimeout.Token);
             await playback.SeekAsync(playback.SourceInfo!.Duration, openTimeout.Token);
 
-            // Walk forward from wherever the seek landed until well past the true last frame (a fixed, small
-            // attempt budget rather than detecting "the" boundary), asserting every single call — including
-            // whichever ones land exactly at the boundary — returns within PlaybackFrameStep's own bound,
-            // never the engine's 10s internal one.
+            // Walk beyond the true last frame and prove the unchanged synchronous boundary returns promptly.
             var elapsed = System.Diagnostics.Stopwatch.StartNew();
             for (var attempt = 0; attempt < 3; attempt++)
                 await playback.StepForwardAsync(openTimeout.Token);
-            // Comfortably below what even a single uncapped 10s internal wait would take, let alone three of
-            // them (30s) — each call is individually bounded by its own token; this only needs enough slack
-            // above three back-to-back bounded calls to absorb ordinary test-machine jitter.
-            Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(25),
-                $"3 forward steps at/past the end of clip took {elapsed.Elapsed}; each should be bounded by PlaybackFrameStep's own caller timeout, never the engine's own 10s internal wait.");
+            // Two seconds leaves ample decode jitter while excluding the removed ten-second wait.
+            Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(2),
+                $"3 forward steps at/past the end of clip took {elapsed.Elapsed}; the synchronous native boundary should return without a completion timeout.");
         });
     }
 
@@ -250,8 +247,8 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
         // FlyleafPlaybackBackend.CreatePlayer() actually requests (config.Video.VideoAcceleration = true) and
         // that PlayerViewerHost actually uses. This covers real H.264 content with hardware decode and a
         // genuinely shown, rendering window: open, then exactly two sequential (fully awaited, not rapid)
-        // Previous Frame clicks through the full production stack (MediaPlaybackService -> FrameStepQueue ->
-        // PlaybackFrameStep), at several positions including near end-of-source and far from any keyframe.
+        // Previous Frame clicks through the full production stack (MediaPlaybackService -> FrameStepQueue), at
+        // several positions including near end-of-source and far from any keyframe.
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
             ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
         var fixture = Path.Combine(_root, "two-click-h264.mkv");
@@ -333,17 +330,8 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
     [Fact]
     public async Task RapidBackwardOnlyFrameStepRequests_MidClipNeverHangOrCrashTheRealEngine()
     {
-        // Directly reproduces the reported #132 bug: rapid Next Frame was fixed by FrameStepQueue's
-        // serialization, but rapid Previous Frame still crashed. Proven root cause (see
-        // FlyleafPlaybackBackend.StepBackwardAsync's own catch (TimeoutException) comment): WaitForTimestampChangeAsync's
-        // wait for a CurTime change can fail to settle — hanging for its own internal 10-second fallback —
-        // whenever a step lands within roughly the last ~1.5-2 seconds of a source, confirmed empirically via
-        // direct position-sweep testing against this real engine (not backend documentation). Backward
-        // reconstruction searches forward from an earlier seek point toward the current position, so it can
-        // enter that trailing window on its own *internal* forward steps even when the current position itself
-        // is what's being stepped away from. This fires many backward-only requests, unawaited between clicks,
-        // starting deep inside that confirmed trailing window in a real 12s clip, and requires the whole burst
-        // to complete cleanly and promptly rather than stalling on the internal per-step fallback.
+        // Reproduces the reported rapid Previous Frame path against real decode work. Requests are unawaited
+        // between clicks and must serialize to settled predecessors without overlap, timeout, hang, or crash.
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
             ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
         var fixture = Path.Combine(_root, "rapid-backward-mid.mkv");
@@ -502,14 +490,9 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task Volume_ReachesTheNativePlayerAndPersistsAcrossASourceSwitch()
+    public async Task VolumeAndMutePersistAcrossASourceSwitch()
     {
-        // Mute is deliberately not asserted against the native player here: direct investigation (setting
-        // player.Audio.Mute = true immediately followed by reading it back — bypassing this backend's own
-        // wrapper entirely) showed the native property does not durably persist a Mute in this environment,
-        // consistent with the separately-documented audio-playback investigation (see the #110 PR discussion).
-        // This backend's own Mute get/set contract (below) is still verified, since callers depend on it
-        // round-tripping regardless of whether the underlying engine currently honors it.
+        // Volume/mute belong to the shared backend rather than one source-specific output instance.
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
             ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
         var first = Path.Combine(_root, "volume-first.mkv");
@@ -522,16 +505,12 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
             TestWpfApplication.EnsureLoaded();
             var backend = new FlyleafPlaybackBackend(dependencies);
             await using var playback = new MediaPlaybackService(backend);
-            var playerField = typeof(FlyleafPlaybackBackend).GetField("_player", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                ?? throw new InvalidOperationException("_player field not found");
             using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
             await playback.OpenAsync(first, openTimeout.Token);
             playback.Volume = 42;
             playback.Mute = true;
 
-            var player = (FlyleafLib.MediaPlayer.Player)(playerField.GetValue(backend) ?? throw new InvalidOperationException("player is null"));
-            Assert.Equal(42, player.Audio.Volume);
             Assert.Equal(42, playback.Volume);
             Assert.True(playback.Mute);
 
@@ -539,29 +518,16 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
             // volume/mute choice must survive that, matching how a physical volume knob behaves regardless of
             // what's currently loaded.
             await playback.OpenAsync(second, openTimeout.Token);
-            var secondPlayer = (FlyleafLib.MediaPlayer.Player)(playerField.GetValue(backend) ?? throw new InvalidOperationException("player is null"));
-            Assert.Equal(42, secondPlayer.Audio.Volume);
             Assert.Equal(42, playback.Volume);
             Assert.True(playback.Mute);
         });
     }
 
     [Fact]
-    public async Task AudioPlaybackInvestigation_DoesNotProduceAnyDecodedAudioFramesEvenWithACorrectlyConfiguredSource()
+    public async Task AudioPlayback_DecodesSelectedStreamToBoundedOutputAndStopsOnPause()
     {
-        // Documents, rather than papers over, a proven upstream defect. Investigation covered: mono/stereo, AAC
-        // and PCM audio, 5s/30s/60s clips, Config.Decoder.MaxAudioFrames raised well past any plausible buffer
-        // size, Config.Demuxer.BufferDuration lowered, a settle delay before Play(), and calling Play()
-        // immediately vs. after a warm-up delay — none changed the outcome. Flyleaf's own trace log shows two
-        // distinct failure paths depending on codec/timing: (a) "Audio Exhausted 2" — Player.BufferVASD's
-        // startup audio/video sync search gives up within ~40ms because AudioDecoder.IsRunning or its demuxer's
-        // queue status doesn't read as ready in that narrow window, even though decode is genuinely progressing
-        // (confirmed via the demuxer's own DTS/PTS trace lines advancing throughout); and (b) for AAC content
-        // specifically, a continuous "Resync filters!" loop in AudioDecoder.Filters.cs's ProcessFilters, where
-        // each incoming frame's PTS immediately exceeds the freshly-reset expectingPts baseline again, so no
-        // frame ever reaches the output queue at all. Both leave Player.Audio.FramesDisplayed at 0 indefinitely.
-        // This reproduces with FlyleafPlaybackBackend directly — no Browser/TrimEditor-specific code involved —
-        // proving the defect is in the shared #53 playback layer, not specific to any one consumer.
+        // Proves the partial replacement at its real decode boundary: bundled FFmpeg maps the selected stream
+        // and produces PCM, while a deterministic output fake avoids depending on the test runner's audio device.
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
             ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
         var fixture = Path.Combine(_root, "audio-investigation.mkv");
@@ -570,41 +536,32 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
         await StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
-            var backend = new FlyleafPlaybackBackend(dependencies);
-            var view = new MediaPlaybackView(new MediaPlaybackService(backend));
-            var window = new System.Windows.Window { Content = view, Width = 320, Height = 240, ShowActivated = false, ShowInTaskbar = false };
-            window.Show();
-            try
-            {
-                await Task.Delay(300);
-                using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                var opened = await backend.OpenAsync(fixture, openTimeout.Token);
-                Assert.True(opened.Source.AudioStreams.Count > 0, "This fixture is expected to carry an audio track.");
+            var output = new RecordingAudioOutput();
+            await using var backend = new FlyleafPlaybackBackend(dependencies, () => output);
+            using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var opened = await backend.OpenAsync(fixture, openTimeout.Token);
+            Assert.True(opened.Source.AudioStreams.Count > 0, "This fixture is expected to carry an audio track.");
 
-                var playerField = typeof(FlyleafPlaybackBackend).GetField("_player", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                    ?? throw new InvalidOperationException("_player field not found");
-                var player = (FlyleafLib.MediaPlayer.Player)(playerField.GetValue(backend) ?? throw new InvalidOperationException("player is null"));
+            backend.Volume = 42;
+            backend.Mute = true;
+            await backend.PlayAsync(openTimeout.Token);
+            await WaitUntilAsync(() => output.BytesAdded > 0, "decoded PCM to reach the audio output");
+            Assert.True(output.Played);
+            Assert.Equal(0, output.Volume);
 
-                player.Play();
-                await Task.Delay(1500);
-                player.Pause();
+            backend.Mute = false;
+            Assert.Equal(0.42f, output.Volume, 0.01f);
 
-                // If this ever starts failing, audio has genuinely started working upstream — replace this
-                // assertion with real playback verification rather than deleting the test.
-                Assert.Equal(0, player.Audio.FramesDisplayed);
-            }
-            finally { window.Close(); }
+            await backend.PauseAsync(openTimeout.Token);
+            Assert.True(output.Stopped);
         });
     }
 
     [Fact]
     public async Task FrameStepping_NeverResumesPlaybackEvenWhenAStepIsRequestedWhilePlaying()
     {
-        // #110: frame stepping must never emit audio, in either direction, including during backward
-        // reconstruction's internal seeks/steps. Neither StepForwardAsync nor StepBackwardAsync ever calls
-        // Player.Play() (both pause first and stay paused — see FlyleafPlaybackBackend), so this holds
-        // regardless of whether the separate audio-playback defect above is ever fixed: this test remains a
-        // valid guard on its own once audio genuinely produces frames.
+        // Frame stepping stops the audio companion and never restarts it in either direction, including during
+        // backward reconstruction's internal seeks and forward walk.
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
             ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
         var fixture = Path.Combine(_root, "stepping-silence.mkv");
@@ -613,7 +570,8 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
         await StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
-            await using var backend = new FlyleafPlaybackBackend(dependencies);
+            var audioOutput = new RecordingAudioOutput();
+            await using var backend = new FlyleafPlaybackBackend(dependencies, () => audioOutput);
             var playerField = typeof(FlyleafPlaybackBackend).GetField("_player", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
                 ?? throw new InvalidOperationException("_player field not found");
             using var openTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -629,6 +587,7 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
 
             await backend.StepBackwardAsync(openTimeout.Token);
             Assert.False(player.IsPlaying, "Backward stepping must leave playback paused, never resumed.");
+            Assert.True(audioOutput.Stopped);
 
             await backend.PlayAsync(openTimeout.Token);
             Assert.True(player.IsPlaying);
@@ -646,6 +605,29 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
             if (DateTime.UtcNow > deadline) throw new TimeoutException("Timed out waiting for the frame-step queue to finish draining against the real engine.");
             await Task.Delay(15);
         }
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, string waitingFor)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException($"Timed out waiting for {waitingFor}.");
+            await Task.Delay(10);
+        }
+    }
+
+    private sealed class RecordingAudioOutput : IPlaybackAudioOutput
+    {
+        public int BytesAdded { get; private set; }
+        public bool Played { get; private set; }
+        public bool Stopped { get; private set; }
+        public TimeSpan BufferedDuration => TimeSpan.Zero;
+        public float Volume { get; set; }
+        public void AddSamples(byte[] buffer, int offset, int count) => BytesAdded += count;
+        public void Play() => Played = true;
+        public void Stop() => Stopped = true;
+        public void Dispose() { }
     }
 
     [Fact]

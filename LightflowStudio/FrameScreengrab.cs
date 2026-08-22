@@ -82,7 +82,7 @@ internal sealed class FrameScreengrabService(Func<string> outputDirectory) : IFr
         var settled = TimeSpan.FromTicks(ticks);
         var totalHours = (long)settled.TotalHours;
         return string.Create(CultureInfo.InvariantCulture,
-            $"{safeName}_{totalHours:D2}-{settled.Minutes:D2}-{settled.Seconds:D2}.{settled.Milliseconds:D3}_t{ticks:D19}");
+            $"{safeName}_{totalHours:D2}-{settled.Minutes:D2}-{settled.Seconds:D2}.{settled.Milliseconds:D3}");
     }
 
     private static void WritePng(string path, MediaDecodedFrame frame)

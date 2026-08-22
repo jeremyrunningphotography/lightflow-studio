@@ -143,7 +143,7 @@
         Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" Visibility="Collapsed"
         AutomationProperties.LiveSetting="Polite"/>
        <Button x:Name="ScreengrabSuccessButton" Width="26" Height="26" Padding="0" Margin="0,0,4,0"
-        Visibility="Collapsed" Click="ScreengrabSuccess_Click" Foreground="{StaticResource SuccessBrush}"
+        Visibility="Collapsed" Click="ScreengrabSuccess_Click" Foreground="{StaticResource OrangeBrush}"
         ToolTip="Screengrab saved. Open folder" AutomationProperties.Name="Screengrab saved. Open screengrab folder"
         AutomationProperties.LiveSetting="Polite">
         <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE73E;"/>

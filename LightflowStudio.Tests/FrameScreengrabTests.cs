@@ -31,13 +31,14 @@ public sealed class FrameScreengrabTests : IDisposable
     }
 
     [Fact]
-    public void BuildFileStem_UsesSourceNameAndExactDisplayedTimestamp()
+    public void BuildFileStem_UsesSourceNameAndOneReadableDisplayedTimestamp()
     {
         var position = TimeSpan.FromTicks(12_345_678);
 
         var stem = FrameScreengrabService.BuildFileStem(@"D:\Media\My Clip.mp4", position);
 
-        Assert.Equal("My Clip_00-00-01.234_t0000000000012345678", stem);
+        Assert.Equal("My Clip_00-00-01.234", stem);
+        Assert.DoesNotContain("_t", stem);
     }
 
     public void Dispose()

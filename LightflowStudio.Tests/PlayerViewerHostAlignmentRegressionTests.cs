@@ -135,6 +135,8 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("AutomationProperties.LiveSetting=\"Polite\"", xaml);
         Assert.Contains("x:Name=\"ScreengrabSuccessButton\" Width=\"26\" Height=\"26\"", xaml);
         Assert.Contains("AutomationProperties.Name=\"Screengrab saved. Open screengrab folder\"", xaml);
+        Assert.Contains("Click=\"ScreengrabSuccess_Click\" Foreground=\"{StaticResource OrangeBrush}\"", xaml);
+        Assert.DoesNotContain("Click=\"ScreengrabSuccess_Click\" Foreground=\"{StaticResource SuccessBrush}\"", xaml);
 
         var behavior = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
         Assert.DoesNotContain("SetScreengrabFeedback($\"Saved {Path.GetFileName(result.Path)}\")", behavior);

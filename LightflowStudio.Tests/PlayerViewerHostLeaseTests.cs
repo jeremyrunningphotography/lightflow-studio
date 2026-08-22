@@ -130,6 +130,56 @@ public sealed class PlayerViewerHostLeaseTests
     }
 
     [Fact]
+    public async Task SavedIn_OpensPausedOnThatAuthoritativeTimestamp()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var assetId = Guid.NewGuid();
+            var savedIn = TimeSpan.FromTicks(123_456_789);
+            var store = new FakeRangeStore(new MediaRange(TimeSpan.FromSeconds(60), savedIn, TimeSpan.FromSeconds(40)));
+            var host = new PlayerViewerHost(coordinator, store);
+            var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4",
+                MediaPresentationKind.Video, assetId);
+            var resolution = new MediaPathResolution(asset.RootId, asset.RelativePath, asset.Key,
+                Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true);
+
+            await host.OpenAsync(asset, resolution);
+
+            Assert.Equal(assetId, store.RestoredAssetId);
+            Assert.Equal([savedIn], backend.SeekPositions);
+            Assert.Equal(0, backend.PlayCallCount);
+            Assert.Equal("Play", host.PlayPauseButton.Content);
+            Assert.Equal(savedIn.TotalMilliseconds, host.PositionSlider.Value, 3);
+        });
+    }
+
+    [Fact]
+    public async Task RangeWithoutSavedIn_PreservesNormalOpeningPosition()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var store = new FakeRangeStore(new MediaRange(TimeSpan.FromSeconds(60), Out: TimeSpan.FromSeconds(40)));
+            var host = new PlayerViewerHost(coordinator, store);
+            var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4",
+                MediaPresentationKind.Video, Guid.NewGuid());
+            var resolution = new MediaPathResolution(asset.RootId, asset.RelativePath, asset.Key,
+                Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true);
+
+            await host.OpenAsync(asset, resolution);
+
+            Assert.Empty(backend.SeekPositions);
+            Assert.Equal(0, backend.PlayCallCount);
+            Assert.Equal(TimeSpan.Zero.TotalMilliseconds, host.PositionSlider.Value);
+        });
+    }
+
+    [Fact]
     public async Task PreviousFrame_RetainsCurrentFrameWhileNativeSurfaceReconstructsThenPublishesSettledFrame()
     {
         await StaDispatcher.RunAsync(async () =>
@@ -174,6 +224,7 @@ public sealed class PlayerViewerHostLeaseTests
     private sealed class FakeBackend(TimeSpan? duration = null, bool hasAudio = false) : IMediaPlaybackBackend
     {
         public List<string> Operations { get; } = [];
+        public List<TimeSpan> SeekPositions { get; } = [];
         public int PlayCallCount { get; private set; }
         public int PauseCallCount { get; private set; }
         public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }
@@ -192,8 +243,11 @@ public sealed class PlayerViewerHostLeaseTests
         public Task CloseAsync(CancellationToken token) => Task.CompletedTask;
         public Task PlayAsync(CancellationToken token) { PlayCallCount++; return Task.CompletedTask; }
         public Task PauseAsync(CancellationToken token) { PauseCallCount++; return Task.CompletedTask; }
-        public Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token) =>
-            Task.FromResult(new MediaPresentationTimestamp(position));
+        public Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token)
+        {
+            SeekPositions.Add(position);
+            return Task.FromResult(new MediaPresentationTimestamp(position));
+        }
         public Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token) => Task.FromResult(new MediaPresentationTimestamp(TimeSpan.Zero));
         public Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token)
         {
@@ -207,5 +261,19 @@ public sealed class PlayerViewerHostLeaseTests
             return Task.FromResult(new MediaDecodedFrame(new(TimeSpan.Zero), 1, 1, 4, [0, 0, 0, 255]));
         }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class FakeRangeStore(MediaRange? restored) : IMediaRangeStore
+    {
+        public Guid? RestoredAssetId { get; private set; }
+
+        public Task<MediaRange?> RestoreAsync(Guid assetId, CancellationToken cancellationToken = default)
+        {
+            RestoredAssetId = assetId;
+            return Task.FromResult(restored);
+        }
+
+        public Task SaveAsync(Guid assetId, MediaRange? range, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

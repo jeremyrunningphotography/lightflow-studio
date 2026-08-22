@@ -145,7 +145,13 @@ public partial class PlayerViewerHost : UserControl
             VideoHost.Children.Add(_mediaView);
             PositionSlider.Maximum = info.Duration.TotalMilliseconds;
             DurationText.Text = FormatTimestamp(info.Duration);
-            await RestoreRangeAsync(info.Duration, token).ConfigureAwait(true);
+            var restoredRange = await RestoreRangeAsync(info.Duration, assetId: _currentAsset?.AssetId, token).ConfigureAwait(true);
+            if (generation != _generation) return;
+            _reviewRange = restoredRange;
+            UpdateRangePresentation();
+            if (_reviewRange?.In is { } savedIn)
+                await service.SeekAsync(savedIn, token).ConfigureAwait(true);
+            if (generation != _generation) return;
             UpdateFromSnapshot(service.Snapshot);
             SetTransportEnabled(true);
             SetAudioControlsEnabled(info.AudioStreams.Count > 0);
@@ -449,19 +455,18 @@ public partial class PlayerViewerHost : UserControl
         SteppedFrameSurface.Source = ToBitmapSource(settled);
     }
 
-    private async Task RestoreRangeAsync(TimeSpan duration, CancellationToken token)
+    private async Task<MediaRange?> RestoreRangeAsync(TimeSpan duration, Guid? assetId, CancellationToken token)
     {
-        _reviewRange = null;
-        if (_rangeStore is not null && _currentAsset?.AssetId is Guid assetId)
+        if (_rangeStore is not null && assetId is Guid stableAssetId)
         {
-            var saved = await _rangeStore.RestoreAsync(assetId, token).ConfigureAwait(true);
+            var saved = await _rangeStore.RestoreAsync(stableAssetId, token).ConfigureAwait(true);
             if (saved is not null)
             {
                 var adapted = new MediaRange(duration, saved.In, saved.Out);
-                if (adapted.Validate().Count == 0) _reviewRange = adapted;
+                if (adapted.Validate().Count == 0) return adapted;
             }
         }
-        UpdateRangePresentation();
+        return null;
     }
 
     private async Task SaveRangeAsync(MediaRange? range)

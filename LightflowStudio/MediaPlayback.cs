@@ -57,15 +57,26 @@ internal sealed record MediaDecodedFrame(
 internal sealed class MediaPlaybackPresentation : IDisposable
 {
     private readonly Action<FrameworkElement> _release;
+    private readonly Func<CancellationToken, Task<MediaDecodedFrame>> _captureFrame;
     private FrameworkElement? _surface;
 
-    public MediaPlaybackPresentation(FrameworkElement surface, Action<FrameworkElement> release)
+    public MediaPlaybackPresentation(
+        FrameworkElement surface,
+        Action<FrameworkElement> release,
+        Func<CancellationToken, Task<MediaDecodedFrame>> captureFrame)
     {
         _surface = surface;
         _release = release;
+        _captureFrame = captureFrame;
     }
 
     public FrameworkElement Surface => _surface ?? throw new ObjectDisposedException(nameof(MediaPlaybackPresentation));
+
+    public Task<MediaDecodedFrame> CaptureFrameAsync(CancellationToken token = default)
+    {
+        ObjectDisposedException.ThrowIf(_surface is null, this);
+        return _captureFrame(token);
+    }
 
     public void Dispose()
     {
@@ -121,4 +132,5 @@ internal interface IMediaPlaybackBackend : IAsyncDisposable
     Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token);
     Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token);
     Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token);
+    Task<MediaDecodedFrame> CapturePresentedFrameAsync(CancellationToken token);
 }

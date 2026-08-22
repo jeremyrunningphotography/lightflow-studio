@@ -31,7 +31,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
     public bool Mute { get => _backend.Mute; set => _backend.Mute = value; }
 
     public MediaPlaybackPresentation CreatePresentation() =>
-        new(_backend.CreatePresentationSurface(), _backend.ReleasePresentationSurface);
+        new(_backend.CreatePresentationSurface(), _backend.ReleasePresentationSurface, _backend.CapturePresentedFrameAsync);
 
     public Task OpenAsync(string sourcePath, CancellationToken token = default)
     {

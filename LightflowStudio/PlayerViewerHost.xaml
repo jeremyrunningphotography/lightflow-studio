@@ -55,6 +55,7 @@
         background convention so no seam can appear between this and the surrounding chrome. -->
    <Grid Grid.Row="1" x:Name="MediaSurfaceHost" Background="Black">
     <Grid x:Name="VideoHost"/>
+    <Image x:Name="SteppedFrameSurface" Stretch="Uniform" IsHitTestVisible="False" Visibility="Collapsed"/>
     <Image x:Name="ImageSurface" Stretch="Uniform" Visibility="Collapsed"/>
     <TextBlock x:Name="StatusText" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440"
      TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Visibility="Collapsed"/>

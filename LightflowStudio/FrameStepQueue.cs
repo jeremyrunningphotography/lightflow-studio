@@ -16,6 +16,15 @@ internal sealed class FrameStepQueue
     internal int PendingDelta { get { lock (_gate) return _pending; } }
     internal bool IsDraining { get { lock (_gate) return _activeDrainGeneration == _generation; } }
 
+    public void RequestStep(IMediaPlaybackService service, bool forward, Action<Exception> onError)
+    {
+        ArgumentNullException.ThrowIfNull(service);
+        RequestStep(
+            stepForward => stepForward ? service.StepForwardAsync() : service.StepBackwardAsync(),
+            forward,
+            onError);
+    }
+
     public void Reset()
     {
         lock (_gate)
@@ -25,9 +34,9 @@ internal sealed class FrameStepQueue
         }
     }
 
-    public void RequestStep(IMediaPlaybackService service, bool forward, Action<Exception> onError)
+    public void RequestStep(Func<bool, Task> executeStep, bool forward, Action<Exception> onError)
     {
-        ArgumentNullException.ThrowIfNull(service);
+        ArgumentNullException.ThrowIfNull(executeStep);
         ArgumentNullException.ThrowIfNull(onError);
         long generation;
         bool startDrain;
@@ -38,10 +47,10 @@ internal sealed class FrameStepQueue
             startDrain = _activeDrainGeneration != generation;
             if (startDrain) _activeDrainGeneration = generation;
         }
-        if (startDrain) _ = DrainAsync(service, generation, onError);
+        if (startDrain) _ = DrainAsync(executeStep, generation, onError);
     }
 
-    private async Task DrainAsync(IMediaPlaybackService service, long generation, Action<Exception> onError)
+    private async Task DrainAsync(Func<bool, Task> executeStep, long generation, Action<Exception> onError)
     {
         try
         {
@@ -55,11 +64,7 @@ internal sealed class FrameStepQueue
                     _pending += stepForward ? -1 : 1;
                 }
 
-                try
-                {
-                    if (stepForward) await service.StepForwardAsync().ConfigureAwait(true);
-                    else await service.StepBackwardAsync().ConfigureAwait(true);
-                }
+                try { await executeStep(stepForward).ConfigureAwait(true); }
                 catch (Exception exception)
                 {
                     bool stillCurrent;

@@ -205,6 +205,7 @@ public partial class PlayerViewerHost : UserControl
 
         ImageSurface.Source = null;
         ImageSurface.Visibility = Visibility.Collapsed;
+        RestoreLiveVideoSurface();
         TransportBar.Visibility = Visibility.Collapsed;
         SetTransportEnabled(false);
         SetAudioControlsEnabled(false);
@@ -297,6 +298,7 @@ public partial class PlayerViewerHost : UserControl
     private async void PositionSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_updatingPosition || _service is null || !PositionSlider.IsEnabled) return;
+        RestoreLiveVideoSurface();
         try { await _service.SeekAsync(TimeSpan.FromMilliseconds(e.NewValue)); }
         catch (OperationCanceledException) { }
         catch (Exception exception) { SetStatus(exception.Message); }
@@ -314,6 +316,7 @@ public partial class PlayerViewerHost : UserControl
         _updatingPosition = true;
         PositionSlider.Value = position.TotalMilliseconds;
         _updatingPosition = false;
+        RestoreLiveVideoSurface();
         try { await _service.SeekAsync(position); }
         catch (OperationCanceledException) { }
         catch (Exception exception) { SetStatus(exception.Message); }
@@ -349,7 +352,11 @@ public partial class PlayerViewerHost : UserControl
         try
         {
             if (_service.Snapshot.State == MediaPlaybackState.Playing) await _service.PauseAsync();
-            else await _service.PlayAsync();
+            else
+            {
+                RestoreLiveVideoSurface();
+                await _service.PlayAsync();
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) { SetStatus(exception.Message); }
@@ -393,7 +400,53 @@ public partial class PlayerViewerHost : UserControl
     private void RequestStep(bool forward)
     {
         if (_service is null || !PositionSlider.IsEnabled) return;
-        _frameStepQueue.RequestStep(_service, forward, exception => SetStatus(exception.Message));
+        _frameStepQueue.RequestStep(ExecutePresentedStepAsync, forward, exception => SetStatus(exception.Message));
+    }
+
+    private async Task ExecutePresentedStepAsync(bool forward)
+    {
+        if (_service is null) return;
+        if (forward && SteppedFrameSurface.Visibility != Visibility.Visible)
+        {
+            await _service.StepForwardAsync().ConfigureAwait(true);
+            return;
+        }
+
+        if (SteppedFrameSurface.Visibility != Visibility.Visible)
+        {
+            var current = await CapturePresentedFrameAsync().ConfigureAwait(true);
+            SteppedFrameSurface.Source = ToBitmapSource(current);
+            SteppedFrameSurface.Visibility = Visibility.Visible;
+            VideoHost.Visibility = Visibility.Hidden;
+
+            // Flyleaf presents through a child HWND, so a WPF element cannot cover its reconstruction.
+            // Complete the handoff to the retained bitmap before asking the backend to move at all.
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+        }
+
+        if (forward) await _service.StepForwardAsync().ConfigureAwait(true);
+        else await _service.StepBackwardAsync().ConfigureAwait(true);
+
+        var settled = await CapturePresentedFrameAsync().ConfigureAwait(true);
+        SteppedFrameSurface.Source = ToBitmapSource(settled);
+    }
+
+    private Task<MediaDecodedFrame> CapturePresentedFrameAsync() =>
+        (_mediaView ?? throw new InvalidOperationException("No video presentation is active.")).CaptureFrameAsync();
+
+    private void RestoreLiveVideoSurface()
+    {
+        VideoHost.Visibility = Visibility.Visible;
+        SteppedFrameSurface.Visibility = Visibility.Collapsed;
+        SteppedFrameSurface.Source = null;
+    }
+
+    private static BitmapSource ToBitmapSource(MediaDecodedFrame frame)
+    {
+        var bitmap = BitmapSource.Create(
+            frame.Width, frame.Height, 96, 96, PixelFormats.Bgra32, null, frame.BgraPixels, frame.Stride);
+        bitmap.Freeze();
+        return bitmap;
     }
 
     private void BackButton_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);

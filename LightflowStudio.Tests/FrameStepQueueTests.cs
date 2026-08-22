@@ -121,7 +121,8 @@ public sealed class FrameStepQueueTests
         public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }
         public int Volume { get; set; } = 100;
         public bool Mute { get; set; }
-        public MediaPlaybackPresentation CreatePresentation() => new(new FrameworkElement(), _ => { });
+        public MediaPlaybackPresentation CreatePresentation() => new(
+            new FrameworkElement(), _ => { }, _ => throw new NotSupportedException());
         public Task OpenAsync(string sourcePath, CancellationToken token = default) => Task.CompletedTask;
         public Task CloseAsync(CancellationToken token = default) => Task.CompletedTask;
         public Task PlayAsync(CancellationToken token = default) => Task.CompletedTask;

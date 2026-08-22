@@ -129,6 +129,34 @@ public sealed class PlayerViewerHostLeaseTests
         });
     }
 
+    [Fact]
+    public async Task PreviousFrame_RetainsCurrentFrameWhileNativeSurfaceReconstructsThenPublishesSettledFrame()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var host = new PlayerViewerHost(coordinator);
+            var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video);
+            var resolution = new MediaPathResolution(asset.RootId, asset.RelativePath, asset.Key,
+                Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true);
+            await host.OpenAsync(asset, resolution);
+
+            host.PreviousFrameButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+
+            await WaitUntilAsync(() => backend.Operations.Count == 3, "Previous Frame presentation handoff");
+            Assert.Equal(["capture", "backward", "capture"], backend.Operations);
+            Assert.Equal(Visibility.Hidden, host.VideoHost.Visibility);
+            Assert.Equal(Visibility.Visible, host.SteppedFrameSurface.Visibility);
+            Assert.NotNull(host.SteppedFrameSurface.Source);
+
+            host.PreviousFrameButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await WaitUntilAsync(() => backend.Operations.Count == 5, "repeated Previous Frame presentation");
+            Assert.Equal(["capture", "backward", "capture", "backward", "capture"], backend.Operations);
+        });
+    }
+
     private static void Space(PlayerViewerHost host, Window window) => host.RaiseEvent(
         new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Space)
         { RoutedEvent = UIElement.PreviewKeyDownEvent });
@@ -145,6 +173,7 @@ public sealed class PlayerViewerHostLeaseTests
 
     private sealed class FakeBackend(TimeSpan? duration = null, bool hasAudio = false) : IMediaPlaybackBackend
     {
+        public List<string> Operations { get; } = [];
         public int PlayCallCount { get; private set; }
         public int PauseCallCount { get; private set; }
         public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }
@@ -166,9 +195,17 @@ public sealed class PlayerViewerHostLeaseTests
         public Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token) =>
             Task.FromResult(new MediaPresentationTimestamp(position));
         public Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token) => Task.FromResult(new MediaPresentationTimestamp(TimeSpan.Zero));
-        public Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token) =>
-            Task.FromResult(new MediaPresentationTimestamp(TimeSpan.Zero));
+        public Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token)
+        {
+            Operations.Add("backward");
+            return Task.FromResult(new MediaPresentationTimestamp(TimeSpan.Zero));
+        }
         public Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token) => throw new NotSupportedException();
+        public Task<MediaDecodedFrame> CapturePresentedFrameAsync(CancellationToken token)
+        {
+            Operations.Add("capture");
+            return Task.FromResult(new MediaDecodedFrame(new(TimeSpan.Zero), 1, 1, 4, [0, 0, 0, 255]));
+        }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

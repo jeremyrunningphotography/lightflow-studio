@@ -271,6 +271,23 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         }
     }
 
+    public Task<MediaDecodedFrame> CapturePresentedFrameAsync(CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var player = RequirePlayer();
+        return Task.FromResult(RunOnUi(() =>
+        {
+            var bitmap = player.TakeSnapshotToBitmapSource()
+                ?? throw new InvalidOperationException("No presented video frame is available.");
+            var converted = EnsureBgra32(bitmap);
+            var stride = converted.PixelWidth * 4;
+            var pixels = new byte[stride * converted.PixelHeight];
+            converted.CopyPixels(pixels, stride, 0);
+            return new MediaDecodedFrame(
+                Timestamp(player.CurTime), converted.PixelWidth, converted.PixelHeight, stride, pixels);
+        }));
+    }
+
     private Player CreatePlayer()
     {
         var config = new Config();

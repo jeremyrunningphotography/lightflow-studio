@@ -453,9 +453,8 @@ public partial class PlayerViewerHost : UserControl
 
     /// <summary>
     /// Owns its own keyboard shortcuts rather than relying on the host window, so any future host (#112's
-    /// floating window included) gets identical behavior for free. Frame-step uses <c>,</c>/<c>.</c>, not
-    /// Left/Right — #111 reserves the arrow keys for filmstrip asset-to-asset navigation, and this control
-    /// must not stake a conflicting claim on them ahead of that work.
+    /// floating window included) gets identical behavior for free. Left/Right perform frame stepping unless
+    /// focus is inside a text-entry control or slider that already owns arrow-key interaction.
     /// </summary>
     private void PlayerViewerHost_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
@@ -471,12 +470,10 @@ public partial class PlayerViewerHost : UserControl
                 e.Handled = true;
                 PlayPause_Click(this, new RoutedEventArgs());
                 return;
-            case Key.OemComma when _service is not null && PositionSlider.IsEnabled:
             case Key.Left when _service is not null && PositionSlider.IsEnabled:
                 e.Handled = true;
                 RequestStep(forward: false);
                 return;
-            case Key.OemPeriod when _service is not null && PositionSlider.IsEnabled:
             case Key.Right when _service is not null && PositionSlider.IsEnabled:
                 e.Handled = true;
                 RequestStep(forward: true);

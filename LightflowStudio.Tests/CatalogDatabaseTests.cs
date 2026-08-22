@@ -78,6 +78,29 @@ public sealed class CatalogDatabaseTests : IDisposable
     }
 
     [Fact]
+    public async Task MediaRangeStore_PersistsPartialBoundariesAndClearsFullSourceIntent()
+    {
+        var result = await CreateService().CreateNewAsync();
+        var session = result.Session!;
+        var rootId = InsertRoot(session, "Archive");
+        var assetId = InsertAsset(session, rootId, "clip.mp4", "clip.mp4");
+        var store = new CatalogMediaRangeStore(() => session, () => new DateTimeOffset(2026, 8, 22, 0, 0, 0, TimeSpan.Zero));
+
+        var outOnly = new MediaRange(TimeSpan.FromSeconds(100), Out: TimeSpan.FromSeconds(70));
+        await store.SaveAsync(assetId, outOnly);
+        Assert.Equal(outOnly, await store.RestoreAsync(assetId));
+
+        var inOnly = new MediaRange(TimeSpan.FromSeconds(100), TimeSpan.FromSeconds(20));
+        await store.SaveAsync(assetId, inOnly);
+        Assert.Equal(inOnly, await store.RestoreAsync(assetId));
+
+        await store.SaveAsync(assetId, null);
+        Assert.Null(await store.RestoreAsync(assetId));
+        Assert.Equal(0L, Scalar(session, "SELECT count(*) FROM MediaAssetRanges;"));
+        await session.DisposeAsync();
+    }
+
+    [Fact]
     public async Task ExistingVersionZeroCatalog_MigratesOnlyAfterBackupApproval()
     {
         var locations = CreateLocations();
@@ -422,8 +445,9 @@ public sealed class CatalogDatabaseTests : IDisposable
         command.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
     }
 
-    private static void InsertAsset(CatalogDatabaseSession session, Guid rootId, string relativePath, string key)
+    private static Guid InsertAsset(CatalogDatabaseSession session, Guid rootId, string relativePath, string key)
     {
+        var assetId = Guid.NewGuid();
         using var connection = OpenCatalog(session);
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -434,12 +458,13 @@ public sealed class CatalogDatabaseTests : IDisposable
                 ($id, $root, $path, $key, 'video', 100, 638900000000000000,
                  'available', $now, $now);
             """;
-        command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString("D"));
+        command.Parameters.AddWithValue("$id", assetId.ToString("D"));
         command.Parameters.AddWithValue("$root", rootId.ToString("D"));
         command.Parameters.AddWithValue("$path", relativePath);
         command.Parameters.AddWithValue("$key", key);
         command.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
         command.ExecuteNonQuery();
+        return assetId;
     }
 
     private static void Execute(CatalogDatabaseSession session, string sql, params (string Name, object Value)[] parameters)

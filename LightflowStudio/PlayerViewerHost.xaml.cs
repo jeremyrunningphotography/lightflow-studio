@@ -14,18 +14,19 @@ namespace LightflowStudio;
 
 /// <summary>
 /// Lightflow's integrated Player/Viewer presentation content (#110). Deliberately independent of
-/// <c>MainWindow</c> and Browser chrome: it takes only a <see cref="MediaPlaybackCoordinator"/> (the same
+/// <c>MainWindow</c> and Browser chrome: it takes a <see cref="MediaPlaybackCoordinator"/> (the same
 /// global playback engine every other consumer reuses) and a host-agnostic <see cref="PlayerViewerAsset"/> —
 /// nothing Browser-specific — so a future floating/new-window host (#112) can embed this exact control rather
 /// than reimplementing playback wiring. Video plays through the shared #53 engine via
 /// <see cref="MediaPlaybackLeaseSession"/>/<see cref="MediaPlaybackView"/> — the same lease-wrapper
-/// <c>TrimEditorPlayback</c> derives from for trim-boundary seeking, used here directly since Browser review
-/// has no In/Out concept to add; still images decode directly through WIC, reusing
+/// <c>TrimEditorPlayback</c> derives from for trim-boundary seeking. Review ranges reuse <see cref="MediaRange"/>
+/// without adding a second playback engine; still images decode directly through WIC, reusing
 /// <see cref="WicImageThumbnailRenderer"/>'s existing EXIF-orientation handling rather than a second image path.
 /// </summary>
 public partial class PlayerViewerHost : UserControl
 {
     private readonly MediaPlaybackCoordinator _coordinator;
+    private readonly IMediaRangeStore? _rangeStore;
     private long _generation;
     private MediaPlaybackLeaseSession? _playback;
     private IMediaPlaybackService? _service;
@@ -33,11 +34,15 @@ public partial class PlayerViewerHost : UserControl
     private PlayerViewerAsset? _currentAsset;
     private bool _updatingPosition;
     private bool _updatingVolume;
+    private MediaRange? _reviewRange;
+    private bool _stopAtOutDuringPlayback;
+    private bool _stoppingAtOut;
     private readonly FrameStepQueue _frameStepQueue = new();
 
-    internal PlayerViewerHost(MediaPlaybackCoordinator coordinator)
+    internal PlayerViewerHost(MediaPlaybackCoordinator coordinator, IMediaRangeStore? rangeStore = null)
     {
         _coordinator = coordinator;
+        _rangeStore = rangeStore;
         InitializeComponent();
     }
 
@@ -136,10 +141,21 @@ public partial class PlayerViewerHost : UserControl
             if (service.SourceInfo is not { } info || info.Duration <= TimeSpan.Zero || service.Snapshot.State == MediaPlaybackState.Failed)
                 throw new InvalidOperationException(service.Snapshot.Error?.Message ?? "The video could not be decoded for preview.");
 
-            _mediaView = new MediaPlaybackView(service);
-            VideoHost.Children.Add(_mediaView);
             PositionSlider.Maximum = info.Duration.TotalMilliseconds;
             DurationText.Text = FormatTimestamp(info.Duration);
+            var restoredRange = await RestoreRangeAsync(info.Duration, assetId: _currentAsset?.AssetId, token).ConfigureAwait(true);
+            if (generation != _generation) return;
+            _reviewRange = restoredRange;
+            UpdateRangePresentation();
+            if (_reviewRange?.In is { } savedIn)
+                await service.SeekAsync(savedIn, token).ConfigureAwait(true);
+            if (generation != _generation) return;
+            // Attach the native presentation only after the optional saved-In seek has settled. Creating it
+            // earlier lets Flyleaf's already-open default/source-start frame become visible before the seek,
+            // producing a brief flash. The player remains paused throughout; this changes presentation order,
+            // not the shared playback/backend path or its authoritative decoded-timestamp semantics.
+            _mediaView = new MediaPlaybackView(service);
+            VideoHost.Children.Add(_mediaView);
             UpdateFromSnapshot(service.Snapshot);
             SetTransportEnabled(true);
             SetAudioControlsEnabled(info.AudioStreams.Count > 0);
@@ -209,6 +225,10 @@ public partial class PlayerViewerHost : UserControl
         TransportBar.Visibility = Visibility.Collapsed;
         SetTransportEnabled(false);
         SetAudioControlsEnabled(false);
+        _reviewRange = null;
+        _stopAtOutDuringPlayback = false;
+        _stoppingAtOut = false;
+        UpdateRangePresentation();
     }
 
     private void SetStatus(string? message)
@@ -223,6 +243,8 @@ public partial class PlayerViewerHost : UserControl
         PreviousFrameButton.IsEnabled = enabled;
         NextFrameButton.IsEnabled = enabled;
         PlayPauseButton.IsEnabled = enabled;
+        SetInButton.IsEnabled = enabled;
+        SetOutButton.IsEnabled = enabled;
     }
 
     /// <summary>
@@ -273,6 +295,10 @@ public partial class PlayerViewerHost : UserControl
             return;
         }
         UpdateFromSnapshot(snapshot);
+        if (snapshot.State == MediaPlaybackState.Playing && snapshot.DisplayedTimestamp is { } displayed &&
+            ReviewRangePlaybackPolicy.HasReachedArmedOutBoundary(_reviewRange, _stopAtOutDuringPlayback, displayed.Position) &&
+            !_stoppingAtOut)
+            _ = StopAtOutAsync();
     }
 
     private void UpdateFromSnapshot(MediaPlaybackSnapshot snapshot)
@@ -355,6 +381,8 @@ public partial class PlayerViewerHost : UserControl
             else
             {
                 RestoreLiveVideoSurface();
+                var position = _service.Snapshot.DisplayedTimestamp?.Position ?? TimeSpan.Zero;
+                _stopAtOutDuringPlayback = ReviewRangePlaybackPolicy.ShouldArmOutBoundary(_reviewRange, position);
                 await _service.PlayAsync();
             }
         }
@@ -431,6 +459,106 @@ public partial class PlayerViewerHost : UserControl
         SteppedFrameSurface.Source = ToBitmapSource(settled);
     }
 
+    private async Task<MediaRange?> RestoreRangeAsync(TimeSpan duration, Guid? assetId, CancellationToken token)
+    {
+        if (_rangeStore is not null && assetId is Guid stableAssetId)
+        {
+            var saved = await _rangeStore.RestoreAsync(stableAssetId, token).ConfigureAwait(true);
+            if (saved is not null)
+            {
+                var adapted = new MediaRange(duration, saved.In, saved.Out);
+                if (adapted.Validate().Count == 0) return adapted;
+            }
+        }
+        return null;
+    }
+
+    private async Task SaveRangeAsync(MediaRange? range)
+    {
+        var savedRange = range?.IsFullSource == true ? null : range;
+        if (_rangeStore is not null && _currentAsset?.AssetId is Guid assetId)
+            await _rangeStore.SaveAsync(assetId, savedRange).ConfigureAwait(true);
+        _reviewRange = savedRange;
+        UpdateRangePresentation();
+    }
+
+    private void UpdateRangePresentation()
+    {
+        var duration = _service?.SourceInfo?.Duration;
+        var presentation = PlayerRangeTimelinePresentation.For(_reviewRange, duration);
+        ReviewRangeIndicator.HasActiveTrim = presentation.HasSelectedSpan;
+        ReviewRangeIndicator.HasProportions = presentation.HasProportions;
+        ReviewRangeIndicator.ShowBoundaries = presentation.ShowBoundaries;
+        ReviewRangeIndicator.StartFraction = presentation.StartFraction;
+        ReviewRangeIndicator.WidthFraction = presentation.WidthFraction;
+        var hasIn = _reviewRange?.In is not null;
+        var hasOut = _reviewRange?.Out is not null;
+        SetInButton.Tag = hasIn ? "Active" : null;
+        SetOutButton.Tag = hasOut ? "Active" : null;
+        System.Windows.Automation.AutomationProperties.SetItemStatus(SetInButton, hasIn ? "Active" : "");
+        System.Windows.Automation.AutomationProperties.SetItemStatus(SetOutButton, hasOut ? "Active" : "");
+        InTimeButton.Visibility = ClearInButton.Visibility = hasIn ? Visibility.Visible : Visibility.Collapsed;
+        OutTimeButton.Visibility = ClearOutButton.Visibility = hasOut ? Visibility.Visible : Visibility.Collapsed;
+        if (_reviewRange?.In is { } rangeIn) InTimeButton.Content = FormatTimestamp(rangeIn);
+        if (_reviewRange?.Out is { } rangeOut) OutTimeButton.Content = FormatTimestamp(rangeOut);
+    }
+
+    private async Task StopAtOutAsync()
+    {
+        if (_service is null || _reviewRange is null || _stoppingAtOut) return;
+        _stoppingAtOut = true;
+        _stopAtOutDuringPlayback = false;
+        try
+        {
+            await _service.PauseAsync().ConfigureAwait(true);
+            await _service.SeekAsync(_reviewRange.EffectiveOut).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) { SetStatus(exception.Message); }
+        finally { _stoppingAtOut = false; }
+    }
+
+    private async void SetIn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_service?.SourceInfo is not { } info || _service.Snapshot.DisplayedTimestamp is not { } timestamp) return;
+        var candidate = new MediaRange(info.Duration, timestamp.Position, _reviewRange?.Out);
+        if (candidate.Validate().Count != 0) { SetStatus("In must be before Out and before the end of the source."); return; }
+        try { await SaveRangeAsync(candidate); SetStatus(null); }
+        catch (Exception exception) { SetStatus($"The range could not be saved. {exception.Message}"); }
+    }
+
+    private async void SetOut_Click(object sender, RoutedEventArgs e)
+    {
+        if (_service?.SourceInfo is not { } info || _service.Snapshot.DisplayedTimestamp is not { } timestamp) return;
+        var candidate = new MediaRange(info.Duration, _reviewRange?.In, timestamp.Position);
+        if (candidate.Validate().Count != 0) { SetStatus("Out must be after In."); return; }
+        try { await SaveRangeAsync(candidate); SetStatus(null); }
+        catch (Exception exception) { SetStatus($"The range could not be saved. {exception.Message}"); }
+    }
+
+    private async void ClearIn_Click(object sender, RoutedEventArgs e) => await ClearBoundaryAsync(clearIn: true);
+    private async void ClearOut_Click(object sender, RoutedEventArgs e) => await ClearBoundaryAsync(clearIn: false);
+
+    private async Task ClearBoundaryAsync(bool clearIn)
+    {
+        if (_service?.SourceInfo is not { } info || _reviewRange is null) return;
+        var range = new MediaRange(info.Duration, clearIn ? null : _reviewRange.In, clearIn ? _reviewRange.Out : null);
+        try { await SaveRangeAsync(range.IsFullSource ? null : range); SetStatus(null); }
+        catch (Exception exception) { SetStatus($"The range could not be saved. {exception.Message}"); }
+    }
+
+    private async void InTime_Click(object sender, RoutedEventArgs e) => await SeekToBoundaryAsync(_reviewRange?.In);
+    private async void OutTime_Click(object sender, RoutedEventArgs e) => await SeekToBoundaryAsync(_reviewRange?.Out);
+
+    private async Task SeekToBoundaryAsync(TimeSpan? position)
+    {
+        if (_service is null || position is null) return;
+        RestoreLiveVideoSurface();
+        try { await _service.SeekAsync(position.Value); }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) { SetStatus(exception.Message); }
+    }
+
     private Task<MediaDecodedFrame> CapturePresentedFrameAsync() =>
         (_mediaView ?? throw new InvalidOperationException("No video presentation is active.")).CaptureFrameAsync();
 
@@ -469,6 +597,14 @@ public partial class PlayerViewerHost : UserControl
             case Key.Space when _service is not null && PositionSlider.IsEnabled:
                 e.Handled = true;
                 PlayPause_Click(this, new RoutedEventArgs());
+                return;
+            case Key.I when _service is not null && PositionSlider.IsEnabled:
+                e.Handled = true;
+                SetIn_Click(this, new RoutedEventArgs());
+                return;
+            case Key.O when _service is not null && PositionSlider.IsEnabled:
+                e.Handled = true;
+                SetOut_Click(this, new RoutedEventArgs());
                 return;
             case Key.Left when _service is not null && PositionSlider.IsEnabled:
                 e.Handled = true;

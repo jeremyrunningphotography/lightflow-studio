@@ -234,8 +234,9 @@ public sealed class PlayerViewerHostLeaseTests
             TestWpfApplication.EnsureLoaded();
             var backend = new FakeBackend();
             var screengrabs = new FakeScreengrabService();
+            var folders = new FakeFolderLauncher();
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
-            var host = new PlayerViewerHost(coordinator, screengrabService: screengrabs);
+            var host = new PlayerViewerHost(coordinator, screengrabService: screengrabs, folderLauncher: folders);
             var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video);
             var resolution = new MediaPathResolution(asset.RootId, asset.RelativePath, asset.Key,
                 Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true);
@@ -251,7 +252,11 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(0, backend.PlayCallCount);
             Assert.Equal(pauseCallsBeforeCapture, backend.PauseCallCount);
             Assert.Equal((1, 1), (screengrabs.SavedFrame!.Width, screengrabs.SavedFrame.Height));
-            Assert.StartsWith("Saved ", host.ScreengrabFeedbackText.Text);
+            Assert.Equal(Visibility.Collapsed, host.ScreengrabFeedbackText.Visibility);
+            Assert.Equal(Visibility.Visible, host.ScreengrabSuccessButton.Visibility);
+
+            host.ScreengrabSuccessButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Assert.Equal(Path.Combine(Path.GetTempPath(), "screengrabs"), folders.OpenedDirectory);
         });
     }
 
@@ -345,7 +350,15 @@ public sealed class PlayerViewerHostLeaseTests
             CancellationToken cancellationToken = default)
         {
             SavedFrame = frame;
-            return Task.FromResult(new FrameScreengrabResult("frame.png", frame.Timestamp, frame.Width, frame.Height));
+            return Task.FromResult(new FrameScreengrabResult(
+                Path.Combine(Path.GetTempPath(), "screengrabs", "frame.png"),
+                frame.Timestamp, frame.Width, frame.Height));
         }
+    }
+
+    private sealed class FakeFolderLauncher : IFolderLauncher
+    {
+        public string? OpenedDirectory { get; private set; }
+        public void Open(string directory) => OpenedDirectory = directory;
     }
 }

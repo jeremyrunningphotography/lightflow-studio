@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows.Media;
@@ -11,6 +12,20 @@ internal interface IFrameScreengrabService
 {
     Task<FrameScreengrabResult> SaveAsync(string sourcePath, MediaDecodedFrame frame,
         CancellationToken cancellationToken = default);
+}
+
+internal interface IFolderLauncher
+{
+    void Open(string directory);
+}
+
+internal sealed class ShellFolderLauncher : IFolderLauncher
+{
+    public void Open(string directory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        Process.Start(new ProcessStartInfo(Path.GetFullPath(directory)) { UseShellExecute = true });
+    }
 }
 
 /// <summary>

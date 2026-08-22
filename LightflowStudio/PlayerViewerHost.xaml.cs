@@ -28,6 +28,7 @@ public partial class PlayerViewerHost : UserControl
     private readonly MediaPlaybackCoordinator _coordinator;
     private readonly IMediaRangeStore? _rangeStore;
     private readonly IFrameScreengrabService? _screengrabService;
+    private readonly IFolderLauncher _folderLauncher;
     private long _generation;
     private MediaPlaybackLeaseSession? _playback;
     private IMediaPlaybackService? _service;
@@ -39,14 +40,16 @@ public partial class PlayerViewerHost : UserControl
     private bool _stopAtOutDuringPlayback;
     private bool _stoppingAtOut;
     private MediaDecodedFrame? _retainedSteppedFrame;
+    private string? _lastScreengrabDirectory;
     private readonly FrameStepQueue _frameStepQueue = new();
 
     internal PlayerViewerHost(MediaPlaybackCoordinator coordinator, IMediaRangeStore? rangeStore = null,
-        IFrameScreengrabService? screengrabService = null)
+        IFrameScreengrabService? screengrabService = null, IFolderLauncher? folderLauncher = null)
     {
         _coordinator = coordinator;
         _rangeStore = rangeStore;
         _screengrabService = screengrabService;
+        _folderLauncher = folderLauncher ?? new ShellFolderLauncher();
         InitializeComponent();
     }
 
@@ -591,8 +594,10 @@ public partial class PlayerViewerHost : UserControl
             var result = await _screengrabService.SaveAsync(source.SourcePath, frame).ConfigureAwait(true);
             if (generation == _generation)
             {
-                SetScreengrabFeedback($"Saved {Path.GetFileName(result.Path)}");
-                ScreengrabFeedbackText.ToolTip = result.Path;
+                SetScreengrabFeedback(null);
+                _lastScreengrabDirectory = Path.GetDirectoryName(result.Path);
+                ScreengrabSuccessButton.ToolTip = $"Screengrab saved to {result.Path}. Open folder";
+                ScreengrabSuccessButton.Visibility = Visibility.Visible;
             }
         }
         catch (OperationCanceledException) { }
@@ -613,9 +618,23 @@ public partial class PlayerViewerHost : UserControl
 
     private void SetScreengrabFeedback(string? message)
     {
+        _lastScreengrabDirectory = null;
+        ScreengrabSuccessButton.Visibility = Visibility.Collapsed;
+        ScreengrabSuccessButton.ToolTip = "Screengrab saved. Open folder";
         ScreengrabFeedbackText.Text = message ?? "";
         ScreengrabFeedbackText.ToolTip = null;
         ScreengrabFeedbackText.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void ScreengrabSuccess_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_lastScreengrabDirectory)) return;
+        try { _folderLauncher.Open(_lastScreengrabDirectory); }
+        catch (Exception exception)
+        {
+            SetScreengrabFeedback($"Could not open screengrab folder: {exception.Message}");
+            ScreengrabFeedbackText.ToolTip = exception.Message;
+        }
     }
 
     private void RestoreLiveVideoSurface()

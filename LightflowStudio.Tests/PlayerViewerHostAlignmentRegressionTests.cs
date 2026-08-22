@@ -124,6 +124,26 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("SetOutButton.Tag = hasOut ? \"Active\" : null;", behavior);
     }
 
+    [Fact]
+    public void ScreengrabControl_IsAnAccessibleStableCameraActionWithPoliteFeedback()
+    {
+        var xaml = Source();
+        Assert.Contains("x:Name=\"ScreengrabButton\" Width=\"34\" Height=\"30\"", xaml);
+        Assert.Contains("ToolTip=\"Save full-resolution frame as PNG\"", xaml);
+        Assert.Contains("AutomationProperties.Name=\"Save full-resolution screengrab\"", xaml);
+        Assert.Contains("x:Name=\"ScreengrabFeedbackText\"", xaml);
+        Assert.Contains("AutomationProperties.LiveSetting=\"Polite\"", xaml);
+        Assert.Contains("x:Name=\"ScreengrabSuccessButton\" Width=\"26\" Height=\"26\"", xaml);
+        Assert.Contains("AutomationProperties.Name=\"Screengrab saved. Open screengrab folder\"", xaml);
+        Assert.Contains("Click=\"ScreengrabSuccess_Click\" Foreground=\"{StaticResource OrangeBrush}\"", xaml);
+        Assert.DoesNotContain("Click=\"ScreengrabSuccess_Click\" Foreground=\"{StaticResource SuccessBrush}\"", xaml);
+
+        var behavior = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
+        Assert.DoesNotContain("SetScreengrabFeedback($\"Saved {Path.GetFileName(result.Path)}\")", behavior);
+        Assert.Contains("ScreengrabSuccessButton.Visibility = Visibility.Visible;", behavior);
+        Assert.Contains("_folderLauncher.Open(_lastScreengrabDirectory);", behavior);
+    }
+
     private static string Source() =>
         File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml"));
 

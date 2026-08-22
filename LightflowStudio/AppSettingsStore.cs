@@ -5,7 +5,19 @@ namespace LightflowStudio;
 
 internal sealed record AppSettings
 {
+    public static string DefaultScreengrabDirectory
+    {
+        get
+        {
+            var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            if (string.IsNullOrWhiteSpace(pictures))
+                pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            return Path.Combine(pictures, "Lightflow Studio", "Screengrabs");
+        }
+    }
+
     public string DefaultVideoFolder { get; init; } = "";
+    public string ScreengrabDirectory { get; init; } = DefaultScreengrabDirectory;
     public string LutFolder { get; init; } = LutCatalog.DefaultFolder;
     public string FfmpegPath { get; init; } = "";
     public OutputResolution DefaultResolution { get; init; } = OutputResolution.FullHd;
@@ -30,6 +42,9 @@ internal sealed record AppSettings
         return settings with
         {
             DefaultVideoFolder = settings.DefaultVideoFolder?.Trim() ?? "",
+            ScreengrabDirectory = string.IsNullOrWhiteSpace(settings.ScreengrabDirectory)
+                ? DefaultScreengrabDirectory
+                : settings.ScreengrabDirectory.Trim(),
             LutFolder = string.IsNullOrWhiteSpace(settings.LutFolder) ? LutCatalog.DefaultFolder : settings.LutFolder.Trim(),
             FfmpegPath = settings.FfmpegPath?.Trim() ?? "",
             CatalogDirectory = NormalizeStorageDirectory(settings.CatalogDirectory),

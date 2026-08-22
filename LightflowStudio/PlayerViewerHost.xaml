@@ -139,7 +139,21 @@
         ToolTip="Next decoded frame (.)" AutomationProperties.Name="Next frame"/>
       </StackPanel>
       <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-       <TextBlock x:Name="DurationText" VerticalAlignment="Center" Margin="0,0,12,0"
+       <TextBlock x:Name="ScreengrabFeedbackText" MaxWidth="220" Margin="0,0,6,0" VerticalAlignment="Center"
+        Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" Visibility="Collapsed"
+        AutomationProperties.LiveSetting="Polite"/>
+       <Button x:Name="ScreengrabSuccessButton" Width="26" Height="26" Padding="0" Margin="0,0,4,0"
+        Visibility="Collapsed" Click="ScreengrabSuccess_Click" Foreground="{StaticResource OrangeBrush}"
+        ToolTip="Screengrab saved. Open folder" AutomationProperties.Name="Screengrab saved. Open screengrab folder"
+        AutomationProperties.LiveSetting="Polite">
+        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE73E;"/>
+       </Button>
+       <Button x:Name="ScreengrabButton" Width="34" Height="30" Padding="0" BorderThickness="1"
+        FocusVisualStyle="{x:Null}" Click="Screengrab_Click" IsEnabled="False"
+        ToolTip="Save full-resolution frame as PNG" AutomationProperties.Name="Save full-resolution screengrab">
+        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE722;"/>
+       </Button>
+       <TextBlock x:Name="DurationText" VerticalAlignment="Center" Margin="10,0,12,0"
         Foreground="{StaticResource MutedTextBrush}" Text="00:00:00.000"/>
        <Button x:Name="MuteButton" Width="34" Height="30" Padding="0" BorderThickness="1"
         FocusVisualStyle="{x:Null}" Click="MuteButton_Click" IsEnabled="False"

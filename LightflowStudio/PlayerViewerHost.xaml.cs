@@ -27,6 +27,7 @@ public partial class PlayerViewerHost : UserControl
 {
     private readonly MediaPlaybackCoordinator _coordinator;
     private readonly IMediaRangeStore? _rangeStore;
+    private readonly IFrameScreengrabService? _screengrabService;
     private long _generation;
     private MediaPlaybackLeaseSession? _playback;
     private IMediaPlaybackService? _service;
@@ -37,12 +38,15 @@ public partial class PlayerViewerHost : UserControl
     private MediaRange? _reviewRange;
     private bool _stopAtOutDuringPlayback;
     private bool _stoppingAtOut;
+    private MediaDecodedFrame? _retainedSteppedFrame;
     private readonly FrameStepQueue _frameStepQueue = new();
 
-    internal PlayerViewerHost(MediaPlaybackCoordinator coordinator, IMediaRangeStore? rangeStore = null)
+    internal PlayerViewerHost(MediaPlaybackCoordinator coordinator, IMediaRangeStore? rangeStore = null,
+        IFrameScreengrabService? screengrabService = null)
     {
         _coordinator = coordinator;
         _rangeStore = rangeStore;
+        _screengrabService = screengrabService;
         InitializeComponent();
     }
 
@@ -76,6 +80,7 @@ public partial class PlayerViewerHost : UserControl
 
         _currentAsset = asset;
         AssetNameText.Text = asset.Name;
+        SetScreengrabFeedback(null);
         SetStatus("Loading…");
 
         if (resolution.PhysicalPath is null || !resolution.Exists)
@@ -228,7 +233,9 @@ public partial class PlayerViewerHost : UserControl
         _reviewRange = null;
         _stopAtOutDuringPlayback = false;
         _stoppingAtOut = false;
+        _retainedSteppedFrame = null;
         UpdateRangePresentation();
+        SetScreengrabFeedback(null);
     }
 
     private void SetStatus(string? message)
@@ -245,6 +252,7 @@ public partial class PlayerViewerHost : UserControl
         PlayPauseButton.IsEnabled = enabled;
         SetInButton.IsEnabled = enabled;
         SetOutButton.IsEnabled = enabled;
+        ScreengrabButton.IsEnabled = enabled && _screengrabService is not null;
     }
 
     /// <summary>
@@ -443,6 +451,7 @@ public partial class PlayerViewerHost : UserControl
         if (SteppedFrameSurface.Visibility != Visibility.Visible)
         {
             var current = await CapturePresentedFrameAsync().ConfigureAwait(true);
+            _retainedSteppedFrame = current;
             SteppedFrameSurface.Source = ToBitmapSource(current);
             SteppedFrameSurface.Visibility = Visibility.Visible;
             VideoHost.Visibility = Visibility.Hidden;
@@ -456,6 +465,7 @@ public partial class PlayerViewerHost : UserControl
         else await _service.StepBackwardAsync().ConfigureAwait(true);
 
         var settled = await CapturePresentedFrameAsync().ConfigureAwait(true);
+        _retainedSteppedFrame = settled;
         SteppedFrameSurface.Source = ToBitmapSource(settled);
     }
 
@@ -562,11 +572,58 @@ public partial class PlayerViewerHost : UserControl
     private Task<MediaDecodedFrame> CapturePresentedFrameAsync() =>
         (_mediaView ?? throw new InvalidOperationException("No video presentation is active.")).CaptureFrameAsync();
 
+    private async void Screengrab_Click(object sender, RoutedEventArgs e)
+    {
+        if (_screengrabService is null || _service?.SourceInfo is not { } source || !ScreengrabButton.IsEnabled)
+            return;
+        var generation = _generation;
+        ScreengrabButton.IsEnabled = false;
+        SetScreengrabFeedback("Saving…");
+        try
+        {
+            await _frameStepQueue.WaitUntilIdleAsync().ConfigureAwait(true);
+            if (generation != _generation || _service is null) return;
+            // Backward stepping temporarily hides Flyleaf behind a retained native-size decoded bitmap while
+            // the engine reconstructs. Saving that exact retained frame prevents a click during reconstruction
+            // from capturing an intermediate frame; ordinary paused/playing capture uses the same backend
+            // snapshot path that produced it. Neither path seeks, changes playback state, or touches audio.
+            var frame = _retainedSteppedFrame ?? await CapturePresentedFrameAsync().ConfigureAwait(true);
+            var result = await _screengrabService.SaveAsync(source.SourcePath, frame).ConfigureAwait(true);
+            if (generation == _generation)
+            {
+                SetScreengrabFeedback($"Saved {Path.GetFileName(result.Path)}");
+                ScreengrabFeedbackText.ToolTip = result.Path;
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            if (generation == _generation)
+            {
+                SetScreengrabFeedback($"Could not save frame: {exception.Message}");
+                ScreengrabFeedbackText.ToolTip = exception.Message;
+            }
+        }
+        finally
+        {
+            if (generation == _generation && _service is not null)
+                ScreengrabButton.IsEnabled = PositionSlider.IsEnabled;
+        }
+    }
+
+    private void SetScreengrabFeedback(string? message)
+    {
+        ScreengrabFeedbackText.Text = message ?? "";
+        ScreengrabFeedbackText.ToolTip = null;
+        ScreengrabFeedbackText.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     private void RestoreLiveVideoSurface()
     {
         VideoHost.Visibility = Visibility.Visible;
         SteppedFrameSurface.Visibility = Visibility.Collapsed;
         SteppedFrameSurface.Source = null;
+        _retainedSteppedFrame = null;
     }
 
     private static BitmapSource ToBitmapSource(MediaDecodedFrame frame)

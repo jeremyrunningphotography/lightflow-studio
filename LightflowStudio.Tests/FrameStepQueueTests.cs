@@ -95,6 +95,23 @@ public sealed class FrameStepQueueTests
         Assert.Equal(2, service.ForwardCalls);
     }
 
+    [Fact]
+    public async Task WaitUntilIdleAsync_CompletesOnlyAfterQueuedStepsSettle()
+    {
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var service = new CountingService(onStep: () => release.Task);
+        var queue = new FrameStepQueue();
+        queue.RequestStep(service, true, _ => { });
+
+        var idle = queue.WaitUntilIdleAsync();
+        Assert.False(idle.IsCompleted);
+        release.SetResult();
+        await idle;
+
+        Assert.False(queue.IsDraining);
+        Assert.Equal(1, service.ForwardCalls);
+    }
+
     private static async Task WaitUntilIdleAsync(FrameStepQueue queue)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);

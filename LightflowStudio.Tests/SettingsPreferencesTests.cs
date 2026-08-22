@@ -14,6 +14,7 @@ public sealed class SettingsPreferencesTests : IDisposable
         var expected = new AppSettings
         {
             DefaultVideoFolder = @"D:\Video Projects",
+            ScreengrabDirectory = @"D:\Screengrabs",
             LutFolder = @"D:\LUT Library",
             FfmpegPath = @"D:\Tools\ffmpeg.exe",
             DefaultResolution = OutputResolution.UltraHd,
@@ -48,6 +49,7 @@ public sealed class SettingsPreferencesTests : IDisposable
 
         Assert.Equal(@"D:\Legacy LUTs", settings.LutFolder);
         Assert.Equal("", settings.DefaultVideoFolder);
+        Assert.Equal(AppSettings.DefaultScreengrabDirectory, settings.ScreengrabDirectory);
         Assert.Equal("", settings.FfmpegPath);
         Assert.Equal(OutputResolution.FullHd, settings.DefaultResolution);
         Assert.Equal(RecoveryStrategy.Normal, settings.DefaultRecovery);
@@ -75,6 +77,7 @@ public sealed class SettingsPreferencesTests : IDisposable
         var settings = AppSettings.Normalize(new AppSettings
         {
             DefaultVideoFolder = "  D:\\Videos  ",
+            ScreengrabDirectory = "  D:\\Screengrabs  ",
             LutFolder = "  D:\\LUTs  ",
             FfmpegPath = "  D:\\ffmpeg.exe  ",
             DefaultResolution = (OutputResolution)99,
@@ -82,6 +85,7 @@ public sealed class SettingsPreferencesTests : IDisposable
         });
 
         Assert.Equal(@"D:\Videos", settings.DefaultVideoFolder);
+        Assert.Equal(@"D:\Screengrabs", settings.ScreengrabDirectory);
         Assert.Equal(@"D:\LUTs", settings.LutFolder);
         Assert.Equal(@"D:\ffmpeg.exe", settings.FfmpegPath);
         Assert.Equal(OutputResolution.FullHd, settings.DefaultResolution);

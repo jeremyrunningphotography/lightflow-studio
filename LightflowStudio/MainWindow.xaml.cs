@@ -1272,7 +1272,8 @@ public partial class MainWindow : Window
     private void EnsurePlayerViewerHost()
     {
         if (_playerViewerHost is not null) return;
-        _playerViewerHost = new PlayerViewerHost(App.Playback, _storage.MediaRanges);
+        _playerViewerHost = new PlayerViewerHost(App.Playback, _storage.MediaRanges,
+            new FrameScreengrabService(() => _storage.Settings.ScreengrabDirectory));
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         BrowserPlayerHost.Content = _playerViewerHost;
     }
@@ -1952,6 +1953,12 @@ public partial class MainWindow : Window
             SettingsDefaultVideoFolder.Text = folder;
     }
 
+    private void BrowseScreengrabFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (PickFolder("Select the folder for full-resolution screengrabs", SettingsScreengrabDirectory.Text) is { } folder)
+            SettingsScreengrabDirectory.Text = folder;
+    }
+
     private void BrowseSettingsLutFolder_Click(object sender, RoutedEventArgs e)
     {
         if (PickFolder("Select the folder containing .cube LUT files", SettingsLutFolder.Text) is { } folder)
@@ -2270,6 +2277,7 @@ public partial class MainWindow : Window
         return AppSettings.Normalize(new AppSettings
         {
             DefaultVideoFolder = SettingsDefaultVideoFolder.Text,
+            ScreengrabDirectory = SettingsScreengrabDirectory.Text,
             LutFolder = SettingsLutFolder.Text,
             FfmpegPath = SettingsFfmpegPath.Text,
             DefaultResolution = (OutputResolution)SettingsResolution.SelectedIndex,
@@ -2354,6 +2362,7 @@ public partial class MainWindow : Window
         SettingsPreviewsDirectory.Text = _storage.Locations.PreviewsDirectory;
         SettingsPreviewCacheQuotaGb.Text = settings.PreviewCacheQuotaGb.ToString(CultureInfo.InvariantCulture);
         SettingsDefaultVideoFolder.Text = settings.DefaultVideoFolder;
+        SettingsScreengrabDirectory.Text = settings.ScreengrabDirectory;
         SettingsLutFolder.Text = settings.LutFolder;
         SettingsFfmpegPath.Text = settings.FfmpegPath;
         SettingsResolution.SelectedIndex = (int)settings.DefaultResolution;

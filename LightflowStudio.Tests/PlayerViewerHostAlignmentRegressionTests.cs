@@ -124,6 +124,17 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("SetOutButton.Tag = hasOut ? \"Active\" : null;", behavior);
     }
 
+    [Fact]
+    public void ScreengrabControl_IsAnAccessibleStableCameraActionWithPoliteFeedback()
+    {
+        var xaml = Source();
+        Assert.Contains("x:Name=\"ScreengrabButton\" Width=\"34\" Height=\"30\"", xaml);
+        Assert.Contains("ToolTip=\"Save full-resolution frame as PNG\"", xaml);
+        Assert.Contains("AutomationProperties.Name=\"Save full-resolution screengrab\"", xaml);
+        Assert.Contains("x:Name=\"ScreengrabFeedbackText\"", xaml);
+        Assert.Contains("AutomationProperties.LiveSetting=\"Polite\"", xaml);
+    }
+
     private static string Source() =>
         File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml"));
 

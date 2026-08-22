@@ -226,6 +226,35 @@ public sealed class PlayerViewerHostLeaseTests
         });
     }
 
+    [Fact]
+    public async Task Screengrab_AfterPreviousFrameSavesRetainedDecodedFrameWithoutAnotherBackendCapture()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            var screengrabs = new FakeScreengrabService();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var host = new PlayerViewerHost(coordinator, screengrabService: screengrabs);
+            var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video);
+            var resolution = new MediaPathResolution(asset.RootId, asset.RelativePath, asset.Key,
+                Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true);
+            await host.OpenAsync(asset, resolution);
+
+            host.PreviousFrameButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await WaitUntilAsync(() => backend.Operations.Count == 3, "Previous Frame presentation handoff");
+            var pauseCallsBeforeCapture = backend.PauseCallCount;
+            host.ScreengrabButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await WaitUntilAsync(() => screengrabs.SavedFrame is not null, "screengrab save");
+
+            Assert.Equal(["capture", "backward", "capture"], backend.Operations);
+            Assert.Equal(0, backend.PlayCallCount);
+            Assert.Equal(pauseCallsBeforeCapture, backend.PauseCallCount);
+            Assert.Equal((1, 1), (screengrabs.SavedFrame!.Width, screengrabs.SavedFrame.Height));
+            Assert.StartsWith("Saved ", host.ScreengrabFeedbackText.Text);
+        });
+    }
+
     private static void Space(PlayerViewerHost host, Window window) => host.RaiseEvent(
         new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Space)
         { RoutedEvent = UIElement.PreviewKeyDownEvent });
@@ -305,6 +334,18 @@ public sealed class PlayerViewerHostLeaseTests
             SaveCount++;
             SavedRange = range;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeScreengrabService : IFrameScreengrabService
+    {
+        public MediaDecodedFrame? SavedFrame { get; private set; }
+
+        public Task<FrameScreengrabResult> SaveAsync(string sourcePath, MediaDecodedFrame frame,
+            CancellationToken cancellationToken = default)
+        {
+            SavedFrame = frame;
+            return Task.FromResult(new FrameScreengrabResult("frame.png", frame.Timestamp, frame.Width, frame.Height));
         }
     }
 }

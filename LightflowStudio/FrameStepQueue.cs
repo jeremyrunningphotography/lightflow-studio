@@ -12,6 +12,7 @@ internal sealed class FrameStepQueue
     private int _pending;
     private long _generation;
     private long _activeDrainGeneration = -1;
+    private readonly List<(long Generation, TaskCompletionSource Completion)> _idleWaiters = [];
 
     internal int PendingDelta { get { lock (_gate) return _pending; } }
     internal bool IsDraining { get { lock (_gate) return _activeDrainGeneration == _generation; } }
@@ -27,10 +28,25 @@ internal sealed class FrameStepQueue
 
     public void Reset()
     {
+        TaskCompletionSource[] completed;
         lock (_gate)
         {
             _generation++;
             _pending = 0;
+            completed = _idleWaiters.Select(waiter => waiter.Completion).ToArray();
+            _idleWaiters.Clear();
+        }
+        foreach (var waiter in completed) waiter.TrySetResult();
+    }
+
+    public Task WaitUntilIdleAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            if (_activeDrainGeneration != _generation && _pending == 0) return Task.CompletedTask;
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _idleWaiters.Add((_generation, completion));
+            return completion.Task.WaitAsync(cancellationToken);
         }
     }
 
@@ -75,10 +91,15 @@ internal sealed class FrameStepQueue
         }
         finally
         {
+            TaskCompletionSource[] completed;
             lock (_gate)
             {
                 if (_activeDrainGeneration == generation) _activeDrainGeneration = -1;
+                completed = _idleWaiters.Where(waiter => waiter.Generation == generation)
+                    .Select(waiter => waiter.Completion).ToArray();
+                _idleWaiters.RemoveAll(waiter => waiter.Generation == generation);
             }
+            foreach (var waiter in completed) waiter.TrySetResult();
         }
     }
 }

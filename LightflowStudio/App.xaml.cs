@@ -45,8 +45,11 @@ public partial class App : System.Windows.Application
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
         Exit += (_, _) =>
         {
+            ActivityLog.TryAppend("[App shutdown] Application.Exit entered; disposing playback.");
             Playback.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            ActivityLog.TryAppend("[App shutdown] Playback disposal completed; disposing storage.");
             Storage?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            ActivityLog.TryAppend("[App shutdown] Storage disposal completed.");
             ActivityLog.TryAppend("[App] Lightflow Studio exiting.");
         };
         MainWindow = new MainWindow(Storage, storage.Status, storage.Diagnostic);

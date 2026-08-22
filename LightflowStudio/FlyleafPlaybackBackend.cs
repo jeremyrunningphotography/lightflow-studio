@@ -345,9 +345,15 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     {
         var player = Interlocked.Exchange(ref _player, null);
         if (player is null) return;
-        player.PropertyChanged -= Player_PropertyChanged;
+        // Detach every WPF-owned reference before yielding. Application.Exit currently waits synchronously on
+        // the UI thread, so a continuation which calls Dispatcher.Invoke after player.Dispose has completed
+        // deadlocks against that blocked dispatcher and leaves the process alive with no visible windows.
+        RunOnUi(() =>
+        {
+            player.PropertyChanged -= Player_PropertyChanged;
+            if (ReferenceEquals(_host?.Player, player)) _host.Player = null;
+        });
         await Task.Run(() => player.Dispose()).ConfigureAwait(false);
-        RunOnUi(() => { if (ReferenceEquals(_host?.Player, player)) _host.Player = null; });
     }
 
     private void Player_PropertyChanged(object? sender, PropertyChangedEventArgs args)
@@ -485,14 +491,18 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         if (_disposed) return;
         _disposed = true;
         CancelPending();
-        await _audio.DisposeAsync().ConfigureAwait(false);
-        await ClosePlayerAsync().ConfigureAwait(false);
+        // Start native-player disposal and release the remaining WPF presentation objects while this method is
+        // still executing on its caller's dispatcher. No continuation below may require that dispatcher: WPF
+        // invokes Application.Exit on it, and App synchronously drains the app-owned services there.
+        var playerDisposal = ClosePlayerAsync();
         RunOnUi(() =>
         {
             CloseOffscreenWindow();
             ReleaseHost(_host);
             _host = null;
         });
+        await _audio.DisposeAsync().ConfigureAwait(false);
+        await playerDisposal.ConfigureAwait(false);
         _pending.Dispose();
     }
 }

@@ -40,6 +40,17 @@ internal sealed class FfmpegAudioPlayback : IAsyncDisposable
         set { _mute = value; ApplyVolume(); }
     }
 
+    internal int? ActiveProcessId
+    {
+        get
+        {
+            var process = _process;
+            if (process is null) return null;
+            try { return process.HasExited ? null : process.Id; }
+            catch (InvalidOperationException) { return null; }
+        }
+    }
+
     public async Task StartAsync(string sourcePath, int streamIndex, TimeSpan position, CancellationToken token)
     {
         await StopAsync().ConfigureAwait(false);
@@ -122,6 +133,9 @@ internal sealed class FfmpegAudioPlayback : IAsyncDisposable
         CancellationToken token)
     {
         var buffer = new byte[16 * 1024];
+        // Always consume stderr while PCM is flowing. Although FFmpeg is intentionally quiet, leaving the
+        // redirected pipe unread can deadlock a long-running decoder if it emits enough diagnostics.
+        var stderr = process.StandardError.ReadToEndAsync();
         while (true)
         {
             while (output.BufferedDuration > TimeSpan.FromMilliseconds(500))
@@ -133,7 +147,7 @@ internal sealed class FfmpegAudioPlayback : IAsyncDisposable
         }
         if (!ready.Task.IsCompleted)
         {
-            var error = await process.StandardError.ReadToEndAsync(token).ConfigureAwait(false);
+            var error = await stderr.ConfigureAwait(false);
             ready.TrySetException(new InvalidDataException(
                 string.IsNullOrWhiteSpace(error) ? "The selected audio stream produced no samples." : error.Trim()));
         }

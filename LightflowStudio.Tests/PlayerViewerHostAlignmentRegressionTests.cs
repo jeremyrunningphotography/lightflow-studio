@@ -105,6 +105,8 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("x:Key=\"RangeTimestampLink\"", xaml);
         Assert.Contains("x:Key=\"RangeClearButton\"", xaml);
         Assert.Contains("<Setter Property=\"Width\" Value=\"18\"/>", xaml);
+        Assert.Contains("<Setter Property=\"VerticalAlignment\" Value=\"Center\"/>", xaml);
+        Assert.Contains("<Trigger Property=\"Tag\" Value=\"Active\">", xaml);
         Assert.Contains("x:Name=\"InTimeButton\" Style=\"{StaticResource RangeTimestampLink}\"", xaml);
         Assert.Contains("x:Name=\"OutTimeButton\" Style=\"{StaticResource RangeTimestampLink}\"", xaml);
         Assert.Contains("x:Name=\"ClearInButton\" Style=\"{StaticResource RangeClearButton}\"", xaml);
@@ -115,6 +117,8 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("OutTimeButton.Content = FormatTimestamp(rangeOut);", behavior);
         Assert.DoesNotContain("InTimeButton.Content = $\"In ", behavior);
         Assert.DoesNotContain("OutTimeButton.Content = $\"Out ", behavior);
+        Assert.Contains("SetInButton.Tag = hasIn ? \"Active\" : null;", behavior);
+        Assert.Contains("SetOutButton.Tag = hasOut ? \"Active\" : null;", behavior);
     }
 
     private static string Source() =>

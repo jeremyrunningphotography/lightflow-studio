@@ -32,11 +32,15 @@
   <Style x:Key="RangeSetButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
    <Setter Property="Padding" Value="8,3"/><Setter Property="Margin" Value="2"/><Setter Property="FontSize" Value="11"/>
    <Setter Property="Background" Value="#15181E"/><Setter Property="BorderBrush" Value="#292E37"/>
+   <Style.Triggers>
+    <Trigger Property="Tag" Value="Active"><Setter Property="Background" Value="#2B181D"/><Setter Property="BorderBrush" Value="{StaticResource OrangeBrush}"/><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger>
+   </Style.Triggers>
   </Style>
   <Style x:Key="RangeTimestampLink" TargetType="Button">
    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Setter Property="Background" Value="Transparent"/>
    <Setter Property="BorderBrush" Value="Transparent"/><Setter Property="BorderThickness" Value="0,0,0,1"/>
    <Setter Property="Padding" Value="2,1"/><Setter Property="Margin" Value="2,0"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="VerticalAlignment" Value="Center"/>
    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
     <Border x:Name="Underline" Background="Transparent" BorderBrush="{TemplateBinding BorderBrush}"
@@ -51,6 +55,7 @@
   </Style>
   <Style x:Key="RangeClearButton" TargetType="Button">
    <Setter Property="Width" Value="18"/><Setter Property="Height" Value="18"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0,0,2,0"/>
+   <Setter Property="VerticalAlignment" Value="Center"/>
    <Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
    <Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/><Setter Property="BorderThickness" Value="1"/>
    <Setter Property="FocusVisualStyle" Value="{x:Null}"/><Setter Property="Cursor" Value="Hand"/>

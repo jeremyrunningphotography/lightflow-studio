@@ -490,8 +490,14 @@ public partial class PlayerViewerHost : UserControl
         ReviewRangeIndicator.HasProportions = presentation.HasProportions;
         ReviewRangeIndicator.StartFraction = presentation.StartFraction;
         ReviewRangeIndicator.WidthFraction = presentation.WidthFraction;
-        InTimeButton.Visibility = ClearInButton.Visibility = _reviewRange?.In is not null ? Visibility.Visible : Visibility.Collapsed;
-        OutTimeButton.Visibility = ClearOutButton.Visibility = _reviewRange?.Out is not null ? Visibility.Visible : Visibility.Collapsed;
+        var hasIn = _reviewRange?.In is not null;
+        var hasOut = _reviewRange?.Out is not null;
+        SetInButton.Tag = hasIn ? "Active" : null;
+        SetOutButton.Tag = hasOut ? "Active" : null;
+        System.Windows.Automation.AutomationProperties.SetItemStatus(SetInButton, hasIn ? "Active" : "");
+        System.Windows.Automation.AutomationProperties.SetItemStatus(SetOutButton, hasOut ? "Active" : "");
+        InTimeButton.Visibility = ClearInButton.Visibility = hasIn ? Visibility.Visible : Visibility.Collapsed;
+        OutTimeButton.Visibility = ClearOutButton.Visibility = hasOut ? Visibility.Visible : Visibility.Collapsed;
         if (_reviewRange?.In is { } rangeIn) InTimeButton.Content = FormatTimestamp(rangeIn);
         if (_reviewRange?.Out is { } rangeOut) OutTimeButton.Content = FormatTimestamp(rangeOut);
     }

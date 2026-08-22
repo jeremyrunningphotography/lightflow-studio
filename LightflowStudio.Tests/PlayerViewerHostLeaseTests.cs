@@ -154,6 +154,21 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(0, backend.PlayCallCount);
             Assert.Equal("Play", host.PlayPauseButton.Content);
             Assert.Equal(savedIn.TotalMilliseconds, host.PositionSlider.Value, 3);
+            Assert.Equal("Active", host.SetInButton.Tag);
+            Assert.Equal("Active", host.SetOutButton.Tag);
+            Assert.True(host.SetInButton.IsEnabled);
+            Assert.True(host.SetOutButton.IsEnabled);
+
+            host.SetInButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await WaitUntilAsync(() => store.SaveCount == 1, "active Set In replacement save");
+            Assert.Equal("Active", host.SetInButton.Tag);
+            Assert.True(host.SetInButton.IsEnabled);
+
+            host.ClearInButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await WaitUntilAsync(() => store.SaveCount == 2, "clear In save");
+            Assert.Null(store.SavedRange?.In);
+            Assert.Null(host.SetInButton.Tag);
+            Assert.Equal("Active", host.SetOutButton.Tag);
         });
     }
 
@@ -178,6 +193,8 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(["presentation"], backend.OpenPresentationOperations);
             Assert.Equal(0, backend.PlayCallCount);
             Assert.Equal(TimeSpan.Zero.TotalMilliseconds, host.PositionSlider.Value);
+            Assert.Null(host.SetInButton.Tag);
+            Assert.Equal("Active", host.SetOutButton.Tag);
         });
     }
 
@@ -274,6 +291,8 @@ public sealed class PlayerViewerHostLeaseTests
     private sealed class FakeRangeStore(MediaRange? restored) : IMediaRangeStore
     {
         public Guid? RestoredAssetId { get; private set; }
+        public int SaveCount { get; private set; }
+        public MediaRange? SavedRange { get; private set; }
 
         public Task<MediaRange?> RestoreAsync(Guid assetId, CancellationToken cancellationToken = default)
         {
@@ -281,7 +300,11 @@ public sealed class PlayerViewerHostLeaseTests
             return Task.FromResult(restored);
         }
 
-        public Task SaveAsync(Guid assetId, MediaRange? range, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+        public Task SaveAsync(Guid assetId, MediaRange? range, CancellationToken cancellationToken = default)
+        {
+            SaveCount++;
+            SavedRange = range;
+            return Task.CompletedTask;
+        }
     }
 }

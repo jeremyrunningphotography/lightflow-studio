@@ -121,7 +121,9 @@ public sealed class ReleasePackagingTests
         Assert.Contains("--startup-smoke-test", script);
         Assert.Contains("WaitForExit(8000)", script);
         Assert.Contains("exited during the Browser startup smoke test", script);
-        Assert.Contains("Stop-Process -Id $startupSmoke.Id", script);
+        Assert.Contains("Stop-Process -InputObject $startupSmoke", script);
+        Assert.DoesNotContain("Stop-Process -Id $startupSmoke.Id", script);
+        Assert.Contains("startup smoke process did not terminate during cleanup", script);
     }
 
     [Fact]

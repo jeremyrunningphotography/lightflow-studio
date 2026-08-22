@@ -56,10 +56,14 @@ try {
     }
     Write-Host "Packaged Browser startup remained healthy after initialization." -ForegroundColor Green
     $null = $startupSmoke.CloseMainWindow()
-    if (-not $startupSmoke.WaitForExit(5000)) { Stop-Process -Id $startupSmoke.Id -Force }
+    if (-not $startupSmoke.WaitForExit(5000)) { Stop-Process -InputObject $startupSmoke -Force }
 }
 finally {
-    if (-not $startupSmoke.HasExited) { Stop-Process -Id $startupSmoke.Id -Force }
+    $startupSmoke.Refresh()
+    if (-not $startupSmoke.HasExited) { Stop-Process -InputObject $startupSmoke -Force }
+    if (-not $startupSmoke.WaitForExit(5000)) {
+        throw "Packaged Browser startup smoke process did not terminate during cleanup."
+    }
 }
 
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "PremiereHelper") -Destination (Join-Path $appDirectory "PremiereHelper") -Recurse -Force

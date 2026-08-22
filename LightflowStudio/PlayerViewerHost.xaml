@@ -68,7 +68,7 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid Height="22">
       <local:TrimRangeIndicator x:Name="ReviewRangeIndicator" Height="18" Margin="7,0" VerticalAlignment="Center"
-       Panel.ZIndex="1" DimOutside="True" IsHitTestVisible="False"/>
+       Panel.ZIndex="1" ShowBoundaries="True" IsHitTestVisible="False"/>
       <Slider x:Name="PositionSlider" Style="{StaticResource PlaybackTimelineSlider}" Minimum="0" Maximum="1"
        ValueChanged="PositionSlider_ValueChanged" PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
        IsEnabled="False" ToolTip="Full source timeline: click anywhere to seek, or drag the playhead"/>

@@ -80,6 +80,22 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("System.Windows.Controls.Primitives.Selector", source);
     }
 
+    [Fact]
+    public void ReviewRange_DrawsBoundariesWithoutPaintingDarkOutsideBands()
+    {
+        var xaml = Source();
+        var indicatorStart = xaml.IndexOf("x:Name=\"ReviewRangeIndicator\"", StringComparison.Ordinal);
+        Assert.True(indicatorStart >= 0, "ReviewRangeIndicator not found");
+        var elementStart = xaml.LastIndexOf("<local:TrimRangeIndicator", indicatorStart, StringComparison.Ordinal);
+        var element = xaml[elementStart..xaml.IndexOf("/>", indicatorStart, StringComparison.Ordinal)];
+        Assert.Contains("ShowBoundaries=\"True\"", element);
+
+        var rendering = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "TrimRangeIndicator.cs"));
+        Assert.DoesNotContain("DrawRectangle", rendering);
+        Assert.DoesNotContain("DimOutside", rendering);
+        Assert.Contains("if (ShowBoundaries)", rendering);
+    }
+
     private static string Source() =>
         File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml"));
 

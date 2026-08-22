@@ -13,6 +13,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
     private long _operationGeneration;
     private long _activeBackendOperation;
     private int _suppressActiveBackendFrames;
+    private MediaPlaybackError? _nonfatalError;
     private bool _disposed;
 
     public MediaPlaybackService(IMediaPlaybackBackend backend)
@@ -124,7 +125,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
         EnsureLoaded();
         var operation = BeginSourceOperation(token);
         await RunSerializedAsync(operation, action).ConfigureAwait(false);
-        if (IsCurrent(operation)) Publish(Snapshot with { State = state, Error = null });
+        if (IsCurrent(operation)) Publish(Snapshot with { State = state, Error = _nonfatalError });
     }
 
     private Task RunStepAsync(Func<CancellationToken, Task<MediaPresentationTimestamp>> action, CancellationToken token)
@@ -143,20 +144,22 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
                 State = MediaPlaybackState.Paused,
                 DisplayedTimestamp = timestamp,
                 Error = null
-            });
+            },
+            suppressFrames: true);
     }
 
     private async Task RunTimestampOperationAsync(
         PlaybackOperation operation,
         Func<CancellationToken, Task<MediaPresentationTimestamp>> action,
         Func<MediaPresentationTimestamp, MediaPlaybackSnapshot> completedSnapshot,
-        bool resumePlayback = false)
+        bool resumePlayback = false,
+        bool suppressFrames = false)
     {
         await _operations.WaitAsync(operation.Token).ConfigureAwait(false);
         try
         {
             EnsureCurrent(operation);
-            ActivateBackendOperation(operation);
+            ActivateBackendOperation(operation, suppressFrames);
             var timestamp = await action(operation.Token).ConfigureAwait(false);
             EnsureCurrent(operation);
             if (resumePlayback)
@@ -165,9 +168,14 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
                 EnsureCurrent(operation);
             }
             Publish(completedSnapshot(timestamp));
+            if (suppressFrames) FramePresented?.Invoke(this, timestamp);
         }
         catch (OperationCanceledException) when (!IsCurrent(operation) || operation.Token.IsCancellationRequested) { }
-        finally { _operations.Release(); }
+        finally
+        {
+            Volatile.Write(ref _suppressActiveBackendFrames, 0);
+            _operations.Release();
+        }
     }
 
     private async Task RunSerializedAsync(PlaybackOperation operation, Func<CancellationToken, Task> action)
@@ -193,6 +201,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
             var oldOperation = _latestOperation;
             _sourceLifetime = new CancellationTokenSource();
             SourceInfo = null;
+            _nonfatalError = null;
             oldOperation?.Cancel();
             oldSource.Cancel();
             _backend.CancelPending();
@@ -251,6 +260,13 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
 
     private void Backend_Failed(object? sender, MediaPlaybackError error)
     {
+        if (error.Kind == MediaPlaybackErrorKind.AudioUnavailable)
+        {
+            if (_disposed) return;
+            _nonfatalError = error;
+            Publish(Snapshot with { Error = _nonfatalError });
+            return;
+        }
         if (!_disposed && Snapshot.State is not (MediaPlaybackState.Empty or MediaPlaybackState.Loading))
             Publish(Snapshot with { State = MediaPlaybackState.Failed, Error = error });
     }

@@ -30,6 +30,11 @@ internal sealed record MediaPlaybackError(MediaPlaybackErrorKind Kind, string Me
 
 internal sealed record MediaAudioStreamInfo(int Index, string? Language, string? Title, int Channels, bool IsDefault);
 
+internal sealed record MediaPlaybackOpenMetrics(
+    TimeSpan SourceOpen,
+    TimeSpan FirstFrameSettle,
+    TimeSpan Total);
+
 internal sealed record MediaPlaybackSourceInfo(
     string SourcePath,
     TimeSpan Duration,
@@ -38,7 +43,10 @@ internal sealed record MediaPlaybackSourceInfo(
     int Height,
     IReadOnlyList<MediaAudioStreamInfo> AudioStreams,
     int? SelectedAudioStreamIndex,
-    bool UsesHardwareDecode);
+    bool UsesHardwareDecode)
+{
+    public MediaPlaybackOpenMetrics? OpenMetrics { get; init; }
+}
 
 internal sealed record MediaPlaybackSnapshot(
     MediaPlaybackState State,

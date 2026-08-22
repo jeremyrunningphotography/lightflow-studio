@@ -8,6 +8,23 @@ namespace LightflowStudio.Tests;
 public sealed class MediaPlaybackServiceTests
 {
     [Fact]
+    public async Task AudioOutputFailure_IsDiagnosticButDoesNotDisableVideoPlayback()
+    {
+        var backend = new FakePlaybackBackend();
+        await using var playback = new MediaPlaybackService(backend);
+        await playback.OpenAsync(Path.GetFullPath("audio-warning.mp4"));
+
+        backend.RaiseFailure(new(
+            MediaPlaybackErrorKind.AudioUnavailable,
+            "Audio output could not be started; video remains available.",
+            "test endpoint unavailable"));
+        await playback.PlayAsync();
+
+        Assert.Equal(MediaPlaybackState.Playing, playback.Snapshot.State);
+        Assert.Equal(MediaPlaybackErrorKind.AudioUnavailable, playback.Snapshot.Error?.Kind);
+    }
+
+    [Fact]
     public async Task Open_LoadsPausedAtBackendDecodedTimestamp()
     {
         var backend = new FakePlaybackBackend();
@@ -236,7 +253,8 @@ public sealed class MediaPlaybackServiceTests
         public TaskCompletionSource ReleaseSeek { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<string> ExtractionResumeSources { get; } = [];
         public event EventHandler<MediaPresentationTimestamp>? FramePresented;
-        public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
+        public event EventHandler<MediaPlaybackError>? Failed;
+        public void RaiseFailure(MediaPlaybackError error) => Failed?.Invoke(this, error);
         public int Volume { get; set; } = 100;
         public bool Mute { get; set; }
         public FrameworkElement CreatePresentationSurface() => new Border();

@@ -18,6 +18,7 @@ public partial class TrimEditorWindow : Window
     private TrimSelection? _selection;
     private bool _updatingPosition;
     private bool _releaseComplete;
+    private readonly FrameStepQueue _frameStepQueue = new();
 
     internal TrimEditorWindow(string sourcePath, MediaRange? appliedRange)
     {
@@ -78,7 +79,19 @@ public partial class TrimEditorWindow : Window
             CurrentTimeText.Text = FormatTimestamp(timestamp.Position);
         }
         PlayPauseButton.Content = snapshot.State == MediaPlaybackState.Playing ? "Pause" : "Play";
-        if (snapshot.State == MediaPlaybackState.Failed) MessageText.Text = snapshot.Error?.Message ?? "Playback failed.";
+        // A failure arriving mid-session (not just at open) must disable playback controls the same way
+        // PlayerViewerHost.UpdateFromSnapshot does — Play/seek/frame-step against an already-failed session
+        // would otherwise still be reachable merely because these were enabled before the failure happened.
+        // Set In/Out/Reset/Apply are left alone: they only ever record the last-known-good DisplayedTimestamp,
+        // which remains valid, not a live call into the failed playback engine.
+        if (snapshot.State == MediaPlaybackState.Failed)
+        {
+            MessageText.Text = snapshot.Error?.Message ?? "Playback failed.";
+            PositionSlider.IsEnabled = false;
+            PreviousFrameButton.IsEnabled = false;
+            NextFrameButton.IsEnabled = false;
+            PlayPauseButton.IsEnabled = false;
+        }
     }
 
     private async void PositionSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -128,8 +141,8 @@ public partial class TrimEditorWindow : Window
         catch (Exception exception) { MessageText.Text = exception.Message; }
     }
 
-    private async void PreviousFrame_Click(object sender, RoutedEventArgs e) => await StepAsync(forward: false);
-    private async void NextFrame_Click(object sender, RoutedEventArgs e) => await StepAsync(forward: true);
+    private void PreviousFrame_Click(object sender, RoutedEventArgs e) => RequestStep(forward: false);
+    private void NextFrame_Click(object sender, RoutedEventArgs e) => RequestStep(forward: true);
     private async void SeekIn_Click(object sender, RoutedEventArgs e) => await SeekBoundaryAsync(TrimBoundary.In);
     private async void SeekOut_Click(object sender, RoutedEventArgs e) => await SeekBoundaryAsync(TrimBoundary.Out);
 
@@ -141,16 +154,18 @@ public partial class TrimEditorWindow : Window
         catch (Exception exception) { MessageText.Text = exception.Message; }
     }
 
-    private async Task StepAsync(bool forward)
+    /// <summary>
+    /// Before #110, this called <c>StepForwardAsync</c>/<c>StepBackwardAsync</c> directly with an implicit
+    /// <see cref="CancellationToken.None"/> — every repeated Next Frame click at the last decoded frame hung
+    /// for the engine's own internal 10-second timeout before showing an error, and rapid repeated clicks
+    /// anywhere in the clip could reach the native engine faster than it could safely process them (see
+    /// <see cref="FrameStepQueue"/>'s doc comment for the proven root cause and why every step now queues
+    /// through it — shared with #110's <c>PlayerViewerHost</c>, the other UI consumer of this same call).
+    /// </summary>
+    private void RequestStep(bool forward)
     {
         if (_service is null) return;
-        try
-        {
-            if (forward) await _service.StepForwardAsync();
-            else await _service.StepBackwardAsync();
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception exception) { MessageText.Text = exception.Message; }
+        _frameStepQueue.RequestStep(_service, forward, exception => MessageText.Text = exception.Message);
     }
 
     private void SetIn_Click(object sender, RoutedEventArgs e)
@@ -231,6 +246,8 @@ public partial class TrimEditorWindow : Window
 
     private async Task CloseAfterReleaseAsync(bool? requestedResult)
     {
+        // Invalidates any still-draining frame-step backlog before releasing _service — see FrameStepQueue.Reset.
+        _frameStepQueue.Reset();
         SetEditorEnabled(false);
         if (_service is not null) _service.StateChanged -= Playback_StateChanged;
         PreviewHost.Children.Clear();

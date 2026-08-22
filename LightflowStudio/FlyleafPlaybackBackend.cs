@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
@@ -14,23 +15,57 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     private static readonly object EngineLock = new();
     private static bool _engineStarted;
     private readonly string _ffmpegPath;
+    private readonly FfmpegAudioPlayback _audio;
     private readonly Dispatcher _dispatcher;
     private Window? _offscreenWindow;
     private FlyleafHost? _host;
     private CancellationTokenSource _pending = new();
     private Player? _player;
     private bool _disposed;
+    private int _desiredVolume = 100;
+    private bool _desiredMute;
+    private string? _sourcePath;
+    private int? _audioStreamIndex;
+    private int _suppressPresentationEvents;
 
-    public FlyleafPlaybackBackend(string? ffmpegPath = null)
+    public FlyleafPlaybackBackend(string? ffmpegPath = null, Func<IPlaybackAudioOutput>? createAudioOutput = null)
     {
         _ffmpegPath = ffmpegPath ?? PlaybackDependencyLocator.FindSharedLibraries()
             ?? throw new DirectoryNotFoundException("Bundled playback libraries were not found.");
+        _audio = new FfmpegAudioPlayback(_ffmpegPath, createAudioOutput);
         _dispatcher = Dispatcher.CurrentDispatcher;
         StartEngine(_ffmpegPath, _dispatcher);
     }
 
     public event EventHandler<MediaPresentationTimestamp>? FramePresented;
     public event EventHandler<MediaPlaybackError>? Failed;
+
+    /// <summary>
+    /// Backed by <see cref="_desiredVolume"/>/<see cref="_desiredMute"/> rather than reading straight through to
+    /// <c>_player.Audio</c> so a volume/mute choice survives across <see cref="OpenAsync"/> calls (a fresh
+    /// <see cref="Player"/> is created per source — see <see cref="CreatePlayer"/> — and would otherwise reset
+    /// to its own default volume every time a different asset is opened). Reapplied to the live player, when one
+    /// exists, immediately on every set and again right after each <see cref="OpenAsync"/> completes.
+    /// </summary>
+    public int Volume
+    {
+        get => _desiredVolume;
+        set
+        {
+            _desiredVolume = Math.Clamp(value, 0, 100);
+            _audio.Volume = _desiredVolume;
+        }
+    }
+
+    public bool Mute
+    {
+        get => _desiredMute;
+        set
+        {
+            _desiredMute = value;
+            _audio.Mute = _desiredMute;
+        }
+    }
 
     public FrameworkElement CreatePresentationSurface()
     {
@@ -65,15 +100,21 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
     public async Task<PlaybackBackendOpened> OpenAsync(string sourcePath, CancellationToken token)
     {
+        var totalTimer = Stopwatch.StartNew();
         ThrowIfDisposed();
         if (!File.Exists(sourcePath)) throw new FileNotFoundException("The playback source does not exist.", sourcePath);
+        await _audio.StopAsync().ConfigureAwait(false);
+        _sourcePath = null;
+        _audioStreamIndex = null;
         await ClosePlayerAsync().ConfigureAwait(false);
 
         var player = RunOnUi(CreatePlayer);
         _player = player;
         RunOnUi(() => { if (_host is not null) _host.Player = player; });
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _pending.Token);
+        var sourceOpenTimer = Stopwatch.StartNew();
         var opened = await WaitForOpenAsync(player, sourcePath, linked.Token).ConfigureAwait(false);
+        sourceOpenTimer.Stop();
         if (!opened.Success)
         {
             var error = new MediaPlaybackError(MediaPlaybackErrorKind.InvalidOrCorruptMedia,
@@ -82,16 +123,22 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             throw new InvalidDataException(opened.Error ?? error.Message);
         }
 
+        var firstFrameTimer = Stopwatch.StartNew();
         var first = await SeekPlayerAsync(player, TimeSpan.Zero, linked.Token).ConfigureAwait(false);
+        firstFrameTimer.Stop();
+        var selectedAudio = player.Audio.Streams?.FirstOrDefault();
         var audioStreams = (player.Audio.Streams ?? [])
             .Select(stream => new MediaAudioStreamInfo(
                 stream.StreamIndex,
                 stream.Language?.OriginalInput,
                 stream.Title,
                 stream.Channels,
-                stream.StreamIndex == player.Audio.StreamIndex))
+                stream.StreamIndex == selectedAudio?.StreamIndex))
             .ToList();
+        _sourcePath = sourcePath;
+        _audioStreamIndex = selectedAudio?.StreamIndex;
         var selectedVideo = player.Video.Streams?.FirstOrDefault(stream => stream.StreamIndex == player.Video.StreamIndex);
+        totalTimer.Stop();
         var info = new MediaPlaybackSourceInfo(
             sourcePath,
             TimeSpan.FromTicks(player.Duration),
@@ -99,80 +146,144 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             player.Video.Width,
             player.Video.Height,
             audioStreams,
-            player.Audio.StreamIndex >= 0 ? player.Audio.StreamIndex : null,
-            player.Video.VideoAcceleration);
+            _audioStreamIndex,
+            player.Video.VideoAcceleration)
+        {
+            OpenMetrics = new(sourceOpenTimer.Elapsed, firstFrameTimer.Elapsed, totalTimer.Elapsed)
+        };
+        Trace.WriteLine(
+            $"Playback open {Path.GetFileName(sourcePath)}: source={sourceOpenTimer.Elapsed.TotalMilliseconds:n0}ms, " +
+            $"first-frame={firstFrameTimer.Elapsed.TotalMilliseconds:n0}ms, total={totalTimer.Elapsed.TotalMilliseconds:n0}ms");
         return new(info, first);
     }
 
     public async Task CloseAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
+        await _audio.StopAsync().ConfigureAwait(false);
+        _sourcePath = null;
+        _audioStreamIndex = null;
         await ClosePlayerAsync().ConfigureAwait(false);
     }
 
-    public Task PlayAsync(CancellationToken token)
+    public async Task PlayAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        RequirePlayer().Play();
-        return Task.CompletedTask;
+        var player = RequirePlayer();
+        if (_sourcePath is { } sourcePath && _audioStreamIndex is { } streamIndex)
+        {
+            try
+            {
+                var position = RunOnUi(() => TimeSpan.FromTicks(player.CurTime));
+                await _audio.StartAsync(sourcePath, streamIndex, position, token).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                Failed?.Invoke(this, new MediaPlaybackError(
+                    MediaPlaybackErrorKind.AudioUnavailable,
+                    "Audio output could not be started; video remains available.",
+                    exception.Message));
+            }
+        }
+        RunOnUi(player.Play);
     }
 
-    public Task PauseAsync(CancellationToken token)
+    public async Task PauseAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        RequirePlayer().Pause();
-        return Task.CompletedTask;
+        RunOnUi(() => RequirePlayer().Pause());
+        await _audio.StopAsync().ConfigureAwait(false);
     }
 
-    public Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token) =>
-        SeekPlayerAsync(RequirePlayer(), position, token);
-
-    public async Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token)
+    public async Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token)
     {
         var player = RequirePlayer();
-        player.Pause();
-        var before = player.CurTime;
-        player.ShowFrameNext();
-        return await WaitForTimestampChangeAsync(player, before, token).ConfigureAwait(false);
+        RunOnUi(player.Pause);
+        await _audio.StopAsync().ConfigureAwait(false);
+        return await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Every method in this class that mutates the native <see cref="Player"/> (Pause, Play, SeekAccurate,
+    /// ShowFrameNext, OpenAsync) marshals that call onto <see cref="_dispatcher"/> — the thread that created the
+    /// Player (and, for hardware-accelerated sources, its D3D11 device) via <see cref="CreatePlayer"/> — via
+    /// <see cref="RunOnUi{T}"/>, rather than calling it directly wherever the surrounding async method happens to
+    /// be executing. This is required, not defensive style: every async method in this class awaits with
+    /// <c>ConfigureAwait(false)</c> (as does every caller up through <c>MediaPlaybackService</c>), so by the time
+    /// execution reaches a native call past the method's first <see langword="await"/>, it is running on
+    /// whichever arbitrary thread-pool thread the prior continuation happened to resume on — not necessarily the
+    /// dispatcher thread, and not necessarily the *same* thread as the previous native call in the same logical
+    /// operation. Proven root cause of a reproducible access violation (two sequential, fully-serialized Previous
+    /// Frame clicks against a real, hardware-decoded source with a live D3D11 render surface attached — see
+    /// FlyleafPlaybackIntegrationTests' hardware-decode regression test): Windows Error Reporting captured
+    /// <c>System.AccessViolationException</c> inside Flyleaf's own demuxer read thread
+    /// (<c>Flyleaf.FFmpeg.Raw.av_read_frame</c> via <c>Demuxer.RunInternal</c>/<c>RunThreadBase.Run</c>),
+    /// consistent with a native call issued from a thread other than the one the Player/decoder/renderer was
+    /// created on racing that background thread's own use of the same native context — a hazard specific to this
+    /// process's own calling pattern, not something <c>FrameStepQueue</c>'s C#-level serialization (which was
+    /// already correct) could prevent, since the two clicks in the repro were already fully sequential at the C#
+    /// await level. A short experimental settle delay after Pause() (before the next native call) was tested and
+    /// did not reliably prevent the crash, ruling out "just needs more time" as the explanation and confirming
+    /// this is a thread-affinity defect, not a timing one.
+    /// </summary>
+    public async Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token)
+    {
+        await _audio.StopAsync().ConfigureAwait(false);
+        var player = RequirePlayer();
+        token.ThrowIfCancellationRequested();
+        // Flyleaf's ShowFrameNext is synchronous: it either calls UpdateCurTime before returning or leaves
+        // CurTime unchanged at the end boundary. Reading after that same dispatcher call avoids the obsolete
+        // ten-second wait without abandoning native work or guessing a nominal frame duration.
+        return RunOnUi(() =>
+        {
+            player.Pause();
+            player.ShowFrameNext();
+            return Timestamp(player.CurTime);
+        });
     }
 
     public async Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token)
     {
+        await _audio.StopAsync().ConfigureAwait(false);
         var player = RequirePlayer();
-        player.Pause();
-        var original = player.CurTime;
-        if (original <= 0) return Timestamp(0);
-
-        // Flyleaf's built-in ShowFramePrev maps timestamps through nominal FPS. That is not
-        // authoritative for VFR, so reconstruct the immediate predecessor from decoded PTS.
-        var window = TimeSpan.FromSeconds(1);
-        for (var attempt = 0; attempt < 8; attempt++, window += window)
+        // See StepForwardAsync's doc comment above: every native Player call is marshaled onto the dispatcher thread.
+        Interlocked.Increment(ref _suppressPresentationEvents);
+        try
         {
-            token.ThrowIfCancellationRequested();
-            var start = TimeSpan.FromTicks(Math.Max(0, original - window.Ticks));
-            var current = (await SeekPlayerAsync(player, start, token).ConfigureAwait(false)).Position.Ticks;
-            long? predecessor = current < original ? current : null;
-            for (var frames = 0; frames < 2000 && current < original; frames++)
+            var original = RunOnUi(() => { player.Pause(); return player.CurTime; });
+            if (original <= 0) return Timestamp(0);
+
+            // Flyleaf's built-in ShowFramePrev maps timestamps through nominal FPS. That is not
+            // authoritative for VFR, so reconstruct the immediate predecessor from decoded PTS.
+            var window = TimeSpan.FromSeconds(1);
+            for (var attempt = 0; attempt < 8; attempt++, window += window)
             {
-                var next = (await StepForwardAsync(token).ConfigureAwait(false)).Position.Ticks;
-                if (next >= original) break;
-                predecessor = next;
-                current = next;
+                token.ThrowIfCancellationRequested();
+                var start = TimeSpan.FromTicks(Math.Max(0, original - window.Ticks));
+                var current = (await SeekPlayerAsync(player, start, token).ConfigureAwait(false)).Position.Ticks;
+                long? predecessor = current < original ? current : null;
+                for (var frames = 0; frames < 2000 && current < original; frames++)
+                {
+                    var next = await StepForwardAsync(token).ConfigureAwait(false);
+                    if (next.Position.Ticks >= original || next.Position.Ticks == current) break;
+                    predecessor = next.Position.Ticks;
+                    current = next.Position.Ticks;
+                }
+
+                if (predecessor is null) continue;
+                return await SettleOnKnownTimestampAsync(predecessor.Value, token).ConfigureAwait(false);
             }
 
-            if (predecessor is null) continue;
-            return await SettleOnKnownTimestampAsync(player, predecessor.Value, token).ConfigureAwait(false);
+            throw new InvalidOperationException("The previous decoded frame could not be located reliably.");
         }
-
-        throw new InvalidOperationException("The previous decoded frame could not be located reliably.");
+        finally { Interlocked.Decrement(ref _suppressPresentationEvents); }
     }
 
     public async Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token)
     {
         var player = RequirePlayer();
-        var wasPlaying = player.IsPlaying;
-        var restore = TimeSpan.FromTicks(player.CurTime);
-        player.Pause();
+        // See StepForwardAsync's doc comment: native calls always marshaled onto the dispatcher thread.
+        var (wasPlaying, restore) = RunOnUi(() => { var playing = player.IsPlaying; var position = TimeSpan.FromTicks(player.CurTime); player.Pause(); return (playing, position); });
         try
         {
             var timestamp = await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
@@ -193,9 +304,26 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             if (!token.IsCancellationRequested && ReferenceEquals(player, _player))
             {
                 await SeekPlayerAsync(player, restore, token).ConfigureAwait(false);
-                if (wasPlaying) player.Play();
+                if (wasPlaying) RunOnUi(() => player.Play());
             }
         }
+    }
+
+    public Task<MediaDecodedFrame> CapturePresentedFrameAsync(CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var player = RequirePlayer();
+        return Task.FromResult(RunOnUi(() =>
+        {
+            var bitmap = player.TakeSnapshotToBitmapSource()
+                ?? throw new InvalidOperationException("No presented video frame is available.");
+            var converted = EnsureBgra32(bitmap);
+            var stride = converted.PixelWidth * 4;
+            var pixels = new byte[stride * converted.PixelHeight];
+            converted.CopyPixels(pixels, stride, 0);
+            return new MediaDecodedFrame(
+                Timestamp(player.CurTime), converted.PixelWidth, converted.PixelHeight, stride, pixels);
+        }));
     }
 
     private Player CreatePlayer()
@@ -205,6 +333,9 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         config.Player.SeekAccurate = true;
         config.Player.UICurTime = UIRefreshType.PerFrame;
         config.Video.VideoAcceleration = true;
+        // Flyleaf remains the video/PTS engine. Its audio decoder/output path is disabled because the shared
+        // backend's bounded FFmpeg/WaveOut companion owns the selected audio stream.
+        config.Audio.Enabled = false;
         var player = new Player(config);
         player.PropertyChanged += Player_PropertyChanged;
         return player;
@@ -221,11 +352,12 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
     private void Player_PropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName != nameof(Player.CurTime) || sender is not Player player || !ReferenceEquals(player, _player)) return;
+        if (args.PropertyName != nameof(Player.CurTime) || sender is not Player player ||
+            !ReferenceEquals(player, _player) || Volatile.Read(ref _suppressPresentationEvents) > 0) return;
         FramePresented?.Invoke(this, Timestamp(player.CurTime));
     }
 
-    private static async Task<OpenCompletedArgs> WaitForOpenAsync(Player player, string sourcePath, CancellationToken token)
+    private async Task<OpenCompletedArgs> WaitForOpenAsync(Player player, string sourcePath, CancellationToken token)
     {
         var completion = new TaskCompletionSource<OpenCompletedArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
         EventHandler<OpenCompletedArgs>? handler = null;
@@ -234,13 +366,17 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         using var registration = token.Register(() => completion.TrySetCanceled(token));
         try
         {
-            player.OpenAsync(sourcePath, defaultSubtitles: false);
+            // Every native Player call must run on the dispatcher thread that created it (see StepBackwardAsync's
+            // own doc comment for the proven access-violation this fixes): once this method's own await
+            // completes, .ConfigureAwait(false) resumes on an arbitrary threadpool thread, so RunOnUi is required
+            // even though this call itself starts on the thread OpenAsync was invoked from.
+            RunOnUi(() => player.OpenAsync(sourcePath, defaultSubtitles: false));
             return await completion.Task.ConfigureAwait(false);
         }
         finally { player.OpenCompleted -= handler; }
     }
 
-    private static async Task<MediaPresentationTimestamp> SeekPlayerAsync(Player player, TimeSpan position, CancellationToken token)
+    private async Task<MediaPresentationTimestamp> SeekPlayerAsync(Player player, TimeSpan position, CancellationToken token)
     {
         var clamped = Math.Clamp(position.TotalMilliseconds, 0, TimeSpan.FromTicks(player.Duration).TotalMilliseconds);
         var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -250,50 +386,26 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         using var registration = token.Register(() => completion.TrySetCanceled(token));
         try
         {
-            player.SeekAccurate((int)Math.Min(int.MaxValue, clamped));
+            // See StepBackwardAsync's doc comment: every native Player call must run on the dispatcher thread
+            // that created the Player, never on whatever threadpool thread a prior .ConfigureAwait(false)
+            // continuation happens to resume on.
+            RunOnUi(() => player.SeekAccurate((int)Math.Min(int.MaxValue, clamped)));
             var result = await completion.Task.ConfigureAwait(false);
             if (result < 0) throw new InvalidOperationException("The playback seek failed.");
-            return Timestamp(player.CurTime);
+            return RunOnUi(() => Timestamp(player.CurTime));
         }
         finally { player.SeekCompleted -= handler; }
     }
 
-    private static async Task<MediaPresentationTimestamp> WaitForTimestampChangeAsync(Player player, long before, CancellationToken token)
+    private async Task<MediaPresentationTimestamp> SettleOnKnownTimestampAsync(long targetTicks, CancellationToken token)
     {
-        var completion = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-        PropertyChangedEventHandler? handler = null;
-        handler = (_, args) =>
-        {
-            if (args.PropertyName == nameof(Player.CurTime) && player.CurTime != before) completion.TrySetResult(player.CurTime);
-        };
-        player.PropertyChanged += handler;
-        using var registration = token.Register(() => completion.TrySetCanceled(token));
-        try
-        {
-            if (player.CurTime != before) return Timestamp(player.CurTime);
-            return Timestamp(await completion.Task.WaitAsync(TimeSpan.FromSeconds(10), token).ConfigureAwait(false));
-        }
-        finally { player.PropertyChanged -= handler; }
-    }
-
-    private static async Task<MediaPresentationTimestamp> SettleOnKnownTimestampAsync(Player player, long targetTicks, CancellationToken token)
-    {
+        var player = RequirePlayer();
         var timestamp = await SeekPlayerAsync(player, TimeSpan.FromTicks(targetTicks), token).ConfigureAwait(false);
         for (var frames = 0; timestamp.Position.Ticks < targetTicks && frames < 120; frames++)
-            timestamp = await new FlyleafStepForward(player).RunAsync(token).ConfigureAwait(false);
+            timestamp = await StepForwardAsync(token).ConfigureAwait(false);
         if (timestamp.Position.Ticks != targetTicks)
             throw new InvalidOperationException("Playback could not settle on the preceding decoded timestamp.");
         return timestamp;
-    }
-
-    private sealed class FlyleafStepForward(Player player)
-    {
-        public async Task<MediaPresentationTimestamp> RunAsync(CancellationToken token)
-        {
-            var before = player.CurTime;
-            player.ShowFrameNext();
-            return await WaitForTimestampChangeAsync(player, before, token).ConfigureAwait(false);
-        }
     }
 
     private static BitmapSource EnsureBgra32(BitmapSource source)
@@ -373,6 +485,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         if (_disposed) return;
         _disposed = true;
         CancelPending();
+        await _audio.DisposeAsync().ConfigureAwait(false);
         await ClosePlayerAsync().ConfigureAwait(false);
         RunOnUi(() =>
         {

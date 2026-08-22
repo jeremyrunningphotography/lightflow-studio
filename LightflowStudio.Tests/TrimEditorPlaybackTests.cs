@@ -106,6 +106,8 @@ public sealed class TrimEditorPlaybackTests
         public TimeSpan? LastSeekPosition { get; private set; }
         public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
+        public int Volume { get; set; } = 100;
+        public bool Mute { get; set; }
         public FrameworkElement CreatePresentationSurface()
         {
             if (PresentationAttached) throw new InvalidOperationException("The previous editor still owns the presentation surface.");
@@ -139,6 +141,7 @@ public sealed class TrimEditorPlaybackTests
         public Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token) => Task.FromResult(new MediaPresentationTimestamp(NextFrame));
         public Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token) => Task.FromResult(new MediaPresentationTimestamp(PreviousFrame));
         public Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token) => throw new NotSupportedException();
+        public Task<MediaDecodedFrame> CapturePresentedFrameAsync(CancellationToken token) => throw new NotSupportedException();
         public ValueTask DisposeAsync() { ActiveSessions = 0; return ValueTask.CompletedTask; }
     }
 }

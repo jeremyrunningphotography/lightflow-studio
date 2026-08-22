@@ -23,12 +23,12 @@ those components.
 
 ## Playback components
 
-Interactive video playback uses FlyleafLib 3.10.4 and
-Flyleaf.FFmpeg.Bindings 8.1.0. Both packages are licensed under the GNU Lesser
+Interactive video playback uses FlyleafLib 3.11.2 and
+Flyleaf.FFmpeg.Bindings 9.0.0. Both packages are licensed under the GNU Lesser
 General Public License, version 3.0 or later. Lightflow Studio keeps these
 libraries behind its own playback API and does not modify their source.
 
-- Flyleaf source: <https://github.com/SuRGeoNix/Flyleaf/tree/v3.10.4>
+- Flyleaf source: <https://github.com/SuRGeoNix/Flyleaf/tree/v3.11.2>
 - Flyleaf FFmpeg bindings source: <https://github.com/SuRGeoNix/Flyleaf.FFmpeg.Generator>
 
 Flyleaf uses dynamically loaded FFmpeg shared libraries. Lightflow distributes
@@ -44,6 +44,10 @@ distributed under the MIT License:
 
 - Vortice.Windows: <https://github.com/amerkoleci/Vortice.Windows>
 - SharpGenTools: <https://github.com/SharpGenTools/SharpGenTools>
+
+Audio sample output uses NAudio 2.3.0, distributed under the MIT License:
+
+- NAudio source and license: <https://github.com/naudio/NAudio/tree/v2.3.0>
 
 NuGet package license files and the source repositories above are authoritative.
 

@@ -347,8 +347,8 @@
        <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template>
       </GridSplitter>
       <Grid Grid.Column="2" MinWidth="520">
-       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-       <Border Style="{StaticResource ShellPanel}" Padding="12,9">
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition x:Name="BrowserNavigationGap" Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+       <Border x:Name="BrowserNavigationToolbar" Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>
          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
          <StackPanel Orientation="Horizontal">
@@ -500,7 +500,10 @@
           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">
           <ItemsControl.Template>
            <ControlTemplate TargetType="ItemsControl">
-            <ScrollViewer Background="Transparent" Focusable="False" Padding="{TemplateBinding Padding}"
+            <!-- #110: named so MainWindow can resolve it via the existing FindDescendantByName visual-tree
+                 helper to capture/restore scroll position around the Player/Viewer — it has no codegen field
+                 of its own since names inside a ControlTemplate aren't connected by InitializeComponent. -->
+            <ScrollViewer x:Name="BrowserGridScrollViewer" Background="Transparent" Focusable="False" Padding="{TemplateBinding Padding}"
              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
              <ItemsPresenter/>
             </ScrollViewer>
@@ -580,6 +583,14 @@
          </Border>
         </Grid>
       </Border>
+      <!-- #110: the Browser's Player/Viewer presentation state. A sibling occupying the exact same cell as
+           BrowserGridHost above, toggled by Visibility (mirroring how BrowserLoadingOverlay/BrowserEmptyState
+           already overlay that same host) rather than a second host elsewhere in the tree — the surrounding
+           navigation bar, query toolbar, Locations tree, and status bar all stay exactly as they are while only
+           this one region's content changes. Content is a lazily-created PlayerViewerHost instance (see
+           MainWindow.EnsurePlayerViewerHost) so the reusable Player/Viewer content is never directly dependent
+           on MainWindow — this ContentControl only ever hosts it. -->
+      <ContentControl Grid.Row="4" x:Name="BrowserPlayerHost" Focusable="False" Visibility="Collapsed"/>
      </Grid>
     </Grid>
    </TabItem>

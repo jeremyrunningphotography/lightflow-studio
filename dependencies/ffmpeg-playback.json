@@ -1,13 +1,13 @@
 {
-  "version": "8.1.2-34-g9b6c8969e0",
-  "releaseTag": "autobuild-2026-07-31-14-10",
-  "archiveName": "ffmpeg-n8.1.2-34-g9b6c8969e0-win64-lgpl-shared-8.1.zip",
-  "downloadUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-31-14-10/ffmpeg-n8.1.2-34-g9b6c8969e0-win64-lgpl-shared-8.1.zip",
-  "sha256": "c222a490dde4e7059f45495deef6bfb98dbcacc2b43df5b607546252037aa95c",
-  "sourceUrl": "https://github.com/FFmpeg/FFmpeg/tree/9b6c8969e0",
+  "version": "9.0.1-6-g9d4ca21220",
+  "releaseTag": "autobuild-2026-08-20-13-45",
+  "archiveName": "ffmpeg-n9.0.1-6-g9d4ca21220-win64-lgpl-shared-9.0.zip",
+  "downloadUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-20-13-45/ffmpeg-n9.0.1-6-g9d4ca21220-win64-lgpl-shared-9.0.zip",
+  "sha256": "138fe84aa6e4836920f615704115d7ecf4cfbfc20f9a3d5c60f27c1e604fc12b",
+  "sourceUrl": "https://github.com/FFmpeg/FFmpeg/tree/9d4ca21220",
   "buildProjectUrl": "https://github.com/BtbN/FFmpeg-Builds",
   "license": "LGPL-2.1-or-later",
   "variant": "lgpl-shared",
-  "flyleafVersion": "3.10.4",
-  "flyleafBindingsVersion": "8.1.0"
+  "flyleafVersion": "3.11.2",
+  "flyleafBindingsVersion": "9.0.0"
 }

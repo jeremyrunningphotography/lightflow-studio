@@ -40,7 +40,15 @@ public sealed class BrowserStatusBarRegressionTests
         Assert.Contains("ShellWorkspaceSelection.Index(ShellWorkspace.Browser)", body);
         Assert.Contains("BrowserStatusText.Visibility = visibility;", body);
         Assert.Contains("BrowserStatusDivider.Visibility = visibility;", body);
-        Assert.Contains("BrowserPresentationControls.Visibility = visibility;", body);
+        // #110: BrowserPresentationControls (the thumbnail-size slider) is Grid-presentation-specific, so it
+        // additionally hides while the Player/Viewer is showing, unlike BrowserStatusText/BrowserStatusDivider
+        // which stay tied only to whether the Browser tab itself is active. Asserted as one contiguous
+        // substring spanning the full conditional (not two independent Assert.Contains calls) so this only
+        // passes if both conditions actually join the same expression, not merely both appear anywhere in the
+        // method body (e.g. one in an unrelated branch or a comment).
+        Assert.Contains(
+            "BrowserPresentationControls.Visibility = isBrowserActive && _browserPresentation == BrowserPresentationMode.Grid",
+            body);
         Assert.Contains("if (isBrowserActive) UpdateBrowserStatusText();", body);
     }
 
@@ -87,6 +95,22 @@ public sealed class BrowserStatusBarRegressionTests
 
         Assert.DoesNotContain("MainTabs.SelectedIndex", body);
         Assert.DoesNotContain("Visibility", body);
+    }
+
+    [Fact]
+    public void SetBrowserPresentationMode_HidesTheQueryToolbarInPlayerViewerModeAndRestoresItInGridMode()
+    {
+        // #110: the query toolbar (Subfolders, All/Images/RAW/Video, Search, Filter, Sort) describes/manipulates
+        // the Grid's own result set and is irrelevant while reviewing one open asset in the Player/Viewer.
+        var source = Source();
+        var methodStart = source.IndexOf("private void SetBrowserPresentationMode", StringComparison.Ordinal);
+        Assert.True(methodStart >= 0, "SetBrowserPresentationMode not found");
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains(
+            "BrowserQueryToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;",
+            body);
     }
 
     private static string Source() =>

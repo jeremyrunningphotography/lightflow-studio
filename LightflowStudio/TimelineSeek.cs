@@ -18,3 +18,14 @@ internal static class TimelineSeek
         return TimeSpan.FromTicks((long)Math.Round(duration.Ticks * boundedX / usableWidth));
     }
 }
+
+/// <summary>Maps a click coordinate to a bounded numeric slider value.</summary>
+internal static class SliderClickToSet
+{
+    public static double ValueFromCoordinate(double x, double usableWidth, double minimum, double maximum)
+    {
+        if (maximum <= minimum || !double.IsFinite(usableWidth) || usableWidth <= 0) return minimum;
+        var boundedX = double.IsFinite(x) ? Math.Clamp(x, 0, usableWidth) : 0;
+        return minimum + (maximum - minimum) * boundedX / usableWidth;
+    }
+}

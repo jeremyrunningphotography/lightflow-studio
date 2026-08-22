@@ -1,6 +1,7 @@
 <UserControl x:Class="LightflowStudio.PlayerViewerHost"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:LightflowStudio"
  Focusable="True" FocusVisualStyle="{x:Null}" PreviewKeyDown="PlayerViewerHost_PreviewKeyDown">
  <UserControl.Resources>
   <!-- Copied from TrimEditorWindow.xaml rather than extracted into the shared shell dictionary — the same
@@ -64,11 +65,28 @@
    <Border Grid.Row="2" x:Name="TransportBar" Margin="12,0,12,12" Padding="14,10,14,9" Visibility="Collapsed"
     Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
     <Grid>
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <Slider x:Name="PositionSlider" Style="{StaticResource PlaybackTimelineSlider}" Minimum="0" Maximum="1"
-      ValueChanged="PositionSlider_ValueChanged" PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
-      IsEnabled="False" ToolTip="Click anywhere to seek, or drag the playhead"/>
-     <Grid Grid.Row="1" Margin="2,7,2,0">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid Height="22">
+      <local:TrimRangeIndicator x:Name="ReviewRangeIndicator" Height="18" Margin="7,0" VerticalAlignment="Center"
+       Panel.ZIndex="1" DimOutside="True" IsHitTestVisible="False"/>
+      <Slider x:Name="PositionSlider" Style="{StaticResource PlaybackTimelineSlider}" Minimum="0" Maximum="1"
+       ValueChanged="PositionSlider_ValueChanged" PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
+       IsEnabled="False" ToolTip="Full source timeline: click anywhere to seek, or drag the playhead"/>
+     </Grid>
+     <Grid Grid.Row="1" Margin="2,4,2,0">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel Orientation="Horizontal">
+       <Button x:Name="SetInButton" Content="Set In" Click="SetIn_Click" IsEnabled="False" ToolTip="Set In to the displayed frame (I)" AutomationProperties.Name="Set In"/>
+       <Button x:Name="InTimeButton" Margin="5,0,0,0" Padding="5,2" Click="InTime_Click" Visibility="Collapsed" ToolTip="Seek to saved In frame"/>
+       <Button x:Name="ClearInButton" Content="&#x00D7;" Padding="5,2" Click="ClearIn_Click" Visibility="Collapsed" ToolTip="Clear In boundary" AutomationProperties.Name="Clear In boundary"/>
+      </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+       <Button x:Name="OutTimeButton" Padding="5,2" Click="OutTime_Click" Visibility="Collapsed" ToolTip="Seek to saved Out frame"/>
+       <Button x:Name="ClearOutButton" Content="&#x00D7;" Padding="5,2" Click="ClearOut_Click" Visibility="Collapsed" ToolTip="Clear Out boundary" AutomationProperties.Name="Clear Out boundary"/>
+       <Button x:Name="SetOutButton" Margin="5,0,0,0" Content="Set Out" Click="SetOut_Click" IsEnabled="False" ToolTip="Set Out to the displayed frame (O)" AutomationProperties.Name="Set Out"/>
+      </StackPanel>
+     </Grid>
+     <Grid Grid.Row="2" Margin="2,7,2,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <TextBlock x:Name="CurrentTimeText" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="00:00:00.000"/>
       <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">

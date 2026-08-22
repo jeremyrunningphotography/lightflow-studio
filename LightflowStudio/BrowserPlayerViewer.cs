@@ -35,4 +35,13 @@ internal static class MediaPresentationClassification
 /// so the reusable Player/Viewer content never depends on Browser-specific types. Any future host (a floating
 /// window per #112, or a filmstrip-driven multi-asset review per #111) constructs this same shape.
 /// </summary>
-internal sealed record PlayerViewerAsset(Guid RootId, string RelativePath, string Key, string Name, MediaPresentationKind Kind);
+internal sealed record PlayerViewerAsset(Guid RootId, string RelativePath, string Key, string Name, MediaPresentationKind Kind, Guid? AssetId = null);
+
+internal static class ReviewRangePlaybackPolicy
+{
+    public static bool ShouldArmOutBoundary(MediaRange? range, TimeSpan playhead) =>
+        range is not null && playhead <= range.EffectiveOut;
+
+    public static bool HasReachedArmedOutBoundary(MediaRange? range, bool armed, TimeSpan displayed) =>
+        armed && range is not null && displayed >= range.EffectiveOut;
+}

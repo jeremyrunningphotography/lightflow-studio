@@ -14,7 +14,8 @@ internal static class CatalogMigrations
     public static IReadOnlyList<CatalogMigration> All { get; } =
     [
         new(1, "Initial catalog identity, roots, mappings, and assets", ApplyVersion1),
-        new(2, "Browser recursive-scope roots", ApplyVersion2)
+        new(2, "Browser recursive-scope roots", ApplyVersion2),
+        new(3, "Durable asset media ranges", ApplyVersion3)
     ];
 
     private static void ApplyVersion1(
@@ -138,6 +139,35 @@ internal static class CatalogMigrations
 
             CREATE INDEX IX_BrowserRecursiveScopes_RootId
                 ON BrowserRecursiveScopes (RootId);
+            """);
+    }
+
+    private static void ApplyVersion3(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CatalogMigrationContext context)
+    {
+        Execute(connection, transaction, """
+            CREATE TABLE MediaAssetRanges (
+                RangeId TEXT NOT NULL PRIMARY KEY CHECK (length(RangeId) = 36),
+                AssetId TEXT NOT NULL,
+                Kind TEXT NOT NULL DEFAULT 'primary' CHECK (length(trim(Kind)) > 0),
+                Ordinal INTEGER NOT NULL DEFAULT 0 CHECK (Ordinal >= 0),
+                InTicks INTEGER NULL CHECK (InTicks IS NULL OR InTicks >= 0),
+                OutTicks INTEGER NULL CHECK (OutTicks IS NULL OR OutTicks >= 0),
+                SourceDurationTicks INTEGER NOT NULL CHECK (SourceDurationTicks > 0),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                FOREIGN KEY (AssetId) REFERENCES MediaAssets (AssetId) ON DELETE CASCADE,
+                UNIQUE (AssetId, Kind, Ordinal),
+                CHECK (InTicks IS NOT NULL OR OutTicks IS NOT NULL),
+                CHECK (InTicks IS NULL OR OutTicks IS NULL OR InTicks < OutTicks),
+                CHECK (InTicks IS NULL OR InTicks < SourceDurationTicks),
+                CHECK (OutTicks IS NULL OR OutTicks <= SourceDurationTicks)
+            );
+
+            CREATE INDEX IX_MediaAssetRanges_AssetId
+                ON MediaAssetRanges (AssetId);
             """);
     }
 

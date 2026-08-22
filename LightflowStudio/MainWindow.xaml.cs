@@ -1250,7 +1250,7 @@ public partial class MainWindow : Window
     {
         var generation = _browserUiGeneration;
         var asset = new PlayerViewerAsset(tile.RootId, tile.RelativePath, tile.Key, tile.Name,
-            MediaPresentationClassification.KindFor(tile.Category));
+            MediaPresentationClassification.KindFor(tile.Category), tile.AssetId);
         MediaPathResolution resolution;
         // Unfiltered: this is a fire-and-forget UI entry point (invoked as `_ = OpenBrowserPlayerViewerAsync(tile)`
         // from the tile double-click/Enter handler), matching RunBrowserNavigationAsync's own catch-all
@@ -1272,7 +1272,7 @@ public partial class MainWindow : Window
     private void EnsurePlayerViewerHost()
     {
         if (_playerViewerHost is not null) return;
-        _playerViewerHost = new PlayerViewerHost(App.Playback);
+        _playerViewerHost = new PlayerViewerHost(App.Playback, _storage.MediaRanges);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         BrowserPlayerHost.Content = _playerViewerHost;
     }

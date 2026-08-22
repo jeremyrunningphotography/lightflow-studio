@@ -96,6 +96,27 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("if (ShowBoundaries)", rendering);
     }
 
+    [Fact]
+    public void RangeControls_KeepSetActionsSlimAndRenderSavedTimesAsLightweightLinksWithCompactClearButtons()
+    {
+        var xaml = Source();
+        Assert.Contains("x:Key=\"RangeSetButton\"", xaml);
+        Assert.Contains("<Setter Property=\"Padding\" Value=\"8,3\"/>", xaml);
+        Assert.Contains("x:Key=\"RangeTimestampLink\"", xaml);
+        Assert.Contains("x:Key=\"RangeClearButton\"", xaml);
+        Assert.Contains("<Setter Property=\"Width\" Value=\"18\"/>", xaml);
+        Assert.Contains("x:Name=\"InTimeButton\" Style=\"{StaticResource RangeTimestampLink}\"", xaml);
+        Assert.Contains("x:Name=\"OutTimeButton\" Style=\"{StaticResource RangeTimestampLink}\"", xaml);
+        Assert.Contains("x:Name=\"ClearInButton\" Style=\"{StaticResource RangeClearButton}\"", xaml);
+        Assert.Contains("x:Name=\"ClearOutButton\" Style=\"{StaticResource RangeClearButton}\"", xaml);
+
+        var behavior = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
+        Assert.Contains("InTimeButton.Content = FormatTimestamp(rangeIn);", behavior);
+        Assert.Contains("OutTimeButton.Content = FormatTimestamp(rangeOut);", behavior);
+        Assert.DoesNotContain("InTimeButton.Content = $\"In ", behavior);
+        Assert.DoesNotContain("OutTimeButton.Content = $\"Out ", behavior);
+    }
+
     private static string Source() =>
         File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml"));
 

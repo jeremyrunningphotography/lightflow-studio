@@ -150,6 +150,7 @@ public sealed class PlayerViewerHostLeaseTests
 
             Assert.Equal(assetId, store.RestoredAssetId);
             Assert.Equal([savedIn], backend.SeekPositions);
+            Assert.Equal(["seek", "presentation"], backend.OpenPresentationOperations);
             Assert.Equal(0, backend.PlayCallCount);
             Assert.Equal("Play", host.PlayPauseButton.Content);
             Assert.Equal(savedIn.TotalMilliseconds, host.PositionSlider.Value, 3);
@@ -174,6 +175,7 @@ public sealed class PlayerViewerHostLeaseTests
             await host.OpenAsync(asset, resolution);
 
             Assert.Empty(backend.SeekPositions);
+            Assert.Equal(["presentation"], backend.OpenPresentationOperations);
             Assert.Equal(0, backend.PlayCallCount);
             Assert.Equal(TimeSpan.Zero.TotalMilliseconds, host.PositionSlider.Value);
         });
@@ -224,6 +226,7 @@ public sealed class PlayerViewerHostLeaseTests
     private sealed class FakeBackend(TimeSpan? duration = null, bool hasAudio = false) : IMediaPlaybackBackend
     {
         public List<string> Operations { get; } = [];
+        public List<string> OpenPresentationOperations { get; } = [];
         public List<TimeSpan> SeekPositions { get; } = [];
         public int PlayCallCount { get; private set; }
         public int PauseCallCount { get; private set; }
@@ -231,7 +234,11 @@ public sealed class PlayerViewerHostLeaseTests
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
         public int Volume { get; set; } = 100;
         public bool Mute { get; set; }
-        public FrameworkElement CreatePresentationSurface() => new();
+        public FrameworkElement CreatePresentationSurface()
+        {
+            OpenPresentationOperations.Add("presentation");
+            return new();
+        }
         public void ReleasePresentationSurface(FrameworkElement surface) { }
         public void CancelPending() { }
         public Task<PlaybackBackendOpened> OpenAsync(string sourcePath, CancellationToken token)
@@ -245,6 +252,7 @@ public sealed class PlayerViewerHostLeaseTests
         public Task PauseAsync(CancellationToken token) { PauseCallCount++; return Task.CompletedTask; }
         public Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token)
         {
+            OpenPresentationOperations.Add("seek");
             SeekPositions.Add(position);
             return Task.FromResult(new MediaPresentationTimestamp(position));
         }

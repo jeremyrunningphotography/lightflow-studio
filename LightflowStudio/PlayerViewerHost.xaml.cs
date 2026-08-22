@@ -141,8 +141,6 @@ public partial class PlayerViewerHost : UserControl
             if (service.SourceInfo is not { } info || info.Duration <= TimeSpan.Zero || service.Snapshot.State == MediaPlaybackState.Failed)
                 throw new InvalidOperationException(service.Snapshot.Error?.Message ?? "The video could not be decoded for preview.");
 
-            _mediaView = new MediaPlaybackView(service);
-            VideoHost.Children.Add(_mediaView);
             PositionSlider.Maximum = info.Duration.TotalMilliseconds;
             DurationText.Text = FormatTimestamp(info.Duration);
             var restoredRange = await RestoreRangeAsync(info.Duration, assetId: _currentAsset?.AssetId, token).ConfigureAwait(true);
@@ -152,6 +150,12 @@ public partial class PlayerViewerHost : UserControl
             if (_reviewRange?.In is { } savedIn)
                 await service.SeekAsync(savedIn, token).ConfigureAwait(true);
             if (generation != _generation) return;
+            // Attach the native presentation only after the optional saved-In seek has settled. Creating it
+            // earlier lets Flyleaf's already-open default/source-start frame become visible before the seek,
+            // producing a brief flash. The player remains paused throughout; this changes presentation order,
+            // not the shared playback/backend path or its authoritative decoded-timestamp semantics.
+            _mediaView = new MediaPlaybackView(service);
+            VideoHost.Children.Add(_mediaView);
             UpdateFromSnapshot(service.Snapshot);
             SetTransportEnabled(true);
             SetAudioControlsEnabled(info.AudioStreams.Count > 0);
@@ -488,8 +492,8 @@ public partial class PlayerViewerHost : UserControl
         ReviewRangeIndicator.WidthFraction = presentation.WidthFraction;
         InTimeButton.Visibility = ClearInButton.Visibility = _reviewRange?.In is not null ? Visibility.Visible : Visibility.Collapsed;
         OutTimeButton.Visibility = ClearOutButton.Visibility = _reviewRange?.Out is not null ? Visibility.Visible : Visibility.Collapsed;
-        if (_reviewRange?.In is { } rangeIn) InTimeButton.Content = $"In {FormatTimestamp(rangeIn)}";
-        if (_reviewRange?.Out is { } rangeOut) OutTimeButton.Content = $"Out {FormatTimestamp(rangeOut)}";
+        if (_reviewRange?.In is { } rangeIn) InTimeButton.Content = FormatTimestamp(rangeIn);
+        if (_reviewRange?.Out is { } rangeOut) OutTimeButton.Content = FormatTimestamp(rangeOut);
     }
 
     private async Task StopAtOutAsync()

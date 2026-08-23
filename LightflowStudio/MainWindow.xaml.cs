@@ -96,6 +96,7 @@ public partial class MainWindow : Window
     private ScrollViewer? _browserGridScrollViewer;
     private double _browserGridScrollOffset;
     private CapabilityInvocation? _browserEncodingInvocation;
+    private CancellationTokenSource? _browserEncodingHandoffCts;
     private bool _suppressBatchInputChange;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
@@ -214,6 +215,8 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _browserEncodingHandoffCts?.Cancel();
+            _browserEncodingHandoffCts = null;
             if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
             _browserNavigation.RecursiveScopeProgressChanged -= BrowserNavigation_RecursiveScopeProgressChanged;
             _browserNavigation.EffectiveScopeDetermined -= BrowserNavigation_EffectiveScopeDetermined;
@@ -1673,18 +1676,37 @@ public partial class MainWindow : Window
             return;
         }
 
-        await ApplyEncodingHandoffAsync(new CapabilityInvocation("video.encode", assetIds));
+        var location = _lastLoadedBrowserState?.Location;
+        if (location is null)
+        {
+            MessageBox.Show("The current Browser location is no longer available.", "Batch Encode",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        await ApplyEncodingHandoffAsync(new CapabilityInvocation("video.encode", assetIds,
+            new CapabilitySourceContext(location.RootId, location.RelativeFolder)));
     }
 
     private async Task ApplyEncodingHandoffAsync(CapabilityInvocation invocation)
     {
+        _browserEncodingHandoffCts?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        _browserEncodingHandoffCts = cancellation;
         BrowserEncodeButton.IsEnabled = false;
         try
         {
-            var result = await new EncodingCapabilityHandoff(_storage.MediaAssets, _storage.MediaRanges)
-                .MaterializeAsync(invocation).ConfigureAwait(true);
+            var result = await new EncodingCapabilityHandoff(_storage.MediaAssets, _storage.MediaRoots,
+                    _storage.MediaRanges)
+                .MaterializeAsync(invocation, cancellation.Token).ConfigureAwait(true);
+            if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return;
             if (!result.Succeeded)
             {
+                if (ReferenceEquals(_browserEncodingInvocation, invocation))
+                {
+                    _batchMetadataCts?.Cancel();
+                    _batchFiles.Clear();
+                    UpdateBatchFileSummary();
+                }
                 MessageBox.Show("The selection was not sent to Encoding:\n\n" + string.Join("\n", result.Errors),
                     "Cannot encode selection", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -1698,11 +1720,8 @@ public partial class MainWindow : Window
             _suppressBatchInputChange = true;
             try
             {
-                InputFolder.Text = _lastLoadedBrowserState?.Location?.AbsolutePath
-                    ?? Path.GetDirectoryName(result.Inputs[0].SourcePath)!;
-                Recursive.IsChecked = result.Inputs.Any(input =>
-                    !string.Equals(Path.GetDirectoryName(input.SourcePath), InputFolder.Text,
-                        StringComparison.OrdinalIgnoreCase));
+                InputFolder.Text = result.InputFolder!;
+                Recursive.IsChecked = result.IncludeSubfolders;
             }
             finally { _suppressBatchInputChange = false; }
 
@@ -1726,7 +1745,16 @@ public partial class MainWindow : Window
             MessageBox.Show($"The Browser selection could not be prepared: {exception.Message}",
                 "Cannot encode selection", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        finally { BrowserEncodeButton.IsEnabled = _browserGrid.SelectedKeys.Count > 0; }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            if (ReferenceEquals(_browserEncodingHandoffCts, cancellation))
+            {
+                _browserEncodingHandoffCts = null;
+                BrowserEncodeButton.IsEnabled = _browserGrid.SelectedKeys.Count > 0;
+            }
+            cancellation.Dispose();
+        }
     }
     private async Task RefreshDependencyHealthAsync()
     {

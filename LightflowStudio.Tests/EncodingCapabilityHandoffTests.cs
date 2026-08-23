@@ -5,6 +5,16 @@ namespace LightflowStudio.Tests;
 public sealed class EncodingCapabilityHandoffTests
 {
     [Fact]
+    public async Task Materialize_rejects_an_empty_invocation()
+    {
+        var result = await new EncodingCapabilityHandoff(new FakeAssets(), new FakeRoots(), new FakeRanges())
+            .MaterializeAsync(new CapabilityInvocation("video.encode", []));
+
+        Assert.False(result.Succeeded);
+        Assert.Single(result.Errors);
+    }
+
+    [Fact]
     public async Task Materialize_preserves_invocation_order_and_snapshots_ranges()
     {
         var first = Guid.NewGuid();
@@ -15,7 +25,7 @@ public sealed class EncodingCapabilityHandoffTests
             Resolution(second, "D:\\remapped\\a.mp4"));
         var ranges = new FakeRanges(new Dictionary<Guid, MediaRange?> { [first] = range });
 
-        var result = await new EncodingCapabilityHandoff(assets, ranges).MaterializeAsync(
+        var result = await new EncodingCapabilityHandoff(assets, new FakeRoots(), ranges).MaterializeAsync(
             new CapabilityInvocation("video.encode", [second, first]));
 
         Assert.True(result.Succeeded);
@@ -36,7 +46,7 @@ public sealed class EncodingCapabilityHandoffTests
             Resolution(image, "C:\\media\\still.jpg", "still-image"),
             Resolution(offline, null, availability: MediaRootAvailability.Unavailable));
 
-        var result = await new EncodingCapabilityHandoff(assets, new FakeRanges()).MaterializeAsync(
+        var result = await new EncodingCapabilityHandoff(assets, new FakeRoots(), new FakeRanges()).MaterializeAsync(
             new CapabilityInvocation("video.encode", [video, image, offline]));
 
         Assert.False(result.Succeeded);
@@ -54,7 +64,8 @@ public sealed class EncodingCapabilityHandoffTests
         {
             [id] = new(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(2), null)
         });
-        var handoff = new EncodingCapabilityHandoff(new FakeAssets(Resolution(id, "C:\\media\\one.mxf")), ranges);
+        var handoff = new EncodingCapabilityHandoff(new FakeAssets(Resolution(id, "C:\\media\\one.mxf")),
+            new FakeRoots(), ranges);
 
         var result = await handoff.MaterializeAsync(new CapabilityInvocation("video.encode", [id]));
         await ranges.SaveAsync(id, new MediaRange(TimeSpan.FromSeconds(30), null, TimeSpan.FromSeconds(12)));
@@ -81,7 +92,7 @@ public sealed class EncodingCapabilityHandoffTests
             [bounded] = new(duration, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(30))
         });
 
-        var result = await new EncodingCapabilityHandoff(assets, ranges).MaterializeAsync(
+        var result = await new EncodingCapabilityHandoff(assets, new FakeRoots(), ranges).MaterializeAsync(
             new CapabilityInvocation("video.encode", [full, inOnly, outOnly, bounded]));
 
         Assert.Null(result.Inputs[0].InitialTrim);
@@ -93,14 +104,50 @@ public sealed class EncodingCapabilityHandoffTests
             (result.Inputs[3].InitialTrim!.EffectiveIn, result.Inputs[3].InitialTrim!.EffectiveOut));
     }
 
+    [Fact]
+    public async Task Materialize_reresolves_originating_folder_through_current_root_mapping()
+    {
+        var rootId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var assets = new FakeAssets(Resolution(assetId, "D:\\remapped\\shoot\\clip.mov", rootId: rootId));
+        var roots = new FakeRoots("D:\\remapped\\shoot");
+        var invocation = new CapabilityInvocation("video.encode", [assetId],
+            new CapabilitySourceContext(rootId, "shoot"));
+
+        var result = await new EncodingCapabilityHandoff(assets, roots, new FakeRanges())
+            .MaterializeAsync(invocation);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("D:\\remapped\\shoot", result.InputFolder);
+        Assert.Equal((rootId, "shoot"), roots.LastResolution);
+    }
+
     private static MediaAssetResolution Resolution(Guid id, string? path, string type = "video",
-        MediaRootAvailability availability = MediaRootAvailability.Online)
+        MediaRootAvailability availability = MediaRootAvailability.Online, Guid? rootId = null)
     {
         var relative = path is null ? $"{id:D}.mov" : Path.GetFileName(path);
-        var asset = new MediaAsset(id, Guid.NewGuid(), relative, relative.ToUpperInvariant(), type, 123, 456,
+        var asset = new MediaAsset(id, rootId ?? Guid.NewGuid(), relative, relative.ToUpperInvariant(), type, 123, 456,
             null, MediaAssetSourceStatus.Available, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch,
             DateTimeOffset.UnixEpoch);
         return new(asset, availability, path, path is not null, path is null ? "The mapped root is unavailable." : null);
+    }
+
+    private sealed class FakeRoots(string? resolvedFolder = null) : IMediaRootService
+    {
+        public (Guid RootId, string RelativePath)? LastResolution { get; private set; }
+        public Task<MediaPathResolution> ResolveAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            LastResolution = (rootId, relativePath);
+            return Task.FromResult(new MediaPathResolution(rootId, relativePath,
+                MediaPathSemantics.RelativePathKey(relativePath), resolvedFolder, MediaRootAvailability.Online,
+                resolvedFolder is not null));
+        }
+        public Task<IReadOnlyList<MediaRootInfo>> ListAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<MediaRootInfo?> GetAsync(Guid rootId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<MediaRootChangeResult> CreateAsync(string displayName, string physicalPath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<MediaRootChangeResult> RenameAsync(Guid rootId, string displayName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<MediaRootChangeResult> RemapAsync(Guid rootId, string physicalPath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeRanges(Dictionary<Guid, MediaRange?>? values = null) : IMediaRangeStore

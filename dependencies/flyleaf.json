@@ -4,10 +4,10 @@
   "upstreamVersion": "3.11.2",
   "upstreamCommit": "64cee8bf3749590c98b6b6d416e2f590e4e890cf",
   "sourceRepository": "https://github.com/jeremysrunning/Flyleaf",
-  "sourceCommit": "b31f63e3adf599bd41f63840e5286f09312bc5cf",
+  "sourceCommit": "6789799a5b29dfd126e1094e847f46cfa9b9be0a",
   "sourceBranch": "generic-video-post-process",
   "upstreamPullRequest": "https://github.com/SuRGeoNix/Flyleaf/pull/719",
   "packageFile": "FlyleafLib.3.11.2-lightflow.1.nupkg",
-  "packageSha256": "0003ed445842262865afcea3fa139d0645bac308746f2b9e1926dd571a0d5438",
+  "packageSha256": "075e49afc9648f0458ab90822737a35400fb6165377b1760026c5c31cf3d4030",
   "license": "LGPL-3.0-or-later"
 }

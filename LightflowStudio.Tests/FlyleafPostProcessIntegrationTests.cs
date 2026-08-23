@@ -50,6 +50,13 @@ public sealed class FlyleafPostProcessIntegrationTests : IDisposable
                 backend.RequestRender();
                 await WaitUntilAsync(() => factory.LiveCalls > beforeInvalidation, "paused render invalidation");
 
+                var beforeResize = factory.LiveCalls;
+                window.Width = 480;
+                window.Height = 270;
+                await Task.Delay(100, timeout.Token);
+                backend.RequestRender();
+                await WaitUntilAsync(() => factory.LiveCalls > beforeResize, "post-processing after host resize");
+
                 var snapshot = await backend.CapturePresentedFrameAsync(timeout.Token);
                 Assert.NotEmpty(snapshot.BgraPixels);
                 Assert.True(factory.SnapshotCalls > 0);
@@ -121,6 +128,24 @@ public sealed class FlyleafPostProcessIntegrationTests : IDisposable
         await StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
+            byte[] expectedPixels;
+            await using (var baseline = new FlyleafPlaybackBackend(dependencies,
+                videoProcessor: VideoProcessors.Flyleaf))
+            {
+                using var baselineTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await baseline.OpenAsync(fixture, baselineTimeout.Token);
+                var baselineSurface = baseline.CreatePresentationSurface();
+                var baselineWindow = new System.Windows.Window { Content = baselineSurface, Width = 320, Height = 240, ShowActivated = false, ShowInTaskbar = false };
+                baselineWindow.Show();
+                try { expectedPixels = (await baseline.CapturePresentedFrameAsync(baselineTimeout.Token)).BgraPixels; }
+                finally
+                {
+                    baselineWindow.Content = null;
+                    baseline.ReleasePresentationSurface(baselineSurface);
+                    baselineWindow.Close();
+                }
+            }
+
             await using var backend = new FlyleafPlaybackBackend(dependencies, postProcessorFactory: factory,
                 videoProcessor: VideoProcessors.Flyleaf);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -132,6 +157,7 @@ public sealed class FlyleafPostProcessIntegrationTests : IDisposable
             {
                 var frame = await backend.CapturePresentedFrameAsync(timeout.Token);
                 Assert.NotEmpty(frame.BgraPixels);
+                Assert.Equal(expectedPixels, frame.BgraPixels);
                 Assert.True(factory.Attempts > 0);
             }
             finally
@@ -224,6 +250,7 @@ internal sealed class RecordingProcessorFactory : IVideoPostProcessorFactory
         private readonly ID3D11VertexShader _vertexShader;
         private readonly ID3D11PixelShader _pixelShader;
         private readonly ID3D11SamplerState _sampler;
+        private readonly ID3D11BlendState? _blockingBlendState;
         private int _disposed;
 
         public RecordingProcessor(RecordingProcessorFactory owner, ID3D11Device device, bool throwOnProcess)
@@ -242,17 +269,41 @@ internal sealed class RecordingProcessorFactory : IVideoPostProcessorFactory
                 AddressW = TextureAddressMode.Clamp,
                 MaxLOD = float.MaxValue
             });
+            if (_throwOnProcess)
+            {
+                _blockingBlendState = device.CreateBlendState(new BlendDescription
+                {
+                    RenderTarget =
+                    {
+                        [0] = new()
+                        {
+                            BlendEnable = false,
+                            RenderTargetWriteMask = ColorWriteEnable.None
+                        }
+                    }
+                });
+            }
         }
 
         public void Process(in VideoPostProcessContext frame)
         {
             Interlocked.Increment(ref _owner.Attempts);
             if (Volatile.Read(ref _disposed) != 0) Interlocked.Increment(ref _owner.CallsAfterDisposal);
-            if (_throwOnProcess) throw new InvalidOperationException("Intentional post-process test failure.");
+            if (_throwOnProcess)
+            {
+                // Deliberately poison state outside the slots Flyleaf normally uses. Fail-open must
+                // clear all extension state before copying and must not retain the borrowed surface.
+                frame.DeviceContext.PSSetShaderResource(7, frame.Input);
+                frame.DeviceContext.OMSetBlendState(_blockingBlendState);
+                throw new InvalidOperationException("Intentional post-process test failure.");
+            }
             if (frame.IsSnapshot) Interlocked.Increment(ref _owner.SnapshotCalls);
             else Interlocked.Increment(ref _owner.LiveCalls);
 
             var context = frame.DeviceContext;
+            // Exercise cleanup beyond Flyleaf's normal t0-t3 range on successful calls too;
+            // a host resize must not leave the prior intermediate retained in this slot.
+            context.PSSetShaderResource(7, frame.Input);
             context.OMSetRenderTargets(frame.Output);
             context.RSSetViewport(new Viewport(frame.OutputWidth, frame.OutputHeight));
             context.IASetInputLayout(null);
@@ -267,6 +318,7 @@ internal sealed class RecordingProcessorFactory : IVideoPostProcessorFactory
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            _blockingBlendState?.Dispose();
             _sampler.Dispose();
             _pixelShader.Dispose();
             _vertexShader.Dispose();

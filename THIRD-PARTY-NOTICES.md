@@ -29,7 +29,7 @@ General Public License, version 3.0 or later. The modified package is based on
 upstream Flyleaf v3.11.2 (`64cee8bf3749590c98b6b6d416e2f590e4e890cf`)
 and adds only a generic renderer-owned GPU video post-process extension.
 
-- Modified Flyleaf corresponding source: <https://github.com/jeremysrunning/Flyleaf/tree/b31f63e3adf599bd41f63840e5286f09312bc5cf>
+- Modified Flyleaf corresponding source: <https://github.com/jeremysrunning/Flyleaf/tree/6789799a5b29dfd126e1094e847f46cfa9b9be0a>
 - Upstream Flyleaf source: <https://github.com/SuRGeoNix/Flyleaf/tree/v3.11.2>
 - Generic upstream contribution: <https://github.com/SuRGeoNix/Flyleaf/pull/719>
 - Flyleaf FFmpeg bindings source: <https://github.com/SuRGeoNix/Flyleaf.FFmpeg.Generator>

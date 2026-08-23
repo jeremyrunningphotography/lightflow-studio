@@ -46,10 +46,10 @@ public partial class PlayerViewerHost : UserControl
     private string? _lastScreengrabDirectory;
     private readonly FrameStepQueue _frameStepQueue = new();
     private bool _updatingColor;
-    private bool _momentaryOriginal;
+    private bool _momentaryColorBypass;
     private PlayerColorPipeline? _colorPipeline;
 
-    private sealed record LutChoice(Guid? LutId, string DisplayName)
+    private sealed record LutChoice(Guid? LutId, string DisplayName, bool OpensFolder = false)
     {
         public override string ToString() => DisplayName;
     }
@@ -73,8 +73,6 @@ public partial class PlayerViewerHost : UserControl
 
     /// <summary>Raised after a saved review-range change commits so any host can refresh its own presentation.</summary>
     internal event EventHandler<MediaRangeStateChangedEventArgs>? RangeStateChanged;
-    internal event EventHandler? LutFolderRequested;
-
     internal PlayerViewerAsset? CurrentAsset => _currentAsset;
 
     /// <summary>
@@ -261,7 +259,8 @@ public partial class PlayerViewerHost : UserControl
         _colorPipeline = null;
         _updatingColor = true;
         CameraLutCombo.ItemsSource = CreativeLutCombo.ItemsSource = null;
-        OriginalButton.IsChecked = false;
+        ColorToggleButton.IsChecked = true;
+        ColorToggleButton.Content = "Color: On";
         _updatingColor = false;
         SetColorControlsEnabled(false);
         UpdateRangePresentation();
@@ -287,7 +286,8 @@ public partial class PlayerViewerHost : UserControl
 
     private void SetColorControlsEnabled(bool enabled)
     {
-        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = OriginalButton.IsEnabled = enabled;
+        ColorToggleButton.IsEnabled = enabled;
+        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = enabled && ColorToggleButton.IsChecked == true;
     }
 
     private async Task LoadColorAsync(long generation, CancellationToken token)
@@ -305,7 +305,9 @@ public partial class PlayerViewerHost : UserControl
         catch (OperationCanceledException) { throw; }
         catch (Exception exception) { SetStatus($"Color assignments could not be loaded. {exception.Message}"); return; }
         if (generation != _generation || _service is null) return;
-        var choices = new[] { new LutChoice(null, "No LUT") }.Concat(LutCatalog.Options(library.Resources).Skip(1).Select(x => new LutChoice(x.LutId, x.DisplayName))).ToArray();
+        var choices = new[] { new LutChoice(null, "No LUT") }
+            .Concat(LutCatalog.Options(library.Resources).Skip(1).Select(x => new LutChoice(x.LutId, x.DisplayName)))
+            .Append(new LutChoice(null, "Open LUT Folder…", OpensFolder: true)).ToArray();
         _updatingColor = true;
         CameraLutCombo.ItemsSource = CreativeLutCombo.ItemsSource = choices;
         CameraLutCombo.SelectedItem = choices.FirstOrDefault(x => x.LutId == intent.Camera?.LutId) ?? choices[0];
@@ -327,26 +329,47 @@ public partial class PlayerViewerHost : UserControl
             var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>().FirstOrDefault(x => x.Availability != LutResourceAvailability.Available);
             _colorPipeline = new(camera, creative);
             RestoreLiveVideoSurface();
-            _service?.SetColorPipeline(_colorPipeline, OriginalButton.IsChecked == true || _momentaryOriginal);
+            _service?.SetColorPipeline(_colorPipeline, ColorToggleButton.IsChecked != true || _momentaryColorBypass);
             if (missing is not null) SetStatus($"Assigned LUT unavailable: {missing.DisplayName}. {missing.Diagnostic}");
         }
         catch (Exception exception) { _colorPipeline = null; _service?.SetColorPipeline(null, false); SetStatus($"Color could not be applied. {exception.Message}"); }
     }
 
-    private async void CameraLutCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => await ChangeColorStageAsync(ColorLutStage.Camera, CameraLutCombo.SelectedItem as LutChoice);
-    private async void CreativeLutCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => await ChangeColorStageAsync(ColorLutStage.Creative, CreativeLutCombo.SelectedItem as LutChoice);
-    private async Task ChangeColorStageAsync(ColorLutStage stage, LutChoice? choice)
+    private async void CameraLutCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => await ChangeColorStageAsync(ColorLutStage.Camera, CameraLutCombo, e);
+    private async void CreativeLutCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => await ChangeColorStageAsync(ColorLutStage.Creative, CreativeLutCombo, e);
+    private async Task ChangeColorStageAsync(ColorLutStage stage, System.Windows.Controls.ComboBox selector,
+        System.Windows.Controls.SelectionChangedEventArgs change)
     {
+        var choice = selector.SelectedItem as LutChoice;
+        if (!_updatingColor && choice?.OpensFolder == true)
+        {
+            _updatingColor = true;
+            selector.SelectedItem = change.RemovedItems.OfType<LutChoice>().FirstOrDefault(item => !item.OpensFolder)
+                ?? selector.Items.OfType<LutChoice>().First(item => !item.OpensFolder);
+            _updatingColor = false;
+            try
+            {
+                var folder = _lutFolder?.Invoke();
+                if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+                    throw new DirectoryNotFoundException("The configured LUT folder is unavailable. Choose it in Settings.");
+                _folderLauncher.Open(folder);
+            }
+            catch (Exception exception) { SetStatus($"The LUT folder could not be opened. {exception.Message}"); }
+            return;
+        }
         if (_updatingColor || choice is null || _currentAsset?.AssetId is not Guid assetId || _assetColors is null || _lutFolder is null) return;
         try { await _assetColors.SetStageAsync([assetId], stage, choice.LutId); SetStatus(null); await ApplyColorIntentAsync(await _assetColors.GetAsync(assetId), _lutFolder(), CancellationToken.None); }
         catch (Exception exception) { SetStatus($"Color assignment could not be saved. {exception.Message}"); }
     }
-    private void OriginalButton_Click(object sender, RoutedEventArgs e)
+    private void ColorToggleButton_Click(object sender, RoutedEventArgs e)
     {
         RestoreLiveVideoSurface();
-        _service?.SetColorPipeline(_colorPipeline, OriginalButton.IsChecked == true || _momentaryOriginal);
+        var enabled = ColorToggleButton.IsChecked == true;
+        ColorToggleButton.Content = enabled ? "Color: On" : "Color: Off";
+        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = enabled;
+        if (!enabled) _momentaryColorBypass = false;
+        _service?.SetColorPipeline(_colorPipeline, !enabled);
     }
-    private void LutFolder_Click(object sender, RoutedEventArgs e) => LutFolderRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
     /// Volume/mute are gated separately from the rest of the transport: a video-only source (no audio stream)
@@ -759,9 +782,10 @@ public partial class PlayerViewerHost : UserControl
             return;
         switch (e.Key)
         {
-            case Key.C when _service is not null && OriginalButton.IsEnabled && !_momentaryOriginal:
+            case Key.C when _service is not null && ColorToggleButton.IsEnabled &&
+                ColorToggleButton.IsChecked == true && !_momentaryColorBypass:
                 e.Handled = true;
-                _momentaryOriginal = true;
+                _momentaryColorBypass = true;
                 RestoreLiveVideoSurface();
                 _service.SetColorPipeline(_colorPipeline, true);
                 return;
@@ -794,17 +818,17 @@ public partial class PlayerViewerHost : UserControl
 
     private void PlayerViewerHost_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key != Key.C || !_momentaryOriginal) return;
+        if (e.Key != Key.C || !_momentaryColorBypass) return;
         e.Handled = true;
-        _momentaryOriginal = false;
-        _service?.SetColorPipeline(_colorPipeline, OriginalButton.IsChecked == true);
+        _momentaryColorBypass = false;
+        _service?.SetColorPipeline(_colorPipeline, ColorToggleButton.IsChecked != true);
     }
 
     private void PlayerViewerHost_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        if (!_momentaryOriginal) return;
-        _momentaryOriginal = false;
-        _service?.SetColorPipeline(_colorPipeline, OriginalButton.IsChecked == true);
+        if (!_momentaryColorBypass) return;
+        _momentaryColorBypass = false;
+        _service?.SetColorPipeline(_colorPipeline, ColorToggleButton.IsChecked != true);
     }
 
     private static bool IsArrowKeyOwnedByFocusedControl(DependencyObject? element)

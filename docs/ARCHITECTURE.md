@@ -44,7 +44,9 @@ The Player resolves durable Camera/technical and Creative assignments through th
 builds one ordered, renderer-independent runtime pipeline. The Windows playback adapter translates that pipeline
 into a device-scoped D3D11 processor installed through Flyleaf's generic post-process seam; Flyleaf remains unaware
 of LUTs and Lightflow Color semantics. The pass runs after Flyleaf's video conversion and built-in processing for
-both live presentation and native snapshots. Original bypass and an empty pipeline use a byte-preserving GPU copy.
+both live presentation and native snapshots. An empty pipeline and Color Off use the same renderer-targeted GPU draw
+with zero active LUT stages; this is essential for live swap-chain targets, where copying before Flyleaf's final
+render-target/state restoration does not produce a presentable frame.
 
 Player Color accepts the same validated UTF-8 3D `.cube` resources as the folder-backed library: sizes 2–256,
 optional `DOMAIN_MIN`/`DOMAIN_MAX`, RGB rows in standard red-fastest `.cube` order, and trilinear interpolation.

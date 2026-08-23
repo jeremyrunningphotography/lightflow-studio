@@ -70,7 +70,7 @@
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
-  <Style x:Key="OriginalToggleStyle" TargetType="ToggleButton">
+  <Style x:Key="ColorToggleStyle" TargetType="ToggleButton">
    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Background" Value="#15181E"/>
    <Setter Property="BorderBrush" Value="#343A46"/><Setter Property="BorderThickness" Value="1"/>
    <Setter Property="Padding" Value="10,4"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -124,16 +124,14 @@
     Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
     <Grid>
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <Grid x:Name="ColorSurface" Margin="2,0,2,8">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="160"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <TextBlock Text="COLOR" Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10" FontWeight="SemiBold"/>
-      <ComboBox x:Name="CameraLutCombo" Grid.Column="1" SelectionChanged="CameraLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Camera / technical LUT" AutomationProperties.Name="Camera LUT"/>
-      <TextBlock Grid.Column="2" Text="Creative" Margin="12,0,7,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"/>
-      <ComboBox x:Name="CreativeLutCombo" Grid.Column="3" SelectionChanged="CreativeLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Creative LUT" AutomationProperties.Name="Creative LUT"/>
-      <StackPanel Grid.Column="5" Orientation="Horizontal">
-       <ToggleButton x:Name="OriginalButton" Style="{StaticResource OriginalToggleStyle}" Content="Original" Margin="10,0,0,0" Click="OriginalButton_Click" IsEnabled="False" ToolTip="Bypass Color; hold C for a momentary comparison" AutomationProperties.Name="Show Original without Color"/>
-       <Button Content="LUT Folder…" Margin="6,0,0,0" Padding="9,4" Click="LutFolder_Click" ToolTip="Open LUT Folder settings"/>
-      </StackPanel>
+     <Grid x:Name="ColorSurface" Margin="2,0,2,8" HorizontalAlignment="Left">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/></Grid.ColumnDefinitions>
+      <ToggleButton x:Name="ColorToggleButton" Style="{StaticResource ColorToggleStyle}" Content="Color: On" IsChecked="True"
+       Click="ColorToggleButton_Click" IsEnabled="False" ToolTip="Enable Color; hold C for a momentary bypass" AutomationProperties.Name="Enable or bypass Color"/>
+      <TextBlock Grid.Column="1" Text="Camera" Margin="12,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
+      <ComboBox x:Name="CameraLutCombo" Grid.Column="2" Height="26" SelectionChanged="CameraLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Camera / technical LUT" AutomationProperties.Name="Camera LUT"/>
+      <TextBlock Grid.Column="3" Text="Creative" Margin="12,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
+      <ComboBox x:Name="CreativeLutCombo" Grid.Column="4" Height="26" SelectionChanged="CreativeLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Creative LUT" AutomationProperties.Name="Creative LUT"/>
      </Grid>
      <Grid Grid.Row="1" Height="22">
       <local:TrimRangeIndicator x:Name="ReviewRangeIndicator" Height="18" Margin="7,0" VerticalAlignment="Center"

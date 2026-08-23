@@ -11,7 +11,6 @@ internal interface ILightflowStorageLocations
     string JobHistoryPath { get; }
     string TrimHistoryPath { get; }
     string OutputIdentityDirectory { get; }
-    string ManagedLutCacheDirectory { get; }
     string CatalogDirectory { get; }
     string CatalogDatabasePath { get; }
     string CatalogBackupsDirectory { get; }
@@ -42,7 +41,6 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
     public required string JobHistoryPath { get; init; }
     public required string TrimHistoryPath { get; init; }
     public required string OutputIdentityDirectory { get; init; }
-    public required string ManagedLutCacheDirectory { get; init; }
     public required string CatalogDirectory { get; init; }
     public required string CatalogDatabasePath { get; init; }
     public required string CatalogBackupsDirectory { get; init; }
@@ -83,7 +81,6 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
             JobHistoryPath = Path.Combine(applicationData, "job-history.json"),
             TrimHistoryPath = Path.Combine(applicationData, "trim-history.json"),
             OutputIdentityDirectory = Path.Combine(applicationData, "output-identities"),
-            ManagedLutCacheDirectory = Path.Combine(applicationData, "managed-lut-cache"),
             CatalogDirectory = catalogDirectory,
             CatalogDatabasePath = Path.Combine(catalogDirectory, CatalogFileName),
             CatalogBackupsDirectory = Path.Combine(catalogDirectory, "Backups"),

@@ -16,7 +16,8 @@ internal static class CatalogMigrations
         new(1, "Initial catalog identity, roots, mappings, and assets", ApplyVersion1),
         new(2, "Browser recursive-scope roots", ApplyVersion2),
         new(3, "Durable asset media ranges", ApplyVersion3),
-        new(4, "Managed LUT resources and durable asset Color intent", ApplyVersion4)
+        new(4, "Managed LUT resources and durable asset Color intent", ApplyVersion4),
+        new(5, "Folder-backed LUT resource identity", ApplyVersion5)
     ];
 
     private static void ApplyVersion1(
@@ -206,6 +207,61 @@ internal static class CatalogMigrations
 
             CREATE INDEX IX_MediaAssetColor_CameraLutId ON MediaAssetColor (CameraLutId);
             CREATE INDEX IX_MediaAssetColor_CreativeLutId ON MediaAssetColor (CreativeLutId);
+            """);
+    }
+
+    private static void ApplyVersion5(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CatalogMigrationContext context)
+    {
+        Execute(connection, transaction, """
+            DROP INDEX IX_MediaAssetColor_CameraLutId;
+            DROP INDEX IX_MediaAssetColor_CreativeLutId;
+            DROP INDEX IX_LutResources_DisplayName;
+
+            ALTER TABLE MediaAssetColor RENAME TO MediaAssetColorV4;
+            ALTER TABLE LutResources RENAME TO LutResourcesV4;
+
+            CREATE TABLE LutResources (
+                LutId TEXT NOT NULL PRIMARY KEY CHECK (length(LutId) = 36),
+                DisplayName TEXT NOT NULL CHECK (length(trim(DisplayName)) > 0),
+                OriginalFileName TEXT NOT NULL CHECK (length(trim(OriginalFileName)) > 0),
+                ContentSha256 TEXT NOT NULL UNIQUE CHECK (length(ContentSha256) = 64),
+                LutKind TEXT NOT NULL CHECK (LutKind = '3d'),
+                LutSize INTEGER NOT NULL CHECK (LutSize >= 2),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28)
+            );
+
+            INSERT INTO LutResources
+                (LutId,DisplayName,OriginalFileName,ContentSha256,LutKind,LutSize,CreatedUtc,UpdatedUtc)
+            SELECT LutId,DisplayName,OriginalFileName,ContentSha256,'3d',LutSize,CreatedUtc,UpdatedUtc
+            FROM LutResourcesV4 WHERE LutKind='3d';
+
+            CREATE INDEX IX_LutResources_DisplayName ON LutResources (DisplayName COLLATE NOCASE);
+
+            CREATE TABLE MediaAssetColor (
+                AssetId TEXT NOT NULL PRIMARY KEY CHECK (length(AssetId) = 36),
+                CameraLutId TEXT NULL CHECK (CameraLutId IS NULL OR length(CameraLutId) = 36),
+                CreativeLutId TEXT NULL CHECK (CreativeLutId IS NULL OR length(CreativeLutId) = 36),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                FOREIGN KEY (AssetId) REFERENCES MediaAssets (AssetId) ON DELETE CASCADE,
+                FOREIGN KEY (CameraLutId) REFERENCES LutResources (LutId) ON DELETE RESTRICT,
+                FOREIGN KEY (CreativeLutId) REFERENCES LutResources (LutId) ON DELETE RESTRICT,
+                CHECK (CameraLutId IS NOT NULL OR CreativeLutId IS NOT NULL)
+            );
+
+            INSERT INTO MediaAssetColor
+                (AssetId,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
+            SELECT AssetId,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc FROM MediaAssetColorV4;
+
+            CREATE INDEX IX_MediaAssetColor_CameraLutId ON MediaAssetColor (CameraLutId);
+            CREATE INDEX IX_MediaAssetColor_CreativeLutId ON MediaAssetColor (CreativeLutId);
+
+            DROP TABLE MediaAssetColorV4;
+            DROP TABLE LutResourcesV4;
             """);
     }
 

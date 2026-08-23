@@ -70,15 +70,18 @@ public sealed class LutCatalogTests : IDisposable
     }
 
     [Fact]
-    public void Options_CombinesManagedAndExternalLutsInOneEncodingLibrary()
+    public void Options_UsesFolderResourcesInExistingEncodingLibrary()
     {
-        File.WriteAllText(Path.Combine(_folder, "External.cube"), "LUT");
-        var managedId = Guid.NewGuid();
-        var options = LutCatalog.Options(_folder,
-            [new LutOption("Managed", Path.Combine(_folder, "cache.cube"), managedId, IsManaged: true)]);
+        var lutId = Guid.NewGuid();
+        var path = Path.Combine(_folder, "Film.cube");
+        var options = LutCatalog.Options([
+            new ManagedLutResource(lutId, "Film", "Film.cube", new('a', 64),
+                LutDimension.ThreeDimensional, 33, LutResourceAvailability.Available, path)
+        ]);
 
-        Assert.Equal(["No LUT", "Managed", "External"], options.Select(option => option.DisplayName));
-        Assert.Equal(managedId, options[1].LutId);
+        Assert.Equal(["No LUT", "Film"], options.Select(option => option.DisplayName));
+        Assert.Equal(lutId, options[1].LutId);
+        Assert.Equal(path, options[1].FilePath);
         Assert.True(options[1].IsManaged);
     }
 
@@ -104,6 +107,15 @@ public sealed class LutCatalogTests : IDisposable
         Assert.False(LutCatalog.IsValidSelection(null));
         Assert.False(LutCatalog.IsValidSelection(new LutOption("Missing", Path.Combine(_folder, "Missing.cube"))));
         Assert.False(LutCatalog.IsValidSelection(new LutOption("Wrong type", text)));
+    }
+
+    [Fact]
+    public void IsValidSelection_RevalidatesFolderBackedOptionsBeforeEncoding()
+    {
+        var path = Path.Combine(_folder, "Film.cube");
+        File.WriteAllText(path, "not a supported LUT");
+
+        Assert.False(LutCatalog.IsValidSelection(new LutOption("Film", path, Guid.NewGuid(), IsManaged: true)));
     }
 
     public void Dispose() => Directory.Delete(_folder, recursive: true);

@@ -102,7 +102,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         MediaRanges = new CatalogMediaRangeStore(() => _catalogSession);
         BrowserAssetStates = new CatalogBrowserAssetStateStore(() => _catalogSession);
         Luts = new CatalogFolderLutLibrary(() => _catalogSession);
-        AssetColors = new CatalogAssetColorStore(() => _catalogSession, () => Settings.LutFolder);
+        AssetColors = new CatalogAssetColorStore(() => _catalogSession,
+            () => Settings.CameraLutFolder, () => Settings.CreativeLutFolder);
     }
 
     public AppSettings Settings { get; private set; }

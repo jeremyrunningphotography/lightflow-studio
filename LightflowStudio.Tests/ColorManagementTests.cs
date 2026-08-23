@@ -160,6 +160,47 @@ public sealed class ColorManagementTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StageFoldersRemainSeparatedWhileEncodingUsesIdentityDeduplicatedUnion()
+    {
+        var cameraFolder = Directory.CreateDirectory(Path.Combine(_root, "camera-luts")).FullName;
+        var creativeFolder = Directory.CreateDirectory(Path.Combine(_root, "creative-luts")).FullName;
+        WriteCube(cameraFolder, "Shared Name.cube", 0);
+        WriteCube(creativeFolder, "Shared Name.cube", 1); // same name, different content
+        WriteCube(cameraFolder, "Duplicate Camera.cube", 2);
+        WriteCube(creativeFolder, "Duplicate Creative.cube", 2); // duplicate content, different name/path
+        _storage.SaveSettings(_storage.Settings with
+        {
+            CameraLutFolder = cameraFolder,
+            CreativeLutFolder = creativeFolder
+        });
+
+        var camera = await _storage.Luts.RefreshAsync(cameraFolder);
+        var creative = await _storage.Luts.RefreshAsync(creativeFolder);
+        Assert.Equal(2, camera.Resources.Count);
+        Assert.Equal(2, creative.Resources.Count);
+        Assert.NotEqual(camera.Resources.Single(x => x.DisplayName == "Shared Name").LutId,
+            creative.Resources.Single(x => x.DisplayName == "Shared Name").LutId);
+        Assert.Equal(camera.Resources.Single(x => x.DisplayName == "Duplicate Camera").LutId,
+            creative.Resources.Single(x => x.DisplayName == "Duplicate Creative").LutId);
+
+        var encoding = LutCatalog.CombinedOptions(camera.Resources, creative.Resources).Skip(1).ToArray();
+        Assert.Equal(3, encoding.Length);
+        Assert.Equal(3, encoding.Select(option => option.LutId).Distinct().Count());
+
+        var cameraOnly = camera.Resources.Single(x => x.DisplayName == "Shared Name");
+        var creativeOnly = creative.Resources.Single(x => x.DisplayName == "Shared Name");
+        await _storage.AssetColors.SetAsync([new(_assetId, cameraOnly.LutId, creativeOnly.LutId)]);
+        var assigned = await _storage.AssetColors.GetAsync(_assetId);
+        Assert.Equal(LutResourceAvailability.Available, assigned.Camera!.Availability);
+        Assert.Equal(LutResourceAvailability.Available, assigned.Creative!.Availability);
+
+        _storage.SaveSettings(_storage.Settings with { CameraLutFolder = _luts });
+        assigned = await _storage.AssetColors.GetAsync(_assetId);
+        Assert.Equal(LutResourceAvailability.Missing, assigned.Camera!.Availability);
+        Assert.Equal(LutResourceAvailability.Available, assigned.Creative!.Availability);
+    }
+
+    [Fact]
     public async Task TypedAssignmentsSupportOrderedStagesIndependentClearingAndStableAssetIdentity()
     {
         WriteCube(_luts, "Camera.cube", 0);
@@ -230,7 +271,7 @@ public sealed class ColorManagementTests : IAsyncLifetime
 
     private void SetLutFolder(string folder)
     {
-        var settings = _storage.Settings with { LutFolder = folder };
+        var settings = _storage.Settings with { CameraLutFolder = folder };
         _storage.SaveSettings(settings);
     }
 

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace LightflowStudio;
 
@@ -18,7 +19,12 @@ internal sealed record AppSettings
 
     public string DefaultVideoFolder { get; init; } = "";
     public string ScreengrabDirectory { get; init; } = DefaultScreengrabDirectory;
-    public string LutFolder { get; init; } = LutCatalog.DefaultFolder;
+    // LutFolder is retained only as the read-time migration source for pre-#146 settings files.
+    // New saves use the two stage-specific preferences below.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LutFolder { get; init; } = LutCatalog.DefaultFolder;
+    public string CameraLutFolder { get; init; } = "";
+    public string CreativeLutFolder { get; init; } = "";
     public string FfmpegPath { get; init; } = "";
     public OutputResolution DefaultResolution { get; init; } = OutputResolution.FullHd;
     public RecoveryStrategy DefaultRecovery { get; init; } = RecoveryStrategy.Normal;
@@ -34,7 +40,7 @@ internal sealed record AppSettings
     public Guid? CatalogId { get; init; }
 
     public AppSettings() { }
-    public AppSettings(string lutFolder) => LutFolder = lutFolder;
+    public AppSettings(string lutFolder) => CameraLutFolder = CreativeLutFolder = LutFolder = lutFolder;
 
     public static AppSettings Normalize(AppSettings? settings)
     {
@@ -45,7 +51,9 @@ internal sealed record AppSettings
             ScreengrabDirectory = string.IsNullOrWhiteSpace(settings.ScreengrabDirectory)
                 ? DefaultScreengrabDirectory
                 : settings.ScreengrabDirectory.Trim(),
-            LutFolder = string.IsNullOrWhiteSpace(settings.LutFolder) ? LutCatalog.DefaultFolder : settings.LutFolder.Trim(),
+            LutFolder = null,
+            CameraLutFolder = NormalizeLutFolder(settings.CameraLutFolder, settings.LutFolder),
+            CreativeLutFolder = NormalizeLutFolder(settings.CreativeLutFolder, settings.LutFolder),
             FfmpegPath = settings.FfmpegPath?.Trim() ?? "",
             CatalogDirectory = NormalizeStorageDirectory(settings.CatalogDirectory),
             PreviewsDirectory = NormalizeStorageDirectory(settings.PreviewsDirectory),
@@ -59,6 +67,11 @@ internal sealed record AppSettings
 
     private static string? NormalizeStorageDirectory(string? path) =>
         string.IsNullOrWhiteSpace(path) ? null : path.Trim();
+
+    private static string NormalizeLutFolder(string? stageFolder, string? legacyFolder) =>
+        !string.IsNullOrWhiteSpace(stageFolder) ? stageFolder.Trim()
+        : !string.IsNullOrWhiteSpace(legacyFolder) ? legacyFolder.Trim()
+        : LutCatalog.DefaultFolder;
 }
 
 internal static class AppSettingsStore
@@ -69,20 +82,20 @@ internal static class AppSettingsStore
     {
         try
         {
-            if (!File.Exists(path)) return new AppSettings();
+            if (!File.Exists(path)) return AppSettings.Normalize(new AppSettings());
             return AppSettings.Normalize(JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path)));
         }
         catch (JsonException)
         {
-            return new AppSettings();
+            return AppSettings.Normalize(new AppSettings());
         }
         catch (IOException)
         {
-            return new AppSettings();
+            return AppSettings.Normalize(new AppSettings());
         }
         catch (UnauthorizedAccessException)
         {
-            return new AppSettings();
+            return AppSettings.Normalize(new AppSettings());
         }
     }
 
@@ -105,7 +118,7 @@ internal static class AppSettingsStore
 
     public static bool TryLoadForStartup(string path, out AppSettings settings, out string? diagnostic)
     {
-        settings = new AppSettings();
+        settings = AppSettings.Normalize(new AppSettings());
         diagnostic = null;
         try
         {

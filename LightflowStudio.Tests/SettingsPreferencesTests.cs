@@ -15,7 +15,9 @@ public sealed class SettingsPreferencesTests : IDisposable
         {
             DefaultVideoFolder = @"D:\Video Projects",
             ScreengrabDirectory = @"D:\Screengrabs",
-            LutFolder = @"D:\LUT Library",
+            LutFolder = null,
+            CameraLutFolder = @"D:\Camera LUTs",
+            CreativeLutFolder = @"D:\Creative LUTs",
             FfmpegPath = @"D:\Tools\ffmpeg.exe",
             DefaultResolution = OutputResolution.UltraHd,
             DefaultRecovery = RecoveryStrategy.Salvage,
@@ -47,7 +49,9 @@ public sealed class SettingsPreferencesTests : IDisposable
 
         var settings = AppSettingsStore.Load(SettingsPath);
 
-        Assert.Equal(@"D:\Legacy LUTs", settings.LutFolder);
+        Assert.Null(settings.LutFolder);
+        Assert.Equal(@"D:\Legacy LUTs", settings.CameraLutFolder);
+        Assert.Equal(@"D:\Legacy LUTs", settings.CreativeLutFolder);
         Assert.Equal("", settings.DefaultVideoFolder);
         Assert.Equal(AppSettings.DefaultScreengrabDirectory, settings.ScreengrabDirectory);
         Assert.Equal("", settings.FfmpegPath);
@@ -78,7 +82,9 @@ public sealed class SettingsPreferencesTests : IDisposable
         {
             DefaultVideoFolder = "  D:\\Videos  ",
             ScreengrabDirectory = "  D:\\Screengrabs  ",
-            LutFolder = "  D:\\LUTs  ",
+            LutFolder = null,
+            CameraLutFolder = "  D:\\Camera LUTs  ",
+            CreativeLutFolder = "  D:\\Creative LUTs  ",
             FfmpegPath = "  D:\\ffmpeg.exe  ",
             DefaultResolution = (OutputResolution)99,
             DefaultRecovery = (RecoveryStrategy)99
@@ -86,7 +92,8 @@ public sealed class SettingsPreferencesTests : IDisposable
 
         Assert.Equal(@"D:\Videos", settings.DefaultVideoFolder);
         Assert.Equal(@"D:\Screengrabs", settings.ScreengrabDirectory);
-        Assert.Equal(@"D:\LUTs", settings.LutFolder);
+        Assert.Equal(@"D:\Camera LUTs", settings.CameraLutFolder);
+        Assert.Equal(@"D:\Creative LUTs", settings.CreativeLutFolder);
         Assert.Equal(@"D:\ffmpeg.exe", settings.FfmpegPath);
         Assert.Equal(OutputResolution.FullHd, settings.DefaultResolution);
         Assert.Equal(RecoveryStrategy.Normal, settings.DefaultRecovery);

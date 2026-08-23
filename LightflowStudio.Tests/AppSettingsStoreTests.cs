@@ -22,13 +22,15 @@ public sealed class AppSettingsStoreTests : IDisposable
         AppSettingsStore.Save(SettingsPath, new AppSettings(expected));
         var actual = AppSettingsStore.Load(SettingsPath);
 
-        Assert.Equal(expected, actual.LutFolder);
+        Assert.Equal(expected, actual.CameraLutFolder);
+        Assert.Equal(expected, actual.CreativeLutFolder);
     }
 
     [Fact]
     public void Load_UsesDefaultFolderWhenSettingsDoNotExist()
     {
-        Assert.Equal(LutCatalog.DefaultFolder, AppSettingsStore.Load(SettingsPath).LutFolder);
+        Assert.Equal(LutCatalog.DefaultFolder, AppSettingsStore.Load(SettingsPath).CameraLutFolder);
+        Assert.Equal(LutCatalog.DefaultFolder, AppSettingsStore.Load(SettingsPath).CreativeLutFolder);
     }
 
     [Fact]
@@ -37,7 +39,7 @@ public sealed class AppSettingsStoreTests : IDisposable
         Directory.CreateDirectory(_folder);
         File.WriteAllText(SettingsPath, "not json");
 
-        Assert.Equal(LutCatalog.DefaultFolder, AppSettingsStore.Load(SettingsPath).LutFolder);
+        Assert.Equal(LutCatalog.DefaultFolder, AppSettingsStore.Load(SettingsPath).CameraLutFolder);
     }
 
     [Fact]
@@ -47,7 +49,7 @@ public sealed class AppSettingsStoreTests : IDisposable
 
         AppSettingsStore.Save(SettingsPath, new AppSettings(@"D:\Second"));
 
-        Assert.Equal(@"D:\Second", AppSettingsStore.Load(SettingsPath).LutFolder);
+        Assert.Equal(@"D:\Second", AppSettingsStore.Load(SettingsPath).CameraLutFolder);
         Assert.Empty(Directory.EnumerateFiles(_folder, "*.tmp"));
     }
 

@@ -31,7 +31,8 @@ public partial class PlayerViewerHost : UserControl
     private readonly IFolderLauncher _folderLauncher;
     private readonly ILutLibrary? _lutLibrary;
     private readonly IAssetColorStore? _assetColors;
-    private readonly Func<string>? _lutFolder;
+    private readonly Func<string>? _cameraLutFolder;
+    private readonly Func<string>? _creativeLutFolder;
     private long _generation;
     private MediaPlaybackLeaseSession? _playback;
     private IMediaPlaybackService? _service;
@@ -53,10 +54,13 @@ public partial class PlayerViewerHost : UserControl
     {
         public override string ToString() => DisplayName;
     }
+    private sealed record PreparedColor(LutLibrarySnapshot CameraLibrary, LutLibrarySnapshot CreativeLibrary,
+        AssetColorIntent Intent, PlayerColorPipeline Pipeline, string? Diagnostic);
 
     internal PlayerViewerHost(MediaPlaybackCoordinator coordinator, IMediaRangeStore? rangeStore = null,
         IFrameScreengrabService? screengrabService = null, IFolderLauncher? folderLauncher = null,
-        ILutLibrary? lutLibrary = null, IAssetColorStore? assetColors = null, Func<string>? lutFolder = null)
+        ILutLibrary? lutLibrary = null, IAssetColorStore? assetColors = null,
+        Func<string>? cameraLutFolder = null, Func<string>? creativeLutFolder = null)
     {
         _coordinator = coordinator;
         _rangeStore = rangeStore;
@@ -64,7 +68,8 @@ public partial class PlayerViewerHost : UserControl
         _folderLauncher = folderLauncher ?? new ShellFolderLauncher();
         _lutLibrary = lutLibrary;
         _assetColors = assetColors;
-        _lutFolder = lutFolder;
+        _cameraLutFolder = cameraLutFolder;
+        _creativeLutFolder = creativeLutFolder;
         InitializeComponent();
     }
 
@@ -154,8 +159,12 @@ public partial class PlayerViewerHost : UserControl
 
     private async Task OpenVideoAsync(string absolutePath, long generation, CancellationToken token)
     {
+        var preparedColor = await PrepareColorAsync(token).ConfigureAwait(true);
+        if (generation != _generation) return;
         var playback = new MediaPlaybackLeaseSession(_coordinator);
-        var service = await playback.OpenAsync(absolutePath, token).ConfigureAwait(true);
+        Action<IMediaPlaybackService>? configureColor = preparedColor is null ? null
+            : candidate => candidate.SetColorPipeline(preparedColor.Pipeline, ColorToggleButton.IsChecked != true);
+        var service = await playback.OpenAsync(absolutePath, token, configureColor).ConfigureAwait(true);
         if (generation != _generation) { await playback.DisposeAsync().ConfigureAwait(true); return; }
 
         _playback = playback;
@@ -186,8 +195,8 @@ public partial class PlayerViewerHost : UserControl
             SetAudioControlsEnabled(info.AudioStreams.Count > 0);
             UpdateAudioControlsFromService();
             TransportBar.Visibility = Visibility.Visible;
-            SetStatus(null);
-            await LoadColorAsync(generation, token).ConfigureAwait(true);
+            PublishColor(preparedColor);
+            SetStatus(preparedColor?.Diagnostic);
         }
         catch
         {
@@ -259,8 +268,6 @@ public partial class PlayerViewerHost : UserControl
         _colorPipeline = null;
         _updatingColor = true;
         CameraLutCombo.ItemsSource = CreativeLutCombo.ItemsSource = null;
-        ColorToggleButton.IsChecked = true;
-        ColorToggleButton.Content = "Color: On";
         _updatingColor = false;
         SetColorControlsEnabled(false);
         UpdateRangePresentation();
@@ -290,42 +297,72 @@ public partial class PlayerViewerHost : UserControl
         CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = enabled && ColorToggleButton.IsChecked == true;
     }
 
-    private async Task LoadColorAsync(long generation, CancellationToken token)
+    private async Task<PreparedColor?> PrepareColorAsync(CancellationToken token)
     {
-        if (_service is null || _currentAsset?.AssetId is not Guid assetId || _lutLibrary is null || _assetColors is null || _lutFolder is null) return;
-        string folder;
-        LutLibrarySnapshot library;
+        if (_currentAsset?.AssetId is not Guid assetId || _lutLibrary is null || _assetColors is null
+            || _cameraLutFolder is null || _creativeLutFolder is null) return null;
+        string cameraFolder, creativeFolder;
+        LutLibrarySnapshot cameraLibrary, creativeLibrary;
         AssetColorIntent intent;
         try
         {
-            folder = _lutFolder();
-            library = await _lutLibrary.RefreshAsync(folder, token).ConfigureAwait(true);
+            cameraFolder = _cameraLutFolder();
+            creativeFolder = _creativeLutFolder();
+            cameraLibrary = await _lutLibrary.RefreshAsync(cameraFolder, token).ConfigureAwait(true);
+            creativeLibrary = await _lutLibrary.RefreshAsync(creativeFolder, token).ConfigureAwait(true);
             intent = await _assetColors.GetAsync(assetId, token).ConfigureAwait(true);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception exception) { SetStatus($"Color assignments could not be loaded. {exception.Message}"); return; }
-        if (generation != _generation || _service is null) return;
-        var choices = new[] { new LutChoice(null, "No LUT") }
-            .Concat(LutCatalog.Options(library.Resources).Skip(1).Select(x => new LutChoice(x.LutId, x.DisplayName)))
-            .Append(new LutChoice(null, "Open LUT Folder…", OpensFolder: true)).ToArray();
-        _updatingColor = true;
-        CameraLutCombo.ItemsSource = CreativeLutCombo.ItemsSource = choices;
-        CameraLutCombo.SelectedItem = choices.FirstOrDefault(x => x.LutId == intent.Camera?.LutId) ?? choices[0];
-        CreativeLutCombo.SelectedItem = choices.FirstOrDefault(x => x.LutId == intent.Creative?.LutId) ?? choices[0];
-        _updatingColor = false;
-        SetColorControlsEnabled(true);
-        await ApplyColorIntentAsync(intent, folder, token).ConfigureAwait(true);
+        catch (Exception exception) { SetStatus($"Color assignments could not be loaded. {exception.Message}"); return null; }
+        CubeLutData? camera = null, creative = null;
+        if (intent.Camera is { Availability: LutResourceAvailability.Available } cam)
+            camera = await Task.Run(() => CubeLutData.Load(_lutLibrary.ResolvePathAsync(cam.LutId,
+                cameraFolder, token).GetAwaiter().GetResult()), token).ConfigureAwait(true);
+        if (intent.Creative is { Availability: LutResourceAvailability.Available } look)
+            creative = await Task.Run(() => CubeLutData.Load(_lutLibrary.ResolvePathAsync(look.LutId,
+                creativeFolder, token).GetAwaiter().GetResult()), token).ConfigureAwait(true);
+        var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>()
+            .FirstOrDefault(x => x.Availability != LutResourceAvailability.Available);
+        return new(cameraLibrary, creativeLibrary, intent, new(camera, creative), missing is null ? null
+            : $"Assigned LUT unavailable: {missing.DisplayName}. {missing.Diagnostic}");
     }
 
-    private async Task ApplyColorIntentAsync(AssetColorIntent intent, string folder, CancellationToken token)
+    private void PublishColor(PreparedColor? prepared)
+    {
+        if (prepared is null) return;
+        var cameraChoices = MakeChoices(prepared.CameraLibrary, prepared.Intent.Camera);
+        var creativeChoices = MakeChoices(prepared.CreativeLibrary, prepared.Intent.Creative);
+        _updatingColor = true;
+        CameraLutCombo.ItemsSource = cameraChoices;
+        CreativeLutCombo.ItemsSource = creativeChoices;
+        CameraLutCombo.SelectedItem = cameraChoices.FirstOrDefault(x => x.LutId == prepared.Intent.Camera?.LutId) ?? cameraChoices[0];
+        CreativeLutCombo.SelectedItem = creativeChoices.FirstOrDefault(x => x.LutId == prepared.Intent.Creative?.LutId) ?? creativeChoices[0];
+        _colorPipeline = prepared.Pipeline;
+        _updatingColor = false;
+        SetColorControlsEnabled(true);
+    }
+
+    private static LutChoice[] MakeChoices(LutLibrarySnapshot library, ColorLutReference? assigned)
+    {
+        var choices = new[] { new LutChoice(null, "No LUT") }
+            .Concat(LutCatalog.Options(library.Resources).Skip(1).Select(x => new LutChoice(x.LutId, x.DisplayName)))
+            .ToList();
+        if (assigned is { Availability: not LutResourceAvailability.Available }
+            && choices.All(choice => choice.LutId != assigned.LutId))
+            choices.Add(new(assigned.LutId, $"{assigned.DisplayName} (Unavailable)"));
+        choices.Add(new(null, "Open LUT Folder…", OpensFolder: true));
+        return choices.ToArray();
+    }
+
+    private async Task ApplyColorIntentAsync(AssetColorIntent intent, CancellationToken token)
     {
         try
         {
             CubeLutData? camera = null, creative = null;
             if (intent.Camera is { Availability: LutResourceAvailability.Available } cam)
-                camera = await Task.Run(() => CubeLutData.Load(_lutLibrary!.ResolvePathAsync(cam.LutId, folder, token).GetAwaiter().GetResult()), token);
+                camera = await Task.Run(() => CubeLutData.Load(_lutLibrary!.ResolvePathAsync(cam.LutId, _cameraLutFolder!(), token).GetAwaiter().GetResult()), token);
             if (intent.Creative is { Availability: LutResourceAvailability.Available } look)
-                creative = await Task.Run(() => CubeLutData.Load(_lutLibrary!.ResolvePathAsync(look.LutId, folder, token).GetAwaiter().GetResult()), token);
+                creative = await Task.Run(() => CubeLutData.Load(_lutLibrary!.ResolvePathAsync(look.LutId, _creativeLutFolder!(), token).GetAwaiter().GetResult()), token);
             var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>().FirstOrDefault(x => x.Availability != LutResourceAvailability.Available);
             _colorPipeline = new(camera, creative);
             RestoreLiveVideoSurface();
@@ -349,7 +386,7 @@ public partial class PlayerViewerHost : UserControl
             _updatingColor = false;
             try
             {
-                var folder = _lutFolder?.Invoke();
+                var folder = (stage == ColorLutStage.Camera ? _cameraLutFolder : _creativeLutFolder)?.Invoke();
                 if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
                     throw new DirectoryNotFoundException("The configured LUT folder is unavailable. Choose it in Settings.");
                 _folderLauncher.Open(folder);
@@ -357,15 +394,15 @@ public partial class PlayerViewerHost : UserControl
             catch (Exception exception) { SetStatus($"The LUT folder could not be opened. {exception.Message}"); }
             return;
         }
-        if (_updatingColor || choice is null || _currentAsset?.AssetId is not Guid assetId || _assetColors is null || _lutFolder is null) return;
-        try { await _assetColors.SetStageAsync([assetId], stage, choice.LutId); SetStatus(null); await ApplyColorIntentAsync(await _assetColors.GetAsync(assetId), _lutFolder(), CancellationToken.None); }
+        if (_updatingColor || choice is null || _currentAsset?.AssetId is not Guid assetId || _assetColors is null
+            || _cameraLutFolder is null || _creativeLutFolder is null) return;
+        try { await _assetColors.SetStageAsync([assetId], stage, choice.LutId); SetStatus(null); await ApplyColorIntentAsync(await _assetColors.GetAsync(assetId), CancellationToken.None); }
         catch (Exception exception) { SetStatus($"Color assignment could not be saved. {exception.Message}"); }
     }
     private void ColorToggleButton_Click(object sender, RoutedEventArgs e)
     {
         RestoreLiveVideoSurface();
         var enabled = ColorToggleButton.IsChecked == true;
-        ColorToggleButton.Content = enabled ? "Color: On" : "Color: Off";
         CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = enabled;
         if (!enabled) _momentaryColorBypass = false;
         _service?.SetColorPipeline(_colorPipeline, !enabled);

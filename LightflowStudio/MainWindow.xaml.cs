@@ -196,7 +196,7 @@ public partial class MainWindow : Window
                 LocateTools();
                 await RefreshDependencyHealthAsync();
                 RefreshBatchFiles();
-                await RefreshLutsAsync(_settings.LutFolder);
+                await RefreshLutsAsync(_settings.CameraLutFolder, _settings.CreativeLutFolder);
                 RefreshLuts();
                 await RefreshMediaRootsAsync();
                 await RefreshPreviewUsageAsync();
@@ -1307,7 +1307,8 @@ public partial class MainWindow : Window
         if (_playerViewerHost is not null) return;
         _playerViewerHost = new PlayerViewerHost(App.Playback, _storage.MediaRanges,
             new FrameScreengrabService(() => _storage.Settings.ScreengrabDirectory), lutLibrary: _storage.Luts,
-            assetColors: _storage.AssetColors, lutFolder: () => _storage.Settings.LutFolder);
+            assetColors: _storage.AssetColors, cameraLutFolder: () => _storage.Settings.CameraLutFolder,
+            creativeLutFolder: () => _storage.Settings.CreativeLutFolder);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         _playerViewerHost.RangeStateChanged += (_, change) =>
         {
@@ -2056,7 +2057,8 @@ public partial class MainWindow : Window
         if (updateGuidance) CurrentFileText.Text = presentation.Guidance;
     }
 
-    private async void RefreshLuts_Click(object sender, RoutedEventArgs e) => await RefreshLutsAsync(_settings.LutFolder);
+    private async void RefreshLuts_Click(object sender, RoutedEventArgs e) =>
+        await RefreshLutsAsync(_settings.CameraLutFolder, _settings.CreativeLutFolder);
 
     private int RefreshLuts()
     {
@@ -2096,16 +2098,25 @@ public partial class MainWindow : Window
             SettingsScreengrabDirectory.Text = folder;
     }
 
-    private async void BrowseSettingsLutFolder_Click(object sender, RoutedEventArgs e)
+    private async void BrowseSettingsCameraLutFolder_Click(object sender, RoutedEventArgs e)
     {
-        if (PickFolder("Select the folder containing .cube LUT files", SettingsLutFolder.Text) is { } folder)
+        if (PickFolder("Select the Camera LUT folder", SettingsCameraLutFolder.Text) is { } folder)
         {
-            SettingsLutFolder.Text = folder;
-            await RefreshLutsAsync(folder);
+            SettingsCameraLutFolder.Text = folder;
+            await RefreshLutsAsync(folder, SettingsCreativeLutFolder.Text);
         }
     }
 
-    private async Task<int> RefreshLutsAsync(string folder)
+    private async void BrowseSettingsCreativeLutFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (PickFolder("Select the Creative LUT folder", SettingsCreativeLutFolder.Text) is { } folder)
+        {
+            SettingsCreativeLutFolder.Text = folder;
+            await RefreshLutsAsync(SettingsCameraLutFolder.Text, folder);
+        }
+    }
+
+    private async Task<int> RefreshLutsAsync(string cameraFolder, string creativeFolder)
     {
         if (!_storage.CatalogAvailable)
         {
@@ -2114,15 +2125,12 @@ public partial class MainWindow : Window
         }
         try
         {
-            var snapshot = await _storage.Luts.RefreshAsync(folder);
-            _lutOptions = LutCatalog.Options(snapshot.Resources);
+            var camera = await _storage.Luts.RefreshAsync(cameraFolder);
+            var creative = await _storage.Luts.RefreshAsync(creativeFolder);
+            _lutOptions = LutCatalog.CombinedOptions(camera.Resources, creative.Resources);
             var count = RefreshLuts();
-            SettingsLutFolderStatus.Text = snapshot.Problems.Count == 0
-                ? count == 0 ? "No compatible .cube LUTs found in this folder." :
-                    $"{count} compatible LUT{(count == 1 ? "" : "s")} available."
-                : $"{count} compatible LUT{(count == 1 ? "" : "s")} available; "
-                    + $"{snapshot.Problems.Count} file{(snapshot.Problems.Count == 1 ? " was" : "s were")} skipped. "
-                    + $"{snapshot.Problems[0].FileName}: {snapshot.Problems[0].Diagnostic}";
+            SettingsCameraLutFolderStatus.Text = LutFolderStatus(camera);
+            SettingsCreativeLutFolderStatus.Text = LutFolderStatus(creative);
             return count;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException
@@ -2130,9 +2138,21 @@ public partial class MainWindow : Window
         {
             _lutOptions = [LutCatalog.NoLut];
             var count = RefreshLuts();
-            SettingsLutFolderStatus.Text = $"The LUT folder could not be read: {exception.Message}";
+            SettingsCameraLutFolderStatus.Text = SettingsCreativeLutFolderStatus.Text =
+                $"The LUT folders could not be read: {exception.Message}";
             return count;
         }
+    }
+
+    private static string LutFolderStatus(LutLibrarySnapshot snapshot)
+    {
+        var count = snapshot.Resources.Count;
+        return snapshot.Problems.Count == 0
+            ? count == 0 ? "No compatible .cube LUTs found in this folder."
+                : $"{count} compatible LUT{(count == 1 ? "" : "s")} available."
+            : $"{count} compatible LUT{(count == 1 ? "" : "s")} available; "
+                + $"{snapshot.Problems.Count} file{(snapshot.Problems.Count == 1 ? " was" : "s were")} skipped. "
+                + $"{snapshot.Problems[0].FileName}: {snapshot.Problems[0].Diagnostic}";
     }
 
     private void BrowseSettingsFfmpeg_Click(object sender, RoutedEventArgs e)
@@ -2423,7 +2443,7 @@ public partial class MainWindow : Window
             LocateTools();
             await RefreshDependencyHealthAsync();
             RefreshBatchFiles();
-            var lutCount = await RefreshLutsAsync(_settings.LutFolder);
+            var lutCount = await RefreshLutsAsync(_settings.CameraLutFolder, _settings.CreativeLutFolder);
             SettingsMessage.Text = $"Settings saved. {lutCount} LUT{(lutCount == 1 ? "" : "s")} available.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -2435,7 +2455,7 @@ public partial class MainWindow : Window
 
     private void ResetSettings_Click(object sender, RoutedEventArgs e)
     {
-        PopulateSettingsControls(new AppSettings());
+        PopulateSettingsControls(AppSettings.Normalize(new AppSettings()));
         SettingsMessage.Text = "Default values loaded. Select Save Settings to apply them.";
     }
 
@@ -2448,7 +2468,8 @@ public partial class MainWindow : Window
         {
             DefaultVideoFolder = SettingsDefaultVideoFolder.Text,
             ScreengrabDirectory = SettingsScreengrabDirectory.Text,
-            LutFolder = SettingsLutFolder.Text,
+            CameraLutFolder = SettingsCameraLutFolder.Text,
+            CreativeLutFolder = SettingsCreativeLutFolder.Text,
             FfmpegPath = SettingsFfmpegPath.Text,
             DefaultResolution = (OutputResolution)SettingsResolution.SelectedIndex,
             DefaultRecovery = (RecoveryStrategy)SettingsRecoveryMode.SelectedIndex,
@@ -2533,7 +2554,8 @@ public partial class MainWindow : Window
         SettingsPreviewCacheQuotaGb.Text = settings.PreviewCacheQuotaGb.ToString(CultureInfo.InvariantCulture);
         SettingsDefaultVideoFolder.Text = settings.DefaultVideoFolder;
         SettingsScreengrabDirectory.Text = settings.ScreengrabDirectory;
-        SettingsLutFolder.Text = settings.LutFolder;
+        SettingsCameraLutFolder.Text = settings.CameraLutFolder;
+        SettingsCreativeLutFolder.Text = settings.CreativeLutFolder;
         SettingsFfmpegPath.Text = settings.FfmpegPath;
         SettingsResolution.SelectedIndex = (int)settings.DefaultResolution;
         SettingsRecoveryMode.SelectedIndex = (int)settings.DefaultRecovery;

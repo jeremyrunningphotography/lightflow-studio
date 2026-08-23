@@ -326,7 +326,8 @@ internal interface IAssetColorStore
     Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes, CancellationToken cancellationToken = default);
 }
 
-internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> session, Func<string> lutFolder,
+internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> session, Func<string> cameraLutFolder,
+    Func<string> creativeLutFolder,
     Func<DateTimeOffset>? utcNow = null) : IAssetColorStore
 {
     private readonly Func<DateTimeOffset> _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
@@ -340,7 +341,11 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
         var ids = assetIds.Distinct().ToArray();
         var result = ids.ToDictionary(id => id, Empty);
         if (ids.Length == 0) return result;
-        var available = FolderLutScanner.Scan(lutFolder()).Candidates.GroupBy(candidate => candidate.ContentSha256,
+        var availableCamera = FolderLutScanner.Scan(cameraLutFolder()).Candidates.GroupBy(candidate => candidate.ContentSha256,
+                StringComparer.Ordinal).ToDictionary(group => group.Key,
+                group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First(),
+                StringComparer.Ordinal);
+        var availableCreative = FolderLutScanner.Scan(creativeLutFolder()).Candidates.GroupBy(candidate => candidate.ContentSha256,
                 StringComparer.Ordinal).ToDictionary(group => group.Key,
                 group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First(),
                 StringComparer.Ordinal);
@@ -363,8 +368,8 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var assetId = Guid.Parse(reader.GetString(0));
-                var camera = ReadReference(reader, 1, available);
-                var creative = ReadReference(reader, 4, available);
+                var camera = ReadReference(reader, 1, availableCamera);
+                var creative = ReadReference(reader, 4, availableCreative);
                 result[assetId] = new(assetId, camera, creative, Identity(camera, creative));
             }
         }

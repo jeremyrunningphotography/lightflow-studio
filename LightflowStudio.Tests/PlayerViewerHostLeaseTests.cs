@@ -13,6 +13,47 @@ namespace LightflowStudio.Tests;
 [Collection("STA dispatcher tests")]
 public sealed class PlayerViewerHostLeaseTests
 {
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task SavedColor_IsConfiguredBeforeBackendOpenAndFirstPresentation(bool hasCamera, bool hasCreative)
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"lightflow-first-color-{Guid.NewGuid():N}"));
+            try
+            {
+                var cameraId = Guid.NewGuid(); var creativeId = Guid.NewGuid();
+                var cameraPath = WriteIdentityCube(folder.FullName, "camera.cube");
+                var creativePath = WriteIdentityCube(folder.FullName, "creative.cube");
+                var library = new FakeLutLibrary(new Dictionary<Guid, string>
+                    { [cameraId] = cameraPath, [creativeId] = creativePath });
+                var camera = hasCamera ? new ColorLutReference(cameraId, "Camera", "camera",
+                    LutResourceAvailability.Available) : null;
+                var creative = hasCreative ? new ColorLutReference(creativeId, "Creative", "creative",
+                    LutResourceAvailability.Available) : null;
+                var colors = new FakeColorStore(new(Guid.Empty, camera, creative, "saved"));
+                var backend = new FakeBackend();
+                await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+                var host = new PlayerViewerHost(coordinator, lutLibrary: library, assetColors: colors,
+                    cameraLutFolder: () => folder.FullName, creativeLutFolder: () => folder.FullName);
+                var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4",
+                    MediaPresentationKind.Video, Guid.NewGuid());
+
+                await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
+                    Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
+
+                Assert.Equal(["color", "open", "presentation"], backend.OpenPresentationOperations);
+                Assert.Equal(hasCamera, backend.PipelineAtOpen?.Camera is not null);
+                Assert.Equal(hasCreative, backend.PipelineAtOpen?.Creative is not null);
+                Assert.False(backend.BypassAtOpen);
+            }
+            finally { folder.Delete(true); }
+        });
+    }
+
     [Fact]
     public async Task ColorToggleAndHoldC_BypassPresentationWithoutChangingAssignments()
     {
@@ -23,7 +64,7 @@ public sealed class PlayerViewerHostLeaseTests
             var colors = new FakeColorStore();
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
             var host = new PlayerViewerHost(coordinator, lutLibrary: new FakeLutLibrary(), assetColors: colors,
-                lutFolder: () => Path.GetTempPath());
+                cameraLutFolder: () => Path.GetTempPath(), creativeLutFolder: () => Path.GetTempPath());
             var window = new Window { Content = host, Width = 600, Height = 400, ShowInTaskbar = false };
             window.Show();
             try
@@ -35,7 +76,7 @@ public sealed class PlayerViewerHostLeaseTests
                     Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
 
                 Assert.True(host.ColorToggleButton.IsChecked);
-                Assert.Equal("Color: On", host.ColorToggleButton.Content);
+                Assert.Null(host.ColorToggleButton.Content);
                 Assert.True(host.CameraLutCombo.IsEnabled);
                 Assert.True(host.CreativeLutCombo.IsEnabled);
                 Assert.False(backend.ColorCalls[^1].Bypass); // Both-No-LUT remains Color On.
@@ -43,7 +84,7 @@ public sealed class PlayerViewerHostLeaseTests
                 host.ColorToggleButton.IsChecked = false;
                 host.ColorToggleButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
                 Assert.False(host.ColorToggleButton.IsChecked);
-                Assert.Equal("Color: Off", host.ColorToggleButton.Content);
+                Assert.Null(host.ColorToggleButton.Content);
                 Assert.False(host.CameraLutCombo.IsEnabled);
                 Assert.False(host.CreativeLutCombo.IsEnabled);
                 Assert.True(backend.ColorCalls[^1].Bypass);
@@ -78,21 +119,27 @@ public sealed class PlayerViewerHostLeaseTests
         {
             TestWpfApplication.EnsureLoaded();
             var backend = new FakeBackend(); var colors = new FakeColorStore(); var folders = new FakeFolderLauncher();
+            var cameraFolder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"camera-{Guid.NewGuid():N}")).FullName;
+            var creativeFolder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"creative-{Guid.NewGuid():N}")).FullName;
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
             var host = new PlayerViewerHost(coordinator, folderLauncher: folders, lutLibrary: new FakeLutLibrary(),
-                assetColors: colors, lutFolder: () => Path.GetTempPath());
+                assetColors: colors, cameraLutFolder: () => cameraFolder,
+                creativeLutFolder: () => creativeFolder);
             var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4",
                 MediaPresentationKind.Video, Guid.NewGuid());
             await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
                 Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
             var original = host.CameraLutCombo.SelectedItem;
             host.CameraLutCombo.SelectedIndex = host.CameraLutCombo.Items.Count - 1;
-            Assert.Equal(Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar),
-                folders.OpenedDirectory?.TrimEnd(Path.DirectorySeparatorChar));
+            Assert.Equal(cameraFolder, folders.OpenedDirectory);
             Assert.Same(original, host.CameraLutCombo.SelectedItem);
             Assert.Equal(0, colors.SetCount);
             Assert.Contains("Open LUT Folder", host.CameraLutCombo.Items[^1]!.ToString());
             Assert.Contains("Open LUT Folder", host.CreativeLutCombo.Items[^1]!.ToString());
+            host.CreativeLutCombo.SelectedIndex = host.CreativeLutCombo.Items.Count - 1;
+            Assert.Equal(creativeFolder, folders.OpenedDirectory);
+            Directory.Delete(cameraFolder);
+            Directory.Delete(creativeFolder);
         });
     }
 
@@ -235,7 +282,7 @@ public sealed class PlayerViewerHostLeaseTests
 
             Assert.Equal(assetId, store.RestoredAssetId);
             Assert.Equal([savedIn], backend.SeekPositions);
-            Assert.Equal(["seek", "presentation"], backend.OpenPresentationOperations);
+            Assert.Equal(["open", "seek", "presentation"], backend.OpenPresentationOperations);
             Assert.Equal(0, backend.PlayCallCount);
             Assert.Equal("Play", host.PlayPauseButton.Content);
             Assert.Equal(savedIn.TotalMilliseconds, host.PositionSlider.Value, 3);
@@ -285,7 +332,7 @@ public sealed class PlayerViewerHostLeaseTests
             await host.OpenAsync(asset, resolution);
 
             Assert.Empty(backend.SeekPositions);
-            Assert.Equal(["presentation"], backend.OpenPresentationOperations);
+            Assert.Equal(["open", "presentation"], backend.OpenPresentationOperations);
             Assert.Equal(0, backend.PlayCallCount);
             Assert.Equal(TimeSpan.Zero.TotalMilliseconds, host.PositionSlider.Value);
             Assert.Null(host.SetInButton.Tag);
@@ -391,7 +438,13 @@ public sealed class PlayerViewerHostLeaseTests
         public int Volume { get; set; } = 100;
         public bool Mute { get; set; }
         public List<(PlayerColorPipeline? Pipeline, bool Bypass)> ColorCalls { get; } = [];
-        public void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass) => ColorCalls.Add((pipeline, bypass));
+        public PlayerColorPipeline? PipelineAtOpen { get; private set; }
+        public bool BypassAtOpen { get; private set; }
+        public void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass)
+        {
+            ColorCalls.Add((pipeline, bypass));
+            OpenPresentationOperations.Add("color");
+        }
         public FrameworkElement CreatePresentationSurface()
         {
             OpenPresentationOperations.Add("presentation");
@@ -401,6 +454,9 @@ public sealed class PlayerViewerHostLeaseTests
         public void CancelPending() { }
         public Task<PlaybackBackendOpened> OpenAsync(string sourcePath, CancellationToken token)
         {
+            PipelineAtOpen = ColorCalls.LastOrDefault().Pipeline;
+            BypassAtOpen = ColorCalls.LastOrDefault().Bypass;
+            OpenPresentationOperations.Add("open");
             var audioStreams = hasAudio ? new[] { new MediaAudioStreamInfo(0, null, null, 2, true) } : [];
             var source = new MediaPlaybackSourceInfo(sourcePath, duration ?? TimeSpan.FromSeconds(60), TimeSpan.Zero, 1920, 1080, audioStreams, hasAudio ? 0 : null, false);
             return Task.FromResult(new PlaybackBackendOpened(source, new(TimeSpan.Zero)));
@@ -429,21 +485,23 @@ public sealed class PlayerViewerHostLeaseTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class FakeLutLibrary : ILutLibrary
+    private sealed class FakeLutLibrary(IReadOnlyDictionary<Guid, string>? paths = null) : ILutLibrary
     {
         public Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new LutLibrarySnapshot(folder, [], []));
+            Task.FromResult(new LutLibrarySnapshot(folder, (paths ?? new Dictionary<Guid, string>()).Select(item =>
+                new ManagedLutResource(item.Key, Path.GetFileNameWithoutExtension(item.Value), Path.GetFileName(item.Value),
+                    item.Key.ToString("N"), LutDimension.ThreeDimensional, 2, LutResourceAvailability.Available, item.Value)).ToArray(), []));
         public Task<ManagedLutResource?> GetAsync(Guid lutId, string folder, CancellationToken cancellationToken = default) =>
             Task.FromResult<ManagedLutResource?>(null);
         public Task<string> ResolvePathAsync(Guid lutId, string folder, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            Task.FromResult(paths![lutId]);
     }
 
-    private sealed class FakeColorStore : IAssetColorStore
+    private sealed class FakeColorStore(AssetColorIntent? restored = null) : IAssetColorStore
     {
         public int SetCount { get; private set; }
         public Task<AssetColorIntent> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new AssetColorIntent(assetId, null, null, "none"));
+            Task.FromResult(restored is null ? new AssetColorIntent(assetId, null, null, "none") : restored with { AssetId = assetId });
         public Task<IReadOnlyDictionary<Guid, AssetColorIntent>> GetAsync(IReadOnlyCollection<Guid> assetIds,
             CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<Guid, AssetColorIntent>>(
                 assetIds.ToDictionary(id => id, id => new AssetColorIntent(id, null, null, "none")));
@@ -451,6 +509,13 @@ public sealed class PlayerViewerHostLeaseTests
             CancellationToken cancellationToken = default) { SetCount++; return Task.CompletedTask; }
         public Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes,
             CancellationToken cancellationToken = default) { SetCount++; return Task.CompletedTask; }
+    }
+
+    private static string WriteIdentityCube(string folder, string name)
+    {
+        var path = Path.Combine(folder, name);
+        File.WriteAllText(path, "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n");
+        return path;
     }
 
     private sealed class FakeRangeStore(MediaRange? restored) : IMediaRangeStore

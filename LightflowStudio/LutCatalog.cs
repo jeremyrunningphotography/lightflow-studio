@@ -29,6 +29,12 @@ internal static partial class LutCatalog
         return [NoLut, .. options];
     }
 
+    /// <summary>Encoding's legacy general LUT picker sees the validated union of both Color folders.
+    /// Stable identity removes duplicate content even when it exists at two paths.</summary>
+    public static IReadOnlyList<LutOption> CombinedOptions(params IEnumerable<ManagedLutResource>[] folders) =>
+        Options(folders.SelectMany(resources => resources).GroupBy(resource => resource.LutId)
+            .Select(group => group.First()));
+
     public static LutOption SelectPreferred(IReadOnlyList<LutOption> options, string? preferredPath) =>
         options.FirstOrDefault(option =>
             string.Equals(option.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase))

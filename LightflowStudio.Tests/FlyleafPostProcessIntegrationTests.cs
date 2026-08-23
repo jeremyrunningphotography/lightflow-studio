@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 using FlyleafLib;
 using FlyleafLib.MediaFramework.MediaRenderer;
@@ -16,6 +17,91 @@ namespace LightflowStudio.Tests;
 public sealed class FlyleafPostProcessIntegrationTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-post-process-").FullName;
+
+    [Fact]
+    public async Task NoLut_LiveChildHwndMatchesPreColorPathAndIsNotBlack()
+    {
+        var dependencies = RequireDependencies();
+        var fixture = Path.Combine(_root, "live-no-lut.mkv");
+        GenerateStaticFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture);
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var baseline = await CaptureLiveSurfaceAsync(dependencies, fixture, new DisabledProcessorFactory(), VideoProcessors.Flyleaf);
+            var noLut = await CaptureLiveSurfaceAsync(dependencies, fixture, null, VideoProcessors.Flyleaf);
+            Assert.True(ChannelRange(baseline) > 32, "The pre-Color control path did not present a varied live frame.");
+            Assert.True(ChannelRange(noLut) > 32, "The No-LUT post-process path presented a flat/black live frame.");
+            var difference = MeanAbsoluteDifference(baseline, noLut);
+            Assert.True(difference < 3,
+                $"No-LUT live presentation is not visually equivalent to the pre-Color path (MAD {difference:F2}).");
+        });
+    }
+
+    [Fact]
+    public async Task NoLut_HardwareD3D11VpLiveChildHwndIsNotBlack()
+    {
+        var dependencies = RequireDependencies();
+        var fixture = Path.Combine(_root, "live-no-lut-hardware.mp4");
+        GenerateFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, "libopenh264");
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var noLut = await CaptureLiveSurfaceAsync(dependencies, fixture, null, VideoProcessors.D3D11,
+                requireSelectedProcessor: Environment.GetEnvironmentVariable("LIGHTFLOW_REQUIRE_D3D11VP") == "1");
+            Assert.True(ChannelRange(noLut) > 32, "The hardware D3D11VP No-LUT path presented a flat/black live frame.");
+        });
+    }
+
+    private static async Task<byte[]> CaptureLiveSurfaceAsync(string dependencies, string fixture,
+        IVideoPostProcessorFactory? factory, VideoProcessors processor, bool requireSelectedProcessor = true)
+    {
+        await using var backend = new FlyleafPlaybackBackend(dependencies, postProcessorFactory: factory,
+            videoProcessor: processor);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await backend.OpenAsync(fixture, timeout.Token);
+        if (requireSelectedProcessor) Assert.Equal(processor, backend.ActiveVideoProcessor);
+        var host = Assert.IsType<FlyleafLib.Controls.WPF.FlyleafHost>(backend.CreatePresentationSurface());
+        var window = new System.Windows.Window { Content = host, Width = 480, Height = 300, Left = 40, Top = 40,
+            Topmost = true, ShowActivated = false, ShowInTaskbar = false, WindowStyle = System.Windows.WindowStyle.None };
+        window.Show();
+        try
+        {
+            await WaitUntilAsync(() => host.SurfaceHandle != IntPtr.Zero, "Flyleaf child HWND creation");
+            backend.RequestRender();
+            await Task.Delay(200, timeout.Token);
+            Assert.True(GetClientRect(host.SurfaceHandle, out var rect));
+            var width = rect.Right - rect.Left; var height = rect.Bottom - rect.Top;
+            using var bitmap = new System.Drawing.Bitmap(width, height,
+                System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (var graphics = System.Drawing.Graphics.FromImage(bitmap))
+            {
+                var dc = graphics.GetHdc();
+                try { Assert.True(PrintWindow(host.SurfaceHandle, dc, 2), "Could not capture the live child HWND."); }
+                finally { graphics.ReleaseHdc(dc); }
+            }
+            var pixels = new List<byte>();
+            for (var y = bitmap.Height / 4; y < bitmap.Height * 3 / 4; y += 3)
+            for (var x = bitmap.Width / 4; x < bitmap.Width * 3 / 4; x += 3)
+            {
+                var color = bitmap.GetPixel(x, y); pixels.Add(color.R); pixels.Add(color.G); pixels.Add(color.B);
+            }
+            return pixels.ToArray();
+        }
+        finally { window.Content = null; backend.ReleasePresentationSurface(host); window.Close(); }
+    }
+
+    private static int ChannelRange(byte[] pixels) => pixels.Max() - pixels.Min();
+    private static double MeanAbsoluteDifference(byte[] left, byte[] right) =>
+        left.Zip(right, (a, b) => Math.Abs(a - b)).Average();
+
+    [DllImport("user32.dll")]
+    private static extern bool GetClientRect(IntPtr window, out NativeRect rect);
+    [DllImport("user32.dll")]
+    private static extern bool PrintWindow(IntPtr window, IntPtr deviceContext, uint flags);
+    [StructLayout(LayoutKind.Sequential)] private struct NativeRect
+    {
+        public int Left, Top, Right, Bottom;
+    }
 
     [Fact]
     public async Task LightflowColorPipeline_ChangesSnapshotAndOriginalBypassesIt()
@@ -271,6 +357,24 @@ public sealed class FlyleafPostProcessIntegrationTests : IDisposable
         if (process.ExitCode != 0) throw new InvalidOperationException(error);
     }
 
+    private static void GenerateStaticFixture(string ffmpeg, string output)
+    {
+        var info = new ProcessStartInfo(ffmpeg)
+        {
+            UseShellExecute = false, CreateNoWindow = true,
+            RedirectStandardOutput = true, RedirectStandardError = true
+        };
+        foreach (var argument in new[]
+        {
+            "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+            "smptebars=size=160x90:rate=10:duration=2", "-an", "-c:v", "ffv1", output
+        }) info.ArgumentList.Add(argument);
+        using var process = Process.Start(info) ?? throw new InvalidOperationException("Could not start FFmpeg.");
+        var error = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0) throw new InvalidOperationException(error);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> predicate, string description)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
@@ -411,4 +515,9 @@ internal sealed class RecordingProcessorFactory : IVideoPostProcessorFactory
             return shader;
         }
     }
+}
+
+internal sealed class DisabledProcessorFactory : IVideoPostProcessorFactory
+{
+    public IVideoPostProcessor Create(ID3D11Device device) => null!;
 }

@@ -33,7 +33,7 @@ internal sealed class LightflowColorPostProcessorFactory : IVideoPostProcessorFa
     {
         private const string VertexShader = """
             struct O { float4 position : SV_POSITION; float2 uv : TEXCOORD0; };
-            O main(uint id : SV_VertexID) { O o; float2 p=float2((id<<1)&2,id&2); o.uv=float2(p.x,1-p.y); o.position=float4(p*float2(2,-2)+float2(-1,1),0,1); return o; }
+            O main(uint id : SV_VertexID) { O o; float2 p=float2((id<<1)&2,id&2); o.uv=p; o.position=float4(p*float2(2,-2)+float2(-1,1),0,1); return o; }
             """;
         private const string PixelShader = """
             Texture2D inputTexture : register(t0);
@@ -74,11 +74,6 @@ internal sealed class LightflowColorPostProcessorFactory : IVideoPostProcessorFa
         {
             var state=_owner.Snapshot();
             if (_revision!=state.Revision) Rebuild(state.Pipeline, state.Revision);
-            if (state.Bypass || state.Pipeline?.HasColor != true)
-            {
-                frame.DeviceContext.CopyResource(frame.Output.Resource, frame.Input.Resource);
-                return;
-            }
             var context=frame.DeviceContext;
             context.OMSetRenderTargets(frame.Output); context.RSSetViewport(new Viewport(frame.OutputWidth,frame.OutputHeight));
             context.IASetInputLayout(null); context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);

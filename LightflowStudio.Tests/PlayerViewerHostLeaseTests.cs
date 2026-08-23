@@ -141,6 +141,8 @@ public sealed class PlayerViewerHostLeaseTests
             var savedIn = TimeSpan.FromTicks(123_456_789);
             var store = new FakeRangeStore(new MediaRange(TimeSpan.FromSeconds(60), savedIn, TimeSpan.FromSeconds(40)));
             var host = new PlayerViewerHost(coordinator, store);
+            var committedRangeStates = new List<MediaRangeStateChangedEventArgs>();
+            host.RangeStateChanged += (_, change) => committedRangeStates.Add(change);
             var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4",
                 MediaPresentationKind.Video, assetId);
             var resolution = new MediaPathResolution(asset.RootId, asset.RelativePath, asset.Key,
@@ -161,11 +163,18 @@ public sealed class PlayerViewerHostLeaseTests
 
             host.SetInButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             await WaitUntilAsync(() => store.SaveCount == 1, "active Set In replacement save");
+            Assert.Collection(committedRangeStates, change =>
+            {
+                Assert.Equal(assetId, change.AssetId);
+                Assert.True(change.HasSavedRange);
+            });
             Assert.Equal("Active", host.SetInButton.Tag);
             Assert.True(host.SetInButton.IsEnabled);
 
             host.ClearInButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             await WaitUntilAsync(() => store.SaveCount == 2, "clear In save");
+            Assert.Equal(2, committedRangeStates.Count);
+            Assert.True(committedRangeStates[1].HasSavedRange); // The saved Out boundary remains.
             Assert.Null(store.SavedRange?.In);
             Assert.Null(host.SetInButton.Tag);
             Assert.Equal("Active", host.SetOutButton.Tag);
@@ -182,8 +191,11 @@ public sealed class PlayerViewerHostLeaseTests
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
             var store = new FakeRangeStore(new MediaRange(TimeSpan.FromSeconds(60), Out: TimeSpan.FromSeconds(40)));
             var host = new PlayerViewerHost(coordinator, store);
+            MediaRangeStateChangedEventArgs? committedRangeState = null;
+            host.RangeStateChanged += (_, change) => committedRangeState = change;
+            var assetId = Guid.NewGuid();
             var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4",
-                MediaPresentationKind.Video, Guid.NewGuid());
+                MediaPresentationKind.Video, assetId);
             var resolution = new MediaPathResolution(asset.RootId, asset.RelativePath, asset.Key,
                 Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true);
 
@@ -195,6 +207,12 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(TimeSpan.Zero.TotalMilliseconds, host.PositionSlider.Value);
             Assert.Null(host.SetInButton.Tag);
             Assert.Equal("Active", host.SetOutButton.Tag);
+
+            host.ClearOutButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await WaitUntilAsync(() => store.SaveCount == 1, "clear only saved boundary");
+            Assert.NotNull(committedRangeState);
+            Assert.Equal(assetId, committedRangeState.AssetId);
+            Assert.False(committedRangeState.HasSavedRange);
         });
     }
 

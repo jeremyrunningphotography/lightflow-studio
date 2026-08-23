@@ -9,6 +9,13 @@ internal enum BrowserAssetState
     ReviewRange = 1
 }
 
+internal static class BrowserAssetStateRevisionPolicy
+{
+    /// <summary>A read may apply unless this specific asset changed after the read began.</summary>
+    public static bool CanApply(long readRevision, long? assetChangedAt) =>
+        assetChangedAt is null || assetChangedAt <= readRevision;
+}
+
 internal interface IBrowserAssetStateStore
 {
     Task<IReadOnlyDictionary<Guid, BrowserAssetState>> GetAsync(

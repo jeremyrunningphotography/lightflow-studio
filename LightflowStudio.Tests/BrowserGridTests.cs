@@ -6,6 +6,17 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserGridTests
 {
     [Fact]
+    public void AssetStateRevisionGuard_BlocksOnlyAssetsChangedAfterAReadBegan()
+    {
+        const long readRevision = 10;
+
+        Assert.False(BrowserAssetStateRevisionPolicy.CanApply(readRevision, assetChangedAt: 11));
+        Assert.True(BrowserAssetStateRevisionPolicy.CanApply(readRevision, assetChangedAt: 10));
+        Assert.True(BrowserAssetStateRevisionPolicy.CanApply(readRevision, assetChangedAt: 4));
+        Assert.True(BrowserAssetStateRevisionPolicy.CanApply(readRevision, assetChangedAt: null));
+    }
+
+    [Fact]
     public void PresentableCategories_IsExactlyTheSetIsPresentableAccepts()
     {
         // The single authoritative source for "does the Browser show this category" — a category that's

@@ -60,6 +60,7 @@ public partial class MainWindow : Window
     private static readonly int[] AudioSampleRates = [0, 44100, 48000, 96000];
     private long _browserUiGeneration;
     private long _browserAssetStateRevision;
+    private readonly Dictionary<Guid, long> _browserAssetStateRevisions = [];
     private bool _synchronizingBrowserTree;
     /// <summary>The node most recently targeted by a passive (non-interactive) tree reveal, consumed by <see cref="BrowserFolderTree_SelectedItemChanged"/> the first time a matching event arrives. See that method's doc comment.</summary>
     private BrowserTreeNode? _browserTreeRevealedNode;
@@ -1058,8 +1059,17 @@ public partial class MainWindow : Window
         {
             var states = await _storage.BrowserAssetStates.GetAsync(items.Select(item => item.AssetId).ToArray())
                 .ConfigureAwait(true);
-            if (generation == _browserUiGeneration && revision == _browserAssetStateRevision)
-                _browserGrid.ApplyAssetStates(states);
+            if (generation != _browserUiGeneration) return;
+            foreach (var (assetId, state) in states)
+            {
+                // A committed Player change that landed after this read began owns that asset's current
+                // presentation. Other assets remain safe to apply; an unrelated/previous-scope save must
+                // never discard the entire folder's state projection.
+                var changedAt = _browserAssetStateRevisions.TryGetValue(assetId, out var assetRevision)
+                    ? assetRevision : (long?)null;
+                if (BrowserAssetStateRevisionPolicy.CanApply(revision, changedAt))
+                    _browserGrid.ApplyAssetState(assetId, state);
+            }
         }
         catch (OperationCanceledException) { }
         catch (InvalidOperationException) { }
@@ -1291,10 +1301,11 @@ public partial class MainWindow : Window
         _playerViewerHost = new PlayerViewerHost(App.Playback, _storage.MediaRanges,
             new FrameScreengrabService(() => _storage.Settings.ScreengrabDirectory));
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
-        _playerViewerHost.AssetStateChanged += (_, change) =>
+        _playerViewerHost.RangeStateChanged += (_, change) =>
         {
-            _browserAssetStateRevision++;
-            _browserGrid.ApplyAssetState(change.AssetId, change.State);
+            _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
+            _browserGrid.ApplyAssetState(change.AssetId, change.HasSavedRange
+                ? BrowserAssetState.ReviewRange : BrowserAssetState.None);
         };
         BrowserPlayerHost.Content = _playerViewerHost;
     }

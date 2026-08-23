@@ -6,6 +6,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using FlyleafLib;
 using FlyleafLib.Controls.WPF;
+using FlyleafLib.MediaFramework.MediaRenderer;
 using FlyleafLib.MediaPlayer;
 
 namespace LightflowStudio;
@@ -17,6 +18,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     private readonly string _ffmpegPath;
     private readonly FfmpegAudioPlayback _audio;
     private readonly Dispatcher _dispatcher;
+    private readonly IVideoPostProcessorFactory? _postProcessorFactory;
+    private readonly VideoProcessors? _videoProcessor;
     private Window? _offscreenWindow;
     private FlyleafHost? _host;
     private CancellationTokenSource _pending = new();
@@ -28,12 +31,18 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     private int? _audioStreamIndex;
     private int _suppressPresentationEvents;
 
-    public FlyleafPlaybackBackend(string? ffmpegPath = null, Func<IPlaybackAudioOutput>? createAudioOutput = null)
+    public FlyleafPlaybackBackend(
+        string? ffmpegPath = null,
+        Func<IPlaybackAudioOutput>? createAudioOutput = null,
+        IVideoPostProcessorFactory? postProcessorFactory = null,
+        VideoProcessors? videoProcessor = null)
     {
         _ffmpegPath = ffmpegPath ?? PlaybackDependencyLocator.FindSharedLibraries()
             ?? throw new DirectoryNotFoundException("Bundled playback libraries were not found.");
         _audio = new FfmpegAudioPlayback(_ffmpegPath, createAudioOutput);
         _dispatcher = Dispatcher.CurrentDispatcher;
+        _postProcessorFactory = postProcessorFactory;
+        _videoProcessor = videoProcessor;
         StartEngine(_ffmpegPath, _dispatcher);
     }
 
@@ -333,6 +342,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         config.Player.SeekAccurate = true;
         config.Player.UICurTime = UIRefreshType.PerFrame;
         config.Video.VideoAcceleration = true;
+        config.Video.PostProcessorFactory = _postProcessorFactory;
+        if (_videoProcessor is not null) config.Video.VideoProcessor = _videoProcessor.Value;
         // Flyleaf remains the video/PTS engine. Its audio decoder/output path is disabled because the shared
         // backend's bounded FFmpeg/WaveOut companion owns the selected audio stream.
         config.Audio.Enabled = false;
@@ -340,6 +351,10 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         player.PropertyChanged += Player_PropertyChanged;
         return player;
     }
+
+    internal void RequestRender() => RunOnUi(() => RequirePlayer().RequestRender());
+
+    internal VideoProcessors ActiveVideoProcessor => RunOnUi(() => RequirePlayer().Renderer.VideoProcessor);
 
     private async Task ClosePlayerAsync()
     {

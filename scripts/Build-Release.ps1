@@ -68,6 +68,7 @@ finally {
 
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "PremiereHelper") -Destination (Join-Path $appDirectory "PremiereHelper") -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "THIRD-PARTY-NOTICES.md") -Destination $appDirectory -Force
+Copy-Item -LiteralPath (Join-Path $repositoryRoot "dependencies\flyleaf.json") -Destination (Join-Path $appDirectory "flyleaf-package.json") -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "LightflowStudio\Assets\Branding\LightflowStudio.ico") -Destination $appDirectory -Force
 & (Join-Path $PSScriptRoot "Get-Ffmpeg.ps1") -Destination $ffmpegDirectory
 & (Join-Path $PSScriptRoot "Get-PlaybackDependencies.ps1") -Destination $playbackDirectory

@@ -23,13 +23,21 @@ those components.
 
 ## Playback components
 
-Interactive video playback uses FlyleafLib 3.11.2 and
+Interactive video playback uses the modified FlyleafLib 3.11.2-lightflow.1 package and
 Flyleaf.FFmpeg.Bindings 9.0.0. Both packages are licensed under the GNU Lesser
-General Public License, version 3.0 or later. Lightflow Studio keeps these
-libraries behind its own playback API and does not modify their source.
+General Public License, version 3.0 or later. The modified package is based on
+upstream Flyleaf v3.11.2 (`64cee8bf3749590c98b6b6d416e2f590e4e890cf`)
+and adds only a generic renderer-owned GPU video post-process extension.
 
-- Flyleaf source: <https://github.com/SuRGeoNix/Flyleaf/tree/v3.11.2>
+- Modified Flyleaf corresponding source: <https://github.com/jeremysrunning/Flyleaf/tree/6789799a5b29dfd126e1094e847f46cfa9b9be0a>
+- Upstream Flyleaf source: <https://github.com/SuRGeoNix/Flyleaf/tree/v3.11.2>
+- Generic upstream contribution: <https://github.com/SuRGeoNix/Flyleaf/pull/719>
 - Flyleaf FFmpeg bindings source: <https://github.com/SuRGeoNix/Flyleaf.FFmpeg.Generator>
+
+The exact source commit, package SHA-256, and package version are recorded in
+`flyleaf-package.json` in the distribution and `dependencies/flyleaf.json` in
+the source repository. `scripts/Build-FlyleafPackage.ps1` checks out that exact
+public commit, rebuilds the package, and verifies the byte-for-byte package hash.
 
 Flyleaf uses dynamically loaded FFmpeg shared libraries. Lightflow distributes
 the pinned BtbN `lgpl-shared` build recorded in

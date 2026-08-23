@@ -1306,7 +1306,9 @@ public partial class MainWindow : Window
     {
         if (_playerViewerHost is not null) return;
         _playerViewerHost = new PlayerViewerHost(App.Playback, _storage.MediaRanges,
-            new FrameScreengrabService(() => _storage.Settings.ScreengrabDirectory));
+            new FrameScreengrabService(() => _storage.Settings.ScreengrabDirectory), lutLibrary: _storage.Luts,
+            assetColors: _storage.AssetColors, lutFolder: () => _storage.Settings.LutFolder);
+        _playerViewerHost.LutFolderRequested += (_, _) => MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Settings);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         _playerViewerHost.RangeStateChanged += (_, change) =>
         {

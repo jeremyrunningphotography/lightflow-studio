@@ -30,6 +30,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
 
     public int Volume { get => _backend.Volume; set => _backend.Volume = value; }
     public bool Mute { get => _backend.Mute; set => _backend.Mute = value; }
+    public void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass) => _backend.SetColorPipeline(pipeline, bypass);
 
     public MediaPlaybackPresentation CreatePresentation() =>
         new(_backend.CreatePresentationSurface(), _backend.ReleasePresentationSurface, _backend.CapturePresentedFrameAsync);

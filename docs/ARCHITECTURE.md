@@ -38,6 +38,21 @@ This boundary discipline preserves future portability without committing Lightfl
 
 ## Layers
 
+### Live Player Color
+
+The Player resolves durable Camera/technical and Creative assignments through the Catalog Color contracts and
+builds one ordered, renderer-independent runtime pipeline. The Windows playback adapter translates that pipeline
+into a device-scoped D3D11 processor installed through Flyleaf's generic post-process seam; Flyleaf remains unaware
+of LUTs and Lightflow Color semantics. The pass runs after Flyleaf's video conversion and built-in processing for
+both live presentation and native snapshots. Original bypass and an empty pipeline use a byte-preserving GPU copy.
+
+Player Color accepts the same validated UTF-8 3D `.cube` resources as the folder-backed library: sizes 2–256,
+optional `DOMAIN_MIN`/`DOMAIN_MAX`, RGB rows in standard red-fastest `.cube` order, and trilinear interpolation.
+One-dimensional and combined 1D/3D files remain unsupported. Values outside the declared input domain are clamped;
+LUT output is passed to the next ordered stage without an implicit color-space conversion. Camera is evaluated once
+before Creative. GPU buffers and shader state are transient playback-adapter details and are never durable Catalog
+state; Preview generation and Encoding remain independent consumers of the same intent.
+
 ### Presentation
 
 WPF views and code-behind currently own navigation, dialogs, accessibility behavior, and control updates. Presentation code may gather user choices and display plans, progress, and results. It must not put UI controls into durable job definitions or construct FFmpeg syntax itself.

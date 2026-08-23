@@ -13,6 +13,19 @@ public sealed class ColorManagementTests : IAsyncLifetime
     private Guid _assetId;
 
     [Fact]
+    public void CubeRuntimeData_LoadsValidatedSamples()
+    {
+        Directory.CreateDirectory(_root);
+        var path = Path.Combine(_root, "runtime.cube");
+        File.WriteAllBytes(path, Cube(2, 0));
+        var data = CubeLutData.Load(path);
+        Assert.Equal(2, data.Size);
+        Assert.Equal(32, data.Samples.Length);
+        Assert.Equal([0f, .1f, .2f, 1f], data.Samples[..4]);
+        Assert.Equal([7f, 7.1f, 7.2f, 1f], data.Samples[^4..]);
+    }
+
+    [Fact]
     public void Validation_RequiresSupportedThreeDimensionalCubeStructure()
     {
         var cube = CubeLutValidator.Validate(Cube(2, 0));
@@ -22,6 +35,7 @@ public sealed class ColorManagementTests : IAsyncLifetime
         Assert.Contains("declares", CubeLutValidator.Validate("LUT_3D_SIZE 2\n0 0 0\n"u8).Diagnostic!,
             StringComparison.OrdinalIgnoreCase);
         Assert.False(CubeLutValidator.Validate([0xff, 0xfe]).IsValid);
+        Assert.Contains("DOMAIN_MAX", CubeLutValidator.Validate("LUT_3D_SIZE 2\nDOMAIN_MIN 1 0 0\nDOMAIN_MAX 0 1 1\n"u8).Diagnostic!);
     }
 
     [Fact]

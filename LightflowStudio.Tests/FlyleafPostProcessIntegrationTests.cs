@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Numerics;
 using System.Text;
 using FlyleafLib;
 using FlyleafLib.MediaFramework.MediaRenderer;
@@ -15,6 +16,50 @@ namespace LightflowStudio.Tests;
 public sealed class FlyleafPostProcessIntegrationTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-post-process-").FullName;
+
+    [Fact]
+    public async Task LightflowColorPipeline_ChangesSnapshotAndOriginalBypassesIt()
+    {
+        var dependencies = RequireDependencies();
+        var fixture = Path.Combine(_root, "color.mkv");
+        GenerateFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, "ffv1");
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var backend = new FlyleafPlaybackBackend(dependencies, videoProcessor: VideoProcessors.Flyleaf);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await backend.OpenAsync(fixture, timeout.Token);
+            var surface = backend.CreatePresentationSurface();
+            var window = new System.Windows.Window { Content = surface, Width = 320, Height = 240, ShowActivated = false, ShowInTaskbar = false };
+            window.Show();
+            try
+            {
+                var original = await backend.CapturePresentedFrameAsync(timeout.Token);
+                var pipeline = new PlayerColorPipeline(CubeFrom(value => Vector3.One - value), CubeFrom(value => Vector3.Min(Vector3.One, value + new Vector3(.1f))));
+                backend.SetColorPipeline(pipeline, false);
+                var color = await backend.CapturePresentedFrameAsync(timeout.Token);
+                Assert.NotEqual(original.BgraPixels, color.BgraPixels);
+                backend.SetColorPipeline(new(pipeline.Creative, pipeline.Camera), false);
+                var reversed = await backend.CapturePresentedFrameAsync(timeout.Token);
+                Assert.NotEqual(color.BgraPixels, reversed.BgraPixels);
+                backend.SetColorPipeline(pipeline, true);
+                var bypass = await backend.CapturePresentedFrameAsync(timeout.Token);
+                Assert.Equal(original.BgraPixels, bypass.BgraPixels);
+            }
+            finally { window.Content = null; backend.ReleasePresentationSurface(surface); window.Close(); }
+        });
+    }
+
+    private static CubeLutData CubeFrom(Func<Vector3, Vector3> transform)
+    {
+        var samples = new List<float>();
+        for (var b = 0; b < 2; b++) for (var g = 0; g < 2; g++) for (var r = 0; r < 2; r++)
+        {
+            var value = transform(new(r, g, b));
+            samples.AddRange([value.X, value.Y, value.Z, 1]);
+        }
+        return new(2, samples.ToArray());
+    }
 
     [Fact]
     public async Task FlyleafVp_LivePausedInvalidationSnapshotStepSwitchAndDisposalUseOneDeviceScopedProcessorPerPlayer()

@@ -5,6 +5,7 @@ using FlyleafLib.MediaFramework.MediaRenderer;
 using Vortice.D3DCompiler;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
+using Vortice.DXGI;
 using Vortice.Mathematics;
 
 namespace LightflowStudio;
@@ -101,7 +102,8 @@ internal sealed class LightflowColorPostProcessorFactory : IVideoPostProcessorFa
             lut ??= new CubeLutData(2, [0,0,0,1, 1,0,0,1, 0,1,0,1, 1,1,0,1, 0,0,1,1, 1,0,1,1, 0,1,1,1, 1,1,1,1]);
             var vectors=new Vector4[lut.Samples.Length/4]; for(var i=0;i<vectors.Length;i++) vectors[i]=new(lut.Samples[i*4],lut.Samples[i*4+1],lut.Samples[i*4+2],1);
             var buffer=_device.CreateBuffer(vectors, BindFlags.ShaderResource, ResourceUsage.Immutable, CpuAccessFlags.None, ResourceOptionFlags.BufferStructured);
-            var view=_device.CreateShaderResourceView(buffer); return(buffer,view);
+            var description = new ShaderResourceViewDescription(buffer, Format.Unknown, 0, (uint)vectors.Length);
+            var view=_device.CreateShaderResourceView(buffer, description); return(buffer,view);
         }
 
         public void Dispose() { _cameraView?.Dispose(); _creativeView?.Dispose(); _cameraBuffer?.Dispose(); _creativeBuffer?.Dispose(); _stateBuffer?.Dispose(); _sampler.Dispose(); _ps.Dispose(); _vs.Dispose(); }

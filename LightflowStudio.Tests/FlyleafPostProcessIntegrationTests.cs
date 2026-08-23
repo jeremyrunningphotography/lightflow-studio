@@ -39,6 +39,8 @@ public sealed class FlyleafPostProcessIntegrationTests : IDisposable
                 backend.SetColorPipeline(pipeline, false);
                 var color = await backend.CapturePresentedFrameAsync(timeout.Token);
                 Assert.NotEqual(original.BgraPixels, color.BgraPixels);
+                Assert.True(color.BgraPixels.Where((_, index) => index % 4 != 3).Distinct().Count() > 16,
+                    "The Color pass collapsed a varied source frame to a flat/black image.");
                 backend.SetColorPipeline(new(pipeline.Creative, pipeline.Camera), false);
                 var reversed = await backend.CapturePresentedFrameAsync(timeout.Token);
                 Assert.NotEqual(color.BgraPixels, reversed.BgraPixels);
@@ -160,6 +162,37 @@ public sealed class FlyleafPostProcessIntegrationTests : IDisposable
         Assert.Equal(factory.Created, factory.Disposed);
         if (Environment.GetEnvironmentVariable("LIGHTFLOW_REQUIRE_D3D11VP") == "1")
             Assert.True(validated, "This machine did not expose hardware decode plus D3D11VP; required hardware-path validation could not run.");
+    }
+
+    [Fact]
+    public async Task D3D11Vp_LightflowColorProducesVariedNonBlackSnapshotWhenHardwarePathIsAvailable()
+    {
+        var dependencies = RequireDependencies();
+        var fixture = Path.Combine(_root, "hardware-color.mp4");
+        GenerateFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, "libopenh264");
+        var validated = false;
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var backend = new FlyleafPlaybackBackend(dependencies, videoProcessor: VideoProcessors.D3D11);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var opened = await backend.OpenAsync(fixture, timeout.Token);
+            if (!opened.Source.UsesHardwareDecode || backend.ActiveVideoProcessor != VideoProcessors.D3D11) return;
+            validated = true;
+            var surface = backend.CreatePresentationSurface();
+            var window = new System.Windows.Window { Content = surface, Width = 320, Height = 240, ShowActivated = false, ShowInTaskbar = false };
+            window.Show();
+            try
+            {
+                backend.SetColorPipeline(new(CubeFrom(value => Vector3.One - value), null), false);
+                var color = await backend.CapturePresentedFrameAsync(timeout.Token);
+                Assert.True(color.BgraPixels.Where((_, index) => index % 4 != 3).Distinct().Count() > 16,
+                    "D3D11VP Color collapsed a varied source frame to a flat/black image.");
+            }
+            finally { window.Content = null; backend.ReleasePresentationSurface(surface); window.Close(); }
+        });
+        if (Environment.GetEnvironmentVariable("LIGHTFLOW_REQUIRE_D3D11VP") == "1")
+            Assert.True(validated, "This machine did not expose the required hardware D3D11VP Color path.");
     }
 
     [Fact]

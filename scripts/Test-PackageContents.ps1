@@ -15,6 +15,7 @@ $requiredFiles = @(
     "LightflowStudio.exe",
     "LightflowStudio.ico",
     "THIRD-PARTY-NOTICES.md",
+    "flyleaf-package.json",
     "PremiereHelper\Export-V1-Clips.jsx",
     "PremiereHelper\README.txt",
     "ffmpeg\bin\ffmpeg.exe",
@@ -32,7 +33,7 @@ foreach ($relativePath in $requiredFiles) {
 }
 
 $thirdPartyNotices = Get-Content -LiteralPath (Join-Path $packageRoot "THIRD-PARTY-NOTICES.md") -Raw
-$requiredNoticeMarkers = @("Microsoft.Data.Sqlite 8.0.29", "SQLitePCLRaw 2.1.6", "sqlite.org/copyright")
+$requiredNoticeMarkers = @("FlyleafLib 3.11.2-lightflow.1", "b31f63e3adf599bd41f63840e5286f09312bc5cf", "Microsoft.Data.Sqlite 8.0.29", "SQLitePCLRaw 2.1.6", "sqlite.org/copyright")
 foreach ($marker in $requiredNoticeMarkers) {
     if ($thirdPartyNotices.IndexOf($marker, [StringComparison]::Ordinal) -lt 0) {
         throw "Staged third-party notices are missing the Catalog database dependency: $marker"
@@ -55,6 +56,7 @@ foreach ($relativePath in $licenseDirectories) {
 }
 
 $manifestPairs = @(
+    @{ Source = "dependencies\flyleaf.json"; Packaged = "flyleaf-package.json" },
     @{ Source = "dependencies\ffmpeg.json"; Packaged = "ffmpeg\ffmpeg-package.json" },
     @{ Source = "dependencies\ffmpeg-playback.json"; Packaged = "playback\ffmpeg\ffmpeg-playback-package.json" }
 )

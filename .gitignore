@@ -4,5 +4,6 @@ publish/
 artifacts/
 dist/
 .cache/
+.tmp-flyleaf-*/
 *.user
 *.suo

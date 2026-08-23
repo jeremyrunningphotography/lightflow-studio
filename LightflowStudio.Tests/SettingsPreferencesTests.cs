@@ -100,6 +100,18 @@ public sealed class SettingsPreferencesTests : IDisposable
     }
 
     [Fact]
+    public void LutFolderPickerStartsAtConfiguredFolderOrNearestExistingParent()
+    {
+        var camera = Directory.CreateDirectory(Path.Combine(_folder, "Camera")).FullName;
+        var creative = Directory.CreateDirectory(Path.Combine(_folder, "Creative")).FullName;
+
+        Assert.Equal(camera, MainWindow.ResolveFolderPickerInitialDirectory(camera));
+        Assert.Equal(creative, MainWindow.ResolveFolderPickerInitialDirectory(creative));
+        Assert.Equal(camera, MainWindow.ResolveFolderPickerInitialDirectory(Path.Combine(camera, "Unavailable", "Nested")));
+        Assert.Null(MainWindow.ResolveFolderPickerInitialDirectory("\0invalid"));
+    }
+
+    [Fact]
     public void ConfiguredExecutableTakesPrecedenceOverBundledCopy()
     {
         Directory.CreateDirectory(_folder);

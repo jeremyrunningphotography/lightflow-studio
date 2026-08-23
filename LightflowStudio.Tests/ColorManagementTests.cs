@@ -160,6 +160,32 @@ public sealed class ColorManagementTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RecursiveRootsPreserveNestedIdentityAndDeduplicateContent()
+    {
+        var cameraRoot = Directory.CreateDirectory(Path.Combine(_root, "recursive-camera")).FullName;
+        var nested = Directory.CreateDirectory(Path.Combine(cameraRoot, "DJI", "Log Conversions")).FullName;
+        var originalPath = WriteCube(nested, "Shared Name.cube", 0);
+        WriteCube(nested, "Invalid.cube", 0);
+        File.WriteAllText(Path.Combine(nested, "Invalid.cube"), "not a cube");
+        var first = await _storage.Luts.RefreshAsync(cameraRoot);
+        var original = Assert.Single(first.Resources);
+        Assert.Single(first.Problems);
+
+        var movedFolder = Directory.CreateDirectory(Path.Combine(cameraRoot, "Moved")).FullName;
+        var movedPath = Path.Combine(movedFolder, "Renamed.cube");
+        File.Move(originalPath, movedPath);
+        WriteCube(Path.Combine(cameraRoot, "Duplicate"), "Copy.cube", 0);
+        WriteCube(Path.Combine(cameraRoot, "Different"), "Renamed.cube", 1);
+        var refreshed = await _storage.Luts.RefreshAsync(cameraRoot);
+
+        Assert.Equal(2, refreshed.Resources.Count);
+        Assert.Contains(refreshed.Resources, resource => resource.LutId == original.LutId);
+        Assert.True(File.Exists(await _storage.Luts.ResolvePathAsync(original.LutId, cameraRoot)));
+        Assert.Equal(2, refreshed.Resources.Select(resource => resource.LutId).Distinct().Count());
+        Assert.Equal(2, LutCatalog.CombinedOptions(refreshed.Resources, refreshed.Resources).Count - 1);
+    }
+
+    [Fact]
     public async Task StageFoldersRemainSeparatedWhileEncodingUsesIdentityDeduplicatedUnion()
     {
         var cameraFolder = Directory.CreateDirectory(Path.Combine(_root, "camera-luts")).FullName;
@@ -277,6 +303,7 @@ public sealed class ColorManagementTests : IAsyncLifetime
 
     private static string WriteCube(string folder, string name, int offset)
     {
+        Directory.CreateDirectory(folder);
         var path = Path.Combine(folder, name);
         File.WriteAllBytes(path, Cube(2, offset));
         return path;

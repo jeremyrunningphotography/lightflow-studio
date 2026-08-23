@@ -47,8 +47,13 @@ public partial class PlayerViewerHost : UserControl
     private string? _lastScreengrabDirectory;
     private readonly FrameStepQueue _frameStepQueue = new();
     private bool _updatingColor;
+    private bool _persistentColorEnabled = true;
     private bool _momentaryColorBypass;
     private PlayerColorPipeline? _colorPipeline;
+    private LutLibrarySnapshot? _cameraLibrary;
+    private LutLibrarySnapshot? _creativeLibrary;
+    private long _colorRefreshRevision;
+    private CancellationTokenSource? _colorRefreshCancellation;
 
     private sealed record LutChoice(Guid? LutId, string DisplayName, bool OpensFolder = false)
     {
@@ -163,7 +168,7 @@ public partial class PlayerViewerHost : UserControl
         if (generation != _generation) return;
         var playback = new MediaPlaybackLeaseSession(_coordinator);
         Action<IMediaPlaybackService>? configureColor = preparedColor is null ? null
-            : candidate => candidate.SetColorPipeline(preparedColor.Pipeline, ColorToggleButton.IsChecked != true);
+            : candidate => candidate.SetColorPipeline(preparedColor.Pipeline, !_persistentColorEnabled);
         var service = await playback.OpenAsync(absolutePath, token, configureColor).ConfigureAwait(true);
         if (generation != _generation) { await playback.DisposeAsync().ConfigureAwait(true); return; }
 
@@ -266,8 +271,15 @@ public partial class PlayerViewerHost : UserControl
         _stoppingAtOut = false;
         _retainedSteppedFrame = null;
         _colorPipeline = null;
+        _cameraLibrary = _creativeLibrary = null;
+        _colorRefreshRevision++;
+        _colorRefreshCancellation?.Cancel();
+        _colorRefreshCancellation?.Dispose();
+        _colorRefreshCancellation = null;
+        _momentaryColorBypass = false;
         _updatingColor = true;
         CameraLutCombo.ItemsSource = CreativeLutCombo.ItemsSource = null;
+        ColorToggleButton.IsChecked = _persistentColorEnabled;
         _updatingColor = false;
         SetColorControlsEnabled(false);
         UpdateRangePresentation();
@@ -294,7 +306,7 @@ public partial class PlayerViewerHost : UserControl
     private void SetColorControlsEnabled(bool enabled)
     {
         ColorToggleButton.IsEnabled = enabled;
-        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = enabled && ColorToggleButton.IsChecked == true;
+        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = enabled && _persistentColorEnabled && !_momentaryColorBypass;
     }
 
     private async Task<PreparedColor?> PrepareColorAsync(CancellationToken token)
@@ -338,6 +350,8 @@ public partial class PlayerViewerHost : UserControl
         CameraLutCombo.SelectedItem = cameraChoices.FirstOrDefault(x => x.LutId == prepared.Intent.Camera?.LutId) ?? cameraChoices[0];
         CreativeLutCombo.SelectedItem = creativeChoices.FirstOrDefault(x => x.LutId == prepared.Intent.Creative?.LutId) ?? creativeChoices[0];
         _colorPipeline = prepared.Pipeline;
+        _cameraLibrary = prepared.CameraLibrary;
+        _creativeLibrary = prepared.CreativeLibrary;
         _updatingColor = false;
         SetColorControlsEnabled(true);
     }
@@ -354,6 +368,83 @@ public partial class PlayerViewerHost : UserControl
         return choices.ToArray();
     }
 
+    /// <summary>Refreshes only the stage selectors whose persisted roots changed. A revision guard prevents a
+    /// slower older scan from publishing over a newer Settings save; playback position/state are untouched.</summary>
+    internal async Task RefreshColorFoldersAsync(bool cameraChanged, bool creativeChanged,
+        CancellationToken token = default)
+    {
+        if ((!cameraChanged && !creativeChanged) || _currentAsset?.AssetId is not Guid assetId
+            || _service is null || _lutLibrary is null || _assetColors is null
+            || _cameraLutFolder is null || _creativeLutFolder is null) return;
+        var revision = ++_colorRefreshRevision;
+        var generation = _generation;
+        _colorRefreshCancellation?.Cancel();
+        _colorRefreshCancellation?.Dispose();
+        var refreshCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        _colorRefreshCancellation = refreshCancellation;
+        var refreshToken = refreshCancellation.Token;
+        try
+        {
+            var cameraLibrary = cameraChanged
+                ? await _lutLibrary.RefreshAsync(_cameraLutFolder(), refreshToken).ConfigureAwait(true)
+                : _cameraLibrary;
+            var creativeLibrary = creativeChanged
+                ? await _lutLibrary.RefreshAsync(_creativeLutFolder(), refreshToken).ConfigureAwait(true)
+                : _creativeLibrary;
+            if (cameraLibrary is null || creativeLibrary is null) return;
+            var intent = await _assetColors.GetAsync(assetId, refreshToken).ConfigureAwait(true);
+            var camera = cameraChanged ? await LoadStageAsync(intent.Camera, _cameraLutFolder(), refreshToken).ConfigureAwait(true)
+                : _colorPipeline?.Camera;
+            var creative = creativeChanged ? await LoadStageAsync(intent.Creative, _creativeLutFolder(), refreshToken).ConfigureAwait(true)
+                : _colorPipeline?.Creative;
+            if (revision != _colorRefreshRevision || generation != _generation || _service is null) return;
+
+            _updatingColor = true;
+            if (cameraChanged)
+            {
+                var choices = MakeChoices(cameraLibrary, intent.Camera);
+                CameraLutCombo.ItemsSource = choices;
+                CameraLutCombo.SelectedItem = choices.FirstOrDefault(x => x.LutId == intent.Camera?.LutId) ?? choices[0];
+            }
+            if (creativeChanged)
+            {
+                var choices = MakeChoices(creativeLibrary, intent.Creative);
+                CreativeLutCombo.ItemsSource = choices;
+                CreativeLutCombo.SelectedItem = choices.FirstOrDefault(x => x.LutId == intent.Creative?.LutId) ?? choices[0];
+            }
+            _updatingColor = false;
+            _cameraLibrary = cameraLibrary;
+            _creativeLibrary = creativeLibrary;
+            _colorPipeline = new(camera, creative);
+            _service.SetColorPipeline(_colorPipeline, !_persistentColorEnabled || _momentaryColorBypass);
+            var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>()
+                .FirstOrDefault(reference => reference.Availability != LutResourceAvailability.Available);
+            SetStatus(missing is null ? null : $"Assigned LUT unavailable: {missing.DisplayName}. {missing.Diagnostic}");
+        }
+        catch (OperationCanceledException) when (revision != _colorRefreshRevision || token.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            if (revision == _colorRefreshRevision && generation == _generation)
+                SetStatus($"The Player LUT folders could not be refreshed. {exception.Message}");
+        }
+        finally
+        {
+            if (ReferenceEquals(_colorRefreshCancellation, refreshCancellation))
+            {
+                _colorRefreshCancellation = null;
+                refreshCancellation.Dispose();
+            }
+        }
+    }
+
+    private async Task<CubeLutData?> LoadStageAsync(ColorLutReference? reference, string folder,
+        CancellationToken token)
+    {
+        if (reference is not { Availability: LutResourceAvailability.Available }) return null;
+        var path = await _lutLibrary!.ResolvePathAsync(reference.LutId, folder, token).ConfigureAwait(true);
+        return await Task.Run(() => CubeLutData.Load(path), token).ConfigureAwait(true);
+    }
+
     private async Task ApplyColorIntentAsync(AssetColorIntent intent, CancellationToken token)
     {
         try
@@ -366,7 +457,7 @@ public partial class PlayerViewerHost : UserControl
             var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>().FirstOrDefault(x => x.Availability != LutResourceAvailability.Available);
             _colorPipeline = new(camera, creative);
             RestoreLiveVideoSurface();
-            _service?.SetColorPipeline(_colorPipeline, ColorToggleButton.IsChecked != true || _momentaryColorBypass);
+            _service?.SetColorPipeline(_colorPipeline, !_persistentColorEnabled || _momentaryColorBypass);
             if (missing is not null) SetStatus($"Assigned LUT unavailable: {missing.DisplayName}. {missing.Diagnostic}");
         }
         catch (Exception exception) { _colorPipeline = null; _service?.SetColorPipeline(null, false); SetStatus($"Color could not be applied. {exception.Message}"); }
@@ -403,6 +494,7 @@ public partial class PlayerViewerHost : UserControl
     {
         RestoreLiveVideoSurface();
         var enabled = ColorToggleButton.IsChecked == true;
+        _persistentColorEnabled = enabled;
         CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = enabled;
         if (!enabled) _momentaryColorBypass = false;
         _service?.SetColorPipeline(_colorPipeline, !enabled);
@@ -823,6 +915,7 @@ public partial class PlayerViewerHost : UserControl
                 ColorToggleButton.IsChecked == true && !_momentaryColorBypass:
                 e.Handled = true;
                 _momentaryColorBypass = true;
+                ShowMomentaryColorBypass(true);
                 RestoreLiveVideoSurface();
                 _service.SetColorPipeline(_colorPipeline, true);
                 return;
@@ -858,14 +951,24 @@ public partial class PlayerViewerHost : UserControl
         if (e.Key != Key.C || !_momentaryColorBypass) return;
         e.Handled = true;
         _momentaryColorBypass = false;
-        _service?.SetColorPipeline(_colorPipeline, ColorToggleButton.IsChecked != true);
+        ShowMomentaryColorBypass(false);
+        _service?.SetColorPipeline(_colorPipeline, !_persistentColorEnabled);
     }
 
     private void PlayerViewerHost_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
         if (!_momentaryColorBypass) return;
         _momentaryColorBypass = false;
-        _service?.SetColorPipeline(_colorPipeline, ColorToggleButton.IsChecked != true);
+        ShowMomentaryColorBypass(false);
+        _service?.SetColorPipeline(_colorPipeline, !_persistentColorEnabled);
+    }
+
+    private void ShowMomentaryColorBypass(bool bypass)
+    {
+        _updatingColor = true;
+        ColorToggleButton.IsChecked = bypass ? false : _persistentColorEnabled;
+        _updatingColor = false;
+        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = _persistentColorEnabled && !bypass;
     }
 
     private static bool IsArrowKeyOwnedByFocusedControl(DependencyObject? element)

@@ -1809,8 +1809,27 @@ public partial class MainWindow : Window
     private static string? PickFolder(string description, string? initialFolder = null)
     {
         using var dlg = new Forms.FolderBrowserDialog { Description = description, UseDescriptionForTitle = true };
-        if (!string.IsNullOrWhiteSpace(initialFolder) && Directory.Exists(initialFolder)) dlg.SelectedPath = initialFolder;
+        if (ResolveFolderPickerInitialDirectory(initialFolder) is { } start) dlg.SelectedPath = start;
         return dlg.ShowDialog() == Forms.DialogResult.OK ? dlg.SelectedPath : null;
+    }
+
+    internal static string? ResolveFolderPickerInitialDirectory(string? configuredFolder)
+    {
+        if (string.IsNullOrWhiteSpace(configuredFolder)) return null;
+        try
+        {
+            var candidate = Path.GetFullPath(configuredFolder.Trim());
+            while (!Directory.Exists(candidate))
+            {
+                var parent = Directory.GetParent(candidate)?.FullName;
+                if (string.IsNullOrEmpty(parent) || string.Equals(parent, candidate, StringComparison.OrdinalIgnoreCase))
+                    return null;
+                candidate = parent;
+            }
+            return candidate;
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException
+                                          or NotSupportedException) { return null; }
     }
 
     private void BrowseInput_Click(object sender, RoutedEventArgs e)
@@ -2437,6 +2456,8 @@ public partial class MainWindow : Window
 
         try
         {
+            var previousCameraFolder = _settings.CameraLutFolder;
+            var previousCreativeFolder = _settings.CreativeLutFolder;
             _storage.SaveSettings(settings);
             _settings = _storage.Settings;
             ApplySettingsToBatch(settings);
@@ -2444,6 +2465,10 @@ public partial class MainWindow : Window
             await RefreshDependencyHealthAsync();
             RefreshBatchFiles();
             var lutCount = await RefreshLutsAsync(_settings.CameraLutFolder, _settings.CreativeLutFolder);
+            if (_playerViewerHost is not null)
+                await _playerViewerHost.RefreshColorFoldersAsync(
+                    !string.Equals(previousCameraFolder, _settings.CameraLutFolder, StringComparison.OrdinalIgnoreCase),
+                    !string.Equals(previousCreativeFolder, _settings.CreativeLutFolder, StringComparison.OrdinalIgnoreCase));
             SettingsMessage.Text = $"Settings saved. {lutCount} LUT{(lutCount == 1 ? "" : "s")} available.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

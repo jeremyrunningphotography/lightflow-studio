@@ -130,25 +130,68 @@ internal sealed record FolderLutCandidate(string FilePath, string DisplayName, s
 
 internal static class FolderLutScanner
 {
-    public static (IReadOnlyList<FolderLutCandidate> Candidates, IReadOnlyList<LutFolderProblem> Problems) Scan(string folder)
+    private const int MaxEntries = 100_000;
+
+    public static (IReadOnlyList<FolderLutCandidate> Candidates, IReadOnlyList<LutFolderProblem> Problems) Scan(
+        string folder, CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(folder)) return ([], string.IsNullOrWhiteSpace(folder) ? [] :
             [new("LUT folder", "The configured LUT folder does not exist or is unavailable.")]);
         var candidates = new List<FolderLutCandidate>();
         var problems = new List<LutFolderProblem>();
-        IEnumerable<string> paths;
-        try
+        var paths = new List<string>();
+        var pending = new Stack<string>();
+        pending.Push(folder);
+        var entries = 0;
+        while (pending.Count > 0)
         {
-            paths = Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly)
-                .Where(path => Path.GetExtension(path).Equals(".cube", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray();
+            cancellationToken.ThrowIfCancellationRequested();
+            var current = pending.Pop();
+            try
+            {
+                foreach (var path in Directory.EnumerateFiles(current))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (++entries > MaxEntries)
+                    {
+                        problems.Add(new("LUT folder", $"Discovery stopped after {MaxEntries:N0} filesystem entries."));
+                        pending.Clear();
+                        break;
+                    }
+                    if (!Path.GetExtension(path).Equals(".cube", StringComparison.OrdinalIgnoreCase)) continue;
+                    if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                    {
+                        problems.Add(new(Path.GetRelativePath(folder, path), "Reparse-point file was skipped."));
+                        continue;
+                    }
+                    paths.Add(path);
+                }
+                if (entries > MaxEntries) break;
+                foreach (var directory in Directory.EnumerateDirectories(current))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (++entries > MaxEntries)
+                    {
+                        problems.Add(new("LUT folder", $"Discovery stopped after {MaxEntries:N0} filesystem entries."));
+                        pending.Clear();
+                        break;
+                    }
+                    if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                    {
+                        problems.Add(new(Path.GetRelativePath(folder, directory), "Reparse-point folder was skipped."));
+                        continue;
+                    }
+                    pending.Push(directory);
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                problems.Add(new(Path.GetRelativePath(folder, current), $"The folder could not be read: {exception.Message}"));
+            }
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        foreach (var path in paths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
         {
-            return ([], [new(Path.GetFileName(folder), $"The LUT folder could not be read: {exception.Message}")]);
-        }
-        foreach (var path in paths)
-        {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 var content = File.ReadAllBytes(path);
@@ -191,7 +234,7 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
             return await Task.Run<LutLibrarySnapshot>(() =>
             {
                 var fullFolder = NormalizeFolder(folder);
-                var scan = FolderLutScanner.Scan(fullFolder);
+                var scan = FolderLutScanner.Scan(fullFolder, cancellationToken);
                 var distinct = scan.Candidates.GroupBy(candidate => candidate.ContentSha256, StringComparer.Ordinal)
                     .Select(group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First())
                     .ToArray();
@@ -247,7 +290,7 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
         using var connection = RequireSession().OpenConnection();
         var stored = FindById(connection, lutId);
         if (stored is null) return null;
-        var match = FolderLutScanner.Scan(NormalizeFolder(folder)).Candidates
+        var match = FolderLutScanner.Scan(NormalizeFolder(folder), cancellationToken).Candidates
             .Where(candidate => candidate.ContentSha256 == stored.ContentSha256)
             .OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
         return match is null
@@ -341,11 +384,11 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
         var ids = assetIds.Distinct().ToArray();
         var result = ids.ToDictionary(id => id, Empty);
         if (ids.Length == 0) return result;
-        var availableCamera = FolderLutScanner.Scan(cameraLutFolder()).Candidates.GroupBy(candidate => candidate.ContentSha256,
+        var availableCamera = FolderLutScanner.Scan(cameraLutFolder(), cancellationToken).Candidates.GroupBy(candidate => candidate.ContentSha256,
                 StringComparer.Ordinal).ToDictionary(group => group.Key,
                 group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First(),
                 StringComparer.Ordinal);
-        var availableCreative = FolderLutScanner.Scan(creativeLutFolder()).Candidates.GroupBy(candidate => candidate.ContentSha256,
+        var availableCreative = FolderLutScanner.Scan(creativeLutFolder(), cancellationToken).Candidates.GroupBy(candidate => candidate.ContentSha256,
                 StringComparer.Ordinal).ToDictionary(group => group.Key,
                 group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First(),
                 StringComparer.Ordinal);

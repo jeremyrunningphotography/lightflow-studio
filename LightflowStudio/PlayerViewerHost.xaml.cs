@@ -56,6 +56,9 @@ public partial class PlayerViewerHost : UserControl
     /// <summary>Raised by the Back button or Esc. The host decides what "back" means (for the Browser, returning to Grid presentation at its preserved context).</summary>
     public event EventHandler? BackRequested;
 
+    /// <summary>Raised after a saved review-range change commits so any host can refresh its own presentation.</summary>
+    internal event EventHandler<MediaRangeStateChangedEventArgs>? RangeStateChanged;
+
     internal PlayerViewerAsset? CurrentAsset => _currentAsset;
 
     /// <summary>
@@ -490,7 +493,10 @@ public partial class PlayerViewerHost : UserControl
     {
         var savedRange = range?.IsFullSource == true ? null : range;
         if (_rangeStore is not null && _currentAsset?.AssetId is Guid assetId)
+        {
             await _rangeStore.SaveAsync(assetId, savedRange).ConfigureAwait(true);
+            RangeStateChanged?.Invoke(this, new(assetId, savedRange is not null));
+        }
         _reviewRange = savedRange;
         UpdateRangePresentation();
     }
@@ -710,4 +716,10 @@ public partial class PlayerViewerHost : UserControl
         var hours = (int)value.TotalHours;
         return $"{hours:00}:{value.Minutes:00}:{value.Seconds:00}.{value.Milliseconds:000}";
     }
+}
+
+internal sealed class MediaRangeStateChangedEventArgs(Guid assetId, bool hasSavedRange) : EventArgs
+{
+    public Guid AssetId { get; } = assetId;
+    public bool HasSavedRange { get; } = hasSavedRange;
 }

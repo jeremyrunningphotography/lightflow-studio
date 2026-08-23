@@ -6,6 +6,17 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserGridTests
 {
     [Fact]
+    public void AssetStateRevisionGuard_BlocksOnlyAssetsChangedAfterAReadBegan()
+    {
+        const long readRevision = 10;
+
+        Assert.False(BrowserAssetStateRevisionPolicy.CanApply(readRevision, assetChangedAt: 11));
+        Assert.True(BrowserAssetStateRevisionPolicy.CanApply(readRevision, assetChangedAt: 10));
+        Assert.True(BrowserAssetStateRevisionPolicy.CanApply(readRevision, assetChangedAt: 4));
+        Assert.True(BrowserAssetStateRevisionPolicy.CanApply(readRevision, assetChangedAt: null));
+    }
+
+    [Fact]
     public void PresentableCategories_IsExactlyTheSetIsPresentableAccepts()
     {
         // The single authoritative source for "does the Browser show this category" — a category that's
@@ -202,6 +213,51 @@ public sealed class BrowserGridTests
         var exception = Record.Exception(() => model.ApplyThumbnail(Guid.NewGuid(), @"C:\previews\gone.jpg"));
 
         Assert.Null(exception);
+    }
+
+    [Fact]
+    public void ApplyAssetState_UpdatesOnlyTheMatchingTileWithoutChangingItsThumbnail()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entryA = Image(rootId, "a.jpg");
+        var entryB = Image(rootId, "b.jpg");
+        var assetA = Guid.NewGuid();
+        var assetB = Guid.NewGuid();
+        model.Populate([entryA, entryB]);
+        model.ApplyAssetIdentities([
+            new(assetA, entryA.RelativePath, CatalogReconciliationItemStatus.New),
+            new(assetB, entryB.RelativePath, CatalogReconciliationItemStatus.New)]);
+        model.ApplyThumbnail(assetA, @"C:\previews\a.jpg");
+
+        model.ApplyAssetState(assetA, BrowserAssetState.ReviewRange);
+
+        var tileA = model.Tiles.Single(tile => tile.Name == "a.jpg");
+        var tileB = model.Tiles.Single(tile => tile.Name == "b.jpg");
+        Assert.True(tileA.HasUserAuthoredState);
+        Assert.Equal("Saved In/Out range", tileA.AssetStateLabel);
+        Assert.Equal(@"C:\previews\a.jpg", tileA.ThumbnailPath);
+        Assert.False(tileB.HasUserAuthoredState);
+    }
+
+    [Fact]
+    public void ApplyAssetState_ClearingAllStateRemovesTheIndicatorAndSurvivesRefreshInPlace()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entry = Video(rootId, "clip.mp4");
+        var assetId = Guid.NewGuid();
+        model.Populate([entry]);
+        model.ApplyAssetIdentities([new(assetId, entry.RelativePath, CatalogReconciliationItemStatus.New)]);
+        model.ApplyAssetState(assetId, BrowserAssetState.ReviewRange);
+        var original = model.Tiles.Single();
+
+        model.Populate([Video(rootId, "clip.mp4")]);
+        model.ApplyAssetState(assetId, BrowserAssetState.None);
+
+        Assert.Same(original, model.Tiles.Single());
+        Assert.False(original.HasUserAuthoredState);
+        Assert.Equal(BrowserAssetState.None, original.AssetState);
     }
 
     [Fact]

@@ -8,6 +8,7 @@
  <Window.Resources>
   <local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility"/>
   <local:StringEmptyToVisibilityConverter x:Key="StringEmptyToVisibility"/>
+  <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
 
   <!-- Shared dark "chip" chrome for every standalone Browser toolbar control (the search field, Sort, and
        the quick-filter segmented group) so the row reads as one purpose-designed toolbar rather than a row
@@ -551,6 +552,23 @@
                    <TextBlock Text="{Binding CategoryGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="28"
                     Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
                     Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibility}}"/>
+                   <Border x:Name="BrowserAssetStateMarker" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="5" Width="14" Height="14" CornerRadius="7"
+                    Visibility="{Binding HasUserAuthoredState, Converter={StaticResource BoolToVisibility}}"
+                    ToolTip="{Binding AssetStateLabel}" AutomationProperties.Name="{Binding AssetStateLabel}">
+                    <Border.Style>
+                     <Style TargetType="Border">
+                      <Setter Property="Background" Value="{StaticResource MutedTextBrush}"/>
+                      <Style.Triggers>
+                       <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                        <Setter Property="Background" Value="{StaticResource ShellFocusBrush}"/>
+                       </DataTrigger>
+                      </Style.Triggers>
+                     </Style>
+                    </Border.Style>
+                    <Path Width="6" Height="6" Stretch="Fill" Fill="#FFFFFFFF"
+                     Data="M 3,0 L 6,3 L 3,6 L 0,3 Z"/>
+                   </Border>
                   </Grid>
                  </Border>
                  <StackPanel Grid.Row="1" Margin="1,7,1,0">

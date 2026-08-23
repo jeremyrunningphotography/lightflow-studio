@@ -158,6 +158,37 @@ public sealed class CatalogDatabaseTests : IDisposable
     }
 
     [Fact]
+    public async Task VersionFourManagedLutCatalog_MigratesAssignmentsToFolderBackedMetadata()
+    {
+        var locations = CreateLocations();
+        var versionFour = await new CatalogDatabaseService(locations, null, CatalogMigrations.All.Take(4).ToArray())
+            .CreateNewAsync();
+        var rootId = InsertRoot(versionFour.Session!, "Media");
+        var assetId = InsertAsset(versionFour.Session!, rootId, "clip.mp4", "CLIP.MP4");
+        var lutId = Guid.NewGuid();
+        Execute(versionFour.Session!, """
+            INSERT INTO LutResources
+                (LutId,DisplayName,OriginalFileName,ContentSha256,CubeContent,LutKind,LutSize,CreatedUtc,UpdatedUtc)
+            VALUES ($lut,'Camera','Camera.cube',$hash,X'010203','3d',2,$now,$now);
+            INSERT INTO MediaAssetColor (AssetId,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
+            VALUES ($asset,$lut,NULL,$now,$now);
+            """, ("$lut", lutId.ToString("D")), ("$hash", new string('a', 64)),
+            ("$asset", assetId.ToString("D")), ("$now", DateTime.UtcNow.ToString("O")));
+        await versionFour.Session!.DisposeAsync();
+
+        var migrated = await new CatalogDatabaseService(locations, new RecordingBackup()).OpenExistingAsync();
+
+        Assert.Equal(CatalogMigrations.All[^1].Version, migrated.SchemaVersion);
+        Assert.Equal(1L, Convert.ToInt64(Scalar(migrated.Session!,
+            $"SELECT count(*) FROM MediaAssetColor WHERE AssetId='{assetId:D}' AND CameraLutId='{lutId:D}';")));
+        using var connection = OpenCatalog(migrated.Session!);
+        using var columns = connection.CreateCommand();
+        columns.CommandText = "SELECT count(*) FROM pragma_table_info('LutResources') WHERE name='CubeContent';";
+        Assert.Equal(0L, Convert.ToInt64(columns.ExecuteScalar()));
+        await migrated.Session!.DisposeAsync();
+    }
+
+    [Fact]
     public async Task BackupFailure_PreventsMigration()
     {
         var locations = CreateLocations();

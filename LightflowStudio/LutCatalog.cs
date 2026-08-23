@@ -3,7 +3,8 @@ using System.Text.RegularExpressions;
 
 namespace LightflowStudio;
 
-internal sealed record LutOption(string DisplayName, string FilePath);
+internal sealed record LutOption(string DisplayName, string FilePath, Guid? LutId = null, bool IsManaged = false,
+    LutResourceAvailability Availability = LutResourceAvailability.Available);
 
 internal static partial class LutCatalog
 {
@@ -11,6 +12,22 @@ internal static partial class LutCatalog
     public static readonly LutOption NoLut = new("No LUT", "");
 
     public static IReadOnlyList<LutOption> Options(string folder) => [NoLut, .. Discover(folder)];
+
+    public static IReadOnlyList<LutOption> Options(IEnumerable<ManagedLutResource> resources)
+    {
+        var candidates = resources.Where(resource => resource.Availability == LutResourceAvailability.Available
+                                                     && resource.FilePath is not null)
+            .OrderBy(resource => resource.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(resource => resource.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var options = candidates.GroupBy(resource => resource.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .SelectMany(group => group.Count() == 1
+                ? group.Select(resource => new LutOption(resource.DisplayName, resource.FilePath!, resource.LutId, true))
+                : group.Select((resource, index) => new LutOption($"{resource.DisplayName} ({index + 1})",
+                    resource.FilePath!, resource.LutId, true)))
+            .ToArray();
+        return [NoLut, .. options];
+    }
 
     public static LutOption SelectPreferred(IReadOnlyList<LutOption> options, string? preferredPath) =>
         options.FirstOrDefault(option =>
@@ -23,7 +40,14 @@ internal static partial class LutCatalog
         && (option == NoLut
             || (!string.IsNullOrWhiteSpace(option.FilePath)
                 && option.FilePath.EndsWith(".cube", StringComparison.OrdinalIgnoreCase)
-                && File.Exists(option.FilePath)));
+                && File.Exists(option.FilePath)
+                && (!option.IsManaged || IsSupportedCube(option.FilePath))));
+
+    private static bool IsSupportedCube(string path)
+    {
+        try { return CubeLutValidator.Validate(File.ReadAllBytes(path)).IsValid; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return false; }
+    }
 
     public static IReadOnlyList<LutOption> Discover(string folder)
     {

@@ -40,6 +40,7 @@ public partial class MainWindow : Window
     private readonly IJobHistoryStore _jobHistory;
     private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
     private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
+    private IReadOnlyList<LutOption> _lutOptions = [LutCatalog.NoLut];
     private readonly ObservableCollection<BrowserStorageEntry> _browserStorageEntries = [];
     private readonly BrowserGridModel _browserGrid = new();
     private readonly BrowserTreeModel _browserTree = new();
@@ -195,6 +196,7 @@ public partial class MainWindow : Window
                 LocateTools();
                 await RefreshDependencyHealthAsync();
                 RefreshBatchFiles();
+                await RefreshLutsAsync(_settings.LutFolder);
                 RefreshLuts();
                 await RefreshMediaRootsAsync();
                 await RefreshPreviewUsageAsync();
@@ -2053,19 +2055,16 @@ public partial class MainWindow : Window
         if (updateGuidance) CurrentFileText.Text = presentation.Guidance;
     }
 
-    private void RefreshLuts_Click(object sender, RoutedEventArgs e) => RefreshLuts();
+    private async void RefreshLuts_Click(object sender, RoutedEventArgs e) => await RefreshLutsAsync(_settings.LutFolder);
 
     private int RefreshLuts()
     {
         var previousSelection = LutSelection.SelectedItem as LutOption;
         var preferredPath = previousSelection?.FilePath ?? _state.LastLutPath;
-        var options = LutCatalog.Options(_settings.LutFolder);
+        var options = _lutOptions;
         var lutCount = options.Count - 1;
         LutSelection.ItemsSource = options;
         LutSelection.SelectedItem = LutCatalog.SelectPreferred(options, preferredPath);
-        SettingsMessage.Text = lutCount == 0
-            ? $"No .cube LUT files found in {_settings.LutFolder}. Encoding will run without a LUT."
-            : $"Loaded {lutCount} LUT{(lutCount == 1 ? "" : "s")}.";
         return lutCount;
     }
 
@@ -2096,10 +2095,43 @@ public partial class MainWindow : Window
             SettingsScreengrabDirectory.Text = folder;
     }
 
-    private void BrowseSettingsLutFolder_Click(object sender, RoutedEventArgs e)
+    private async void BrowseSettingsLutFolder_Click(object sender, RoutedEventArgs e)
     {
         if (PickFolder("Select the folder containing .cube LUT files", SettingsLutFolder.Text) is { } folder)
+        {
             SettingsLutFolder.Text = folder;
+            await RefreshLutsAsync(folder);
+        }
+    }
+
+    private async Task<int> RefreshLutsAsync(string folder)
+    {
+        if (!_storage.CatalogAvailable)
+        {
+            _lutOptions = [LutCatalog.NoLut];
+            return RefreshLuts();
+        }
+        try
+        {
+            var snapshot = await _storage.Luts.RefreshAsync(folder);
+            _lutOptions = LutCatalog.Options(snapshot.Resources);
+            var count = RefreshLuts();
+            SettingsLutFolderStatus.Text = snapshot.Problems.Count == 0
+                ? count == 0 ? "No compatible .cube LUTs found in this folder." :
+                    $"{count} compatible LUT{(count == 1 ? "" : "s")} available."
+                : $"{count} compatible LUT{(count == 1 ? "" : "s")} available; "
+                    + $"{snapshot.Problems.Count} file{(snapshot.Problems.Count == 1 ? " was" : "s were")} skipped. "
+                    + $"{snapshot.Problems[0].FileName}: {snapshot.Problems[0].Diagnostic}";
+            return count;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException
+                                          or NotSupportedException or InvalidOperationException or SqliteException)
+        {
+            _lutOptions = [LutCatalog.NoLut];
+            var count = RefreshLuts();
+            SettingsLutFolderStatus.Text = $"The LUT folder could not be read: {exception.Message}";
+            return count;
+        }
     }
 
     private void BrowseSettingsFfmpeg_Click(object sender, RoutedEventArgs e)
@@ -2390,7 +2422,7 @@ public partial class MainWindow : Window
             LocateTools();
             await RefreshDependencyHealthAsync();
             RefreshBatchFiles();
-            var lutCount = RefreshLuts();
+            var lutCount = await RefreshLutsAsync(_settings.LutFolder);
             SettingsMessage.Text = $"Settings saved. {lutCount} LUT{(lutCount == 1 ? "" : "s")} available.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

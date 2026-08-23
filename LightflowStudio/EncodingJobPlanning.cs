@@ -22,7 +22,8 @@ internal sealed record EncodingSource(
     MediaRange? MediaRange = null,
     ResolvedMediaRange? ResolvedRange = null,
     long? LastWriteUtcTicks = null,
-    bool? HasAudio = null);
+    bool? HasAudio = null,
+    int? CapabilityOrder = null);
 
 internal sealed record EncodingItemResult(
     int ExitCode,
@@ -48,7 +49,9 @@ internal static class EncodingJobPlanner
         DateTimeOffset? createdAt = null)
     {
         var items = sources
-            .OrderBy(source => source.Path, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(source => source.CapabilityOrder.HasValue ? 0 : 1)
+            .ThenBy(source => source.CapabilityOrder)
+            .ThenBy(source => source.CapabilityOrder.HasValue ? null : source.Path, StringComparer.OrdinalIgnoreCase)
             .Select(source => new JobItemDefinition(
                 Guid.NewGuid(),
                 source.Path,

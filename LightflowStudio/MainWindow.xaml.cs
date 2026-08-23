@@ -95,6 +95,9 @@ public partial class MainWindow : Window
     private PlayerViewerHost? _playerViewerHost;
     private ScrollViewer? _browserGridScrollViewer;
     private double _browserGridScrollOffset;
+    private CapabilityInvocation? _browserEncodingInvocation;
+    private CancellationTokenSource? _browserEncodingHandoffCts;
+    private bool _suppressBatchInputChange;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -212,6 +215,8 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _browserEncodingHandoffCts?.Cancel();
+            _browserEncodingHandoffCts = null;
             if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
             _browserNavigation.RecursiveScopeProgressChanged -= BrowserNavigation_RecursiveScopeProgressChanged;
             _browserNavigation.EffectiveScopeDetermined -= BrowserNavigation_EffectiveScopeDetermined;
@@ -1554,6 +1559,7 @@ public partial class MainWindow : Window
         var remaining = progress is null ? 0 : progress.Pending + progress.Running;
         BrowserStatusText.Text = BrowserStatusPresentation.Describe(_browserGrid.VisibleCount, _browserGrid.TotalCount,
             _browserGrid.SelectedKeys.Count, _browserGrid.SelectedTotalSizeBytes, isGenerating, remaining);
+        BrowserEncodeButton.IsEnabled = _browserGrid.SelectedKeys.Count > 0;
     }
 
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1584,6 +1590,7 @@ public partial class MainWindow : Window
         var visibility = isBrowserActive ? Visibility.Visible : Visibility.Collapsed;
         BrowserStatusText.Visibility = visibility;
         BrowserStatusDivider.Visibility = visibility;
+        BrowserEncodeButton.Visibility = visibility;
         // #110: thumbnail size only applies to Grid presentation — hidden while the Player/Viewer is showing,
         // exactly as it is already hidden outside the Browser tab entirely.
         BrowserPresentationControls.Visibility = isBrowserActive && _browserPresentation == BrowserPresentationMode.Grid
@@ -1658,6 +1665,97 @@ public partial class MainWindow : Window
 
     private void OpenEncodingWorkspace_Click(object sender, RoutedEventArgs e) =>
         MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
+
+    private async void BrowserEncode_Click(object sender, RoutedEventArgs e)
+    {
+        var assetIds = _browserGrid.SelectedAssetIdsInBrowserOrder;
+        if (assetIds.Count == 0)
+        {
+            MessageBox.Show("Select one or more Browser videos first.", "Batch Encode",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var location = _lastLoadedBrowserState?.Location;
+        if (location is null)
+        {
+            MessageBox.Show("The current Browser location is no longer available.", "Batch Encode",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        await ApplyEncodingHandoffAsync(new CapabilityInvocation("video.encode", assetIds,
+            new CapabilitySourceContext(location.RootId, location.RelativeFolder)));
+    }
+
+    private async Task ApplyEncodingHandoffAsync(CapabilityInvocation invocation)
+    {
+        _browserEncodingHandoffCts?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        _browserEncodingHandoffCts = cancellation;
+        BrowserEncodeButton.IsEnabled = false;
+        try
+        {
+            var result = await new EncodingCapabilityHandoff(_storage.MediaAssets, _storage.MediaRoots,
+                    _storage.MediaRanges)
+                .MaterializeAsync(invocation, cancellation.Token).ConfigureAwait(true);
+            if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return;
+            if (!result.Succeeded)
+            {
+                if (ReferenceEquals(_browserEncodingInvocation, invocation))
+                {
+                    _batchMetadataCts?.Cancel();
+                    _batchFiles.Clear();
+                    UpdateBatchFileSummary();
+                }
+                MessageBox.Show("The selection was not sent to Encoding:\n\n" + string.Join("\n", result.Errors),
+                    "Cannot encode selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _batchFolderRefreshTimer.Stop();
+            _batchMetadataCts?.Cancel();
+            _batchMetadataCts?.Dispose();
+            _batchMetadataCts = new CancellationTokenSource();
+            _browserEncodingInvocation = invocation;
+            _suppressBatchInputChange = true;
+            try
+            {
+                InputFolder.Text = result.InputFolder!;
+                Recursive.IsChecked = result.IncludeSubfolders;
+            }
+            finally { _suppressBatchInputChange = false; }
+
+            _batchFiles.Clear();
+            for (var index = 0; index < result.Inputs.Count; index++)
+            {
+                var input = result.Inputs[index];
+                var display = Path.GetRelativePath(InputFolder.Text, input.SourcePath);
+                var option = new BatchFileOption(input.SourcePath, display, input.FileSizeBytes, index);
+                if (input.InitialTrim is { IsFullSource: false } trim) option.ApplyTrim(trim);
+                _batchFiles.Add(option);
+            }
+            UpdatePreserveFolderStructureUi();
+            UpdateBatchFileSummary();
+            _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
+            MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
+            CurrentFileText.Text = $"{result.Inputs.Count} Browser video{(result.Inputs.Count == 1 ? "" : "s")} ready to encode.";
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)
+        {
+            MessageBox.Show($"The Browser selection could not be prepared: {exception.Message}",
+                "Cannot encode selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            if (ReferenceEquals(_browserEncodingHandoffCts, cancellation))
+            {
+                _browserEncodingHandoffCts = null;
+                BrowserEncodeButton.IsEnabled = _browserGrid.SelectedKeys.Count > 0;
+            }
+            cancellation.Dispose();
+        }
+    }
     private async Task RefreshDependencyHealthAsync()
     {
         DependencySummary.Text = "Checking the tools needed for encoding…";
@@ -1781,7 +1879,8 @@ public partial class MainWindow : Window
     }
     private void InputFolder_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
-        if (!IsLoaded) return;
+        if (!IsLoaded || _suppressBatchInputChange) return;
+        _browserEncodingInvocation = null;
         _batchFolderRefreshTimer.Stop();
         _batchMetadataCts?.Cancel();
         RememberBatchFileSelection();
@@ -1791,7 +1890,8 @@ public partial class MainWindow : Window
     }
     private void Recursive_Changed(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded) return;
+        if (!IsLoaded || _suppressBatchInputChange) return;
+        _browserEncodingInvocation = null;
         UpdatePreserveFolderStructureUi();
         RefreshBatchFiles();
     }
@@ -1802,7 +1902,11 @@ public partial class MainWindow : Window
             ? Visibility.Visible
             : Visibility.Collapsed;
     }
-    private void RefreshBatchFiles_Click(object sender, RoutedEventArgs e) => RefreshBatchFiles();
+    private async void RefreshBatchFiles_Click(object sender, RoutedEventArgs e)
+    {
+        if (_browserEncodingInvocation is { } invocation) await ApplyEncodingHandoffAsync(invocation);
+        else RefreshBatchFiles();
+    }
     private void BatchFileSelection_Click(object sender, RoutedEventArgs e)
     {
         RememberBatchFileSelection();
@@ -1851,6 +1955,7 @@ public partial class MainWindow : Window
 
     private void RefreshBatchFiles()
     {
+        if (_browserEncodingInvocation is not null) return;
         _batchFolderRefreshTimer.Stop();
         RememberBatchFileSelection();
         _batchMetadataCts?.Cancel();
@@ -2936,7 +3041,8 @@ public partial class MainWindow : Window
                 file.TrimRange,
                 resolvedRanges?.GetValueOrDefault(file.FilePath),
                 file.SourceIdentity?.LastWriteUtcTicks,
-                file.Metadata?.HasAudio);
+                file.Metadata?.HasAudio,
+                file.CapabilityOrder);
         });
         return EncodingJobPlanner.Plan(EncodingJobPlanner.Define(options, sources));
     }

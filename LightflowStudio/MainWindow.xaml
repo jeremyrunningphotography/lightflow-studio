@@ -990,6 +990,9 @@
       Content="&#xE80A;" ToolTip="Increase thumbnail size" AutomationProperties.Name="Increase thumbnail size"
       Click="BrowserThumbnailSizeIncreaseButton_Click"/>
     </StackPanel>
+    <Button x:Name="BrowserEncodeButton" DockPanel.Dock="Right" Margin="0,0,12,0" Padding="12,4"
+     Content="Encode" ToolTip="Send the selected videos to Batch Encode" AutomationProperties.Name="Encode selected Browser videos"
+     IsEnabled="False" Visibility="Collapsed" Click="BrowserEncode_Click"/>
     <TextBlock x:Name="BrowserStatusText" DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
      FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="380" Margin="0,0,14,0" Visibility="Collapsed"/>
     <Border x:Name="BrowserStatusDivider" DockPanel.Dock="Right" Width="1" Margin="0,9,14,9" Background="{StaticResource ShellDividerBrush}" Visibility="Collapsed"/>

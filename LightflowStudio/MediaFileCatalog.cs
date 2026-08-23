@@ -9,12 +9,14 @@ internal static class MediaFileCatalog
         ".mp4", ".mov", ".mkv", ".mxf"
     };
 
+    public static bool IsSupported(string path) => SupportedExtensions.Contains(Path.GetExtension(path));
+
     public static IReadOnlyList<string> Discover(string folder, bool recursive, string? excludedFolder = null, string? excludedFilenameSuffix = null)
     {
         if (!Directory.Exists(folder)) return [];
         var option = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         return Directory.EnumerateFiles(folder, "*", option)
-            .Where(path => SupportedExtensions.Contains(Path.GetExtension(path)))
+            .Where(IsSupported)
             .Where(path => string.IsNullOrWhiteSpace(excludedFolder) || !IsWithin(excludedFolder, path))
             .Where(path => !IsGeneratedOutput(folder, path))
             .Where(path => !IsResolutionSuffixedOutput(path))

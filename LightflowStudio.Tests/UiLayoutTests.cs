@@ -1016,6 +1016,32 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserAssetStateMarker_IsCompactVectorNeutralByDefaultAndOrangeWithTileSelection()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var marker = Named(document, "BrowserAssetStateMarker");
+
+        Assert.Equal("14", (string?)marker.Attribute("Width"));
+        Assert.Equal("14", (string?)marker.Attribute("Height"));
+        Assert.Equal("{Binding AssetStateLabel}", (string?)marker.Attribute("ToolTip"));
+        Assert.Equal("{Binding AssetStateLabel}", (string?)marker.Attribute("AutomationProperties.Name"));
+
+        var style = marker.Descendants(ns + "Style").Single();
+        Assert.Contains(style.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Background" &&
+            (string?)setter.Attribute("Value") == "{StaticResource MutedTextBrush}");
+        var selected = style.Descendants(ns + "DataTrigger").Single(trigger =>
+            (string?)trigger.Attribute("Binding") == "{Binding IsSelected}" &&
+            (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(selected.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Background" &&
+            (string?)setter.Attribute("Value") == "{StaticResource ShellFocusBrush}");
+        Assert.Single(marker.Elements(ns + "Path"));
+        Assert.Empty(marker.Elements(ns + "TextBlock"));
+    }
+
+    [Fact]
     public void GlobalStatusText_HasNoXamlVisibilityToggleAndAlwaysOccupiesTheFillArea()
     {
         // App health must never disappear just because the Browser tab isn't active — only the Browser

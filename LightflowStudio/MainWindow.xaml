@@ -552,12 +552,22 @@
                    <TextBlock Text="{Binding CategoryGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="28"
                     Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
                     Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibility}}"/>
-                   <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" Width="22" Height="22"
-                    CornerRadius="11" Background="{StaticResource ShellFocusBrush}"
+                   <Border x:Name="BrowserAssetStateMarker" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="5" Width="14" Height="14" CornerRadius="7"
                     Visibility="{Binding HasUserAuthoredState, Converter={StaticResource BoolToVisibility}}"
                     ToolTip="{Binding AssetStateLabel}" AutomationProperties.Name="{Binding AssetStateLabel}">
-                    <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
-                     Foreground="#FFFFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border.Style>
+                     <Style TargetType="Border">
+                      <Setter Property="Background" Value="{StaticResource MutedTextBrush}"/>
+                      <Style.Triggers>
+                       <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                        <Setter Property="Background" Value="{StaticResource ShellFocusBrush}"/>
+                       </DataTrigger>
+                      </Style.Triggers>
+                     </Style>
+                    </Border.Style>
+                    <Path Width="6" Height="6" Stretch="Fill" Fill="#FFFFFFFF"
+                     Data="M 3,0 L 6,3 L 3,6 L 0,3 Z"/>
                    </Border>
                   </Grid>
                  </Border>

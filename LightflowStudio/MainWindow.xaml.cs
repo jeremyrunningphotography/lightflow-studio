@@ -40,6 +40,8 @@ public partial class MainWindow : Window
     private readonly IJobHistoryStore _jobHistory;
     private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
     private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
+    private readonly ObservableCollection<ManagedLutDisplay> _managedLuts = [];
+    private IReadOnlyList<LutOption> _managedLutOptions = [];
     private readonly ObservableCollection<BrowserStorageEntry> _browserStorageEntries = [];
     private readonly BrowserGridModel _browserGrid = new();
     private readonly BrowserTreeModel _browserTree = new();
@@ -177,6 +179,7 @@ public partial class MainWindow : Window
                 BatchFileList.ItemsSource = _batchFiles;
                 HistoryList.ItemsSource = _historyRecords;
                 MediaRootsList.ItemsSource = _mediaRoots;
+                ManagedLutList.ItemsSource = _managedLuts;
                 BrowserFolderTree.ItemsSource = _browserTree.Roots;
                 BrowserGridRows.ItemsSource = _browserGrid.Rows;
                 if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed += BrowserMonitoring_FolderRefreshed;
@@ -195,6 +198,7 @@ public partial class MainWindow : Window
                 LocateTools();
                 await RefreshDependencyHealthAsync();
                 RefreshBatchFiles();
+                await RefreshManagedLutsAsync();
                 RefreshLuts();
                 await RefreshMediaRootsAsync();
                 await RefreshPreviewUsageAsync();
@@ -2053,13 +2057,13 @@ public partial class MainWindow : Window
         if (updateGuidance) CurrentFileText.Text = presentation.Guidance;
     }
 
-    private void RefreshLuts_Click(object sender, RoutedEventArgs e) => RefreshLuts();
+    private async void RefreshLuts_Click(object sender, RoutedEventArgs e) => await RefreshManagedLutsAsync();
 
     private int RefreshLuts()
     {
         var previousSelection = LutSelection.SelectedItem as LutOption;
         var preferredPath = previousSelection?.FilePath ?? _state.LastLutPath;
-        var options = LutCatalog.Options(_settings.LutFolder);
+        var options = LutCatalog.Options(_settings.LutFolder, _managedLutOptions);
         var lutCount = options.Count - 1;
         LutSelection.ItemsSource = options;
         LutSelection.SelectedItem = LutCatalog.SelectPreferred(options, preferredPath);
@@ -2100,6 +2104,103 @@ public partial class MainWindow : Window
     {
         if (PickFolder("Select the folder containing .cube LUT files", SettingsLutFolder.Text) is { } folder)
             SettingsLutFolder.Text = folder;
+    }
+
+    private sealed record ManagedLutDisplay(ManagedLutResource Resource, string DisplayText);
+
+    private async Task RefreshManagedLutsAsync()
+    {
+        _managedLuts.Clear();
+        var options = new List<LutOption>();
+        if (_storage.CatalogAvailable)
+        {
+            foreach (var resource in await _storage.ManagedLuts.ListAsync())
+            {
+                var status = resource.Availability == LutResourceAvailability.Available
+                    ? $"{(resource.Dimension == LutDimension.OneDimensional ? "1D" : "3D")} {resource.Size}"
+                    : $"Unavailable — {resource.Diagnostic}";
+                _managedLuts.Add(new(resource,
+                    $"{resource.DisplayName}  ·  {status}  ·  {resource.ContentSha256[..12]}"));
+                if (resource.Availability != LutResourceAvailability.Available) continue;
+                try
+                {
+                    var path = await _storage.ManagedLuts.MaterializeAsync(resource.LutId);
+                    options.Add(new($"{resource.DisplayName} (managed {resource.ContentSha256[..8]})", path,
+                        resource.LutId, IsManaged: true));
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+                {
+                    _activityLogFile.TryAppend($"[LUT] Could not materialize '{resource.DisplayName}': {exception.Message}");
+                }
+            }
+        }
+        _managedLutOptions = options;
+        ManagedLutEmptyText.Visibility = _managedLuts.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        RefreshLuts();
+    }
+
+    private async void RefreshManagedLuts_Click(object sender, RoutedEventArgs e) => await RefreshManagedLutsAsync();
+
+    private async void ImportManagedLuts_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_storage.CatalogAvailable)
+        {
+            MessageBox.Show("The Catalog must be available to manage LUT resources.", "Catalog unavailable",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var dialog = new OpenFileDialog
+        {
+            Title = "Import .cube LUTs into Lightflow",
+            Filter = "Cube LUT files (*.cube)|*.cube",
+            Multiselect = true,
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog() != true) return;
+        var imported = 0;
+        var duplicates = 0;
+        var failures = new List<string>();
+        foreach (var path in dialog.FileNames)
+        {
+            var result = await _storage.ManagedLuts.ImportAsync(path);
+            if (result.Status == LutImportStatus.Imported) imported++;
+            else if (result.Status == LutImportStatus.DuplicateContent) duplicates++;
+            else failures.Add($"{Path.GetFileName(path)}: {result.Diagnostic}");
+        }
+        await RefreshManagedLutsAsync();
+        SettingsMessage.Text = $"Imported {imported} LUT{(imported == 1 ? "" : "s")}."
+            + (duplicates > 0 ? $" {duplicates} duplicate-content file{(duplicates == 1 ? " was" : "s were")} already managed." : "")
+            + (failures.Count > 0 ? $" {failures.Count} failed validation." : "");
+        if (failures.Count > 0)
+            MessageBox.Show(string.Join(Environment.NewLine, failures), "Some LUTs were not imported",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    private async void RenameManagedLut_Click(object sender, RoutedEventArgs e)
+    {
+        if (ManagedLutList.SelectedItem is not ManagedLutDisplay selected) return;
+        var name = PromptForMediaRootName("Rename managed LUT", "Display name", selected.Resource.DisplayName);
+        if (name is null) return;
+        try
+        {
+            await _storage.ManagedLuts.RenameAsync(selected.Resource.LutId, name);
+            await RefreshManagedLutsAsync();
+        }
+        catch (ArgumentException exception)
+        {
+            MessageBox.Show(exception.Message, "Invalid LUT name", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void RemoveManagedLut_Click(object sender, RoutedEventArgs e)
+    {
+        if (ManagedLutList.SelectedItem is not ManagedLutDisplay selected) return;
+        if (MessageBox.Show($"Remove '{selected.Resource.DisplayName}' from the managed library? The imported source file is not changed.",
+                "Remove managed LUT", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        var result = await _storage.ManagedLuts.RemoveAsync(selected.Resource.LutId);
+        if (!result.Succeeded)
+            MessageBox.Show(result.Diagnostic, "LUT was not removed", MessageBoxButton.OK, MessageBoxImage.Warning);
+        await RefreshManagedLutsAsync();
     }
 
     private void BrowseSettingsFfmpeg_Click(object sender, RoutedEventArgs e)

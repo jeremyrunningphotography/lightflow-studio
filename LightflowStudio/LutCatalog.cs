@@ -3,7 +3,8 @@ using System.Text.RegularExpressions;
 
 namespace LightflowStudio;
 
-internal sealed record LutOption(string DisplayName, string FilePath);
+internal sealed record LutOption(string DisplayName, string FilePath, Guid? LutId = null, bool IsManaged = false,
+    LutResourceAvailability Availability = LutResourceAvailability.Available);
 
 internal static partial class LutCatalog
 {
@@ -11,6 +12,10 @@ internal static partial class LutCatalog
     public static readonly LutOption NoLut = new("No LUT", "");
 
     public static IReadOnlyList<LutOption> Options(string folder) => [NoLut, .. Discover(folder)];
+
+    public static IReadOnlyList<LutOption> Options(string folder, IEnumerable<LutOption> managed) =>
+        [NoLut, .. managed.OrderBy(option => option.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(option => option.LutId), .. Discover(folder)];
 
     public static LutOption SelectPreferred(IReadOnlyList<LutOption> options, string? preferredPath) =>
         options.FirstOrDefault(option =>

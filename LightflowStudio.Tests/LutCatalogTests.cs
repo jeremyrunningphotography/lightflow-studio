@@ -70,6 +70,19 @@ public sealed class LutCatalogTests : IDisposable
     }
 
     [Fact]
+    public void Options_CombinesManagedAndExternalLutsInOneEncodingLibrary()
+    {
+        File.WriteAllText(Path.Combine(_folder, "External.cube"), "LUT");
+        var managedId = Guid.NewGuid();
+        var options = LutCatalog.Options(_folder,
+            [new LutOption("Managed", Path.Combine(_folder, "cache.cube"), managedId, IsManaged: true)]);
+
+        Assert.Equal(["No LUT", "Managed", "External"], options.Select(option => option.DisplayName));
+        Assert.Equal(managedId, options[1].LutId);
+        Assert.True(options[1].IsManaged);
+    }
+
+    [Fact]
     public void SelectPreferred_PreservesNoLutAndFallsBackToItWhenSavedLutIsMissing()
     {
         var options = LutCatalog.Options(Path.Combine(_folder, "missing"));

@@ -375,6 +375,20 @@ internal sealed class BrowserGridModel
     public BrowserQuery Query { get; private set; } = BrowserQuery.Default;
     public IReadOnlySet<string> SelectedKeys => _selection.Snapshot();
 
+    /// <summary>Selected assets in the Browser's current deterministic projection order.</summary>
+    public IReadOnlyList<Guid> SelectedAssetIdsInBrowserOrder
+    {
+        get
+        {
+            var selected = _selection.Snapshot();
+            return _visibleTiles.Where(tile => selected.Contains(tile.Key) && tile.AssetId is not null)
+                .Select(tile => tile.AssetId!.Value)
+                .Concat(_allTiles.Where(tile => selected.Contains(tile.Key) && tile.AssetId is not null &&
+                    !_visibleTiles.Contains(tile)).Select(tile => tile.AssetId!.Value))
+                .ToArray();
+        }
+    }
+
     /// <summary>
     /// Sum of <see cref="BrowserGridTile.FileSizeBytes"/> for every selected item, regardless of whether the
     /// current query currently shows it — selection is a property of the item, not of the current view.

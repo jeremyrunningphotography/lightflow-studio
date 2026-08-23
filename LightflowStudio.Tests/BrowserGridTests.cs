@@ -972,6 +972,26 @@ public sealed class BrowserGridTests
     }
 
     [Fact]
+    public void SelectedAssetIdsInBrowserOrder_FollowsCurrentProjectionWithoutChangingSelection()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var a = Video(rootId, "a.mov");
+        var z = Video(rootId, "z.mov");
+        var assetA = Guid.NewGuid();
+        var assetZ = Guid.NewGuid();
+        model.Populate([a, z]);
+        model.ApplyAssetIdentities([
+            new(assetA, a.RelativePath, CatalogReconciliationItemStatus.New),
+            new(assetZ, z.RelativePath, CatalogReconciliationItemStatus.New)]);
+        model.SelectAll();
+        model.SetQuery(BrowserQuery.Default with { SortDescending = true });
+
+        Assert.Equal([assetZ, assetA], model.SelectedAssetIdsInBrowserOrder);
+        Assert.Equal(2, model.SelectedKeys.Count);
+    }
+
+    [Fact]
     public void ReapplyQuery_RecomputesOrderWhenUnderlyingMetadataChangedWithoutTheQueryItselfChanging()
     {
         var model = new BrowserGridModel();

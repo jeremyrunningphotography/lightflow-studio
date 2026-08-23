@@ -5,6 +5,17 @@ namespace LightflowStudio.Tests;
 
 public sealed class EncodingJobPlannerTests : IDisposable
 {
+    [Fact]
+    public void Define_preserves_explicit_capability_order_without_changing_legacy_sort()
+    {
+        var second = Source("z.mov", 60) with { CapabilityOrder = 0 };
+        var first = Source("a.mov", 60) with { CapabilityOrder = 1 };
+
+        var definition = Define(second, first);
+
+        Assert.Equal([second.Path, first.Path], definition.Items.Select(item => item.SourceIdentity));
+    }
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"Lightflow-JobPlan-{Guid.NewGuid():N}");
     private string OutputRoot => Path.Combine(_root, "output");
     private string IdentityCache => Path.Combine(_root, "identity-cache");

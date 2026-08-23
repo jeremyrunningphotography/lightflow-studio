@@ -16,11 +16,12 @@ internal sealed class BatchFileOption : INotifyPropertyChanged
     private MediaRange? _trimRange;
     private TrimIndicatorPresentation _trimIndicator = TrimIndicatorPresentation.For(null, null);
 
-    public BatchFileOption(string filePath, string displayName, long fileSizeBytes = 0)
+    public BatchFileOption(string filePath, string displayName, long fileSizeBytes = 0, int? capabilityOrder = null)
     {
         FilePath = filePath;
         DisplayName = displayName;
         FileSizeBytes = fileSizeBytes;
+        CapabilityOrder = capabilityOrder;
         SourceIdentity = TrimSourceIdentity.Read(filePath);
         _detailsText = $"Reading details… · {MediaMetadataPresentation.FormatSize(fileSizeBytes)}";
     }
@@ -28,6 +29,7 @@ internal sealed class BatchFileOption : INotifyPropertyChanged
     public string FilePath { get; }
     public string DisplayName { get; }
     public long FileSizeBytes { get; }
+    public int? CapabilityOrder { get; }
     public TrimSourceIdentity? SourceIdentity { get; }
     public MediaMetadata? Metadata { get; private set; }
     public bool MetadataError { get; private set; }

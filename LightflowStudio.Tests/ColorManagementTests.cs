@@ -41,6 +41,22 @@ public sealed class ColorManagementTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OverlappingFolderRefreshesReconcileOneStableResourceWithoutDatabaseRaces()
+    {
+        WriteCube(_luts, "Camera.cube", 0);
+
+        var snapshots = await Task.WhenAll(Enumerable.Range(0, 12)
+            .Select(_ => _storage.Luts.RefreshAsync(_luts)));
+
+        var expected = Assert.Single(snapshots[0].Resources).LutId;
+        Assert.All(snapshots, snapshot => Assert.Equal(expected, Assert.Single(snapshot.Resources).LutId));
+        using var connection = new CatalogSqliteConnectionFactory(_storage.CatalogSession.DatabasePath).OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT count(*) FROM LutResources;";
+        Assert.Equal(1L, Convert.ToInt64(command.ExecuteScalar()));
+    }
+
+    [Fact]
     public async Task FolderRefresh_SurfacesInvalidFilesInHumanTerms()
     {
         File.WriteAllText(Path.Combine(_luts, "broken.cube"), "not a cube");

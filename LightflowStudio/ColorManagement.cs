@@ -129,56 +129,65 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
     Func<DateTimeOffset>? utcNow = null) : ILutLibrary
 {
     private readonly Func<DateTimeOffset> _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
-    public Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default) =>
-        Task.Run<LutLibrarySnapshot>(() =>
+    public async Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default)
+    {
+        await _refreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            var fullFolder = NormalizeFolder(folder);
-            var scan = FolderLutScanner.Scan(fullFolder);
-            var distinct = scan.Candidates.GroupBy(candidate => candidate.ContentSha256, StringComparer.Ordinal)
-                .Select(group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First())
-                .ToArray();
-            using var connection = RequireSession().OpenConnection();
-            using var transaction = connection.BeginTransaction();
-            var resources = new List<ManagedLutResource>();
-            foreach (var candidate in distinct)
+            return await Task.Run<LutLibrarySnapshot>(() =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var resource = FindByHash(connection, transaction, candidate.ContentSha256);
-                var now = FormatUtc(_utcNow());
-                if (resource is null)
+                var fullFolder = NormalizeFolder(folder);
+                var scan = FolderLutScanner.Scan(fullFolder);
+                var distinct = scan.Candidates.GroupBy(candidate => candidate.ContentSha256, StringComparer.Ordinal)
+                    .Select(group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First())
+                    .ToArray();
+                using var connection = RequireSession().OpenConnection();
+                using var transaction = connection.BeginTransaction();
+                var resources = new List<ManagedLutResource>();
+                foreach (var candidate in distinct)
                 {
-                    resource = new(StableId(candidate.ContentSha256), candidate.DisplayName, candidate.FileName, candidate.ContentSha256,
-                        LutDimension.ThreeDimensional, candidate.Size, LutResourceAvailability.Available, candidate.FilePath);
-                    using var insert = connection.CreateCommand();
-                    insert.Transaction = transaction;
-                    insert.CommandText = """
-                        INSERT INTO LutResources
-                            (LutId,DisplayName,OriginalFileName,ContentSha256,LutKind,LutSize,CreatedUtc,UpdatedUtc)
-                        VALUES ($id,$name,$file,$hash,'3d',$size,$now,$now);
-                        """;
-                    AddResourceParameters(insert, resource, now);
-                    insert.ExecuteNonQuery();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var resource = FindByHash(connection, transaction, candidate.ContentSha256);
+                    var now = FormatUtc(_utcNow());
+                    if (resource is null)
+                    {
+                        resource = new(StableId(candidate.ContentSha256), candidate.DisplayName, candidate.FileName,
+                            candidate.ContentSha256, LutDimension.ThreeDimensional, candidate.Size,
+                            LutResourceAvailability.Available, candidate.FilePath);
+                        using var insert = connection.CreateCommand();
+                        insert.Transaction = transaction;
+                        insert.CommandText = """
+                            INSERT INTO LutResources
+                                (LutId,DisplayName,OriginalFileName,ContentSha256,LutKind,LutSize,CreatedUtc,UpdatedUtc)
+                            VALUES ($id,$name,$file,$hash,'3d',$size,$now,$now);
+                            """;
+                        AddResourceParameters(insert, resource, now);
+                        insert.ExecuteNonQuery();
+                    }
+                    else
+                    {
+                        resource = resource with { DisplayName = candidate.DisplayName, OriginalFileName = candidate.FileName,
+                            FilePath = candidate.FilePath, Availability = LutResourceAvailability.Available, Diagnostic = null };
+                        using var update = connection.CreateCommand();
+                        update.Transaction = transaction;
+                        update.CommandText = """
+                            UPDATE LutResources SET DisplayName=$name,OriginalFileName=$file,UpdatedUtc=$now
+                            WHERE LutId=$id;
+                            """;
+                        AddResourceParameters(update, resource, now);
+                        update.ExecuteNonQuery();
+                    }
+                    resources.Add(resource);
                 }
-                else
-                {
-                    resource = resource with { DisplayName = candidate.DisplayName, OriginalFileName = candidate.FileName,
-                        FilePath = candidate.FilePath, Availability = LutResourceAvailability.Available, Diagnostic = null };
-                    using var update = connection.CreateCommand();
-                    update.Transaction = transaction;
-                    update.CommandText = """
-                        UPDATE LutResources SET DisplayName=$name,OriginalFileName=$file,UpdatedUtc=$now
-                        WHERE LutId=$id;
-                        """;
-                    AddResourceParameters(update, resource, now);
-                    update.ExecuteNonQuery();
-                }
-                resources.Add(resource);
-            }
-            transaction.Commit();
-            return new(fullFolder, resources.OrderBy(resource => resource.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-                .ThenBy(resource => resource.FilePath, StringComparer.OrdinalIgnoreCase).ToArray(), scan.Problems);
-        }, cancellationToken);
+                transaction.Commit();
+                return new(fullFolder, resources.OrderBy(resource => resource.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                    .ThenBy(resource => resource.FilePath, StringComparer.OrdinalIgnoreCase).ToArray(), scan.Problems);
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        finally { _refreshGate.Release(); }
+    }
 
     public Task<ManagedLutResource?> GetAsync(Guid lutId, string folder,
         CancellationToken cancellationToken = default) => Task.Run(() =>

@@ -12,6 +12,30 @@
 
 Lightflow Studio is evolving from a video-focused application into a capability-based media utility. The architecture changes incrementally: existing capabilities move onto shared contracts as they mature instead of requiring a flag-day rewrite.
 
+## Platform boundaries
+
+Lightflow Studio is Windows-first, not Windows-entangled. Shared product semantics remain platform-neutral wherever practical. Platform-specific implementations belong behind explicit boundaries; platform and runtime concepts must not leak into durable domain models or shared contracts.
+
+- **Domain models stay platform-neutral.** Catalog data, Asset identity, Media ranges, Color intent, Preview identity, Encoding jobs/history, and capability handoffs do not depend on WPF, HWND, Flyleaf, D3D11, DirectShow, or other platform-specific runtime objects.
+- **Playback is an adapter boundary.** Lightflow owns playback semantics; Flyleaf and D3D11 provide the current Windows implementation. Another platform backend could implement the same semantics without redefining Catalog, Color, or range intent.
+- **Color intent is renderer-independent.** Camera/technical and Creative LUT assignments are Lightflow domain state. GPU resources, shader objects, and renderer handles are transient implementation details and never become Catalog state.
+- **Preview generation is independent from live playback.** Rebuildable thumbnails and Previews do not depend on the Windows Player implementation merely because both can render Color.
+- **Encoding stays engine-neutral at shared boundaries.** Job contracts describe media transforms; FFmpeg syntax and process details remain behind Encoding implementation boundaries.
+- **Presentation does not become application logic.** WPF may collect choices and present state, while reusable behavior lives behind typed services and contracts where practical.
+- **Filesystem identity is logical, not OS-path identity.** Stable `RootId + relative path` and `AssetId` semantics remain authoritative. Absolute Windows paths are runtime resolution details rather than durable asset identity.
+- **Platform-specific dependencies are isolated and documented.** Adding a Windows-only dependency or API requires recording the boundary that owns it, the shared contract it implements, whether durable state depends on it, and what another platform would need to replace.
+- **Portability is a design constraint, not a current product commitment.** Do not slow the Windows product with speculative duplicate implementations or premature abstraction. The architectural smell test is: *Could this platform-specific implementation be replaced without changing Lightflow's durable product semantics or migrating user intent?*
+
+This boundary discipline preserves future portability without committing Lightflow Studio to macOS or another platform today.
+
+### Portability review checklist
+
+- [ ] Durable state contains no platform-specific runtime concepts.
+- [ ] Shared contracts do not expose WPF, Flyleaf, or D3D11 types.
+- [ ] Platform-specific code is behind an adapter or service boundary.
+- [ ] Replacing the platform implementation would not require redefining Catalog or user intent.
+- [ ] No unnecessary cross-platform abstraction was introduced before it was needed.
+
 ## Layers
 
 ### Presentation

@@ -359,12 +359,26 @@ internal interface ILutLibraryCache
     LutLibrarySnapshot Snapshot(ColorLutStage stage);
     ManagedLutResource? Get(ColorLutStage stage, Guid lutId);
     string ResolvePath(ColorLutStage stage, Guid lutId);
+    Task<CubeLutData> GetRuntimeAsync(ColorLutStage stage, Guid lutId,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>One authoritative runtime view of both configured LUT roots. Only startup and Settings-root
 /// changes invoke the scanner; Player, Catalog Color availability, and Encoding are in-memory consumers.</summary>
-internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner) : ILutLibraryCache, IDisposable
+internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner, Func<string, CubeLutData>? runtimeLoader = null)
+    : ILutLibraryCache, IDisposable
 {
+    private const int MaximumRuntimeEntries = 16;
+    private const long MaximumRuntimeBytes = 256L * 1024 * 1024;
+
+    private sealed class RuntimeEntry(Lazy<Task<CubeLutData>> value, long lastAccess)
+    {
+        public Lazy<Task<CubeLutData>> Value { get; } = value;
+        public long LastAccess { get; set; } = lastAccess;
+        public long LoadedBytes => Value.IsValueCreated && Value.Value.IsCompletedSuccessfully
+            ? (long)Value.Value.Result.Samples.Length * sizeof(float) : 0;
+    }
+
     private sealed class StageState
     {
         public LutLibrarySnapshot Snapshot { get; set; } = new("", [], []);
@@ -375,6 +389,9 @@ internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner) : ILutLibr
     private readonly object _gate = new();
     private readonly StageState _camera = new();
     private readonly StageState _creative = new();
+    private readonly Dictionary<Guid, RuntimeEntry> _runtime = [];
+    private readonly Func<string, CubeLutData> _runtimeLoader = runtimeLoader ?? CubeLutData.Load;
+    private long _runtimeAccess;
     private Task? _initialization;
 
     public Task InitializeAsync(string cameraFolder, string creativeFolder,
@@ -410,7 +427,11 @@ internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner) : ILutLibr
             var snapshot = await scanner.RefreshAsync(folder, refreshCancellation.Token).ConfigureAwait(false);
             lock (_gate)
             {
-                if (state.Revision == revision) state.Snapshot = snapshot;
+                if (state.Revision == revision)
+                {
+                    state.Snapshot = snapshot;
+                    InvalidateRuntimeEntries();
+                }
                 return state.Snapshot;
             }
         }
@@ -451,6 +472,66 @@ internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner) : ILutLibr
         if (resource.Availability != LutResourceAvailability.Available || string.IsNullOrWhiteSpace(resource.FilePath))
             throw new FileNotFoundException(resource.Diagnostic ?? "The assigned LUT is unavailable.");
         return resource.FilePath;
+    }
+
+    public async Task<CubeLutData> GetRuntimeAsync(ColorLutStage stage, Guid lutId,
+        CancellationToken cancellationToken = default)
+    {
+        RuntimeEntry entry;
+        lock (_gate)
+        {
+            var path = ResolvePathLocked(stage, lutId);
+            if (!_runtime.TryGetValue(lutId, out entry!))
+            {
+                entry = new(new(() => Task.Run(() => _runtimeLoader(path)),
+                    LazyThreadSafetyMode.ExecutionAndPublication), ++_runtimeAccess);
+                _runtime.Add(lutId, entry);
+            }
+            else entry.LastAccess = ++_runtimeAccess;
+        }
+        try { return await entry.Value.Value.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch
+        {
+            lock (_gate)
+                if ((entry.Value.Value.IsFaulted || entry.Value.Value.IsCanceled)
+                    && _runtime.TryGetValue(lutId, out var current) && ReferenceEquals(current, entry))
+                    _runtime.Remove(lutId);
+            throw;
+        }
+        finally
+        {
+            lock (_gate) TrimRuntimeCache(lutId);
+        }
+    }
+
+    private string ResolvePathLocked(ColorLutStage stage, Guid lutId)
+    {
+        var resource = State(stage).Snapshot.Resources.FirstOrDefault(item => item.LutId == lutId)
+            ?? throw new FileNotFoundException("The assigned LUT is not present in the configured LUT collection.");
+        if (resource.Availability != LutResourceAvailability.Available || string.IsNullOrWhiteSpace(resource.FilePath))
+            throw new FileNotFoundException(resource.Diagnostic ?? "The assigned LUT is unavailable.");
+        return resource.FilePath;
+    }
+
+    private void InvalidateRuntimeEntries()
+    {
+        var validIds = _camera.Snapshot.Resources.Concat(_creative.Snapshot.Resources)
+            .Where(resource => resource.Availability == LutResourceAvailability.Available)
+            .Select(resource => resource.LutId).ToHashSet();
+        foreach (var lutId in _runtime.Keys.Where(lutId => !validIds.Contains(lutId)).ToArray())
+            _runtime.Remove(lutId);
+    }
+
+    private void TrimRuntimeCache(Guid retainedLutId)
+    {
+        while (_runtime.Count > MaximumRuntimeEntries || _runtime.Values.Sum(entry => entry.LoadedBytes) > MaximumRuntimeBytes)
+        {
+            var oldest = _runtime.Where(item => item.Key != retainedLutId && item.Value.Value.IsValueCreated
+                                                && item.Value.Value.Value.IsCompleted)
+                .OrderBy(item => item.Value.LastAccess).Select(item => (Guid?)item.Key).FirstOrDefault();
+            if (oldest is null) return;
+            _runtime.Remove(oldest.Value);
+        }
     }
 
     private StageState State(ColorLutStage stage) => stage == ColorLutStage.Camera ? _camera : _creative;

@@ -33,6 +33,7 @@ public partial class PlayerViewerHost : UserControl
     private readonly IAssetColorStore? _assetColors;
     private readonly Func<string>? _cameraLutFolder;
     private readonly Func<string>? _creativeLutFolder;
+    private readonly Action<PlayerOpenMilestone>? _openMilestone;
     private long _generation;
     private MediaPlaybackLeaseSession? _playback;
     private IMediaPlaybackService? _service;
@@ -64,7 +65,8 @@ public partial class PlayerViewerHost : UserControl
     internal PlayerViewerHost(MediaPlaybackCoordinator coordinator, IMediaRangeStore? rangeStore = null,
         IFrameScreengrabService? screengrabService = null, IFolderLauncher? folderLauncher = null,
         ILutLibraryCache? lutCache = null, IAssetColorStore? assetColors = null,
-        Func<string>? cameraLutFolder = null, Func<string>? creativeLutFolder = null)
+        Func<string>? cameraLutFolder = null, Func<string>? creativeLutFolder = null,
+        Action<PlayerOpenMilestone>? openMilestone = null)
     {
         _coordinator = coordinator;
         _rangeStore = rangeStore;
@@ -74,6 +76,7 @@ public partial class PlayerViewerHost : UserControl
         _assetColors = assetColors;
         _cameraLutFolder = cameraLutFolder;
         _creativeLutFolder = creativeLutFolder;
+        _openMilestone = openMilestone;
         InitializeComponent();
     }
 
@@ -94,6 +97,7 @@ public partial class PlayerViewerHost : UserControl
     {
         ArgumentNullException.ThrowIfNull(asset);
         var generation = ++_generation;
+        _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseStarted);
         try { await ReleaseCurrentAsync().ConfigureAwait(true); }
         catch (Exception exception)
         {
@@ -105,6 +109,7 @@ public partial class PlayerViewerHost : UserControl
             // than propagate as a silent unobserved task fault.
             SetStatus(exception.Message);
         }
+        _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseCompleted);
         if (generation != _generation) return;
 
         _currentAsset = asset;
@@ -163,12 +168,10 @@ public partial class PlayerViewerHost : UserControl
 
     private async Task OpenVideoAsync(string absolutePath, long generation, CancellationToken token)
     {
-        var preparedColor = await PrepareColorAsync(token).ConfigureAwait(true);
-        if (generation != _generation) return;
         var playback = new MediaPlaybackLeaseSession(_coordinator);
-        Action<IMediaPlaybackService>? configureColor = preparedColor is null ? null
-            : candidate => candidate.SetColorPipeline(preparedColor.Pipeline, !_persistentColorEnabled);
-        var service = await playback.OpenAsync(absolutePath, token, configureColor).ConfigureAwait(true);
+        _openMilestone?.Invoke(PlayerOpenMilestone.PlaybackBackendOpenStarted);
+        var service = await playback.OpenAsync(absolutePath, token).ConfigureAwait(true);
+        _openMilestone?.Invoke(PlayerOpenMilestone.PlaybackBackendOpenCompleted);
         if (generation != _generation) { await playback.DisposeAsync().ConfigureAwait(true); return; }
 
         _playback = playback;
@@ -194,13 +197,15 @@ public partial class PlayerViewerHost : UserControl
             // not the shared playback/backend path or its authoritative decoded-timestamp semantics.
             _mediaView = new MediaPlaybackView(service);
             VideoHost.Children.Add(_mediaView);
+            _openMilestone?.Invoke(PlayerOpenMilestone.PresentationSurfaceCreated);
             UpdateFromSnapshot(service.Snapshot);
             SetTransportEnabled(true);
             SetAudioControlsEnabled(info.AudioStreams.Count > 0);
             UpdateAudioControlsFromService();
             TransportBar.Visibility = Visibility.Visible;
-            PublishColor(preparedColor);
-            SetStatus(preparedColor?.Diagnostic);
+            SetStatus(null);
+            _openMilestone?.Invoke(PlayerOpenMilestone.PlayerControlsPublished);
+            _ = CompleteColorAfterOpenAsync(generation, token);
         }
         catch
         {
@@ -311,26 +316,46 @@ public partial class PlayerViewerHost : UserControl
             || _cameraLutFolder is null || _creativeLutFolder is null) return null;
         LutLibrarySnapshot cameraLibrary, creativeLibrary;
         AssetColorIntent intent;
-        try
-        {
-            await _lutCache.WaitUntilInitializedAsync(token).ConfigureAwait(true);
-            cameraLibrary = _lutCache.Snapshot(ColorLutStage.Camera);
-            creativeLibrary = _lutCache.Snapshot(ColorLutStage.Creative);
-            intent = await _assetColors.GetAsync(assetId, token).ConfigureAwait(true);
-        }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception exception) { SetStatus($"Color assignments could not be loaded. {exception.Message}"); return null; }
+        _openMilestone?.Invoke(PlayerOpenMilestone.ColorCacheWaitStarted);
+        await _lutCache.WaitUntilInitializedAsync(token).ConfigureAwait(true);
+        _openMilestone?.Invoke(PlayerOpenMilestone.ColorCacheWaitCompleted);
+        cameraLibrary = _lutCache.Snapshot(ColorLutStage.Camera);
+        creativeLibrary = _lutCache.Snapshot(ColorLutStage.Creative);
+        _openMilestone?.Invoke(PlayerOpenMilestone.ColorAssignmentReadStarted);
+        intent = await _assetColors.GetAsync(assetId, token).ConfigureAwait(true);
+        _openMilestone?.Invoke(PlayerOpenMilestone.ColorAssignmentReadCompleted);
         CubeLutData? camera = null, creative = null;
+        _openMilestone?.Invoke(PlayerOpenMilestone.RuntimeLutLoadStarted);
         if (intent.Camera is { Availability: LutResourceAvailability.Available } cam)
-            camera = await Task.Run(() => CubeLutData.Load(_lutCache.ResolvePath(ColorLutStage.Camera, cam.LutId)),
-                token).ConfigureAwait(true);
+            camera = await _lutCache.GetRuntimeAsync(ColorLutStage.Camera, cam.LutId, token).ConfigureAwait(true);
         if (intent.Creative is { Availability: LutResourceAvailability.Available } look)
-            creative = await Task.Run(() => CubeLutData.Load(_lutCache.ResolvePath(ColorLutStage.Creative, look.LutId)),
-                token).ConfigureAwait(true);
+            creative = await _lutCache.GetRuntimeAsync(ColorLutStage.Creative, look.LutId, token).ConfigureAwait(true);
+        _openMilestone?.Invoke(PlayerOpenMilestone.RuntimeLutLoadCompleted);
         var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>()
             .FirstOrDefault(x => x.Availability != LutResourceAvailability.Available);
         return new(cameraLibrary, creativeLibrary, intent, new(camera, creative), missing is null ? null
             : $"Assigned LUT unavailable: {missing.DisplayName}. {missing.Diagnostic}");
+    }
+
+    private async Task CompleteColorAfterOpenAsync(long generation, CancellationToken token)
+    {
+        var colorRevision = _colorRefreshRevision;
+        try
+        {
+            var prepared = await PrepareColorAsync(token).ConfigureAwait(true);
+            if (generation != _generation || colorRevision != _colorRefreshRevision
+                || _service is null || prepared is null) return;
+            _service.SetColorPipeline(prepared.Pipeline, !_persistentColorEnabled || _momentaryColorBypass);
+            PublishColor(prepared);
+            SetStatus(prepared.Diagnostic);
+            _openMilestone?.Invoke(PlayerOpenMilestone.ColorPublished);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            if (generation == _generation && colorRevision == _colorRefreshRevision)
+                SetStatus($"Color could not be applied. {exception.Message}");
+        }
     }
 
     private void PublishColor(PreparedColor? prepared)
@@ -423,8 +448,7 @@ public partial class PlayerViewerHost : UserControl
         CancellationToken token)
     {
         if (reference is not { Availability: LutResourceAvailability.Available }) return null;
-        var path = _lutCache!.ResolvePath(stage, reference.LutId);
-        return await Task.Run(() => CubeLutData.Load(path), token).ConfigureAwait(true);
+        return await _lutCache!.GetRuntimeAsync(stage, reference.LutId, token).ConfigureAwait(true);
     }
 
     private async Task ApplyColorIntentAsync(AssetColorIntent intent, CancellationToken token)
@@ -433,9 +457,9 @@ public partial class PlayerViewerHost : UserControl
         {
             CubeLutData? camera = null, creative = null;
             if (intent.Camera is { Availability: LutResourceAvailability.Available } cam)
-                camera = await Task.Run(() => CubeLutData.Load(_lutCache!.ResolvePath(ColorLutStage.Camera, cam.LutId)), token);
+                camera = await _lutCache!.GetRuntimeAsync(ColorLutStage.Camera, cam.LutId, token);
             if (intent.Creative is { Availability: LutResourceAvailability.Available } look)
-                creative = await Task.Run(() => CubeLutData.Load(_lutCache!.ResolvePath(ColorLutStage.Creative, look.LutId)), token);
+                creative = await _lutCache!.GetRuntimeAsync(ColorLutStage.Creative, look.LutId, token);
             var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>().FirstOrDefault(x => x.Availability != LutResourceAvailability.Available);
             _colorPipeline = new(camera, creative);
             RestoreLiveVideoSurface();
@@ -970,6 +994,23 @@ public partial class PlayerViewerHost : UserControl
         var hours = (int)value.TotalHours;
         return $"{hours:00}:{value.Minutes:00}:{value.Seconds:00}.{value.Milliseconds:000}";
     }
+}
+
+internal enum PlayerOpenMilestone
+{
+    PreviousAssetReleaseStarted,
+    PreviousAssetReleaseCompleted,
+    PlaybackBackendOpenStarted,
+    PlaybackBackendOpenCompleted,
+    PresentationSurfaceCreated,
+    PlayerControlsPublished,
+    ColorCacheWaitStarted,
+    ColorCacheWaitCompleted,
+    ColorAssignmentReadStarted,
+    ColorAssignmentReadCompleted,
+    RuntimeLutLoadStarted,
+    RuntimeLutLoadCompleted,
+    ColorPublished
 }
 
 internal sealed class MediaRangeStateChangedEventArgs(Guid assetId, bool hasSavedRange) : EventArgs

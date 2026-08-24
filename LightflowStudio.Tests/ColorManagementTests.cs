@@ -270,6 +270,41 @@ public sealed class ColorManagementTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RuntimeCacheParsesOncePerLutIdAndInvalidatesOnlyRemovedContent()
+    {
+        var cameraFolder = Directory.CreateDirectory(Path.Combine(_root, "runtime-camera")).FullName;
+        var creativeFolder = Directory.CreateDirectory(Path.Combine(_root, "runtime-creative")).FullName;
+        var originalPath = WriteCube(cameraFolder, "Cached.cube", 0);
+        var parseCount = 0;
+        using var cache = new ApplicationLutLibraryCache(_storage.Luts, path =>
+        {
+            parseCount++;
+            return CubeLutData.Load(path);
+        });
+        await cache.InitializeAsync(cameraFolder, creativeFolder);
+        var lut = Assert.Single(cache.Snapshot(ColorLutStage.Camera).Resources);
+
+        Assert.Same(await cache.GetRuntimeAsync(ColorLutStage.Camera, lut.LutId),
+            await cache.GetRuntimeAsync(ColorLutStage.Camera, lut.LutId));
+        Assert.Equal(1, parseCount);
+
+        var movedPath = Path.Combine(cameraFolder, "nested", "Moved.cube");
+        Directory.CreateDirectory(Path.GetDirectoryName(movedPath)!);
+        File.Move(originalPath, movedPath);
+        await cache.RefreshAsync(ColorLutStage.Camera, cameraFolder);
+        await cache.GetRuntimeAsync(ColorLutStage.Camera, lut.LutId);
+        Assert.Equal(1, parseCount); // Stable content identity survives a path move.
+
+        File.Delete(movedPath);
+        await cache.RefreshAsync(ColorLutStage.Camera, cameraFolder);
+        Assert.Throws<FileNotFoundException>(() => cache.ResolvePath(ColorLutStage.Camera, lut.LutId));
+        WriteCube(cameraFolder, "Returned.cube", 0);
+        await cache.RefreshAsync(ColorLutStage.Camera, cameraFolder);
+        await cache.GetRuntimeAsync(ColorLutStage.Camera, lut.LutId);
+        Assert.Equal(2, parseCount);
+    }
+
+    [Fact]
     public async Task TypedAssignmentsSupportOrderedStagesIndependentClearingAndStableAssetIdentity()
     {
         WriteCube(_luts, "Camera.cube", 0);

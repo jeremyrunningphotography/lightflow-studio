@@ -249,6 +249,14 @@ Catalog assignment availability/path resolution, selectors, and Encoding's combi
 snapshots and in-memory `LutId` lookups. They never initiate filesystem discovery. Consequently normal Player opens
 perform zero LUT tree scans after startup, regardless of how many assets are opened. Filesystem changes are observed
 only at startup, explicit refresh, or a saved root change; recursive watchers are intentionally outside #146.
+Player media open and presentation publication never await this initialization: if discovery is still active, the
+Player opens normally and a generation-guarded continuation publishes Color when the snapshots become available.
+Catalog assignment reads, selector construction, runtime LUT preparation, and GPU-pipeline updates likewise remain
+outside the playback-open critical path. Parsed `CubeLutData` is cached once per stable `LutId` across assets and
+Player opens; a stage refresh retains entries whose content identity remains in either stage and removes only runtime
+entries no longer present in the published Camera/Creative union. The runtime cache is therefore identity-bounded,
+not path-keyed, and moves or duplicate content do not create redundant parsed payloads. It is also LRU-bounded to
+16 parsed identities and a 256 MiB target (while retaining the currently requested entry), avoiding unbounded growth.
 
 Catalog `LutResources` stores deterministic Lightflow identity derived from validated content plus content-hash metadata, not LUT payloads or an independently user-managed registry (the migration from the pre-correction schema preserves any IDs already referenced by assignments). Folder refresh hashes each valid file and reconciles it by content: renaming a file preserves its `LutId`; changing content in place creates a new resource identity; equal content across either folder collapses to one semantic LUT; equal display names with different content remain distinct and receive ordinary numeric disambiguation where combined. A Camera/Creative assignment continues to reference its original `LutId` and content hash, but availability is checked only in its stage's configured folder. Changing one folder therefore cannot disturb a valid assignment in the other. Engines resolve the freshly validated stage folder file rather than a Catalog blob or transient external-path assignment.
 

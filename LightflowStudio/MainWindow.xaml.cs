@@ -1278,7 +1278,11 @@ public partial class MainWindow : Window
     {
         var state = CurrentBrowserSelectionActions();
         if (!state.CanExport) return;
-        var assetIds = _browserGrid.SelectedAssetIdsInBrowserOrder;
+        await ExportBrowserAssetsAsync(_browserGrid.SelectedAssetIdsInBrowserOrder);
+    }
+
+    private async Task ExportBrowserAssetsAsync(IReadOnlyList<Guid> assetIds)
+    {
         var location = _lastLoadedBrowserState?.Location;
         if (location is null)
         {
@@ -1301,7 +1305,7 @@ public partial class MainWindow : Window
         if (!state.CanRegenerateThumbnails) return;
         var ids = _browserGrid.SelectedAssetIdsInBrowserOrder;
         BrowserRegenerateThumbnailsButton.IsEnabled = false;
-        BrowserSelectionActionSummary.Text = $"Regenerating {ids.Count} thumbnail{(ids.Count == 1 ? "" : "s")}…";
+        BrowserStatusText.Text = $"Regenerating {ids.Count} thumbnail{(ids.Count == 1 ? "" : "s")}…";
         try
         {
             var results = await _storage.RegenerateThumbnailsAsync(ids);
@@ -1309,7 +1313,7 @@ public partial class MainWindow : Window
                 if (results[index].Succeeded && results[index].ThumbnailPath is { } path)
                     _browserGrid.ApplyThumbnail(ids[index], path);
             var failed = results.Count(result => !result.Succeeded);
-            BrowserSelectionActionSummary.Text = failed == 0
+            BrowserStatusText.Text = failed == 0
                 ? $"Regenerated {results.Count} thumbnail{(results.Count == 1 ? "" : "s")}"
                 : $"Regenerated {results.Count - failed}; {failed} could not be regenerated";
         }
@@ -1444,6 +1448,7 @@ public partial class MainWindow : Window
             assetColors: _storage.AssetColors, cameraLutFolder: () => _storage.Settings.CameraLutFolder,
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
+        _playerViewerHost.ExportRequested += PlayerViewerHost_ExportRequested;
         _playerViewerHost.RangeStateChanged += (_, change) =>
         {
             _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
@@ -1466,6 +1471,7 @@ public partial class MainWindow : Window
         // instant Grid mode is reselected, so returning via Back/Esc shows it exactly as the user left it.
         BrowserQueryToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
         BrowserNavigationToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
+        BrowserSelectionActionToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
         BrowserNavigationGap.Height = mode == BrowserPresentationMode.Grid ? new GridLength(8) : new GridLength(0);
         // Presentation controls (thumbnail size) are Grid-specific; SyncBrowserStatusBarVisibility's own
         // Browser-tab-active condition already covers whether the whole trailing group shows at all.
@@ -1700,6 +1706,16 @@ public partial class MainWindow : Window
         UpdateBrowserSelectionActions();
     }
 
+    private async void PlayerViewerHost_ExportRequested(object? sender, PlayerViewerExportRequestedEventArgs e)
+    {
+        try { await ExportBrowserAssetsAsync([e.AssetId]); }
+        finally
+        {
+            if (_playerViewerHost?.CurrentAsset?.AssetId == e.AssetId)
+                _playerViewerHost.SetExportEnabled(true);
+        }
+    }
+
     private BrowserSelectionActionState CurrentBrowserSelectionActions() =>
         BrowserSelectionActions.Evaluate(_browserGrid.SelectedTilesInBrowserOrder);
 
@@ -1707,12 +1723,8 @@ public partial class MainWindow : Window
     {
         if (BrowserExportButton is null) return;
         var state = CurrentBrowserSelectionActions();
-        BrowserSelectionActionSummary.Text = state.SelectionCount == 0
-            ? "None"
-            : $"{state.SelectionCount} selected";
         BrowserExportButton.IsEnabled = state.CanExport;
         BrowserRegenerateThumbnailsButton.IsEnabled = state.CanRegenerateThumbnails;
-        BrowserRenameButton.IsEnabled = state.CanRename;
         BrowserCameraLutCombo.IsEnabled = state.CanAssignCameraLut;
         BrowserCreativeLutCombo.IsEnabled = state.CanAssignCreativeLut;
         _ = RefreshBrowserColorSelectorsAsync();

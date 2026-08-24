@@ -85,6 +85,7 @@ public partial class PlayerViewerHost : UserControl
 
     /// <summary>Raised after a saved review-range change commits so any host can refresh its own presentation.</summary>
     internal event EventHandler<MediaRangeStateChangedEventArgs>? RangeStateChanged;
+    internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
     internal PlayerViewerAsset? CurrentAsset => _currentAsset;
 
     /// <summary>
@@ -113,6 +114,7 @@ public partial class PlayerViewerHost : UserControl
         if (generation != _generation) return;
 
         _currentAsset = asset;
+        SetExportEnabled(false);
         AssetNameText.Text = asset.Name;
         SetScreengrabFeedback(null);
         SetStatus("Loading…");
@@ -200,6 +202,7 @@ public partial class PlayerViewerHost : UserControl
             _openMilestone?.Invoke(PlayerOpenMilestone.PresentationSurfaceCreated);
             UpdateFromSnapshot(service.Snapshot);
             SetTransportEnabled(true);
+            SetExportEnabled(_currentAsset?.AssetId is not null);
             SetAudioControlsEnabled(info.AudioStreams.Count > 0);
             UpdateAudioControlsFromService();
             TransportBar.Visibility = Visibility.Visible;
@@ -271,6 +274,7 @@ public partial class PlayerViewerHost : UserControl
         RestoreLiveVideoSurface();
         TransportBar.Visibility = Visibility.Collapsed;
         SetTransportEnabled(false);
+        SetExportEnabled(false);
         SetAudioControlsEnabled(false);
         _reviewRange = null;
         _stopAtOutDuringPlayback = false;
@@ -309,6 +313,15 @@ public partial class PlayerViewerHost : UserControl
     private void SetColorControlsEnabled(bool enabled)
     {
         CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = enabled;
+    }
+
+    internal void SetExportEnabled(bool enabled) => ExportButton.IsEnabled = enabled;
+
+    private void ExportButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentAsset is not { Kind: MediaPresentationKind.Video, AssetId: Guid assetId }) return;
+        SetExportEnabled(false);
+        ExportRequested?.Invoke(this, new PlayerViewerExportRequestedEventArgs(assetId));
     }
 
     private void PublishCurrentCachedChoices()

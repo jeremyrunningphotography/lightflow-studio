@@ -166,10 +166,13 @@
 
   <Style x:Key="BrowserSelectionLutComboStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
    <Setter Property="Height" Value="28"/>
-   <Setter Property="MinWidth" Value="126"/>
+   <Setter Property="Width" Value="150"/>
    <Setter Property="Padding" Value="7,3"/>
    <Setter Property="Margin" Value="2,0"/>
    <Setter Property="FontSize" Value="12"/>
+   <Setter Property="ItemTemplate">
+    <Setter.Value><DataTemplate><TextBlock MaxWidth="280" Text="{Binding}" TextTrimming="CharacterEllipsis"/></DataTemplate></Setter.Value>
+   </Setter>
   </Style>
 
   <!-- #125: compact hit area for the thumbnail-size slider's track, mirroring TrimEditorWindow's
@@ -523,34 +526,28 @@
        </Grid>
        <Border Grid.Row="2" x:Name="BrowserSelectionActionToolbar" Background="{StaticResource ShellSurfaceBrush}"
         BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="7" Padding="8,5">
-        <DockPanel LastChildFill="False">
-         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-          <TextBlock Margin="4,0,7,0" VerticalAlignment="Center" Foreground="{StaticResource ShellNavigationTextBrush}"
-           FontSize="10" FontWeight="SemiBold" Text="SELECTION"/>
-          <TextBlock x:Name="BrowserSelectionActionSummary" MinWidth="72" Margin="0,0,9,0"
-           VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="None"/>
-          <Border Width="1" Height="18" Margin="0,0,5,0" Background="{StaticResource ShellDividerBrush}"/>
-         </StackPanel>
-         <Button x:Name="BrowserExportButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Export…" IsEnabled="False"
-          ToolTip="Export selected videos or saved subclips" AutomationProperties.Name="Export selected videos" Click="BrowserExport_Click"/>
-         <Button x:Name="BrowserRegenerateThumbnailsButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Regenerate" IsEnabled="False"
-          ToolTip="Regenerate cached thumbnails for the selection" AutomationProperties.Name="Regenerate selected thumbnails" Click="BrowserRegenerateThumbnails_Click"/>
-         <Button x:Name="BrowserRenameButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Rename" IsEnabled="False"
-          ToolTip="Media rename is not available yet"/>
-         <Border Width="1" Height="18" Margin="5,0" Background="{StaticResource ShellDividerBrush}"/>
-         <TextBlock Margin="3,0,5,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="COLOR"/>
-         <ComboBox x:Name="BrowserCameraLutCombo" Style="{StaticResource BrowserSelectionLutComboStyle}" IsEnabled="False" SelectedIndex="0"
-          ToolTip="Assign a Camera/technical LUT to all selected videos" AutomationProperties.Name="Assign Camera LUT"
-          DropDownOpened="BrowserCameraLutCombo_DropDownOpened" SelectionChanged="BrowserCameraLutCombo_SelectionChanged">
-          <ComboBoxItem Content="Camera LUT…" IsEnabled="False"/>
-         </ComboBox>
-         <ComboBox x:Name="BrowserCreativeLutCombo" Style="{StaticResource BrowserSelectionLutComboStyle}" IsEnabled="False" SelectedIndex="0"
-          ToolTip="Assign a Creative LUT to all selected videos" AutomationProperties.Name="Assign Creative LUT"
-          DropDownOpened="BrowserCreativeLutCombo_DropDownOpened" SelectionChanged="BrowserCreativeLutCombo_SelectionChanged">
-          <ComboBoxItem Content="Creative LUT…" IsEnabled="False"/>
-         </ComboBox>
-        </DockPanel>
-       </Border>
+         <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+           <TextBlock Margin="3,0,5,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="COLOR"/>
+           <ComboBox x:Name="BrowserCameraLutCombo" Style="{StaticResource BrowserSelectionLutComboStyle}" IsEnabled="False" SelectedIndex="0"
+            ToolTip="Assign a Camera/technical LUT to all selected videos" AutomationProperties.Name="Assign Camera LUT"
+            DropDownOpened="BrowserCameraLutCombo_DropDownOpened" SelectionChanged="BrowserCameraLutCombo_SelectionChanged">
+            <ComboBoxItem Content="Camera LUT…" IsEnabled="False"/>
+           </ComboBox>
+           <ComboBox x:Name="BrowserCreativeLutCombo" Style="{StaticResource BrowserSelectionLutComboStyle}" IsEnabled="False" SelectedIndex="0"
+            ToolTip="Assign a Creative LUT to all selected videos" AutomationProperties.Name="Assign Creative LUT"
+            DropDownOpened="BrowserCreativeLutCombo_DropDownOpened" SelectionChanged="BrowserCreativeLutCombo_SelectionChanged">
+            <ComboBoxItem Content="Creative LUT…" IsEnabled="False"/>
+           </ComboBox>
+           <Border Width="1" Height="18" Margin="5,0" Background="{StaticResource ShellDividerBrush}"/>
+           <Button x:Name="BrowserRegenerateThumbnailsButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Regenerate" IsEnabled="False"
+            ToolTip="Regenerate cached thumbnails for the selection" AutomationProperties.Name="Regenerate selected thumbnails" Click="BrowserRegenerateThumbnails_Click"/>
+          </StackPanel>
+          <Button Grid.Column="1" x:Name="BrowserExportButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Export…" IsEnabled="False"
+           ToolTip="Export selected videos or saved subclips" AutomationProperties.Name="Export selected videos" Click="BrowserExport_Click"/>
+         </Grid>
+        </Border>
        <!-- The one authoritative background for the whole media canvas (loading/content/empty/failure alike)
             — every descendant surface between this Border and an individual tile's own card chrome is
             deliberately Transparent (never merely unset) so nothing but this single Background can ever paint

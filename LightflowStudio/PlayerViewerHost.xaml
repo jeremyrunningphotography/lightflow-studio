@@ -107,13 +107,15 @@
     Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
     <Grid>
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <Grid x:Name="ColorSurface" Margin="2,0,2,8" HorizontalAlignment="Left">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/></Grid.ColumnDefinitions>
+     <Grid x:Name="ColorSurface" Margin="2,0,2,8" HorizontalAlignment="Stretch">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <TextBlock Text="COLOR" Margin="0,0,14,0" VerticalAlignment="Center" Foreground="{StaticResource ShellNavigationTextBrush}" FontSize="10" FontWeight="SemiBold"/>
       <TextBlock Grid.Column="1" Text="Camera" Margin="0,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
       <ComboBox x:Name="CameraLutCombo" Grid.Column="2" Height="26" SelectionChanged="CameraLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Camera / technical LUT; hold C for momentary Original" AutomationProperties.Name="Camera LUT"/>
       <TextBlock Grid.Column="3" Text="Creative" Margin="12,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
       <ComboBox x:Name="CreativeLutCombo" Grid.Column="4" Height="26" SelectionChanged="CreativeLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Creative LUT; hold C for momentary Original" AutomationProperties.Name="Creative LUT"/>
+      <Button x:Name="ExportButton" Grid.Column="6" Margin="12,0,0,0" Padding="10,4" Content="Export…" IsEnabled="False"
+       Click="ExportButton_Click" ToolTip="Export this asset with its saved range and assigned Color" AutomationProperties.Name="Export current asset"/>
      </Grid>
      <Grid Grid.Row="1" Height="22">
       <local:TrimRangeIndicator x:Name="ReviewRangeIndicator" Height="18" Margin="7,0" VerticalAlignment="Center"

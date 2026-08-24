@@ -740,11 +740,28 @@ public class UiLayoutTests
             (string?)column.Attribute("Width") == "520" && column.Ancestors().Contains(browse));
         Assert.Equal("2", (string?)actions.Attribute("Grid.Row"));
         Assert.Null(actions.Attribute("Visibility"));
+        Assert.DoesNotContain(actions.Descendants(ns + "TextBlock"), text =>
+            (string?)text.Attribute("Text") == "SELECTION");
+        Assert.DoesNotContain(actions.Descendants(), element =>
+            (string?)element.Attribute(x + "Name") == "BrowserSelectionActionSummary");
         Assert.Equal("BrowserSelectionActionButtonStyle", Named(document, "BrowserExportButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("BrowserSelectionActionButtonStyle", Named(document, "BrowserRegenerateThumbnailsButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
-        Assert.Equal("BrowserSelectionActionButtonStyle", Named(document, "BrowserRenameButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("BrowserSelectionLutComboStyle", Named(document, "BrowserCameraLutCombo").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("BrowserSelectionLutComboStyle", Named(document, "BrowserCreativeLutCombo").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
+        Assert.Equal("150", (string?)document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(x + "Key") == "BrowserSelectionLutComboStyle")
+            .Elements(ns + "Setter").Single(setter => (string?)setter.Attribute("Property") == "Width").Attribute("Value"));
+        Assert.DoesNotContain(document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(x + "Key") == "BrowserSelectionLutComboStyle").Elements(ns + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "MinWidth");
+        Assert.Contains(document.Descendants(ns + "Style").Single(style =>
+                (string?)style.Attribute(x + "Key") == "BrowserSelectionLutComboStyle").Descendants(ns + "TextBlock"),
+            text => (string?)text.Attribute("TextTrimming") == "CharacterEllipsis");
+        var actionNames = actions.Descendants().Select(element => (string?)element.Attribute(x + "Name"))
+            .Where(name => name is not null).ToList();
+        Assert.True(actionNames.IndexOf("BrowserCameraLutCombo") < actionNames.IndexOf("BrowserCreativeLutCombo"));
+        Assert.True(actionNames.IndexOf("BrowserCreativeLutCombo") < actionNames.IndexOf("BrowserRegenerateThumbnailsButton"));
+        Assert.Equal("1", (string?)Named(document, "BrowserExportButton").Attribute("Grid.Column"));
         Assert.Null(Named(document, "BrowserCameraLutCombo").Attribute("Click"));
         Assert.Null(Named(document, "BrowserCreativeLutCombo").Attribute("Click"));
         Assert.DoesNotContain(document.Descendants(), element =>
@@ -758,6 +775,23 @@ public class UiLayoutTests
             ["Export / Export Subclips…", "Regenerate Thumbnail(s)", "Rename", "Camera LUT", "Creative LUT"],
             contextMenu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
         Assert.All(contextMenu.Elements(ns + "MenuItem").TakeLast(2), submenu => Assert.True(submenu.HasElements));
+    }
+
+    [Fact]
+    public void PlayerColorRow_ContainsRightAlignedCurrentAssetExport()
+    {
+        var root = FindRepositoryRoot();
+        var document = XDocument.Load(Path.Combine(root, "LightflowStudio", "PlayerViewerHost.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var color = Named(document, "ColorSurface");
+        var export = Named(document, "ExportButton");
+
+        Assert.Equal("Stretch", (string?)color.Attribute("HorizontalAlignment"));
+        Assert.Equal("6", (string?)export.Attribute("Grid.Column"));
+        Assert.Equal("Export…", (string?)export.Attribute("Content"));
+        Assert.Equal("ExportButton_Click", (string?)export.Attribute("Click"));
+        Assert.Equal("*", (string?)color.Element(ns + "Grid.ColumnDefinitions")!
+            .Elements(ns + "ColumnDefinition").ElementAt(5).Attribute("Width"));
     }
 
     [Fact]

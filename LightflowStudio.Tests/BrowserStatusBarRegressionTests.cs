@@ -113,6 +113,17 @@ public sealed class BrowserStatusBarRegressionTests
         Assert.Contains(
             "BrowserQueryToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;",
             body);
+        Assert.Contains(
+            "BrowserSelectionActionToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;",
+            body);
+    }
+
+    [Fact]
+    public void PlayerExport_UsesTheCurrentAssetThroughTheSharedBrowserHandoff()
+    {
+        var source = Source();
+        Assert.Contains("_playerViewerHost.ExportRequested += PlayerViewerHost_ExportRequested;", source);
+        Assert.Contains("await ExportBrowserAssetsAsync([e.AssetId]);", source);
     }
 
     private static string Source() =>

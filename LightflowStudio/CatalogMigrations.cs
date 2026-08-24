@@ -17,7 +17,8 @@ internal static class CatalogMigrations
         new(2, "Browser recursive-scope roots", ApplyVersion2),
         new(3, "Durable asset media ranges", ApplyVersion3),
         new(4, "Managed LUT resources and durable asset Color intent", ApplyVersion4),
-        new(5, "Folder-backed LUT resource identity", ApplyVersion5)
+        new(5, "Folder-backed LUT resource identity", ApplyVersion5),
+        new(6, "Per-asset Color processing enabled state", ApplyVersion6)
     ];
 
     private static void ApplyVersion1(
@@ -262,6 +263,40 @@ internal static class CatalogMigrations
 
             DROP TABLE MediaAssetColorV4;
             DROP TABLE LutResourcesV4;
+            """);
+    }
+
+    private static void ApplyVersion6(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CatalogMigrationContext context)
+    {
+        Execute(connection, transaction, """
+            DROP INDEX IX_MediaAssetColor_CameraLutId;
+            DROP INDEX IX_MediaAssetColor_CreativeLutId;
+
+            ALTER TABLE MediaAssetColor RENAME TO MediaAssetColorV5;
+
+            CREATE TABLE MediaAssetColor (
+                AssetId TEXT NOT NULL PRIMARY KEY CHECK (length(AssetId) = 36),
+                ColorEnabled INTEGER NOT NULL DEFAULT 0 CHECK (ColorEnabled IN (0, 1)),
+                CameraLutId TEXT NULL CHECK (CameraLutId IS NULL OR length(CameraLutId) = 36),
+                CreativeLutId TEXT NULL CHECK (CreativeLutId IS NULL OR length(CreativeLutId) = 36),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                FOREIGN KEY (AssetId) REFERENCES MediaAssets (AssetId) ON DELETE CASCADE,
+                FOREIGN KEY (CameraLutId) REFERENCES LutResources (LutId) ON DELETE RESTRICT,
+                FOREIGN KEY (CreativeLutId) REFERENCES LutResources (LutId) ON DELETE RESTRICT
+            );
+
+            INSERT INTO MediaAssetColor
+                (AssetId,ColorEnabled,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
+            SELECT AssetId,0,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc FROM MediaAssetColorV5;
+
+            CREATE INDEX IX_MediaAssetColor_CameraLutId ON MediaAssetColor (CameraLutId);
+            CREATE INDEX IX_MediaAssetColor_CreativeLutId ON MediaAssetColor (CreativeLutId);
+
+            DROP TABLE MediaAssetColorV5;
             """);
     }
 

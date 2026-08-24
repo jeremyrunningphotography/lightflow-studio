@@ -353,6 +353,44 @@ public sealed class ColorManagementTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ColorEnabled_IsPerAssetIndependentOfAssignmentsAndSurvivesRestart()
+    {
+        WriteCube(_luts, "Camera.cube", 0);
+        WriteCube(_luts, "Creative.cube", 1);
+        var resources = (await RefreshCacheAsync(_luts)).Resources;
+        var camera = resources.Single(resource => resource.DisplayName == "Camera");
+        var creative = resources.Single(resource => resource.DisplayName == "Creative");
+        var root = Assert.Single(await _storage.MediaRoots.ListAsync());
+        File.WriteAllText(Path.Combine(_root, "media", "second.mp4"), "media");
+        var secondAssetId = (await _storage.MediaAssets.CreateAsync(root.RootId, "second.mp4", "video")).Asset!.Asset.AssetId;
+
+        Assert.False((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
+        Assert.False((await _storage.AssetColors.GetAsync(secondAssetId)).ColorEnabled);
+        await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Camera, camera.LutId);
+        await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Creative, creative.LutId);
+        var beforeToggle = await _storage.AssetColors.GetAsync(_assetId);
+
+        await _storage.AssetColors.SetColorEnabledAsync([_assetId], true);
+        var enabled = await _storage.AssetColors.GetAsync(_assetId);
+        Assert.True(enabled.ColorEnabled);
+        Assert.Equal(camera.LutId, enabled.Camera!.LutId);
+        Assert.Equal(creative.LutId, enabled.Creative!.LutId);
+        Assert.NotEqual(beforeToggle.ColorIdentity, enabled.ColorIdentity);
+        Assert.False((await _storage.AssetColors.GetAsync(secondAssetId)).ColorEnabled);
+
+        await RestartAsync();
+        Assert.True((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
+        Assert.False((await _storage.AssetColors.GetAsync(secondAssetId)).ColorEnabled);
+
+        await _storage.AssetColors.SetColorEnabledAsync([_assetId], false);
+        await RestartAsync();
+        var disabled = await _storage.AssetColors.GetAsync(_assetId);
+        Assert.False(disabled.ColorEnabled);
+        Assert.Equal(camera.LutId, disabled.Camera!.LutId);
+        Assert.Equal(creative.LutId, disabled.Creative!.LutId);
+    }
+
+    [Fact]
     public async Task BulkAssignmentFailureIsAtomicAndColorIdentityIgnoresUnrelatedMetadata()
     {
         WriteCube(_luts, "Camera.cube", 0);

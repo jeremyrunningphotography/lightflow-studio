@@ -263,6 +263,13 @@ entries no longer present in the published Camera/Creative union. The runtime ca
 not path-keyed, and moves or duplicate content do not create redundant parsed payloads. It is also LRU-bounded to
 16 parsed identities and a 256 MiB target (while retaining the currently requested entry), avoiding unbounded growth.
 
+`MediaAssetColor` is the single durable per-asset Color intent: it stores the persistent Color-processing enabled
+state alongside Camera and Creative `LutId` assignments. The enabled state is independent of assignment presence, so
+Color On with no LUTs and Color Off with retained LUTs are both valid. Catalogs predating this field migrate existing
+rows to Off, and an absent Color row also reads as Off. Player restore and toggle interactions read/write this Catalog
+state asynchronously without waiting for or initiating LUT discovery; hold-C remains presentation-only and never
+changes durable intent.
+
 Catalog `LutResources` stores deterministic Lightflow identity derived from validated content plus content-hash metadata, not LUT payloads or an independently user-managed registry (the migration from the pre-correction schema preserves any IDs already referenced by assignments). Folder refresh hashes each valid file and reconciles it by content: renaming a file preserves its `LutId`; changing content in place creates a new resource identity; equal content across either folder collapses to one semantic LUT; equal display names with different content remain distinct and receive ordinary numeric disambiguation where combined. A Camera/Creative assignment continues to reference its original `LutId` and content hash, but availability is checked only in its stage's configured folder. Changing one folder therefore cannot disturb a valid assignment in the other. Engines resolve the freshly validated stage folder file rather than a Catalog blob or transient external-path assignment.
 
 `MediaAssetColor` stores precious per-asset Color intent against stable `AssetId`: typed optional Camera/technical then Creative LUT references. `IAssetColorStore` provides single-stage and transactional bulk mutation without source-media changes; clearing one stage preserves the other. `AssetColorIntent.OrderedPipeline` is the engine-neutral order later Player, Preview, Browser, and Encoding work consumes. `ColorIdentity` hashes only the versioned ordered LUT IDs and immutable content hashes, so either stage changes visual identity while LUT renames and unrelated Catalog metadata do not. Rendered derivatives remain rebuildable Preview data and are intentionally not produced or invalidated by #145. The first end-user per-asset assignment surface and all rendering remain deferred to the later Color issues.

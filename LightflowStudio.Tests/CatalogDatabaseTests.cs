@@ -181,6 +181,8 @@ public sealed class CatalogDatabaseTests : IDisposable
         Assert.Equal(CatalogMigrations.All[^1].Version, migrated.SchemaVersion);
         Assert.Equal(1L, Convert.ToInt64(Scalar(migrated.Session!,
             $"SELECT count(*) FROM MediaAssetColor WHERE AssetId='{assetId:D}' AND CameraLutId='{lutId:D}';")));
+        Assert.Equal(0L, Convert.ToInt64(Scalar(migrated.Session!,
+            $"SELECT ColorEnabled FROM MediaAssetColor WHERE AssetId='{assetId:D}';")));
         using var connection = OpenCatalog(migrated.Session!);
         using var columns = connection.CreateCommand();
         columns.CommandText = "SELECT count(*) FROM pragma_table_info('LutResources') WHERE name='CubeContent';";

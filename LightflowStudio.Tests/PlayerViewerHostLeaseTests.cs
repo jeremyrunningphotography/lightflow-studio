@@ -59,7 +59,7 @@ public sealed class PlayerViewerHostLeaseTests
                     LutResourceAvailability.Available) : null;
                 var creative = hasCreative ? new ColorLutReference(creativeId, "Creative", "creative",
                     LutResourceAvailability.Available) : null;
-                var colors = new FakeColorStore(new AssetColorIntent(Guid.Empty, camera, creative, "saved"));
+                var colors = new FakeColorStore(new AssetColorIntent(Guid.Empty, camera, creative, "saved", true));
                 var backend = new FakeBackend();
                 await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
                 var host = new PlayerViewerHost(coordinator, lutCache: library, assetColors: colors,
@@ -75,7 +75,18 @@ public sealed class PlayerViewerHostLeaseTests
                 Assert.Null(backend.PipelineAtOpen);
                 Assert.Equal(hasCamera, backend.ColorCalls[^1].Pipeline?.Camera is not null);
                 Assert.Equal(hasCreative, backend.ColorCalls[^1].Pipeline?.Creative is not null);
-                Assert.True(backend.ColorCalls[^1].Bypass);
+                Assert.False(backend.ColorCalls[^1].Bypass);
+                Assert.True(host.ColorToggleButton.IsChecked);
+                Assert.True(host.CameraLutCombo.IsEnabled);
+                Assert.True(host.CreativeLutCombo.IsEnabled);
+                Assert.Equal(0, library.RefreshCount);
+
+                await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
+                    Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
+                await WaitUntilAsync(() => host.ColorToggleButton.IsChecked == true,
+                    "persisted Color enabled state after Player reopen");
+                Assert.Equal(0, colors.SetColorEnabledCount);
+                Assert.Equal(0, library.RefreshCount);
             }
             finally { folder.Delete(true); }
         });
@@ -207,6 +218,8 @@ public sealed class PlayerViewerHostLeaseTests
                 Assert.False(host.ColorToggleButton.IsChecked);
                 Assert.Equal(callsWhileOff, backend.ColorCalls.Count);
 
+                var persistence = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                colors.ColorEnabledWrite = persistence.Task;
                 host.ColorToggleButton.IsChecked = true;
                 host.ColorToggleButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
                 Assert.True(host.ColorToggleButton.IsChecked);
@@ -215,6 +228,9 @@ public sealed class PlayerViewerHostLeaseTests
                 Assert.Equal("No LUT", host.CameraLutCombo.SelectedItem!.ToString());
                 Assert.Equal("No LUT", host.CreativeLutCombo.SelectedItem!.ToString());
                 Assert.False(backend.ColorCalls[^1].Bypass);
+                Assert.Equal(1, colors.SetColorEnabledCount);
+                persistence.SetResult();
+                await WaitUntilAsync(() => colors.IsColorEnabled(assetId), "Color enabled persistence");
 
                 Key(host, window, System.Windows.Input.Key.C, UIElement.PreviewKeyDownEvent);
                 Assert.True(backend.ColorCalls[^1].Bypass);
@@ -226,6 +242,14 @@ public sealed class PlayerViewerHostLeaseTests
                 Assert.True(host.ColorToggleButton.IsChecked);
                 Assert.True(host.CameraLutCombo.IsEnabled);
                 Assert.True(host.CreativeLutCombo.IsEnabled);
+                Assert.Equal(0, colors.SetCount);
+                Assert.True((await colors.GetAsync(assetId)).ColorEnabled);
+                Assert.Equal(0, cache.RefreshCount);
+
+                host.ColorToggleButton.IsChecked = false;
+                host.ColorToggleButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                await WaitUntilAsync(() => colors.SetColorEnabledCount == 2, "Color disabled persistence");
+                Assert.False((await colors.GetAsync(assetId)).ColorEnabled);
                 Assert.Equal(0, colors.SetCount);
                 Assert.Equal(0, cache.RefreshCount);
             }
@@ -715,18 +739,33 @@ public sealed class PlayerViewerHostLeaseTests
     {
         private readonly Func<Guid, AssetColorIntent>? _provider;
         private readonly AssetColorIntent? _restored;
+        private readonly Dictionary<Guid, bool> _enabled = [];
         public FakeColorStore() { }
         public FakeColorStore(AssetColorIntent restored) => _restored = restored;
         public FakeColorStore(Func<Guid, AssetColorIntent> provider) => _provider = provider;
         public int SetCount { get; private set; }
-        public Task<AssetColorIntent> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(_provider?.Invoke(assetId) ?? (_restored is null
-                ? new AssetColorIntent(assetId, null, null, "none") : _restored with { AssetId = assetId }));
+        public int SetColorEnabledCount { get; private set; }
+        public Task ColorEnabledWrite { get; set; } = Task.CompletedTask;
+        public bool IsColorEnabled(Guid assetId) => _enabled.GetValueOrDefault(assetId);
+        public Task<AssetColorIntent> GetAsync(Guid assetId, CancellationToken cancellationToken = default)
+        {
+            var intent = _provider?.Invoke(assetId) ?? (_restored is null
+                ? new AssetColorIntent(assetId, null, null, "none") : _restored with { AssetId = assetId });
+            return Task.FromResult(_enabled.TryGetValue(assetId, out var enabled)
+                ? intent with { ColorEnabled = enabled } : intent);
+        }
         public Task<IReadOnlyDictionary<Guid, AssetColorIntent>> GetAsync(IReadOnlyCollection<Guid> assetIds,
             CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<Guid, AssetColorIntent>>(
                 assetIds.ToDictionary(id => id, id => new AssetColorIntent(id, null, null, "none")));
         public Task SetStageAsync(IReadOnlyCollection<Guid> assetIds, ColorLutStage stage, Guid? lutId,
             CancellationToken cancellationToken = default) { SetCount++; return Task.CompletedTask; }
+        public async Task SetColorEnabledAsync(IReadOnlyCollection<Guid> assetIds, bool enabled,
+            CancellationToken cancellationToken = default)
+        {
+            SetColorEnabledCount++;
+            await ColorEnabledWrite.WaitAsync(cancellationToken);
+            foreach (var assetId in assetIds) _enabled[assetId] = enabled;
+        }
         public Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes,
             CancellationToken cancellationToken = default) { SetCount++; return Task.CompletedTask; }
     }

@@ -54,6 +54,8 @@ public partial class PlayerViewerHost : UserControl
     private LutLibrarySnapshot? _cameraLibrary;
     private LutLibrarySnapshot? _creativeLibrary;
     private long _colorRefreshRevision;
+    private long _colorToggleRevision;
+    private readonly SemaphoreSlim _colorTogglePersistenceGate = new(1, 1);
 
     private sealed record LutChoice(Guid? LutId, string DisplayName, bool OpensFolder = false)
     {
@@ -280,6 +282,7 @@ public partial class PlayerViewerHost : UserControl
         _cameraLibrary = _creativeLibrary = null;
         _colorRefreshRevision++;
         _momentaryColorBypass = false;
+        _persistentColorEnabled = false;
         _updatingColor = true;
         CameraLutCombo.ItemsSource = CreativeLutCombo.ItemsSource = null;
         ColorToggleButton.IsChecked = _persistentColorEnabled;
@@ -360,11 +363,14 @@ public partial class PlayerViewerHost : UserControl
     private async Task CompleteColorAfterOpenAsync(long generation, CancellationToken token)
     {
         var colorRevision = _colorRefreshRevision;
+        var toggleRevision = _colorToggleRevision;
         try
         {
             var prepared = await PrepareColorAsync(token).ConfigureAwait(true);
             if (generation != _generation || colorRevision != _colorRefreshRevision
                 || _service is null || prepared is null) return;
+            if (toggleRevision == _colorToggleRevision)
+                SetPersistentColorEnabled(prepared.Intent.ColorEnabled);
             _service.SetColorPipeline(prepared.Pipeline, !_persistentColorEnabled || _momentaryColorBypass);
             PublishColor(prepared);
             SetStatus(prepared.Diagnostic);
@@ -515,14 +521,41 @@ public partial class PlayerViewerHost : UserControl
         try { await _assetColors.SetStageAsync([assetId], stage, choice.LutId); SetStatus(null); await ApplyColorIntentAsync(await _assetColors.GetAsync(assetId), CancellationToken.None); }
         catch (Exception exception) { SetStatus($"Color assignment could not be saved. {exception.Message}"); }
     }
-    private void ColorToggleButton_Click(object sender, RoutedEventArgs e)
+    private async void ColorToggleButton_Click(object sender, RoutedEventArgs e)
     {
         RestoreLiveVideoSurface();
         var enabled = ColorToggleButton.IsChecked == true;
-        _persistentColorEnabled = enabled;
-        UpdateColorSelectorEnabled();
+        var previous = _persistentColorEnabled;
+        var revision = ++_colorToggleRevision;
+        var generation = _generation;
+        var assetId = _currentAsset?.AssetId;
+        SetPersistentColorEnabled(enabled);
         if (!enabled) _momentaryColorBypass = false;
         _service?.SetColorPipeline(_colorPipeline, !enabled);
+        if (assetId is not Guid id || _assetColors is null) return;
+        try
+        {
+            await _colorTogglePersistenceGate.WaitAsync();
+            try { await _assetColors.SetColorEnabledAsync([id], enabled); }
+            finally { _colorTogglePersistenceGate.Release(); }
+            if (revision == _colorToggleRevision && generation == _generation) SetStatus(null);
+        }
+        catch (Exception exception)
+        {
+            if (revision != _colorToggleRevision || generation != _generation) return;
+            SetPersistentColorEnabled(previous);
+            _service?.SetColorPipeline(_colorPipeline, !previous);
+            SetStatus($"Color processing state could not be saved. {exception.Message}");
+        }
+    }
+
+    private void SetPersistentColorEnabled(bool enabled)
+    {
+        _persistentColorEnabled = enabled;
+        _updatingColor = true;
+        ColorToggleButton.IsChecked = enabled;
+        _updatingColor = false;
+        UpdateColorSelectorEnabled();
     }
 
     /// <summary>

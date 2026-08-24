@@ -516,26 +516,24 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     }
 
     public async Task<IReadOnlyList<ThumbnailGenerationResult>> RegenerateThumbnailsAsync(
-        IReadOnlyList<Guid> assetIds, CancellationToken cancellationToken = default)
+        IReadOnlyList<Guid> assetIds, CancellationToken cancellationToken = default,
+        IProgress<PreviewRegenerationCompleted>? progress = null)
     {
         if (!CatalogAvailable || Previews is null)
             return assetIds.Select(_ => new ThumbnailGenerationResult(ThumbnailGenerationStatus.Failed,
                 Diagnostic: PreviewDiagnostic ?? "Preview storage is unavailable.")).ToArray();
         using var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
             null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity);
-        var results = new List<ThumbnailGenerationResult>(assetIds.Count);
-        foreach (var assetId in assetIds.Distinct())
+        return await PreviewRegenerationBatch.RunAsync(assetIds, async (assetId, token) =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await _thumbnailRegenerationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await _thumbnailRegenerationGate.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                results.Add(await thumbnails.GenerateAsync(new(assetId, ForceRefresh: true,
-                    Priority: ThumbnailPriority.Visible), cancellationToken).ConfigureAwait(false));
+                return await thumbnails.GenerateAsync(new(assetId, ForceRefresh: true,
+                    Priority: ThumbnailPriority.Visible), token).ConfigureAwait(false);
             }
             finally { _thumbnailRegenerationGate.Release(); }
-        }
-        return results;
+        }, progress, cancellationToken).ConfigureAwait(false);
     }
 
     private IPreviewMaintenanceService? CreatePreviewMaintenance()

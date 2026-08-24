@@ -11,6 +11,31 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-thumbnails-").FullName;
 
     [Fact]
+    public async Task MultiAssetRegeneration_PublishesEachCompletedPreviewBeforeBatchCompletion()
+    {
+        var first = Guid.NewGuid(); var second = Guid.NewGuid();
+        var secondStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondRelease = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var published = new List<PreviewRegenerationCompleted>();
+        var progress = new SynchronousProgress<PreviewRegenerationCompleted>(published.Add);
+
+        var batch = PreviewRegenerationBatch.RunAsync([first, second], async (assetId, token) =>
+        {
+            if (assetId == second) { secondStarted.TrySetResult(); await secondRelease.Task.WaitAsync(token); }
+            return new(ThumbnailGenerationStatus.Succeeded, $"{assetId:N}.jpg");
+        }, progress);
+        await secondStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var completed = Assert.Single(published);
+        Assert.Equal(first, completed.AssetId);
+        Assert.False(batch.IsCompleted);
+        secondRelease.TrySetResult();
+        await batch;
+        Assert.Equal([first, second], published.Select(item => item.AssetId));
+    }
+
+    [Fact]
     public async Task ImageGeneration_RespectsExifOrientationAndPublishesAtomically()
     {
         await using var fixture = await ThumbnailFixture.CreateAsync(_root);
@@ -455,6 +480,11 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
         public Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
             string destinationPath, CancellationToken cancellationToken = default)
         { cancellationToken.ThrowIfCancellationRequested(); CallCount++; WriteJpeg(destinationPath); return Task.FromResult(new ThumbnailRenderResult(ThumbnailGenerationStatus.Succeeded)); }
+    }
+
+    private sealed class SynchronousProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 
     private sealed class ColorAwareRenderer : IThumbnailRenderer

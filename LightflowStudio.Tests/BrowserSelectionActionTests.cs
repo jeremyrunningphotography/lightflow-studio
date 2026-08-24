@@ -23,6 +23,7 @@ public sealed class BrowserSelectionActionTests
         Assert.False(BrowserThumbnailRegeneration.RequiresConfirmation(0, 50));
         Assert.True(BrowserThumbnailRegeneration.RequiresConfirmation(0, 51));
         Assert.False(BrowserThumbnailRegeneration.RequiresConfirmation(1, 100));
+        Assert.Equal("Regenerate Previews", BrowserThumbnailRegeneration.ProductLabel(0, false));
     }
 
     [Fact]
@@ -31,6 +32,8 @@ public sealed class BrowserSelectionActionTests
         var selected = new[] { Guid.NewGuid(), Guid.NewGuid() };
         var scope = Enumerable.Range(0, 60).Select(_ => Guid.NewGuid()).ToArray();
         Assert.Equal(selected, BrowserThumbnailRegeneration.ResolveTargets(selected, selected.Length, scope));
+        Assert.Equal("Regenerate Preview", BrowserThumbnailRegeneration.ProductLabel(1, true));
+        Assert.Equal("Regenerate Previews", BrowserThumbnailRegeneration.ProductLabel(2, true));
     }
 
     [Fact]

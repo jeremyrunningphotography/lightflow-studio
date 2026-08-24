@@ -1317,25 +1317,23 @@ public partial class MainWindow : Window
             state.SelectionCount, _browserGrid.ThumbnailApplicableAssetIdsInScope);
         if (ids.Count == 0) return;
         if (BrowserThumbnailRegeneration.RequiresConfirmation(state.SelectionCount, ids.Count) &&
-            MessageBox.Show($"Regenerate thumbnails for all {ids.Count} applicable assets in the current Browser scope?",
-                "Regenerate thumbnails", MessageBoxButton.YesNo, MessageBoxImage.Question,
+            MessageBox.Show($"Regenerate Previews for all {ids.Count} applicable assets in the current Browser scope?",
+                "Regenerate Previews", MessageBoxButton.YesNo, MessageBoxImage.Question,
                 MessageBoxResult.No) != MessageBoxResult.Yes) return;
         BrowserRegenerateThumbnailsButton.IsEnabled = false;
-        BrowserStatusText.Text = $"Regenerating {ids.Count} thumbnail{(ids.Count == 1 ? "" : "s")}…";
+        BrowserStatusText.Text = $"Regenerating {ids.Count} Preview{(ids.Count == 1 ? "" : "s")}…";
         try
         {
-            var results = await _storage.RegenerateThumbnailsAsync(ids);
-            for (var index = 0; index < ids.Count; index++)
-                if (results[index].Succeeded && results[index].ThumbnailPath is { } path)
-                    _browserGrid.ApplyThumbnail(ids[index], path);
+            var progress = new Progress<PreviewRegenerationCompleted>(ApplyCompletedPreview);
+            var results = await _storage.RegenerateThumbnailsAsync(ids, progress: progress);
             var failed = results.Count(result => !result.Succeeded);
             BrowserStatusText.Text = failed == 0
-                ? $"Regenerated {results.Count} thumbnail{(results.Count == 1 ? "" : "s")}"
+                ? $"Regenerated {results.Count} Preview{(results.Count == 1 ? "" : "s")}"
                 : $"Regenerated {results.Count - failed}; {failed} could not be regenerated";
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            MessageBox.Show($"Thumbnail regeneration failed: {exception.Message}", "Regenerate thumbnails",
+            MessageBox.Show($"Preview regeneration failed: {exception.Message}", "Regenerate Previews",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally { UpdateBrowserSelectionActions(); }
@@ -1415,15 +1413,19 @@ public partial class MainWindow : Window
     {
         try
         {
-            var results = await _storage.RegenerateThumbnailsAsync(ids);
-            for (var index = 0; index < results.Count && index < ids.Count; index++)
-                if (results[index].Succeeded && results[index].ThumbnailPath is { } path)
-                    _browserGrid.ApplyThumbnail(ids[index], path);
+            await _storage.RegenerateThumbnailsAsync(ids,
+                progress: new Progress<PreviewRegenerationCompleted>(ApplyCompletedPreview));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            BrowserStatusText.Text = $"Color thumbnail regeneration could not complete: {exception.Message}";
+            BrowserStatusText.Text = $"Color Preview regeneration could not complete: {exception.Message}";
         }
+    }
+
+    private void ApplyCompletedPreview(PreviewRegenerationCompleted completed)
+    {
+        if (completed.Result.Succeeded && completed.Result.ThumbnailPath is { } path)
+            _browserGrid.ApplyThumbnail(completed.AssetId, path);
     }
 
     private void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -1771,6 +1773,10 @@ public partial class MainWindow : Window
         BrowserExportButton.IsEnabled = state.CanExport;
         BrowserRegenerateThumbnailsButton.IsEnabled = state.CanRegenerateThumbnails ||
             state.SelectionCount == 0 && _browserGrid.ThumbnailApplicableAssetIdsInScope.Count > 0;
+        var regenerateLabel = BrowserThumbnailRegeneration.ProductLabel(
+            state.SelectionCount, state.CanRegenerateThumbnails);
+        BrowserRegenerateThumbnailsButton.ToolTip = regenerateLabel;
+        AutomationProperties.SetName(BrowserRegenerateThumbnailsButton, regenerateLabel);
         BrowserCameraLutCombo.IsEnabled = state.CanAssignCameraLut;
         BrowserCreativeLutCombo.IsEnabled = state.CanAssignCreativeLut;
         _ = RefreshBrowserColorSelectorsAsync();
@@ -2611,7 +2617,7 @@ public partial class MainWindow : Window
 
     private async void RebuildPreviews_Click(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show("Clear and rebuild Preview metadata and thumbnails for all available Catalog assets? Offline sources will be skipped and can be rebuilt later.",
+        if (MessageBox.Show("Clear and rebuild Preview metadata and visual Previews for all available Catalog assets? Offline sources will be skipped and can be rebuilt later.",
             "Rebuild Previews", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         await RunPreviewMaintenanceAsync(async token =>
         {

@@ -36,6 +36,26 @@ internal sealed record ThumbnailColorRender(string VisualIdentity, IReadOnlyList
     public static ThumbnailColorRender Original { get; } = new(PreviewVisualIdentity.Original, []);
 }
 
+internal sealed record PreviewRegenerationCompleted(Guid AssetId, ThumbnailGenerationResult Result);
+
+internal static class PreviewRegenerationBatch
+{
+    public static async Task<IReadOnlyList<ThumbnailGenerationResult>> RunAsync(IReadOnlyList<Guid> assetIds,
+        Func<Guid, CancellationToken, Task<ThumbnailGenerationResult>> generate,
+        IProgress<PreviewRegenerationCompleted>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var results = new List<ThumbnailGenerationResult>(assetIds.Count);
+        foreach (var assetId in assetIds.Distinct())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await generate(assetId, cancellationToken).ConfigureAwait(false);
+            results.Add(result);
+            progress?.Report(new(assetId, result));
+        }
+        return results;
+    }
+}
+
 internal sealed record ThumbnailGenerationActivityChanged(Guid AssetId, bool IsGenerating);
 internal interface IThumbnailGenerationActivity
 {
@@ -161,7 +181,7 @@ internal sealed class WicImageThumbnailRenderer(int maximumPixelDimension = 512)
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return new(ThumbnailGenerationStatus.Failed, $"The image thumbnail could not be generated: {exception.Message}");
+            return new(ThumbnailGenerationStatus.Failed, $"The image Preview could not be generated: {exception.Message}");
         }
     }
 
@@ -340,7 +360,7 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
             {
                 await RecordFailureAsync(request.AssetId, preview, color.VisualIdentity, cancellationToken).ConfigureAwait(false);
                 return new(ThumbnailGenerationStatus.InvalidOutput, ResolveExisting(preview.ThumbnailRelativePath),
-                    "The generated thumbnail was not a valid image.");
+                    "The generated Preview was not a valid image.");
             }
 
             var verified = await _assets.ObserveAsync(request.AssetId, cancellationToken).ConfigureAwait(false);
@@ -354,18 +374,18 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
                 return new(ThumbnailGenerationStatus.AssetNotFound, Diagnostic: verified.Diagnostic);
             if (!verified.Succeeded || verified.Asset?.Asset.Fingerprint is null)
                 return new(ThumbnailGenerationStatus.Failed, ResolveExisting(preview.ThumbnailRelativePath),
-                    verified.Diagnostic ?? "The source could not be verified after thumbnail generation.");
+                    verified.Diagnostic ?? "The source could not be verified after Preview generation.");
 
             var verifiedSource = SourceIdentity(verified.Asset.Asset);
             await _previews.ObserveSourceAsync(request.AssetId, verifiedSource, cancellationToken).ConfigureAwait(false);
             if (!SameSourceIdentity(source, verifiedSource))
                 return new(ThumbnailGenerationStatus.SourceChanged, ResolveExisting(preview.ThumbnailRelativePath),
-                    "The source changed while its thumbnail was being generated. Retry after the file is stable.");
+                    "The source changed while its Preview was being generated. Retry after the file is stable.");
 
             var verifiedColorIdentity = await CurrentVisualIdentityAsync(request.AssetId, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(color.VisualIdentity, verifiedColorIdentity, StringComparison.Ordinal))
                 return new(ThumbnailGenerationStatus.SourceChanged, ResolveExisting(preview.ThumbnailRelativePath),
-                    "Color changed while its thumbnail was being generated. Newer work will replace it.");
+                    "Color changed while its Preview was being generated. Newer work will replace it.");
 
             File.Move(temporaryPath, finalPath, overwrite: true);
             if (!string.Equals(color.VisualIdentity,
@@ -374,7 +394,7 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
             {
                 try { File.Delete(finalPath); } catch { }
                 return new(ThumbnailGenerationStatus.SourceChanged, ResolveExisting(preview.ThumbnailRelativePath),
-                    "Color changed before its thumbnail could be committed. Newer work will replace it.");
+                    "Color changed before its Preview could be committed. Newer work will replace it.");
             }
             var relative = Path.GetRelativePath(_locations.PreviewsDirectory, finalPath).Replace('\\', '/');
             await _previews.SetArtifactAsync(request.AssetId, PreviewArtifactKind.Thumbnail,

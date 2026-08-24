@@ -82,4 +82,6 @@ internal static class BrowserThumbnailRegeneration
         selectionCount > 0 ? selectedApplicable : scopeApplicable;
     public static bool RequiresConfirmation(int selectionCount, int targetCount) =>
         selectionCount == 0 && targetCount > ConfirmationThreshold;
+    public static string ProductLabel(int selectionCount, bool canRegenerateSelection) =>
+        canRegenerateSelection && selectionCount == 1 ? "Regenerate Preview" : "Regenerate Previews";
 }

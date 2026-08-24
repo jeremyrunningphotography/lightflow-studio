@@ -297,13 +297,13 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
                     .ConfigureAwait(false);
                 thumbnail = Map(result.Status);
                 if (!result.Succeeded && result.Status is not ThumbnailGenerationStatus.RootUnavailable and not ThumbnailGenerationStatus.SourceMissing)
-                    diagnostics.Add(result.Diagnostic ?? $"Thumbnail: {result.Status}");
+                    diagnostics.Add(result.Diagnostic ?? $"Preview: {result.Status}");
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception exception)
             {
                 thumbnail = DerivedWorkComponentOutcome.Failed;
-                diagnostics.Add($"Thumbnail: {exception.Message}");
+                diagnostics.Add($"Preview: {exception.Message}");
             }
         }
 

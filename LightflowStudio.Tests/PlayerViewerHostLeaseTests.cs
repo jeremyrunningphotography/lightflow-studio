@@ -75,7 +75,7 @@ public sealed class PlayerViewerHostLeaseTests
                 Assert.Null(backend.PipelineAtOpen);
                 Assert.Equal(hasCamera, backend.ColorCalls[^1].Pipeline?.Camera is not null);
                 Assert.Equal(hasCreative, backend.ColorCalls[^1].Pipeline?.Creative is not null);
-                Assert.False(backend.ColorCalls[^1].Bypass);
+                Assert.True(backend.ColorCalls[^1].Bypass);
             }
             finally { folder.Delete(true); }
         });
@@ -114,8 +114,8 @@ public sealed class PlayerViewerHostLeaseTests
             initialization.SetResult();
             await WaitUntilAsync(() => milestones.Contains(PlayerOpenMilestone.ColorPublished),
                 "background Color publication after LUT initialization");
-            Assert.True(host.CameraLutCombo.IsEnabled);
-            Assert.True(host.CreativeLutCombo.IsEnabled);
+            Assert.False(host.CameraLutCombo.IsEnabled);
+            Assert.False(host.CreativeLutCombo.IsEnabled);
         });
     }
 
@@ -183,19 +183,13 @@ public sealed class PlayerViewerHostLeaseTests
                     Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
                 await WaitUntilAsync(() => host.ColorToggleButton.IsEnabled, "Color controls");
 
-                Assert.True(host.ColorToggleButton.IsChecked);
-                Assert.Null(host.ColorToggleButton.Content);
-                Assert.True(host.CameraLutCombo.IsEnabled);
-                Assert.True(host.CreativeLutCombo.IsEnabled);
-                Assert.False(backend.ColorCalls[^1].Bypass); // Both-No-LUT remains Color On.
-
-                host.ColorToggleButton.IsChecked = false;
-                host.ColorToggleButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
                 Assert.False(host.ColorToggleButton.IsChecked);
                 Assert.Null(host.ColorToggleButton.Content);
                 Assert.False(host.CameraLutCombo.IsEnabled);
                 Assert.False(host.CreativeLutCombo.IsEnabled);
                 Assert.True(backend.ColorCalls[^1].Bypass);
+                Assert.Equal("No LUT", host.CameraLutCombo.SelectedItem!.ToString());
+                Assert.Equal("No LUT", host.CreativeLutCombo.SelectedItem!.ToString());
                 Assert.Equal(0, colors.SetCount);
 
                 var callsWhileOff = backend.ColorCalls.Count;
@@ -212,6 +206,8 @@ public sealed class PlayerViewerHostLeaseTests
                 Assert.True(host.ColorToggleButton.IsChecked);
                 Assert.True(host.CameraLutCombo.IsEnabled);
                 Assert.True(host.CreativeLutCombo.IsEnabled);
+                Assert.Equal("No LUT", host.CameraLutCombo.SelectedItem!.ToString());
+                Assert.Equal("No LUT", host.CreativeLutCombo.SelectedItem!.ToString());
                 Assert.False(backend.ColorCalls[^1].Bypass);
 
                 Key(host, window, System.Windows.Input.Key.C, UIElement.PreviewKeyDownEvent);

@@ -48,7 +48,7 @@ public partial class PlayerViewerHost : UserControl
     private string? _lastScreengrabDirectory;
     private readonly FrameStepQueue _frameStepQueue = new();
     private bool _updatingColor;
-    private bool _persistentColorEnabled = true;
+    private bool _persistentColorEnabled;
     private bool _momentaryColorBypass;
     private PlayerColorPipeline? _colorPipeline;
     private LutLibrarySnapshot? _cameraLibrary;

@@ -55,10 +55,11 @@ LUT output is passed to the next ordered stage without an implicit color-space c
 before Creative. GPU buffers and shader state are transient playback-adapter details and are never durable Catalog
 state; Preview generation and Encoding remain independent consumers of the same intent.
 
-The Player restores Catalog Color intent and resolves Camera/Creative GPU data before opening Flyleaf. That pipeline
-is installed on the shared playback service before the backend creates its Player; only after open and the optional
-saved-In seek settle is the native presentation attached to WPF. Consequently the first visible frame already has
-the saved Camera → Creative result, without timing delays or a transient unprocessed presentation.
+The Player opens Flyleaf, restores an optional saved-In position, attaches presentation, and publishes transport
+controls before waiting on LUT discovery, Catalog Color intent, runtime LUT preparation, selector construction, or
+GPU Color setup. A generation/revision-guarded continuation applies Camera → Creative after those resources become
+available without reopening or interrupting playback. A new Player defaults Color processing to Off with independent
+Camera and Creative `No LUT` selections; assignments remain durable and toggling Color changes presentation only.
 
 ### Presentation
 

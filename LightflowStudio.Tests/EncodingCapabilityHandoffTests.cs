@@ -107,19 +107,56 @@ public sealed class EncodingCapabilityHandoffTests
     [Fact]
     public async Task Materialize_reresolves_originating_folder_through_current_root_mapping()
     {
-        var rootId = Guid.NewGuid();
-        var assetId = Guid.NewGuid();
-        var assets = new FakeAssets(Resolution(assetId, "D:\\remapped\\shoot\\clip.mov", rootId: rootId));
-        var roots = new FakeRoots("D:\\remapped\\shoot");
-        var invocation = new CapabilityInvocation("video.encode", [assetId],
-            new CapabilitySourceContext(rootId, "shoot"));
+        var physicalRoot = Directory.CreateTempSubdirectory("lightflow-handoff-map-").FullName;
+        var physicalFolder = Directory.CreateDirectory(Path.Combine(physicalRoot, "shoot")).FullName;
+        try
+        {
+            var rootId = Guid.NewGuid();
+            var assetId = Guid.NewGuid();
+            var assets = new FakeAssets(Resolution(assetId, Path.Combine(physicalFolder, "clip.mov"), rootId: rootId));
+            var roots = new FakeRoots(physicalFolder, rootId, physicalRoot);
+            var invocation = new CapabilityInvocation("video.encode", [assetId],
+                new CapabilitySourceContext(rootId, "shoot"));
 
-        var result = await new EncodingCapabilityHandoff(assets, roots, new FakeRanges())
-            .MaterializeAsync(invocation);
+            var result = await new EncodingCapabilityHandoff(assets, roots, new FakeRanges())
+                .MaterializeAsync(invocation);
 
-        Assert.True(result.Succeeded);
-        Assert.Equal("D:\\remapped\\shoot", result.InputFolder);
-        Assert.Equal((rootId, "shoot"), roots.LastResolution);
+            Assert.True(result.Succeeded);
+            Assert.Equal(physicalFolder, result.InputFolder);
+            Assert.Equal(rootId, roots.LastRootLookup);
+        }
+        finally { Directory.Delete(physicalRoot, true); }
+    }
+
+    [Fact]
+    public async Task Materialize_uses_directory_semantics_for_ordinary_and_recursive_browser_scopes()
+    {
+        var root = Directory.CreateTempSubdirectory("lightflow-handoff-root-").FullName;
+        try
+        {
+            var nested = Directory.CreateDirectory(Path.Combine(root, "shoot", "day-one")).FullName;
+            var first = Guid.NewGuid();
+            var second = Guid.NewGuid();
+            var assets = new FakeAssets(Resolution(first, Path.Combine(root, "shoot", "one.mov")),
+                Resolution(second, Path.Combine(nested, "two.mov")));
+            var rootId = assets.RootIdFor(first);
+            assets.SetRootId(second, rootId);
+            var roots = new FakeRoots(Path.Combine(root, "shoot"), rootId, root);
+            var handoff = new EncodingCapabilityHandoff(assets, roots, new FakeRanges());
+
+            var ordinary = await handoff.MaterializeAsync(new CapabilityInvocation("video.encode", [first],
+                new CapabilitySourceContext(rootId, "shoot")));
+            var recursive = await handoff.MaterializeAsync(new CapabilityInvocation("video.encode", [first, second],
+                new CapabilitySourceContext(rootId, "shoot")));
+
+            Assert.True(ordinary.Succeeded);
+            Assert.True(recursive.Succeeded);
+            Assert.Equal(Path.Combine(root, "shoot"), recursive.InputFolder);
+            Assert.True(recursive.IncludeSubfolders);
+            Assert.Equal(["one.mov", Path.Combine("day-one", "two.mov")], recursive.Inputs.Select(input =>
+                Path.GetRelativePath(recursive.InputFolder!, input.SourcePath)));
+        }
+        finally { Directory.Delete(root, true); }
     }
 
     [Fact]
@@ -187,9 +224,10 @@ public sealed class EncodingCapabilityHandoffTests
         return new(asset, availability, path, path is not null, path is null ? "The mapped root is unavailable." : null);
     }
 
-    private sealed class FakeRoots(string? resolvedFolder = null) : IMediaRootService
+    private sealed class FakeRoots(string? resolvedFolder = null, Guid? knownRootId = null, string? rootPath = null) : IMediaRootService
     {
         public (Guid RootId, string RelativePath)? LastResolution { get; private set; }
+        public Guid? LastRootLookup { get; private set; }
         public Task<MediaPathResolution> ResolveAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -199,7 +237,14 @@ public sealed class EncodingCapabilityHandoffTests
                 resolvedFolder is not null));
         }
         public Task<IReadOnlyList<MediaRootInfo>> ListAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<MediaRootInfo?> GetAsync(Guid rootId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<MediaRootInfo?> GetAsync(Guid rootId, CancellationToken cancellationToken = default)
+        {
+            LastRootLookup = rootId;
+            var path = rootPath ?? (resolvedFolder is null ? null : Directory.GetParent(resolvedFolder)?.FullName);
+            return Task.FromResult<MediaRootInfo?>(knownRootId is null || knownRootId == rootId
+                ? new MediaRootInfo(rootId, "Root", path, path is null ? MediaRootAvailability.Unavailable : MediaRootAvailability.Online)
+                : null);
+        }
         public Task<MediaRootChangeResult> CreateAsync(string displayName, string physicalPath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaRootChangeResult> RenameAsync(Guid rootId, string displayName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaRootChangeResult> RemapAsync(Guid rootId, string physicalPath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -220,6 +265,12 @@ public sealed class EncodingCapabilityHandoffTests
     private sealed class FakeAssets(params MediaAssetResolution[] values) : IMediaAssetService
     {
         private readonly Dictionary<Guid, MediaAssetResolution> _values = values.ToDictionary(value => value.Asset.AssetId);
+        public Guid RootIdFor(Guid assetId) => _values[assetId].Asset.RootId;
+        public void SetRootId(Guid assetId, Guid rootId)
+        {
+            var value = _values[assetId];
+            _values[assetId] = value with { Asset = value.Asset with { RootId = rootId } };
+        }
         public Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_values.GetValueOrDefault(assetId));
         public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) =>

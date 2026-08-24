@@ -632,13 +632,13 @@ public class UiLayoutTests
         Assert.True(double.Parse((string?)document.Root!.Attribute("MinWidth") ?? "0") >= 1120);
     }
     [Fact]
-    public void EncodingRequirements_UseAnchoredActionableHelp()
+    public void ExportRequirements_UseAnchoredActionableHelp()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
 
         Assert.Contains(document.Descendants(ns + "TextBlock"), element =>
-            (string?)element.Attribute("Text") == "Encoding Requirements");
+            (string?)element.Attribute("Text") == "Export Requirements");
         Assert.DoesNotContain(document.Descendants(ns + "TextBlock"), element =>
             (string?)element.Attribute("Text") == "Encoding Readiness");
         var button = document.Descendants(ns + "ToggleButton").Single(element =>
@@ -713,11 +713,35 @@ public class UiLayoutTests
         var tabs = Named(document, "MainTabs").Elements(ns + "TabItem").ToList();
 
         Assert.Equal("0", (string?)Named(document, "MainTabs").Attribute("SelectedIndex"));
-        Assert.Equal(["Browser", "Encoding", "Media Tools", "History", "Premiere Helper", "Settings", "About"], labels);
+        Assert.Equal(["Browser", "Export", "Media Tools", "History", "Premiere Helper", "Settings", "About"], labels);
         Assert.Equal(labels.Count, tabs.Count);
         Assert.Contains(tabs[0].Descendants(), element =>
             (string?)element.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "BrowserFolderTree");
-        Assert.Contains(tabs[1].Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "Batch Encode");
+        Assert.Contains(tabs[1].Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "Export");
+    }
+
+    [Fact]
+    public void BrowserActions_ArePersistentSharedAndAbsentFromTheStatusBar()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var browse = Named(document, "BrowserBrowseToolbar");
+        var actions = Named(document, "BrowserSelectionActionToolbar");
+        var contextMenu = Named(document, "BrowserGridRows").Descendants(ns + "ContextMenu").Single();
+
+        Assert.Equal("0", (string?)browse.Attribute("Grid.Row"));
+        Assert.Equal("2", (string?)actions.Attribute("Grid.Row"));
+        Assert.Null(actions.Attribute("Visibility"));
+        Assert.NotNull(Named(document, "BrowserExportButton"));
+        Assert.NotNull(Named(document, "BrowserRegenerateThumbnailsButton"));
+        Assert.NotNull(Named(document, "BrowserRenameButton"));
+        Assert.NotNull(Named(document, "BrowserCameraLutButton"));
+        Assert.NotNull(Named(document, "BrowserCreativeLutButton"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "BrowserEncodeButton");
+        Assert.Equal(
+            ["Export / Export Subclips…", "Regenerate Thumbnail(s)", "Rename", "Camera LUT", "Creative LUT"],
+            contextMenu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
     }
 
     [Fact]

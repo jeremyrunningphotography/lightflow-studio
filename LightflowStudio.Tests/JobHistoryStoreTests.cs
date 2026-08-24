@@ -172,7 +172,7 @@ public sealed class JobHistoryStoreTests : IDisposable
         Assert.Equal(sourcePath, restored.FilePath);
         Assert.Equal(historic.MediaRange, restored.TrimRange);
         Assert.Empty(restoration.Unavailable);
-        Assert.Equal("Restored 1 file from History — review before encoding", EncodingHistoryRerun.RestorationMessage(restoration));
+        Assert.Equal("Restored 1 file from History — review before export", EncodingHistoryRerun.RestorationMessage(restoration));
     }
 
     [Fact]

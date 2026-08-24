@@ -257,7 +257,7 @@
      KeyboardNavigation.TabNavigation="Once" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
      <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListBox.ItemsPanel>
      <ListBoxItem IsSelected="True" ToolTip="Browse media" AutomationProperties.Name="Browser workspace"><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE8B7;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Browser"/></Grid></ListBoxItem>
-     <ListBoxItem AutomationProperties.Name="Encoding workspace"><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE768;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Encoding"/></Grid></ListBoxItem>
+     <ListBoxItem AutomationProperties.Name="Export workspace"><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE768;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Export"/></Grid></ListBoxItem>
      <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE8B1;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Media Tools"/></Grid></ListBoxItem>
      <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE81C;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="History"/></Grid></ListBoxItem>
      <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE943;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Premiere Helper"/></Grid></ListBoxItem>
@@ -349,7 +349,9 @@
       </GridSplitter>
       <Grid Grid.Column="2" MinWidth="520">
        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition x:Name="BrowserNavigationGap" Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-       <Border x:Name="BrowserNavigationToolbar" Style="{StaticResource ShellPanel}" Padding="12,9">
+       <ScrollViewer Grid.Row="0" x:Name="BrowserBrowseToolbar" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+       <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="520"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Border Grid.Column="0" x:Name="BrowserNavigationToolbar" Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>
          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
          <StackPanel Orientation="Horizontal">
@@ -366,7 +368,7 @@
         #109's media-area toolbar: narrows and presents the scope the Locations sidebar already chose.
         Search/filter/sort/status live here, never in the left sidebar, and never inside folder navigation.
        -->
-       <Border Grid.Row="2" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="10,8" IsEnabled="False">
+       <Border Grid.Column="1" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="10,8" IsEnabled="False" Margin="8,0,0,0">
         <StackPanel>
          <Grid>
           <Grid.ColumnDefinitions>
@@ -484,6 +486,23 @@
          </ItemsControl>
         </StackPanel>
        </Border>
+       </Grid></ScrollViewer>
+       <Border Grid.Row="2" x:Name="BrowserSelectionActionToolbar" Style="{StaticResource ShellPanel}" Padding="10,7">
+        <DockPanel LastChildFill="False">
+         <TextBlock x:Name="BrowserSelectionActionSummary" DockPanel.Dock="Left" MinWidth="120" Margin="4,0,12,0"
+          VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="No selection"/>
+         <Button x:Name="BrowserExportButton" Content="Export / Export Subclips…" IsEnabled="False"
+          ToolTip="Export selected videos, preserving saved ranges" AutomationProperties.Name="Export selected videos" Click="BrowserExport_Click"/>
+         <Button x:Name="BrowserRegenerateThumbnailsButton" Content="Regenerate Thumbnail(s)" IsEnabled="False"
+          ToolTip="Regenerate cached thumbnails for the selection" Click="BrowserRegenerateThumbnails_Click"/>
+         <Button x:Name="BrowserRenameButton" Content="Rename" IsEnabled="False"
+          ToolTip="Media rename is not available yet"/>
+         <Button x:Name="BrowserCameraLutButton" Content="Camera LUT ▾" IsEnabled="False"
+          ToolTip="Assign a Camera/technical LUT to selected videos" Click="BrowserCameraLut_Click"/>
+         <Button x:Name="BrowserCreativeLutButton" Content="Creative LUT ▾" IsEnabled="False"
+          ToolTip="Assign a Creative LUT to selected videos" Click="BrowserCreativeLut_Click"/>
+        </DockPanel>
+       </Border>
        <!-- The one authoritative background for the whole media canvas (loading/content/empty/failure alike)
             — every descendant surface between this Border and an individual tile's own card chrome is
             deliberately Transparent (never merely unset) so nothing but this single Background can ever paint
@@ -530,8 +549,19 @@
                     is required: it re-resolves for every realized/recycled tile whenever those resources
                     change, including tiles the slider changes while virtualized out of view. -->
                <Border Width="{DynamicResource BrowserTileWidth}" Margin="0,0,12,12" Padding="7" CornerRadius="6" BorderThickness="1"
-                MouseLeftButtonDown="BrowserGridTile_MouseLeftButtonDown"
+                MouseLeftButtonDown="BrowserGridTile_MouseLeftButtonDown" MouseRightButtonDown="BrowserGridTile_MouseRightButtonDown"
+                ContextMenuOpening="BrowserGridTile_ContextMenuOpening"
                 ToolTip="{Binding Name}" AutomationProperties.Name="{Binding AutomationLabel}">
+                <Border.ContextMenu>
+                 <ContextMenu>
+                  <MenuItem Header="Export / Export Subclips…" Click="BrowserContextExport_Click"/>
+                  <MenuItem Header="Regenerate Thumbnail(s)" Click="BrowserContextRegenerateThumbnails_Click"/>
+                  <MenuItem Header="Rename" IsEnabled="False" ToolTip="Media rename is not available yet"/>
+                  <Separator/>
+                  <MenuItem Header="Camera LUT" SubmenuOpened="BrowserContextCameraLut_SubmenuOpened"/>
+                  <MenuItem Header="Creative LUT" SubmenuOpened="BrowserContextCreativeLut_SubmenuOpened"/>
+                 </ContextMenu>
+                </Border.ContextMenu>
                 <Border.Style>
                  <Style TargetType="Border">
                   <Setter Property="Background" Value="{StaticResource ShellPanelBrush}"/>
@@ -617,7 +647,7 @@
      <Grid Margin="28,24,28,28">
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <StackPanel Margin="2,0,0,20">
-       <TextBlock Style="{StaticResource PageTitle}" Text="Batch Encode"/>
+       <TextBlock Style="{StaticResource PageTitle}" Text="Export"/>
        <TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Apply a LUT and create consistent, edit-ready H.264 files from an entire folder."/>
       </StackPanel>
 
@@ -720,7 +750,7 @@
           <TextBlock Style="{StaticResource FieldLabel}" Text="CATALOG COLOR"/>
           <ComboBox x:Name="EncodingColorModeSelection" SelectedIndex="1" SelectionChanged="EncodingColorModeSelection_Changed">
            <ComboBoxItem Content="Render assigned Color"/>
-           <ComboBoxItem Content="Original / manual Encoding LUT"/>
+           <ComboBoxItem Content="Original / manual Export LUT"/>
           </ComboBox>
           <TextBlock x:Name="AssignedColorSummary" Margin="4,4,4,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
          </StackPanel>
@@ -747,7 +777,7 @@
        <StackPanel Grid.Column="1" Orientation="Horizontal">
         <Button x:Name="CancelButton" Style="{StaticResource DangerButton}" Content="Cancel" IsEnabled="False" Click="Cancel_Click"/>
         <Button x:Name="PauseButton" Content="Pause" IsEnabled="False" Click="Pause_Click"/>
-        <Button x:Name="StartButton" Style="{StaticResource PrimaryButton}" Content="Start Encoding" IsEnabled="False" Click="Start_Click"/>
+        <Button x:Name="StartButton" Style="{StaticResource PrimaryButton}" Content="Start Export" IsEnabled="False" Click="Start_Click"/>
        </StackPanel>
       </Grid>
 
@@ -756,7 +786,7 @@
        <Border Style="{StaticResource Card}">
         <Grid>
          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-         <TextBlock Style="{StaticResource SectionTitle}" Margin="4,0,4,12" Text="Encoding Progress"/>
+         <TextBlock Style="{StaticResource SectionTitle}" Margin="4,0,4,12" Text="Export Progress"/>
          <DockPanel Grid.Row="1" Margin="4,0,4,4" LastChildFill="False"><TextBlock Foreground="{StaticResource MutedTextBrush}" Text="Current file"/><TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" Foreground="{StaticResource OrangeBrush}" Text="ACTIVE"/></DockPanel>
          <ProgressBar Grid.Row="2" x:Name="FileProgress" Style="{StaticResource FileProgressStyle}" Maximum="100"/>
          <DockPanel Grid.Row="3" Margin="4,14,4,4" LastChildFill="False"><TextBlock Foreground="{StaticResource MutedTextBrush}" Text="Overall batch"/><TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" x:Name="EtaText" Foreground="{StaticResource MutedTextBrush}"/></DockPanel>
@@ -768,9 +798,9 @@
          <Expander.Header><TextBlock Style="{StaticResource SectionTitle}" Text="Activity Log"/></Expander.Header>
          <Grid Margin="0,10,0,0">
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-          <CheckBox x:Name="ShowEncodingDetails" HorizontalAlignment="Right" Margin="4,0,4,8" Content="Show encoding details"
+          <CheckBox x:Name="ShowEncodingDetails" HorizontalAlignment="Right" Margin="4,0,4,8" Content="Show export details"
            Checked="ShowEncodingDetails_Changed" Unchecked="ShowEncodingDetails_Changed"
-           ToolTip="Include technical encoding messages from FFmpeg and additional file details in the activity log."/>
+           ToolTip="Include technical export messages from FFmpeg and additional file details in the activity log."/>
           <TextBox Grid.Row="1" x:Name="LogBox" Height="150" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" FontSize="12" VerticalContentAlignment="Top" HorizontalContentAlignment="Left" VerticalScrollBarVisibility="Auto"/>
          </Grid>
         </Expander>
@@ -801,7 +831,7 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
      <DockPanel Margin="2,0,0,20">
       <Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshHistory_Click"/>
-      <StackPanel><TextBlock Style="{StaticResource PageTitle}" Text="History"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Review completed Encoding jobs and restore safe inputs for another run."/></StackPanel>
+      <StackPanel><TextBlock Style="{StaticResource PageTitle}" Text="History"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Review completed exports and restore safe inputs for another run."/></StackPanel>
      </DockPanel>
      <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource Card}" Margin="0,0,10,0">
@@ -882,7 +912,7 @@
       </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
      </StackPanel></Border>
      <Border Grid.Row="4" Style="{StaticResource Card}"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <TextBlock Grid.ColumnSpan="2" Style="{StaticResource SectionTitle}" Margin="4,0,4,12" Text="Batch Encode Defaults"/>
+      <TextBlock Grid.ColumnSpan="2" Style="{StaticResource SectionTitle}" Margin="4,0,4,12" Text="Export Defaults"/>
       <StackPanel Grid.Row="1" Margin="0,0,8,0"><TextBlock Style="{StaticResource FieldLabel}" Text="RESOLUTION"/><ComboBox x:Name="SettingsResolution"><ComboBoxItem Content="480p (854×480)"/><ComboBoxItem Content="720p (1280×720)"/><ComboBoxItem Content="1080p (1920×1080)"/><ComboBoxItem Content="1440p (2560×1440)"/><ComboBoxItem Content="4K UHD (3840×2160)"/><ComboBoxItem Content="Source resolution"/></ComboBox></StackPanel>
       <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,0"><TextBlock Style="{StaticResource FieldLabel}" Text="RECOVERY MODE"/><ComboBox x:Name="SettingsRecoveryMode"><ComboBoxItem Content="Normal"/><ComboBoxItem Content="Salvage audio + video"/><ComboBoxItem Content="Video only"/></ComboBox></StackPanel>
       <WrapPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="4,8,0,0"><CheckBox x:Name="SettingsRecursive" Content="Include subfolders by default" Checked="SettingsRecursive_Changed" Unchecked="SettingsRecursive_Changed"/><CheckBox x:Name="SettingsPreserveFolderStructure" Content="Preserve source folder structure by default" Visibility="Collapsed"/><CheckBox x:Name="SettingsOverwriteExisting" Content="Overwrite existing output files by default"/></WrapPanel>
@@ -890,7 +920,7 @@
      </Grid></Border>
      <Border Grid.Row="5" Style="{StaticResource Card}">
       <StackPanel>
-       <TextBlock Style="{StaticResource SectionTitle}" Margin="4,0,4,4" Text="Encoding Quality"/>
+       <TextBlock Style="{StaticResource SectionTitle}" Margin="4,0,4,4" Text="Export Quality"/>
        <TextBlock Margin="4,0,4,12" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="Choose a named starting point, then fine-tune individual options. NVIDIA NVENC is available now; CPU, AMD, and Intel backends are reserved for later releases."/>
        <DockPanel>
         <Button DockPanel.Dock="Right" Content="Apply Preset" Click="ApplyEncodingPreset_Click"/>
@@ -902,7 +932,7 @@
         <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource FieldLabel}" Text="CONTAINER"/><ComboBox x:Name="SettingsContainer"><ComboBoxItem Content="MP4"/><ComboBoxItem Content="MKV"/><ComboBoxItem Content="MOV"/></ComboBox></StackPanel>
         <StackPanel Grid.Column="3"><TextBlock Style="{StaticResource FieldLabel}" Text="AUDIO"/><ComboBox x:Name="SettingsAudioMode"><ComboBoxItem Content="Copy source"/><ComboBoxItem Content="AAC"/><ComboBoxItem Content="No audio"/></ComboBox></StackPanel>
        </Grid>
-       <Expander Margin="4,12,4,0" Header="Advanced encoding options" Foreground="{StaticResource TextBrush}">
+       <Expander Margin="4,12,4,0" Header="Advanced export options" Foreground="{StaticResource TextBrush}">
         <StackPanel Margin="0,8,0,0">
          <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
           <StackPanel><TextBlock Style="{StaticResource FieldLabel}" Text="NVENC PRESET (P1–P7)"/><TextBox x:Name="SettingsEncoderPreset"/></StackPanel>
@@ -934,7 +964,7 @@
       <StackPanel>
        <DockPanel Margin="4,0,4,12">
         <Button DockPanel.Dock="Right" Padding="12,6" Content="Check Again" Click="CheckDependencies_Click"/>
-        <StackPanel><TextBlock Style="{StaticResource SectionTitle}" Text="Encoding Requirements"/><TextBlock x:Name="DependencySummary" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Checking the tools needed for encoding…"/></StackPanel>
+        <StackPanel><TextBlock Style="{StaticResource SectionTitle}" Text="Export Requirements"/><TextBlock x:Name="DependencySummary" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Checking the tools needed for export…"/></StackPanel>
        </DockPanel>
        <ItemsControl x:Name="DependencyResults" Margin="4,0,4,12">
         <ItemsControl.ItemTemplate><DataTemplate>
@@ -966,7 +996,7 @@
     <Grid Margin="28,24,28,28"><Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Width="620" Padding="28">
      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="210"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Image Source="Assets/Branding/jr-glow-source.png" Width="190" Height="190" Stretch="Uniform"/>
-      <StackPanel Grid.Column="1" Margin="24,10,0,0"><TextBlock Style="{StaticResource PageTitle}" Text="Lightflow Studio"/><TextBlock Margin="0,4,0,16" Foreground="{StaticResource OrangeBrush}" FontSize="12" FontWeight="SemiBold" Text="JEREMY RUNNING PHOTOGRAPHY"/><TextBlock Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="20" Text="Video processing and workflow tools for batch encoding, media inspection, recovery, and Premiere Pro exports."/><Border Height="2" Margin="0,22,0,16" Background="{StaticResource BrandGradient}"/><TextBlock x:Name="AboutVersionText" Foreground="{StaticResource MutedTextBrush}"/></StackPanel>
+      <StackPanel Grid.Column="1" Margin="24,10,0,0"><TextBlock Style="{StaticResource PageTitle}" Text="Lightflow Studio"/><TextBlock Margin="0,4,0,16" Foreground="{StaticResource OrangeBrush}" FontSize="12" FontWeight="SemiBold" Text="JEREMY RUNNING PHOTOGRAPHY"/><TextBlock Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="20" Text="Video processing and workflow tools for batch export, media inspection, recovery, and Premiere Pro exports."/><Border Height="2" Margin="0,22,0,16" Background="{StaticResource BrandGradient}"/><TextBlock x:Name="AboutVersionText" Foreground="{StaticResource MutedTextBrush}"/></StackPanel>
      </Grid>
     </Border></Grid>
    </TabItem>
@@ -999,9 +1029,6 @@
       Content="&#xE80A;" ToolTip="Increase thumbnail size" AutomationProperties.Name="Increase thumbnail size"
       Click="BrowserThumbnailSizeIncreaseButton_Click"/>
     </StackPanel>
-    <Button x:Name="BrowserEncodeButton" DockPanel.Dock="Right" Margin="0,0,12,0" Padding="12,4"
-     Content="Encode" ToolTip="Send the selected videos to Batch Encode" AutomationProperties.Name="Encode selected Browser videos"
-     IsEnabled="False" Visibility="Collapsed" Click="BrowserEncode_Click"/>
     <TextBlock x:Name="BrowserStatusText" DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
      FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="380" Margin="0,0,14,0" Visibility="Collapsed"/>
     <Border x:Name="BrowserStatusDivider" DockPanel.Dock="Right" Width="1" Margin="0,9,14,9" Background="{StaticResource ShellDividerBrush}" Visibility="Collapsed"/>

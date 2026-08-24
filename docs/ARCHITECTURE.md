@@ -94,6 +94,18 @@ included in output/resume identity and diagnostics, and restored directly by Rev
 jobs never query current Catalog Color or rescan configured LUT folders. Older history records omit the optional
 per-item snapshot and deserialize as the legacy Original/manual mode.
 
+The Browser-to-Export source context is a directory identity, not a media-asset identity. Handoff therefore
+resolves the current `MediaRootInfo`, applies segment-aware containment to the context's relative folder, and
+validates the resulting directory with directory semantics. Individual selected inputs continue through the
+stricter asset resolver. This distinction keeps ordinary and recursive Browser scopes exportable while retaining
+root/offline safety and preserving each input's output-relative path beneath the originating folder.
+
+Browser selection operations share one capability evaluation and one action implementation across the persistent
+selection toolbar and tile context menu. Export and typed Camera/Creative LUT assignment require identified video
+assets; Preview regeneration accepts identified video or still assets; unavailable Rename remains visibly disabled.
+LUT menus read the current cache snapshot and never start discovery. Right-click preserves an existing
+multi-selection or replaces it with the previously unselected tile before opening the shared menu.
+
 ### Presentation
 
 WPF views and code-behind currently own navigation, dialogs, accessibility behavior, and control updates. Presentation code may gather user choices and display plans, progress, and results. It must not put UI controls into durable job definitions or construct FFmpeg syntax itself.

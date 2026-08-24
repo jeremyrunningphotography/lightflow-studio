@@ -97,12 +97,23 @@ internal sealed class EncodingCapabilityHandoff
         if (inputs.Any(input => input.RootId != context.RootId))
             return (null, "The selected assets no longer belong to the originating Media Root.");
 
-        MediaPathResolution resolved;
-        try { resolved = await _roots.ResolveAsync(context.RootId, context.RelativeFolder, cancellationToken).ConfigureAwait(false); }
+        MediaRootInfo? root;
+        try { root = await _roots.GetAsync(context.RootId, cancellationToken).ConfigureAwait(false); }
         catch (KeyNotFoundException) { return (null, "The originating Media Root no longer exists."); }
-        if (resolved.RootAvailability != MediaRootAvailability.Online || !resolved.Exists || resolved.PhysicalPath is null)
-            return (null, $"The originating Browser folder is offline or unavailable: {resolved.Diagnostic ?? "the folder could not be resolved"}");
-        return (resolved.PhysicalPath, null);
+        if (root is null) return (null, "The originating Media Root no longer exists.");
+        if (root.Availability != MediaRootAvailability.Online || string.IsNullOrWhiteSpace(root.PhysicalPath))
+            return (null, $"The originating Browser folder is offline or unavailable: {root.Diagnostic ?? "the Media Root is not connected"}");
+        string folder;
+        try
+        {
+            folder = string.IsNullOrWhiteSpace(context.RelativeFolder)
+                ? root.PhysicalPath
+                : MediaPathSemantics.ResolveContained(root.PhysicalPath, context.RelativeFolder);
+        }
+        catch (ArgumentException exception) { return (null, $"The originating Browser folder is invalid: {exception.Message}"); }
+        if (!Directory.Exists(folder))
+            return (null, "The originating Browser folder is missing beneath an available Media Root.");
+        return (folder, null);
     }
 
     private static MediaRange? Snapshot(MediaRange? range) => range is null

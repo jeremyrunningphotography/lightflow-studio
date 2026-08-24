@@ -38,6 +38,32 @@ This boundary discipline preserves future portability without committing Lightfl
 
 ## Layers
 
+### Live Player Color
+
+The Player resolves durable Camera/technical and Creative assignments through the Catalog Color contracts and
+builds one ordered, renderer-independent runtime pipeline. The Windows playback adapter translates that pipeline
+into a device-scoped D3D11 processor installed through Flyleaf's generic post-process seam; Flyleaf remains unaware
+of LUTs and Lightflow Color semantics. The pass runs after Flyleaf's video conversion and built-in processing for
+both live presentation and native snapshots. An empty pipeline and Color Off use the same renderer-targeted GPU draw
+with zero active LUT stages; this is essential for live swap-chain targets, where copying before Flyleaf's final
+render-target/state restoration does not produce a presentable frame.
+
+Player Color accepts the same validated UTF-8 3D `.cube` resources as the folder-backed library: sizes 2–256,
+optional `DOMAIN_MIN`/`DOMAIN_MAX`, RGB rows in standard red-fastest `.cube` order, and trilinear interpolation.
+One-dimensional and combined 1D/3D files remain unsupported. Values outside the declared input domain are clamped;
+LUT output is passed to the next ordered stage without an implicit color-space conversion. Camera is evaluated once
+before Creative. GPU buffers and shader state are transient playback-adapter details and are never durable Catalog
+state; Preview generation and Encoding remain independent consumers of the same intent.
+
+The Player opens Flyleaf, restores an optional saved-In position, attaches presentation, and publishes transport
+controls without waiting on LUT discovery, Catalog Color intent, runtime LUT preparation, selector construction, or
+GPU Color setup. It immediately projects the current immutable cache snapshots (at minimum `No LUT`) into both
+selectors. A generation/revision-guarded continuation then restores durable per-asset Color intent and applies
+Camera → Creative without reopening or interrupting playback. A new asset defaults Color processing to Off with
+independent Camera and Creative `No LUT` selections. The master switch becomes interactive when Player controls
+publish and is not gated by background LUT readiness; stage selectors are enabled whenever persistent Color is On,
+even if the current snapshots contain only `No LUT`. Neither interaction starts or waits on discovery.
+
 ### Presentation
 
 WPF views and code-behind currently own navigation, dialogs, accessibility behavior, and control updates. Presentation code may gather user choices and display plans, progress, and results. It must not put UI controls into durable job definitions or construct FFmpeg syntax itself.
@@ -219,11 +245,34 @@ The durable Catalog architecture is defined by [ADR 0001](decisions/0001-lightfl
 
 SQLite remains behind Lightflow-owned lifecycle, session, identity, result, and backup-seam contracts. `CatalogSqliteConnectionFactory` opens pooled connections per operation and verifies `foreign_keys=ON`, WAL, Catalog-only `synchronous=FULL`, and a 5,000 ms busy timeout on every connection. Sessions retain no open database handle; disposal clears provider pools so #79 relocation and #83 restore can quiesce the file. SQLite commands, connections, readers, exceptions, and migration SQL remain internal to the database implementation rather than WPF or feature models.
 
-Issue #145 establishes one folder-backed LUT resource foundation for Color and Encoding. Settings exposes one ordinary `LUT Folder`; compatible top-level `.cube` files in that folder become the available collection automatically, and the filesystem remains the user's file-management surface. The supported contract is UTF-8 3D `.cube` content with one `LUT_3D_SIZE` declaration, optional `TITLE`/`DOMAIN_MIN`/`DOMAIN_MAX`, finite RGB rows, exact declared row count, and a 16 MB limit; 1D and combined 1D+3D files are skipped because the established Encoding path uses FFmpeg's `lut3d` filter. Validation feedback stays human-readable and does not expose hashes, dimensions, or internal IDs in Settings.
+Issue #145 establishes the folder-backed LUT resource foundation refined by #146 into two ordinary collection-root preferences: `Camera LUT Folder` and `Creative LUT Folder`. Each stage also has an `Include subfolders` preference that defaults Off, including when older settings omit it. Off inspects only files directly in the configured root; On uses bounded, cancellation-aware recursion and skips nested reparse-point files/directories to avoid traversal loops or escaping the selected tree. The filesystem remains the user's file-management surface. Camera presentation resolves only the Camera root and Creative presentation only the Creative root. The existing manual Encoding picker consumes the validated union of both published stage snapshots, de-duplicated by stable `LutId`; it does not create a third library. A legacy single `LutFolder` setting migrates both folder preferences to that path but does not enable recursion. The supported contract is UTF-8 3D `.cube` content with one `LUT_3D_SIZE` declaration, optional `TITLE`/`DOMAIN_MIN`/`DOMAIN_MAX`, finite RGB rows, exact declared row count, and a 16 MB limit; 1D and combined 1D+3D files are skipped because the established Encoding path uses FFmpeg's `lut3d` filter. Validation feedback stays human-readable and does not expose hashes, dimensions, or internal IDs in Settings.
 
-Catalog `LutResources` stores deterministic Lightflow identity derived from validated content plus content-hash metadata, not LUT payloads or an independently user-managed registry (the migration from the pre-correction schema preserves any IDs already referenced by assignments). Folder refresh hashes each valid file and reconciles it by content: renaming a file preserves its `LutId`; changing content in place creates a new resource identity; equal content at multiple filenames collapses to one semantic LUT; equal display names with different content remain distinct and receive ordinary numeric disambiguation in selectors. A Camera/Creative assignment continues to reference its original `LutId` and content hash. Removal, changed content, or selecting a folder without that content makes the assignment explicitly unavailable rather than falling back by filename or silently retaining a private copy; selecting another folder containing the same content restores availability and keeps the assignment identity. Engines resolve the currently configured, freshly validated folder file rather than a Catalog blob or transient external-path assignment.
+`ApplicationLutLibraryCache` is the single authoritative runtime view of those roots. Application startup begins
+both stage scans in the background; each published result updates consumers independently. A saved root or recursion
+preference change cancels any stale scan and refreshes only that stage. Player Color,
+Catalog assignment availability/path resolution, selectors, and Encoding's combined view consume immutable cached
+snapshots and in-memory `LutId` lookups. They never initiate filesystem discovery. Consequently normal Player opens
+perform zero LUT tree scans after startup, regardless of how many assets are opened. Filesystem changes are observed
+only at startup, explicit refresh, or a saved root change; recursive watchers are intentionally outside #146.
+Player media open and presentation publication never await this initialization: if discovery is still active, the
+Player opens normally and a generation-guarded continuation publishes Color when the snapshots become available.
+Catalog assignment reads, selector construction, runtime LUT preparation, and GPU-pipeline updates likewise remain
+outside the playback-open critical path. Parsed `CubeLutData` is cached once per stable `LutId` across assets and
+Player opens; a stage refresh retains entries whose content identity remains in either stage and removes only runtime
+entries no longer present in the published Camera/Creative union. The runtime cache is therefore identity-bounded,
+not path-keyed, and moves or duplicate content do not create redundant parsed payloads. It is also LRU-bounded to
+16 parsed identities and a 256 MiB target (while retaining the currently requested entry), avoiding unbounded growth.
 
-`MediaAssetColor` stores precious per-asset Color intent against stable `AssetId`: typed optional Camera/technical then Creative LUT references. `IAssetColorStore` provides single-stage and transactional bulk mutation without source-media changes; clearing one stage preserves the other. `AssetColorIntent.OrderedPipeline` is the engine-neutral order later Player, Preview, Browser, and Encoding work consumes. `ColorIdentity` hashes only the versioned ordered LUT IDs and immutable content hashes, so either stage changes visual identity while LUT renames and unrelated Catalog metadata do not. Rendered derivatives remain rebuildable Preview data and are intentionally not produced or invalidated by #145. The first end-user per-asset assignment surface and all rendering remain deferred to the later Color issues.
+`MediaAssetColor` is the single durable per-asset Color intent: it stores the persistent Color-processing enabled
+state alongside Camera and Creative `LutId` assignments. The enabled state is independent of assignment presence, so
+Color On with no LUTs and Color Off with retained LUTs are both valid. Catalogs predating this field migrate existing
+rows to Off, and an absent Color row also reads as Off. Player restore and toggle interactions read/write this Catalog
+state asynchronously without waiting for or initiating LUT discovery; hold-C remains presentation-only and never
+changes durable intent.
+
+Catalog `LutResources` stores deterministic Lightflow identity derived from validated content plus content-hash metadata, not LUT payloads or an independently user-managed registry (the migration from the pre-correction schema preserves any IDs already referenced by assignments). Folder refresh hashes each valid file and reconciles it by content: renaming a file preserves its `LutId`; changing content in place creates a new resource identity; equal content across either folder collapses to one semantic LUT; equal display names with different content remain distinct and receive ordinary numeric disambiguation where combined. A Camera/Creative assignment continues to reference its original `LutId` and content hash, but availability is checked only in its stage's configured folder. Changing one folder therefore cannot disturb a valid assignment in the other. Engines resolve the freshly validated stage folder file rather than a Catalog blob or transient external-path assignment.
+
+`MediaAssetColor` stores precious per-asset Color intent against stable `AssetId`: persistent Color-enabled state plus typed optional Camera/technical then Creative LUT references. `IAssetColorStore` provides enabled-state, single-stage, and transactional bulk assignment mutation without source-media changes; clearing one stage preserves the other and toggling Color preserves both. `AssetColorIntent.OrderedPipeline` is the engine-neutral Camera → Creative order later Preview, Browser, and Encoding work can consume. `ColorIdentity` hashes the versioned enabled state, ordered LUT IDs, and immutable content hashes, so a presentation-affecting change alters visual identity while LUT renames and unrelated Catalog metadata do not. Rendered derivatives remain rebuildable Preview data and are intentionally not produced or invalidated by #146; Player is the only Color-aware presentation surface in this issue.
 
 Self-contained packaging runs the published executable in a non-UI `--verify-catalog-runtime` mode. That smoke check creates, closes, reopens, and removes an isolated temporary Catalog and also persists/reopens a Preview record through the production services, proving that the locked managed provider and embedded native `e_sqlite3` library load from the actual packaged executable rather than merely compiling on the build machine.
 

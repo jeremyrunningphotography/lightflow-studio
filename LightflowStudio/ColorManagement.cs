@@ -16,6 +16,50 @@ internal sealed record LutFolderProblem(string FileName, string Diagnostic);
 internal sealed record LutLibrarySnapshot(string Folder, IReadOnlyList<ManagedLutResource> Resources,
     IReadOnlyList<LutFolderProblem> Problems);
 
+internal sealed record CubeLutData(int Size, float[] Samples)
+{
+    public System.Numerics.Vector3 DomainMin { get; init; } = System.Numerics.Vector3.Zero;
+    public System.Numerics.Vector3 DomainMax { get; init; } = System.Numerics.Vector3.One;
+
+    public static CubeLutData Load(string path)
+    {
+        var content = File.ReadAllBytes(path);
+        var validation = CubeLutValidator.Validate(content);
+        if (!validation.IsValid) throw new InvalidDataException(validation.Diagnostic);
+        var samples = new List<float>(checked(validation.Size!.Value * validation.Size.Value * validation.Size.Value * 4));
+        var text = new UTF8Encoding(false, true).GetString(content);
+        var domainMin = System.Numerics.Vector3.Zero;
+        var domainMax = System.Numerics.Vector3.One;
+        foreach (var rawLine in text.Split('\n'))
+        {
+            var line = rawLine.Trim().TrimEnd('\r');
+            var comment = line.IndexOf('#');
+            if (comment >= 0) line = line[..comment].Trim();
+            if (line.Length == 0) continue;
+            var fields = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (fields.Length == 4 && fields[0].Equals("DOMAIN_MIN", StringComparison.OrdinalIgnoreCase))
+            { domainMin = new(Parse(fields[1]), Parse(fields[2]), Parse(fields[3])); continue; }
+            if (fields.Length == 4 && fields[0].Equals("DOMAIN_MAX", StringComparison.OrdinalIgnoreCase))
+            { domainMax = new(Parse(fields[1]), Parse(fields[2]), Parse(fields[3])); continue; }
+            if (fields.Length != 3 || !fields.All(field => float.TryParse(field, NumberStyles.Float,
+                    CultureInfo.InvariantCulture, out _))) continue;
+            samples.Add(float.Parse(fields[0], CultureInfo.InvariantCulture));
+            samples.Add(float.Parse(fields[1], CultureInfo.InvariantCulture));
+            samples.Add(float.Parse(fields[2], CultureInfo.InvariantCulture));
+            samples.Add(1);
+        }
+        if (domainMax.X <= domainMin.X || domainMax.Y <= domainMin.Y || domainMax.Z <= domainMin.Z)
+            throw new InvalidDataException("DOMAIN_MAX must be greater than DOMAIN_MIN on every channel.");
+        return new(validation.Size.Value, samples.ToArray()) { DomainMin = domainMin, DomainMax = domainMax };
+        static float Parse(string value) => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture);
+    }
+}
+
+internal sealed record PlayerColorPipeline(CubeLutData? Camera, CubeLutData? Creative)
+{
+    public bool HasColor => Camera is not null || Creative is not null;
+}
+
 internal static class CubeLutValidator
 {
     public const int MaximumBytes = 16 * 1024 * 1024;
@@ -31,6 +75,7 @@ internal static class CubeLutValidator
         var size = 0;
         var declared = false;
         var values = 0L;
+        double[]? domainMin = null, domainMax = null;
         foreach (var rawLine in text.Split('\n'))
         {
             var line = rawLine.Trim().TrimEnd('\r');
@@ -45,6 +90,9 @@ internal static class CubeLutValidator
             {
                 if (fields.Length != 4 || !fields.Skip(1).All(IsFiniteNumber))
                     return Invalid($"{fields[0]} must contain three finite numbers.");
+                var parsed = fields.Skip(1).Select(field => double.Parse(field, NumberStyles.Float, CultureInfo.InvariantCulture)).ToArray();
+                if (fields[0].Equals("DOMAIN_MIN", StringComparison.OrdinalIgnoreCase)) domainMin = parsed;
+                else domainMax = parsed;
                 continue;
             }
             if (fields[0].Equals("LUT_1D_SIZE", StringComparison.OrdinalIgnoreCase))
@@ -63,6 +111,10 @@ internal static class CubeLutValidator
             values++;
         }
         if (!declared) return Invalid("The file is missing a LUT_3D_SIZE declaration.");
+        domainMin ??= [0, 0, 0];
+        domainMax ??= [1, 1, 1];
+        if (Enumerable.Range(0, 3).Any(index => domainMax[index] <= domainMin[index]))
+            return Invalid("DOMAIN_MAX must be greater than DOMAIN_MIN on every channel.");
         var expected = checked((long)size * size * size);
         if (values != expected) return Invalid($"The LUT declares {expected:N0} data rows but contains {values:N0}.");
         return new(true, LutDimension.ThreeDimensional, size);
@@ -78,25 +130,72 @@ internal sealed record FolderLutCandidate(string FilePath, string DisplayName, s
 
 internal static class FolderLutScanner
 {
-    public static (IReadOnlyList<FolderLutCandidate> Candidates, IReadOnlyList<LutFolderProblem> Problems) Scan(string folder)
+    private const int MaxEntries = 100_000;
+
+    public static (IReadOnlyList<FolderLutCandidate> Candidates, IReadOnlyList<LutFolderProblem> Problems) Scan(
+        string folder, CancellationToken cancellationToken = default) => Scan(folder, false, cancellationToken);
+
+    public static (IReadOnlyList<FolderLutCandidate> Candidates, IReadOnlyList<LutFolderProblem> Problems) Scan(
+        string folder, bool includeSubfolders, CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(folder)) return ([], string.IsNullOrWhiteSpace(folder) ? [] :
             [new("LUT folder", "The configured LUT folder does not exist or is unavailable.")]);
         var candidates = new List<FolderLutCandidate>();
         var problems = new List<LutFolderProblem>();
-        IEnumerable<string> paths;
-        try
+        var paths = new List<string>();
+        var pending = new Stack<string>();
+        pending.Push(folder);
+        var entries = 0;
+        while (pending.Count > 0)
         {
-            paths = Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly)
-                .Where(path => Path.GetExtension(path).Equals(".cube", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray();
+            cancellationToken.ThrowIfCancellationRequested();
+            var current = pending.Pop();
+            try
+            {
+                foreach (var path in Directory.EnumerateFiles(current))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (++entries > MaxEntries)
+                    {
+                        problems.Add(new("LUT folder", $"Discovery stopped after {MaxEntries:N0} filesystem entries."));
+                        pending.Clear();
+                        break;
+                    }
+                    if (!Path.GetExtension(path).Equals(".cube", StringComparison.OrdinalIgnoreCase)) continue;
+                    if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                    {
+                        problems.Add(new(Path.GetRelativePath(folder, path), "Reparse-point file was skipped."));
+                        continue;
+                    }
+                    paths.Add(path);
+                }
+                if (entries > MaxEntries) break;
+                if (!includeSubfolders) continue;
+                foreach (var directory in Directory.EnumerateDirectories(current))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (++entries > MaxEntries)
+                    {
+                        problems.Add(new("LUT folder", $"Discovery stopped after {MaxEntries:N0} filesystem entries."));
+                        pending.Clear();
+                        break;
+                    }
+                    if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                    {
+                        problems.Add(new(Path.GetRelativePath(folder, directory), "Reparse-point folder was skipped."));
+                        continue;
+                    }
+                    pending.Push(directory);
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                problems.Add(new(Path.GetRelativePath(folder, current), $"The folder could not be read: {exception.Message}"));
+            }
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        foreach (var path in paths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
         {
-            return ([], [new(Path.GetFileName(folder), $"The LUT folder could not be read: {exception.Message}")]);
-        }
-        foreach (var path in paths)
-        {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 var content = File.ReadAllBytes(path);
@@ -121,8 +220,8 @@ internal static class FolderLutScanner
 internal interface ILutLibrary
 {
     Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default);
-    Task<ManagedLutResource?> GetAsync(Guid lutId, string folder, CancellationToken cancellationToken = default);
-    Task<string> ResolvePathAsync(Guid lutId, string folder, CancellationToken cancellationToken = default);
+    Task<LutLibrarySnapshot> RefreshAsync(string folder, bool includeSubfolders,
+        CancellationToken cancellationToken = default) => RefreshAsync(folder, cancellationToken);
 }
 
 internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> session,
@@ -132,6 +231,10 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     public async Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default)
+        => await RefreshAsync(folder, false, cancellationToken).ConfigureAwait(false);
+
+    public async Task<LutLibrarySnapshot> RefreshAsync(string folder, bool includeSubfolders,
+        CancellationToken cancellationToken = default)
     {
         await _refreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -139,7 +242,7 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
             return await Task.Run<LutLibrarySnapshot>(() =>
             {
                 var fullFolder = NormalizeFolder(folder);
-                var scan = FolderLutScanner.Scan(fullFolder);
+                var scan = FolderLutScanner.Scan(fullFolder, includeSubfolders, cancellationToken);
                 var distinct = scan.Candidates.GroupBy(candidate => candidate.ContentSha256, StringComparer.Ordinal)
                     .Select(group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First())
                     .ToArray();
@@ -189,46 +292,12 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
         finally { _refreshGate.Release(); }
     }
 
-    public Task<ManagedLutResource?> GetAsync(Guid lutId, string folder,
-        CancellationToken cancellationToken = default) => Task.Run(() =>
-    {
-        using var connection = RequireSession().OpenConnection();
-        var stored = FindById(connection, lutId);
-        if (stored is null) return null;
-        var match = FolderLutScanner.Scan(NormalizeFolder(folder)).Candidates
-            .Where(candidate => candidate.ContentSha256 == stored.ContentSha256)
-            .OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
-        return match is null
-            ? stored with { Availability = LutResourceAvailability.Missing,
-                Diagnostic = "The assigned LUT is not present in the configured LUT folder." }
-            : stored with { DisplayName = match.DisplayName, OriginalFileName = match.FileName,
-                Availability = LutResourceAvailability.Available, FilePath = match.FilePath, Diagnostic = null };
-    }, cancellationToken);
-
-    public async Task<string> ResolvePathAsync(Guid lutId, string folder, CancellationToken cancellationToken = default)
-    {
-        var resource = await GetAsync(lutId, folder, cancellationToken).ConfigureAwait(false)
-            ?? throw new FileNotFoundException("The LUT resource is not registered in the Catalog.");
-        if (resource.Availability != LutResourceAvailability.Available || resource.FilePath is null)
-            throw new FileNotFoundException(resource.Diagnostic);
-        return resource.FilePath;
-    }
-
     private static ManagedLutResource? FindByHash(SqliteConnection connection, SqliteTransaction transaction, string hash)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = "SELECT LutId,DisplayName,OriginalFileName,ContentSha256,LutSize FROM LutResources WHERE ContentSha256=$hash;";
         command.Parameters.AddWithValue("$hash", hash);
-        using var reader = command.ExecuteReader();
-        return reader.Read() ? ReadStored(reader) : null;
-    }
-
-    private static ManagedLutResource? FindById(SqliteConnection connection, Guid lutId)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT LutId,DisplayName,OriginalFileName,ContentSha256,LutSize FROM LutResources WHERE LutId=$id;";
-        command.Parameters.AddWithValue("$id", lutId.ToString("D"));
         using var reader = command.ExecuteReader();
         return reader.Read() ? ReadStored(reader) : null;
     }
@@ -254,10 +323,217 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
 }
 
 internal enum ColorLutStage { Camera, Creative }
+
+internal interface ILutLibraryCache
+{
+    Task InitializeAsync(string cameraFolder, string creativeFolder, CancellationToken cancellationToken = default);
+    Task InitializeAsync(string cameraFolder, bool cameraIncludeSubfolders,
+        string creativeFolder, bool creativeIncludeSubfolders, CancellationToken cancellationToken = default) =>
+        InitializeAsync(cameraFolder, creativeFolder, cancellationToken);
+    Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder,
+        CancellationToken cancellationToken = default);
+    Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder, bool includeSubfolders,
+        CancellationToken cancellationToken = default) => RefreshAsync(stage, folder, cancellationToken);
+    LutLibrarySnapshot Snapshot(ColorLutStage stage);
+    ManagedLutResource? Get(ColorLutStage stage, Guid lutId);
+    string ResolvePath(ColorLutStage stage, Guid lutId);
+    Task<CubeLutData> GetRuntimeAsync(ColorLutStage stage, Guid lutId,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>One authoritative runtime view of both configured LUT roots. Only startup and Settings-root
+/// changes invoke the scanner; Player, Catalog Color availability, and Encoding are in-memory consumers.</summary>
+internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner, Func<string, CubeLutData>? runtimeLoader = null)
+    : ILutLibraryCache, IDisposable
+{
+    private const int MaximumRuntimeEntries = 16;
+    private const long MaximumRuntimeBytes = 256L * 1024 * 1024;
+
+    private sealed class RuntimeEntry(Lazy<Task<CubeLutData>> value, long lastAccess)
+    {
+        public Lazy<Task<CubeLutData>> Value { get; } = value;
+        public long LastAccess { get; set; } = lastAccess;
+        public long LoadedBytes => Value.IsValueCreated && Value.Value.IsCompletedSuccessfully
+            ? (long)Value.Value.Result.Samples.Length * sizeof(float) : 0;
+    }
+
+    private sealed class StageState
+    {
+        public LutLibrarySnapshot Snapshot { get; set; } = new("", [], []);
+        public long Revision { get; set; }
+        public CancellationTokenSource? Cancellation { get; set; }
+    }
+
+    private readonly object _gate = new();
+    private readonly StageState _camera = new();
+    private readonly StageState _creative = new();
+    private readonly Dictionary<Guid, RuntimeEntry> _runtime = [];
+    private readonly Func<string, CubeLutData> _runtimeLoader = runtimeLoader ?? CubeLutData.Load;
+    private long _runtimeAccess;
+    private Task? _initialization;
+
+    public Task InitializeAsync(string cameraFolder, string creativeFolder,
+        CancellationToken cancellationToken = default) =>
+        InitializeAsync(cameraFolder, false, creativeFolder, false, cancellationToken);
+
+    public Task InitializeAsync(string cameraFolder, bool cameraIncludeSubfolders,
+        string creativeFolder, bool creativeIncludeSubfolders,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+            return _initialization ??= InitializeCoreAsync(cameraFolder, cameraIncludeSubfolders,
+                creativeFolder, creativeIncludeSubfolders, cancellationToken);
+    }
+
+    private async Task InitializeCoreAsync(string cameraFolder, bool cameraIncludeSubfolders,
+        string creativeFolder, bool creativeIncludeSubfolders, CancellationToken token)
+    {
+        await RefreshAsync(ColorLutStage.Camera, cameraFolder, cameraIncludeSubfolders, token).ConfigureAwait(false);
+        await RefreshAsync(ColorLutStage.Creative, creativeFolder, creativeIncludeSubfolders, token).ConfigureAwait(false);
+    }
+
+    public Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder,
+        CancellationToken cancellationToken = default) => RefreshAsync(stage, folder, false, cancellationToken);
+
+    public async Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder, bool includeSubfolders,
+        CancellationToken cancellationToken = default)
+    {
+        StageState state;
+        long revision;
+        CancellationTokenSource refreshCancellation;
+        lock (_gate)
+        {
+            state = State(stage);
+            revision = ++state.Revision;
+            state.Cancellation?.Cancel();
+            state.Cancellation?.Dispose();
+            refreshCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            state.Cancellation = refreshCancellation;
+        }
+        try
+        {
+            var snapshot = await scanner.RefreshAsync(folder, includeSubfolders, refreshCancellation.Token).ConfigureAwait(false);
+            lock (_gate)
+            {
+                if (state.Revision == revision)
+                {
+                    state.Snapshot = snapshot;
+                    InvalidateRuntimeEntries();
+                }
+                return state.Snapshot;
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            lock (_gate) return state.Snapshot;
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                if (ReferenceEquals(state.Cancellation, refreshCancellation)) state.Cancellation = null;
+            }
+            refreshCancellation.Dispose();
+        }
+    }
+
+    public LutLibrarySnapshot Snapshot(ColorLutStage stage)
+    {
+        lock (_gate) return State(stage).Snapshot;
+    }
+
+    public ManagedLutResource? Get(ColorLutStage stage, Guid lutId) =>
+        Snapshot(stage).Resources.FirstOrDefault(resource => resource.LutId == lutId);
+
+    public string ResolvePath(ColorLutStage stage, Guid lutId)
+    {
+        var resource = Get(stage, lutId) ?? throw new FileNotFoundException(
+            "The assigned LUT is not present in the configured LUT collection.");
+        if (resource.Availability != LutResourceAvailability.Available || string.IsNullOrWhiteSpace(resource.FilePath))
+            throw new FileNotFoundException(resource.Diagnostic ?? "The assigned LUT is unavailable.");
+        return resource.FilePath;
+    }
+
+    public async Task<CubeLutData> GetRuntimeAsync(ColorLutStage stage, Guid lutId,
+        CancellationToken cancellationToken = default)
+    {
+        RuntimeEntry entry;
+        lock (_gate)
+        {
+            var path = ResolvePathLocked(stage, lutId);
+            if (!_runtime.TryGetValue(lutId, out entry!))
+            {
+                entry = new(new(() => Task.Run(() => _runtimeLoader(path)),
+                    LazyThreadSafetyMode.ExecutionAndPublication), ++_runtimeAccess);
+                _runtime.Add(lutId, entry);
+            }
+            else entry.LastAccess = ++_runtimeAccess;
+        }
+        try { return await entry.Value.Value.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch
+        {
+            lock (_gate)
+                if ((entry.Value.Value.IsFaulted || entry.Value.Value.IsCanceled)
+                    && _runtime.TryGetValue(lutId, out var current) && ReferenceEquals(current, entry))
+                    _runtime.Remove(lutId);
+            throw;
+        }
+        finally
+        {
+            lock (_gate) TrimRuntimeCache(lutId);
+        }
+    }
+
+    private string ResolvePathLocked(ColorLutStage stage, Guid lutId)
+    {
+        var resource = State(stage).Snapshot.Resources.FirstOrDefault(item => item.LutId == lutId)
+            ?? throw new FileNotFoundException("The assigned LUT is not present in the configured LUT collection.");
+        if (resource.Availability != LutResourceAvailability.Available || string.IsNullOrWhiteSpace(resource.FilePath))
+            throw new FileNotFoundException(resource.Diagnostic ?? "The assigned LUT is unavailable.");
+        return resource.FilePath;
+    }
+
+    private void InvalidateRuntimeEntries()
+    {
+        var validIds = _camera.Snapshot.Resources.Concat(_creative.Snapshot.Resources)
+            .Where(resource => resource.Availability == LutResourceAvailability.Available)
+            .Select(resource => resource.LutId).ToHashSet();
+        foreach (var lutId in _runtime.Keys.Where(lutId => !validIds.Contains(lutId)).ToArray())
+            _runtime.Remove(lutId);
+    }
+
+    private void TrimRuntimeCache(Guid retainedLutId)
+    {
+        while (_runtime.Count > MaximumRuntimeEntries || _runtime.Values.Sum(entry => entry.LoadedBytes) > MaximumRuntimeBytes)
+        {
+            var oldest = _runtime.Where(item => item.Key != retainedLutId && item.Value.Value.IsValueCreated
+                                                && item.Value.Value.Value.IsCompleted)
+                .OrderBy(item => item.Value.LastAccess).Select(item => (Guid?)item.Key).FirstOrDefault();
+            if (oldest is null) return;
+            _runtime.Remove(oldest.Value);
+        }
+    }
+
+    private StageState State(ColorLutStage stage) => stage == ColorLutStage.Camera ? _camera : _creative;
+
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            foreach (var state in new[] { _camera, _creative })
+            {
+                state.Cancellation?.Cancel();
+                state.Cancellation?.Dispose();
+                state.Cancellation = null;
+            }
+        }
+    }
+}
+
 internal sealed record ColorLutReference(Guid LutId, string DisplayName, string ContentSha256,
     LutResourceAvailability Availability, string? Diagnostic = null);
 internal sealed record AssetColorIntent(Guid AssetId, ColorLutReference? Camera, ColorLutReference? Creative,
-    string ColorIdentity)
+    string ColorIdentity, bool ColorEnabled = false)
 {
     public IReadOnlyList<ColorLutReference> OrderedPipeline => new[] { Camera, Creative }.OfType<ColorLutReference>().ToArray();
     public bool HasColor => Camera is not null || Creative is not null;
@@ -271,10 +547,12 @@ internal interface IAssetColorStore
         CancellationToken cancellationToken = default);
     Task SetStageAsync(IReadOnlyCollection<Guid> assetIds, ColorLutStage stage, Guid? lutId,
         CancellationToken cancellationToken = default);
+    Task SetColorEnabledAsync(IReadOnlyCollection<Guid> assetIds, bool enabled,
+        CancellationToken cancellationToken = default);
     Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes, CancellationToken cancellationToken = default);
 }
 
-internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> session, Func<string> lutFolder,
+internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> session, ILutLibraryCache lutCache,
     Func<DateTimeOffset>? utcNow = null) : IAssetColorStore
 {
     private readonly Func<DateTimeOffset> _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
@@ -288,10 +566,10 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
         var ids = assetIds.Distinct().ToArray();
         var result = ids.ToDictionary(id => id, Empty);
         if (ids.Length == 0) return result;
-        var available = FolderLutScanner.Scan(lutFolder()).Candidates.GroupBy(candidate => candidate.ContentSha256,
-                StringComparer.Ordinal).ToDictionary(group => group.Key,
-                group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First(),
-                StringComparer.Ordinal);
+        var availableCamera = lutCache.Snapshot(ColorLutStage.Camera).Resources.ToDictionary(
+            resource => resource.ContentSha256, StringComparer.Ordinal);
+        var availableCreative = lutCache.Snapshot(ColorLutStage.Creative).Resources.ToDictionary(
+            resource => resource.ContentSha256, StringComparer.Ordinal);
         using var connection = RequireSession().OpenConnection();
         foreach (var batch in ids.Chunk(400))
         {
@@ -300,7 +578,7 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
             { var name = $"$id{index}"; command.Parameters.AddWithValue(name, id.ToString("D")); return name; }).ToArray();
             command.CommandText = $"""
                 SELECT c.AssetId,c.CameraLutId,cam.DisplayName,cam.ContentSha256,
-                       c.CreativeLutId,creative.DisplayName,creative.ContentSha256
+                       c.CreativeLutId,creative.DisplayName,creative.ContentSha256,c.ColorEnabled
                 FROM MediaAssetColor c
                 LEFT JOIN LutResources cam ON cam.LutId=c.CameraLutId
                 LEFT JOIN LutResources creative ON creative.LutId=c.CreativeLutId
@@ -311,9 +589,10 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var assetId = Guid.Parse(reader.GetString(0));
-                var camera = ReadReference(reader, 1, available);
-                var creative = ReadReference(reader, 4, available);
-                result[assetId] = new(assetId, camera, creative, Identity(camera, creative));
+                var camera = ReadReference(reader, 1, availableCamera);
+                var creative = ReadReference(reader, 4, availableCreative);
+                var enabled = reader.GetInt64(7) != 0;
+                result[assetId] = new(assetId, camera, creative, Identity(enabled, camera, creative), enabled);
             }
         }
         return result;
@@ -341,8 +620,8 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
             command.Transaction = transaction;
             command.CommandText = lutId is null
                 ? (stage == ColorLutStage.Camera
-                    ? "DELETE FROM MediaAssetColor WHERE AssetId=$asset AND CreativeLutId IS NULL; UPDATE MediaAssetColor SET CameraLutId=NULL,UpdatedUtc=$now WHERE AssetId=$asset;"
-                    : "DELETE FROM MediaAssetColor WHERE AssetId=$asset AND CameraLutId IS NULL; UPDATE MediaAssetColor SET CreativeLutId=NULL,UpdatedUtc=$now WHERE AssetId=$asset;")
+                    ? "DELETE FROM MediaAssetColor WHERE AssetId=$asset AND CreativeLutId IS NULL AND ColorEnabled=0; UPDATE MediaAssetColor SET CameraLutId=NULL,UpdatedUtc=$now WHERE AssetId=$asset;"
+                    : "DELETE FROM MediaAssetColor WHERE AssetId=$asset AND CameraLutId IS NULL AND ColorEnabled=0; UPDATE MediaAssetColor SET CreativeLutId=NULL,UpdatedUtc=$now WHERE AssetId=$asset;")
                 : stage == ColorLutStage.Camera ? """
                     INSERT INTO MediaAssetColor (AssetId,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
                     VALUES ($asset,$lut,NULL,$now,$now)
@@ -354,6 +633,33 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
                     """;
             command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
             command.Parameters.AddWithValue("$lut", lutId?.ToString("D") ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("$now", now);
+            command.ExecuteNonQuery();
+        }
+        transaction.Commit();
+    }, cancellationToken);
+
+    public Task SetColorEnabledAsync(IReadOnlyCollection<Guid> assetIds, bool enabled,
+        CancellationToken cancellationToken = default) => Task.Run(() =>
+    {
+        var ids = assetIds.Distinct().ToArray();
+        if (ids.Length == 0) return;
+        using var connection = RequireSession().OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        var now = FormatUtc(_utcNow());
+        foreach (var assetId in ids)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureExists(connection, transaction, "MediaAssets", "AssetId", assetId, "Catalog asset");
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                INSERT INTO MediaAssetColor (AssetId,ColorEnabled,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
+                VALUES ($asset,$enabled,NULL,NULL,$now,$now)
+                ON CONFLICT(AssetId) DO UPDATE SET ColorEnabled=excluded.ColorEnabled,UpdatedUtc=excluded.UpdatedUtc;
+                """;
+            command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
+            command.Parameters.AddWithValue("$enabled", enabled ? 1 : 0);
             command.Parameters.AddWithValue("$now", now);
             command.ExecuteNonQuery();
         }
@@ -381,7 +687,7 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
             command.Transaction = transaction;
             command.Parameters.AddWithValue("$asset", change.AssetId.ToString("D"));
             if (change.CameraLutId is null && change.CreativeLutId is null)
-                command.CommandText = "DELETE FROM MediaAssetColor WHERE AssetId=$asset;";
+                command.CommandText = "DELETE FROM MediaAssetColor WHERE AssetId=$asset AND ColorEnabled=0; UPDATE MediaAssetColor SET CameraLutId=NULL,CreativeLutId=NULL,UpdatedUtc=$now WHERE AssetId=$asset;";
             else
             {
                 command.CommandText = """
@@ -392,8 +698,8 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
                     """;
                 command.Parameters.AddWithValue("$camera", change.CameraLutId?.ToString("D") ?? (object)DBNull.Value);
                 command.Parameters.AddWithValue("$creative", change.CreativeLutId?.ToString("D") ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("$now", now);
             }
+            command.Parameters.AddWithValue("$now", now);
             command.ExecuteNonQuery();
         }
         transaction.Commit();
@@ -410,7 +716,7 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
     }
 
     private static ColorLutReference? ReadReference(SqliteDataReader reader, int offset,
-        IReadOnlyDictionary<string, FolderLutCandidate> available)
+        IReadOnlyDictionary<string, ManagedLutResource> available)
     {
         if (reader.IsDBNull(offset)) return null;
         var id = Guid.Parse(reader.GetString(offset));
@@ -424,10 +730,10 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
                 "The assigned LUT is not present in the configured LUT folder.");
     }
 
-    private static AssetColorIntent Empty(Guid assetId) => new(assetId, null, null, Identity(null, null));
-    private static string Identity(ColorLutReference? camera, ColorLutReference? creative)
+    private static AssetColorIntent Empty(Guid assetId) => new(assetId, null, null, Identity(false, null, null));
+    private static string Identity(bool enabled, ColorLutReference? camera, ColorLutReference? creative)
     {
-        var contract = $"lightflow-color-v1\ncamera:{camera?.LutId:D}:{camera?.ContentSha256}\ncreative:{creative?.LutId:D}:{creative?.ContentSha256}";
+        var contract = $"lightflow-color-v2\nenabled:{enabled}\ncamera:{camera?.LutId:D}:{camera?.ContentSha256}\ncreative:{creative?.LutId:D}:{creative?.ContentSha256}";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(contract))).ToLowerInvariant();
     }
     private CatalogDatabaseSession RequireSession() => session() ?? throw new InvalidOperationException("The Catalog is unavailable.");

@@ -102,7 +102,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         MediaRanges = new CatalogMediaRangeStore(() => _catalogSession);
         BrowserAssetStates = new CatalogBrowserAssetStateStore(() => _catalogSession);
         Luts = new CatalogFolderLutLibrary(() => _catalogSession);
-        AssetColors = new CatalogAssetColorStore(() => _catalogSession, () => Settings.LutFolder);
+        LutCache = new ApplicationLutLibraryCache(Luts);
+        AssetColors = new CatalogAssetColorStore(() => _catalogSession, LutCache);
     }
 
     public AppSettings Settings { get; private set; }
@@ -119,6 +120,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public IMediaRangeStore MediaRanges { get; }
     public IBrowserAssetStateStore BrowserAssetStates { get; }
     public ILutLibrary Luts { get; }
+    public ILutLibraryCache LutCache { get; }
     public IAssetColorStore AssetColors { get; }
     /// <summary>#124 (revised): durable Catalog storage for Browser "Include Subfolders" recursive roots. See <see cref="BrowserRecursiveRoot"/>.</summary>
     public IBrowserRecursiveRootService BrowserRecursiveRoots { get; }
@@ -684,6 +686,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (LutCache is IDisposable disposableLutCache) disposableLutCache.Dispose();
         await DisposeMediaMonitoringAsync().ConfigureAwait(false);
         await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
         await _mutationGate.WaitAsync().ConfigureAwait(false);

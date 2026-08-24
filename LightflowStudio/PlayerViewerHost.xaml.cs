@@ -29,6 +29,11 @@ public partial class PlayerViewerHost : UserControl
     private readonly IMediaRangeStore? _rangeStore;
     private readonly IFrameScreengrabService? _screengrabService;
     private readonly IFolderLauncher _folderLauncher;
+    private readonly ILutLibraryCache? _lutCache;
+    private readonly IAssetColorStore? _assetColors;
+    private readonly Func<string>? _cameraLutFolder;
+    private readonly Func<string>? _creativeLutFolder;
+    private readonly Action<PlayerOpenMilestone>? _openMilestone;
     private long _generation;
     private MediaPlaybackLeaseSession? _playback;
     private IMediaPlaybackService? _service;
@@ -42,14 +47,38 @@ public partial class PlayerViewerHost : UserControl
     private MediaDecodedFrame? _retainedSteppedFrame;
     private string? _lastScreengrabDirectory;
     private readonly FrameStepQueue _frameStepQueue = new();
+    private bool _updatingColor;
+    private bool _persistentColorEnabled;
+    private bool _momentaryColorBypass;
+    private PlayerColorPipeline? _colorPipeline;
+    private LutLibrarySnapshot? _cameraLibrary;
+    private LutLibrarySnapshot? _creativeLibrary;
+    private long _colorRefreshRevision;
+    private long _colorToggleRevision;
+    private readonly SemaphoreSlim _colorTogglePersistenceGate = new(1, 1);
+
+    private sealed record LutChoice(Guid? LutId, string DisplayName, bool OpensFolder = false)
+    {
+        public override string ToString() => DisplayName;
+    }
+    private sealed record PreparedColor(LutLibrarySnapshot CameraLibrary, LutLibrarySnapshot CreativeLibrary,
+        AssetColorIntent Intent, PlayerColorPipeline Pipeline, string? Diagnostic);
 
     internal PlayerViewerHost(MediaPlaybackCoordinator coordinator, IMediaRangeStore? rangeStore = null,
-        IFrameScreengrabService? screengrabService = null, IFolderLauncher? folderLauncher = null)
+        IFrameScreengrabService? screengrabService = null, IFolderLauncher? folderLauncher = null,
+        ILutLibraryCache? lutCache = null, IAssetColorStore? assetColors = null,
+        Func<string>? cameraLutFolder = null, Func<string>? creativeLutFolder = null,
+        Action<PlayerOpenMilestone>? openMilestone = null)
     {
         _coordinator = coordinator;
         _rangeStore = rangeStore;
         _screengrabService = screengrabService;
         _folderLauncher = folderLauncher ?? new ShellFolderLauncher();
+        _lutCache = lutCache;
+        _assetColors = assetColors;
+        _cameraLutFolder = cameraLutFolder;
+        _creativeLutFolder = creativeLutFolder;
+        _openMilestone = openMilestone;
         InitializeComponent();
     }
 
@@ -58,7 +87,6 @@ public partial class PlayerViewerHost : UserControl
 
     /// <summary>Raised after a saved review-range change commits so any host can refresh its own presentation.</summary>
     internal event EventHandler<MediaRangeStateChangedEventArgs>? RangeStateChanged;
-
     internal PlayerViewerAsset? CurrentAsset => _currentAsset;
 
     /// <summary>
@@ -71,6 +99,7 @@ public partial class PlayerViewerHost : UserControl
     {
         ArgumentNullException.ThrowIfNull(asset);
         var generation = ++_generation;
+        _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseStarted);
         try { await ReleaseCurrentAsync().ConfigureAwait(true); }
         catch (Exception exception)
         {
@@ -82,6 +111,7 @@ public partial class PlayerViewerHost : UserControl
             // than propagate as a silent unobserved task fault.
             SetStatus(exception.Message);
         }
+        _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseCompleted);
         if (generation != _generation) return;
 
         _currentAsset = asset;
@@ -141,7 +171,9 @@ public partial class PlayerViewerHost : UserControl
     private async Task OpenVideoAsync(string absolutePath, long generation, CancellationToken token)
     {
         var playback = new MediaPlaybackLeaseSession(_coordinator);
+        _openMilestone?.Invoke(PlayerOpenMilestone.PlaybackBackendOpenStarted);
         var service = await playback.OpenAsync(absolutePath, token).ConfigureAwait(true);
+        _openMilestone?.Invoke(PlayerOpenMilestone.PlaybackBackendOpenCompleted);
         if (generation != _generation) { await playback.DisposeAsync().ConfigureAwait(true); return; }
 
         _playback = playback;
@@ -167,12 +199,17 @@ public partial class PlayerViewerHost : UserControl
             // not the shared playback/backend path or its authoritative decoded-timestamp semantics.
             _mediaView = new MediaPlaybackView(service);
             VideoHost.Children.Add(_mediaView);
+            _openMilestone?.Invoke(PlayerOpenMilestone.PresentationSurfaceCreated);
             UpdateFromSnapshot(service.Snapshot);
             SetTransportEnabled(true);
             SetAudioControlsEnabled(info.AudioStreams.Count > 0);
             UpdateAudioControlsFromService();
             TransportBar.Visibility = Visibility.Visible;
+            PublishCurrentCachedChoices();
+            SetColorControlsEnabled(true);
             SetStatus(null);
+            _openMilestone?.Invoke(PlayerOpenMilestone.PlayerControlsPublished);
+            _ = CompleteColorAfterOpenAsync(generation, token);
         }
         catch
         {
@@ -220,6 +257,7 @@ public partial class PlayerViewerHost : UserControl
         // FrameStepQueue's own doc comment — there is no way to abort it), and MediaPlaybackService's existing
         // cancel-on-close/generation handling governs what happens when the close below reaches it.
         _frameStepQueue.Reset();
+        _service?.SetColorPipeline(null, false);
         var mediaView = _mediaView;
         _mediaView = null;
         VideoHost.Children.Clear();
@@ -240,6 +278,16 @@ public partial class PlayerViewerHost : UserControl
         _stopAtOutDuringPlayback = false;
         _stoppingAtOut = false;
         _retainedSteppedFrame = null;
+        _colorPipeline = null;
+        _cameraLibrary = _creativeLibrary = null;
+        _colorRefreshRevision++;
+        _momentaryColorBypass = false;
+        _persistentColorEnabled = false;
+        _updatingColor = true;
+        CameraLutCombo.ItemsSource = CreativeLutCombo.ItemsSource = null;
+        ColorToggleButton.IsChecked = _persistentColorEnabled;
+        _updatingColor = false;
+        SetColorControlsEnabled(false);
         UpdateRangePresentation();
         SetScreengrabFeedback(null);
     }
@@ -259,6 +307,257 @@ public partial class PlayerViewerHost : UserControl
         SetInButton.IsEnabled = enabled;
         SetOutButton.IsEnabled = enabled;
         ScreengrabButton.IsEnabled = enabled && _screengrabService is not null;
+    }
+
+    private void SetColorControlsEnabled(bool enabled)
+    {
+        ColorToggleButton.IsEnabled = enabled;
+        UpdateColorSelectorEnabled();
+    }
+
+    private void UpdateColorSelectorEnabled() =>
+        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = ColorToggleButton.IsEnabled
+            && _persistentColorEnabled && !_momentaryColorBypass;
+
+    private void PublishCurrentCachedChoices()
+    {
+        if (_lutCache is null) return;
+        var camera = _lutCache.Snapshot(ColorLutStage.Camera);
+        var creative = _lutCache.Snapshot(ColorLutStage.Creative);
+        var cameraChoices = MakeChoices(camera, null);
+        var creativeChoices = MakeChoices(creative, null);
+        _updatingColor = true;
+        CameraLutCombo.ItemsSource = cameraChoices;
+        CreativeLutCombo.ItemsSource = creativeChoices;
+        CameraLutCombo.SelectedItem = cameraChoices[0];
+        CreativeLutCombo.SelectedItem = creativeChoices[0];
+        _cameraLibrary = camera;
+        _creativeLibrary = creative;
+        _updatingColor = false;
+    }
+
+    private async Task<PreparedColor?> PrepareColorAsync(CancellationToken token)
+    {
+        if (_currentAsset?.AssetId is not Guid assetId || _lutCache is null || _assetColors is null
+            || _cameraLutFolder is null || _creativeLutFolder is null) return null;
+        LutLibrarySnapshot cameraLibrary, creativeLibrary;
+        AssetColorIntent intent;
+        cameraLibrary = _lutCache.Snapshot(ColorLutStage.Camera);
+        creativeLibrary = _lutCache.Snapshot(ColorLutStage.Creative);
+        _openMilestone?.Invoke(PlayerOpenMilestone.ColorAssignmentReadStarted);
+        await _colorTogglePersistenceGate.WaitAsync(token).ConfigureAwait(true);
+        try { intent = await _assetColors.GetAsync(assetId, token).ConfigureAwait(true); }
+        finally { _colorTogglePersistenceGate.Release(); }
+        _openMilestone?.Invoke(PlayerOpenMilestone.ColorAssignmentReadCompleted);
+        CubeLutData? camera = null, creative = null;
+        _openMilestone?.Invoke(PlayerOpenMilestone.RuntimeLutLoadStarted);
+        if (intent.Camera is { Availability: LutResourceAvailability.Available } cam)
+            camera = await _lutCache.GetRuntimeAsync(ColorLutStage.Camera, cam.LutId, token).ConfigureAwait(true);
+        if (intent.Creative is { Availability: LutResourceAvailability.Available } look)
+            creative = await _lutCache.GetRuntimeAsync(ColorLutStage.Creative, look.LutId, token).ConfigureAwait(true);
+        _openMilestone?.Invoke(PlayerOpenMilestone.RuntimeLutLoadCompleted);
+        var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>()
+            .FirstOrDefault(x => x.Availability != LutResourceAvailability.Available);
+        return new(cameraLibrary, creativeLibrary, intent, new(camera, creative), missing is null ? null
+            : $"Assigned LUT unavailable: {missing.DisplayName}. {missing.Diagnostic}");
+    }
+
+    private async Task CompleteColorAfterOpenAsync(long generation, CancellationToken token)
+    {
+        var colorRevision = _colorRefreshRevision;
+        var toggleRevision = _colorToggleRevision;
+        try
+        {
+            var prepared = await PrepareColorAsync(token).ConfigureAwait(true);
+            if (generation != _generation || colorRevision != _colorRefreshRevision
+                || _service is null || prepared is null) return;
+            if (toggleRevision == _colorToggleRevision)
+                SetPersistentColorEnabled(prepared.Intent.ColorEnabled);
+            _service.SetColorPipeline(prepared.Pipeline, !_persistentColorEnabled || _momentaryColorBypass);
+            PublishColor(prepared);
+            SetStatus(prepared.Diagnostic);
+            _openMilestone?.Invoke(PlayerOpenMilestone.ColorPublished);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            if (generation == _generation && colorRevision == _colorRefreshRevision)
+                SetStatus($"Color could not be applied. {exception.Message}");
+        }
+    }
+
+    private void PublishColor(PreparedColor? prepared)
+    {
+        if (prepared is null) return;
+        var cameraChoices = MakeChoices(prepared.CameraLibrary, prepared.Intent.Camera);
+        var creativeChoices = MakeChoices(prepared.CreativeLibrary, prepared.Intent.Creative);
+        _updatingColor = true;
+        CameraLutCombo.ItemsSource = cameraChoices;
+        CreativeLutCombo.ItemsSource = creativeChoices;
+        CameraLutCombo.SelectedItem = cameraChoices.FirstOrDefault(x => x.LutId == prepared.Intent.Camera?.LutId) ?? cameraChoices[0];
+        CreativeLutCombo.SelectedItem = creativeChoices.FirstOrDefault(x => x.LutId == prepared.Intent.Creative?.LutId) ?? creativeChoices[0];
+        _colorPipeline = prepared.Pipeline;
+        _cameraLibrary = prepared.CameraLibrary;
+        _creativeLibrary = prepared.CreativeLibrary;
+        _updatingColor = false;
+        SetColorControlsEnabled(true);
+    }
+
+    private static LutChoice[] MakeChoices(LutLibrarySnapshot library, ColorLutReference? assigned)
+    {
+        var choices = new[] { new LutChoice(null, "No LUT") }
+            .Concat(LutCatalog.Options(library.Resources).Skip(1).Select(x => new LutChoice(x.LutId, x.DisplayName)))
+            .ToList();
+        if (assigned is { Availability: not LutResourceAvailability.Available }
+            && choices.All(choice => choice.LutId != assigned.LutId))
+            choices.Add(new(assigned.LutId, $"{assigned.DisplayName} (Unavailable)"));
+        choices.Add(new(null, "Open LUT Folder…", OpensFolder: true));
+        return choices.ToArray();
+    }
+
+    /// <summary>Refreshes only the stage selectors whose persisted roots changed. A revision guard prevents a
+    /// slower older scan from publishing over a newer Settings save; playback position/state are untouched.</summary>
+    internal async Task RefreshColorFoldersAsync(bool cameraChanged, bool creativeChanged,
+        CancellationToken token = default)
+    {
+        if ((!cameraChanged && !creativeChanged) || _currentAsset?.AssetId is not Guid assetId
+            || _service is null || _lutCache is null || _assetColors is null
+            || _cameraLutFolder is null || _creativeLutFolder is null) return;
+        var revision = ++_colorRefreshRevision;
+        var generation = _generation;
+        try
+        {
+            var cameraLibrary = cameraChanged
+                ? _lutCache.Snapshot(ColorLutStage.Camera)
+                : _cameraLibrary;
+            var creativeLibrary = creativeChanged
+                ? _lutCache.Snapshot(ColorLutStage.Creative)
+                : _creativeLibrary;
+            if (cameraLibrary is null || creativeLibrary is null) return;
+            var intent = await _assetColors.GetAsync(assetId, token).ConfigureAwait(true);
+            var camera = cameraChanged ? await LoadStageAsync(ColorLutStage.Camera, intent.Camera, token).ConfigureAwait(true)
+                : _colorPipeline?.Camera;
+            var creative = creativeChanged ? await LoadStageAsync(ColorLutStage.Creative, intent.Creative, token).ConfigureAwait(true)
+                : _colorPipeline?.Creative;
+            if (revision != _colorRefreshRevision || generation != _generation || _service is null) return;
+
+            _updatingColor = true;
+            if (cameraChanged)
+            {
+                var choices = MakeChoices(cameraLibrary, intent.Camera);
+                CameraLutCombo.ItemsSource = choices;
+                CameraLutCombo.SelectedItem = choices.FirstOrDefault(x => x.LutId == intent.Camera?.LutId) ?? choices[0];
+            }
+            if (creativeChanged)
+            {
+                var choices = MakeChoices(creativeLibrary, intent.Creative);
+                CreativeLutCombo.ItemsSource = choices;
+                CreativeLutCombo.SelectedItem = choices.FirstOrDefault(x => x.LutId == intent.Creative?.LutId) ?? choices[0];
+            }
+            _updatingColor = false;
+            _cameraLibrary = cameraLibrary;
+            _creativeLibrary = creativeLibrary;
+            _colorPipeline = new(camera, creative);
+            _service.SetColorPipeline(_colorPipeline, !_persistentColorEnabled || _momentaryColorBypass);
+            var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>()
+                .FirstOrDefault(reference => reference.Availability != LutResourceAvailability.Available);
+            SetStatus(missing is null ? null : $"Assigned LUT unavailable: {missing.DisplayName}. {missing.Diagnostic}");
+        }
+        catch (OperationCanceledException) when (revision != _colorRefreshRevision || token.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            if (revision == _colorRefreshRevision && generation == _generation)
+                SetStatus($"The Player LUT folders could not be refreshed. {exception.Message}");
+        }
+    }
+
+    private async Task<CubeLutData?> LoadStageAsync(ColorLutStage stage, ColorLutReference? reference,
+        CancellationToken token)
+    {
+        if (reference is not { Availability: LutResourceAvailability.Available }) return null;
+        return await _lutCache!.GetRuntimeAsync(stage, reference.LutId, token).ConfigureAwait(true);
+    }
+
+    private async Task ApplyColorIntentAsync(AssetColorIntent intent, CancellationToken token)
+    {
+        try
+        {
+            CubeLutData? camera = null, creative = null;
+            if (intent.Camera is { Availability: LutResourceAvailability.Available } cam)
+                camera = await _lutCache!.GetRuntimeAsync(ColorLutStage.Camera, cam.LutId, token);
+            if (intent.Creative is { Availability: LutResourceAvailability.Available } look)
+                creative = await _lutCache!.GetRuntimeAsync(ColorLutStage.Creative, look.LutId, token);
+            var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>().FirstOrDefault(x => x.Availability != LutResourceAvailability.Available);
+            _colorPipeline = new(camera, creative);
+            RestoreLiveVideoSurface();
+            _service?.SetColorPipeline(_colorPipeline, !_persistentColorEnabled || _momentaryColorBypass);
+            if (missing is not null) SetStatus($"Assigned LUT unavailable: {missing.DisplayName}. {missing.Diagnostic}");
+        }
+        catch (Exception exception) { _colorPipeline = null; _service?.SetColorPipeline(null, false); SetStatus($"Color could not be applied. {exception.Message}"); }
+    }
+
+    private async void CameraLutCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => await ChangeColorStageAsync(ColorLutStage.Camera, CameraLutCombo, e);
+    private async void CreativeLutCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => await ChangeColorStageAsync(ColorLutStage.Creative, CreativeLutCombo, e);
+    private async Task ChangeColorStageAsync(ColorLutStage stage, System.Windows.Controls.ComboBox selector,
+        System.Windows.Controls.SelectionChangedEventArgs change)
+    {
+        var choice = selector.SelectedItem as LutChoice;
+        if (!_updatingColor && choice?.OpensFolder == true)
+        {
+            _updatingColor = true;
+            selector.SelectedItem = change.RemovedItems.OfType<LutChoice>().FirstOrDefault(item => !item.OpensFolder)
+                ?? selector.Items.OfType<LutChoice>().First(item => !item.OpensFolder);
+            _updatingColor = false;
+            try
+            {
+                var folder = (stage == ColorLutStage.Camera ? _cameraLutFolder : _creativeLutFolder)?.Invoke();
+                if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+                    throw new DirectoryNotFoundException("The configured LUT folder is unavailable. Choose it in Settings.");
+                _folderLauncher.Open(folder);
+            }
+            catch (Exception exception) { SetStatus($"The LUT folder could not be opened. {exception.Message}"); }
+            return;
+        }
+        if (_updatingColor || choice is null || _currentAsset?.AssetId is not Guid assetId || _assetColors is null
+            || _cameraLutFolder is null || _creativeLutFolder is null) return;
+        try { await _assetColors.SetStageAsync([assetId], stage, choice.LutId); SetStatus(null); await ApplyColorIntentAsync(await _assetColors.GetAsync(assetId), CancellationToken.None); }
+        catch (Exception exception) { SetStatus($"Color assignment could not be saved. {exception.Message}"); }
+    }
+    private async void ColorToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        RestoreLiveVideoSurface();
+        var enabled = ColorToggleButton.IsChecked == true;
+        var previous = _persistentColorEnabled;
+        var revision = ++_colorToggleRevision;
+        var generation = _generation;
+        var assetId = _currentAsset?.AssetId;
+        SetPersistentColorEnabled(enabled);
+        if (!enabled) _momentaryColorBypass = false;
+        _service?.SetColorPipeline(_colorPipeline, !enabled);
+        if (assetId is not Guid id || _assetColors is null) return;
+        try
+        {
+            await _colorTogglePersistenceGate.WaitAsync();
+            try { await _assetColors.SetColorEnabledAsync([id], enabled); }
+            finally { _colorTogglePersistenceGate.Release(); }
+            if (revision == _colorToggleRevision && generation == _generation) SetStatus(null);
+        }
+        catch (Exception exception)
+        {
+            if (revision != _colorToggleRevision || generation != _generation) return;
+            SetPersistentColorEnabled(previous);
+            _service?.SetColorPipeline(_colorPipeline, !previous);
+            SetStatus($"Color processing state could not be saved. {exception.Message}");
+        }
+    }
+
+    private void SetPersistentColorEnabled(bool enabled)
+    {
+        _persistentColorEnabled = enabled;
+        _updatingColor = true;
+        ColorToggleButton.IsChecked = enabled;
+        _updatingColor = false;
+        UpdateColorSelectorEnabled();
     }
 
     /// <summary>
@@ -672,6 +971,14 @@ public partial class PlayerViewerHost : UserControl
             return;
         switch (e.Key)
         {
+            case Key.C when _service is not null && ColorToggleButton.IsEnabled &&
+                ColorToggleButton.IsChecked == true && !_momentaryColorBypass:
+                e.Handled = true;
+                _momentaryColorBypass = true;
+                ShowMomentaryColorBypass(true);
+                RestoreLiveVideoSurface();
+                _service.SetColorPipeline(_colorPipeline, true);
+                return;
             case Key.Escape:
                 e.Handled = true;
                 BackRequested?.Invoke(this, EventArgs.Empty);
@@ -699,6 +1006,31 @@ public partial class PlayerViewerHost : UserControl
         }
     }
 
+    private void PlayerViewerHost_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != Key.C || !_momentaryColorBypass) return;
+        e.Handled = true;
+        _momentaryColorBypass = false;
+        ShowMomentaryColorBypass(false);
+        _service?.SetColorPipeline(_colorPipeline, !_persistentColorEnabled);
+    }
+
+    private void PlayerViewerHost_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (!_momentaryColorBypass) return;
+        _momentaryColorBypass = false;
+        ShowMomentaryColorBypass(false);
+        _service?.SetColorPipeline(_colorPipeline, !_persistentColorEnabled);
+    }
+
+    private void ShowMomentaryColorBypass(bool bypass)
+    {
+        _updatingColor = true;
+        ColorToggleButton.IsChecked = bypass ? false : _persistentColorEnabled;
+        _updatingColor = false;
+        UpdateColorSelectorEnabled();
+    }
+
     private static bool IsArrowKeyOwnedByFocusedControl(DependencyObject? element)
     {
         while (element is not null)
@@ -716,6 +1048,21 @@ public partial class PlayerViewerHost : UserControl
         var hours = (int)value.TotalHours;
         return $"{hours:00}:{value.Minutes:00}:{value.Seconds:00}.{value.Milliseconds:000}";
     }
+}
+
+internal enum PlayerOpenMilestone
+{
+    PreviousAssetReleaseStarted,
+    PreviousAssetReleaseCompleted,
+    PlaybackBackendOpenStarted,
+    PlaybackBackendOpenCompleted,
+    PresentationSurfaceCreated,
+    PlayerControlsPublished,
+    ColorAssignmentReadStarted,
+    ColorAssignmentReadCompleted,
+    RuntimeLutLoadStarted,
+    RuntimeLutLoadCompleted,
+    ColorPublished
 }
 
 internal sealed class MediaRangeStateChangedEventArgs(Guid assetId, bool hasSavedRange) : EventArgs

@@ -18,9 +18,11 @@ internal class MediaPlaybackLeaseSession : IAsyncDisposable
 
     public IMediaPlaybackService? Service => _lease?.Service;
 
-    public async Task<IMediaPlaybackService> OpenAsync(string sourcePath, CancellationToken token = default)
+    public async Task<IMediaPlaybackService> OpenAsync(string sourcePath, CancellationToken token = default,
+        Action<IMediaPlaybackService>? configureBeforeOpen = null)
     {
         _lease ??= await _coordinator.AcquireAsync(_owner, token).ConfigureAwait(false);
+        configureBeforeOpen?.Invoke(_lease.Service);
         await _lease.Service.OpenAsync(sourcePath, token).ConfigureAwait(false);
         return _lease.Service;
     }

@@ -19,6 +19,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     private readonly FfmpegAudioPlayback _audio;
     private readonly Dispatcher _dispatcher;
     private readonly IVideoPostProcessorFactory? _postProcessorFactory;
+    private readonly LightflowColorPostProcessorFactory? _colorPostProcessorFactory;
     private readonly VideoProcessors? _videoProcessor;
     private Window? _offscreenWindow;
     private FlyleafHost? _host;
@@ -41,7 +42,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             ?? throw new DirectoryNotFoundException("Bundled playback libraries were not found.");
         _audio = new FfmpegAudioPlayback(_ffmpegPath, createAudioOutput);
         _dispatcher = Dispatcher.CurrentDispatcher;
-        _postProcessorFactory = postProcessorFactory;
+        _colorPostProcessorFactory = postProcessorFactory is null ? new LightflowColorPostProcessorFactory() : null;
+        _postProcessorFactory = postProcessorFactory ?? _colorPostProcessorFactory;
         _videoProcessor = videoProcessor;
         StartEngine(_ffmpegPath, _dispatcher);
     }
@@ -74,6 +76,12 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             _desiredMute = value;
             _audio.Mute = _desiredMute;
         }
+    }
+
+    public void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass)
+    {
+        _colorPostProcessorFactory?.SetPipeline(pipeline, bypass);
+        if (_player is not null) RequestRender();
     }
 
     public FrameworkElement CreatePresentationSurface()

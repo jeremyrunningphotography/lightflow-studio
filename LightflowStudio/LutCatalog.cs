@@ -11,8 +11,6 @@ internal static partial class LutCatalog
     public const string DefaultFolder = @"J:\Photography\LUTs";
     public static readonly LutOption NoLut = new("No LUT", "");
 
-    public static IReadOnlyList<LutOption> Options(string folder) => [NoLut, .. Discover(folder)];
-
     public static IReadOnlyList<LutOption> Options(IEnumerable<ManagedLutResource> resources)
     {
         var candidates = resources.Where(resource => resource.Availability == LutResourceAvailability.Available
@@ -29,6 +27,12 @@ internal static partial class LutCatalog
         return [NoLut, .. options];
     }
 
+    /// <summary>Encoding's legacy general LUT picker sees the validated union of both Color folders.
+    /// Stable identity removes duplicate content even when it exists at two paths.</summary>
+    public static IReadOnlyList<LutOption> CombinedOptions(params IEnumerable<ManagedLutResource>[] folders) =>
+        Options(folders.SelectMany(resources => resources).GroupBy(resource => resource.LutId)
+            .Select(group => group.First()));
+
     public static LutOption SelectPreferred(IReadOnlyList<LutOption> options, string? preferredPath) =>
         options.FirstOrDefault(option =>
             string.Equals(option.FilePath, preferredPath, StringComparison.OrdinalIgnoreCase))
@@ -40,33 +44,7 @@ internal static partial class LutCatalog
         && (option == NoLut
             || (!string.IsNullOrWhiteSpace(option.FilePath)
                 && option.FilePath.EndsWith(".cube", StringComparison.OrdinalIgnoreCase)
-                && File.Exists(option.FilePath)
-                && (!option.IsManaged || IsSupportedCube(option.FilePath))));
-
-    private static bool IsSupportedCube(string path)
-    {
-        try { return CubeLutValidator.Validate(File.ReadAllBytes(path)).IsValid; }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return false; }
-    }
-
-    public static IReadOnlyList<LutOption> Discover(string folder)
-    {
-        if (!Directory.Exists(folder)) return [];
-
-        var candidates = Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly)
-            .Where(path => string.Equals(Path.GetExtension(path), ".cube", StringComparison.OrdinalIgnoreCase))
-            .Select(path => new { Path = path, Name = MakeDisplayName(path) })
-            .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ThenBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        return candidates
-            .GroupBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-            .SelectMany(group => group.Count() == 1
-                ? group.Select(item => new LutOption(item.Name, item.Path))
-                : group.Select((item, index) => new LutOption($"{item.Name} ({index + 1})", item.Path)))
-            .ToList();
-    }
+                && File.Exists(option.FilePath)));
 
     internal static string MakeDisplayName(string path)
     {

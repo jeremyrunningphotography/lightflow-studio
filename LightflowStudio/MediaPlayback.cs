@@ -114,6 +114,7 @@ internal interface IMediaPlaybackService : IAsyncDisposable
     Task StepForwardAsync(CancellationToken token = default);
     Task StepBackwardAsync(CancellationToken token = default);
     Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token = default);
+    void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass) { }
 
 }
 
@@ -141,4 +142,5 @@ internal interface IMediaPlaybackBackend : IAsyncDisposable
     Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token);
     Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token);
     Task<MediaDecodedFrame> CapturePresentedFrameAsync(CancellationToken token);
+    void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass) { }
 }

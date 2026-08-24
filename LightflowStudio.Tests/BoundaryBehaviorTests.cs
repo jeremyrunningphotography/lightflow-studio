@@ -46,7 +46,7 @@ public sealed class BoundaryBehaviorTests : IDisposable
         var path = Path.Combine(_folder, "settings.json");
         AppSettingsStore.Save(path, new AppSettings("   "));
 
-        Assert.Equal(LutCatalog.DefaultFolder, AppSettingsStore.Load(path).LutFolder);
+        Assert.Equal(LutCatalog.DefaultFolder, AppSettingsStore.Load(path).CameraLutFolder);
     }
 
     [Theory]

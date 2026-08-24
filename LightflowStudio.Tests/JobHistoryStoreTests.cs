@@ -33,6 +33,35 @@ public sealed class JobHistoryStoreTests : IDisposable
     }
 
     [Fact]
+    public void CompletedEncodingJob_RoundTripsMaterializedColorAndRerunRetainsIt()
+    {
+        var hash = new string('a', 64);
+        var color = new MaterializedColorPipeline(false,
+            new MaterializedLutResource(Guid.NewGuid(), ColorLutStage.Camera, "Technical", hash,
+                $"aa/{hash}.cube"),
+            new MaterializedLutResource(Guid.NewGuid(), ColorLutStage.Creative, "Look", hash,
+                $"aa/{hash}.cube"));
+        var source = Path.Combine(_root, "color-source.mp4");
+        File.WriteAllText(source, "source");
+        var item = Item(source) with { AssignedColor = color };
+        var record = Record(JobState.Completed, DateTimeOffset.UtcNow, [item]);
+        var options = record.Definition.Options with { ColorMode = EncodingColorMode.Assigned };
+        record = record with
+        {
+            Definition = record.Definition with { Options = options },
+            Plan = record.Plan with { Definition = record.Definition with { Options = options } }
+        };
+        new JobHistoryStore(StorePath).Add(record);
+
+        var loaded = Assert.Single(new JobHistoryStore(StorePath).Load());
+        Assert.Equal(color, loaded.Definition.Items.Single().AssignedColor);
+        var restored = Assert.Single(EncodingHistoryRerun.Materialize(
+            EncodingHistoryRerun.Prepare(loaded)).Restored);
+        Assert.Equal(color, restored.AssignedColor);
+        Assert.False(restored.AssignedColor!.ColorEnabled);
+    }
+
+    [Fact]
     public void MultipleRecords_LoadNewestFirst()
     {
         var store = new JobHistoryStore(StorePath);

@@ -122,6 +122,61 @@ public sealed class EncodingCapabilityHandoffTests
         Assert.Equal((rootId, "shoot"), roots.LastResolution);
     }
 
+    [Fact]
+    public async Task Materialize_snapshots_heterogeneous_color_once_and_preserves_enabled_semantics()
+    {
+        var cameraOnly = Guid.NewGuid();
+        var creativeOnly = Guid.NewGuid();
+        var disabledBoth = Guid.NewGuid();
+        var none = Guid.NewGuid();
+        var camera = Resource(ColorLutStage.Camera, 'a', "Camera A");
+        var creative = Resource(ColorLutStage.Creative, 'b', "Creative B");
+        var colors = new FakeColors(new Dictionary<Guid, AssetColorIntent>
+        {
+            [cameraOnly] = Intent(cameraOnly, true, CameraReference(camera)),
+            [creativeOnly] = Intent(creativeOnly, true, creative: CameraReference(creative)),
+            [disabledBoth] = Intent(disabledBoth, false, CameraReference(camera), CameraReference(creative)),
+            [none] = Intent(none, true)
+        });
+        var assets = new FakeAssets(
+            Resolution(cameraOnly, "C:\\media\\camera.mov"),
+            Resolution(creativeOnly, "C:\\media\\creative.mov"),
+            Resolution(disabledBoth, "C:\\media\\disabled.mov"),
+            Resolution(none, "C:\\media\\none.mov"));
+        var snapshots = new FakeResourceStore();
+        var handoff = new EncodingCapabilityHandoff(assets, new FakeRoots(), new FakeRanges(), colors,
+            new FakeLutCache(camera, creative), snapshots);
+
+        var result = await handoff.MaterializeAsync(new CapabilityInvocation("video.encode",
+            [cameraOnly, creativeOnly, disabledBoth, none]));
+        colors.Values[cameraOnly] = Intent(cameraOnly, false, creative: CameraReference(creative));
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(ColorLutStage.Camera, result.Inputs[0].AssignedColor!.OrderedPipeline.Single().Stage);
+        Assert.Equal(ColorLutStage.Creative, result.Inputs[1].AssignedColor!.OrderedPipeline.Single().Stage);
+        Assert.False(result.Inputs[2].AssignedColor!.ColorEnabled);
+        Assert.Equal([ColorLutStage.Camera, ColorLutStage.Creative],
+            result.Inputs[2].AssignedColor!.OrderedPipeline.Select(value => value.Stage));
+        Assert.True(result.Inputs[3].AssignedColor!.ColorEnabled);
+        Assert.Empty(result.Inputs[3].AssignedColor!.OrderedPipeline);
+        Assert.True(result.Inputs[0].AssignedColor!.ColorEnabled);
+        Assert.Equal(4, snapshots.Count);
+        Assert.All(colors.ReadCounts.Values, count => Assert.Equal(1, count));
+    }
+
+    private static ManagedLutResource Resource(ColorLutStage stage, char value, string name)
+    {
+        var hash = new string(value, 64);
+        return new(Guid.NewGuid(), name, name + ".cube", hash, LutDimension.ThreeDimensional, 2,
+            LutResourceAvailability.Available, $"C:\\luts\\{name}.cube");
+    }
+
+    private static ColorLutReference CameraReference(ManagedLutResource resource) =>
+        new(resource.LutId, resource.DisplayName, resource.ContentSha256, LutResourceAvailability.Available);
+
+    private static AssetColorIntent Intent(Guid assetId, bool enabled, ColorLutReference? camera = null,
+        ColorLutReference? creative = null) => new(assetId, camera, creative, Guid.NewGuid().ToString("N"), enabled);
+
     private static MediaAssetResolution Resolution(Guid id, string? path, string type = "video",
         MediaRootAvailability availability = MediaRootAvailability.Online, Guid? rootId = null)
     {
@@ -173,5 +228,39 @@ public sealed class EncodingCapabilityHandoffTests
         public Task<MediaAssetResolution?> FindAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaAssetOperationResult> ObserveAsync(Guid assetId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeColors(Dictionary<Guid, AssetColorIntent> values) : IAssetColorStore
+    {
+        public Dictionary<Guid, AssetColorIntent> Values { get; } = values;
+        public Dictionary<Guid, int> ReadCounts { get; } = [];
+        public Task<AssetColorIntent> GetAsync(Guid assetId, CancellationToken cancellationToken = default)
+        { ReadCounts[assetId] = ReadCounts.GetValueOrDefault(assetId) + 1; return Task.FromResult(Values[assetId]); }
+        public Task<IReadOnlyDictionary<Guid, AssetColorIntent>> GetAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, AssetColorIntent>>(assetIds.ToDictionary(id => id, id => Values[id]));
+        public Task SetStageAsync(IReadOnlyCollection<Guid> assetIds, ColorLutStage stage, Guid? lutId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SetColorEnabledAsync(IReadOnlyCollection<Guid> assetIds, bool enabled, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeLutCache(params ManagedLutResource[] resources) : ILutLibraryCache
+    {
+        public LutLibrarySnapshot Snapshot(ColorLutStage stage) => new("", resources.Where(resource =>
+            (stage == ColorLutStage.Camera && resource.DisplayName.StartsWith("Camera"))
+            || (stage == ColorLutStage.Creative && resource.DisplayName.StartsWith("Creative"))).ToArray(), []);
+        public ManagedLutResource? Get(ColorLutStage stage, Guid lutId) => Snapshot(stage).Resources.FirstOrDefault(value => value.LutId == lutId);
+        public string ResolvePath(ColorLutStage stage, Guid lutId) => Get(stage, lutId)!.FilePath!;
+        public Task<CubeLutData> GetRuntimeAsync(ColorLutStage stage, Guid lutId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task InitializeAsync(string cameraFolder, string creativeFolder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder, CancellationToken cancellationToken = default) => Task.FromResult(Snapshot(stage));
+    }
+
+    private sealed class FakeResourceStore : IEncodingLutResourceStore
+    {
+        public int Count { get; private set; }
+        public Task<MaterializedLutResource> SnapshotAsync(ColorLutStage stage, ManagedLutResource resource, CancellationToken cancellationToken = default)
+        { Count++; return Task.FromResult(new MaterializedLutResource(resource.LutId, stage, resource.DisplayName,
+            resource.ContentSha256, $"{resource.ContentSha256[..2]}/{resource.ContentSha256}.cube")); }
+        public string Resolve(MaterializedLutResource resource) => resource.ResourceKey;
     }
 }

@@ -1701,7 +1701,8 @@ public partial class MainWindow : Window
         try
         {
             var result = await new EncodingCapabilityHandoff(_storage.MediaAssets, _storage.MediaRoots,
-                    _storage.MediaRanges)
+                    _storage.MediaRanges, _storage.AssetColors, _storage.LutCache,
+                    new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory))
                 .MaterializeAsync(invocation, cancellation.Token).ConfigureAwait(true);
             if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return;
             if (!result.Succeeded)
@@ -1735,10 +1736,12 @@ public partial class MainWindow : Window
             {
                 var input = result.Inputs[index];
                 var display = Path.GetRelativePath(InputFolder.Text, input.SourcePath);
-                var option = new BatchFileOption(input.SourcePath, display, input.FileSizeBytes, index);
+                var option = new BatchFileOption(input.SourcePath, display, input.FileSizeBytes, index,
+                    input.AssignedColor);
                 if (input.InitialTrim is { IsFullSource: false } trim) option.ApplyTrim(trim);
                 _batchFiles.Add(option);
             }
+            ConfigureAssignedColorUi();
             UpdatePreserveFolderStructureUi();
             UpdateBatchFileSummary();
             _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
@@ -2008,6 +2011,7 @@ public partial class MainWindow : Window
             if (_trimHistory.Restore(option.FilePath) is { } restored) option.ApplyTrim(restored);
             _batchFiles.Add(option);
         }
+        ConfigureAssignedColorUi();
         _batchSelectionMemory.Apply(InputFolder.Text, _batchFiles);
         UpdateBatchFileSummary();
         _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
@@ -2108,6 +2112,41 @@ public partial class MainWindow : Window
             _activityLogFile.TryAppend($"[App] Could not remember LUT selection: {ex}");
             SettingsMessage.Text = $"Could not remember LUT selection: {ex.Message}";
         }
+    }
+
+    private void EncodingColorModeSelection_Changed(object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (LutSelection is null) return;
+        LutSelection.IsEnabled = CurrentEncodingColorMode == EncodingColorMode.OriginalOrManual;
+    }
+
+    private EncodingColorMode CurrentEncodingColorMode =>
+        AssignedColorConfiguration?.Visibility == Visibility.Visible && EncodingColorModeSelection.SelectedIndex == 0
+            ? EncodingColorMode.Assigned
+            : EncodingColorMode.OriginalOrManual;
+
+    private void ConfigureAssignedColorUi(EncodingColorMode? restoredMode = null)
+    {
+        var colors = _batchFiles.Where(file => file.AssignedColor?.HasAssignments == true).ToList();
+        AssignedColorConfiguration.Visibility = colors.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (colors.Count == 0)
+        {
+            EncodingColorModeSelection.SelectedIndex = 1;
+            AssignedColorSummary.Text = "";
+            LutSelection.IsEnabled = true;
+            return;
+        }
+        var enabled = colors.Count(file => file.AssignedColor!.ColorEnabled);
+        EncodingColorModeSelection.SelectedIndex = restoredMode is { } mode
+            ? mode == EncodingColorMode.Assigned ? 0 : 1
+            : enabled > 0 ? 0 : 1;
+        var distinct = colors.Select(file => string.Join(" → ", file.AssignedColor!.OrderedPipeline
+            .Select(resource => resource.DisplayName))).Distinct(StringComparer.Ordinal).Count();
+        AssignedColorSummary.Text = $"{colors.Count} input{(colors.Count == 1 ? "" : "s")} with assigned Color" +
+            (distinct > 1 ? $" · {distinct} different pipelines" : "") +
+            (enabled < colors.Count ? $" · {colors.Count - enabled} saved Off" : "");
+        LutSelection.IsEnabled = CurrentEncodingColorMode == EncodingColorMode.OriginalOrManual;
     }
 
     private void BrowseDefaultVideoFolder_Click(object sender, RoutedEventArgs e)
@@ -2914,9 +2953,18 @@ public partial class MainWindow : Window
                 AppendDetailedLog($"Partial output: {outputLifecycle.PartialPath}");
                 var encodingOptions = plan.Definition.Options;
                 var detailedOutput = encodingOptions.DetailedOutput;
-                var args = FfmpegCommandBuilder.Encode(input, outputLifecycle.PartialPath, encodingOptions.LutPath,
+                var colorLuts = encodingOptions.ColorMode == EncodingColorMode.Assigned
+                    && item.PlanItem.Definition.AssignedColor is { ColorEnabled: true } color
+                    ? color.OrderedPipeline.Select(resource => new EncodingLutResourceStore(
+                        EncodingLutResourceStore.DefaultDirectory).Resolve(resource)).ToArray()
+                    : [];
+                var manualLut = encodingOptions.ColorMode == EncodingColorMode.OriginalOrManual
+                    ? encodingOptions.LutPath : null;
+                var args = FfmpegCommandBuilder.Encode(input, outputLifecycle.PartialPath, manualLut,
                     encodingOptions.Recovery, encodingOptions.Resolution, detailedOutput, encodingOptions.Encoding,
-                    item.PlanItem.Definition.ResolvedRange);
+                    item.PlanItem.Definition.ResolvedRange, colorLuts);
+                AppendDetailedLog(colorLuts.Length == 0 ? "Color: Original"
+                    : $"Color: {string.Join(" -> ", item.PlanItem.Definition.AssignedColor!.OrderedPipeline.Select(resource => $"{EncodingLutResourceStore.StageName(resource.Stage)} {resource.DisplayName} [{resource.ContentSha256}]"))}");
                 AppendDetailedLog($"Starting FFmpeg: {FormatCommand(_ffmpeg!, args)}");
                 CurrentFileText.Text = item.PlanItem.Definition.ResolvedRange is null
                     ? $"Starting {completed + 1}/{total}: {Path.GetFileName(input)}…"
@@ -3129,6 +3177,7 @@ public partial class MainWindow : Window
         _batchMetadataCts = new CancellationTokenSource();
         _batchFiles.Clear();
         foreach (var file in restoration.Restored) _batchFiles.Add(file);
+        ConfigureAssignedColorUi(options.ColorMode);
         UpdateBatchFileSummary();
         _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
         MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
@@ -3140,7 +3189,8 @@ public partial class MainWindow : Window
         if (_ffprobe is null || !File.Exists(_ffprobe)) { MessageBox.Show("FFprobe was not found beside FFmpeg. Reinstall the packaged dependencies or update the FFmpeg path in Settings."); return false; }
         if (!Directory.Exists(InputFolder.Text)) { MessageBox.Show("Select a valid video folder."); return false; }
         if (_batchFiles.All(file => !file.IsSelected)) { MessageBox.Show("Select at least one video file for this batch."); return false; }
-        if (!LutCatalog.IsValidSelection(LutSelection.SelectedItem as LutOption)) { MessageBox.Show("Select a valid .cube LUT from the LUT dropdown, or choose No LUT."); return false; }
+        if (CurrentEncodingColorMode == EncodingColorMode.OriginalOrManual
+            && !LutCatalog.IsValidSelection(LutSelection.SelectedItem as LutOption)) { MessageBox.Show("Select a valid .cube LUT from the LUT dropdown, or choose No LUT."); return false; }
         try
         {
             var plan = CreateEncodingPlan();
@@ -3166,12 +3216,13 @@ public partial class MainWindow : Window
             resolution,
             recovery,
             _settings.Encoding,
-            SelectedLutPath,
+            CurrentEncodingColorMode == EncodingColorMode.OriginalOrManual ? SelectedLutPath : null,
             suffix,
             ShouldPreserveFolderStructure(),
             OverwriteExisting.IsChecked == true,
             ShowEncodingDetails.IsChecked == true,
-            Recursive.IsChecked == true);
+            Recursive.IsChecked == true,
+            CurrentEncodingColorMode);
         var sources = _batchFiles.Where(file => file.IsSelected).Select(file =>
         {
             var seconds = durations?.GetValueOrDefault(file.FilePath) ?? file.Metadata?.DurationSeconds ?? 0;
@@ -3183,7 +3234,8 @@ public partial class MainWindow : Window
                 resolvedRanges?.GetValueOrDefault(file.FilePath),
                 file.SourceIdentity?.LastWriteUtcTicks,
                 file.Metadata?.HasAudio,
-                file.CapabilityOrder);
+                file.CapabilityOrder,
+                file.AssignedColor);
         });
         return EncodingJobPlanner.Plan(EncodingJobPlanner.Define(options, sources));
     }

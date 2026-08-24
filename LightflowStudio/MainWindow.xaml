@@ -716,6 +716,14 @@
         </Grid>
         </Border>
         <StackPanel Grid.Row="4" Grid.Column="0" x:Name="BatchLutConfiguration" Margin="0,10,8,0">
+         <StackPanel x:Name="AssignedColorConfiguration" Visibility="Collapsed" Margin="0,0,0,8">
+          <TextBlock Style="{StaticResource FieldLabel}" Text="CATALOG COLOR"/>
+          <ComboBox x:Name="EncodingColorModeSelection" SelectedIndex="1" SelectionChanged="EncodingColorModeSelection_Changed">
+           <ComboBoxItem Content="Render assigned Color"/>
+           <ComboBoxItem Content="Original / manual Encoding LUT"/>
+          </ComboBox>
+          <TextBlock x:Name="AssignedColorSummary" Margin="4,4,4,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
+         </StackPanel>
          <TextBlock Style="{StaticResource FieldLabel}" Text="LUT"/>
          <DockPanel><Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshLuts_Click"/><ComboBox x:Name="LutSelection" DisplayMemberPath="DisplayName" SelectedValuePath="FilePath" SelectionChanged="LutSelection_SelectionChanged"/></DockPanel>
         </StackPanel>

@@ -64,6 +64,36 @@ independent Camera and Creative `No LUT` selections. The master switch becomes i
 publish and is not gated by background LUT readiness; stage selectors are enabled whenever persistent Color is On,
 even if the current snapshots contain only `No LUT`. Neither interaction starts or waits on discovery.
 
+### Browser Color materialization and Encoding
+
+Catalog Color is durable per-asset user intent: the persistent Color-enabled switch and optional Camera/technical
+and Creative assignments remain keyed to stable `AssetId` values. The Browser-to-Encoding capability handoff is
+the materialization point for that intent. Alongside the independent saved-range snapshot established by #144,
+each Browser input receives an engine-neutral `MaterializedColorPipeline` containing the committed enabled state
+and ordered Camera then Creative resource identities. Changing Catalog Color later cannot mutate the prepared
+Encoding input, running job, history record, or rerun.
+
+Encoding owns execution and reproducibility. During handoff every currently available assigned LUT is validated,
+checked against its content SHA-256 identity, and copied into the application-owned content-addressed Encoding LUT
+resource store. Job definitions record stable LUT identity, stage, descriptive name, content hash, and the relative
+resource key; they do not use the configured live LUT folder path as durable identity and do not embed FFmpeg
+syntax. Moves or renames of identical content retain the same identity and store object. Planning resolves and
+revalidates the saved content before execution. A missing, invalid, unreadable, or hash-mismatched required Camera
+or Creative resource is an input/stage-specific preflight error and never falls back silently to Original.
+
+Browser-originated batches with assignments expose two mutually exclusive modes. **Render assigned Color** uses
+each input's saved pipeline when that input's saved Color-enabled state is On; Color Off retains its assignments but
+renders Original, and Color On with no stages remains a valid empty pipeline. **Original / manual Encoding LUT**
+bypasses every assigned pipeline and preserves the existing global No LUT/manual LUT workflow. Assigned Color and
+the global manual LUT cannot be composed implicitly. Heterogeneous batches therefore render each enabled input's
+own Camera → Creative stages without per-file reconfiguration while unassigned or disabled inputs remain Original.
+
+The centralized Encoding filter builder applies video stages deterministically as trim → Camera LUT → Creative LUT
+→ deinterlace → frame-rate conversion → scale/pad. Materialized Color is serialized in the ordinary job definition,
+included in output/resume identity and diagnostics, and restored directly by Review & Rerun. Historical and running
+jobs never query current Catalog Color or rescan configured LUT folders. Older history records omit the optional
+per-item snapshot and deserialize as the legacy Original/manual mode.
+
 ### Presentation
 
 WPF views and code-behind currently own navigation, dialogs, accessibility behavior, and control updates. Presentation code may gather user choices and display plans, progress, and results. It must not put UI controls into durable job definitions or construct FFmpeg syntax itself.

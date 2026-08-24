@@ -137,6 +137,41 @@
    </Setter>
   </Style>
 
+  <Style x:Key="BrowserSelectionActionButtonStyle" TargetType="Button">
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="BorderBrush" Value="Transparent"/>
+   <Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="Padding" Value="9,5"/>
+   <Setter Property="Margin" Value="1,0"/>
+   <Setter Property="FontSize" Value="12"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+       BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger>
+       <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger>
+       <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger>
+       <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.38"/><Setter Property="Cursor" Value="Arrow"/></Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+
+  <Style x:Key="BrowserSelectionLutComboStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+   <Setter Property="Height" Value="28"/>
+   <Setter Property="MinWidth" Value="126"/>
+   <Setter Property="Padding" Value="7,3"/>
+   <Setter Property="Margin" Value="2,0"/>
+   <Setter Property="FontSize" Value="12"/>
+  </Style>
+
   <!-- #125: compact hit area for the thumbnail-size slider's track, mirroring TrimEditorWindow's
        PlaybackTimelineHitArea — invisible, just enlarges the click target beyond the thin track itself. -->
   <Style x:Key="BrowserThumbnailSizeSliderHitArea" TargetType="RepeatButton">
@@ -349,8 +384,7 @@
       </GridSplitter>
       <Grid Grid.Column="2" MinWidth="520">
        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition x:Name="BrowserNavigationGap" Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-       <ScrollViewer Grid.Row="0" x:Name="BrowserBrowseToolbar" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-       <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="520"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Grid Grid.Row="0" x:Name="BrowserBrowseToolbar"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
        <Border Grid.Column="0" x:Name="BrowserNavigationToolbar" Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>
          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -486,21 +520,35 @@
          </ItemsControl>
         </StackPanel>
        </Border>
-       </Grid></ScrollViewer>
-       <Border Grid.Row="2" x:Name="BrowserSelectionActionToolbar" Style="{StaticResource ShellPanel}" Padding="10,7">
+       </Grid>
+       <Border Grid.Row="2" x:Name="BrowserSelectionActionToolbar" Background="{StaticResource ShellSurfaceBrush}"
+        BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="7" Padding="8,5">
         <DockPanel LastChildFill="False">
-         <TextBlock x:Name="BrowserSelectionActionSummary" DockPanel.Dock="Left" MinWidth="120" Margin="4,0,12,0"
-          VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="No selection"/>
-         <Button x:Name="BrowserExportButton" Content="Export / Export Subclips…" IsEnabled="False"
-          ToolTip="Export selected videos, preserving saved ranges" AutomationProperties.Name="Export selected videos" Click="BrowserExport_Click"/>
-         <Button x:Name="BrowserRegenerateThumbnailsButton" Content="Regenerate Thumbnail(s)" IsEnabled="False"
-          ToolTip="Regenerate cached thumbnails for the selection" Click="BrowserRegenerateThumbnails_Click"/>
-         <Button x:Name="BrowserRenameButton" Content="Rename" IsEnabled="False"
+         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Margin="4,0,7,0" VerticalAlignment="Center" Foreground="{StaticResource ShellNavigationTextBrush}"
+           FontSize="10" FontWeight="SemiBold" Text="SELECTION"/>
+          <TextBlock x:Name="BrowserSelectionActionSummary" MinWidth="72" Margin="0,0,9,0"
+           VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="None"/>
+          <Border Width="1" Height="18" Margin="0,0,5,0" Background="{StaticResource ShellDividerBrush}"/>
+         </StackPanel>
+         <Button x:Name="BrowserExportButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Export…" IsEnabled="False"
+          ToolTip="Export selected videos or saved subclips" AutomationProperties.Name="Export selected videos" Click="BrowserExport_Click"/>
+         <Button x:Name="BrowserRegenerateThumbnailsButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Regenerate" IsEnabled="False"
+          ToolTip="Regenerate cached thumbnails for the selection" AutomationProperties.Name="Regenerate selected thumbnails" Click="BrowserRegenerateThumbnails_Click"/>
+         <Button x:Name="BrowserRenameButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Rename" IsEnabled="False"
           ToolTip="Media rename is not available yet"/>
-         <Button x:Name="BrowserCameraLutButton" Content="Camera LUT ▾" IsEnabled="False"
-          ToolTip="Assign a Camera/technical LUT to selected videos" Click="BrowserCameraLut_Click"/>
-         <Button x:Name="BrowserCreativeLutButton" Content="Creative LUT ▾" IsEnabled="False"
-          ToolTip="Assign a Creative LUT to selected videos" Click="BrowserCreativeLut_Click"/>
+         <Border Width="1" Height="18" Margin="5,0" Background="{StaticResource ShellDividerBrush}"/>
+         <TextBlock Margin="3,0,5,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="COLOR"/>
+         <ComboBox x:Name="BrowserCameraLutCombo" Style="{StaticResource BrowserSelectionLutComboStyle}" IsEnabled="False" SelectedIndex="0"
+          ToolTip="Assign a Camera/technical LUT to all selected videos" AutomationProperties.Name="Assign Camera LUT"
+          DropDownOpened="BrowserCameraLutCombo_DropDownOpened" SelectionChanged="BrowserCameraLutCombo_SelectionChanged">
+          <ComboBoxItem Content="Camera LUT…" IsEnabled="False"/>
+         </ComboBox>
+         <ComboBox x:Name="BrowserCreativeLutCombo" Style="{StaticResource BrowserSelectionLutComboStyle}" IsEnabled="False" SelectedIndex="0"
+          ToolTip="Assign a Creative LUT to all selected videos" AutomationProperties.Name="Assign Creative LUT"
+          DropDownOpened="BrowserCreativeLutCombo_DropDownOpened" SelectionChanged="BrowserCreativeLutCombo_SelectionChanged">
+          <ComboBoxItem Content="Creative LUT…" IsEnabled="False"/>
+         </ComboBox>
         </DockPanel>
        </Border>
        <!-- The one authoritative background for the whole media canvas (loading/content/empty/failure alike)
@@ -553,13 +601,17 @@
                 ContextMenuOpening="BrowserGridTile_ContextMenuOpening"
                 ToolTip="{Binding Name}" AutomationProperties.Name="{Binding AutomationLabel}">
                 <Border.ContextMenu>
-                 <ContextMenu>
-                  <MenuItem Header="Export / Export Subclips…" Click="BrowserContextExport_Click"/>
-                  <MenuItem Header="Regenerate Thumbnail(s)" Click="BrowserContextRegenerateThumbnails_Click"/>
-                  <MenuItem Header="Rename" IsEnabled="False" ToolTip="Media rename is not available yet"/>
-                  <Separator/>
-                  <MenuItem Header="Camera LUT" SubmenuOpened="BrowserContextCameraLut_SubmenuOpened"/>
-                  <MenuItem Header="Creative LUT" SubmenuOpened="BrowserContextCreativeLut_SubmenuOpened"/>
+                 <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export / Export Subclips…" Click="BrowserContextExport_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Regenerate Thumbnail(s)" Click="BrowserContextRegenerateThumbnails_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename" IsEnabled="False" ToolTip="Media rename is not available yet"/>
+                  <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Camera LUT" SubmenuOpened="BrowserContextCameraLut_SubmenuOpened">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Loading…" IsEnabled="False"/>
+                  </MenuItem>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Creative LUT" SubmenuOpened="BrowserContextCreativeLut_SubmenuOpened">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Loading…" IsEnabled="False"/>
+                  </MenuItem>
                  </ContextMenu>
                 </Border.ContextMenu>
                 <Border.Style>

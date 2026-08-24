@@ -11,6 +11,23 @@ internal sealed record BrowserSelectionActionState(
     public bool HasSelection => SelectionCount > 0;
 }
 
+internal sealed record BrowserLutActionOption(Guid? LutId, string Label, bool IsAction = true);
+
+internal static class BrowserLutActionPicker
+{
+    public static IReadOnlyList<BrowserLutActionOption> Build(string stageName,
+        IReadOnlyList<ManagedLutResource> resources)
+    {
+        var actions = new List<BrowserLutActionOption>
+        {
+            new(null, $"{stageName} LUT…", IsAction: false),
+            new(null, $"Clear {stageName} LUT")
+        };
+        actions.AddRange(resources.Select(resource => new BrowserLutActionOption(resource.LutId, resource.DisplayName)));
+        return actions;
+    }
+}
+
 internal static class BrowserSelectionActions
 {
     public static BrowserSelectionActionState Evaluate(IReadOnlyList<BrowserGridTile> selection)

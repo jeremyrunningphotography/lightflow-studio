@@ -1319,20 +1319,34 @@ public partial class MainWindow : Window
         finally { UpdateBrowserSelectionActions(); }
     }
 
-    private void BrowserCameraLut_Click(object sender, RoutedEventArgs e) =>
-        ShowBrowserLutMenu((FrameworkElement)sender, ColorLutStage.Camera);
-    private void BrowserCreativeLut_Click(object sender, RoutedEventArgs e) =>
-        ShowBrowserLutMenu((FrameworkElement)sender, ColorLutStage.Creative);
+    private void BrowserCameraLutCombo_DropDownOpened(object sender, EventArgs e) =>
+        PopulateBrowserLutCombo((System.Windows.Controls.ComboBox)sender, ColorLutStage.Camera);
+    private void BrowserCreativeLutCombo_DropDownOpened(object sender, EventArgs e) =>
+        PopulateBrowserLutCombo((System.Windows.Controls.ComboBox)sender, ColorLutStage.Creative);
+    private async void BrowserCameraLutCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        await ApplyBrowserLutComboSelectionAsync((System.Windows.Controls.ComboBox)sender, ColorLutStage.Camera);
+    private async void BrowserCreativeLutCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        await ApplyBrowserLutComboSelectionAsync((System.Windows.Controls.ComboBox)sender, ColorLutStage.Creative);
     private void BrowserContextCameraLut_SubmenuOpened(object sender, RoutedEventArgs e) =>
         PopulateBrowserLutMenu((MenuItem)sender, ColorLutStage.Camera);
     private void BrowserContextCreativeLut_SubmenuOpened(object sender, RoutedEventArgs e) =>
         PopulateBrowserLutMenu((MenuItem)sender, ColorLutStage.Creative);
 
-    private void ShowBrowserLutMenu(FrameworkElement anchor, ColorLutStage stage)
+    private void PopulateBrowserLutCombo(System.Windows.Controls.ComboBox combo, ColorLutStage stage)
     {
-        var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Bottom };
-        PopulateBrowserLutItems(menu.Items, stage);
-        menu.IsOpen = true;
+        var stageName = EncodingLutResourceStore.StageName(stage);
+        var actions = BrowserLutActionPicker.Build(stageName, _storage.LutCache.Snapshot(stage).Resources);
+        combo.Items.Clear();
+        combo.DisplayMemberPath = nameof(BrowserLutActionOption.Label);
+        foreach (var action in actions) combo.Items.Add(action);
+        combo.SelectedIndex = 0;
+    }
+
+    private async Task ApplyBrowserLutComboSelectionAsync(System.Windows.Controls.ComboBox combo, ColorLutStage stage)
+    {
+        if (combo.SelectedItem is not BrowserLutActionOption { IsAction: true } action) return;
+        await AssignBrowserLutAsync(stage, action.LutId, action.Label);
+        combo.SelectedIndex = 0;
     }
 
     private void PopulateBrowserLutMenu(MenuItem parent, ColorLutStage stage)
@@ -1348,7 +1362,7 @@ public partial class MainWindow : Window
         foreach (var resource in resources) Add(resource.LutId, resource.DisplayName);
         void Add(Guid? lutId, string label)
         {
-            var item = new MenuItem { Header = label };
+            var item = new MenuItem { Header = label, Style = (Style)FindResource("LightflowMenuItemStyle") };
             item.Click += async (_, _) => await AssignBrowserLutAsync(stage, lutId, label);
             items.Add(item);
         }
@@ -1696,13 +1710,13 @@ public partial class MainWindow : Window
         if (BrowserExportButton is null) return;
         var state = CurrentBrowserSelectionActions();
         BrowserSelectionActionSummary.Text = state.SelectionCount == 0
-            ? "No selection"
+            ? "None"
             : $"{state.SelectionCount} selected";
         BrowserExportButton.IsEnabled = state.CanExport;
         BrowserRegenerateThumbnailsButton.IsEnabled = state.CanRegenerateThumbnails;
         BrowserRenameButton.IsEnabled = state.CanRename;
-        BrowserCameraLutButton.IsEnabled = state.CanAssignCameraLut;
-        BrowserCreativeLutButton.IsEnabled = state.CanAssignCreativeLut;
+        BrowserCameraLutCombo.IsEnabled = state.CanAssignCameraLut;
+        BrowserCreativeLutCombo.IsEnabled = state.CanAssignCreativeLut;
     }
 
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)

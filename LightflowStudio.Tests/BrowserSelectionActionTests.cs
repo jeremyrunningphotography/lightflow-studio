@@ -52,6 +52,23 @@ public sealed class BrowserSelectionActionTests
         Assert.True(BrowserSelectionActions.ShouldReplaceSelectionOnRightClick(tileIsSelected: false));
     }
 
+    [Fact]
+    public void Lut_action_picker_uses_neutral_prompt_and_cache_actions_not_a_claimed_shared_value()
+    {
+        var lutId = Guid.NewGuid();
+        var resource = new ManagedLutResource(lutId, "Log to Rec.709", "technical.cube", new string('a', 64),
+            LutDimension.ThreeDimensional, 33, LutResourceAvailability.Available);
+
+        var options = BrowserLutActionPicker.Build("Camera", [resource]);
+
+        Assert.Equal("Camera LUT…", options[0].Label);
+        Assert.False(options[0].IsAction);
+        Assert.Equal("Clear Camera LUT", options[1].Label);
+        Assert.Null(options[1].LutId);
+        Assert.Equal((lutId, "Log to Rec.709", true),
+            (options[2].LutId, options[2].Label, options[2].IsAction));
+    }
+
     private static BrowserGridTile Tile(string name, MediaTypeCategory category, bool identified = true)
     {
         var root = Guid.NewGuid();

@@ -36,6 +36,53 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OverlappingCameraThenCreativeEnsureCurrent_CoalescesQueuedRendersToLatestIdentity()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        var ids = new List<Guid>();
+        for (var index = 0; index < 3; index++)
+        {
+            var name = $"clip-{index}.mp4";
+            await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, name), "source");
+            ids.Add(await fixture.AddAssetAsync(name, "video"));
+        }
+        using (var originals = fixture.Service(new FakeRenderer()))
+            foreach (var id in ids) await originals.GenerateAsync(new(id));
+
+        var cameraId = Guid.NewGuid(); var creativeId = Guid.NewGuid();
+        var colors = new MutableColorStore(new(ids[0],
+            new(cameraId, "Camera", "aa", LutResourceAvailability.Available), null, "camera-only"));
+        var renderer = new BlockingFirstColorRenderer();
+        var cache = new FakeLutCache(new Dictionary<Guid, string>
+            { [cameraId] = "camera.cube", [creativeId] = "creative.cube" });
+        var activity = new ThumbnailGenerationActivity();
+        var activityStarts = 0;
+        activity.Changed += (_, change) => { if (change.IsGenerating) Interlocked.Increment(ref activityStarts); };
+        using var service = new ThumbnailGenerationService(fixture.Coordinator.MediaAssets,
+            fixture.Coordinator.Previews!, fixture.Coordinator.Locations, renderer, maximumConcurrency: 1,
+            colors: colors, lutCache: cache, activity: activity);
+        Task<ThumbnailGenerationResult> Ensure(Guid id, CancellationToken token) =>
+            service.GenerateAsync(new(id, ForceRefresh: false, Priority: ThumbnailPriority.Visible), token);
+
+        var cameraPass = PreviewRegenerationBatch.RunAsync(ids, Ensure);
+        await renderer.FirstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        colors.Intent = new(ids[0],
+            new(cameraId, "Camera", "aa", LutResourceAvailability.Available),
+            new(creativeId, "Creative", "bb", LutResourceAvailability.Available), "camera-creative");
+        var creativePass = PreviewRegenerationBatch.RunAsync(ids, Ensure);
+        renderer.ReleaseFirst.TrySetResult();
+        await Task.WhenAll(cameraPass, creativePass);
+
+        Assert.Equal(4, renderer.VisualIdentities.Count);
+        Assert.True(renderer.VisualIdentities.Count < ids.Count * 2); // six force renders would be redundant.
+        Assert.Equal("camera-only", renderer.VisualIdentities[0]);
+        Assert.Equal(3, renderer.VisualIdentities.Count(identity => identity == "camera-creative"));
+        Assert.Equal(4, activityStarts); // Current/coalesced requests never acquire an activity lease.
+        foreach (var id in ids)
+            Assert.Equal("camera-creative", (await fixture.Coordinator.Previews!.GetAsync(id))!.ThumbnailVisualIdentity);
+    }
+
+    [Fact]
     public async Task ImageGeneration_RespectsExifOrientationAndPublishesAtomically()
     {
         await using var fixture = await ThumbnailFixture.CreateAsync(_root);
@@ -243,6 +290,22 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
         Assert.Equal(catalogId, fixture.Coordinator.CatalogSession.Identity.CatalogId);
         Assert.Equal(PreviewComponentState.Current,
             (await fixture.Coordinator.Previews!.GetAsync(assetId))!.ThumbnailState);
+    }
+
+    [Fact]
+    public async Task ExplicitForceRefresh_RebuildsEvenWhenPreviewIdentityIsCurrent()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, "photo.jpg"), "source");
+        var assetId = await fixture.AddAssetAsync("photo.jpg", "image");
+        var renderer = new FakeRenderer();
+        using var service = fixture.Service(renderer);
+        await service.GenerateAsync(new(assetId));
+
+        var forced = await service.GenerateAsync(new(assetId, ForceRefresh: true));
+
+        Assert.Equal(ThumbnailGenerationStatus.Succeeded, forced.Status);
+        Assert.Equal(2, renderer.CallCount);
     }
 
 
@@ -508,6 +571,29 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
         public async Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
             string destinationPath, ThumbnailColorRender color, CancellationToken cancellationToken = default)
         { Started.TrySetResult(); await Release.Task.WaitAsync(cancellationToken); WriteJpeg(destinationPath); return new(ThumbnailGenerationStatus.Succeeded); }
+    }
+
+    private sealed class BlockingFirstColorRenderer : IThumbnailRenderer
+    {
+        private int _calls;
+        public TaskCompletionSource FirstStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseFirst { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<string> VisualIdentities { get; } = [];
+        public Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
+            string destinationPath, CancellationToken cancellationToken = default) =>
+            RenderAsync(sourcePath, mediaType, videoPosition, destinationPath, ThumbnailColorRender.Original, cancellationToken);
+        public async Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
+            string destinationPath, ThumbnailColorRender color, CancellationToken cancellationToken = default)
+        {
+            lock (VisualIdentities) VisualIdentities.Add(color.VisualIdentity);
+            if (Interlocked.Increment(ref _calls) == 1)
+            {
+                FirstStarted.TrySetResult();
+                await ReleaseFirst.Task.WaitAsync(cancellationToken);
+            }
+            WriteJpeg(destinationPath);
+            return new(ThumbnailGenerationStatus.Succeeded);
+        }
     }
 
     private sealed class MutableColorStore(AssetColorIntent intent) : IAssetColorStore

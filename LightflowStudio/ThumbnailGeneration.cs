@@ -37,6 +37,44 @@ internal sealed record ThumbnailColorRender(string VisualIdentity, IReadOnlyList
 }
 
 internal sealed record PreviewRegenerationCompleted(Guid AssetId, ThumbnailGenerationResult Result);
+internal enum PreviewRegenerationMode { EnsureCurrent, Force }
+
+internal sealed class AssetPreviewGenerationGate
+{
+    private sealed class Entry { public SemaphoreSlim Semaphore { get; } = new(1, 1); public int Users { get; set; } }
+    private readonly object _sync = new();
+    private readonly Dictionary<Guid, Entry> _entries = [];
+
+    public async Task<IDisposable> EnterAsync(Guid assetId, CancellationToken cancellationToken)
+    {
+        Entry entry;
+        lock (_sync)
+        {
+            if (!_entries.TryGetValue(assetId, out entry!)) _entries.Add(assetId, entry = new());
+            entry.Users++;
+        }
+        try { await entry.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch { ReleaseUser(assetId, entry, ownsSemaphore: false); throw; }
+        return new Lease(this, assetId, entry);
+    }
+
+    private void ReleaseUser(Guid assetId, Entry entry, bool ownsSemaphore)
+    {
+        if (ownsSemaphore) entry.Semaphore.Release();
+        lock (_sync)
+        {
+            entry.Users--;
+            if (entry.Users == 0 && _entries.TryGetValue(assetId, out var current) && ReferenceEquals(current, entry))
+                _entries.Remove(assetId);
+        }
+    }
+
+    private sealed class Lease(AssetPreviewGenerationGate owner, Guid assetId, Entry entry) : IDisposable
+    {
+        private AssetPreviewGenerationGate? _owner = owner;
+        public void Dispose() => Interlocked.Exchange(ref _owner, null)?.ReleaseUser(assetId, entry, ownsSemaphore: true);
+    }
+}
 
 internal static class PreviewRegenerationBatch
 {
@@ -308,6 +346,9 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
     {
         using var operationLease = _operations is null ? null :
             await _operations.EnterOperationAsync(cancellationToken).ConfigureAwait(false);
+        // Freshness and Color are intentionally resolved after this wait. A queued ensure-current request may
+        // have been satisfied by overlapping work, or its committed Color may have changed while it waited.
+        using var lease = await _gate.EnterAsync(request.Priority, cancellationToken).ConfigureAwait(false);
         var observed = await _assets.ObserveAsync(request.AssetId, cancellationToken).ConfigureAwait(false);
         if (observed.Status == MediaAssetOperationStatus.NotFound)
             return new(ThumbnailGenerationStatus.AssetNotFound, Diagnostic: observed.Diagnostic);
@@ -340,7 +381,6 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
             return new(ThumbnailGenerationStatus.Current, existing);
 
         using var activity = _activity?.Begin(request.AssetId);
-        using var lease = await _gate.EnterAsync(request.Priority, cancellationToken).ConfigureAwait(false);
         var finalPath = _previews.GetArtifactPath(request.AssetId, PreviewArtifactKind.Thumbnail,
             CurrentGeneratorVersion, source, "jpg", color.VisualIdentity);
         Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);

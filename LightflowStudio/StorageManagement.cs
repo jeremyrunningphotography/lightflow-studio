@@ -68,6 +68,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     private readonly SemaphoreSlim _mutationGate = new(1, 1);
     private readonly PreviewOperationCoordinator _previewOperations = new();
     private readonly SemaphoreSlim _thumbnailRegenerationGate = new(2, 2);
+    private readonly AssetPreviewGenerationGate _assetPreviewGenerationGate = new();
     private CatalogDatabaseSession? _catalogSession;
 
     private LightflowStorageCoordinator(IStorageConfigurationStore configuration, AppSettings settings,
@@ -517,7 +518,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
 
     public async Task<IReadOnlyList<ThumbnailGenerationResult>> RegenerateThumbnailsAsync(
         IReadOnlyList<Guid> assetIds, CancellationToken cancellationToken = default,
-        IProgress<PreviewRegenerationCompleted>? progress = null)
+        IProgress<PreviewRegenerationCompleted>? progress = null,
+        PreviewRegenerationMode mode = PreviewRegenerationMode.Force)
     {
         if (!CatalogAvailable || Previews is null)
             return assetIds.Select(_ => new ThumbnailGenerationResult(ThumbnailGenerationStatus.Failed,
@@ -526,10 +528,11 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity);
         return await PreviewRegenerationBatch.RunAsync(assetIds, async (assetId, token) =>
         {
+            using var assetLease = await _assetPreviewGenerationGate.EnterAsync(assetId, token).ConfigureAwait(false);
             await _thumbnailRegenerationGate.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                return await thumbnails.GenerateAsync(new(assetId, ForceRefresh: true,
+                return await thumbnails.GenerateAsync(new(assetId, ForceRefresh: mode == PreviewRegenerationMode.Force,
                     Priority: ThumbnailPriority.Visible), token).ConfigureAwait(false);
             }
             finally { _thumbnailRegenerationGate.Release(); }

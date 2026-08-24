@@ -1414,7 +1414,8 @@ public partial class MainWindow : Window
         try
         {
             await _storage.RegenerateThumbnailsAsync(ids,
-                progress: new Progress<PreviewRegenerationCompleted>(ApplyCompletedPreview));
+                progress: new Progress<PreviewRegenerationCompleted>(ApplyCompletedPreview),
+                mode: PreviewRegenerationMode.EnsureCurrent);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {

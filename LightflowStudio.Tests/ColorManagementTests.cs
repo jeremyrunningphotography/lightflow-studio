@@ -353,41 +353,34 @@ public sealed class ColorManagementTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ColorEnabled_IsPerAssetIndependentOfAssignmentsAndSurvivesRestart()
+    public async Task ColorActive_IsDerivedFromAssignmentsAndNormalizesLegacyEnabledColumn()
     {
         WriteCube(_luts, "Camera.cube", 0);
         WriteCube(_luts, "Creative.cube", 1);
         var resources = (await RefreshCacheAsync(_luts)).Resources;
         var camera = resources.Single(resource => resource.DisplayName == "Camera");
         var creative = resources.Single(resource => resource.DisplayName == "Creative");
-        var root = Assert.Single(await _storage.MediaRoots.ListAsync());
-        File.WriteAllText(Path.Combine(_root, "media", "second.mp4"), "media");
-        var secondAssetId = (await _storage.MediaAssets.CreateAsync(root.RootId, "second.mp4", "video")).Asset!.Asset.AssetId;
-
         Assert.False((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
-        Assert.False((await _storage.AssetColors.GetAsync(secondAssetId)).ColorEnabled);
         await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Camera, camera.LutId);
-        await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Creative, creative.LutId);
-        var beforeToggle = await _storage.AssetColors.GetAsync(_assetId);
+        Assert.True((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
+        Assert.Equal(1L, Convert.ToInt64(Scalar($"SELECT ColorEnabled FROM MediaAssetColor WHERE AssetId='{_assetId:D}';")));
 
-        await _storage.AssetColors.SetColorEnabledAsync([_assetId], true);
-        var enabled = await _storage.AssetColors.GetAsync(_assetId);
-        Assert.True(enabled.ColorEnabled);
-        Assert.Equal(camera.LutId, enabled.Camera!.LutId);
-        Assert.Equal(creative.LutId, enabled.Creative!.LutId);
-        Assert.NotEqual(beforeToggle.ColorIdentity, enabled.ColorIdentity);
-        Assert.False((await _storage.AssetColors.GetAsync(secondAssetId)).ColorEnabled);
+        Execute("UPDATE MediaAssetColor SET ColorEnabled=0 WHERE AssetId=$id;", ("$id", _assetId.ToString("D")));
+        var legacyOffWithIntent = await _storage.AssetColors.GetAsync(_assetId);
+        Assert.True(legacyOffWithIntent.ColorEnabled);
+        Assert.False(legacyOffWithIntent.LegacyColorEnabled);
+
+        await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Creative, creative.LutId);
+        await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Camera, null);
+        Assert.True((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
 
         await RestartAsync();
         Assert.True((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
-        Assert.False((await _storage.AssetColors.GetAsync(secondAssetId)).ColorEnabled);
 
-        await _storage.AssetColors.SetColorEnabledAsync([_assetId], false);
+        await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Creative, null);
         await RestartAsync();
-        var disabled = await _storage.AssetColors.GetAsync(_assetId);
-        Assert.False(disabled.ColorEnabled);
-        Assert.Equal(camera.LutId, disabled.Camera!.LutId);
-        Assert.Equal(creative.LutId, disabled.Creative!.LutId);
+        Assert.False((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
+        Assert.Null(Scalar($"SELECT ColorEnabled FROM MediaAssetColor WHERE AssetId='{_assetId:D}';"));
     }
 
     [Fact]
@@ -469,6 +462,15 @@ public sealed class ColorManagementTests : IAsyncLifetime
         command.CommandText = sql;
         foreach (var parameter in parameters) command.Parameters.AddWithValue(parameter.Name, parameter.Value);
         command.ExecuteNonQuery();
+    }
+
+    private object? Scalar(string sql)
+    {
+        using var connection = new CatalogSqliteConnectionFactory(_storage.CatalogSession.DatabasePath).OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        var value = command.ExecuteScalar();
+        return value is DBNull ? null : value;
     }
 
     private sealed class TestConfiguration(AppSettings settings) : IStorageConfigurationStore

@@ -53,20 +53,39 @@ public sealed class BrowserSelectionActionTests
     }
 
     [Fact]
-    public void Lut_action_picker_uses_neutral_prompt_and_cache_actions_not_a_claimed_shared_value()
+    public void Lut_picker_reflects_no_lut_shared_and_mixed_durable_assignments()
     {
         var lutId = Guid.NewGuid();
         var resource = new ManagedLutResource(lutId, "Log to Rec.709", "technical.cube", new string('a', 64),
             LutDimension.ThreeDimensional, 33, LutResourceAvailability.Available);
+        var assigned = new ColorLutReference(lutId, resource.DisplayName, resource.ContentSha256,
+            LutResourceAvailability.Available);
 
-        var options = BrowserLutActionPicker.Build("Camera", [resource]);
+        var neutral = BrowserLutActionPicker.Build("Camera", [resource]);
+        var original = BrowserLutActionPicker.Present(ColorLutStage.Camera, [resource],
+            [new(Guid.NewGuid(), null, null, "original")]);
+        var shared = BrowserLutActionPicker.Present(ColorLutStage.Camera, [resource],
+            [new(Guid.NewGuid(), assigned, null, "one"), new(Guid.NewGuid(), assigned, null, "two")]);
+        var mixed = BrowserLutActionPicker.Present(ColorLutStage.Camera, [resource],
+            [new(Guid.NewGuid(), assigned, null, "one"), new(Guid.NewGuid(), null, null, "original")]);
 
-        Assert.Equal("Camera LUT…", options[0].Label);
-        Assert.False(options[0].IsAction);
-        Assert.Equal("Clear Camera LUT", options[1].Label);
-        Assert.Null(options[1].LutId);
-        Assert.Equal((lutId, "Log to Rec.709", true),
-            (options[2].LutId, options[2].Label, options[2].IsAction));
+        Assert.Equal("Camera LUT…", neutral[0].Label);
+        Assert.False(neutral[0].IsAction);
+        Assert.Equal("No LUT", original.Options[original.SelectedIndex].Label);
+        Assert.Equal(lutId, shared.Options[shared.SelectedIndex].LutId);
+        Assert.Equal("Mixed", mixed.Options[mixed.SelectedIndex].Label);
+        Assert.False(mixed.Options[mixed.SelectedIndex].IsAction);
+    }
+
+    [Fact]
+    public void Lut_color_is_all_or_nothing_when_any_selected_source_is_unavailable()
+    {
+        var state = BrowserSelectionActions.Evaluate([
+            Tile("one.mov", MediaTypeCategory.Video), Tile("two.mov", MediaTypeCategory.Video)]);
+
+        Assert.True(BrowserSelectionActions.CanAssignLutColor(state, [true, true]));
+        Assert.False(BrowserSelectionActions.CanAssignLutColor(state, [true, false]));
+        Assert.False(BrowserSelectionActions.CanAssignLutColor(state, [true]));
     }
 
     private static BrowserGridTile Tile(string name, MediaTypeCategory category, bool identified = true)

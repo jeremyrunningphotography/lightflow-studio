@@ -144,6 +144,19 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("_folderLauncher.Open(_lastScreengrabDirectory);", behavior);
     }
 
+    [Fact]
+    public void ColorSurface_UsesPersistedStageSelectorsWithoutAnIndependentToggle()
+    {
+        var xaml = Source();
+        var behavior = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
+
+        Assert.Contains("x:Name=\"CameraLutCombo\"", xaml);
+        Assert.Contains("x:Name=\"CreativeLutCombo\"", xaml);
+        Assert.DoesNotContain("ColorToggleButton", xaml);
+        Assert.DoesNotContain("SetColorEnabledAsync", behavior);
+        Assert.Contains("case Key.C when _service is not null && _colorActive", behavior);
+    }
+
     private static string Source() =>
         File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml"));
 

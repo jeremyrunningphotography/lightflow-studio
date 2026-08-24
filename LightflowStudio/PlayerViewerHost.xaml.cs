@@ -48,14 +48,12 @@ public partial class PlayerViewerHost : UserControl
     private string? _lastScreengrabDirectory;
     private readonly FrameStepQueue _frameStepQueue = new();
     private bool _updatingColor;
-    private bool _persistentColorEnabled;
+    private bool _colorActive;
     private bool _momentaryColorBypass;
     private PlayerColorPipeline? _colorPipeline;
     private LutLibrarySnapshot? _cameraLibrary;
     private LutLibrarySnapshot? _creativeLibrary;
     private long _colorRefreshRevision;
-    private long _colorToggleRevision;
-    private readonly SemaphoreSlim _colorTogglePersistenceGate = new(1, 1);
 
     private sealed record LutChoice(Guid? LutId, string DisplayName, bool OpensFolder = false)
     {
@@ -282,10 +280,9 @@ public partial class PlayerViewerHost : UserControl
         _cameraLibrary = _creativeLibrary = null;
         _colorRefreshRevision++;
         _momentaryColorBypass = false;
-        _persistentColorEnabled = false;
+        _colorActive = false;
         _updatingColor = true;
         CameraLutCombo.ItemsSource = CreativeLutCombo.ItemsSource = null;
-        ColorToggleButton.IsChecked = _persistentColorEnabled;
         _updatingColor = false;
         SetColorControlsEnabled(false);
         UpdateRangePresentation();
@@ -311,13 +308,8 @@ public partial class PlayerViewerHost : UserControl
 
     private void SetColorControlsEnabled(bool enabled)
     {
-        ColorToggleButton.IsEnabled = enabled;
-        UpdateColorSelectorEnabled();
+        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = enabled;
     }
-
-    private void UpdateColorSelectorEnabled() =>
-        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = ColorToggleButton.IsEnabled
-            && _persistentColorEnabled && !_momentaryColorBypass;
 
     private void PublishCurrentCachedChoices()
     {
@@ -345,9 +337,7 @@ public partial class PlayerViewerHost : UserControl
         cameraLibrary = _lutCache.Snapshot(ColorLutStage.Camera);
         creativeLibrary = _lutCache.Snapshot(ColorLutStage.Creative);
         _openMilestone?.Invoke(PlayerOpenMilestone.ColorAssignmentReadStarted);
-        await _colorTogglePersistenceGate.WaitAsync(token).ConfigureAwait(true);
-        try { intent = await _assetColors.GetAsync(assetId, token).ConfigureAwait(true); }
-        finally { _colorTogglePersistenceGate.Release(); }
+        intent = await _assetColors.GetAsync(assetId, token).ConfigureAwait(true);
         _openMilestone?.Invoke(PlayerOpenMilestone.ColorAssignmentReadCompleted);
         CubeLutData? camera = null, creative = null;
         _openMilestone?.Invoke(PlayerOpenMilestone.RuntimeLutLoadStarted);
@@ -365,15 +355,13 @@ public partial class PlayerViewerHost : UserControl
     private async Task CompleteColorAfterOpenAsync(long generation, CancellationToken token)
     {
         var colorRevision = _colorRefreshRevision;
-        var toggleRevision = _colorToggleRevision;
         try
         {
             var prepared = await PrepareColorAsync(token).ConfigureAwait(true);
             if (generation != _generation || colorRevision != _colorRefreshRevision
                 || _service is null || prepared is null) return;
-            if (toggleRevision == _colorToggleRevision)
-                SetPersistentColorEnabled(prepared.Intent.ColorEnabled);
-            _service.SetColorPipeline(prepared.Pipeline, !_persistentColorEnabled || _momentaryColorBypass);
+            _colorActive = prepared.Intent.IsActive;
+            _service.SetColorPipeline(prepared.Pipeline, !_colorActive || _momentaryColorBypass);
             PublishColor(prepared);
             SetStatus(prepared.Diagnostic);
             _openMilestone?.Invoke(PlayerOpenMilestone.ColorPublished);
@@ -458,7 +446,8 @@ public partial class PlayerViewerHost : UserControl
             _cameraLibrary = cameraLibrary;
             _creativeLibrary = creativeLibrary;
             _colorPipeline = new(camera, creative);
-            _service.SetColorPipeline(_colorPipeline, !_persistentColorEnabled || _momentaryColorBypass);
+            _colorActive = intent.IsActive;
+            _service.SetColorPipeline(_colorPipeline, !_colorActive || _momentaryColorBypass);
             var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>()
                 .FirstOrDefault(reference => reference.Availability != LutResourceAvailability.Available);
             SetStatus(missing is null ? null : $"Assigned LUT unavailable: {missing.DisplayName}. {missing.Diagnostic}");
@@ -490,7 +479,8 @@ public partial class PlayerViewerHost : UserControl
             var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>().FirstOrDefault(x => x.Availability != LutResourceAvailability.Available);
             _colorPipeline = new(camera, creative);
             RestoreLiveVideoSurface();
-            _service?.SetColorPipeline(_colorPipeline, !_persistentColorEnabled || _momentaryColorBypass);
+            _colorActive = intent.IsActive;
+            _service?.SetColorPipeline(_colorPipeline, !_colorActive || _momentaryColorBypass);
             if (missing is not null) SetStatus($"Assigned LUT unavailable: {missing.DisplayName}. {missing.Diagnostic}");
         }
         catch (Exception exception) { _colorPipeline = null; _service?.SetColorPipeline(null, false); SetStatus($"Color could not be applied. {exception.Message}"); }
@@ -522,42 +512,6 @@ public partial class PlayerViewerHost : UserControl
             || _cameraLutFolder is null || _creativeLutFolder is null) return;
         try { await _assetColors.SetStageAsync([assetId], stage, choice.LutId); SetStatus(null); await ApplyColorIntentAsync(await _assetColors.GetAsync(assetId), CancellationToken.None); }
         catch (Exception exception) { SetStatus($"Color assignment could not be saved. {exception.Message}"); }
-    }
-    private async void ColorToggleButton_Click(object sender, RoutedEventArgs e)
-    {
-        RestoreLiveVideoSurface();
-        var enabled = ColorToggleButton.IsChecked == true;
-        var previous = _persistentColorEnabled;
-        var revision = ++_colorToggleRevision;
-        var generation = _generation;
-        var assetId = _currentAsset?.AssetId;
-        SetPersistentColorEnabled(enabled);
-        if (!enabled) _momentaryColorBypass = false;
-        _service?.SetColorPipeline(_colorPipeline, !enabled);
-        if (assetId is not Guid id || _assetColors is null) return;
-        try
-        {
-            await _colorTogglePersistenceGate.WaitAsync();
-            try { await _assetColors.SetColorEnabledAsync([id], enabled); }
-            finally { _colorTogglePersistenceGate.Release(); }
-            if (revision == _colorToggleRevision && generation == _generation) SetStatus(null);
-        }
-        catch (Exception exception)
-        {
-            if (revision != _colorToggleRevision || generation != _generation) return;
-            SetPersistentColorEnabled(previous);
-            _service?.SetColorPipeline(_colorPipeline, !previous);
-            SetStatus($"Color processing state could not be saved. {exception.Message}");
-        }
-    }
-
-    private void SetPersistentColorEnabled(bool enabled)
-    {
-        _persistentColorEnabled = enabled;
-        _updatingColor = true;
-        ColorToggleButton.IsChecked = enabled;
-        _updatingColor = false;
-        UpdateColorSelectorEnabled();
     }
 
     /// <summary>
@@ -971,11 +925,9 @@ public partial class PlayerViewerHost : UserControl
             return;
         switch (e.Key)
         {
-            case Key.C when _service is not null && ColorToggleButton.IsEnabled &&
-                ColorToggleButton.IsChecked == true && !_momentaryColorBypass:
+            case Key.C when _service is not null && _colorActive && !_momentaryColorBypass:
                 e.Handled = true;
                 _momentaryColorBypass = true;
-                ShowMomentaryColorBypass(true);
                 RestoreLiveVideoSurface();
                 _service.SetColorPipeline(_colorPipeline, true);
                 return;
@@ -1011,24 +963,14 @@ public partial class PlayerViewerHost : UserControl
         if (e.Key != Key.C || !_momentaryColorBypass) return;
         e.Handled = true;
         _momentaryColorBypass = false;
-        ShowMomentaryColorBypass(false);
-        _service?.SetColorPipeline(_colorPipeline, !_persistentColorEnabled);
+        _service?.SetColorPipeline(_colorPipeline, !_colorActive);
     }
 
     private void PlayerViewerHost_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
         if (!_momentaryColorBypass) return;
         _momentaryColorBypass = false;
-        ShowMomentaryColorBypass(false);
-        _service?.SetColorPipeline(_colorPipeline, !_persistentColorEnabled);
-    }
-
-    private void ShowMomentaryColorBypass(bool bypass)
-    {
-        _updatingColor = true;
-        ColorToggleButton.IsChecked = bypass ? false : _persistentColorEnabled;
-        _updatingColor = false;
-        UpdateColorSelectorEnabled();
+        _service?.SetColorPipeline(_colorPipeline, !_colorActive);
     }
 
     private static bool IsArrowKeyOwnedByFocusedControl(DependencyObject? element)

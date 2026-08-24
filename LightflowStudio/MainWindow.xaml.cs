@@ -99,6 +99,8 @@ public partial class MainWindow : Window
     private double _browserGridScrollOffset;
     private CapabilityInvocation? _browserEncodingInvocation;
     private CancellationTokenSource? _browserEncodingHandoffCts;
+    private long _browserColorSelectionRevision;
+    private bool _updatingBrowserColorSelectors;
     private bool _suppressBatchInputChange;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
@@ -1265,8 +1267,8 @@ public partial class MainWindow : Window
         var state = CurrentBrowserSelectionActions();
         ((MenuItem)menu.Items[0]).IsEnabled = state.CanExport;
         ((MenuItem)menu.Items[1]).IsEnabled = state.CanRegenerateThumbnails;
-        ((MenuItem)menu.Items[4]).IsEnabled = state.CanAssignCameraLut;
-        ((MenuItem)menu.Items[5]).IsEnabled = state.CanAssignCreativeLut;
+        ((MenuItem)menu.Items[4]).IsEnabled = state.CanAssignCameraLut && BrowserCameraLutCombo.IsEnabled;
+        ((MenuItem)menu.Items[5]).IsEnabled = state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled;
     }
 
     private async void BrowserExport_Click(object sender, RoutedEventArgs e) => await ExportBrowserSelectionAsync();
@@ -1319,10 +1321,8 @@ public partial class MainWindow : Window
         finally { UpdateBrowserSelectionActions(); }
     }
 
-    private void BrowserCameraLutCombo_DropDownOpened(object sender, EventArgs e) =>
-        PopulateBrowserLutCombo((System.Windows.Controls.ComboBox)sender, ColorLutStage.Camera);
-    private void BrowserCreativeLutCombo_DropDownOpened(object sender, EventArgs e) =>
-        PopulateBrowserLutCombo((System.Windows.Controls.ComboBox)sender, ColorLutStage.Creative);
+    private void BrowserCameraLutCombo_DropDownOpened(object sender, EventArgs e) => _ = RefreshBrowserColorSelectorsAsync();
+    private void BrowserCreativeLutCombo_DropDownOpened(object sender, EventArgs e) => _ = RefreshBrowserColorSelectorsAsync();
     private async void BrowserCameraLutCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
         await ApplyBrowserLutComboSelectionAsync((System.Windows.Controls.ComboBox)sender, ColorLutStage.Camera);
     private async void BrowserCreativeLutCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
@@ -1332,21 +1332,19 @@ public partial class MainWindow : Window
     private void BrowserContextCreativeLut_SubmenuOpened(object sender, RoutedEventArgs e) =>
         PopulateBrowserLutMenu((MenuItem)sender, ColorLutStage.Creative);
 
-    private void PopulateBrowserLutCombo(System.Windows.Controls.ComboBox combo, ColorLutStage stage)
+    private static void ApplyBrowserLutPresentation(System.Windows.Controls.ComboBox combo,
+        BrowserLutPickerPresentation presentation)
     {
-        var stageName = EncodingLutResourceStore.StageName(stage);
-        var actions = BrowserLutActionPicker.Build(stageName, _storage.LutCache.Snapshot(stage).Resources);
         combo.Items.Clear();
         combo.DisplayMemberPath = nameof(BrowserLutActionOption.Label);
-        foreach (var action in actions) combo.Items.Add(action);
-        combo.SelectedIndex = 0;
+        foreach (var option in presentation.Options) combo.Items.Add(option);
+        combo.SelectedIndex = presentation.SelectedIndex;
     }
 
     private async Task ApplyBrowserLutComboSelectionAsync(System.Windows.Controls.ComboBox combo, ColorLutStage stage)
     {
-        if (combo.SelectedItem is not BrowserLutActionOption { IsAction: true } action) return;
+        if (_updatingBrowserColorSelectors || combo.SelectedItem is not BrowserLutActionOption { IsAction: true } action) return;
         await AssignBrowserLutAsync(stage, action.LutId, action.Label);
-        combo.SelectedIndex = 0;
     }
 
     private void PopulateBrowserLutMenu(MenuItem parent, ColorLutStage stage)
@@ -1376,9 +1374,9 @@ public partial class MainWindow : Window
         try
         {
             await _storage.AssetColors.SetStageAsync(ids, stage, lutId);
-            BrowserSelectionActionSummary.Text = $"{EncodingLutResourceStore.StageName(stage)} LUT: {label} · {ids.Count} selected";
+            await RefreshBrowserColorSelectorsAsync();
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or SqliteException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException or SqliteException)
         {
             MessageBox.Show($"The {EncodingLutResourceStore.StageName(stage)} LUT assignment failed: {exception.Message}",
                 "Assign Color", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -1717,10 +1715,64 @@ public partial class MainWindow : Window
         BrowserRenameButton.IsEnabled = state.CanRename;
         BrowserCameraLutCombo.IsEnabled = state.CanAssignCameraLut;
         BrowserCreativeLutCombo.IsEnabled = state.CanAssignCreativeLut;
+        _ = RefreshBrowserColorSelectorsAsync();
+    }
+
+    private async Task RefreshBrowserColorSelectorsAsync()
+    {
+        var revision = ++_browserColorSelectionRevision;
+        var ids = _browserGrid.SelectedAssetIdsInBrowserOrder.ToArray();
+        var state = CurrentBrowserSelectionActions();
+        if (!state.CanAssignCameraLut || ids.Length != state.SelectionCount)
+        {
+            SetBrowserColorSelectorsUnavailable();
+            return;
+        }
+        BrowserCameraLutCombo.IsEnabled = BrowserCreativeLutCombo.IsEnabled = false;
+        try
+        {
+            var colorsTask = _storage.AssetColors.GetAsync(ids);
+            var resolutionTasks = ids.Select(id => _storage.MediaAssets.GetAsync(id)).ToArray();
+            await Task.WhenAll(resolutionTasks).ConfigureAwait(true);
+            var colors = await colorsTask.ConfigureAwait(true);
+            if (revision != _browserColorSelectionRevision || !ids.SequenceEqual(_browserGrid.SelectedAssetIdsInBrowserOrder)) return;
+            var availability = resolutionTasks.Select(task => task.Result is
+                { SourceExists: true, RootAvailability: MediaRootAvailability.Online }).ToArray();
+            if (!BrowserSelectionActions.CanAssignLutColor(state, availability))
+            {
+                SetBrowserColorSelectorsUnavailable();
+                return;
+            }
+            var intents = ids.Select(id => colors[id]).ToArray();
+            _updatingBrowserColorSelectors = true;
+            ApplyBrowserLutPresentation(BrowserCameraLutCombo, BrowserLutActionPicker.Present(ColorLutStage.Camera,
+                _storage.LutCache.Snapshot(ColorLutStage.Camera).Resources, intents));
+            ApplyBrowserLutPresentation(BrowserCreativeLutCombo, BrowserLutActionPicker.Present(ColorLutStage.Creative,
+                _storage.LutCache.Snapshot(ColorLutStage.Creative).Resources, intents));
+            _updatingBrowserColorSelectors = false;
+            BrowserCameraLutCombo.IsEnabled = BrowserCreativeLutCombo.IsEnabled = true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException or SqliteException)
+        {
+            if (revision == _browserColorSelectionRevision) SetBrowserColorSelectorsUnavailable();
+        }
+        finally { _updatingBrowserColorSelectors = false; }
+    }
+
+    private void SetBrowserColorSelectorsUnavailable()
+    {
+        _updatingBrowserColorSelectors = true;
+        ApplyBrowserLutPresentation(BrowserCameraLutCombo,
+            BrowserLutActionPicker.Present(ColorLutStage.Camera, [], []));
+        ApplyBrowserLutPresentation(BrowserCreativeLutCombo,
+            BrowserLutActionPicker.Present(ColorLutStage.Creative, [], []));
+        _updatingBrowserColorSelectors = false;
+        BrowserCameraLutCombo.IsEnabled = BrowserCreativeLutCombo.IsEnabled = false;
     }
 
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (!ReferenceEquals(e.Source, MainTabs)) return;
         SyncBrowserStatusBarVisibility();
         // #110: switching to another workspace while a video is open in the Player/Viewer must not leave it
         // silently playing audio in a hidden tab. This pauses rather than returning to Grid — switching tabs

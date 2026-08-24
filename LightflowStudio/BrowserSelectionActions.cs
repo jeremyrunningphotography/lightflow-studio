@@ -12,6 +12,7 @@ internal sealed record BrowserSelectionActionState(
 }
 
 internal sealed record BrowserLutActionOption(Guid? LutId, string Label, bool IsAction = true);
+internal sealed record BrowserLutPickerPresentation(IReadOnlyList<BrowserLutActionOption> Options, int SelectedIndex);
 
 internal static class BrowserLutActionPicker
 {
@@ -21,10 +22,32 @@ internal static class BrowserLutActionPicker
         var actions = new List<BrowserLutActionOption>
         {
             new(null, $"{stageName} LUT…", IsAction: false),
-            new(null, $"Clear {stageName} LUT")
+            new(null, "No LUT")
         };
         actions.AddRange(resources.Select(resource => new BrowserLutActionOption(resource.LutId, resource.DisplayName)));
         return actions;
+    }
+
+    public static BrowserLutPickerPresentation Present(ColorLutStage stage,
+        IReadOnlyList<ManagedLutResource> resources, IReadOnlyList<AssetColorIntent> intents)
+    {
+        var stageName = EncodingLutResourceStore.StageName(stage);
+        var options = Build(stageName, resources).Skip(1).ToList();
+        if (intents.Count == 0)
+            return new([new(null, $"{stageName} LUT…", IsAction: false)], 0);
+        var references = intents.Select(intent => stage == ColorLutStage.Camera ? intent.Camera : intent.Creative).ToList();
+        var distinct = references.Select(reference => reference?.LutId).Distinct().ToList();
+        if (distinct.Count > 1)
+        {
+            options.Insert(0, new(null, "Mixed", IsAction: false));
+            return new(options, 0);
+        }
+        if (distinct[0] is not Guid selected) return new(options, 0);
+        var index = options.FindIndex(option => option.LutId == selected);
+        if (index >= 0) return new(options, index);
+        var assigned = references.First(reference => reference?.LutId == selected)!;
+        options.Add(new(selected, $"{assigned.DisplayName} (Unavailable)"));
+        return new(options, options.Count - 1);
     }
 }
 
@@ -45,4 +68,8 @@ internal static class BrowserSelectionActions
     }
 
     public static bool ShouldReplaceSelectionOnRightClick(bool tileIsSelected) => !tileIsSelected;
+
+    public static bool CanAssignLutColor(BrowserSelectionActionState state,
+        IReadOnlyList<bool> sourceAvailability) =>
+        state.CanAssignCameraLut && sourceAvailability.Count == state.SelectionCount && sourceAvailability.All(value => value);
 }

@@ -160,7 +160,7 @@ public sealed class EncodingCapabilityHandoffTests
     }
 
     [Fact]
-    public async Task Materialize_snapshots_heterogeneous_color_once_and_preserves_enabled_semantics()
+    public async Task Materialize_snapshots_heterogeneous_color_once_and_derives_current_active_semantics()
     {
         var cameraOnly = Guid.NewGuid();
         var creativeOnly = Guid.NewGuid();
@@ -191,10 +191,10 @@ public sealed class EncodingCapabilityHandoffTests
         Assert.True(result.Succeeded);
         Assert.Equal(ColorLutStage.Camera, result.Inputs[0].AssignedColor!.OrderedPipeline.Single().Stage);
         Assert.Equal(ColorLutStage.Creative, result.Inputs[1].AssignedColor!.OrderedPipeline.Single().Stage);
-        Assert.False(result.Inputs[2].AssignedColor!.ColorEnabled);
+        Assert.True(result.Inputs[2].AssignedColor!.ColorEnabled);
         Assert.Equal([ColorLutStage.Camera, ColorLutStage.Creative],
             result.Inputs[2].AssignedColor!.OrderedPipeline.Select(value => value.Stage));
-        Assert.True(result.Inputs[3].AssignedColor!.ColorEnabled);
+        Assert.False(result.Inputs[3].AssignedColor!.ColorEnabled);
         Assert.Empty(result.Inputs[3].AssignedColor!.OrderedPipeline);
         Assert.True(result.Inputs[0].AssignedColor!.ColorEnabled);
         Assert.Equal(4, snapshots.Count);
@@ -290,7 +290,6 @@ public sealed class EncodingCapabilityHandoffTests
         public Task<IReadOnlyDictionary<Guid, AssetColorIntent>> GetAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, AssetColorIntent>>(assetIds.ToDictionary(id => id, id => Values[id]));
         public Task SetStageAsync(IReadOnlyCollection<Guid> assetIds, ColorLutStage stage, Guid? lutId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task SetColorEnabledAsync(IReadOnlyCollection<Guid> assetIds, bool enabled, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 

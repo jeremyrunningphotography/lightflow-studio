@@ -125,7 +125,7 @@ internal sealed class EncodingCapabilityHandoff
     {
         if (_colors is null || _lutCache is null || _resourceStore is null) return null;
         var intent = await _colors.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
-        return new(intent.ColorEnabled,
+        return new(intent.IsActive,
             await MaterializeStageAsync(ColorLutStage.Camera, intent.Camera, cancellationToken).ConfigureAwait(false),
             await MaterializeStageAsync(ColorLutStage.Creative, intent.Creative, cancellationToken).ConfigureAwait(false));
     }

@@ -16,6 +16,24 @@ public sealed class BrowserSelectionActionTests
     }
 
     [Fact]
+    public void RegenerateWithoutSelection_UsesAuthoritativeScopeAndConfirmsOnlyAboveFifty()
+    {
+        var scope = Enumerable.Range(0, 51).Select(_ => Guid.NewGuid()).ToArray();
+        Assert.Equal(scope, BrowserThumbnailRegeneration.ResolveTargets([], 0, scope));
+        Assert.False(BrowserThumbnailRegeneration.RequiresConfirmation(0, 50));
+        Assert.True(BrowserThumbnailRegeneration.RequiresConfirmation(0, 51));
+        Assert.False(BrowserThumbnailRegeneration.RequiresConfirmation(1, 100));
+    }
+
+    [Fact]
+    public void RegenerateWithSelection_PrefersSelectedApplicableAssets()
+    {
+        var selected = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        var scope = Enumerable.Range(0, 60).Select(_ => Guid.NewGuid()).ToArray();
+        Assert.Equal(selected, BrowserThumbnailRegeneration.ResolveTargets(selected, selected.Length, scope));
+    }
+
+    [Fact]
     public void Video_selection_enables_existing_video_capabilities_but_not_unimplemented_rename()
     {
         var state = BrowserSelectionActions.Evaluate([Tile("clip.mov", MediaTypeCategory.Video)]);

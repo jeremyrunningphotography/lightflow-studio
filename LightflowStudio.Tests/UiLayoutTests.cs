@@ -17,6 +17,19 @@ public class UiLayoutTests
         Assert.NotNull(working.Ancestors().FirstOrDefault(element => element.Name.LocalName == "Grid")?
             .Elements().FirstOrDefault(element => element.Name.LocalName == "Image"));
     }
+
+    [Fact]
+    public void BrowserColorIndicator_IsCompactMulticolorWheelWithSelectionBorder()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var marker = Named(document, "BrowserColorStateMarker");
+        var fills = marker.Descendants().Where(element => element.Name.LocalName == "Path")
+            .Select(element => (string?)element.Attribute("Fill")).Where(value => value is not null).Distinct().ToArray();
+        Assert.True(fills.Length >= 6);
+        Assert.Contains(marker.Descendants(), element => element.Name.LocalName == "EllipseGeometry");
+        Assert.Contains(marker.Descendants(), element => element.Name.LocalName == "DataTrigger" &&
+            ((string?)element.Attribute("Binding"))?.Contains("IsSelected", StringComparison.Ordinal) == true);
+    }
     [Fact]
     public void BrowserWorkspace_ExposesFilesystemFirstNavigationAndMediaGrid()
     {

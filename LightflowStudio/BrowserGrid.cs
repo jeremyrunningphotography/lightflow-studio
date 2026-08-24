@@ -541,6 +541,13 @@ internal sealed class BrowserGridModel
         foreach (var (assetId, state) in states) ApplyAssetState(assetId, state);
     }
 
+    /// <summary>Thumbnail-capable assets in the authoritative current folder/effective recursive scope.
+    /// Deliberately reads the unfiltered candidate set so search/filter presentation cannot narrow a
+    /// folder-wide maintenance action.</summary>
+    public IReadOnlyList<Guid> ThumbnailApplicableAssetIdsInScope => _allTiles
+        .Where(tile => tile.AssetId is not null && tile.Category is MediaTypeCategory.Video or MediaTypeCategory.StillImage)
+        .Select(tile => tile.AssetId!.Value).ToArray();
+
     public void ApplyAssetStateFlag(Guid assetId, BrowserAssetState flag, bool enabled)
     {
         if (!_tilesByAsset.TryGetValue(assetId, out var tile)) return;
@@ -661,4 +668,12 @@ internal static class BrowserDerivedWorkProjection
             .Where(assetId => !alreadyApplied(assetId))
             .Distinct()
             .ToArray();
+}
+
+internal static class BrowserVisualIdentityAuditPolicy
+{
+    public static bool ShouldSchedule(bool lutInitializationCompleted, long browserGeneration,
+        long auditedGeneration, bool hasLoadedReconciliation, bool schedulerAvailable) =>
+        lutInitializationCompleted && hasLoadedReconciliation && schedulerAvailable &&
+        browserGeneration != auditedGeneration;
 }

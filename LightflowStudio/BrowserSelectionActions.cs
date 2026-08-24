@@ -73,3 +73,13 @@ internal static class BrowserSelectionActions
         IReadOnlyList<bool> sourceAvailability) =>
         state.CanAssignCameraLut && sourceAvailability.Count == state.SelectionCount && sourceAvailability.All(value => value);
 }
+
+internal static class BrowserThumbnailRegeneration
+{
+    public const int ConfirmationThreshold = 50;
+    public static IReadOnlyList<Guid> ResolveTargets(IReadOnlyList<Guid> selectedApplicable,
+        int selectionCount, IReadOnlyList<Guid> scopeApplicable) =>
+        selectionCount > 0 ? selectedApplicable : scopeApplicable;
+    public static bool RequiresConfirmation(int selectionCount, int targetCount) =>
+        selectionCount == 0 && targetCount > ConfirmationThreshold;
+}

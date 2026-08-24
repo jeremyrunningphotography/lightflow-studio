@@ -102,6 +102,8 @@ public partial class MainWindow : Window
     private long _browserColorSelectionRevision;
     private bool _updatingBrowserColorSelectors;
     private bool _suppressBatchInputChange;
+    private bool _lutInitializationCompleted;
+    private long _browserVisualIdentityAuditGeneration = -1;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -1025,6 +1027,7 @@ public partial class MainWindow : Window
         if (state.DerivedWork is { } stateBatch)
             _ = LoadBrowserAssetStatesAsync(stateBatch.Reconciliation.Items, _browserUiGeneration, _browserAssetStateRevision);
         AttachBrowserDerivedWork(state.DerivedWork, _browserUiGeneration);
+        AuditBrowserVisualIdentitiesAfterLutInitialization();
         BrowserCurrentPath.Text = state.Location?.DisplayPath ?? "";
         BrowserBackButton.IsEnabled = state.CanGoBack;
         BrowserForwardButton.IsEnabled = state.CanGoForward;
@@ -1309,8 +1312,14 @@ public partial class MainWindow : Window
     private async Task RegenerateBrowserThumbnailsAsync()
     {
         var state = CurrentBrowserSelectionActions();
-        if (!state.CanRegenerateThumbnails) return;
-        var ids = _browserGrid.SelectedAssetIdsInBrowserOrder;
+        var ids = BrowserThumbnailRegeneration.ResolveTargets(
+            state.CanRegenerateThumbnails ? _browserGrid.SelectedAssetIdsInBrowserOrder : [],
+            state.SelectionCount, _browserGrid.ThumbnailApplicableAssetIdsInScope);
+        if (ids.Count == 0) return;
+        if (BrowserThumbnailRegeneration.RequiresConfirmation(state.SelectionCount, ids.Count) &&
+            MessageBox.Show($"Regenerate thumbnails for all {ids.Count} applicable assets in the current Browser scope?",
+                "Regenerate thumbnails", MessageBoxButton.YesNo, MessageBoxImage.Question,
+                MessageBoxResult.No) != MessageBoxResult.Yes) return;
         BrowserRegenerateThumbnailsButton.IsEnabled = false;
         BrowserStatusText.Text = $"Regenerating {ids.Count} thumbnail{(ids.Count == 1 ? "" : "s")}…";
         try
@@ -1760,7 +1769,8 @@ public partial class MainWindow : Window
         if (BrowserExportButton is null) return;
         var state = CurrentBrowserSelectionActions();
         BrowserExportButton.IsEnabled = state.CanExport;
-        BrowserRegenerateThumbnailsButton.IsEnabled = state.CanRegenerateThumbnails;
+        BrowserRegenerateThumbnailsButton.IsEnabled = state.CanRegenerateThumbnails ||
+            state.SelectionCount == 0 && _browserGrid.ThumbnailApplicableAssetIdsInScope.Count > 0;
         BrowserCameraLutCombo.IsEnabled = state.CanAssignCameraLut;
         BrowserCreativeLutCombo.IsEnabled = state.CanAssignCreativeLut;
         _ = RefreshBrowserColorSelectorsAsync();
@@ -2417,7 +2427,21 @@ public partial class MainWindow : Window
                 _settings.CameraLutIncludeSubfolders),
             InitializeLutStageAsync(ColorLutStage.Creative, _settings.CreativeLutFolder,
                 _settings.CreativeLutIncludeSubfolders));
+        _lutInitializationCompleted = true;
+        AuditBrowserVisualIdentitiesAfterLutInitialization();
         return PublishCachedLuts();
+    }
+
+    private void AuditBrowserVisualIdentitiesAfterLutInitialization()
+    {
+        var loaded = _lastLoadedBrowserState?.DerivedWork;
+        var scheduler = _storage.DerivedWork;
+        if (!BrowserVisualIdentityAuditPolicy.ShouldSchedule(_lutInitializationCompleted, _browserUiGeneration,
+                _browserVisualIdentityAuditGeneration, loaded is not null, scheduler is not null))
+            return;
+        _browserVisualIdentityAuditGeneration = _browserUiGeneration;
+        var scheduled = scheduler!.TrySchedule(loaded!.Reconciliation, DerivedWorkPriority.Visible);
+        if (scheduled.Accepted) AttachBrowserDerivedWork(scheduled.Batch, _browserUiGeneration);
     }
 
     private async Task InitializeLutStageAsync(ColorLutStage stage, string folder, bool includeSubfolders)

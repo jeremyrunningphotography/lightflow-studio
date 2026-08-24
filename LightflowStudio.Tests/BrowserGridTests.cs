@@ -29,6 +29,36 @@ public sealed class BrowserGridTests
         Assert.False(tile.HasColorState);
         Assert.Equal(@"C:\previews\original.jpg", tile.ThumbnailPath);
     }
+
+    [Fact]
+    public void ScopeRegenerationTargets_IgnoreQueryFilteringAndExcludeRawAssets()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var video = Video(rootId, "visible.mp4");
+        var still = Image(rootId, "hidden.jpg");
+        var raw = File(rootId, "raw.dng", MediaTypeCategory.RawImage);
+        model.Populate([video, still, raw]);
+        var videoId = Guid.NewGuid(); var stillId = Guid.NewGuid(); var rawId = Guid.NewGuid();
+        model.ApplyAssetIdentities([
+            new(videoId, video.RelativePath, CatalogReconciliationItemStatus.New),
+            new(stillId, still.RelativePath, CatalogReconciliationItemStatus.New),
+            new(rawId, raw.RelativePath, CatalogReconciliationItemStatus.New)]);
+        model.SetQuery(BrowserQuery.Default with { SearchText = "visible" });
+
+        Assert.Equal([videoId, stillId], model.ThumbnailApplicableAssetIdsInScope);
+        Assert.Single(model.Tiles);
+    }
+
+    [Fact]
+    public void VisualIdentityAudit_RunsAfterLutReadinessOncePerBrowserGeneration()
+    {
+        Assert.False(BrowserVisualIdentityAuditPolicy.ShouldSchedule(false, 4, -1, true, true));
+        Assert.True(BrowserVisualIdentityAuditPolicy.ShouldSchedule(true, 4, -1, true, true));
+        Assert.False(BrowserVisualIdentityAuditPolicy.ShouldSchedule(true, 4, 4, true, true));
+        Assert.True(BrowserVisualIdentityAuditPolicy.ShouldSchedule(true, 5, 4, true, true));
+        Assert.False(BrowserVisualIdentityAuditPolicy.ShouldSchedule(true, 5, 4, false, true));
+    }
     [Fact]
     public void AssetStateRevisionGuard_BlocksOnlyAssetsChangedAfterAReadBegan()
     {

@@ -99,6 +99,8 @@ public partial class MainWindow : Window
     private double _browserGridScrollOffset;
     private CapabilityInvocation? _browserEncodingInvocation;
     private CancellationTokenSource? _browserEncodingHandoffCts;
+    private long _browserColorSelectionRevision;
+    private bool _updatingBrowserColorSelectors;
     private bool _suppressBatchInputChange;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
@@ -1250,6 +1252,141 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    private void BrowserGridTile_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
+        if (BrowserSelectionActions.ShouldReplaceSelectionOnRightClick(tile.IsSelected))
+            _browserGrid.SelectSingle(tile.Index);
+        BrowserGridRows.Focus();
+        UpdateBrowserStatusText();
+    }
+
+    private void BrowserGridTile_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (((FrameworkElement)sender).ContextMenu is not { } menu) return;
+        var state = CurrentBrowserSelectionActions();
+        ((MenuItem)menu.Items[0]).IsEnabled = state.CanExport;
+        ((MenuItem)menu.Items[1]).IsEnabled = state.CanRegenerateThumbnails;
+        ((MenuItem)menu.Items[4]).IsEnabled = state.CanAssignCameraLut && BrowserCameraLutCombo.IsEnabled;
+        ((MenuItem)menu.Items[5]).IsEnabled = state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled;
+    }
+
+    private async void BrowserExport_Click(object sender, RoutedEventArgs e) => await ExportBrowserSelectionAsync();
+    private async void BrowserContextExport_Click(object sender, RoutedEventArgs e) => await ExportBrowserSelectionAsync();
+
+    private async Task ExportBrowserSelectionAsync()
+    {
+        var state = CurrentBrowserSelectionActions();
+        if (!state.CanExport) return;
+        await ExportBrowserAssetsAsync(_browserGrid.SelectedAssetIdsInBrowserOrder);
+    }
+
+    private async Task ExportBrowserAssetsAsync(IReadOnlyList<Guid> assetIds)
+    {
+        var location = _lastLoadedBrowserState?.Location;
+        if (location is null)
+        {
+            MessageBox.Show("The current Browser location is no longer available.", "Export",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        await ApplyEncodingHandoffAsync(new CapabilityInvocation("video.encode", assetIds,
+            new CapabilitySourceContext(location.RootId, location.RelativeFolder)));
+    }
+
+    private async void BrowserRegenerateThumbnails_Click(object sender, RoutedEventArgs e) =>
+        await RegenerateBrowserThumbnailsAsync();
+    private async void BrowserContextRegenerateThumbnails_Click(object sender, RoutedEventArgs e) =>
+        await RegenerateBrowserThumbnailsAsync();
+
+    private async Task RegenerateBrowserThumbnailsAsync()
+    {
+        var state = CurrentBrowserSelectionActions();
+        if (!state.CanRegenerateThumbnails) return;
+        var ids = _browserGrid.SelectedAssetIdsInBrowserOrder;
+        BrowserRegenerateThumbnailsButton.IsEnabled = false;
+        BrowserStatusText.Text = $"Regenerating {ids.Count} thumbnail{(ids.Count == 1 ? "" : "s")}…";
+        try
+        {
+            var results = await _storage.RegenerateThumbnailsAsync(ids);
+            for (var index = 0; index < ids.Count; index++)
+                if (results[index].Succeeded && results[index].ThumbnailPath is { } path)
+                    _browserGrid.ApplyThumbnail(ids[index], path);
+            var failed = results.Count(result => !result.Succeeded);
+            BrowserStatusText.Text = failed == 0
+                ? $"Regenerated {results.Count} thumbnail{(results.Count == 1 ? "" : "s")}"
+                : $"Regenerated {results.Count - failed}; {failed} could not be regenerated";
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            MessageBox.Show($"Thumbnail regeneration failed: {exception.Message}", "Regenerate thumbnails",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally { UpdateBrowserSelectionActions(); }
+    }
+
+    private void BrowserCameraLutCombo_DropDownOpened(object sender, EventArgs e) => _ = RefreshBrowserColorSelectorsAsync();
+    private void BrowserCreativeLutCombo_DropDownOpened(object sender, EventArgs e) => _ = RefreshBrowserColorSelectorsAsync();
+    private async void BrowserCameraLutCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        await ApplyBrowserLutComboSelectionAsync((System.Windows.Controls.ComboBox)sender, ColorLutStage.Camera);
+    private async void BrowserCreativeLutCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        await ApplyBrowserLutComboSelectionAsync((System.Windows.Controls.ComboBox)sender, ColorLutStage.Creative);
+    private void BrowserContextCameraLut_SubmenuOpened(object sender, RoutedEventArgs e) =>
+        PopulateBrowserLutMenu((MenuItem)sender, ColorLutStage.Camera);
+    private void BrowserContextCreativeLut_SubmenuOpened(object sender, RoutedEventArgs e) =>
+        PopulateBrowserLutMenu((MenuItem)sender, ColorLutStage.Creative);
+
+    private static void ApplyBrowserLutPresentation(System.Windows.Controls.ComboBox combo,
+        BrowserLutPickerPresentation presentation)
+    {
+        combo.Items.Clear();
+        combo.DisplayMemberPath = nameof(BrowserLutActionOption.Label);
+        foreach (var option in presentation.Options) combo.Items.Add(option);
+        combo.SelectedIndex = presentation.SelectedIndex;
+    }
+
+    private async Task ApplyBrowserLutComboSelectionAsync(System.Windows.Controls.ComboBox combo, ColorLutStage stage)
+    {
+        if (_updatingBrowserColorSelectors || combo.SelectedItem is not BrowserLutActionOption { IsAction: true } action) return;
+        await AssignBrowserLutAsync(stage, action.LutId, action.Label);
+    }
+
+    private void PopulateBrowserLutMenu(MenuItem parent, ColorLutStage stage)
+    {
+        parent.Items.Clear();
+        PopulateBrowserLutItems(parent.Items, stage);
+    }
+
+    private void PopulateBrowserLutItems(ItemCollection items, ColorLutStage stage)
+    {
+        var resources = _storage.LutCache.Snapshot(stage).Resources;
+        Add(null, "No LUT");
+        foreach (var resource in resources) Add(resource.LutId, resource.DisplayName);
+        void Add(Guid? lutId, string label)
+        {
+            var item = new MenuItem { Header = label, Style = (Style)FindResource("LightflowMenuItemStyle") };
+            item.Click += async (_, _) => await AssignBrowserLutAsync(stage, lutId, label);
+            items.Add(item);
+        }
+    }
+
+    private async Task AssignBrowserLutAsync(ColorLutStage stage, Guid? lutId, string label)
+    {
+        var state = CurrentBrowserSelectionActions();
+        if (stage == ColorLutStage.Camera ? !state.CanAssignCameraLut : !state.CanAssignCreativeLut) return;
+        var ids = _browserGrid.SelectedAssetIdsInBrowserOrder;
+        try
+        {
+            await _storage.AssetColors.SetStageAsync(ids, stage, lutId);
+            await RefreshBrowserColorSelectorsAsync();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException or SqliteException)
+        {
+            MessageBox.Show($"The {EncodingLutResourceStore.StageName(stage)} LUT assignment failed: {exception.Message}",
+                "Assign Color", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.A && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
@@ -1311,6 +1448,7 @@ public partial class MainWindow : Window
             assetColors: _storage.AssetColors, cameraLutFolder: () => _storage.Settings.CameraLutFolder,
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
+        _playerViewerHost.ExportRequested += PlayerViewerHost_ExportRequested;
         _playerViewerHost.RangeStateChanged += (_, change) =>
         {
             _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
@@ -1333,6 +1471,7 @@ public partial class MainWindow : Window
         // instant Grid mode is reselected, so returning via Back/Esc shows it exactly as the user left it.
         BrowserQueryToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
         BrowserNavigationToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
+        BrowserSelectionActionToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
         BrowserNavigationGap.Height = mode == BrowserPresentationMode.Grid ? new GridLength(8) : new GridLength(0);
         // Presentation controls (thumbnail size) are Grid-specific; SyncBrowserStatusBarVisibility's own
         // Browser-tab-active condition already covers whether the whole trailing group shows at all.
@@ -1564,11 +1703,88 @@ public partial class MainWindow : Window
         var remaining = progress is null ? 0 : progress.Pending + progress.Running;
         BrowserStatusText.Text = BrowserStatusPresentation.Describe(_browserGrid.VisibleCount, _browserGrid.TotalCount,
             _browserGrid.SelectedKeys.Count, _browserGrid.SelectedTotalSizeBytes, isGenerating, remaining);
-        BrowserEncodeButton.IsEnabled = _browserGrid.SelectedKeys.Count > 0;
+        UpdateBrowserSelectionActions();
+    }
+
+    private async void PlayerViewerHost_ExportRequested(object? sender, PlayerViewerExportRequestedEventArgs e)
+    {
+        try { await ExportBrowserAssetsAsync([e.AssetId]); }
+        finally
+        {
+            if (_playerViewerHost?.CurrentAsset?.AssetId == e.AssetId)
+                _playerViewerHost.SetExportEnabled(true);
+        }
+    }
+
+    private BrowserSelectionActionState CurrentBrowserSelectionActions() =>
+        BrowserSelectionActions.Evaluate(_browserGrid.SelectedTilesInBrowserOrder);
+
+    private void UpdateBrowserSelectionActions()
+    {
+        if (BrowserExportButton is null) return;
+        var state = CurrentBrowserSelectionActions();
+        BrowserExportButton.IsEnabled = state.CanExport;
+        BrowserRegenerateThumbnailsButton.IsEnabled = state.CanRegenerateThumbnails;
+        BrowserCameraLutCombo.IsEnabled = state.CanAssignCameraLut;
+        BrowserCreativeLutCombo.IsEnabled = state.CanAssignCreativeLut;
+        _ = RefreshBrowserColorSelectorsAsync();
+    }
+
+    private async Task RefreshBrowserColorSelectorsAsync()
+    {
+        var revision = ++_browserColorSelectionRevision;
+        var ids = _browserGrid.SelectedAssetIdsInBrowserOrder.ToArray();
+        var state = CurrentBrowserSelectionActions();
+        if (!state.CanAssignCameraLut || ids.Length != state.SelectionCount)
+        {
+            SetBrowserColorSelectorsUnavailable();
+            return;
+        }
+        BrowserCameraLutCombo.IsEnabled = BrowserCreativeLutCombo.IsEnabled = false;
+        try
+        {
+            var colorsTask = _storage.AssetColors.GetAsync(ids);
+            var resolutionTasks = ids.Select(id => _storage.MediaAssets.GetAsync(id)).ToArray();
+            await Task.WhenAll(resolutionTasks).ConfigureAwait(true);
+            var colors = await colorsTask.ConfigureAwait(true);
+            if (revision != _browserColorSelectionRevision || !ids.SequenceEqual(_browserGrid.SelectedAssetIdsInBrowserOrder)) return;
+            var availability = resolutionTasks.Select(task => task.Result is
+                { SourceExists: true, RootAvailability: MediaRootAvailability.Online }).ToArray();
+            if (!BrowserSelectionActions.CanAssignLutColor(state, availability))
+            {
+                SetBrowserColorSelectorsUnavailable();
+                return;
+            }
+            var intents = ids.Select(id => colors[id]).ToArray();
+            _updatingBrowserColorSelectors = true;
+            ApplyBrowserLutPresentation(BrowserCameraLutCombo, BrowserLutActionPicker.Present(ColorLutStage.Camera,
+                _storage.LutCache.Snapshot(ColorLutStage.Camera).Resources, intents));
+            ApplyBrowserLutPresentation(BrowserCreativeLutCombo, BrowserLutActionPicker.Present(ColorLutStage.Creative,
+                _storage.LutCache.Snapshot(ColorLutStage.Creative).Resources, intents));
+            _updatingBrowserColorSelectors = false;
+            BrowserCameraLutCombo.IsEnabled = BrowserCreativeLutCombo.IsEnabled = true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException or SqliteException)
+        {
+            if (revision == _browserColorSelectionRevision) SetBrowserColorSelectorsUnavailable();
+        }
+        finally { _updatingBrowserColorSelectors = false; }
+    }
+
+    private void SetBrowserColorSelectorsUnavailable()
+    {
+        _updatingBrowserColorSelectors = true;
+        ApplyBrowserLutPresentation(BrowserCameraLutCombo,
+            BrowserLutActionPicker.Present(ColorLutStage.Camera, [], []));
+        ApplyBrowserLutPresentation(BrowserCreativeLutCombo,
+            BrowserLutActionPicker.Present(ColorLutStage.Creative, [], []));
+        _updatingBrowserColorSelectors = false;
+        BrowserCameraLutCombo.IsEnabled = BrowserCreativeLutCombo.IsEnabled = false;
     }
 
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (!ReferenceEquals(e.Source, MainTabs)) return;
         SyncBrowserStatusBarVisibility();
         // #110: switching to another workspace while a video is open in the Player/Viewer must not leave it
         // silently playing audio in a hidden tab. This pauses rather than returning to Grid — switching tabs
@@ -1595,7 +1811,6 @@ public partial class MainWindow : Window
         var visibility = isBrowserActive ? Visibility.Visible : Visibility.Collapsed;
         BrowserStatusText.Visibility = visibility;
         BrowserStatusDivider.Visibility = visibility;
-        BrowserEncodeButton.Visibility = visibility;
         // #110: thumbnail size only applies to Grid presentation — hidden while the Player/Viewer is showing,
         // exactly as it is already hidden outside the Browser tab entirely.
         BrowserPresentationControls.Visibility = isBrowserActive && _browserPresentation == BrowserPresentationMode.Grid
@@ -1671,37 +1886,17 @@ public partial class MainWindow : Window
     private void OpenEncodingWorkspace_Click(object sender, RoutedEventArgs e) =>
         MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
 
-    private async void BrowserEncode_Click(object sender, RoutedEventArgs e)
-    {
-        var assetIds = _browserGrid.SelectedAssetIdsInBrowserOrder;
-        if (assetIds.Count == 0)
-        {
-            MessageBox.Show("Select one or more Browser videos first.", "Batch Encode",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        var location = _lastLoadedBrowserState?.Location;
-        if (location is null)
-        {
-            MessageBox.Show("The current Browser location is no longer available.", "Batch Encode",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-        await ApplyEncodingHandoffAsync(new CapabilityInvocation("video.encode", assetIds,
-            new CapabilitySourceContext(location.RootId, location.RelativeFolder)));
-    }
-
     private async Task ApplyEncodingHandoffAsync(CapabilityInvocation invocation)
     {
         _browserEncodingHandoffCts?.Cancel();
         var cancellation = new CancellationTokenSource();
         _browserEncodingHandoffCts = cancellation;
-        BrowserEncodeButton.IsEnabled = false;
+        BrowserExportButton.IsEnabled = false;
         try
         {
             var result = await new EncodingCapabilityHandoff(_storage.MediaAssets, _storage.MediaRoots,
-                    _storage.MediaRanges)
+                    _storage.MediaRanges, _storage.AssetColors, _storage.LutCache,
+                    new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory))
                 .MaterializeAsync(invocation, cancellation.Token).ConfigureAwait(true);
             if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return;
             if (!result.Succeeded)
@@ -1712,8 +1907,8 @@ public partial class MainWindow : Window
                     _batchFiles.Clear();
                     UpdateBatchFileSummary();
                 }
-                MessageBox.Show("The selection was not sent to Encoding:\n\n" + string.Join("\n", result.Errors),
-                    "Cannot encode selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("The selection was not sent to Export:\n\n" + string.Join("\n", result.Errors),
+                    "Cannot export selection", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -1735,20 +1930,22 @@ public partial class MainWindow : Window
             {
                 var input = result.Inputs[index];
                 var display = Path.GetRelativePath(InputFolder.Text, input.SourcePath);
-                var option = new BatchFileOption(input.SourcePath, display, input.FileSizeBytes, index);
+                var option = new BatchFileOption(input.SourcePath, display, input.FileSizeBytes, index,
+                    input.AssignedColor);
                 if (input.InitialTrim is { IsFullSource: false } trim) option.ApplyTrim(trim);
                 _batchFiles.Add(option);
             }
+            ConfigureAssignedColorUi();
             UpdatePreserveFolderStructureUi();
             UpdateBatchFileSummary();
             _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
             MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
-            CurrentFileText.Text = $"{result.Inputs.Count} Browser video{(result.Inputs.Count == 1 ? "" : "s")} ready to encode.";
+            CurrentFileText.Text = $"{result.Inputs.Count} Browser video{(result.Inputs.Count == 1 ? "" : "s")} ready to export.";
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)
         {
             MessageBox.Show($"The Browser selection could not be prepared: {exception.Message}",
-                "Cannot encode selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+                "Cannot export selection", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch (OperationCanceledException) { }
         finally
@@ -1756,19 +1953,19 @@ public partial class MainWindow : Window
             if (ReferenceEquals(_browserEncodingHandoffCts, cancellation))
             {
                 _browserEncodingHandoffCts = null;
-                BrowserEncodeButton.IsEnabled = _browserGrid.SelectedKeys.Count > 0;
+                UpdateBrowserSelectionActions();
             }
             cancellation.Dispose();
         }
     }
     private async Task RefreshDependencyHealthAsync()
     {
-        DependencySummary.Text = "Checking the tools needed for encoding…";
+        DependencySummary.Text = "Checking the tools needed for export…";
         DependencyResults.ItemsSource = null;
         var report = await DependencyHealthCheck.RunAsync(_ffmpeg, _ffprobe);
         DependencyResults.ItemsSource = report.Items;
         DependencySummary.Text = report.Summary;
-        StatusText.Text = report.IsReady ? "Encoding tools ready" : "Encoding setup needs attention — open Settings";
+        StatusText.Text = report.IsReady ? "Export tools ready" : "Export setup needs attention — open Settings";
         _activityLogFile.TryAppend($"[App] Dependency check: {report.Summary}");
     }
 
@@ -2008,6 +2205,7 @@ public partial class MainWindow : Window
             if (_trimHistory.Restore(option.FilePath) is { } restored) option.ApplyTrim(restored);
             _batchFiles.Add(option);
         }
+        ConfigureAssignedColorUi();
         _batchSelectionMemory.Apply(InputFolder.Text, _batchFiles);
         UpdateBatchFileSummary();
         _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
@@ -2108,6 +2306,41 @@ public partial class MainWindow : Window
             _activityLogFile.TryAppend($"[App] Could not remember LUT selection: {ex}");
             SettingsMessage.Text = $"Could not remember LUT selection: {ex.Message}";
         }
+    }
+
+    private void EncodingColorModeSelection_Changed(object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (LutSelection is null) return;
+        LutSelection.IsEnabled = CurrentEncodingColorMode == EncodingColorMode.OriginalOrManual;
+    }
+
+    private EncodingColorMode CurrentEncodingColorMode =>
+        AssignedColorConfiguration?.Visibility == Visibility.Visible && EncodingColorModeSelection.SelectedIndex == 0
+            ? EncodingColorMode.Assigned
+            : EncodingColorMode.OriginalOrManual;
+
+    private void ConfigureAssignedColorUi(EncodingColorMode? restoredMode = null)
+    {
+        var colors = _batchFiles.Where(file => file.AssignedColor?.HasAssignments == true).ToList();
+        AssignedColorConfiguration.Visibility = colors.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (colors.Count == 0)
+        {
+            EncodingColorModeSelection.SelectedIndex = 1;
+            AssignedColorSummary.Text = "";
+            LutSelection.IsEnabled = true;
+            return;
+        }
+        var enabled = colors.Count(file => file.AssignedColor!.ColorEnabled);
+        EncodingColorModeSelection.SelectedIndex = restoredMode is { } mode
+            ? mode == EncodingColorMode.Assigned ? 0 : 1
+            : enabled > 0 ? 0 : 1;
+        var distinct = colors.Select(file => string.Join(" → ", file.AssignedColor!.OrderedPipeline
+            .Select(resource => resource.DisplayName))).Distinct(StringComparer.Ordinal).Count();
+        AssignedColorSummary.Text = $"{colors.Count} input{(colors.Count == 1 ? "" : "s")} with assigned Color" +
+            (distinct > 1 ? $" · {distinct} different pipelines" : "") +
+            (enabled < colors.Count ? $" · {colors.Count - enabled} saved Off" : "");
+        LutSelection.IsEnabled = CurrentEncodingColorMode == EncodingColorMode.OriginalOrManual;
     }
 
     private void BrowseDefaultVideoFolder_Click(object sender, RoutedEventArgs e)
@@ -2386,7 +2619,7 @@ public partial class MainWindow : Window
         _mediaRoots.Clear();
         if (!_storage.CatalogAvailable)
         {
-            MediaRootsEmptyText.Text = "The Catalog is unavailable. Encoding remains available, but Media Roots cannot be managed.";
+            MediaRootsEmptyText.Text = "The Catalog is unavailable. Export remains available, but Media Roots cannot be managed.";
             MediaRootsEmptyText.Visibility = Visibility.Visible;
             return;
         }
@@ -2489,7 +2722,7 @@ public partial class MainWindow : Window
     {
         if (!TryReadEncodingControls(out var encoding, out var encodingError))
         {
-            MessageBox.Show(encodingError, "Encoding settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(encodingError, "Export settings", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         if (!int.TryParse(SettingsPreviewCacheQuotaGb.Text, out var previewQuota) || previewQuota is < 1 or > 1024)
@@ -2885,7 +3118,7 @@ public partial class MainWindow : Window
                 AppendDetailedLog($"Output: {output}");
                 AppendDetailedLog($"Detected duration: {FormatDuration(duration)}");
                 if (item.PlanItem.Definition.ResolvedRange is { } appliedRange)
-                    AppendDetailedLog($"Applied trim: In {appliedRange.RequestedRange.EffectiveIn:c}; Out frame {appliedRange.RequestedRange.EffectiveOut:c}; encoded duration {appliedRange.EffectiveDuration:c}; source start {appliedRange.SourceStartTimestamp:c}");
+                    AppendDetailedLog($"Applied trim: In {appliedRange.RequestedRange.EffectiveIn:c}; Out frame {appliedRange.RequestedRange.EffectiveOut:c}; exported duration {appliedRange.EffectiveDuration:c}; source start {appliedRange.SourceStartTimestamp:c}");
 
                 if (item.State == JobState.Skipped)
                 {
@@ -2914,9 +3147,18 @@ public partial class MainWindow : Window
                 AppendDetailedLog($"Partial output: {outputLifecycle.PartialPath}");
                 var encodingOptions = plan.Definition.Options;
                 var detailedOutput = encodingOptions.DetailedOutput;
-                var args = FfmpegCommandBuilder.Encode(input, outputLifecycle.PartialPath, encodingOptions.LutPath,
+                var colorLuts = encodingOptions.ColorMode == EncodingColorMode.Assigned
+                    && item.PlanItem.Definition.AssignedColor is { ColorEnabled: true } color
+                    ? color.OrderedPipeline.Select(resource => new EncodingLutResourceStore(
+                        EncodingLutResourceStore.DefaultDirectory).Resolve(resource)).ToArray()
+                    : [];
+                var manualLut = encodingOptions.ColorMode == EncodingColorMode.OriginalOrManual
+                    ? encodingOptions.LutPath : null;
+                var args = FfmpegCommandBuilder.Encode(input, outputLifecycle.PartialPath, manualLut,
                     encodingOptions.Recovery, encodingOptions.Resolution, detailedOutput, encodingOptions.Encoding,
-                    item.PlanItem.Definition.ResolvedRange);
+                    item.PlanItem.Definition.ResolvedRange, colorLuts);
+                AppendDetailedLog(colorLuts.Length == 0 ? "Color: Original"
+                    : $"Color: {string.Join(" -> ", item.PlanItem.Definition.AssignedColor!.OrderedPipeline.Select(resource => $"{EncodingLutResourceStore.StageName(resource.Stage)} {resource.DisplayName} [{resource.ContentSha256}]"))}");
                 AppendDetailedLog($"Starting FFmpeg: {FormatCommand(_ffmpeg!, args)}");
                 CurrentFileText.Text = item.PlanItem.Definition.ResolvedRange is null
                     ? $"Starting {completed + 1}/{total}: {Path.GetFileName(input)}…"
@@ -2935,7 +3177,7 @@ public partial class MainWindow : Window
                     var expectsAudio = encodingOptions.Recovery != RecoveryStrategy.VideoOnly
                         && encodingOptions.Encoding.AudioMode != AudioEncodingMode.None
                         && item.PlanItem.Definition.SourceHasAudio != false;
-                    var validationError = "FFprobe could not open the encoded file.";
+                    var validationError = "FFprobe could not open the exported file.";
                     if (validation.ExitCode == 0 && EncodedOutputValidator.TryValidate(validation.StdOut,
                             item.PlanItem.Definition.MediaRange?.EffectiveDuration ?? TimeSpan.FromSeconds(duration), expectsAudio, out validationError))
                     {
@@ -3011,7 +3253,7 @@ public partial class MainWindow : Window
             }
             if (currentItem?.State == JobState.Running) currentItem.Cancel();
             execution?.CancelPending();
-            AppendLog("Encoding cancelled.");
+            AppendLog("Export cancelled.");
             CurrentFileText.Text = "Cancelled";
         }
         catch (Exception ex)
@@ -3026,7 +3268,7 @@ public partial class MainWindow : Window
             }
             if (currentItem?.State == JobState.Running) currentItem.Fail(ex.Message);
             execution?.CancelPending();
-            MessageBox.Show(ex.Message, "Encoding error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, "Export error", MessageBoxButton.OK, MessageBoxImage.Error);
             AppendLog(ex.ToString());
         }
         finally
@@ -3099,7 +3341,7 @@ public partial class MainWindow : Window
         var restoration = EncodingHistoryRerun.Materialize(preparation);
         if (restoration.Restored.Count == 0)
         {
-            MessageBox.Show("None of the original source files are still available and unchanged.", "Review Encoding job", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("None of the original source files are still available and unchanged.", "Review Export job", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -3129,6 +3371,7 @@ public partial class MainWindow : Window
         _batchMetadataCts = new CancellationTokenSource();
         _batchFiles.Clear();
         foreach (var file in restoration.Restored) _batchFiles.Add(file);
+        ConfigureAssignedColorUi(options.ColorMode);
         UpdateBatchFileSummary();
         _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
         MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
@@ -3140,7 +3383,8 @@ public partial class MainWindow : Window
         if (_ffprobe is null || !File.Exists(_ffprobe)) { MessageBox.Show("FFprobe was not found beside FFmpeg. Reinstall the packaged dependencies or update the FFmpeg path in Settings."); return false; }
         if (!Directory.Exists(InputFolder.Text)) { MessageBox.Show("Select a valid video folder."); return false; }
         if (_batchFiles.All(file => !file.IsSelected)) { MessageBox.Show("Select at least one video file for this batch."); return false; }
-        if (!LutCatalog.IsValidSelection(LutSelection.SelectedItem as LutOption)) { MessageBox.Show("Select a valid .cube LUT from the LUT dropdown, or choose No LUT."); return false; }
+        if (CurrentEncodingColorMode == EncodingColorMode.OriginalOrManual
+            && !LutCatalog.IsValidSelection(LutSelection.SelectedItem as LutOption)) { MessageBox.Show("Select a valid .cube LUT from the LUT dropdown, or choose No LUT."); return false; }
         try
         {
             var plan = CreateEncodingPlan();
@@ -3166,12 +3410,13 @@ public partial class MainWindow : Window
             resolution,
             recovery,
             _settings.Encoding,
-            SelectedLutPath,
+            CurrentEncodingColorMode == EncodingColorMode.OriginalOrManual ? SelectedLutPath : null,
             suffix,
             ShouldPreserveFolderStructure(),
             OverwriteExisting.IsChecked == true,
             ShowEncodingDetails.IsChecked == true,
-            Recursive.IsChecked == true);
+            Recursive.IsChecked == true,
+            CurrentEncodingColorMode);
         var sources = _batchFiles.Where(file => file.IsSelected).Select(file =>
         {
             var seconds = durations?.GetValueOrDefault(file.FilePath) ?? file.Metadata?.DurationSeconds ?? 0;
@@ -3183,7 +3428,8 @@ public partial class MainWindow : Window
                 resolvedRanges?.GetValueOrDefault(file.FilePath),
                 file.SourceIdentity?.LastWriteUtcTicks,
                 file.Metadata?.HasAudio,
-                file.CapabilityOrder);
+                file.CapabilityOrder,
+                file.AssignedColor);
         });
         return EncodingJobPlanner.Plan(EncodingJobPlanner.Define(options, sources));
     }
@@ -3297,7 +3543,7 @@ public partial class MainWindow : Window
 
         if (_encodingPause.IsPaused)
         {
-            ResumeEncoding(process, "Encoding resumed by user.");
+            ResumeEncoding(process, "Export resumed by user.");
             return;
         }
 
@@ -3305,7 +3551,7 @@ public partial class MainWindow : Window
         if (_batchStopwatch?.IsRunning == true) _batchStopwatch.Stop();
         PauseButton.Content = "Resume";
         SetBatchStatus(BatchStatus.Paused);
-        AppendLog("Encoding paused by user.");
+        AppendLog("Export paused by user.");
     }
 
     private void ResumeEncoding(Process? process, string logMessage)
@@ -3335,7 +3581,7 @@ public partial class MainWindow : Window
         {
             SetBatchStatus(BatchStatus.Paused);
             PauseButton.Content = "Resume";
-            AppendDetailedLog("Encoding paused while the close options are open.");
+            AppendDetailedLog("Export paused while the close options are open.");
         }
 
         var dialog = new EncodingCloseDialog { Owner = this };
@@ -3352,8 +3598,8 @@ public partial class MainWindow : Window
         if (processPaused && EncodingClosePolicy.ShouldResumeAfterDialog(wasAlreadyPaused, dialog.Choice))
         {
             ResumeEncoding(pausedProcess, dialog.Choice == EncodingCloseChoice.CloseAfterCurrent
-                ? "Encoding resumed to finish the current file before closing."
-                : "Encoding resumed.");
+                ? "Export resumed to finish the current file before closing."
+                : "Export resumed.");
         }
 
         if (dialog.Choice == EncodingCloseChoice.CloseAfterCurrent)
@@ -3410,7 +3656,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            AppendLog($"Could not save the encoding-details preference: {ex.Message}");
+            AppendLog($"Could not save the export-details preference: {ex.Message}");
         }
     }
     private static string FormatDuration(double seconds) =>

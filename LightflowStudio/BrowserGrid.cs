@@ -389,6 +389,17 @@ internal sealed class BrowserGridModel
         }
     }
 
+    public IReadOnlyList<BrowserGridTile> SelectedTilesInBrowserOrder
+    {
+        get
+        {
+            var selected = _selection.Snapshot();
+            return _visibleTiles.Where(tile => selected.Contains(tile.Key))
+                .Concat(_allTiles.Where(tile => selected.Contains(tile.Key) && !_visibleTiles.Contains(tile)))
+                .ToArray();
+        }
+    }
+
     /// <summary>
     /// Sum of <see cref="BrowserGridTile.FileSizeBytes"/> for every selected item, regardless of whether the
     /// current query currently shows it — selection is a property of the item, not of the current view.

@@ -107,20 +107,112 @@ public sealed class EncodingCapabilityHandoffTests
     [Fact]
     public async Task Materialize_reresolves_originating_folder_through_current_root_mapping()
     {
-        var rootId = Guid.NewGuid();
-        var assetId = Guid.NewGuid();
-        var assets = new FakeAssets(Resolution(assetId, "D:\\remapped\\shoot\\clip.mov", rootId: rootId));
-        var roots = new FakeRoots("D:\\remapped\\shoot");
-        var invocation = new CapabilityInvocation("video.encode", [assetId],
-            new CapabilitySourceContext(rootId, "shoot"));
+        var physicalRoot = Directory.CreateTempSubdirectory("lightflow-handoff-map-").FullName;
+        var physicalFolder = Directory.CreateDirectory(Path.Combine(physicalRoot, "shoot")).FullName;
+        try
+        {
+            var rootId = Guid.NewGuid();
+            var assetId = Guid.NewGuid();
+            var assets = new FakeAssets(Resolution(assetId, Path.Combine(physicalFolder, "clip.mov"), rootId: rootId));
+            var roots = new FakeRoots(physicalFolder, rootId, physicalRoot);
+            var invocation = new CapabilityInvocation("video.encode", [assetId],
+                new CapabilitySourceContext(rootId, "shoot"));
 
-        var result = await new EncodingCapabilityHandoff(assets, roots, new FakeRanges())
-            .MaterializeAsync(invocation);
+            var result = await new EncodingCapabilityHandoff(assets, roots, new FakeRanges())
+                .MaterializeAsync(invocation);
+
+            Assert.True(result.Succeeded);
+            Assert.Equal(physicalFolder, result.InputFolder);
+            Assert.Equal(rootId, roots.LastRootLookup);
+        }
+        finally { Directory.Delete(physicalRoot, true); }
+    }
+
+    [Fact]
+    public async Task Materialize_uses_directory_semantics_for_ordinary_and_recursive_browser_scopes()
+    {
+        var root = Directory.CreateTempSubdirectory("lightflow-handoff-root-").FullName;
+        try
+        {
+            var nested = Directory.CreateDirectory(Path.Combine(root, "shoot", "day-one")).FullName;
+            var first = Guid.NewGuid();
+            var second = Guid.NewGuid();
+            var assets = new FakeAssets(Resolution(first, Path.Combine(root, "shoot", "one.mov")),
+                Resolution(second, Path.Combine(nested, "two.mov")));
+            var rootId = assets.RootIdFor(first);
+            assets.SetRootId(second, rootId);
+            var roots = new FakeRoots(Path.Combine(root, "shoot"), rootId, root);
+            var handoff = new EncodingCapabilityHandoff(assets, roots, new FakeRanges());
+
+            var ordinary = await handoff.MaterializeAsync(new CapabilityInvocation("video.encode", [first],
+                new CapabilitySourceContext(rootId, "shoot")));
+            var recursive = await handoff.MaterializeAsync(new CapabilityInvocation("video.encode", [first, second],
+                new CapabilitySourceContext(rootId, "shoot")));
+
+            Assert.True(ordinary.Succeeded);
+            Assert.True(recursive.Succeeded);
+            Assert.Equal(Path.Combine(root, "shoot"), recursive.InputFolder);
+            Assert.True(recursive.IncludeSubfolders);
+            Assert.Equal(["one.mov", Path.Combine("day-one", "two.mov")], recursive.Inputs.Select(input =>
+                Path.GetRelativePath(recursive.InputFolder!, input.SourcePath)));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task Materialize_snapshots_heterogeneous_color_once_and_derives_current_active_semantics()
+    {
+        var cameraOnly = Guid.NewGuid();
+        var creativeOnly = Guid.NewGuid();
+        var disabledBoth = Guid.NewGuid();
+        var none = Guid.NewGuid();
+        var camera = Resource(ColorLutStage.Camera, 'a', "Camera A");
+        var creative = Resource(ColorLutStage.Creative, 'b', "Creative B");
+        var colors = new FakeColors(new Dictionary<Guid, AssetColorIntent>
+        {
+            [cameraOnly] = Intent(cameraOnly, true, CameraReference(camera)),
+            [creativeOnly] = Intent(creativeOnly, true, creative: CameraReference(creative)),
+            [disabledBoth] = Intent(disabledBoth, false, CameraReference(camera), CameraReference(creative)),
+            [none] = Intent(none, true)
+        });
+        var assets = new FakeAssets(
+            Resolution(cameraOnly, "C:\\media\\camera.mov"),
+            Resolution(creativeOnly, "C:\\media\\creative.mov"),
+            Resolution(disabledBoth, "C:\\media\\disabled.mov"),
+            Resolution(none, "C:\\media\\none.mov"));
+        var snapshots = new FakeResourceStore();
+        var handoff = new EncodingCapabilityHandoff(assets, new FakeRoots(), new FakeRanges(), colors,
+            new FakeLutCache(camera, creative), snapshots);
+
+        var result = await handoff.MaterializeAsync(new CapabilityInvocation("video.encode",
+            [cameraOnly, creativeOnly, disabledBoth, none]));
+        colors.Values[cameraOnly] = Intent(cameraOnly, false, creative: CameraReference(creative));
 
         Assert.True(result.Succeeded);
-        Assert.Equal("D:\\remapped\\shoot", result.InputFolder);
-        Assert.Equal((rootId, "shoot"), roots.LastResolution);
+        Assert.Equal(ColorLutStage.Camera, result.Inputs[0].AssignedColor!.OrderedPipeline.Single().Stage);
+        Assert.Equal(ColorLutStage.Creative, result.Inputs[1].AssignedColor!.OrderedPipeline.Single().Stage);
+        Assert.True(result.Inputs[2].AssignedColor!.ColorEnabled);
+        Assert.Equal([ColorLutStage.Camera, ColorLutStage.Creative],
+            result.Inputs[2].AssignedColor!.OrderedPipeline.Select(value => value.Stage));
+        Assert.False(result.Inputs[3].AssignedColor!.ColorEnabled);
+        Assert.Empty(result.Inputs[3].AssignedColor!.OrderedPipeline);
+        Assert.True(result.Inputs[0].AssignedColor!.ColorEnabled);
+        Assert.Equal(4, snapshots.Count);
+        Assert.All(colors.ReadCounts.Values, count => Assert.Equal(1, count));
     }
+
+    private static ManagedLutResource Resource(ColorLutStage stage, char value, string name)
+    {
+        var hash = new string(value, 64);
+        return new(Guid.NewGuid(), name, name + ".cube", hash, LutDimension.ThreeDimensional, 2,
+            LutResourceAvailability.Available, $"C:\\luts\\{name}.cube");
+    }
+
+    private static ColorLutReference CameraReference(ManagedLutResource resource) =>
+        new(resource.LutId, resource.DisplayName, resource.ContentSha256, LutResourceAvailability.Available);
+
+    private static AssetColorIntent Intent(Guid assetId, bool enabled, ColorLutReference? camera = null,
+        ColorLutReference? creative = null) => new(assetId, camera, creative, Guid.NewGuid().ToString("N"), enabled);
 
     private static MediaAssetResolution Resolution(Guid id, string? path, string type = "video",
         MediaRootAvailability availability = MediaRootAvailability.Online, Guid? rootId = null)
@@ -132,9 +224,10 @@ public sealed class EncodingCapabilityHandoffTests
         return new(asset, availability, path, path is not null, path is null ? "The mapped root is unavailable." : null);
     }
 
-    private sealed class FakeRoots(string? resolvedFolder = null) : IMediaRootService
+    private sealed class FakeRoots(string? resolvedFolder = null, Guid? knownRootId = null, string? rootPath = null) : IMediaRootService
     {
         public (Guid RootId, string RelativePath)? LastResolution { get; private set; }
+        public Guid? LastRootLookup { get; private set; }
         public Task<MediaPathResolution> ResolveAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -144,7 +237,14 @@ public sealed class EncodingCapabilityHandoffTests
                 resolvedFolder is not null));
         }
         public Task<IReadOnlyList<MediaRootInfo>> ListAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<MediaRootInfo?> GetAsync(Guid rootId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<MediaRootInfo?> GetAsync(Guid rootId, CancellationToken cancellationToken = default)
+        {
+            LastRootLookup = rootId;
+            var path = rootPath ?? (resolvedFolder is null ? null : Directory.GetParent(resolvedFolder)?.FullName);
+            return Task.FromResult<MediaRootInfo?>(knownRootId is null || knownRootId == rootId
+                ? new MediaRootInfo(rootId, "Root", path, path is null ? MediaRootAvailability.Unavailable : MediaRootAvailability.Online)
+                : null);
+        }
         public Task<MediaRootChangeResult> CreateAsync(string displayName, string physicalPath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaRootChangeResult> RenameAsync(Guid rootId, string displayName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaRootChangeResult> RemapAsync(Guid rootId, string physicalPath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -165,6 +265,12 @@ public sealed class EncodingCapabilityHandoffTests
     private sealed class FakeAssets(params MediaAssetResolution[] values) : IMediaAssetService
     {
         private readonly Dictionary<Guid, MediaAssetResolution> _values = values.ToDictionary(value => value.Asset.AssetId);
+        public Guid RootIdFor(Guid assetId) => _values[assetId].Asset.RootId;
+        public void SetRootId(Guid assetId, Guid rootId)
+        {
+            var value = _values[assetId];
+            _values[assetId] = value with { Asset = value.Asset with { RootId = rootId } };
+        }
         public Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_values.GetValueOrDefault(assetId));
         public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) =>
@@ -173,5 +279,38 @@ public sealed class EncodingCapabilityHandoffTests
         public Task<MediaAssetResolution?> FindAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaAssetOperationResult> ObserveAsync(Guid assetId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeColors(Dictionary<Guid, AssetColorIntent> values) : IAssetColorStore
+    {
+        public Dictionary<Guid, AssetColorIntent> Values { get; } = values;
+        public Dictionary<Guid, int> ReadCounts { get; } = [];
+        public Task<AssetColorIntent> GetAsync(Guid assetId, CancellationToken cancellationToken = default)
+        { ReadCounts[assetId] = ReadCounts.GetValueOrDefault(assetId) + 1; return Task.FromResult(Values[assetId]); }
+        public Task<IReadOnlyDictionary<Guid, AssetColorIntent>> GetAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, AssetColorIntent>>(assetIds.ToDictionary(id => id, id => Values[id]));
+        public Task SetStageAsync(IReadOnlyCollection<Guid> assetIds, ColorLutStage stage, Guid? lutId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeLutCache(params ManagedLutResource[] resources) : ILutLibraryCache
+    {
+        public LutLibrarySnapshot Snapshot(ColorLutStage stage) => new("", resources.Where(resource =>
+            (stage == ColorLutStage.Camera && resource.DisplayName.StartsWith("Camera"))
+            || (stage == ColorLutStage.Creative && resource.DisplayName.StartsWith("Creative"))).ToArray(), []);
+        public ManagedLutResource? Get(ColorLutStage stage, Guid lutId) => Snapshot(stage).Resources.FirstOrDefault(value => value.LutId == lutId);
+        public string ResolvePath(ColorLutStage stage, Guid lutId) => Get(stage, lutId)!.FilePath!;
+        public Task<CubeLutData> GetRuntimeAsync(ColorLutStage stage, Guid lutId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task InitializeAsync(string cameraFolder, string creativeFolder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder, CancellationToken cancellationToken = default) => Task.FromResult(Snapshot(stage));
+    }
+
+    private sealed class FakeResourceStore : IEncodingLutResourceStore
+    {
+        public int Count { get; private set; }
+        public Task<MaterializedLutResource> SnapshotAsync(ColorLutStage stage, ManagedLutResource resource, CancellationToken cancellationToken = default)
+        { Count++; return Task.FromResult(new MaterializedLutResource(resource.LutId, stage, resource.DisplayName,
+            resource.ContentSha256, $"{resource.ContentSha256[..2]}/{resource.ContentSha256}.cube")); }
+        public string Resolve(MaterializedLutResource resource) => resource.ResourceKey;
     }
 }

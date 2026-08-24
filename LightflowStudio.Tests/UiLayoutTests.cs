@@ -632,13 +632,13 @@ public class UiLayoutTests
         Assert.True(double.Parse((string?)document.Root!.Attribute("MinWidth") ?? "0") >= 1120);
     }
     [Fact]
-    public void EncodingRequirements_UseAnchoredActionableHelp()
+    public void ExportRequirements_UseAnchoredActionableHelp()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
 
         Assert.Contains(document.Descendants(ns + "TextBlock"), element =>
-            (string?)element.Attribute("Text") == "Encoding Requirements");
+            (string?)element.Attribute("Text") == "Export Requirements");
         Assert.DoesNotContain(document.Descendants(ns + "TextBlock"), element =>
             (string?)element.Attribute("Text") == "Encoding Readiness");
         var button = document.Descendants(ns + "ToggleButton").Single(element =>
@@ -713,11 +713,86 @@ public class UiLayoutTests
         var tabs = Named(document, "MainTabs").Elements(ns + "TabItem").ToList();
 
         Assert.Equal("0", (string?)Named(document, "MainTabs").Attribute("SelectedIndex"));
-        Assert.Equal(["Browser", "Encoding", "Media Tools", "History", "Premiere Helper", "Settings", "About"], labels);
+        Assert.Equal(["Browser", "Export", "Media Tools", "History", "Premiere Helper", "Settings", "About"], labels);
         Assert.Equal(labels.Count, tabs.Count);
         Assert.Contains(tabs[0].Descendants(), element =>
             (string?)element.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "BrowserFolderTree");
-        Assert.Contains(tabs[1].Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "Batch Encode");
+        Assert.Contains(tabs[1].Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "Export");
+    }
+
+    [Fact]
+    public void BrowserActions_ArePersistentSharedAndAbsentFromTheStatusBar()
+    {
+        var root = FindRepositoryRoot();
+        var document = XDocument.Load(Path.Combine(root, "LightflowStudio", "MainWindow.xaml"));
+        var app = XDocument.Load(Path.Combine(root, "LightflowStudio", "App.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var browse = Named(document, "BrowserBrowseToolbar");
+        var actions = Named(document, "BrowserSelectionActionToolbar");
+        var contextMenu = Named(document, "BrowserGridRows").Descendants(ns + "ContextMenu").Single();
+        var browseColumns = browse.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").ToList();
+
+        Assert.Equal("0", (string?)browse.Attribute("Grid.Row"));
+        Assert.Equal("*", (string?)browseColumns[0].Attribute("Width"));
+        Assert.Equal("Auto", (string?)browseColumns[1].Attribute("Width"));
+        Assert.DoesNotContain(document.Descendants(ns + "ColumnDefinition"), column =>
+            (string?)column.Attribute("Width") == "520" && column.Ancestors().Contains(browse));
+        Assert.Equal("2", (string?)actions.Attribute("Grid.Row"));
+        Assert.Null(actions.Attribute("Visibility"));
+        Assert.DoesNotContain(actions.Descendants(ns + "TextBlock"), text =>
+            (string?)text.Attribute("Text") == "SELECTION");
+        Assert.DoesNotContain(actions.Descendants(), element =>
+            (string?)element.Attribute(x + "Name") == "BrowserSelectionActionSummary");
+        Assert.Equal("BrowserSelectionActionButtonStyle", Named(document, "BrowserExportButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
+        Assert.Equal("BrowserSelectionActionButtonStyle", Named(document, "BrowserRegenerateThumbnailsButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
+        Assert.Equal("BrowserSelectionLutComboStyle", Named(document, "BrowserCameraLutCombo").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
+        Assert.Equal("BrowserSelectionLutComboStyle", Named(document, "BrowserCreativeLutCombo").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
+        Assert.Equal("150", (string?)document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(x + "Key") == "BrowserSelectionLutComboStyle")
+            .Elements(ns + "Setter").Single(setter => (string?)setter.Attribute("Property") == "Width").Attribute("Value"));
+        Assert.DoesNotContain(document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(x + "Key") == "BrowserSelectionLutComboStyle").Elements(ns + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "MinWidth");
+        Assert.Contains(document.Descendants(ns + "Style").Single(style =>
+                (string?)style.Attribute(x + "Key") == "BrowserSelectionLutComboStyle").Descendants(ns + "TextBlock"),
+            text => (string?)text.Attribute("Text") == "{Binding Label}" &&
+                    (string?)text.Attribute("TextTrimming") == "CharacterEllipsis");
+        var actionNames = actions.Descendants().Select(element => (string?)element.Attribute(x + "Name"))
+            .Where(name => name is not null).ToList();
+        Assert.True(actionNames.IndexOf("BrowserCameraLutCombo") < actionNames.IndexOf("BrowserCreativeLutCombo"));
+        Assert.True(actionNames.IndexOf("BrowserCreativeLutCombo") < actionNames.IndexOf("BrowserRegenerateThumbnailsButton"));
+        Assert.Equal("1", (string?)Named(document, "BrowserExportButton").Attribute("Grid.Column"));
+        Assert.Null(Named(document, "BrowserCameraLutCombo").Attribute("Click"));
+        Assert.Null(Named(document, "BrowserCreativeLutCombo").Attribute("Click"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute(x + "Name") == "BrowserEncodeButton");
+        Assert.Equal("{StaticResource LightflowContextMenuStyle}", (string?)contextMenu.Attribute("Style"));
+        Assert.All(contextMenu.Elements(ns + "MenuItem"), item =>
+            Assert.Equal("{StaticResource LightflowMenuItemStyle}", (string?)item.Attribute("Style")));
+        Assert.Contains(app.Descendants(ns + "Style"), style => (string?)style.Attribute(x + "Key") == "LightflowContextMenuStyle");
+        Assert.Contains(app.Descendants(ns + "Style"), style => (string?)style.Attribute(x + "Key") == "LightflowMenuItemStyle");
+        Assert.Equal(
+            ["Export / Export Subclips…", "Regenerate Thumbnail(s)", "Rename", "Camera LUT", "Creative LUT"],
+            contextMenu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
+        Assert.All(contextMenu.Elements(ns + "MenuItem").TakeLast(2), submenu => Assert.True(submenu.HasElements));
+    }
+
+    [Fact]
+    public void PlayerColorRow_ContainsRightAlignedCurrentAssetExport()
+    {
+        var root = FindRepositoryRoot();
+        var document = XDocument.Load(Path.Combine(root, "LightflowStudio", "PlayerViewerHost.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var color = Named(document, "ColorSurface");
+        var export = Named(document, "ExportButton");
+
+        Assert.Equal("Stretch", (string?)color.Attribute("HorizontalAlignment"));
+        Assert.Equal("6", (string?)export.Attribute("Grid.Column"));
+        Assert.Equal("Export…", (string?)export.Attribute("Content"));
+        Assert.Equal("ExportButton_Click", (string?)export.Attribute("Click"));
+        Assert.Equal("*", (string?)color.Element(ns + "Grid.ColumnDefinitions")!
+            .Elements(ns + "ColumnDefinition").ElementAt(5).Attribute("Width"));
     }
 
     [Fact]

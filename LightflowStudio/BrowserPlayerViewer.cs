@@ -37,6 +37,11 @@ internal static class MediaPresentationClassification
 /// </summary>
 internal sealed record PlayerViewerAsset(Guid RootId, string RelativePath, string Key, string Name, MediaPresentationKind Kind, Guid? AssetId = null);
 
+internal sealed class PlayerViewerExportRequestedEventArgs(Guid assetId) : EventArgs
+{
+    internal Guid AssetId { get; } = assetId;
+}
+
 internal static class ReviewRangePlaybackPolicy
 {
     public static bool ShouldArmOutBoundary(MediaRange? range, TimeSpan playhead) =>

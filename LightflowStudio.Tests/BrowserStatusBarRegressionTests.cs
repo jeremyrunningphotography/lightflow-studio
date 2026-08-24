@@ -58,9 +58,11 @@ public sealed class BrowserStatusBarRegressionTests
         var source = Source();
         var methodStart = source.IndexOf("private void MainTabs_SelectionChanged", StringComparison.Ordinal);
         Assert.True(methodStart >= 0, "MainTabs_SelectionChanged not found");
-        var methodEnd = source.IndexOf(';', methodStart);
+        var guardEnd = source.IndexOf(';', methodStart);
+        var methodEnd = source.IndexOf(';', guardEnd + 1);
         var body = source[methodStart..methodEnd];
 
+        Assert.Contains("if (!ReferenceEquals(e.Source, MainTabs)) return", body);
         Assert.Contains("SyncBrowserStatusBarVisibility()", body);
     }
 
@@ -111,6 +113,17 @@ public sealed class BrowserStatusBarRegressionTests
         Assert.Contains(
             "BrowserQueryToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;",
             body);
+        Assert.Contains(
+            "BrowserSelectionActionToolbar.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;",
+            body);
+    }
+
+    [Fact]
+    public void PlayerExport_UsesTheCurrentAssetThroughTheSharedBrowserHandoff()
+    {
+        var source = Source();
+        Assert.Contains("_playerViewerHost.ExportRequested += PlayerViewerHost_ExportRequested;", source);
+        Assert.Contains("await ExportBrowserAssetsAsync([e.AssetId]);", source);
     }
 
     private static string Source() =>

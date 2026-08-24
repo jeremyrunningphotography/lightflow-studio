@@ -4,7 +4,7 @@ internal static class FfmpegCommandBuilder
 {
     public static List<string> Encode(string input, string output, string? lut, RecoveryStrategy recovery,
         OutputResolution resolution, bool detailedOutput = false, EncodingOptions? encoding = null,
-        ResolvedMediaRange? trim = null)
+        ResolvedMediaRange? trim = null, IReadOnlyList<string>? assignedLuts = null)
     {
         if (!Enum.IsDefined(recovery)) throw new ArgumentOutOfRangeException(nameof(recovery));
         if (!Enum.IsDefined(resolution)) throw new ArgumentOutOfRangeException(nameof(resolution));
@@ -28,7 +28,11 @@ internal static class FfmpegCommandBuilder
         var filters = new List<string>();
         if (trim is not null)
             filters.Add($"trim=start={Seconds(trim.AbsoluteIn)}:end={Seconds(trim.ExclusiveOut)},setpts=PTS-STARTPTS");
+        if (!string.IsNullOrEmpty(lut) && assignedLuts?.Count > 0)
+            throw new ArgumentException("A manual LUT cannot be combined with assigned Color.", nameof(lut));
         if (!string.IsNullOrEmpty(lut)) filters.Add($"lut3d=file='{EscapeFilterPath(lut)}'");
+        if (assignedLuts is not null)
+            filters.AddRange(assignedLuts.Select(path => $"lut3d=file='{EscapeFilterPath(path)}'"));
         if (options.Deinterlace) filters.Add("bwdif");
         if (options.FrameRate > 0) filters.Add($"fps={options.FrameRate.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         filters.AddRange(resolution switch

@@ -12,19 +12,19 @@ internal static class EncodedOutputValidator
         {
             using var document = JsonDocument.Parse(probeJson);
             var streams = document.RootElement.GetProperty("streams").EnumerateArray().ToList();
-            if (!streams.Any(IsVideo)) { error = "The encoded file has no readable video stream."; return false; }
-            if (expectsAudio && !streams.Any(IsAudio)) { error = "The encoded file has no readable audio stream."; return false; }
+            if (!streams.Any(IsVideo)) { error = "The exported file has no readable video stream."; return false; }
+            if (expectsAudio && !streams.Any(IsAudio)) { error = "The exported file has no readable audio stream."; return false; }
             var durationText = document.RootElement.GetProperty("format").GetProperty("duration").GetString();
             if (!double.TryParse(durationText, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) || seconds <= 0)
-            { error = "The encoded file has no valid duration."; return false; }
+            { error = "The exported file has no valid duration."; return false; }
             var tolerance = Math.Max(0.15, expectedDuration.TotalSeconds * .02);
             if (expectedDuration > TimeSpan.Zero && Math.Abs(seconds - expectedDuration.TotalSeconds) > tolerance)
-            { error = $"Encoded duration {seconds:0.###}s differs from expected {expectedDuration.TotalSeconds:0.###}s."; return false; }
+            { error = $"Exported duration {seconds:0.###}s differs from expected {expectedDuration.TotalSeconds:0.###}s."; return false; }
             return true;
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         {
-            error = $"FFprobe could not validate the encoded file: {exception.Message}";
+            error = $"FFprobe could not validate the exported file: {exception.Message}";
             return false;
         }
     }

@@ -14,6 +14,8 @@ public sealed class DependencyHealthCheckTests : IDisposable
         var ffmpeg = CreateExecutable("ffmpeg.exe"); var ffprobe = CreateExecutable("ffprobe.exe");
         var report = await DependencyHealthCheck.RunAsync(ffmpeg, ffprobe, (executable, arguments, _) => Task.FromResult(arguments.Contains("-c:v") ? (0, "", "") : (0, $"{Path.GetFileName(executable)} version 1.0", "")));
         Assert.True(report.IsReady); Assert.All(report.Items, item => Assert.True(item.IsReady)); Assert.Equal(4, report.Items.Count);
+        Assert.Equal("Everything needed for export is ready.", report.Summary);
+        Assert.All(report.Items, item => Assert.DoesNotContain("encoding", item.Summary, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

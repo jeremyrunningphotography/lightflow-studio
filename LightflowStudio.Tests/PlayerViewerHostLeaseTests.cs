@@ -76,16 +76,16 @@ public sealed class PlayerViewerHostLeaseTests
                 Assert.Equal(hasCamera, backend.ColorCalls[^1].Pipeline?.Camera is not null);
                 Assert.Equal(hasCreative, backend.ColorCalls[^1].Pipeline?.Creative is not null);
                 Assert.False(backend.ColorCalls[^1].Bypass);
-                Assert.True(host.ColorToggleButton.IsChecked);
                 Assert.True(host.CameraLutCombo.IsEnabled);
                 Assert.True(host.CreativeLutCombo.IsEnabled);
+                Assert.Equal(hasCamera ? "camera" : "No LUT", host.CameraLutCombo.SelectedItem!.ToString());
+                Assert.Equal(hasCreative ? "creative" : "No LUT", host.CreativeLutCombo.SelectedItem!.ToString());
                 Assert.Equal(0, library.RefreshCount);
 
                 await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
                     Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
-                await WaitUntilAsync(() => host.ColorToggleButton.IsChecked == true,
-                    "persisted Color enabled state after Player reopen");
-                Assert.Equal(0, colors.SetColorEnabledCount);
+                await WaitUntilAsync(() => host.CameraLutCombo.SelectedItem?.ToString() == (hasCamera ? "camera" : "No LUT"),
+                    "persisted Color assignments after Player reopen");
                 Assert.Equal(0, library.RefreshCount);
             }
             finally { folder.Delete(true); }
@@ -93,7 +93,7 @@ public sealed class PlayerViewerHostLeaseTests
     }
 
     [Fact]
-    public async Task PlayerOpenAndColorToggle_ConsumeCurrentCacheWithoutDiscoveryOrWaiting()
+    public async Task PlayerOpenPublishesAlwaysAvailableLutControlsFromCurrentCacheWithoutDiscoveryOrWaiting()
     {
         await StaDispatcher.RunAsync(async () =>
         {
@@ -115,17 +115,11 @@ public sealed class PlayerViewerHostLeaseTests
 
             Assert.Equal(["open", "presentation", "color"], backend.OpenPresentationOperations);
             Assert.True(host.PositionSlider.IsEnabled);
-            Assert.True(host.ColorToggleButton.IsEnabled);
-            Assert.False(host.ColorToggleButton.IsChecked);
-            Assert.False(host.CameraLutCombo.IsEnabled);
-            Assert.False(host.CreativeLutCombo.IsEnabled);
-            Assert.Contains(PlayerOpenMilestone.PlayerControlsPublished, milestones);
-
-            host.ColorToggleButton.IsChecked = true;
-            host.ColorToggleButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-            Assert.True(host.ColorToggleButton.IsChecked);
             Assert.True(host.CameraLutCombo.IsEnabled);
             Assert.True(host.CreativeLutCombo.IsEnabled);
+            Assert.Equal("No LUT", host.CameraLutCombo.SelectedItem!.ToString());
+            Assert.Equal("No LUT", host.CreativeLutCombo.SelectedItem!.ToString());
+            Assert.Contains(PlayerOpenMilestone.PlayerControlsPublished, milestones);
 
             Assert.Contains(PlayerOpenMilestone.ColorPublished, milestones);
             Assert.Equal(0, cache.RefreshCount);
@@ -175,17 +169,20 @@ public sealed class PlayerViewerHostLeaseTests
     }
 
     [Fact]
-    public async Task ColorToggleAndHoldC_BypassPresentationWithoutChangingAssignments()
+    public async Task LutAssignmentsDeriveActiveStateAndHoldCIsMomentaryOnly()
     {
         await StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
+            var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"lightflow-derived-color-{Guid.NewGuid():N}"));
             var backend = new FakeBackend();
             var colors = new FakeColorStore();
-            var cache = new FakeLutLibrary();
+            var cameraId = Guid.NewGuid();
+            var cameraPath = WriteIdentityCube(folder.FullName, "camera.cube");
+            var cache = new FakeLutLibrary(new Dictionary<Guid, string> { [cameraId] = cameraPath });
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
             var host = new PlayerViewerHost(coordinator, lutCache: cache, assetColors: colors,
-                cameraLutFolder: () => Path.GetTempPath(), creativeLutFolder: () => Path.GetTempPath());
+                cameraLutFolder: () => folder.FullName, creativeLutFolder: () => folder.FullName);
             var window = new Window { Content = host, Width = 600, Height = 400, ShowInTaskbar = false };
             window.Show();
             try
@@ -197,10 +194,8 @@ public sealed class PlayerViewerHostLeaseTests
                     Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
                 await WaitUntilAsync(() => host.CameraLutCombo.ItemsSource is not null, "Color controls");
 
-                Assert.False(host.ColorToggleButton.IsChecked);
-                Assert.Null(host.ColorToggleButton.Content);
-                Assert.False(host.CameraLutCombo.IsEnabled);
-                Assert.False(host.CreativeLutCombo.IsEnabled);
+                Assert.True(host.CameraLutCombo.IsEnabled);
+                Assert.True(host.CreativeLutCombo.IsEnabled);
                 Assert.True(backend.ColorCalls[^1].Bypass);
                 Assert.Equal("No LUT", host.CameraLutCombo.SelectedItem!.ToString());
                 Assert.Equal("No LUT", host.CreativeLutCombo.SelectedItem!.ToString());
@@ -208,56 +203,30 @@ public sealed class PlayerViewerHostLeaseTests
 
                 var callsWhileOff = backend.ColorCalls.Count;
                 Key(host, window, System.Windows.Input.Key.C, UIElement.PreviewKeyDownEvent);
-                Assert.False(host.ColorToggleButton.IsChecked);
-                Assert.False(host.CameraLutCombo.IsEnabled);
-                Assert.False(host.CreativeLutCombo.IsEnabled);
                 Key(host, window, System.Windows.Input.Key.C, UIElement.PreviewKeyUpEvent);
-                Assert.False(host.ColorToggleButton.IsChecked);
                 Assert.Equal(callsWhileOff, backend.ColorCalls.Count);
 
-                var persistence = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                colors.ColorEnabledWrite = persistence.Task;
-                host.ColorToggleButton.IsChecked = true;
-                host.ColorToggleButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-                Assert.True(host.ColorToggleButton.IsChecked);
-                Assert.True(host.CameraLutCombo.IsEnabled);
-                Assert.True(host.CreativeLutCombo.IsEnabled);
-                Assert.Equal("No LUT", host.CameraLutCombo.SelectedItem!.ToString());
-                Assert.Equal("No LUT", host.CreativeLutCombo.SelectedItem!.ToString());
-                Assert.False(backend.ColorCalls[^1].Bypass);
-                Assert.Equal(1, colors.SetColorEnabledCount);
-
-                var reopened = host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
-                    Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
-                Assert.Same(reopened, await Task.WhenAny(reopened, Task.Delay(1000)));
-                await reopened;
-                Assert.False(host.ColorToggleButton.IsChecked);
-                persistence.SetResult();
-                await WaitUntilAsync(() => colors.IsColorEnabled(assetId) && host.ColorToggleButton.IsChecked == true,
-                    "Color enabled persistence and reopen restoration");
+                host.CameraLutCombo.SelectedIndex = 1;
+                await WaitUntilAsync(() => colors.SetCount == 1 && !backend.ColorCalls[^1].Bypass,
+                    "Camera assignment persistence and derived active presentation");
+                Assert.True((await colors.GetAsync(assetId)).ColorEnabled);
 
                 Key(host, window, System.Windows.Input.Key.C, UIElement.PreviewKeyDownEvent);
                 Assert.True(backend.ColorCalls[^1].Bypass);
-                Assert.False(host.ColorToggleButton.IsChecked);
-                Assert.False(host.CameraLutCombo.IsEnabled);
-                Assert.False(host.CreativeLutCombo.IsEnabled);
                 Key(host, window, System.Windows.Input.Key.C, UIElement.PreviewKeyUpEvent);
                 Assert.False(backend.ColorCalls[^1].Bypass);
-                Assert.True(host.ColorToggleButton.IsChecked);
                 Assert.True(host.CameraLutCombo.IsEnabled);
                 Assert.True(host.CreativeLutCombo.IsEnabled);
-                Assert.Equal(0, colors.SetCount);
                 Assert.True((await colors.GetAsync(assetId)).ColorEnabled);
                 Assert.Equal(0, cache.RefreshCount);
 
-                host.ColorToggleButton.IsChecked = false;
-                host.ColorToggleButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-                await WaitUntilAsync(() => colors.SetColorEnabledCount == 2, "Color disabled persistence");
+                host.CameraLutCombo.SelectedIndex = 0;
+                await WaitUntilAsync(() => colors.SetCount == 2 && backend.ColorCalls[^1].Bypass,
+                    "both-No-LUT Original presentation");
                 Assert.False((await colors.GetAsync(assetId)).ColorEnabled);
-                Assert.Equal(0, colors.SetCount);
                 Assert.Equal(0, cache.RefreshCount);
             }
-            finally { window.Close(); }
+            finally { window.Close(); folder.Delete(true); }
         });
     }
 
@@ -739,32 +708,36 @@ public sealed class PlayerViewerHostLeaseTests
     {
         private readonly Func<Guid, AssetColorIntent>? _provider;
         private readonly AssetColorIntent? _restored;
-        private readonly Dictionary<Guid, bool> _enabled = [];
+        private readonly Dictionary<Guid, AssetColorIntent> _written = [];
         public FakeColorStore() { }
         public FakeColorStore(AssetColorIntent restored) => _restored = restored;
         public FakeColorStore(Func<Guid, AssetColorIntent> provider) => _provider = provider;
         public int SetCount { get; private set; }
-        public int SetColorEnabledCount { get; private set; }
-        public Task ColorEnabledWrite { get; set; } = Task.CompletedTask;
-        public bool IsColorEnabled(Guid assetId) => _enabled.GetValueOrDefault(assetId);
         public Task<AssetColorIntent> GetAsync(Guid assetId, CancellationToken cancellationToken = default)
         {
+            if (_written.TryGetValue(assetId, out var written)) return Task.FromResult(written);
             var intent = _provider?.Invoke(assetId) ?? (_restored is null
                 ? new AssetColorIntent(assetId, null, null, "none") : _restored with { AssetId = assetId });
-            return Task.FromResult(_enabled.TryGetValue(assetId, out var enabled)
-                ? intent with { ColorEnabled = enabled } : intent);
+            return Task.FromResult(intent);
         }
         public Task<IReadOnlyDictionary<Guid, AssetColorIntent>> GetAsync(IReadOnlyCollection<Guid> assetIds,
             CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<Guid, AssetColorIntent>>(
                 assetIds.ToDictionary(id => id, id => new AssetColorIntent(id, null, null, "none")));
         public Task SetStageAsync(IReadOnlyCollection<Guid> assetIds, ColorLutStage stage, Guid? lutId,
-            CancellationToken cancellationToken = default) { SetCount++; return Task.CompletedTask; }
-        public async Task SetColorEnabledAsync(IReadOnlyCollection<Guid> assetIds, bool enabled,
             CancellationToken cancellationToken = default)
         {
-            SetColorEnabledCount++;
-            await ColorEnabledWrite.WaitAsync(cancellationToken);
-            foreach (var assetId in assetIds) _enabled[assetId] = enabled;
+            SetCount++;
+            foreach (var assetId in assetIds)
+            {
+                var current = GetAsync(assetId, cancellationToken).GetAwaiter().GetResult();
+                var reference = lutId is Guid id
+                    ? new ColorLutReference(id, Path.GetFileNameWithoutExtension("camera.cube"), id.ToString("N"), LutResourceAvailability.Available)
+                    : null;
+                _written[assetId] = stage == ColorLutStage.Camera
+                    ? current with { Camera = reference, ColorIdentity = Guid.NewGuid().ToString("N") }
+                    : current with { Creative = reference, ColorIdentity = Guid.NewGuid().ToString("N") };
+            }
+            return Task.CompletedTask;
         }
         public Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes,
             CancellationToken cancellationToken = default) { SetCount++; return Task.CompletedTask; }

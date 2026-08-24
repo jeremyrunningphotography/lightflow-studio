@@ -512,6 +512,24 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         finally { _mutationGate.Release(); }
     }
 
+    public async Task<IReadOnlyList<ThumbnailGenerationResult>> RegenerateThumbnailsAsync(
+        IReadOnlyList<Guid> assetIds, CancellationToken cancellationToken = default)
+    {
+        if (!CatalogAvailable || Previews is null)
+            return assetIds.Select(_ => new ThumbnailGenerationResult(ThumbnailGenerationStatus.Failed,
+                Diagnostic: PreviewDiagnostic ?? "Preview storage is unavailable.")).ToArray();
+        using var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
+            operations: _previewOperations);
+        var results = new List<ThumbnailGenerationResult>(assetIds.Count);
+        foreach (var assetId in assetIds.Distinct())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            results.Add(await thumbnails.GenerateAsync(new(assetId, ForceRefresh: true,
+                Priority: ThumbnailPriority.Visible), cancellationToken).ConfigureAwait(false));
+        }
+        return results;
+    }
+
     private IPreviewMaintenanceService? CreatePreviewMaintenance()
     {
         if (Previews is null) return null;

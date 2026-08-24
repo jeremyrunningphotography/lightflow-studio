@@ -533,10 +533,12 @@ internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner, Func<strin
 internal sealed record ColorLutReference(Guid LutId, string DisplayName, string ContentSha256,
     LutResourceAvailability Availability, string? Diagnostic = null);
 internal sealed record AssetColorIntent(Guid AssetId, ColorLutReference? Camera, ColorLutReference? Creative,
-    string ColorIdentity, bool ColorEnabled = false)
+    string ColorIdentity, bool LegacyColorEnabled = false)
 {
     public IReadOnlyList<ColorLutReference> OrderedPipeline => new[] { Camera, Creative }.OfType<ColorLutReference>().ToArray();
     public bool HasColor => Camera is not null || Creative is not null;
+    public bool IsActive => HasColor;
+    public bool ColorEnabled => IsActive;
 }
 internal sealed record ColorAssignmentChange(Guid AssetId, Guid? CameraLutId, Guid? CreativeLutId);
 
@@ -546,8 +548,6 @@ internal interface IAssetColorStore
     Task<IReadOnlyDictionary<Guid, AssetColorIntent>> GetAsync(IReadOnlyCollection<Guid> assetIds,
         CancellationToken cancellationToken = default);
     Task SetStageAsync(IReadOnlyCollection<Guid> assetIds, ColorLutStage stage, Guid? lutId,
-        CancellationToken cancellationToken = default);
-    Task SetColorEnabledAsync(IReadOnlyCollection<Guid> assetIds, bool enabled,
         CancellationToken cancellationToken = default);
     Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes, CancellationToken cancellationToken = default);
 }
@@ -591,8 +591,8 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
                 var assetId = Guid.Parse(reader.GetString(0));
                 var camera = ReadReference(reader, 1, availableCamera);
                 var creative = ReadReference(reader, 4, availableCreative);
-                var enabled = reader.GetInt64(7) != 0;
-                result[assetId] = new(assetId, camera, creative, Identity(enabled, camera, creative), enabled);
+                var legacyEnabled = reader.GetInt64(7) != 0;
+                result[assetId] = new(assetId, camera, creative, Identity(camera, creative), legacyEnabled);
             }
         }
         return result;
@@ -620,46 +620,19 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
             command.Transaction = transaction;
             command.CommandText = lutId is null
                 ? (stage == ColorLutStage.Camera
-                    ? "DELETE FROM MediaAssetColor WHERE AssetId=$asset AND CreativeLutId IS NULL AND ColorEnabled=0; UPDATE MediaAssetColor SET CameraLutId=NULL,UpdatedUtc=$now WHERE AssetId=$asset;"
-                    : "DELETE FROM MediaAssetColor WHERE AssetId=$asset AND CameraLutId IS NULL AND ColorEnabled=0; UPDATE MediaAssetColor SET CreativeLutId=NULL,UpdatedUtc=$now WHERE AssetId=$asset;")
+                    ? "UPDATE MediaAssetColor SET CameraLutId=NULL,ColorEnabled=CASE WHEN CreativeLutId IS NULL THEN 0 ELSE 1 END,UpdatedUtc=$now WHERE AssetId=$asset; DELETE FROM MediaAssetColor WHERE AssetId=$asset AND CameraLutId IS NULL AND CreativeLutId IS NULL;"
+                    : "UPDATE MediaAssetColor SET CreativeLutId=NULL,ColorEnabled=CASE WHEN CameraLutId IS NULL THEN 0 ELSE 1 END,UpdatedUtc=$now WHERE AssetId=$asset; DELETE FROM MediaAssetColor WHERE AssetId=$asset AND CameraLutId IS NULL AND CreativeLutId IS NULL;")
                 : stage == ColorLutStage.Camera ? """
-                    INSERT INTO MediaAssetColor (AssetId,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
-                    VALUES ($asset,$lut,NULL,$now,$now)
-                    ON CONFLICT(AssetId) DO UPDATE SET CameraLutId=excluded.CameraLutId,UpdatedUtc=excluded.UpdatedUtc;
+                    INSERT INTO MediaAssetColor (AssetId,ColorEnabled,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
+                    VALUES ($asset,1,$lut,NULL,$now,$now)
+                    ON CONFLICT(AssetId) DO UPDATE SET ColorEnabled=1,CameraLutId=excluded.CameraLutId,UpdatedUtc=excluded.UpdatedUtc;
                     """ : """
-                    INSERT INTO MediaAssetColor (AssetId,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
-                    VALUES ($asset,NULL,$lut,$now,$now)
-                    ON CONFLICT(AssetId) DO UPDATE SET CreativeLutId=excluded.CreativeLutId,UpdatedUtc=excluded.UpdatedUtc;
+                    INSERT INTO MediaAssetColor (AssetId,ColorEnabled,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
+                    VALUES ($asset,1,NULL,$lut,$now,$now)
+                    ON CONFLICT(AssetId) DO UPDATE SET ColorEnabled=1,CreativeLutId=excluded.CreativeLutId,UpdatedUtc=excluded.UpdatedUtc;
                     """;
             command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
             command.Parameters.AddWithValue("$lut", lutId?.ToString("D") ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("$now", now);
-            command.ExecuteNonQuery();
-        }
-        transaction.Commit();
-    }, cancellationToken);
-
-    public Task SetColorEnabledAsync(IReadOnlyCollection<Guid> assetIds, bool enabled,
-        CancellationToken cancellationToken = default) => Task.Run(() =>
-    {
-        var ids = assetIds.Distinct().ToArray();
-        if (ids.Length == 0) return;
-        using var connection = RequireSession().OpenConnection();
-        using var transaction = connection.BeginTransaction();
-        var now = FormatUtc(_utcNow());
-        foreach (var assetId in ids)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            EnsureExists(connection, transaction, "MediaAssets", "AssetId", assetId, "Catalog asset");
-            using var command = connection.CreateCommand();
-            command.Transaction = transaction;
-            command.CommandText = """
-                INSERT INTO MediaAssetColor (AssetId,ColorEnabled,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
-                VALUES ($asset,$enabled,NULL,NULL,$now,$now)
-                ON CONFLICT(AssetId) DO UPDATE SET ColorEnabled=excluded.ColorEnabled,UpdatedUtc=excluded.UpdatedUtc;
-                """;
-            command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
-            command.Parameters.AddWithValue("$enabled", enabled ? 1 : 0);
             command.Parameters.AddWithValue("$now", now);
             command.ExecuteNonQuery();
         }
@@ -687,13 +660,13 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
             command.Transaction = transaction;
             command.Parameters.AddWithValue("$asset", change.AssetId.ToString("D"));
             if (change.CameraLutId is null && change.CreativeLutId is null)
-                command.CommandText = "DELETE FROM MediaAssetColor WHERE AssetId=$asset AND ColorEnabled=0; UPDATE MediaAssetColor SET CameraLutId=NULL,CreativeLutId=NULL,UpdatedUtc=$now WHERE AssetId=$asset;";
+                command.CommandText = "DELETE FROM MediaAssetColor WHERE AssetId=$asset;";
             else
             {
                 command.CommandText = """
-                    INSERT INTO MediaAssetColor (AssetId,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
-                    VALUES ($asset,$camera,$creative,$now,$now)
-                    ON CONFLICT(AssetId) DO UPDATE SET CameraLutId=excluded.CameraLutId,
+                    INSERT INTO MediaAssetColor (AssetId,ColorEnabled,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
+                    VALUES ($asset,1,$camera,$creative,$now,$now)
+                    ON CONFLICT(AssetId) DO UPDATE SET ColorEnabled=1,CameraLutId=excluded.CameraLutId,
                         CreativeLutId=excluded.CreativeLutId,UpdatedUtc=excluded.UpdatedUtc;
                     """;
                 command.Parameters.AddWithValue("$camera", change.CameraLutId?.ToString("D") ?? (object)DBNull.Value);
@@ -730,10 +703,10 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
                 "The assigned LUT is not present in the configured LUT folder.");
     }
 
-    private static AssetColorIntent Empty(Guid assetId) => new(assetId, null, null, Identity(false, null, null));
-    private static string Identity(bool enabled, ColorLutReference? camera, ColorLutReference? creative)
+    private static AssetColorIntent Empty(Guid assetId) => new(assetId, null, null, Identity(null, null));
+    private static string Identity(ColorLutReference? camera, ColorLutReference? creative)
     {
-        var contract = $"lightflow-color-v2\nenabled:{enabled}\ncamera:{camera?.LutId:D}:{camera?.ContentSha256}\ncreative:{creative?.LutId:D}:{creative?.ContentSha256}";
+        var contract = $"lightflow-color-v3\nactive:{camera is not null || creative is not null}\ncamera:{camera?.LutId:D}:{camera?.ContentSha256}\ncreative:{creative?.LutId:D}:{creative?.ContentSha256}";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(contract))).ToLowerInvariant();
     }
     private CatalogDatabaseSession RequireSession() => session() ?? throw new InvalidOperationException("The Catalog is unavailable.");

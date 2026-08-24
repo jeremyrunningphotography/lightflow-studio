@@ -17,7 +17,8 @@ internal sealed record EncodingOutputIdentity(
     {
         var optionText = JsonSerializer.Serialize(new
         {
-            options.Resolution, options.Recovery, options.Encoding, options.LutPath,
+            options.Resolution, options.Recovery, options.Encoding, options.LutPath, options.ColorMode,
+            item.AssignedColor,
             options.FilenameSuffix, options.PreserveFolderStructure
         });
         return new(Path.GetFullPath(item.SourceIdentity), item.SourceSizeBytes ?? 0,

@@ -76,6 +76,8 @@ public class MediaMetadataTests
         Assert.False(differentResolution.HasWarning);
         Assert.Equal("NON-STANDARD FPS", nonStandard.WarningLabel);
         Assert.Contains("drop or duplicate frames", nonStandard.WarningTooltip);
+        Assert.Contains("Exporting", nonStandard.WarningTooltip);
+        Assert.DoesNotContain("Encoding", nonStandard.WarningTooltip);
         Assert.Equal("NO AUDIO", noAudio.WarningLabel);
         Assert.Equal("CHECK MEDIA", both.WarningLabel);
         Assert.DoesNotContain("differs", string.Join(" ", new[] { nonStandard.WarningTooltip, noAudio.WarningTooltip, both.WarningTooltip }), StringComparison.OrdinalIgnoreCase);

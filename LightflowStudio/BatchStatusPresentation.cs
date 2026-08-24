@@ -12,7 +12,7 @@ internal sealed record BatchStatusPresentation(string Text, string ForegroundRes
     public static BatchStatusPresentation For(BatchStatus status) => status switch
     {
         BatchStatus.Ready => new("READY", "SuccessBrush", "ReadyBadgeBackgroundBrush", "ReadyBadgeBorderBrush"),
-        BatchStatus.Encoding => new("ENCODING", "OrangeBrush", "EncodingBadgeBackgroundBrush", "EncodingBadgeBorderBrush"),
+        BatchStatus.Encoding => new("EXPORTING", "OrangeBrush", "EncodingBadgeBackgroundBrush", "EncodingBadgeBorderBrush"),
         BatchStatus.Paused => new("PAUSED", "WarningBrush", "PausedBadgeBackgroundBrush", "PausedBadgeBorderBrush"),
         _ => throw new ArgumentOutOfRangeException(nameof(status))
     };

@@ -28,7 +28,7 @@ internal static class MediaWarningAnalyzer
             var warnings = new List<string>();
             if (missingAudio) warnings.Add("No audio stream was found.");
             if (nonStandardFrameRate)
-                warnings.Add($"{MediaMetadataPresentation.FormatFrameRate(metadata.FrameRate)} fps is not a standard output frame rate. Encoding to a standard rate may drop or duplicate frames.");
+                warnings.Add($"{MediaMetadataPresentation.FormatFrameRate(metadata.FrameRate)} fps is not a standard output frame rate. Exporting at a standard rate may drop or duplicate frames.");
 
             var label = (missingAudio, nonStandardFrameRate) switch
             {

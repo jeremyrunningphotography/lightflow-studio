@@ -10,7 +10,7 @@ internal sealed record EncodingJobHistoryRecord(
     JobPlan<EncodingJobOptions> Plan, JobResult<EncodingItemResult> Result)
 {
     public string CompletedDisplay => CompletedAt.ToLocalTime().ToString("g");
-    public string CapabilityDisplay => "Batch Encoding";
+    public string CapabilityDisplay => "Export";
     public string StateDisplay => State == JobState.CompletedWithWarnings ? "Completed with warnings" : State.ToString();
     public string SummaryDisplay => $"{Result.Summary.Completed + Result.Summary.CompletedWithWarnings} completed · {Result.Summary.Skipped} skipped · {Result.Summary.Failed} failed · {Result.Summary.Cancelled} cancelled";
     public string DetailDisplay => JobHistoryPresentation.Describe(this);
@@ -109,6 +109,12 @@ internal static class JobHistoryPresentation
             lines.Add($"  State: {result?.State.ToString() ?? "Unknown"}");
             if (item.Definition.MediaRange is { } range && !range.IsFullSource)
                 lines.Add($"  Range: {range.EffectiveIn:c} – {range.EffectiveOut:c} ({range.EffectiveDuration:c})");
+            if (item.Definition.AssignedColor is { } color)
+            {
+                lines.Add($"  Assigned Color: {(color.ColorEnabled ? "On" : "Off")}");
+                foreach (var resource in color.OrderedPipeline)
+                    lines.Add($"  {EncodingLutResourceStore.StageName(resource.Stage)}: {resource.DisplayName} ({resource.ContentSha256})");
+            }
             foreach (var output in result?.OutputPaths ?? item.OutputPaths) lines.Add($"  Output: {output}");
             foreach (var warning in result?.Warnings ?? []) lines.Add($"  Warning: {warning}");
             foreach (var error in result?.Errors ?? []) lines.Add($"  Error: {error}");
@@ -165,7 +171,8 @@ internal static class EncodingHistoryRerun
                 }
 
                 var option = new BatchFileOption(source.Item.SourceIdentity,
-                    Path.GetRelativePath(preparation.Options.InputFolder, source.Item.SourceIdentity), info.Length);
+                    Path.GetRelativePath(preparation.Options.InputFolder, source.Item.SourceIdentity), info.Length,
+                    assignedColor: source.Item.AssignedColor);
                 if (source.Item.MediaRange is { } range && !range.IsFullSource) option.ApplyTrim(range);
                 option.IsSelected = true;
                 restored.Add(option);
@@ -183,7 +190,7 @@ internal static class EncodingHistoryRerun
         var restored = restoration.Restored.Count;
         var unavailable = restoration.Unavailable.Count;
         return unavailable == 0
-            ? $"Restored {restored} file{(restored == 1 ? "" : "s")} from History — review before encoding"
+            ? $"Restored {restored} file{(restored == 1 ? "" : "s")} from History — review before export"
             : $"Restored {restored} unchanged file{(restored == 1 ? "" : "s")}; {unavailable} unavailable";
     }
 }

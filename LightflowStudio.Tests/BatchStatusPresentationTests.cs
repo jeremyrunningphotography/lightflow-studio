@@ -7,7 +7,7 @@ public sealed class BatchStatusPresentationTests
 {
     [Theory]
     [InlineData(BatchStatus.Ready, "READY", "SuccessBrush")]
-    [InlineData(BatchStatus.Encoding, "ENCODING", "OrangeBrush")]
+    [InlineData(BatchStatus.Encoding, "EXPORTING", "OrangeBrush")]
     [InlineData(BatchStatus.Paused, "PAUSED", "WarningBrush")]
     internal void For_ReturnsDistinctStatusPresentation(BatchStatus status, string text, string foreground)
     {

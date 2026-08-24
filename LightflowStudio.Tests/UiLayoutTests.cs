@@ -6,6 +6,18 @@ namespace LightflowStudio.Tests;
 public class UiLayoutTests
 {
     [Fact]
+    public void BrowserTiles_ExposeIndependentColorAndTransientThumbnailWorkingIndicators()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var color = Named(document, "BrowserColorStateMarker");
+        var working = Named(document, "BrowserThumbnailWorkingIndicator");
+        Assert.Contains("HasColorState", (string?)color.Attribute("Visibility"));
+        Assert.Contains("IsThumbnailGenerating", (string?)working.Attribute("Visibility"));
+        Assert.Equal("True", (string?)working.Attribute("IsIndeterminate"));
+        Assert.NotNull(working.Ancestors().FirstOrDefault(element => element.Name.LocalName == "Grid")?
+            .Elements().FirstOrDefault(element => element.Name.LocalName == "Image"));
+    }
+    [Fact]
     public void BrowserWorkspace_ExposesFilesystemFirstNavigationAndMediaGrid()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));

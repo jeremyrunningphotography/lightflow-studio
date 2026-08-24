@@ -40,6 +40,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     private DateTime? _captureDate;
     private double? _durationSeconds;
     private BrowserAssetState _assetState;
+    private bool _isThumbnailGenerating;
 
     public BrowserGridTile(MediaFolderEntry entry, int index)
     {
@@ -133,15 +134,28 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
             _assetState = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasUserAuthoredState));
+            OnPropertyChanged(nameof(HasReviewRange));
+            OnPropertyChanged(nameof(HasColorState));
             OnPropertyChanged(nameof(AssetStateLabel));
         }
     }
 
     public bool HasUserAuthoredState => AssetState != BrowserAssetState.None;
+    public bool HasReviewRange => AssetState.HasFlag(BrowserAssetState.ReviewRange);
+    public bool HasColorState => AssetState.HasFlag(BrowserAssetState.Color);
+    public bool IsThumbnailGenerating
+    {
+        get => _isThumbnailGenerating;
+        private set { if (_isThumbnailGenerating == value) return; _isThumbnailGenerating = value; OnPropertyChanged(); }
+    }
 
-    public string AssetStateLabel => AssetState.HasFlag(BrowserAssetState.ReviewRange)
-        ? "Saved In/Out range"
-        : "User-authored asset state";
+    public string AssetStateLabel => (HasReviewRange, HasColorState) switch
+    {
+        (true, true) => "Saved In/Out range; Color assigned",
+        (true, false) => "Saved In/Out range",
+        (false, true) => "Color assigned",
+        _ => "User-authored asset state"
+    };
 
     public void SetAssetId(Guid assetId)
     {
@@ -151,6 +165,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     }
 
     public void SetAssetState(BrowserAssetState state) => AssetState = state;
+    public void SetThumbnailGenerating(bool value) => IsThumbnailGenerating = value;
 
     /// <summary>Applies a metadata probe result in place. Returns true if either sortable value actually changed, so callers can coalesce a re-sort.</summary>
     public bool ApplyMetadata(DateTime? captureDate, double? durationSeconds)
@@ -524,6 +539,17 @@ internal sealed class BrowserGridModel
     public void ApplyAssetStates(IReadOnlyDictionary<Guid, BrowserAssetState> states)
     {
         foreach (var (assetId, state) in states) ApplyAssetState(assetId, state);
+    }
+
+    public void ApplyAssetStateFlag(Guid assetId, BrowserAssetState flag, bool enabled)
+    {
+        if (!_tilesByAsset.TryGetValue(assetId, out var tile)) return;
+        tile.SetAssetState(enabled ? tile.AssetState | flag : tile.AssetState & ~flag);
+    }
+
+    public void ApplyThumbnailGenerating(Guid assetId, bool value)
+    {
+        if (_tilesByAsset.TryGetValue(assetId, out var tile)) tile.SetThumbnailGenerating(value);
     }
 
     public void SetColumns(int columns)

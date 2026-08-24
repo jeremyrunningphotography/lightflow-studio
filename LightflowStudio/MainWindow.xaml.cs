@@ -120,6 +120,8 @@ public partial class MainWindow : Window
         InitializeBrowserQuickFilterButtons();
         SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
+        _storage.ThumbnailActivity.Changed += (_, change) => Dispatcher.BeginInvoke(() =>
+            _browserGrid.ApplyThumbnailGenerating(change.AssetId, change.IsGenerating));
         if (_workspaceState.Current.Browser is { } savedBrowserLocation) ShowBrowserRestoringState(savedBrowserLocation);
         _batchFolderRefreshTimer.Tick += (_, _) =>
         {
@@ -1014,7 +1016,12 @@ public partial class MainWindow : Window
         // scope is active. See BrowserFolderState.RecursiveMediaEntries.
         _browserGrid.Populate(state.RecursiveMediaEntries ?? directFiles);
         UpdateBrowserGridColumns();
-        if (state.DerivedWork is { } batch) _browserGrid.ApplyAssetIdentities(batch.Reconciliation.Items);
+        if (state.DerivedWork is { } batch)
+        {
+            _browserGrid.ApplyAssetIdentities(batch.Reconciliation.Items);
+            foreach (var item in batch.Reconciliation.Items)
+                _browserGrid.ApplyThumbnailGenerating(item.AssetId, _storage.ThumbnailActivity.IsGenerating(item.AssetId));
+        }
         if (state.DerivedWork is { } stateBatch)
             _ = LoadBrowserAssetStatesAsync(stateBatch.Reconciliation.Items, _browserUiGeneration, _browserAssetStateRevision);
         AttachBrowserDerivedWork(state.DerivedWork, _browserUiGeneration);
@@ -1378,12 +1385,35 @@ public partial class MainWindow : Window
         try
         {
             await _storage.AssetColors.SetStageAsync(ids, stage, lutId);
+            var committed = await _storage.AssetColors.GetAsync(ids);
+            foreach (var id in ids)
+            {
+                _browserAssetStateRevisions[id] = ++_browserAssetStateRevision;
+                _browserGrid.ApplyAssetStateFlag(id, BrowserAssetState.Color, committed[id].HasColor);
+            }
             await RefreshBrowserColorSelectorsAsync();
+            _ = RegenerateColorThumbnailsAsync(ids);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException or SqliteException)
         {
             MessageBox.Show($"The {EncodingLutResourceStore.StageName(stage)} LUT assignment failed: {exception.Message}",
                 "Assign Color", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+
+    private async Task RegenerateColorThumbnailsAsync(IReadOnlyList<Guid> ids)
+    {
+        try
+        {
+            var results = await _storage.RegenerateThumbnailsAsync(ids);
+            for (var index = 0; index < results.Count && index < ids.Count; index++)
+                if (results[index].Succeeded && results[index].ThumbnailPath is { } path)
+                    _browserGrid.ApplyThumbnail(ids[index], path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            BrowserStatusText.Text = $"Color thumbnail regeneration could not complete: {exception.Message}";
         }
     }
 
@@ -1454,6 +1484,12 @@ public partial class MainWindow : Window
             _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
             _browserGrid.ApplyAssetState(change.AssetId, change.HasSavedRange
                 ? BrowserAssetState.ReviewRange : BrowserAssetState.None);
+        };
+        _playerViewerHost.ColorStateChanged += (_, change) =>
+        {
+            _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
+            _browserGrid.ApplyAssetStateFlag(change.AssetId, BrowserAssetState.Color, change.HasColor);
+            _ = RegenerateColorThumbnailsAsync([change.AssetId]);
         };
         BrowserPlayerHost.Content = _playerViewerHost;
     }

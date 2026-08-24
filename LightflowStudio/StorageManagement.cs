@@ -67,6 +67,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     private ICatalogRecoveryService _recovery;
     private readonly SemaphoreSlim _mutationGate = new(1, 1);
     private readonly PreviewOperationCoordinator _previewOperations = new();
+    private readonly SemaphoreSlim _thumbnailRegenerationGate = new(2, 2);
     private CatalogDatabaseSession? _catalogSession;
 
     private LightflowStorageCoordinator(IStorageConfigurationStore configuration, AppSettings settings,
@@ -95,15 +96,16 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         MediaTypes = MediaTypeRegistry.CreateDefault();
         MediaFolders = new MediaFolderEnumerator(MediaRoots, MediaTypes, new MediaFolderFileSystem());
         CatalogReconciliation = new CatalogReconciliationService(MediaFolders, MediaAssets);
+        MediaRanges = new CatalogMediaRangeStore(() => _catalogSession);
+        Luts = new CatalogFolderLutLibrary(() => _catalogSession);
+        LutCache = new ApplicationLutLibraryCache(Luts);
+        AssetColors = new CatalogAssetColorStore(() => _catalogSession, LutCache);
+        BrowserAssetStates = new CatalogBrowserAssetStateStore(() => _catalogSession);
+        ThumbnailActivity = new ThumbnailGenerationActivity();
         DerivedWork = CreateDerivedWorkScheduler();
         MediaDiscovery = new MediaDiscoveryRefreshService(CatalogReconciliation, () => DerivedWork);
         RecursiveMediaDiscovery = new RecursiveMediaDiscoveryService(MediaFolders, MediaDiscovery);
         MediaMonitoring = new MediaRootMonitoringService(MediaRoots, MediaDiscovery);
-        MediaRanges = new CatalogMediaRangeStore(() => _catalogSession);
-        BrowserAssetStates = new CatalogBrowserAssetStateStore(() => _catalogSession);
-        Luts = new CatalogFolderLutLibrary(() => _catalogSession);
-        LutCache = new ApplicationLutLibraryCache(Luts);
-        AssetColors = new CatalogAssetColorStore(() => _catalogSession, LutCache);
     }
 
     public AppSettings Settings { get; private set; }
@@ -122,6 +124,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public ILutLibrary Luts { get; }
     public ILutLibraryCache LutCache { get; }
     public IAssetColorStore AssetColors { get; }
+    public IThumbnailGenerationActivity ThumbnailActivity { get; }
     /// <summary>#124 (revised): durable Catalog storage for Browser "Include Subfolders" recursive roots. See <see cref="BrowserRecursiveRoot"/>.</summary>
     public IBrowserRecursiveRootService BrowserRecursiveRoots { get; }
     public IMediaTypeRegistry MediaTypes { get; }
@@ -519,13 +522,18 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             return assetIds.Select(_ => new ThumbnailGenerationResult(ThumbnailGenerationStatus.Failed,
                 Diagnostic: PreviewDiagnostic ?? "Preview storage is unavailable.")).ToArray();
         using var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
-            operations: _previewOperations);
+            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity);
         var results = new List<ThumbnailGenerationResult>(assetIds.Count);
         foreach (var assetId in assetIds.Distinct())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            results.Add(await thumbnails.GenerateAsync(new(assetId, ForceRefresh: true,
-                Priority: ThumbnailPriority.Visible), cancellationToken).ConfigureAwait(false));
+            await _thumbnailRegenerationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                results.Add(await thumbnails.GenerateAsync(new(assetId, ForceRefresh: true,
+                    Priority: ThumbnailPriority.Visible), cancellationToken).ConfigureAwait(false));
+            }
+            finally { _thumbnailRegenerationGate.Release(); }
         }
         return results;
     }
@@ -536,7 +544,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         var metadata = DerivedMediaMetadataFactory.Create(MediaAssets, Previews, Settings,
             operations: _previewOperations);
         var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
-            operations: _previewOperations);
+            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity);
         return new PreviewMaintenanceService(Previews, MediaAssets, metadata, thumbnails,
             _previewOperations, Locations, ownsGenerators: true);
     }
@@ -547,9 +555,9 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         var metadata = DerivedMediaMetadataFactory.Create(MediaAssets, Previews, Settings,
             operations: _previewOperations);
         var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
-            operations: _previewOperations);
+            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity);
         return new DerivedWorkScheduler(MediaAssets, Previews, metadata, thumbnails,
-            ownsGenerators: true, operations: _previewOperations);
+            ownsGenerators: true, operations: _previewOperations, colors: AssetColors);
     }
 
     private async Task DisposeDerivedWorkSchedulerAsync()

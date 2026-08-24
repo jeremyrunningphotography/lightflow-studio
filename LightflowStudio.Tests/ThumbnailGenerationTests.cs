@@ -220,6 +220,92 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
             (await fixture.Coordinator.Previews!.GetAsync(assetId))!.ThumbnailState);
     }
 
+
+    [Fact]
+    public async Task ColorIdentity_ChangesVisualDerivativeWithoutChangingSourceIdentity_AndOrdersStages()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        var source = Path.Combine(fixture.MediaRoot, "clip.mp4");
+        await File.WriteAllTextAsync(source, "unchanged source");
+        var assetId = await fixture.AddAssetAsync("clip.mp4", "video");
+        var cameraId = Guid.NewGuid(); var creativeId = Guid.NewGuid();
+        var colors = new MutableColorStore(new(assetId, null, null, PreviewVisualIdentity.Original));
+        var cache = new FakeLutCache(new Dictionary<Guid, string> { [cameraId] = "camera.cube", [creativeId] = "creative.cube" });
+        var renderer = new ColorAwareRenderer();
+        using var service = new ThumbnailGenerationService(fixture.Coordinator.MediaAssets,
+            fixture.Coordinator.Previews!, fixture.Coordinator.Locations, renderer,
+            colors: colors, lutCache: cache);
+
+        var original = await service.GenerateAsync(new(assetId));
+        var sourceIdentity = (await fixture.Coordinator.Previews!.GetAsync(assetId))!.Source;
+        colors.Intent = new(assetId,
+            new(cameraId, "Camera", "aa", LutResourceAvailability.Available),
+            new(creativeId, "Creative", "bb", LutResourceAvailability.Available), "camera-then-creative");
+        var colored = await service.GenerateAsync(new(assetId));
+        var record = (await fixture.Coordinator.Previews.GetAsync(assetId))!;
+
+        Assert.NotEqual(original.ThumbnailPath, colored.ThumbnailPath);
+        Assert.Equal(sourceIdentity, record.Source);
+        Assert.Equal("camera-then-creative", record.ThumbnailVisualIdentity);
+        Assert.Equal(["camera.cube", "creative.cube"], renderer.LastColor!.OrderedLutPaths);
+        Assert.Equal("unchanged source", await File.ReadAllTextAsync(source));
+    }
+
+    [Fact]
+    public async Task ColorChangeDuringGeneration_DoesNotOverwritePriorThumbnail_AndActivityAlwaysClears()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, "clip.mp4"), "source");
+        var assetId = await fixture.AddAssetAsync("clip.mp4", "video");
+        var colors = new MutableColorStore(new(assetId, null, null, PreviewVisualIdentity.Original));
+        var cache = new FakeLutCache(new Dictionary<Guid, string>());
+        using (var initial = new ThumbnailGenerationService(fixture.Coordinator.MediaAssets,
+                   fixture.Coordinator.Previews!, fixture.Coordinator.Locations, new ColorAwareRenderer(),
+                   colors: colors, lutCache: cache))
+            await initial.GenerateAsync(new(assetId));
+        var before = (await fixture.Coordinator.Previews!.GetAsync(assetId))!;
+        var renderer = new BlockingColorRenderer();
+        var activity = new ThumbnailGenerationActivity();
+        var changes = new List<bool>();
+        activity.Changed += (_, change) => { if (change.AssetId == assetId) changes.Add(change.IsGenerating); };
+        using var service = new ThumbnailGenerationService(fixture.Coordinator.MediaAssets,
+            fixture.Coordinator.Previews, fixture.Coordinator.Locations, renderer,
+            colors: colors, lutCache: cache, activity: activity);
+        var generation = service.GenerateAsync(new(assetId, ForceRefresh: true));
+        await renderer.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        colors.Intent = new(assetId, new(Guid.NewGuid(), "Camera", "cc", LutResourceAvailability.Available),
+            null, "newer-color");
+        renderer.Release.TrySetResult();
+
+        var result = await generation;
+        var after = (await fixture.Coordinator.Previews.GetAsync(assetId))!;
+        Assert.Equal(ThumbnailGenerationStatus.SourceChanged, result.Status);
+        Assert.Equal(before.ThumbnailRelativePath, after.ThumbnailRelativePath);
+        Assert.Equal([true, false], changes);
+    }
+
+    [Fact]
+    public async Task MissingAssignedLut_IsFailedRetryableAndRetainsExistingPixels()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, "clip.mp4"), "source");
+        var assetId = await fixture.AddAssetAsync("clip.mp4", "video");
+        var colors = new MutableColorStore(new(assetId, null, null, PreviewVisualIdentity.Original));
+        var cache = new FakeLutCache(new Dictionary<Guid, string>());
+        using var service = new ThumbnailGenerationService(fixture.Coordinator.MediaAssets,
+            fixture.Coordinator.Previews!, fixture.Coordinator.Locations, new ColorAwareRenderer(),
+            colors: colors, lutCache: cache);
+        var original = await service.GenerateAsync(new(assetId));
+        colors.Intent = new(assetId, new(Guid.NewGuid(), "Missing", "dd", LutResourceAvailability.Missing), null, "missing-color");
+
+        var failed = await service.GenerateAsync(new(assetId));
+        var record = (await fixture.Coordinator.Previews!.GetAsync(assetId))!;
+        Assert.Equal(ThumbnailGenerationStatus.Failed, failed.Status);
+        Assert.Equal(original.ThumbnailPath, failed.ThumbnailPath);
+        Assert.Equal(PreviewComponentState.Failed, record.ThumbnailState);
+        Assert.Equal("missing-color", record.ThumbnailVisualIdentity);
+    }
+
     [Fact]
     public async Task CanceledQueuedWaiter_DoesNotConsumeCapacityAndLaterWorkRuns()
     {
@@ -369,6 +455,51 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
         public Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
             string destinationPath, CancellationToken cancellationToken = default)
         { cancellationToken.ThrowIfCancellationRequested(); CallCount++; WriteJpeg(destinationPath); return Task.FromResult(new ThumbnailRenderResult(ThumbnailGenerationStatus.Succeeded)); }
+    }
+
+    private sealed class ColorAwareRenderer : IThumbnailRenderer
+    {
+        public ThumbnailColorRender? LastColor { get; private set; }
+        public Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
+            string destinationPath, CancellationToken cancellationToken = default)
+            => RenderAsync(sourcePath, mediaType, videoPosition, destinationPath, ThumbnailColorRender.Original, cancellationToken);
+        public Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
+            string destinationPath, ThumbnailColorRender color, CancellationToken cancellationToken = default)
+        { LastColor = color; WriteJpeg(destinationPath); return Task.FromResult(new ThumbnailRenderResult(ThumbnailGenerationStatus.Succeeded)); }
+    }
+
+    private sealed class BlockingColorRenderer : IThumbnailRenderer
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
+            string destinationPath, CancellationToken cancellationToken = default)
+            => RenderAsync(sourcePath, mediaType, videoPosition, destinationPath, ThumbnailColorRender.Original, cancellationToken);
+        public async Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
+            string destinationPath, ThumbnailColorRender color, CancellationToken cancellationToken = default)
+        { Started.TrySetResult(); await Release.Task.WaitAsync(cancellationToken); WriteJpeg(destinationPath); return new(ThumbnailGenerationStatus.Succeeded); }
+    }
+
+    private sealed class MutableColorStore(AssetColorIntent intent) : IAssetColorStore
+    {
+        public AssetColorIntent Intent { get; set; } = intent;
+        public Task<AssetColorIntent> GetAsync(Guid assetId, CancellationToken cancellationToken = default) => Task.FromResult(Intent);
+        public Task<IReadOnlyDictionary<Guid, AssetColorIntent>> GetAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, AssetColorIntent>>(assetIds.ToDictionary(id => id, _ => Intent));
+        public Task SetStageAsync(IReadOnlyCollection<Guid> assetIds, ColorLutStage stage, Guid? lutId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class FakeLutCache(IReadOnlyDictionary<Guid, string> paths) : ILutLibraryCache
+    {
+        public Task InitializeAsync(string cameraFolder, string creativeFolder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task InitializeAsync(string cameraFolder, bool cameraIncludeSubfolders, string creativeFolder, bool creativeIncludeSubfolders, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder, CancellationToken cancellationToken = default) => Task.FromResult(Snapshot(stage));
+        public Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder, bool includeSubfolders, CancellationToken cancellationToken = default) => Task.FromResult(Snapshot(stage));
+        public LutLibrarySnapshot Snapshot(ColorLutStage stage) => new("", [], []);
+        public ManagedLutResource? Get(ColorLutStage stage, Guid lutId) => null;
+        public string ResolvePath(ColorLutStage stage, Guid lutId) => paths.TryGetValue(lutId, out var path) ? path : throw new FileNotFoundException("Assigned LUT unavailable.");
+        public Task<CubeLutData> GetRuntimeAsync(ColorLutStage stage, Guid lutId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeVideoRenderer : IVideoThumbnailRenderer

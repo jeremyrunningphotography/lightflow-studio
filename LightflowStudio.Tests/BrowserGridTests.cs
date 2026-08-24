@@ -6,6 +6,30 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserGridTests
 {
     [Fact]
+    public void TileColorAndWorkingState_AreIndependentAndPreserveThumbnail()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entry = Video(rootId, "clip.mp4");
+        var assetId = Guid.NewGuid();
+        model.Populate([entry]);
+        model.ApplyAssetIdentities([new(assetId, entry.RelativePath, CatalogReconciliationItemStatus.New)]);
+        model.ApplyThumbnail(assetId, @"C:\previews\original.jpg");
+
+        model.ApplyAssetStateFlag(assetId, BrowserAssetState.Color, true);
+        model.ApplyThumbnailGenerating(assetId, true);
+        var tile = Assert.Single(model.Tiles);
+        Assert.True(tile.HasColorState);
+        Assert.True(tile.IsThumbnailGenerating);
+        Assert.Equal(@"C:\previews\original.jpg", tile.ThumbnailPath);
+
+        model.ApplyThumbnailGenerating(assetId, false);
+        model.ApplyAssetStateFlag(assetId, BrowserAssetState.Color, false);
+        Assert.False(tile.IsThumbnailGenerating);
+        Assert.False(tile.HasColorState);
+        Assert.Equal(@"C:\previews\original.jpg", tile.ThumbnailPath);
+    }
+    [Fact]
     public void AssetStateRevisionGuard_BlocksOnlyAssetsChangedAfterAReadBegan()
     {
         const long readRevision = 10;

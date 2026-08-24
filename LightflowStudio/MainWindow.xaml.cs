@@ -3221,7 +3221,7 @@ public partial class MainWindow : Window
                     plan.Definition.Id, plan.Definition.Capability, plan.Definition.CreatedAt,
                     result.StartedAt, result.CompletedAt, result.State, plan.Definition, plan, result));
                 RefreshHistory();
-                CurrentFileText.Text = result.State == JobState.Cancelled ? "Cancelled" : "Batch complete";
+                CurrentFileText.Text = JobRuntimeStatusPresentation.Describe(runtime.Snapshot());
 
                 // The runtime owns the authoritative execution/result; suppress the legacy adapter's
                 // result path in this method's shared finally block.
@@ -3677,13 +3677,7 @@ public partial class MainWindow : Window
             PauseButton.Content = snapshot.State is JobState.Pausing or JobState.Paused ? "Resume" : "Pause";
             if (snapshot.State is JobState.Pausing or JobState.Paused) SetBatchStatus(BatchStatus.Paused);
             else if (snapshot.State is JobState.Running or JobState.Queued) SetBatchStatus(BatchStatus.Encoding);
-            CurrentFileText.Text = snapshot.State switch
-            {
-                JobState.Pausing => $"Pausing after {snapshot.Counts.Running} active export{(snapshot.Counts.Running == 1 ? "" : "s")} finish…",
-                JobState.Paused => "Export paused — active files finished",
-                JobState.Cancelling => $"Cancelling {snapshot.Counts.Running} active export{(snapshot.Counts.Running == 1 ? "" : "s")}…",
-                _ => CurrentFileText.Text
-            };
+            CurrentFileText.Text = JobRuntimeStatusPresentation.Describe(snapshot);
             if (_closeAfterCurrent && snapshot.State == JobState.Paused)
             {
                 _activeJobRuntime?.Cancel();

@@ -13,7 +13,7 @@ internal sealed record DependencyCheckItem(string Name, DependencyHealth Health,
 internal sealed record DependencyHealthReport(IReadOnlyList<DependencyCheckItem> Items)
 {
     public bool IsReady => Items.All(item => item.IsReady);
-    public string Summary => IsReady ? "Everything needed for encoding is ready." : $"{Items.Count(item => !item.IsReady)} item{(Items.Count(item => !item.IsReady) == 1 ? "" : "s")} need attention.";
+    public string Summary => IsReady ? "Everything needed for export is ready." : $"{Items.Count(item => !item.IsReady)} item{(Items.Count(item => !item.IsReady) == 1 ? "" : "s")} need attention.";
 }
 
 internal static class DependencyHealthCheck
@@ -65,7 +65,7 @@ internal static class DependencyHealthCheck
         {
             var result = await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=size=256x256:rate=1", "-frames:v", "1", "-c:v", encoder, "-f", "null", "-"], token);
             return result.ExitCode == 0
-                ? new(name, DependencyHealth.Ready, "Available for encoding.", $"{encoder} successfully started.", "No action is needed.")
+                ? new(name, DependencyHealth.Ready, "Available for export.", $"{encoder} successfully started.", "No action is needed.")
                 : new(name, DependencyHealth.NeedsAttention, "Could not start on this computer.", FirstLine(result.StdErr + result.StdOut, "The encoder test failed."), "Install a current NVIDIA graphics driver and confirm that this computer has a supported NVIDIA GPU.");
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)

@@ -12,7 +12,9 @@ public sealed class EncodedOutputValidatorTests
         Assert.True(EncodedOutputValidator.TryValidate(valid, TimeSpan.FromSeconds(1.5), true, out _));
         Assert.False(EncodedOutputValidator.TryValidate(valid, TimeSpan.FromSeconds(4), true, out var durationError));
         Assert.Contains("differs", durationError);
+        Assert.StartsWith("Exported duration", durationError);
         Assert.False(EncodedOutputValidator.TryValidate("""{"streams":[{"codec_type":"video"}],"format":{"duration":"1.5"}}""", TimeSpan.FromSeconds(1.5), true, out var audioError));
-        Assert.Contains("audio", audioError);
+        Assert.Contains("exported file", audioError);
+        Assert.DoesNotContain("encoded", durationError + audioError, StringComparison.OrdinalIgnoreCase);
     }
 }

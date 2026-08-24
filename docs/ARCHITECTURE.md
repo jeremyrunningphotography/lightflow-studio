@@ -82,17 +82,20 @@ revalidates the saved content before execution. A missing, invalid, unreadable, 
 or Creative resource is an input/stage-specific preflight error and never falls back silently to Original.
 
 Browser-originated batches with assignments expose two mutually exclusive modes. **Render assigned Color** uses
-each input's saved pipeline; either Camera or Creative intent makes current Color active, while both stages at
-`No LUT` means Original. **Original / manual Encoding LUT**
+each input's saved pipeline; either Camera or Creative intent makes current Catalog Color active, while both stages at
+`No LUT` means Original. Current Catalog assets cannot independently disable Color while retaining LUT assignments.
+**Original / manual Export LUT**
 bypasses every assigned pipeline and preserves the existing global No LUT/manual LUT workflow. Assigned Color and
-the global manual LUT cannot be composed implicitly. Heterogeneous batches therefore render each enabled input's
-own Camera → Creative stages without per-file reconfiguration while unassigned or disabled inputs remain Original.
+the global manual LUT cannot be composed implicitly. Heterogeneous batches therefore render each input's materialized
+Camera → Creative stages without per-file reconfiguration, while inputs materialized with no assignments remain Original.
 
 The centralized Encoding filter builder applies video stages deterministically as trim → Camera LUT → Creative LUT
 → deinterlace → frame-rate conversion → scale/pad. Materialized Color is serialized in the ordinary job definition,
 included in output/resume identity and diagnostics, and restored directly by Review & Rerun. Historical and running
 jobs never query current Catalog Color or rescan configured LUT folders. Older history records omit the optional
-per-item snapshot and deserialize as the legacy Original/manual mode.
+per-item snapshot and deserialize as the legacy Original/manual mode. Historical serialized snapshots retain their
+recorded enabled/disabled value for deterministic reruns and backward compatibility; that legacy snapshot field does
+not restore an independently editable disabled-with-assignments state to current Catalog assets.
 
 The Browser-to-Export source context is a directory identity, not a media-asset identity. Handoff therefore
 resolves the current `MediaRootInfo`, applies segment-aware containment to the context's relative folder, and

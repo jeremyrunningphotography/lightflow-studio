@@ -46,7 +46,7 @@ internal sealed class EncodingCapabilityHandoff
         if (!string.Equals(invocation.Capability, "video.encode", StringComparison.Ordinal))
             throw new ArgumentException("This handoff only accepts the video.encode capability.", nameof(invocation));
         if (invocation.AssetIds.Count == 0)
-            return new([], ["Select at least one Catalog asset for Batch Encode."]);
+            return new([], ["Select at least one Catalog asset to Export."]);
 
         var inputs = new List<EncodingHandoffInput>(invocation.AssetIds.Count);
         var errors = new List<string>();
@@ -64,7 +64,7 @@ internal sealed class EncodingCapabilityHandoff
             if (!string.Equals(resolved.Asset.MediaType, "video", StringComparison.OrdinalIgnoreCase) ||
                 !MediaFileCatalog.IsSupported(resolved.Asset.RelativePath))
             {
-                errors.Add($"{name} is not supported by Batch Encode.");
+                errors.Add($"{name} is not supported by Export.");
                 continue;
             }
             if (resolved.RootAvailability != MediaRootAvailability.Online ||

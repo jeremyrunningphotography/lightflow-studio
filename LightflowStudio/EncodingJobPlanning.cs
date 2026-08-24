@@ -86,7 +86,7 @@ internal static class EncodingJobPlanner
         if (definition.Options.ColorMode == EncodingColorMode.OriginalOrManual && !LutPathIsValid(definition.Options.LutPath))
             issues.Add(new("encoding.invalid-lut", "Select a valid .cube LUT or choose No LUT.", JobIssueSeverity.Error));
         if (definition.Options.ColorMode == EncodingColorMode.Assigned && !string.IsNullOrEmpty(definition.Options.LutPath))
-            issues.Add(new("encoding.ambiguous-color", "Assigned Color cannot be combined with a manual Encoding LUT.", JobIssueSeverity.Error));
+            issues.Add(new("encoding.ambiguous-color", "Assigned Color cannot be combined with a manual Export LUT.", JobIssueSeverity.Error));
         colorResources ??= new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory);
 
         var outputJobs = definition.Items.Select(item => new
@@ -147,7 +147,7 @@ internal static class EncodingJobPlanner
             if (preserveExisting && output.Item.ResolvedRange is not null
                 && !EncodingOutputIdentityStore.Matches(output.Path, EncodingOutputIdentity.Create(output.Item, definition.Options), identityCacheDirectory))
                 itemIssues.Add(new("encoding.existing-output-differs",
-                    "The existing output was preserved, but it was created with a different source, trim, or encoding configuration.",
+                    "The existing output was preserved, but it was created with a different source, trim, or export configuration.",
                     JobIssueSeverity.Warning));
             var estimate = useDuration
                 ? JobWorkEstimate.Determinate(JobWorkUnit.MediaDuration, output.Item.MediaRange!.EffectiveDuration.TotalSeconds)

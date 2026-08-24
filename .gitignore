@@ -5,6 +5,5 @@ artifacts/
 dist/
 .cache/
 .tmp-flyleaf-*/
-/.claude/
 *.user
 *.suo

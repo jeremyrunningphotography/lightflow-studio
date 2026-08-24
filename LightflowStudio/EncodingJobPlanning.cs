@@ -14,7 +14,23 @@ internal sealed record EncodingJobOptions(
     bool OverwriteExistingFiles,
     bool DetailedOutput,
     bool IncludeSubfolders = false,
-    EncodingColorMode ColorMode = EncodingColorMode.OriginalOrManual);
+    EncodingColorMode ColorMode = EncodingColorMode.OriginalOrManual,
+    int ParallelExports = EncodingJobConcurrency.Default);
+
+internal static class EncodingJobConcurrency
+{
+    public const int Minimum = 1;
+    public const int Maximum = 8;
+    public const int Default = 2;
+
+    public static int Validate(int value)
+    {
+        if (value is < Minimum or > Maximum)
+            throw new ArgumentOutOfRangeException(nameof(value), value,
+                $"Parallel exports must be between {Minimum} and {Maximum}.");
+        return value;
+    }
+}
 
 internal sealed record EncodingSource(
     string Path,
@@ -79,6 +95,12 @@ internal static class EncodingJobPlanner
         string? identityCacheDirectory = null,
         IEncodingLutResourceStore? colorResources = null)
     {
+        try { EncodingJobConcurrency.Validate(definition.Options.ParallelExports); }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            return new(definition, plannedAt ?? DateTimeOffset.Now, [],
+                [new("encoding.parallel-exports", exception.Message, JobIssueSeverity.Error)], JobWorkUnit.Items);
+        }
         inspectOutput ??= OutputFileSnapshot.Read;
         var issues = new List<JobIssue>();
         if (definition.Items.Count == 0)

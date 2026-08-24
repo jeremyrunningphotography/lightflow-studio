@@ -60,6 +60,9 @@ controls before waiting on LUT discovery, Catalog Color intent, runtime LUT prep
 GPU Color setup. A generation/revision-guarded continuation applies Camera → Creative after those resources become
 available without reopening or interrupting playback. A new Player defaults Color processing to Off with independent
 Camera and Creative `No LUT` selections; assignments remain durable and toggling Color changes presentation only.
+The master switch becomes interactive when Player controls publish and is not gated by background LUT readiness;
+stage selectors require both Color On and published stage snapshots, so enabling early takes effect as soon as those
+choices arrive without starting or waiting on discovery in the media-open path.
 
 ### Presentation
 

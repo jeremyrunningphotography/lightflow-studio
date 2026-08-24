@@ -203,6 +203,7 @@ public partial class PlayerViewerHost : UserControl
             SetAudioControlsEnabled(info.AudioStreams.Count > 0);
             UpdateAudioControlsFromService();
             TransportBar.Visibility = Visibility.Visible;
+            SetColorControlsEnabled(true);
             SetStatus(null);
             _openMilestone?.Invoke(PlayerOpenMilestone.PlayerControlsPublished);
             _ = CompleteColorAfterOpenAsync(generation, token);
@@ -307,8 +308,13 @@ public partial class PlayerViewerHost : UserControl
     private void SetColorControlsEnabled(bool enabled)
     {
         ColorToggleButton.IsEnabled = enabled;
-        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = enabled && _persistentColorEnabled && !_momentaryColorBypass;
+        UpdateColorSelectorEnabled();
     }
+
+    private void UpdateColorSelectorEnabled() =>
+        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = ColorToggleButton.IsEnabled
+            && _cameraLibrary is not null && _creativeLibrary is not null
+            && _persistentColorEnabled && !_momentaryColorBypass;
 
     private async Task<PreparedColor?> PrepareColorAsync(CancellationToken token)
     {
@@ -501,7 +507,7 @@ public partial class PlayerViewerHost : UserControl
         RestoreLiveVideoSurface();
         var enabled = ColorToggleButton.IsChecked == true;
         _persistentColorEnabled = enabled;
-        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = enabled;
+        UpdateColorSelectorEnabled();
         if (!enabled) _momentaryColorBypass = false;
         _service?.SetColorPipeline(_colorPipeline, !enabled);
     }
@@ -974,7 +980,7 @@ public partial class PlayerViewerHost : UserControl
         _updatingColor = true;
         ColorToggleButton.IsChecked = bypass ? false : _persistentColorEnabled;
         _updatingColor = false;
-        CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = _persistentColorEnabled && !bypass;
+        UpdateColorSelectorEnabled();
     }
 
     private static bool IsArrowKeyOwnedByFocusedControl(DependencyObject? element)

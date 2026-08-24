@@ -69,7 +69,7 @@ public sealed class PlayerViewerHostLeaseTests
 
                 await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
                     Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
-                await WaitUntilAsync(() => host.ColorToggleButton.IsEnabled, "saved Color publication");
+                await WaitUntilAsync(() => host.CameraLutCombo.ItemsSource is not null, "saved Color publication");
 
                 Assert.Equal(["open", "presentation", "color"], backend.OpenPresentationOperations);
                 Assert.Null(backend.PipelineAtOpen);
@@ -105,17 +105,27 @@ public sealed class PlayerViewerHostLeaseTests
 
             Assert.Equal(["open", "presentation"], backend.OpenPresentationOperations);
             Assert.True(host.PositionSlider.IsEnabled);
+            Assert.True(host.ColorToggleButton.IsEnabled);
+            Assert.False(host.ColorToggleButton.IsChecked);
+            Assert.False(host.CameraLutCombo.IsEnabled);
+            Assert.False(host.CreativeLutCombo.IsEnabled);
             Assert.Contains(PlayerOpenMilestone.PlayerControlsPublished, milestones);
             Assert.Contains(PlayerOpenMilestone.ColorCacheWaitStarted, milestones);
             Assert.DoesNotContain(PlayerOpenMilestone.ColorCacheWaitCompleted, milestones);
             Assert.True(milestones.IndexOf(PlayerOpenMilestone.PlaybackBackendOpenStarted)
                 < milestones.IndexOf(PlayerOpenMilestone.ColorCacheWaitStarted));
 
+            host.ColorToggleButton.IsChecked = true;
+            host.ColorToggleButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Assert.True(host.ColorToggleButton.IsChecked);
+            Assert.False(host.CameraLutCombo.IsEnabled);
+            Assert.False(host.CreativeLutCombo.IsEnabled);
+
             initialization.SetResult();
             await WaitUntilAsync(() => milestones.Contains(PlayerOpenMilestone.ColorPublished),
                 "background Color publication after LUT initialization");
-            Assert.False(host.CameraLutCombo.IsEnabled);
-            Assert.False(host.CreativeLutCombo.IsEnabled);
+            Assert.True(host.CameraLutCombo.IsEnabled);
+            Assert.True(host.CreativeLutCombo.IsEnabled);
         });
     }
 
@@ -181,7 +191,7 @@ public sealed class PlayerViewerHostLeaseTests
                     MediaPresentationKind.Video, assetId);
                 await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
                     Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
-                await WaitUntilAsync(() => host.ColorToggleButton.IsEnabled, "Color controls");
+                await WaitUntilAsync(() => host.CameraLutCombo.ItemsSource is not null, "Color controls");
 
                 Assert.False(host.ColorToggleButton.IsChecked);
                 Assert.Null(host.ColorToggleButton.Content);
@@ -243,7 +253,7 @@ public sealed class PlayerViewerHostLeaseTests
                 MediaPresentationKind.Video, Guid.NewGuid());
             await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
                 Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
-            await WaitUntilAsync(() => host.ColorToggleButton.IsEnabled, "Color controls");
+            await WaitUntilAsync(() => host.CameraLutCombo.ItemsSource is not null, "Color controls");
             var original = host.CameraLutCombo.SelectedItem;
             host.CameraLutCombo.SelectedIndex = host.CameraLutCombo.Items.Count - 1;
             Assert.Equal(cameraFolder, folders.OpenedDirectory);
@@ -314,7 +324,7 @@ public sealed class PlayerViewerHostLeaseTests
                     MediaPresentationKind.Video, Guid.NewGuid());
                 await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
                     Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
-                await WaitUntilAsync(() => host.ColorToggleButton.IsEnabled, "initial Color publication");
+                await WaitUntilAsync(() => host.CameraLutCombo.ItemsSource is not null, "initial Color publication");
                 var creativeItems = host.CreativeLutCombo.ItemsSource;
 
                 currentCamera = missing;

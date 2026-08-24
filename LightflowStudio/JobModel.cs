@@ -5,6 +5,10 @@ internal enum JobState
     Planned,
     Queued,
     Running,
+    Pausing,
+    Paused,
+    Cancelling,
+    NeedsAttention,
     Completed,
     CompletedWithWarnings,
     Skipped,
@@ -159,3 +163,31 @@ internal sealed record JobProgressSnapshot(
     double CompletedWork,
     double? TotalWork,
     JobWorkUnit WorkUnit);
+
+internal sealed record JobItemRuntimeSnapshot<TData>(
+    Guid ItemId,
+    int Order,
+    JobState State,
+    double? ProgressPercent,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? CompletedAt,
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<string> Errors,
+    TData? Data);
+
+internal sealed record JobRuntimeCounts(
+    int Total, int Waiting, int Running, int Completed, int Failed, int Cancelled, int Skipped);
+
+internal sealed record JobRuntimeSnapshot<TData>(
+    Guid JobId,
+    JobState State,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? CompletedAt,
+    TimeSpan Elapsed,
+    TimeSpan? Eta,
+    JobProgressSnapshot Progress,
+    JobRuntimeCounts Counts,
+    IReadOnlyList<JobItemRuntimeSnapshot<TData>> Items,
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<string> Errors);

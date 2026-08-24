@@ -20,6 +20,7 @@ namespace LightflowStudio;
 
 public partial class MainWindow : Window
 {
+    private static bool JobsRuntimeEnabled => true;
     private string? _ffmpeg;
     private string? _ffprobe;
     private JobCancellation? _jobCancellation;
@@ -38,6 +39,10 @@ public partial class MainWindow : Window
     private readonly ActivityLogFile _activityLogFile = App.ActivityLog;
     private readonly ITrimHistoryStore _trimHistory;
     private readonly IJobHistoryStore _jobHistory;
+    private readonly JobRuntimeStore<EncodingJobOptions, EncodingItemResult> _jobRuntimeStore;
+    private readonly ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult> _jobsRuntime;
+    private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
+    private EncodingJobExecutor? _activeJobExecutor;
     private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
     private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
     private IReadOnlyList<LutOption> _lutOptions = [LutCatalog.NoLut];
@@ -117,6 +122,10 @@ public partial class MainWindow : Window
         _browserNavigation.RecursiveScopeProgressChanged += BrowserNavigation_RecursiveScopeProgressChanged;
         _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
+        _jobRuntimeStore = new JobRuntimeStore<EncodingJobOptions, EncodingItemResult>(storage.Locations.JobRuntimePath);
+        _jobsRuntime = new ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult>(
+            (plan, runtime, paused) => _jobRuntimeStore.Save(plan, runtime, paused));
+        _jobsRuntime.Changed += JobsRuntime_Changed;
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
         InitializeBrowserQuickFilterButtons();
@@ -201,6 +210,7 @@ public partial class MainWindow : Window
                 RefreshCatalogBackups();
                 RefreshHistory();
                 LocateTools();
+                ReportRecoveredJobs();
                 await RefreshDependencyHealthAsync();
                 RefreshBatchFiles();
                 _ = InitializeLutsAsync();
@@ -224,6 +234,7 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _activeJobExecutor?.TerminateAll();
             _browserEncodingHandoffCts?.Cancel();
             _browserEncodingHandoffCts = null;
             if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
@@ -3168,6 +3179,59 @@ public partial class MainWindow : Window
             AppendDetailedLog($"Encoder: {_settings.Encoding.Codec} via NVIDIA NVENC; preset P{_settings.Encoding.EncoderPreset}; {_settings.Encoding.RateControl}; {_settings.Encoding.Container}");
             AppendDetailedLog($"Scanning subfolders: {(Recursive.IsChecked == true ? "Yes" : "No")}; preserve folder structure: {(ShouldPreserveFolderStructure() ? "Yes" : "No")}; overwrite existing files: {(OverwriteExisting.IsChecked == true ? "Yes" : "No")}");
 
+            if (JobsRuntimeEnabled)
+            {
+                execution = null;
+                _activeEncodingJob = null;
+                AppendDetailedLog($"Parallel exports: {plan.Definition.Options.ParallelExports} file-level worker{(plan.Definition.Options.ParallelExports == 1 ? "" : "s")}");
+                var runtimeExecutor = new EncodingJobExecutor(_ffmpeg!, _ffprobe!,
+                    _storage.Locations.OutputIdentityDirectory,
+                    diagnostic: line => _activityLogFile.TryAppend(line));
+                _activeJobExecutor = runtimeExecutor;
+                var runtime = _jobsRuntime.Queue(plan, plan.Definition.Options.ParallelExports,
+                    (item, progress, token) => runtimeExecutor.ExecuteAsync(item, plan.Definition.Options, progress, token));
+                _activeJobRuntime = runtime;
+                PauseButton.IsEnabled = true;
+                using var cancelRegistration = _jobCancellation.Token.Register(runtime.Cancel);
+                var result = await runtime.Completion;
+                outcome = result.State switch
+                {
+                    JobState.Cancelled => "cancelled",
+                    JobState.Failed => "failed",
+                    JobState.CompletedWithWarnings => "completed with warnings",
+                    _ => "completed"
+                };
+                foreach (var itemResult in result.Items)
+                {
+                    var planned = plan.Items.First(item => item.Definition.Id == itemResult.ItemId);
+                    var output = itemResult.OutputPaths.FirstOrDefault() ?? planned.OutputPaths.FirstOrDefault() ?? "output";
+                    AppendLog(itemResult.State switch
+                    {
+                        JobState.Completed => $"Completed: {output}",
+                        JobState.CompletedWithWarnings => $"Completed with warnings: {output}",
+                        JobState.Skipped => $"Preserved existing file: {output}",
+                        JobState.Cancelled => $"Cancelled: {Path.GetFileName(planned.Definition.SourceIdentity)}",
+                        _ => $"FAILED: {planned.Definition.SourceIdentity} — {itemResult.Errors.FirstOrDefault() ?? "Unknown error"}"
+                    });
+                }
+                AppendLog(BatchLogFormatter.Finished(outcome, total,
+                    result.Summary.Completed + result.Summary.CompletedWithWarnings,
+                    result.Summary.Failed, result.Summary.Skipped, batchStart.Elapsed, outputRoot));
+                _jobHistory.Add(new EncodingJobHistoryRecord(
+                    plan.Definition.Id, plan.Definition.Capability, plan.Definition.CreatedAt,
+                    result.StartedAt, result.CompletedAt, result.State, plan.Definition, plan, result));
+                RefreshHistory();
+                CurrentFileText.Text = JobRuntimeStatusPresentation.Describe(runtime.Snapshot());
+
+                // The runtime owns the authoritative execution/result; suppress the legacy adapter's
+                // result path in this method's shared finally block.
+                execution = null;
+                batchStart = null;
+                _activeJobRuntime = null;
+                _activeJobExecutor = null;
+                return;
+            }
+
             var completed = 0;
             foreach (var item in execution.Items)
             {
@@ -3374,6 +3438,8 @@ public partial class MainWindow : Window
             _batchStopwatch = null;
             _closeAfterCurrent = false;
             _activeEncodingJob = null;
+            _activeJobRuntime = null;
+            _activeJobExecutor = null;
             _jobCancellation.Dispose();
             _jobCancellation = null;
             ToggleEncoding(false);
@@ -3577,6 +3643,49 @@ public partial class MainWindow : Window
         FileProgress.Value = _batchProgress.FilePercent;
         EtaText.Text = _batchProgress.StatusText;
     }
+
+    private void ReportRecoveredJobs()
+    {
+        var recovered = _jobRuntimeStore.LoadAll((item, options) => EncodingJobRecovery.Revalidate(
+            item, options, _storage.Locations.OutputIdentityDirectory));
+        foreach (var job in recovered.Where(job => job.Disposition != JobRecoveryDisposition.Terminal))
+        {
+            var state = job.Disposition == JobRecoveryDisposition.NeedsAttention
+                ? "needs attention before it can resume"
+                : job.Disposition == JobRecoveryDisposition.Paused ? "was restored paused" : "is waiting for review";
+            AppendDetailedLog($"Recovered Export job {job.Checkpoint.Plan.Definition.Id} {state}. " +
+                              "It will not start automatically before the Jobs review UI is available.");
+            foreach (var issue in job.Issues) AppendDetailedLog($"Recovery: {issue.Message}");
+        }
+    }
+
+    private void JobsRuntime_Changed(IReadOnlyList<JobRuntimeSnapshot<EncodingItemResult>> jobs)
+    {
+        var activeId = _activeJobRuntime?.Plan.Definition.Id;
+        var snapshot = activeId is null ? null : jobs.FirstOrDefault(job => job.JobId == activeId);
+        if (snapshot is null) return;
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            _batchProgress.ReportBatchPercent(snapshot.Progress.OverallPercent ?? 0);
+            BatchProgress.Value = _batchProgress.BatchPercent;
+            FileProgress.Value = snapshot.Items.Where(item => item.State == JobState.Running)
+                .Select(item => item.ProgressPercent ?? 0).DefaultIfEmpty(0).Average();
+            EtaText.Text = snapshot.Eta is { } eta
+                ? $"Completed {snapshot.Counts.Completed + snapshot.Counts.Skipped} of {snapshot.Counts.Total} — estimated remaining: {eta:hh\\:mm\\:ss}"
+                : $"Completed {snapshot.Counts.Completed + snapshot.Counts.Skipped} of {snapshot.Counts.Total} — estimated remaining: unavailable";
+            PauseButton.IsEnabled = snapshot.State is JobState.Running or JobState.Pausing or JobState.Paused or JobState.Queued;
+            PauseButton.Content = snapshot.State is JobState.Pausing or JobState.Paused ? "Resume" : "Pause";
+            if (snapshot.State is JobState.Pausing or JobState.Paused) SetBatchStatus(BatchStatus.Paused);
+            else if (snapshot.State is JobState.Running or JobState.Queued) SetBatchStatus(BatchStatus.Encoding);
+            CurrentFileText.Text = JobRuntimeStatusPresentation.Describe(snapshot);
+            if (_closeAfterCurrent && snapshot.State == JobState.Paused)
+            {
+                _activeJobRuntime?.Cancel();
+                _forceClose = true;
+                _ = Dispatcher.BeginInvoke(new Action(Close));
+            }
+        });
+    }
     private void ToggleEncoding(bool running)
     {
         BatchSourceConfiguration.IsEnabled = !running;
@@ -3605,6 +3714,20 @@ public partial class MainWindow : Window
     }
     private void Pause_Click(object sender, RoutedEventArgs e)
     {
+        if (_activeJobRuntime is { } runtime)
+        {
+            if (runtime.IsPauseRequested)
+            {
+                runtime.Resume();
+                AppendLog("Export resumed by user.");
+            }
+            else
+            {
+                runtime.Pause();
+                AppendLog("Export is pausing; active file exports will finish and no new files will start.");
+            }
+            return;
+        }
         var process = _activeEncodingProcess;
         if (process is null) return;
 
@@ -3639,6 +3762,25 @@ public partial class MainWindow : Window
         if (_jobCancellation is null || _forceClose) return;
 
         e.Cancel = true;
+        if (_activeJobRuntime is { } runtime)
+        {
+            var jobsDialog = new EncodingCloseDialog { Owner = this };
+            jobsDialog.ShowDialog();
+            if (jobsDialog.Choice == EncodingCloseChoice.CloseNow)
+            {
+                _forceClose = true;
+                CancelActiveEncoding();
+                _ = Dispatcher.BeginInvoke(new Action(Close));
+            }
+            else if (jobsDialog.Choice == EncodingCloseChoice.CloseAfterCurrent)
+            {
+                _closeAfterCurrent = true;
+                runtime.Pause();
+                CurrentFileText.Text = "Will close after active file exports finish";
+                AppendLog("Close requested — no new files will start; Lightflow will close after active exports finish.");
+            }
+            return;
+        }
         var pausedProcess = _activeEncodingProcess;
         var wasAlreadyPaused = _encodingPause.IsPaused;
         var processPaused = wasAlreadyPaused || _encodingPause.Pause(pausedProcess);
@@ -3679,6 +3821,8 @@ public partial class MainWindow : Window
 
     private void CancelActiveEncoding()
     {
+        _activeJobRuntime?.Cancel();
+        _activeJobExecutor?.TerminateAll();
         _jobCancellation?.Cancel();
         _activeEncodingJob?.CancelPending();
         try

@@ -34,3 +34,7 @@ recovering video files.
 
 All video tools should share input picking, media inspection, destination rules, progress,
 cancellation, logs, and result summaries.
+
+Export execution uses the shared, WPF-independent Jobs runtime over the existing typed Encoding plan and FFmpeg adapter. `Parallel exports` is persisted materialized file-level concurrency (1–8, default 2), not FFmpeg thread count. Pause is drain-and-pause: no new files start, active files finish, then the Job becomes Paused. Active drain time counts as processing time; only the fully Paused interval is excluded from elapsed time and resumed ETA. Cancellation reports `Cancelling` while accepted cancellation is terminating active FFmpeg process trees, then terminal `Cancelled`; incomplete `.lightflow` outputs are removed while completed results are preserved.
+
+Operational Jobs checkpoints are separate from History. Restart never treats a previously Running item or a merely existing output as complete; source/output/LUT identity is revalidated and uncertain work becomes Needs Attention for the future Jobs UI. History remains the final provenance and Review & Rerun record.

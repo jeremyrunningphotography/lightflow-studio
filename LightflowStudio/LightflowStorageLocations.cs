@@ -39,6 +39,7 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
     public required string StatePath { get; init; }
     public required string WorkspaceStatePath { get; init; }
     public required string JobHistoryPath { get; init; }
+    public string JobRuntimePath => Path.Combine(ApplicationDataDirectory, "jobs-runtime.json");
     public required string TrimHistoryPath { get; init; }
     public required string OutputIdentityDirectory { get; init; }
     public required string CatalogDirectory { get; init; }

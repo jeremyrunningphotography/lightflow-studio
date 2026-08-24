@@ -34,7 +34,7 @@ internal static class BrowserLutActionPicker
         var stageName = EncodingLutResourceStore.StageName(stage);
         var options = Build(stageName, resources).Skip(1).ToList();
         if (intents.Count == 0)
-            return new([new(null, $"{stageName} LUT…", IsAction: false)], 0);
+            return new([new(null, "No LUT", IsAction: false)], 0);
         var references = intents.Select(intent => stage == ColorLutStage.Camera ? intent.Camera : intent.Creative).ToList();
         var distinct = references.Select(reference => reference?.LutId).Distinct().ToList();
         if (distinct.Count > 1)

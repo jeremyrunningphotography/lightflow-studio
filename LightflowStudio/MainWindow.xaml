@@ -171,7 +171,7 @@
    <Setter Property="Margin" Value="2,0"/>
    <Setter Property="FontSize" Value="12"/>
    <Setter Property="ItemTemplate">
-    <Setter.Value><DataTemplate><TextBlock MaxWidth="280" Text="{Binding}" TextTrimming="CharacterEllipsis"/></DataTemplate></Setter.Value>
+    <Setter.Value><DataTemplate><TextBlock MaxWidth="280" Text="{Binding Label}" TextTrimming="CharacterEllipsis"/></DataTemplate></Setter.Value>
    </Setter>
   </Style>
 

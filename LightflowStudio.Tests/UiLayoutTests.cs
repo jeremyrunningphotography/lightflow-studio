@@ -756,7 +756,8 @@ public class UiLayoutTests
             setter => (string?)setter.Attribute("Property") == "MinWidth");
         Assert.Contains(document.Descendants(ns + "Style").Single(style =>
                 (string?)style.Attribute(x + "Key") == "BrowserSelectionLutComboStyle").Descendants(ns + "TextBlock"),
-            text => (string?)text.Attribute("TextTrimming") == "CharacterEllipsis");
+            text => (string?)text.Attribute("Text") == "{Binding Label}" &&
+                    (string?)text.Attribute("TextTrimming") == "CharacterEllipsis");
         var actionNames = actions.Descendants().Select(element => (string?)element.Attribute(x + "Name"))
             .Where(name => name is not null).ToList();
         Assert.True(actionNames.IndexOf("BrowserCameraLutCombo") < actionNames.IndexOf("BrowserCreativeLutCombo"));

@@ -64,6 +64,9 @@ public sealed class BrowserSelectionActionTests
         var neutral = BrowserLutActionPicker.Build("Camera", [resource]);
         var original = BrowserLutActionPicker.Present(ColorLutStage.Camera, [resource],
             [new(Guid.NewGuid(), null, null, "original")]);
+        var noSelection = BrowserLutActionPicker.Present(ColorLutStage.Camera, [resource], []);
+        var single = BrowserLutActionPicker.Present(ColorLutStage.Camera, [resource],
+            [new(Guid.NewGuid(), assigned, null, "one")]);
         var shared = BrowserLutActionPicker.Present(ColorLutStage.Camera, [resource],
             [new(Guid.NewGuid(), assigned, null, "one"), new(Guid.NewGuid(), assigned, null, "two")]);
         var mixed = BrowserLutActionPicker.Present(ColorLutStage.Camera, [resource],
@@ -71,8 +74,13 @@ public sealed class BrowserSelectionActionTests
 
         Assert.Equal("Camera LUT…", neutral[0].Label);
         Assert.False(neutral[0].IsAction);
+        Assert.Equal("No LUT", noSelection.Options[noSelection.SelectedIndex].Label);
+        Assert.False(noSelection.Options[noSelection.SelectedIndex].IsAction);
         Assert.Equal("No LUT", original.Options[original.SelectedIndex].Label);
+        Assert.Equal(lutId, single.Options[single.SelectedIndex].LutId);
+        Assert.Equal(resource.DisplayName, single.Options[single.SelectedIndex].Label);
         Assert.Equal(lutId, shared.Options[shared.SelectedIndex].LutId);
+        Assert.Equal(resource.DisplayName, shared.Options[shared.SelectedIndex].Label);
         Assert.Equal("Mixed", mixed.Options[mixed.SelectedIndex].Label);
         Assert.False(mixed.Options[mixed.SelectedIndex].IsAction);
     }

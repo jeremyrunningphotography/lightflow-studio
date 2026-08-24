@@ -116,6 +116,78 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
         });
     }
 
+    [Fact]
+    public async Task BrowserLutCombo_RendersOptionLabelsForSelectedValueAndDropdownItems()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var startup = await LightflowStorageCoordinator.StartAsync(_appDataRoot);
+            Assert.True(startup.IsReady, startup.Diagnostic);
+            var storage = startup.Coordinator!;
+            var window = NewOffscreenWindow(storage, startup);
+            Window? comboWindow = null;
+            try
+            {
+                window.Show();
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                await WaitUntilAsync(() =>
+                        window.BrowserCameraLutCombo.SelectedItem is BrowserLutActionOption { Label: "No LUT" } &&
+                        window.BrowserCreativeLutCombo.SelectedItem is BrowserLutActionOption { Label: "No LUT" },
+                    "empty-selection LUT presentation");
+                Assert.False(window.BrowserCameraLutCombo.IsEnabled);
+                Assert.False(window.BrowserCreativeLutCombo.IsEnabled);
+                var combo = new ComboBox
+                {
+                    Style = Assert.IsType<Style>(window.FindResource("BrowserSelectionLutComboStyle"))
+                };
+                comboWindow = new Window
+                {
+                    Content = combo, Width = 240, Height = 100,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = -32000, Top = -32000, ShowInTaskbar = false
+                };
+                comboWindow.Show();
+                var expected = "Persisted Camera LUT";
+                var presentation = new BrowserLutPickerPresentation(
+                    [new BrowserLutActionOption(Guid.NewGuid(), expected)], 0);
+                var apply = typeof(MainWindow).GetMethod("ApplyBrowserLutPresentation",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+                    ?? throw new MissingMethodException(nameof(MainWindow), "ApplyBrowserLutPresentation");
+
+                apply.Invoke(null, [combo, presentation]);
+                combo.ApplyTemplate();
+                combo.UpdateLayout();
+                Assert.Contains(VisualText(combo), text => text == expected);
+                Assert.DoesNotContain(VisualText(combo), text =>
+                    text.Contains(nameof(BrowserLutActionOption), StringComparison.Ordinal));
+
+                combo.IsDropDownOpen = true;
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                var item = Assert.IsType<ComboBoxItem>(combo.ItemContainerGenerator.ContainerFromIndex(0));
+                item.ApplyTemplate();
+                item.UpdateLayout();
+                Assert.Contains(VisualText(item), text => text == expected);
+                Assert.DoesNotContain(VisualText(item), text =>
+                    text.Contains(nameof(BrowserLutActionOption), StringComparison.Ordinal));
+            }
+            finally
+            {
+                comboWindow?.Close();
+                window.Close();
+                await storage.DisposeAsync();
+            }
+        });
+    }
+
+    private static IEnumerable<string> VisualText(DependencyObject root)
+    {
+        if (root is TextBlock text && !string.IsNullOrEmpty(text.Text)) yield return text.Text;
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+            foreach (var childText in VisualText(VisualTreeHelper.GetChild(root, index)))
+                yield return childText;
+    }
+
     private static async Task<BrowserGridTile?> WaitForTileAsync(MainWindow window)
     {
         await WaitUntilAsync(() => window.BrowserGridRows.Items.Count > 0, "the grid to populate a row");

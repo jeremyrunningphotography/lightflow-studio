@@ -29,7 +29,7 @@ public partial class PlayerViewerHost : UserControl
     private readonly IMediaRangeStore? _rangeStore;
     private readonly IFrameScreengrabService? _screengrabService;
     private readonly IFolderLauncher _folderLauncher;
-    private readonly ILutLibrary? _lutLibrary;
+    private readonly ILutLibraryCache? _lutCache;
     private readonly IAssetColorStore? _assetColors;
     private readonly Func<string>? _cameraLutFolder;
     private readonly Func<string>? _creativeLutFolder;
@@ -53,7 +53,6 @@ public partial class PlayerViewerHost : UserControl
     private LutLibrarySnapshot? _cameraLibrary;
     private LutLibrarySnapshot? _creativeLibrary;
     private long _colorRefreshRevision;
-    private CancellationTokenSource? _colorRefreshCancellation;
 
     private sealed record LutChoice(Guid? LutId, string DisplayName, bool OpensFolder = false)
     {
@@ -64,14 +63,14 @@ public partial class PlayerViewerHost : UserControl
 
     internal PlayerViewerHost(MediaPlaybackCoordinator coordinator, IMediaRangeStore? rangeStore = null,
         IFrameScreengrabService? screengrabService = null, IFolderLauncher? folderLauncher = null,
-        ILutLibrary? lutLibrary = null, IAssetColorStore? assetColors = null,
+        ILutLibraryCache? lutCache = null, IAssetColorStore? assetColors = null,
         Func<string>? cameraLutFolder = null, Func<string>? creativeLutFolder = null)
     {
         _coordinator = coordinator;
         _rangeStore = rangeStore;
         _screengrabService = screengrabService;
         _folderLauncher = folderLauncher ?? new ShellFolderLauncher();
-        _lutLibrary = lutLibrary;
+        _lutCache = lutCache;
         _assetColors = assetColors;
         _cameraLutFolder = cameraLutFolder;
         _creativeLutFolder = creativeLutFolder;
@@ -273,9 +272,6 @@ public partial class PlayerViewerHost : UserControl
         _colorPipeline = null;
         _cameraLibrary = _creativeLibrary = null;
         _colorRefreshRevision++;
-        _colorRefreshCancellation?.Cancel();
-        _colorRefreshCancellation?.Dispose();
-        _colorRefreshCancellation = null;
         _momentaryColorBypass = false;
         _updatingColor = true;
         CameraLutCombo.ItemsSource = CreativeLutCombo.ItemsSource = null;
@@ -311,28 +307,26 @@ public partial class PlayerViewerHost : UserControl
 
     private async Task<PreparedColor?> PrepareColorAsync(CancellationToken token)
     {
-        if (_currentAsset?.AssetId is not Guid assetId || _lutLibrary is null || _assetColors is null
+        if (_currentAsset?.AssetId is not Guid assetId || _lutCache is null || _assetColors is null
             || _cameraLutFolder is null || _creativeLutFolder is null) return null;
-        string cameraFolder, creativeFolder;
         LutLibrarySnapshot cameraLibrary, creativeLibrary;
         AssetColorIntent intent;
         try
         {
-            cameraFolder = _cameraLutFolder();
-            creativeFolder = _creativeLutFolder();
-            cameraLibrary = await _lutLibrary.RefreshAsync(cameraFolder, token).ConfigureAwait(true);
-            creativeLibrary = await _lutLibrary.RefreshAsync(creativeFolder, token).ConfigureAwait(true);
+            await _lutCache.WaitUntilInitializedAsync(token).ConfigureAwait(true);
+            cameraLibrary = _lutCache.Snapshot(ColorLutStage.Camera);
+            creativeLibrary = _lutCache.Snapshot(ColorLutStage.Creative);
             intent = await _assetColors.GetAsync(assetId, token).ConfigureAwait(true);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception exception) { SetStatus($"Color assignments could not be loaded. {exception.Message}"); return null; }
         CubeLutData? camera = null, creative = null;
         if (intent.Camera is { Availability: LutResourceAvailability.Available } cam)
-            camera = await Task.Run(() => CubeLutData.Load(_lutLibrary.ResolvePathAsync(cam.LutId,
-                cameraFolder, token).GetAwaiter().GetResult()), token).ConfigureAwait(true);
+            camera = await Task.Run(() => CubeLutData.Load(_lutCache.ResolvePath(ColorLutStage.Camera, cam.LutId)),
+                token).ConfigureAwait(true);
         if (intent.Creative is { Availability: LutResourceAvailability.Available } look)
-            creative = await Task.Run(() => CubeLutData.Load(_lutLibrary.ResolvePathAsync(look.LutId,
-                creativeFolder, token).GetAwaiter().GetResult()), token).ConfigureAwait(true);
+            creative = await Task.Run(() => CubeLutData.Load(_lutCache.ResolvePath(ColorLutStage.Creative, look.LutId)),
+                token).ConfigureAwait(true);
         var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>()
             .FirstOrDefault(x => x.Availability != LutResourceAvailability.Available);
         return new(cameraLibrary, creativeLibrary, intent, new(camera, creative), missing is null ? null
@@ -374,28 +368,24 @@ public partial class PlayerViewerHost : UserControl
         CancellationToken token = default)
     {
         if ((!cameraChanged && !creativeChanged) || _currentAsset?.AssetId is not Guid assetId
-            || _service is null || _lutLibrary is null || _assetColors is null
+            || _service is null || _lutCache is null || _assetColors is null
             || _cameraLutFolder is null || _creativeLutFolder is null) return;
         var revision = ++_colorRefreshRevision;
         var generation = _generation;
-        _colorRefreshCancellation?.Cancel();
-        _colorRefreshCancellation?.Dispose();
-        var refreshCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
-        _colorRefreshCancellation = refreshCancellation;
-        var refreshToken = refreshCancellation.Token;
         try
         {
+            await _lutCache.WaitUntilInitializedAsync(token).ConfigureAwait(true);
             var cameraLibrary = cameraChanged
-                ? await _lutLibrary.RefreshAsync(_cameraLutFolder(), refreshToken).ConfigureAwait(true)
+                ? _lutCache.Snapshot(ColorLutStage.Camera)
                 : _cameraLibrary;
             var creativeLibrary = creativeChanged
-                ? await _lutLibrary.RefreshAsync(_creativeLutFolder(), refreshToken).ConfigureAwait(true)
+                ? _lutCache.Snapshot(ColorLutStage.Creative)
                 : _creativeLibrary;
             if (cameraLibrary is null || creativeLibrary is null) return;
-            var intent = await _assetColors.GetAsync(assetId, refreshToken).ConfigureAwait(true);
-            var camera = cameraChanged ? await LoadStageAsync(intent.Camera, _cameraLutFolder(), refreshToken).ConfigureAwait(true)
+            var intent = await _assetColors.GetAsync(assetId, token).ConfigureAwait(true);
+            var camera = cameraChanged ? await LoadStageAsync(ColorLutStage.Camera, intent.Camera, token).ConfigureAwait(true)
                 : _colorPipeline?.Camera;
-            var creative = creativeChanged ? await LoadStageAsync(intent.Creative, _creativeLutFolder(), refreshToken).ConfigureAwait(true)
+            var creative = creativeChanged ? await LoadStageAsync(ColorLutStage.Creative, intent.Creative, token).ConfigureAwait(true)
                 : _colorPipeline?.Creative;
             if (revision != _colorRefreshRevision || generation != _generation || _service is null) return;
 
@@ -427,21 +417,13 @@ public partial class PlayerViewerHost : UserControl
             if (revision == _colorRefreshRevision && generation == _generation)
                 SetStatus($"The Player LUT folders could not be refreshed. {exception.Message}");
         }
-        finally
-        {
-            if (ReferenceEquals(_colorRefreshCancellation, refreshCancellation))
-            {
-                _colorRefreshCancellation = null;
-                refreshCancellation.Dispose();
-            }
-        }
     }
 
-    private async Task<CubeLutData?> LoadStageAsync(ColorLutReference? reference, string folder,
+    private async Task<CubeLutData?> LoadStageAsync(ColorLutStage stage, ColorLutReference? reference,
         CancellationToken token)
     {
         if (reference is not { Availability: LutResourceAvailability.Available }) return null;
-        var path = await _lutLibrary!.ResolvePathAsync(reference.LutId, folder, token).ConfigureAwait(true);
+        var path = _lutCache!.ResolvePath(stage, reference.LutId);
         return await Task.Run(() => CubeLutData.Load(path), token).ConfigureAwait(true);
     }
 
@@ -451,9 +433,9 @@ public partial class PlayerViewerHost : UserControl
         {
             CubeLutData? camera = null, creative = null;
             if (intent.Camera is { Availability: LutResourceAvailability.Available } cam)
-                camera = await Task.Run(() => CubeLutData.Load(_lutLibrary!.ResolvePathAsync(cam.LutId, _cameraLutFolder!(), token).GetAwaiter().GetResult()), token);
+                camera = await Task.Run(() => CubeLutData.Load(_lutCache!.ResolvePath(ColorLutStage.Camera, cam.LutId)), token);
             if (intent.Creative is { Availability: LutResourceAvailability.Available } look)
-                creative = await Task.Run(() => CubeLutData.Load(_lutLibrary!.ResolvePathAsync(look.LutId, _creativeLutFolder!(), token).GetAwaiter().GetResult()), token);
+                creative = await Task.Run(() => CubeLutData.Load(_lutCache!.ResolvePath(ColorLutStage.Creative, look.LutId)), token);
             var missing = new[] { intent.Camera, intent.Creative }.OfType<ColorLutReference>().FirstOrDefault(x => x.Availability != LutResourceAvailability.Available);
             _colorPipeline = new(camera, creative);
             RestoreLiveVideoSurface();

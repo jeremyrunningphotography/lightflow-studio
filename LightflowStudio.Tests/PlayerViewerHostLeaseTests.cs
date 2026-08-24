@@ -13,6 +13,31 @@ namespace LightflowStudio.Tests;
 [Collection("STA dispatcher tests")]
 public sealed class PlayerViewerHostLeaseTests
 {
+    [Fact]
+    public async Task OpeningManyAssetsUsesCachedLutsWithoutAnyDiscoveryRefresh()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var cache = new FakeLutLibrary();
+            var colors = new FakeColorStore();
+            var backend = new FakeBackend();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var host = new PlayerViewerHost(coordinator, lutCache: cache, assetColors: colors,
+                cameraLutFolder: () => Path.GetTempPath(), creativeLutFolder: () => Path.GetTempPath());
+
+            for (var index = 0; index < 10; index++)
+            {
+                var asset = new PlayerViewerAsset(Guid.NewGuid(), $"clip-{index}.mp4", $"clip-{index}.mp4",
+                    $"clip-{index}.mp4", MediaPresentationKind.Video, Guid.NewGuid());
+                await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
+                    Path.GetFullPath(asset.RelativePath), MediaRootAvailability.Online, true));
+            }
+
+            Assert.Equal(0, cache.RefreshCount);
+        });
+    }
+
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]
@@ -37,7 +62,7 @@ public sealed class PlayerViewerHostLeaseTests
                 var colors = new FakeColorStore(new AssetColorIntent(Guid.Empty, camera, creative, "saved"));
                 var backend = new FakeBackend();
                 await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
-                var host = new PlayerViewerHost(coordinator, lutLibrary: library, assetColors: colors,
+                var host = new PlayerViewerHost(coordinator, lutCache: library, assetColors: colors,
                     cameraLutFolder: () => folder.FullName, creativeLutFolder: () => folder.FullName);
                 var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4",
                     MediaPresentationKind.Video, Guid.NewGuid());
@@ -63,7 +88,7 @@ public sealed class PlayerViewerHostLeaseTests
             var backend = new FakeBackend();
             var colors = new FakeColorStore();
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
-            var host = new PlayerViewerHost(coordinator, lutLibrary: new FakeLutLibrary(), assetColors: colors,
+            var host = new PlayerViewerHost(coordinator, lutCache: new FakeLutLibrary(), assetColors: colors,
                 cameraLutFolder: () => Path.GetTempPath(), creativeLutFolder: () => Path.GetTempPath());
             var window = new Window { Content = host, Width = 600, Height = 400, ShowInTaskbar = false };
             window.Show();
@@ -132,7 +157,7 @@ public sealed class PlayerViewerHostLeaseTests
             var cameraFolder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"camera-{Guid.NewGuid():N}")).FullName;
             var creativeFolder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"creative-{Guid.NewGuid():N}")).FullName;
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
-            var host = new PlayerViewerHost(coordinator, folderLauncher: folders, lutLibrary: new FakeLutLibrary(),
+            var host = new PlayerViewerHost(coordinator, folderLauncher: folders, lutCache: new FakeLutLibrary(),
                 assetColors: colors, cameraLutFolder: () => cameraFolder,
                 creativeLutFolder: () => creativeFolder);
             var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4",
@@ -188,12 +213,14 @@ public sealed class PlayerViewerHostLeaseTests
                     [creativeFolder] = [Resource(creativeId, "Creative", paths[creativeId])]
                 };
                 var currentCamera = initial;
-                var library = new DynamicLutLibrary(async (folder, token) =>
+                var scanner = new DynamicLutLibrary(async (folder, token) =>
                 {
                     if (string.Equals(folder, slow, StringComparison.OrdinalIgnoreCase)) await Task.Delay(500, token);
                     return new(folder, snapshots[folder], []);
                 }, paths.Concat(new[] { new KeyValuePair<Guid, string>(cameraId, Path.Combine(same, "Moved Camera.cube")) })
                     .GroupBy(item => item.Key).ToDictionary(group => group.Key, group => group.Last().Value));
+                using var library = new ApplicationLutLibraryCache(scanner);
+                await library.InitializeAsync(initial, creativeFolder);
                 var colors = new FakeColorStore(assetId => new(assetId,
                     new(cameraId, "Camera", "camera", (currentCamera == initial || currentCamera == same)
                         ? LutResourceAvailability.Available : LutResourceAvailability.Missing,
@@ -201,7 +228,7 @@ public sealed class PlayerViewerHostLeaseTests
                     new(creativeId, "Creative", "creative", LutResourceAvailability.Available), "saved"));
                 var backend = new FakeBackend();
                 await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
-                var host = new PlayerViewerHost(coordinator, lutLibrary: library, assetColors: colors,
+                var host = new PlayerViewerHost(coordinator, lutCache: library, assetColors: colors,
                     cameraLutFolder: () => currentCamera, creativeLutFolder: () => creativeFolder);
                 var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4",
                     MediaPresentationKind.Video, Guid.NewGuid());
@@ -210,21 +237,24 @@ public sealed class PlayerViewerHostLeaseTests
                 var creativeItems = host.CreativeLutCombo.ItemsSource;
 
                 currentCamera = missing;
+                await library.RefreshAsync(ColorLutStage.Camera, currentCamera);
                 await host.RefreshColorFoldersAsync(cameraChanged: true, creativeChanged: false);
                 Assert.Contains("Unavailable", host.CameraLutCombo.SelectedItem!.ToString());
                 Assert.Same(creativeItems, host.CreativeLutCombo.ItemsSource);
                 Assert.Equal(0, colors.SetCount);
 
                 currentCamera = same;
+                await library.RefreshAsync(ColorLutStage.Camera, currentCamera);
                 await host.RefreshColorFoldersAsync(cameraChanged: true, creativeChanged: false);
                 Assert.Contains("Moved Camera", host.CameraLutCombo.SelectedItem!.ToString());
 
                 currentCamera = slow;
-                var stale = host.RefreshColorFoldersAsync(cameraChanged: true, creativeChanged: false);
+                var stale = library.RefreshAsync(ColorLutStage.Camera, currentCamera);
                 await Task.Delay(25);
                 currentCamera = fast;
-                var latest = host.RefreshColorFoldersAsync(cameraChanged: true, creativeChanged: false);
+                var latest = library.RefreshAsync(ColorLutStage.Camera, currentCamera);
                 await Task.WhenAll(stale, latest);
+                await host.RefreshColorFoldersAsync(cameraChanged: true, creativeChanged: false);
                 Assert.Contains(host.CameraLutCombo.Items.Cast<object>(), item => item.ToString()!.Contains("Fast"));
                 Assert.DoesNotContain(host.CameraLutCombo.Items.Cast<object>(), item => item.ToString()!.Contains("Slow"));
             }
@@ -574,16 +604,19 @@ public sealed class PlayerViewerHostLeaseTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class FakeLutLibrary(IReadOnlyDictionary<Guid, string>? paths = null) : ILutLibrary
+    private sealed class FakeLutLibrary(IReadOnlyDictionary<Guid, string>? paths = null) : ILutLibraryCache
     {
-        public Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new LutLibrarySnapshot(folder, (paths ?? new Dictionary<Guid, string>()).Select(item =>
+        public int RefreshCount { get; private set; }
+        private LutLibrarySnapshot Library(string folder) => new(folder, (paths ?? new Dictionary<Guid, string>()).Select(item =>
                 new ManagedLutResource(item.Key, Path.GetFileNameWithoutExtension(item.Value), Path.GetFileName(item.Value),
-                    item.Key.ToString("N"), LutDimension.ThreeDimensional, 2, LutResourceAvailability.Available, item.Value)).ToArray(), []));
-        public Task<ManagedLutResource?> GetAsync(Guid lutId, string folder, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ManagedLutResource?>(null);
-        public Task<string> ResolvePathAsync(Guid lutId, string folder, CancellationToken cancellationToken = default) =>
-            Task.FromResult(paths![lutId]);
+                    item.Key.ToString("N"), LutDimension.ThreeDimensional, 2, LutResourceAvailability.Available, item.Value)).ToArray(), []);
+        public Task InitializeAsync(string cameraFolder, string creativeFolder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder, CancellationToken cancellationToken = default)
+        { RefreshCount++; return Task.FromResult(Library(folder)); }
+        public Task WaitUntilInitializedAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public LutLibrarySnapshot Snapshot(ColorLutStage stage) => Library(Path.GetTempPath());
+        public ManagedLutResource? Get(ColorLutStage stage, Guid lutId) => Snapshot(stage).Resources.FirstOrDefault(x => x.LutId == lutId);
+        public string ResolvePath(ColorLutStage stage, Guid lutId) => paths![lutId];
     }
 
     private sealed class FakeColorStore : IAssetColorStore

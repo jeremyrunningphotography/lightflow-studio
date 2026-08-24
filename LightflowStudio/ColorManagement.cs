@@ -349,6 +349,126 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
 }
 
 internal enum ColorLutStage { Camera, Creative }
+
+internal interface ILutLibraryCache
+{
+    Task InitializeAsync(string cameraFolder, string creativeFolder, CancellationToken cancellationToken = default);
+    Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder,
+        CancellationToken cancellationToken = default);
+    Task WaitUntilInitializedAsync(CancellationToken cancellationToken = default);
+    LutLibrarySnapshot Snapshot(ColorLutStage stage);
+    ManagedLutResource? Get(ColorLutStage stage, Guid lutId);
+    string ResolvePath(ColorLutStage stage, Guid lutId);
+}
+
+/// <summary>One authoritative runtime view of both configured LUT roots. Only startup and Settings-root
+/// changes invoke the scanner; Player, Catalog Color availability, and Encoding are in-memory consumers.</summary>
+internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner) : ILutLibraryCache, IDisposable
+{
+    private sealed class StageState
+    {
+        public LutLibrarySnapshot Snapshot { get; set; } = new("", [], []);
+        public long Revision { get; set; }
+        public CancellationTokenSource? Cancellation { get; set; }
+    }
+
+    private readonly object _gate = new();
+    private readonly StageState _camera = new();
+    private readonly StageState _creative = new();
+    private Task? _initialization;
+
+    public Task InitializeAsync(string cameraFolder, string creativeFolder,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+            return _initialization ??= InitializeCoreAsync(cameraFolder, creativeFolder, cancellationToken);
+    }
+
+    private async Task InitializeCoreAsync(string cameraFolder, string creativeFolder, CancellationToken token)
+    {
+        await RefreshAsync(ColorLutStage.Camera, cameraFolder, token).ConfigureAwait(false);
+        await RefreshAsync(ColorLutStage.Creative, creativeFolder, token).ConfigureAwait(false);
+    }
+
+    public async Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder,
+        CancellationToken cancellationToken = default)
+    {
+        StageState state;
+        long revision;
+        CancellationTokenSource refreshCancellation;
+        lock (_gate)
+        {
+            state = State(stage);
+            revision = ++state.Revision;
+            state.Cancellation?.Cancel();
+            state.Cancellation?.Dispose();
+            refreshCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            state.Cancellation = refreshCancellation;
+        }
+        try
+        {
+            var snapshot = await scanner.RefreshAsync(folder, refreshCancellation.Token).ConfigureAwait(false);
+            lock (_gate)
+            {
+                if (state.Revision == revision) state.Snapshot = snapshot;
+                return state.Snapshot;
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            lock (_gate) return state.Snapshot;
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                if (ReferenceEquals(state.Cancellation, refreshCancellation)) state.Cancellation = null;
+            }
+            refreshCancellation.Dispose();
+        }
+    }
+
+    public async Task WaitUntilInitializedAsync(CancellationToken cancellationToken = default)
+    {
+        Task? initialization;
+        lock (_gate) initialization = _initialization;
+        if (initialization is null) return;
+        await initialization.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public LutLibrarySnapshot Snapshot(ColorLutStage stage)
+    {
+        lock (_gate) return State(stage).Snapshot;
+    }
+
+    public ManagedLutResource? Get(ColorLutStage stage, Guid lutId) =>
+        Snapshot(stage).Resources.FirstOrDefault(resource => resource.LutId == lutId);
+
+    public string ResolvePath(ColorLutStage stage, Guid lutId)
+    {
+        var resource = Get(stage, lutId) ?? throw new FileNotFoundException(
+            "The assigned LUT is not present in the configured LUT collection.");
+        if (resource.Availability != LutResourceAvailability.Available || string.IsNullOrWhiteSpace(resource.FilePath))
+            throw new FileNotFoundException(resource.Diagnostic ?? "The assigned LUT is unavailable.");
+        return resource.FilePath;
+    }
+
+    private StageState State(ColorLutStage stage) => stage == ColorLutStage.Camera ? _camera : _creative;
+
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            foreach (var state in new[] { _camera, _creative })
+            {
+                state.Cancellation?.Cancel();
+                state.Cancellation?.Dispose();
+                state.Cancellation = null;
+            }
+        }
+    }
+}
+
 internal sealed record ColorLutReference(Guid LutId, string DisplayName, string ContentSha256,
     LutResourceAvailability Availability, string? Diagnostic = null);
 internal sealed record AssetColorIntent(Guid AssetId, ColorLutReference? Camera, ColorLutReference? Creative,
@@ -369,8 +489,7 @@ internal interface IAssetColorStore
     Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes, CancellationToken cancellationToken = default);
 }
 
-internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> session, Func<string> cameraLutFolder,
-    Func<string> creativeLutFolder,
+internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> session, ILutLibraryCache lutCache,
     Func<DateTimeOffset>? utcNow = null) : IAssetColorStore
 {
     private readonly Func<DateTimeOffset> _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
@@ -384,14 +503,10 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
         var ids = assetIds.Distinct().ToArray();
         var result = ids.ToDictionary(id => id, Empty);
         if (ids.Length == 0) return result;
-        var availableCamera = FolderLutScanner.Scan(cameraLutFolder(), cancellationToken).Candidates.GroupBy(candidate => candidate.ContentSha256,
-                StringComparer.Ordinal).ToDictionary(group => group.Key,
-                group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First(),
-                StringComparer.Ordinal);
-        var availableCreative = FolderLutScanner.Scan(creativeLutFolder(), cancellationToken).Candidates.GroupBy(candidate => candidate.ContentSha256,
-                StringComparer.Ordinal).ToDictionary(group => group.Key,
-                group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First(),
-                StringComparer.Ordinal);
+        var availableCamera = lutCache.Snapshot(ColorLutStage.Camera).Resources.ToDictionary(
+            resource => resource.ContentSha256, StringComparer.Ordinal);
+        var availableCreative = lutCache.Snapshot(ColorLutStage.Creative).Resources.ToDictionary(
+            resource => resource.ContentSha256, StringComparer.Ordinal);
         using var connection = RequireSession().OpenConnection();
         foreach (var batch in ids.Chunk(400))
         {
@@ -510,7 +625,7 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
     }
 
     private static ColorLutReference? ReadReference(SqliteDataReader reader, int offset,
-        IReadOnlyDictionary<string, FolderLutCandidate> available)
+        IReadOnlyDictionary<string, ManagedLutResource> available)
     {
         if (reader.IsDBNull(offset)) return null;
         var id = Guid.Parse(reader.GetString(offset));

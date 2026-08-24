@@ -221,6 +221,115 @@ public sealed class JobRuntimeTests : IDisposable
     }
 
     [Fact]
+    public async Task PauseDuringFinalWaveEndsCompletedAndCannotBeResumed()
+    {
+        var clock = new ManualActiveClock();
+        var gate = new ControlledExecutor();
+        await using var runtime = new JobRuntime<EncodingJobOptions, int>(Plan(2), 2, gate.ExecuteAsync, clock);
+        var completion = runtime.StartAsync();
+        var first = await gate.Started.Reader.ReadAsync();
+        var second = await gate.Started.Reader.ReadAsync();
+        clock.Advance(TimeSpan.FromSeconds(4));
+        runtime.Pause();
+        clock.Advance(TimeSpan.FromSeconds(3));
+        gate.Release(first);
+        gate.Release(second);
+
+        var result = await completion;
+        var final = runtime.Snapshot();
+        runtime.Resume();
+
+        Assert.Equal(JobState.Completed, result.State);
+        Assert.Equal(JobState.Completed, final.State);
+        Assert.Equal(TimeSpan.FromSeconds(7), final.Elapsed);
+        Assert.Equal(2, gate.StartCount);
+        Assert.Equal(JobState.Completed, runtime.Snapshot().State);
+        Assert.False(clock.IsRunning);
+    }
+
+    [Theory]
+    [InlineData((int)JobState.CompletedWithWarnings)]
+    [InlineData((int)JobState.Failed)]
+    public async Task PauseDuringFinalWavePreservesNonSuccessTerminalAggregate(int terminalStateValue)
+    {
+        var terminalState = (JobState)terminalStateValue;
+        var gate = new ControlledExecutor(item => terminalState == JobState.CompletedWithWarnings
+            ? new(item.Definition.Id, terminalState, item.OutputPaths, ["warning"], [], 7)
+            : new(item.Definition.Id, terminalState, item.OutputPaths, [], ["failure"], 7));
+        await using var runtime = Runtime(1, 1, gate.ExecuteAsync);
+        var completion = runtime.StartAsync();
+        var item = await gate.Started.Reader.ReadAsync();
+        runtime.Pause();
+        gate.Release(item);
+
+        var result = await completion;
+
+        Assert.Equal(terminalState, result.State);
+        Assert.Equal(terminalState, runtime.Snapshot().State);
+    }
+
+    [Fact]
+    public async Task ApplicationCheckpointPersistsEveryParallelLifecycleTransitionWithoutEveryFractionalProgress()
+    {
+        var path = Path.Combine(_root, "live-jobs.json");
+        var store = new JobRuntimeStore<EncodingJobOptions, int>(path);
+        var recorder = new CheckpointRecorder(store);
+        await using var service = new ApplicationJobsRuntime<EncodingJobOptions, int>(recorder.Save);
+        var gate = new ControlledExecutor(item => Index(item) switch
+        {
+            0 => new(item.Definition.Id, JobState.CompletedWithWarnings, item.OutputPaths, ["kept warning"], [], 41),
+            1 => new(item.Definition.Id, JobState.Failed, item.OutputPaths, [], ["kept error"], 42),
+            _ => Completed(item)
+        });
+        var plan = Plan(3);
+        var runtime = service.Queue(plan, 3, gate.ExecuteAsync);
+        _ = await gate.Started.Reader.ReadAsync();
+        _ = await gate.Started.Reader.ReadAsync();
+        _ = await gate.Started.Reader.ReadAsync();
+        await recorder.WaitForAsync(snapshot => snapshot.Items.All(item => item.State == JobState.Running));
+
+        var lifecycle = recorder.Snapshots;
+        Assert.Contains(lifecycle, snapshot => States(snapshot, JobState.Running, JobState.Queued, JobState.Queued));
+        Assert.Contains(lifecycle, snapshot => States(snapshot, JobState.Running, JobState.Running, JobState.Queued));
+        Assert.Contains(lifecycle, snapshot => States(snapshot, JobState.Running, JobState.Running, JobState.Running));
+        var allRunning = Assert.IsType<RecoveredJob<EncodingJobOptions, int>>(store.Load((_, _) => []));
+        Assert.All(allRunning.Checkpoint.Runtime.Items, item => Assert.Equal(JobState.Running, item.State));
+
+        var beforeFractionalProgress = recorder.Count;
+        gate.Report(2, .1);
+        gate.Report(2, .2);
+        gate.Report(2, .3);
+        Assert.Equal(beforeFractionalProgress, recorder.Count);
+
+        gate.Release(0);
+        var warningTerminal = await recorder.WaitForAsync(snapshot =>
+            snapshot.Items[0].State == JobState.CompletedWithWarnings && snapshot.Items[1].State == JobState.Running);
+        var runningAtSameBucket = recorder.Snapshots.Last(snapshot =>
+            snapshot.Items[0].State == JobState.Running && snapshot.Items[0].ProgressPercent == 100);
+        Assert.Equal(Math.Floor(runningAtSameBucket.Progress.OverallPercent!.Value),
+            Math.Floor(warningTerminal.Progress.OverallPercent!.Value));
+
+        gate.Release(1);
+        await recorder.WaitForAsync(snapshot => snapshot.Items[1].State == JobState.Failed
+                                                  && snapshot.Items[2].State == JobState.Running);
+        var recovered = Assert.IsType<RecoveredJob<EncodingJobOptions, int>>(store.Load((_, _) => []));
+
+        Assert.Equal(JobRecoveryDisposition.NeedsAttention, recovered.Disposition);
+        Assert.Equal(JobState.CompletedWithWarnings, recovered.Checkpoint.Runtime.Items[0].State);
+        Assert.Equal(41, recovered.Checkpoint.Runtime.Items[0].Data);
+        Assert.Contains("kept warning", recovered.Checkpoint.Runtime.Items[0].Warnings);
+        Assert.Equal(JobState.Failed, recovered.Checkpoint.Runtime.Items[1].State);
+        Assert.Equal(42, recovered.Checkpoint.Runtime.Items[1].Data);
+        Assert.Contains("kept error", recovered.Checkpoint.Runtime.Items[1].Errors);
+        Assert.Equal(JobState.Running, recovered.Checkpoint.Runtime.Items[2].State);
+
+        runtime.Cancel();
+        Assert.Equal(JobState.Failed, (await runtime.Completion).State);
+        var terminal = Assert.IsType<RecoveredJob<EncodingJobOptions, int>>(store.Load((_, _) => []));
+        Assert.NotNull(terminal.Checkpoint.Runtime.CompletedAt);
+    }
+
+    [Fact]
     public async Task FailureDoesNotCorruptSiblingResultsOrOrdering()
     {
         var plan = Plan(4);
@@ -386,7 +495,10 @@ public sealed class JobRuntimeTests : IDisposable
 
     public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
 
-    private sealed class ControlledExecutor
+    private static bool States(JobRuntimeSnapshot<int> snapshot, params JobState[] states) =>
+        snapshot.Items.Select(item => item.State).SequenceEqual(states);
+
+    private sealed class ControlledExecutor(Func<JobPlanItem, JobItemResult<int>>? result = null)
     {
         private readonly ConcurrentDictionary<int, TaskCompletionSource> _releases = new();
         private int _active;
@@ -408,7 +520,7 @@ public sealed class JobRuntimeTests : IDisposable
             try { await release.Task.WaitAsync(token); }
             finally { Interlocked.Decrement(ref _active); }
             progress.Report(100);
-            return Completed(item);
+            return result?.Invoke(item) ?? Completed(item);
         }
 
         public void Release(int index) => _releases.GetOrAdd(index, _ => new()).TrySetResult();
@@ -438,6 +550,31 @@ public sealed class JobRuntimeTests : IDisposable
             while (await _snapshots.Reader.ReadAsync(timeout.Token) is { } snapshot)
                 if (predicate(snapshot)) return snapshot;
             throw new InvalidOperationException("The expected runtime snapshot was not observed.");
+        }
+    }
+
+    private sealed class CheckpointRecorder(JobRuntimeStore<EncodingJobOptions, int> store)
+    {
+        private readonly object _sync = new();
+        private readonly System.Threading.Channels.Channel<JobRuntimeSnapshot<int>> _checkpoints =
+            System.Threading.Channels.Channel.CreateUnbounded<JobRuntimeSnapshot<int>>();
+        private readonly List<JobRuntimeSnapshot<int>> _snapshots = [];
+        public int Count { get { lock (_sync) return _snapshots.Count; } }
+        public IReadOnlyList<JobRuntimeSnapshot<int>> Snapshots { get { lock (_sync) return _snapshots.ToList(); } }
+
+        public void Save(JobPlan<EncodingJobOptions> plan, JobRuntimeSnapshot<int> snapshot, bool paused)
+        {
+            store.Save(plan, snapshot, paused);
+            lock (_sync) _snapshots.Add(snapshot);
+            _checkpoints.Writer.TryWrite(snapshot);
+        }
+
+        public async Task<JobRuntimeSnapshot<int>> WaitForAsync(Func<JobRuntimeSnapshot<int>, bool> predicate)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            while (await _checkpoints.Reader.ReadAsync(timeout.Token) is { } snapshot)
+                if (predicate(snapshot)) return snapshot;
+            throw new InvalidOperationException("The expected durable checkpoint was not observed.");
         }
     }
 }

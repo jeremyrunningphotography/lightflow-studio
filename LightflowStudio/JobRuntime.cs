@@ -91,18 +91,25 @@ internal sealed class ApplicationJobsRuntime<TOptions, TData> : IAsyncDisposable
     private void Publish(JobRuntime<TOptions, TData> runtime)
     {
         var snapshot = runtime.Snapshot();
-        var checkpoint = true;
         lock (_sync)
         {
+            var checkpoint = true;
             if (_jobs.TryGetValue(snapshot.JobId, out var entry))
             {
                 var progress = (int)Math.Floor(snapshot.Progress.OverallPercent ?? -1);
-                checkpoint = entry.LastState != snapshot.State || entry.LastProgress != progress;
+                var itemStates = string.Join(',', snapshot.Items.Select(item => (int)item.State));
+                checkpoint = entry.LastState != snapshot.State || entry.LastProgress != progress
+                             || !string.Equals(entry.LastItemStates, itemStates, StringComparison.Ordinal)
+                             || entry.HasCompletedAt != snapshot.CompletedAt.HasValue;
                 entry.LastState = snapshot.State;
                 entry.LastProgress = progress;
+                entry.LastItemStates = itemStates;
+                entry.HasCompletedAt = snapshot.CompletedAt.HasValue;
             }
+            // Keep durable writes in the same order as the snapshots that triggered them. Otherwise two
+            // parallel workers could release this lock and let an older write overwrite a newer lifecycle.
+            if (checkpoint) _checkpoint?.Invoke(runtime.Plan, snapshot, runtime.IsPauseRequested);
         }
-        if (checkpoint) _checkpoint?.Invoke(runtime.Plan, snapshot, runtime.IsPauseRequested);
         Changed?.Invoke(Jobs);
     }
 
@@ -112,6 +119,8 @@ internal sealed class ApplicationJobsRuntime<TOptions, TData> : IAsyncDisposable
         public IDisposable Subscription { get; } = subscription;
         public JobState? LastState { get; set; }
         public int LastProgress { get; set; } = -2;
+        public string? LastItemStates { get; set; }
+        public bool HasCompletedAt { get; set; }
     }
     private sealed class Observer(ApplicationJobsRuntime<TOptions, TData> owner, JobRuntime<TOptions, TData> runtime)
         : IJobRuntimeObserver<TData>
@@ -329,9 +338,9 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
 
     private JobState RuntimeState(int terminal)
     {
-        if (_cancellation.IsCancellationRequested) return _activeWorkers > 0 ? JobState.Cancelling : JobState.Cancelled;
-        if (_pauseRequested) return _activeWorkers > 0 ? JobState.Pausing : JobState.Paused;
+        if (_cancellation.IsCancellationRequested && _activeWorkers > 0) return JobState.Cancelling;
         if (terminal == _execution.Items.Count) return _execution.State;
+        if (_pauseRequested) return _activeWorkers > 0 ? JobState.Pausing : JobState.Paused;
         return _activeWorkers > 0 ? JobState.Running : JobState.Queued;
     }
 

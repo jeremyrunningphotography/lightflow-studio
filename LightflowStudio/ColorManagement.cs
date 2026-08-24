@@ -133,7 +133,10 @@ internal static class FolderLutScanner
     private const int MaxEntries = 100_000;
 
     public static (IReadOnlyList<FolderLutCandidate> Candidates, IReadOnlyList<LutFolderProblem> Problems) Scan(
-        string folder, CancellationToken cancellationToken = default)
+        string folder, CancellationToken cancellationToken = default) => Scan(folder, false, cancellationToken);
+
+    public static (IReadOnlyList<FolderLutCandidate> Candidates, IReadOnlyList<LutFolderProblem> Problems) Scan(
+        string folder, bool includeSubfolders, CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(folder)) return ([], string.IsNullOrWhiteSpace(folder) ? [] :
             [new("LUT folder", "The configured LUT folder does not exist or is unavailable.")]);
@@ -167,6 +170,7 @@ internal static class FolderLutScanner
                     paths.Add(path);
                 }
                 if (entries > MaxEntries) break;
+                if (!includeSubfolders) continue;
                 foreach (var directory in Directory.EnumerateDirectories(current))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -216,6 +220,8 @@ internal static class FolderLutScanner
 internal interface ILutLibrary
 {
     Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default);
+    Task<LutLibrarySnapshot> RefreshAsync(string folder, bool includeSubfolders,
+        CancellationToken cancellationToken = default) => RefreshAsync(folder, cancellationToken);
     Task<ManagedLutResource?> GetAsync(Guid lutId, string folder, CancellationToken cancellationToken = default);
     Task<string> ResolvePathAsync(Guid lutId, string folder, CancellationToken cancellationToken = default);
 }
@@ -227,6 +233,10 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     public async Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default)
+        => await RefreshAsync(folder, false, cancellationToken).ConfigureAwait(false);
+
+    public async Task<LutLibrarySnapshot> RefreshAsync(string folder, bool includeSubfolders,
+        CancellationToken cancellationToken = default)
     {
         await _refreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -234,7 +244,7 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
             return await Task.Run<LutLibrarySnapshot>(() =>
             {
                 var fullFolder = NormalizeFolder(folder);
-                var scan = FolderLutScanner.Scan(fullFolder, cancellationToken);
+                var scan = FolderLutScanner.Scan(fullFolder, includeSubfolders, cancellationToken);
                 var distinct = scan.Candidates.GroupBy(candidate => candidate.ContentSha256, StringComparer.Ordinal)
                     .Select(group => group.OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).First())
                     .ToArray();
@@ -353,8 +363,13 @@ internal enum ColorLutStage { Camera, Creative }
 internal interface ILutLibraryCache
 {
     Task InitializeAsync(string cameraFolder, string creativeFolder, CancellationToken cancellationToken = default);
+    Task InitializeAsync(string cameraFolder, bool cameraIncludeSubfolders,
+        string creativeFolder, bool creativeIncludeSubfolders, CancellationToken cancellationToken = default) =>
+        InitializeAsync(cameraFolder, creativeFolder, cancellationToken);
     Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder,
         CancellationToken cancellationToken = default);
+    Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder, bool includeSubfolders,
+        CancellationToken cancellationToken = default) => RefreshAsync(stage, folder, cancellationToken);
     Task WaitUntilInitializedAsync(CancellationToken cancellationToken = default);
     LutLibrarySnapshot Snapshot(ColorLutStage stage);
     ManagedLutResource? Get(ColorLutStage stage, Guid lutId);
@@ -395,19 +410,29 @@ internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner, Func<strin
     private Task? _initialization;
 
     public Task InitializeAsync(string cameraFolder, string creativeFolder,
+        CancellationToken cancellationToken = default) =>
+        InitializeAsync(cameraFolder, false, creativeFolder, false, cancellationToken);
+
+    public Task InitializeAsync(string cameraFolder, bool cameraIncludeSubfolders,
+        string creativeFolder, bool creativeIncludeSubfolders,
         CancellationToken cancellationToken = default)
     {
         lock (_gate)
-            return _initialization ??= InitializeCoreAsync(cameraFolder, creativeFolder, cancellationToken);
+            return _initialization ??= InitializeCoreAsync(cameraFolder, cameraIncludeSubfolders,
+                creativeFolder, creativeIncludeSubfolders, cancellationToken);
     }
 
-    private async Task InitializeCoreAsync(string cameraFolder, string creativeFolder, CancellationToken token)
+    private async Task InitializeCoreAsync(string cameraFolder, bool cameraIncludeSubfolders,
+        string creativeFolder, bool creativeIncludeSubfolders, CancellationToken token)
     {
-        await RefreshAsync(ColorLutStage.Camera, cameraFolder, token).ConfigureAwait(false);
-        await RefreshAsync(ColorLutStage.Creative, creativeFolder, token).ConfigureAwait(false);
+        await RefreshAsync(ColorLutStage.Camera, cameraFolder, cameraIncludeSubfolders, token).ConfigureAwait(false);
+        await RefreshAsync(ColorLutStage.Creative, creativeFolder, creativeIncludeSubfolders, token).ConfigureAwait(false);
     }
 
-    public async Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder,
+    public Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder,
+        CancellationToken cancellationToken = default) => RefreshAsync(stage, folder, false, cancellationToken);
+
+    public async Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder, bool includeSubfolders,
         CancellationToken cancellationToken = default)
     {
         StageState state;
@@ -424,7 +449,7 @@ internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner, Func<strin
         }
         try
         {
-            var snapshot = await scanner.RefreshAsync(folder, refreshCancellation.Token).ConfigureAwait(false);
+            var snapshot = await scanner.RefreshAsync(folder, includeSubfolders, refreshCancellation.Token).ConfigureAwait(false);
             lock (_gate)
             {
                 if (state.Revision == revision)

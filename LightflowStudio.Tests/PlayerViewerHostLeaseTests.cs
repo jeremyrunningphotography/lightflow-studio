@@ -103,29 +103,24 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Same(opened, await Task.WhenAny(opened, Task.Delay(1000)));
             await opened;
 
-            Assert.Equal(["open", "presentation"], backend.OpenPresentationOperations);
+            Assert.Equal(["open", "presentation", "color"], backend.OpenPresentationOperations);
             Assert.True(host.PositionSlider.IsEnabled);
             Assert.True(host.ColorToggleButton.IsEnabled);
             Assert.False(host.ColorToggleButton.IsChecked);
             Assert.False(host.CameraLutCombo.IsEnabled);
             Assert.False(host.CreativeLutCombo.IsEnabled);
             Assert.Contains(PlayerOpenMilestone.PlayerControlsPublished, milestones);
-            Assert.Contains(PlayerOpenMilestone.ColorCacheWaitStarted, milestones);
+            Assert.DoesNotContain(PlayerOpenMilestone.ColorCacheWaitStarted, milestones);
             Assert.DoesNotContain(PlayerOpenMilestone.ColorCacheWaitCompleted, milestones);
-            Assert.True(milestones.IndexOf(PlayerOpenMilestone.PlaybackBackendOpenStarted)
-                < milestones.IndexOf(PlayerOpenMilestone.ColorCacheWaitStarted));
 
             host.ColorToggleButton.IsChecked = true;
             host.ColorToggleButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             Assert.True(host.ColorToggleButton.IsChecked);
-            Assert.False(host.CameraLutCombo.IsEnabled);
-            Assert.False(host.CreativeLutCombo.IsEnabled);
-
-            initialization.SetResult();
-            await WaitUntilAsync(() => milestones.Contains(PlayerOpenMilestone.ColorPublished),
-                "background Color publication after LUT initialization");
             Assert.True(host.CameraLutCombo.IsEnabled);
             Assert.True(host.CreativeLutCombo.IsEnabled);
+
+            Assert.Contains(PlayerOpenMilestone.ColorPublished, milestones);
+            initialization.SetResult();
         });
     }
 
@@ -179,8 +174,9 @@ public sealed class PlayerViewerHostLeaseTests
             TestWpfApplication.EnsureLoaded();
             var backend = new FakeBackend();
             var colors = new FakeColorStore();
+            var cache = new FakeLutLibrary();
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
-            var host = new PlayerViewerHost(coordinator, lutCache: new FakeLutLibrary(), assetColors: colors,
+            var host = new PlayerViewerHost(coordinator, lutCache: cache, assetColors: colors,
                 cameraLutFolder: () => Path.GetTempPath(), creativeLutFolder: () => Path.GetTempPath());
             var window = new Window { Content = host, Width = 600, Height = 400, ShowInTaskbar = false };
             window.Show();
@@ -231,6 +227,7 @@ public sealed class PlayerViewerHostLeaseTests
                 Assert.True(host.CameraLutCombo.IsEnabled);
                 Assert.True(host.CreativeLutCombo.IsEnabled);
                 Assert.Equal(0, colors.SetCount);
+                Assert.Equal(0, cache.RefreshCount);
             }
             finally { window.Close(); }
         });

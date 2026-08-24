@@ -17,7 +17,9 @@ public sealed class SettingsPreferencesTests : IDisposable
             ScreengrabDirectory = @"D:\Screengrabs",
             LutFolder = null,
             CameraLutFolder = @"D:\Camera LUTs",
+            CameraLutIncludeSubfolders = true,
             CreativeLutFolder = @"D:\Creative LUTs",
+            CreativeLutIncludeSubfolders = true,
             FfmpegPath = @"D:\Tools\ffmpeg.exe",
             DefaultResolution = OutputResolution.UltraHd,
             DefaultRecovery = RecoveryStrategy.Salvage,
@@ -52,6 +54,8 @@ public sealed class SettingsPreferencesTests : IDisposable
         Assert.Null(settings.LutFolder);
         Assert.Equal(@"D:\Legacy LUTs", settings.CameraLutFolder);
         Assert.Equal(@"D:\Legacy LUTs", settings.CreativeLutFolder);
+        Assert.False(settings.CameraLutIncludeSubfolders);
+        Assert.False(settings.CreativeLutIncludeSubfolders);
         Assert.Equal("", settings.DefaultVideoFolder);
         Assert.Equal(AppSettings.DefaultScreengrabDirectory, settings.ScreengrabDirectory);
         Assert.Equal("", settings.FfmpegPath);

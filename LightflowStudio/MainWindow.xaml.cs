@@ -197,7 +197,7 @@ public partial class MainWindow : Window
                 LocateTools();
                 await RefreshDependencyHealthAsync();
                 RefreshBatchFiles();
-                await InitializeLutsAsync();
+                _ = InitializeLutsAsync();
                 RefreshLuts();
                 await RefreshMediaRootsAsync();
                 await RefreshPreviewUsageAsync();
@@ -2143,8 +2143,29 @@ public partial class MainWindow : Window
     private async Task<int> InitializeLutsAsync()
     {
         if (!_storage.CatalogAvailable) return PublishCachedLuts();
-        await _storage.LutCache.InitializeAsync(_settings.CameraLutFolder, _settings.CreativeLutFolder);
+        await Task.WhenAll(
+            InitializeLutStageAsync(ColorLutStage.Camera, _settings.CameraLutFolder,
+                _settings.CameraLutIncludeSubfolders),
+            InitializeLutStageAsync(ColorLutStage.Creative, _settings.CreativeLutFolder,
+                _settings.CreativeLutIncludeSubfolders));
         return PublishCachedLuts();
+    }
+
+    private async Task InitializeLutStageAsync(ColorLutStage stage, string folder, bool includeSubfolders)
+    {
+        try
+        {
+            await _storage.LutCache.RefreshAsync(stage, folder, includeSubfolders);
+            PublishCachedLuts();
+            if (_playerViewerHost is not null)
+                await _playerViewerHost.RefreshColorFoldersAsync(stage == ColorLutStage.Camera,
+                    stage == ColorLutStage.Creative);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException
+                                          or NotSupportedException or InvalidOperationException or SqliteException)
+        {
+            SettingsMessage.Text = $"The {stage} LUT collection could not be refreshed: {exception.Message}";
+        }
     }
 
     private async Task<int> RefreshLutsAsync(bool refreshCamera, bool refreshCreative)
@@ -2157,9 +2178,11 @@ public partial class MainWindow : Window
         try
         {
             if (refreshCamera)
-                await _storage.LutCache.RefreshAsync(ColorLutStage.Camera, _settings.CameraLutFolder);
+                await _storage.LutCache.RefreshAsync(ColorLutStage.Camera, _settings.CameraLutFolder,
+                    _settings.CameraLutIncludeSubfolders);
             if (refreshCreative)
-                await _storage.LutCache.RefreshAsync(ColorLutStage.Creative, _settings.CreativeLutFolder);
+                await _storage.LutCache.RefreshAsync(ColorLutStage.Creative, _settings.CreativeLutFolder,
+                    _settings.CreativeLutIncludeSubfolders);
             return PublishCachedLuts();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException
@@ -2486,10 +2509,14 @@ public partial class MainWindow : Window
         {
             var previousCameraFolder = _settings.CameraLutFolder;
             var previousCreativeFolder = _settings.CreativeLutFolder;
+            var previousCameraRecursive = _settings.CameraLutIncludeSubfolders;
+            var previousCreativeRecursive = _settings.CreativeLutIncludeSubfolders;
             _storage.SaveSettings(settings);
             _settings = _storage.Settings;
-            var cameraChanged = !string.Equals(previousCameraFolder, _settings.CameraLutFolder, StringComparison.OrdinalIgnoreCase);
-            var creativeChanged = !string.Equals(previousCreativeFolder, _settings.CreativeLutFolder, StringComparison.OrdinalIgnoreCase);
+            var cameraChanged = !string.Equals(previousCameraFolder, _settings.CameraLutFolder, StringComparison.OrdinalIgnoreCase)
+                                || previousCameraRecursive != _settings.CameraLutIncludeSubfolders;
+            var creativeChanged = !string.Equals(previousCreativeFolder, _settings.CreativeLutFolder, StringComparison.OrdinalIgnoreCase)
+                                  || previousCreativeRecursive != _settings.CreativeLutIncludeSubfolders;
             var lutSettingsRevision = ++_lutSettingsRevision;
             ApplySettingsToBatch(settings);
             LocateTools();
@@ -2524,7 +2551,9 @@ public partial class MainWindow : Window
             DefaultVideoFolder = SettingsDefaultVideoFolder.Text,
             ScreengrabDirectory = SettingsScreengrabDirectory.Text,
             CameraLutFolder = SettingsCameraLutFolder.Text,
+            CameraLutIncludeSubfolders = SettingsCameraLutIncludeSubfolders.IsChecked == true,
             CreativeLutFolder = SettingsCreativeLutFolder.Text,
+            CreativeLutIncludeSubfolders = SettingsCreativeLutIncludeSubfolders.IsChecked == true,
             FfmpegPath = SettingsFfmpegPath.Text,
             DefaultResolution = (OutputResolution)SettingsResolution.SelectedIndex,
             DefaultRecovery = (RecoveryStrategy)SettingsRecoveryMode.SelectedIndex,
@@ -2610,7 +2639,9 @@ public partial class MainWindow : Window
         SettingsDefaultVideoFolder.Text = settings.DefaultVideoFolder;
         SettingsScreengrabDirectory.Text = settings.ScreengrabDirectory;
         SettingsCameraLutFolder.Text = settings.CameraLutFolder;
+        SettingsCameraLutIncludeSubfolders.IsChecked = settings.CameraLutIncludeSubfolders;
         SettingsCreativeLutFolder.Text = settings.CreativeLutFolder;
+        SettingsCreativeLutIncludeSubfolders.IsChecked = settings.CreativeLutIncludeSubfolders;
         SettingsFfmpegPath.Text = settings.FfmpegPath;
         SettingsResolution.SelectedIndex = (int)settings.DefaultResolution;
         SettingsRecoveryMode.SelectedIndex = (int)settings.DefaultRecovery;

@@ -24,7 +24,9 @@ internal sealed record AppSettings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LutFolder { get; init; } = LutCatalog.DefaultFolder;
     public string CameraLutFolder { get; init; } = "";
+    public bool CameraLutIncludeSubfolders { get; init; }
     public string CreativeLutFolder { get; init; } = "";
+    public bool CreativeLutIncludeSubfolders { get; init; }
     public string FfmpegPath { get; init; } = "";
     public OutputResolution DefaultResolution { get; init; } = OutputResolution.FullHd;
     public RecoveryStrategy DefaultRecovery { get; init; } = RecoveryStrategy.Normal;

@@ -203,6 +203,7 @@ public partial class PlayerViewerHost : UserControl
             SetAudioControlsEnabled(info.AudioStreams.Count > 0);
             UpdateAudioControlsFromService();
             TransportBar.Visibility = Visibility.Visible;
+            PublishCurrentCachedChoices();
             SetColorControlsEnabled(true);
             SetStatus(null);
             _openMilestone?.Invoke(PlayerOpenMilestone.PlayerControlsPublished);
@@ -313,8 +314,24 @@ public partial class PlayerViewerHost : UserControl
 
     private void UpdateColorSelectorEnabled() =>
         CameraLutCombo.IsEnabled = CreativeLutCombo.IsEnabled = ColorToggleButton.IsEnabled
-            && _cameraLibrary is not null && _creativeLibrary is not null
             && _persistentColorEnabled && !_momentaryColorBypass;
+
+    private void PublishCurrentCachedChoices()
+    {
+        if (_lutCache is null) return;
+        var camera = _lutCache.Snapshot(ColorLutStage.Camera);
+        var creative = _lutCache.Snapshot(ColorLutStage.Creative);
+        var cameraChoices = MakeChoices(camera, null);
+        var creativeChoices = MakeChoices(creative, null);
+        _updatingColor = true;
+        CameraLutCombo.ItemsSource = cameraChoices;
+        CreativeLutCombo.ItemsSource = creativeChoices;
+        CameraLutCombo.SelectedItem = cameraChoices[0];
+        CreativeLutCombo.SelectedItem = creativeChoices[0];
+        _cameraLibrary = camera;
+        _creativeLibrary = creative;
+        _updatingColor = false;
+    }
 
     private async Task<PreparedColor?> PrepareColorAsync(CancellationToken token)
     {
@@ -322,9 +339,6 @@ public partial class PlayerViewerHost : UserControl
             || _cameraLutFolder is null || _creativeLutFolder is null) return null;
         LutLibrarySnapshot cameraLibrary, creativeLibrary;
         AssetColorIntent intent;
-        _openMilestone?.Invoke(PlayerOpenMilestone.ColorCacheWaitStarted);
-        await _lutCache.WaitUntilInitializedAsync(token).ConfigureAwait(true);
-        _openMilestone?.Invoke(PlayerOpenMilestone.ColorCacheWaitCompleted);
         cameraLibrary = _lutCache.Snapshot(ColorLutStage.Camera);
         creativeLibrary = _lutCache.Snapshot(ColorLutStage.Creative);
         _openMilestone?.Invoke(PlayerOpenMilestone.ColorAssignmentReadStarted);
@@ -405,7 +419,6 @@ public partial class PlayerViewerHost : UserControl
         var generation = _generation;
         try
         {
-            await _lutCache.WaitUntilInitializedAsync(token).ConfigureAwait(true);
             var cameraLibrary = cameraChanged
                 ? _lutCache.Snapshot(ColorLutStage.Camera)
                 : _cameraLibrary;

@@ -29,8 +29,11 @@ public sealed class AppSettingsStoreTests : IDisposable
     [Fact]
     public void Load_UsesDefaultFolderWhenSettingsDoNotExist()
     {
-        Assert.Equal(LutCatalog.DefaultFolder, AppSettingsStore.Load(SettingsPath).CameraLutFolder);
-        Assert.Equal(LutCatalog.DefaultFolder, AppSettingsStore.Load(SettingsPath).CreativeLutFolder);
+        var settings = AppSettingsStore.Load(SettingsPath);
+        Assert.Equal(LutCatalog.DefaultFolder, settings.CameraLutFolder);
+        Assert.Equal(LutCatalog.DefaultFolder, settings.CreativeLutFolder);
+        Assert.False(settings.CameraLutIncludeSubfolders);
+        Assert.False(settings.CreativeLutIncludeSubfolders);
     }
 
     [Fact]

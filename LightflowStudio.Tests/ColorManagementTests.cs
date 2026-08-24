@@ -169,7 +169,7 @@ public sealed class ColorManagementTests : IAsyncLifetime
         var originalPath = WriteCube(nested, "Shared Name.cube", 0);
         WriteCube(nested, "Invalid.cube", 0);
         File.WriteAllText(Path.Combine(nested, "Invalid.cube"), "not a cube");
-        var first = await _storage.Luts.RefreshAsync(cameraRoot);
+        var first = await _storage.Luts.RefreshAsync(cameraRoot, true);
         var original = Assert.Single(first.Resources);
         Assert.Single(first.Problems);
 
@@ -178,13 +178,29 @@ public sealed class ColorManagementTests : IAsyncLifetime
         File.Move(originalPath, movedPath);
         WriteCube(Path.Combine(cameraRoot, "Duplicate"), "Copy.cube", 0);
         WriteCube(Path.Combine(cameraRoot, "Different"), "Renamed.cube", 1);
-        var refreshed = await _storage.Luts.RefreshAsync(cameraRoot);
+        var refreshed = await _storage.Luts.RefreshAsync(cameraRoot, true);
 
         Assert.Equal(2, refreshed.Resources.Count);
         Assert.Contains(refreshed.Resources, resource => resource.LutId == original.LutId);
-        Assert.True(File.Exists(await _storage.Luts.ResolvePathAsync(original.LutId, cameraRoot)));
+        Assert.True(File.Exists(refreshed.Resources.Single(resource => resource.LutId == original.LutId).FilePath));
         Assert.Equal(2, refreshed.Resources.Select(resource => resource.LutId).Distinct().Count());
         Assert.Equal(2, LutCatalog.CombinedOptions(refreshed.Resources, refreshed.Resources).Count - 1);
+    }
+
+    [Fact]
+    public async Task IncludeSubfoldersControlsStageDiscovery()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(_root, "optional-recursion")).FullName;
+        WriteCube(root, "Top.cube", 0);
+        WriteCube(Path.Combine(root, "Nested"), "Nested.cube", 1);
+
+        var topOnly = await _storage.Luts.RefreshAsync(root, false);
+        Assert.Single(topOnly.Resources);
+        Assert.Equal("Top", topOnly.Resources[0].DisplayName);
+
+        var recursive = await _storage.Luts.RefreshAsync(root, true);
+        Assert.Equal(2, recursive.Resources.Count);
+        Assert.Contains(recursive.Resources, resource => resource.DisplayName == "Nested");
     }
 
     [Fact]
@@ -242,6 +258,8 @@ public sealed class ColorManagementTests : IAsyncLifetime
         await cache.InitializeAsync(cameraFolder, creativeFolder);
         Assert.Equal(1, scanner.Count(cameraFolder));
         Assert.Equal(1, scanner.Count(creativeFolder));
+        Assert.Contains((cameraFolder, false), scanner.Calls);
+        Assert.Contains((creativeFolder, false), scanner.Calls);
         var camera = Assert.Single(cache.Snapshot(ColorLutStage.Camera).Resources);
         var creative = Assert.Single(cache.Snapshot(ColorLutStage.Creative).Resources);
         var colors = new CatalogAssetColorStore(() => _storage.CatalogSession, cache);
@@ -265,7 +283,9 @@ public sealed class ColorManagementTests : IAsyncLifetime
         Assert.Equal(1, scanner.Count(replacementCamera));
         Assert.Equal(1, scanner.Count(creativeFolder));
         Assert.Equal(LutResourceAvailability.Missing, (await colors.GetAsync(_assetId)).Camera!.Availability);
-        await cache.RefreshAsync(ColorLutStage.Camera, cameraFolder);
+        await cache.RefreshAsync(ColorLutStage.Camera, cameraFolder, true);
+        Assert.Contains((cameraFolder, true), scanner.Calls);
+        Assert.Equal(1, scanner.Count(creativeFolder));
         Assert.Equal(LutResourceAvailability.Available, (await colors.GetAsync(_assetId)).Camera!.Availability);
     }
 
@@ -291,7 +311,7 @@ public sealed class ColorManagementTests : IAsyncLifetime
         var movedPath = Path.Combine(cameraFolder, "nested", "Moved.cube");
         Directory.CreateDirectory(Path.GetDirectoryName(movedPath)!);
         File.Move(originalPath, movedPath);
-        await cache.RefreshAsync(ColorLutStage.Camera, cameraFolder);
+        await cache.RefreshAsync(ColorLutStage.Camera, cameraFolder, true);
         await cache.GetRuntimeAsync(ColorLutStage.Camera, lut.LutId);
         Assert.Equal(1, parseCount); // Stable content identity survives a path move.
 
@@ -428,11 +448,16 @@ public sealed class ColorManagementTests : IAsyncLifetime
     private sealed class CountingLutLibrary(ILutLibrary inner) : ILutLibrary
     {
         private readonly Dictionary<string, int> _counts = new(StringComparer.OrdinalIgnoreCase);
+        public List<(string Folder, bool IncludeSubfolders)> Calls { get; } = [];
         public int Count(string folder) => _counts.GetValueOrDefault(folder);
         public Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default)
+            => RefreshAsync(folder, false, cancellationToken);
+        public Task<LutLibrarySnapshot> RefreshAsync(string folder, bool includeSubfolders,
+            CancellationToken cancellationToken = default)
         {
             _counts[folder] = Count(folder) + 1;
-            return inner.RefreshAsync(folder, cancellationToken);
+            Calls.Add((folder, includeSubfolders));
+            return inner.RefreshAsync(folder, includeSubfolders, cancellationToken);
         }
         public Task<ManagedLutResource?> GetAsync(Guid lutId, string folder, CancellationToken cancellationToken = default) =>
             inner.GetAsync(lutId, folder, cancellationToken);

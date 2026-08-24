@@ -3681,6 +3681,7 @@ public partial class MainWindow : Window
             {
                 JobState.Pausing => $"Pausing after {snapshot.Counts.Running} active export{(snapshot.Counts.Running == 1 ? "" : "s")} finish…",
                 JobState.Paused => "Export paused — active files finished",
+                JobState.Cancelling => $"Cancelling {snapshot.Counts.Running} active export{(snapshot.Counts.Running == 1 ? "" : "s")}…",
                 _ => CurrentFileText.Text
             };
             if (_closeAfterCurrent && snapshot.State == JobState.Paused)

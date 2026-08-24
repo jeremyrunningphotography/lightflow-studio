@@ -126,6 +126,101 @@ public sealed class JobRuntimeTests : IDisposable
     }
 
     [Fact]
+    public async Task CancelWhileFullyPausedCompletesNormallyWithoutStartingWaitingItems()
+    {
+        var gate = new ControlledExecutor();
+        await using var runtime = Runtime(4, 2, gate.ExecuteAsync);
+        var observer = new SnapshotObserver<int>();
+        using var subscription = runtime.Subscribe(observer);
+        var completion = runtime.StartAsync();
+        var first = await gate.Started.Reader.ReadAsync();
+        var second = await gate.Started.Reader.ReadAsync();
+        runtime.Pause();
+        gate.Release(first);
+        gate.Release(second);
+        await observer.WaitForAsync(snapshot => snapshot.State == JobState.Paused);
+
+        runtime.Cancel();
+        var result = await completion;
+
+        Assert.Equal(TaskStatus.RanToCompletion, completion.Status);
+        Assert.Equal(JobState.Cancelled, result.State);
+        Assert.Equal(2, result.Summary.Completed);
+        Assert.Equal(2, result.Summary.Cancelled);
+        Assert.Equal(2, gate.StartCount);
+        Assert.All(result.Items.Skip(2), item => Assert.Equal(JobState.Cancelled, item.State));
+    }
+
+    [Fact]
+    public async Task CancelWhilePausingCancelsActiveAndWaitingWithoutStartingMoreWork()
+    {
+        var gate = new ControlledExecutor();
+        await using var runtime = Runtime(5, 2, gate.ExecuteAsync);
+        var observer = new SnapshotObserver<int>();
+        using var subscription = runtime.Subscribe(observer);
+        var completion = runtime.StartAsync();
+        var first = await gate.Started.Reader.ReadAsync();
+        _ = await gate.Started.Reader.ReadAsync();
+        runtime.Pause();
+        gate.Release(first);
+        await observer.WaitForAsync(snapshot => snapshot.State == JobState.Pausing
+                                                && snapshot.Counts.Running == 1
+                                                && snapshot.Counts.Completed == 1);
+
+        runtime.Cancel();
+        var cancelling = await observer.WaitForAsync(snapshot => snapshot.State == JobState.Cancelling);
+        var result = await completion;
+
+        Assert.Null(cancelling.Eta);
+        Assert.Equal(TaskStatus.RanToCompletion, completion.Status);
+        Assert.Equal(JobState.Cancelled, result.State);
+        Assert.Equal(1, result.Summary.Completed);
+        Assert.Equal(4, result.Summary.Cancelled);
+        Assert.Equal(2, gate.StartCount);
+    }
+
+    [Fact]
+    public async Task ActiveTimeIncludesDrainExcludesFullPauseAndFeedsResumedEta()
+    {
+        var clock = new ManualActiveClock();
+        var gate = new ControlledExecutor();
+        var plan = Plan(2);
+        await using var runtime = new JobRuntime<EncodingJobOptions, int>(plan, 1, gate.ExecuteAsync, clock);
+        var observer = new SnapshotObserver<int>();
+        using var subscription = runtime.Subscribe(observer);
+        var completion = runtime.StartAsync();
+        var first = await gate.Started.Reader.ReadAsync();
+        clock.Advance(TimeSpan.FromSeconds(10));
+
+        runtime.Pause();
+        Assert.True(clock.IsRunning);
+        clock.Advance(TimeSpan.FromSeconds(5));
+        gate.Release(first);
+        var paused = await observer.WaitForAsync(snapshot => snapshot.State == JobState.Paused);
+        Assert.False(clock.IsRunning);
+        Assert.Equal(TimeSpan.FromSeconds(15), paused.Elapsed);
+        clock.Advance(TimeSpan.FromMinutes(3));
+        Assert.Equal(TimeSpan.FromSeconds(15), runtime.Snapshot().Elapsed);
+
+        runtime.Resume();
+        _ = await gate.Started.Reader.ReadAsync();
+        clock.Advance(TimeSpan.FromSeconds(5));
+        gate.Report(1, 50);
+        var resumed = runtime.Snapshot();
+        Assert.Equal(TimeSpan.FromSeconds(20), resumed.Elapsed);
+        Assert.Equal(TimeSpan.FromSeconds(10), resumed.Eta);
+
+        runtime.Pause();
+        Assert.True(clock.IsRunning);
+        clock.Advance(TimeSpan.FromSeconds(3));
+        gate.Release(1);
+        var result = await completion;
+        Assert.Equal(JobState.Completed, result.State);
+        Assert.Equal(TimeSpan.FromSeconds(23), runtime.Snapshot().Elapsed);
+        Assert.False(clock.IsRunning);
+    }
+
+    [Fact]
     public async Task FailureDoesNotCorruptSiblingResultsOrOrdering()
     {
         var plan = Plan(4);
@@ -181,6 +276,9 @@ public sealed class JobRuntimeTests : IDisposable
         var recovered = Assert.IsType<RecoveredJob<EncodingJobOptions, int>>(store.Load((_, _) => []));
         Assert.Equal(JobRecoveryDisposition.NeedsAttention, recovered.Disposition);
         Assert.Equal(JobState.Completed, recovered.Checkpoint.Runtime.Items[0].State);
+
+        store.Save(plan, snapshot with { State = JobState.Cancelling }, false);
+        Assert.Equal(JobRecoveryDisposition.NeedsAttention, store.Load((_, _) => [])!.Disposition);
     }
 
     [Fact]
@@ -292,13 +390,18 @@ public sealed class JobRuntimeTests : IDisposable
     {
         private readonly ConcurrentDictionary<int, TaskCompletionSource> _releases = new();
         private int _active;
+        private int _startCount;
+        private readonly ConcurrentDictionary<int, IProgress<double>> _progress = new();
         public System.Threading.Channels.Channel<int> Started { get; } = System.Threading.Channels.Channel.CreateUnbounded<int>();
         public int MaximumActive { get; private set; }
+        public int StartCount => Volatile.Read(ref _startCount);
 
         public async Task<JobItemResult<int>> ExecuteAsync(JobPlanItem item, IProgress<double> progress, CancellationToken token)
         {
             var index = Index(item);
             var release = _releases.GetOrAdd(index, _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
+            _progress[index] = progress;
+            Interlocked.Increment(ref _startCount);
             var active = Interlocked.Increment(ref _active);
             MaximumActive = Math.Max(MaximumActive, active);
             await Started.Writer.WriteAsync(index, token);
@@ -309,5 +412,32 @@ public sealed class JobRuntimeTests : IDisposable
         }
 
         public void Release(int index) => _releases.GetOrAdd(index, _ => new()).TrySetResult();
+        public void Report(int index, double percent) => _progress[index].Report(percent);
+    }
+
+    private sealed class ManualActiveClock : IJobActiveClock
+    {
+        private readonly object _sync = new();
+        private TimeSpan _elapsed;
+        private bool _isRunning;
+        public bool IsRunning { get { lock (_sync) return _isRunning; } }
+        public TimeSpan Elapsed { get { lock (_sync) return _elapsed; } }
+        public void Start() { lock (_sync) _isRunning = true; }
+        public void Stop() { lock (_sync) _isRunning = false; }
+        public void Advance(TimeSpan value) { lock (_sync) if (_isRunning) _elapsed += value; }
+    }
+
+    private sealed class SnapshotObserver<TData> : IJobRuntimeObserver<TData>
+    {
+        private readonly System.Threading.Channels.Channel<JobRuntimeSnapshot<TData>> _snapshots =
+            System.Threading.Channels.Channel.CreateUnbounded<JobRuntimeSnapshot<TData>>();
+        public void OnChanged(JobRuntimeSnapshot<TData> snapshot) => _snapshots.Writer.TryWrite(snapshot);
+        public async Task<JobRuntimeSnapshot<TData>> WaitForAsync(Func<JobRuntimeSnapshot<TData>, bool> predicate)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            while (await _snapshots.Reader.ReadAsync(timeout.Token) is { } snapshot)
+                if (predicate(snapshot)) return snapshot;
+            throw new InvalidOperationException("The expected runtime snapshot was not observed.");
+        }
     }
 }

@@ -10,6 +10,23 @@ internal interface IJobRuntimeObserver<TData>
     void OnChanged(JobRuntimeSnapshot<TData> snapshot);
 }
 
+internal interface IJobActiveClock
+{
+    bool IsRunning { get; }
+    TimeSpan Elapsed { get; }
+    void Start();
+    void Stop();
+}
+
+internal sealed class StopwatchJobActiveClock : IJobActiveClock
+{
+    private readonly Stopwatch _stopwatch = new();
+    public bool IsRunning => _stopwatch.IsRunning;
+    public TimeSpan Elapsed => _stopwatch.Elapsed;
+    public void Start() => _stopwatch.Start();
+    public void Stop() => _stopwatch.Stop();
+}
+
 internal sealed class ApplicationJobsRuntime<TOptions, TData> : IAsyncDisposable
 {
     private readonly object _sync = new();
@@ -111,7 +128,7 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
     private readonly int _parallelism;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly SemaphoreSlim _resumeSignal;
-    private readonly Stopwatch _activeClock = new();
+    private readonly IJobActiveClock _activeClock;
     private readonly DateTimeOffset?[] _itemStarted;
     private readonly DateTimeOffset?[] _itemCompleted;
     private readonly List<IJobRuntimeObserver<TData>> _observers = [];
@@ -123,12 +140,14 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
     private double _lastOverall;
 
     public JobRuntime(JobPlan<TOptions> plan, int parallelism,
-        Func<JobPlanItem, IProgress<double>, CancellationToken, Task<JobItemResult<TData>>> executor)
+        Func<JobPlanItem, IProgress<double>, CancellationToken, Task<JobItemResult<TData>>> executor,
+        IJobActiveClock? activeClock = null)
     {
         _parallelism = EncodingJobConcurrency.Validate(parallelism);
         _resumeSignal = new SemaphoreSlim(0, _parallelism);
         _execution = new JobExecution<TOptions, TData>(plan);
         _executor = executor ?? throw new ArgumentNullException(nameof(executor));
+        _activeClock = activeClock ?? new StopwatchJobActiveClock();
         _itemStarted = new DateTimeOffset?[plan.Items.Count];
         _itemCompleted = new DateTimeOffset?[plan.Items.Count];
     }
@@ -165,7 +184,7 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
         {
             if (_cancellation.IsCancellationRequested || IsFinished()) return;
             _pauseRequested = true;
-            if (_activeClock.IsRunning) _activeClock.Stop();
+            if (_activeWorkers == 0 && _activeClock.IsRunning) _activeClock.Stop();
         }
         Publish();
     }
@@ -257,10 +276,10 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
                 lock (_sync)
                 {
                     if (_cancellation.IsCancellationRequested) return;
+                    while (_nextItem < _execution.Items.Count && _execution.Items[_nextItem].State != JobState.Queued) _nextItem++;
+                    if (_nextItem >= _execution.Items.Count) return;
                     if (!_pauseRequested)
                     {
-                        while (_nextItem < _execution.Items.Count && _execution.Items[_nextItem].State != JobState.Queued) _nextItem++;
-                        if (_nextItem >= _execution.Items.Count) return;
                         index = _nextItem++;
                         item = _execution.Items[index];
                         item.Start();
@@ -272,7 +291,8 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
                     index = -1;
                 }
                 Publish();
-                await _resumeSignal.WaitAsync(_cancellation.Token).ConfigureAwait(false);
+                try { await _resumeSignal.WaitAsync(_cancellation.Token).ConfigureAwait(false); }
+                catch (OperationCanceledException) when (_cancellation.IsCancellationRequested) { return; }
             }
 
             Publish();
@@ -300,6 +320,7 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
                 {
                     _itemCompleted[index] = DateTimeOffset.Now;
                     _activeWorkers--;
+                    if (_pauseRequested && _activeWorkers == 0 && _activeClock.IsRunning) _activeClock.Stop();
                 }
                 Publish();
             }
@@ -308,7 +329,7 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
 
     private JobState RuntimeState(int terminal)
     {
-        if (_cancellation.IsCancellationRequested) return _activeWorkers > 0 ? JobState.Running : JobState.Cancelled;
+        if (_cancellation.IsCancellationRequested) return _activeWorkers > 0 ? JobState.Cancelling : JobState.Cancelled;
         if (_pauseRequested) return _activeWorkers > 0 ? JobState.Pausing : JobState.Paused;
         if (terminal == _execution.Items.Count) return _execution.State;
         return _activeWorkers > 0 ? JobState.Running : JobState.Queued;
@@ -316,7 +337,7 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
 
     private TimeSpan? EstimateEta(JobProgressSnapshot progress, JobState state)
     {
-        if (state is JobState.Paused or JobState.Pausing || !_activeClock.IsRunning || progress.TotalWork is not > 0
+        if (state is JobState.Paused or JobState.Pausing or JobState.Cancelling || !_activeClock.IsRunning || progress.TotalWork is not > 0
             || progress.CompletedWork <= 0 || progress.CompletedWork >= progress.TotalWork) return null;
         var seconds = _activeClock.Elapsed.TotalSeconds * (progress.TotalWork.Value - progress.CompletedWork) / progress.CompletedWork;
         return double.IsFinite(seconds) && seconds >= 0 ? TimeSpan.FromSeconds(seconds) : null;
@@ -411,7 +432,7 @@ internal sealed class JobRuntimeStore<TOptions, TData>(string path)
                     checkpoint.Runtime.Items.ElementAtOrDefault(index)?.State is JobState.Planned or JobState.Queued or JobState.Running or JobState.Pausing or JobState.Paused)
                     .SelectMany(item => revalidate(item, checkpoint.Plan.Definition.Options)).ToList();
                 var wasRunning = checkpoint.Runtime.Items.Any(item => item.State == JobState.Running)
-                             || checkpoint.Runtime.State is JobState.Running or JobState.Pausing;
+                             || checkpoint.Runtime.State is JobState.Running or JobState.Pausing or JobState.Cancelling;
                 var disposition = issues.Any(issue => issue.Severity == JobIssueSeverity.Error) || wasRunning
                     ? JobRecoveryDisposition.NeedsAttention
                     : checkpoint.PauseRequested || checkpoint.Runtime.State == JobState.Paused

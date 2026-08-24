@@ -7,6 +7,7 @@ internal enum JobState
     Running,
     Pausing,
     Paused,
+    Cancelling,
     NeedsAttention,
     Completed,
     CompletedWithWarnings,

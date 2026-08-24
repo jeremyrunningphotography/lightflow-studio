@@ -345,7 +345,9 @@ public partial class PlayerViewerHost : UserControl
         cameraLibrary = _lutCache.Snapshot(ColorLutStage.Camera);
         creativeLibrary = _lutCache.Snapshot(ColorLutStage.Creative);
         _openMilestone?.Invoke(PlayerOpenMilestone.ColorAssignmentReadStarted);
-        intent = await _assetColors.GetAsync(assetId, token).ConfigureAwait(true);
+        await _colorTogglePersistenceGate.WaitAsync(token).ConfigureAwait(true);
+        try { intent = await _assetColors.GetAsync(assetId, token).ConfigureAwait(true); }
+        finally { _colorTogglePersistenceGate.Release(); }
         _openMilestone?.Invoke(PlayerOpenMilestone.ColorAssignmentReadCompleted);
         CubeLutData? camera = null, creative = null;
         _openMilestone?.Invoke(PlayerOpenMilestone.RuntimeLutLoadStarted);
@@ -1056,8 +1058,6 @@ internal enum PlayerOpenMilestone
     PlaybackBackendOpenCompleted,
     PresentationSurfaceCreated,
     PlayerControlsPublished,
-    ColorCacheWaitStarted,
-    ColorCacheWaitCompleted,
     ColorAssignmentReadStarted,
     ColorAssignmentReadCompleted,
     RuntimeLutLoadStarted,

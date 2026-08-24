@@ -56,13 +56,13 @@ before Creative. GPU buffers and shader state are transient playback-adapter det
 state; Preview generation and Encoding remain independent consumers of the same intent.
 
 The Player opens Flyleaf, restores an optional saved-In position, attaches presentation, and publishes transport
-controls before waiting on LUT discovery, Catalog Color intent, runtime LUT preparation, selector construction, or
-GPU Color setup. A generation/revision-guarded continuation applies Camera → Creative after those resources become
-available without reopening or interrupting playback. A new Player defaults Color processing to Off with independent
-Camera and Creative `No LUT` selections; assignments remain durable and toggling Color changes presentation only.
-The master switch becomes interactive when Player controls publish and is not gated by background LUT readiness;
-stage selectors require both Color On and published stage snapshots, so enabling early takes effect as soon as those
-choices arrive without starting or waiting on discovery in the media-open path.
+controls without waiting on LUT discovery, Catalog Color intent, runtime LUT preparation, selector construction, or
+GPU Color setup. It immediately projects the current immutable cache snapshots (at minimum `No LUT`) into both
+selectors. A generation/revision-guarded continuation then restores durable per-asset Color intent and applies
+Camera → Creative without reopening or interrupting playback. A new asset defaults Color processing to Off with
+independent Camera and Creative `No LUT` selections. The master switch becomes interactive when Player controls
+publish and is not gated by background LUT readiness; stage selectors are enabled whenever persistent Color is On,
+even if the current snapshots contain only `No LUT`. Neither interaction starts or waits on discovery.
 
 ### Presentation
 
@@ -272,7 +272,7 @@ changes durable intent.
 
 Catalog `LutResources` stores deterministic Lightflow identity derived from validated content plus content-hash metadata, not LUT payloads or an independently user-managed registry (the migration from the pre-correction schema preserves any IDs already referenced by assignments). Folder refresh hashes each valid file and reconciles it by content: renaming a file preserves its `LutId`; changing content in place creates a new resource identity; equal content across either folder collapses to one semantic LUT; equal display names with different content remain distinct and receive ordinary numeric disambiguation where combined. A Camera/Creative assignment continues to reference its original `LutId` and content hash, but availability is checked only in its stage's configured folder. Changing one folder therefore cannot disturb a valid assignment in the other. Engines resolve the freshly validated stage folder file rather than a Catalog blob or transient external-path assignment.
 
-`MediaAssetColor` stores precious per-asset Color intent against stable `AssetId`: typed optional Camera/technical then Creative LUT references. `IAssetColorStore` provides single-stage and transactional bulk mutation without source-media changes; clearing one stage preserves the other. `AssetColorIntent.OrderedPipeline` is the engine-neutral order later Player, Preview, Browser, and Encoding work consumes. `ColorIdentity` hashes only the versioned ordered LUT IDs and immutable content hashes, so either stage changes visual identity while LUT renames and unrelated Catalog metadata do not. Rendered derivatives remain rebuildable Preview data and are intentionally not produced or invalidated by #145. The first end-user per-asset assignment surface and all rendering remain deferred to the later Color issues.
+`MediaAssetColor` stores precious per-asset Color intent against stable `AssetId`: persistent Color-enabled state plus typed optional Camera/technical then Creative LUT references. `IAssetColorStore` provides enabled-state, single-stage, and transactional bulk assignment mutation without source-media changes; clearing one stage preserves the other and toggling Color preserves both. `AssetColorIntent.OrderedPipeline` is the engine-neutral Camera → Creative order later Preview, Browser, and Encoding work can consume. `ColorIdentity` hashes the versioned enabled state, ordered LUT IDs, and immutable content hashes, so a presentation-affecting change alters visual identity while LUT renames and unrelated Catalog metadata do not. Rendered derivatives remain rebuildable Preview data and are intentionally not produced or invalidated by #146; Player is the only Color-aware presentation surface in this issue.
 
 Self-contained packaging runs the published executable in a non-UI `--verify-catalog-runtime` mode. That smoke check creates, closes, reopens, and removes an isolated temporary Catalog and also persists/reopens a Preview record through the production services, proving that the locked managed provider and embedded native `e_sqlite3` library load from the actual packaged executable rather than merely compiling on the build machine.
 

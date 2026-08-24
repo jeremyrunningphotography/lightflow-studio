@@ -51,7 +51,7 @@ public sealed class ColorManagementTests : IAsyncLifetime
 
         Assert.Equal(resource.LutId, restored.LutId);
         Assert.Equal(resource.ContentSha256, restored.ContentSha256);
-        Assert.Equal(path, await _storage.Luts.ResolvePathAsync(restored.LutId, _luts));
+        Assert.Equal(path, restored.FilePath);
     }
 
     [Fact]
@@ -497,9 +497,5 @@ public sealed class ColorManagementTests : IAsyncLifetime
             Calls.Add((folder, includeSubfolders));
             return inner.RefreshAsync(folder, includeSubfolders, cancellationToken);
         }
-        public Task<ManagedLutResource?> GetAsync(Guid lutId, string folder, CancellationToken cancellationToken = default) =>
-            inner.GetAsync(lutId, folder, cancellationToken);
-        public Task<string> ResolvePathAsync(Guid lutId, string folder, CancellationToken cancellationToken = default) =>
-            inner.ResolvePathAsync(lutId, folder, cancellationToken);
     }
 }

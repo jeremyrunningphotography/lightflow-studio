@@ -222,8 +222,6 @@ internal interface ILutLibrary
     Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default);
     Task<LutLibrarySnapshot> RefreshAsync(string folder, bool includeSubfolders,
         CancellationToken cancellationToken = default) => RefreshAsync(folder, cancellationToken);
-    Task<ManagedLutResource?> GetAsync(Guid lutId, string folder, CancellationToken cancellationToken = default);
-    Task<string> ResolvePathAsync(Guid lutId, string folder, CancellationToken cancellationToken = default);
 }
 
 internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> session,
@@ -294,46 +292,12 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
         finally { _refreshGate.Release(); }
     }
 
-    public Task<ManagedLutResource?> GetAsync(Guid lutId, string folder,
-        CancellationToken cancellationToken = default) => Task.Run(() =>
-    {
-        using var connection = RequireSession().OpenConnection();
-        var stored = FindById(connection, lutId);
-        if (stored is null) return null;
-        var match = FolderLutScanner.Scan(NormalizeFolder(folder), cancellationToken).Candidates
-            .Where(candidate => candidate.ContentSha256 == stored.ContentSha256)
-            .OrderBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
-        return match is null
-            ? stored with { Availability = LutResourceAvailability.Missing,
-                Diagnostic = "The assigned LUT is not present in the configured LUT folder." }
-            : stored with { DisplayName = match.DisplayName, OriginalFileName = match.FileName,
-                Availability = LutResourceAvailability.Available, FilePath = match.FilePath, Diagnostic = null };
-    }, cancellationToken);
-
-    public async Task<string> ResolvePathAsync(Guid lutId, string folder, CancellationToken cancellationToken = default)
-    {
-        var resource = await GetAsync(lutId, folder, cancellationToken).ConfigureAwait(false)
-            ?? throw new FileNotFoundException("The LUT resource is not registered in the Catalog.");
-        if (resource.Availability != LutResourceAvailability.Available || resource.FilePath is null)
-            throw new FileNotFoundException(resource.Diagnostic);
-        return resource.FilePath;
-    }
-
     private static ManagedLutResource? FindByHash(SqliteConnection connection, SqliteTransaction transaction, string hash)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = "SELECT LutId,DisplayName,OriginalFileName,ContentSha256,LutSize FROM LutResources WHERE ContentSha256=$hash;";
         command.Parameters.AddWithValue("$hash", hash);
-        using var reader = command.ExecuteReader();
-        return reader.Read() ? ReadStored(reader) : null;
-    }
-
-    private static ManagedLutResource? FindById(SqliteConnection connection, Guid lutId)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT LutId,DisplayName,OriginalFileName,ContentSha256,LutSize FROM LutResources WHERE LutId=$id;";
-        command.Parameters.AddWithValue("$id", lutId.ToString("D"));
         using var reader = command.ExecuteReader();
         return reader.Read() ? ReadStored(reader) : null;
     }
@@ -370,7 +334,6 @@ internal interface ILutLibraryCache
         CancellationToken cancellationToken = default);
     Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder, bool includeSubfolders,
         CancellationToken cancellationToken = default) => RefreshAsync(stage, folder, cancellationToken);
-    Task WaitUntilInitializedAsync(CancellationToken cancellationToken = default);
     LutLibrarySnapshot Snapshot(ColorLutStage stage);
     ManagedLutResource? Get(ColorLutStage stage, Guid lutId);
     string ResolvePath(ColorLutStage stage, Guid lutId);
@@ -472,14 +435,6 @@ internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner, Func<strin
             }
             refreshCancellation.Dispose();
         }
-    }
-
-    public async Task WaitUntilInitializedAsync(CancellationToken cancellationToken = default)
-    {
-        Task? initialization;
-        lock (_gate) initialization = _initialization;
-        if (initialization is null) return;
-        await initialization.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public LutLibrarySnapshot Snapshot(ColorLutStage stage)

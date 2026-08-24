@@ -93,13 +93,12 @@ public sealed class PlayerViewerHostLeaseTests
     }
 
     [Fact]
-    public async Task DelayedLutInitialization_NeverGatesPlaybackOpenOrPlayerPublication()
+    public async Task PlayerOpenAndColorToggle_ConsumeCurrentCacheWithoutDiscoveryOrWaiting()
     {
         await StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
-            var initialization = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var cache = new FakeLutLibrary(initialization: initialization.Task);
+            var cache = new FakeLutLibrary();
             var backend = new FakeBackend();
             var milestones = new List<PlayerOpenMilestone>();
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
@@ -121,8 +120,6 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.False(host.CameraLutCombo.IsEnabled);
             Assert.False(host.CreativeLutCombo.IsEnabled);
             Assert.Contains(PlayerOpenMilestone.PlayerControlsPublished, milestones);
-            Assert.DoesNotContain(PlayerOpenMilestone.ColorCacheWaitStarted, milestones);
-            Assert.DoesNotContain(PlayerOpenMilestone.ColorCacheWaitCompleted, milestones);
 
             host.ColorToggleButton.IsChecked = true;
             host.ColorToggleButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
@@ -131,7 +128,7 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.True(host.CreativeLutCombo.IsEnabled);
 
             Assert.Contains(PlayerOpenMilestone.ColorPublished, milestones);
-            initialization.SetResult();
+            Assert.Equal(0, cache.RefreshCount);
         });
     }
 
@@ -145,7 +142,7 @@ public sealed class PlayerViewerHostLeaseTests
             var path = Path.Combine(Path.GetTempPath(), $"cached-{lutId:N}.cube");
             var resource = Resource(lutId, "Cached", path);
             var scanner = new DynamicLutLibrary((folder, _) => Task.FromResult(
-                new LutLibrarySnapshot(folder, [resource], [])), new Dictionary<Guid, string> { [lutId] = path });
+                new LutLibrarySnapshot(folder, [resource], [])));
             var parseCount = 0;
             using var cache = new ApplicationLutLibraryCache(scanner, _ =>
             {
@@ -229,8 +226,15 @@ public sealed class PlayerViewerHostLeaseTests
                 Assert.Equal("No LUT", host.CreativeLutCombo.SelectedItem!.ToString());
                 Assert.False(backend.ColorCalls[^1].Bypass);
                 Assert.Equal(1, colors.SetColorEnabledCount);
+
+                var reopened = host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
+                    Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
+                Assert.Same(reopened, await Task.WhenAny(reopened, Task.Delay(1000)));
+                await reopened;
+                Assert.False(host.ColorToggleButton.IsChecked);
                 persistence.SetResult();
-                await WaitUntilAsync(() => colors.IsColorEnabled(assetId), "Color enabled persistence");
+                await WaitUntilAsync(() => colors.IsColorEnabled(assetId) && host.ColorToggleButton.IsChecked == true,
+                    "Color enabled persistence and reopen restoration");
 
                 Key(host, window, System.Windows.Input.Key.C, UIElement.PreviewKeyDownEvent);
                 Assert.True(backend.ColorCalls[^1].Bypass);
@@ -328,8 +332,7 @@ public sealed class PlayerViewerHostLeaseTests
                 {
                     if (string.Equals(folder, slow, StringComparison.OrdinalIgnoreCase)) await Task.Delay(500, token);
                     return new(folder, snapshots[folder], []);
-                }, paths.Concat(new[] { new KeyValuePair<Guid, string>(cameraId, Path.Combine(same, "Moved Camera.cube")) })
-                    .GroupBy(item => item.Key).ToDictionary(group => group.Key, group => group.Last().Value));
+                });
                 using var library = new ApplicationLutLibraryCache(scanner);
                 await library.InitializeAsync(initial, creativeFolder);
                 var colors = new FakeColorStore(assetId => new(assetId,
@@ -716,8 +719,7 @@ public sealed class PlayerViewerHostLeaseTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class FakeLutLibrary(IReadOnlyDictionary<Guid, string>? paths = null,
-        Task? initialization = null) : ILutLibraryCache
+    private sealed class FakeLutLibrary(IReadOnlyDictionary<Guid, string>? paths = null) : ILutLibraryCache
     {
         public int RefreshCount { get; private set; }
         private LutLibrarySnapshot Library(string folder) => new(folder, (paths ?? new Dictionary<Guid, string>()).Select(item =>
@@ -726,8 +728,6 @@ public sealed class PlayerViewerHostLeaseTests
         public Task InitializeAsync(string cameraFolder, string creativeFolder, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<LutLibrarySnapshot> RefreshAsync(ColorLutStage stage, string folder, CancellationToken cancellationToken = default)
         { RefreshCount++; return Task.FromResult(Library(folder)); }
-        public Task WaitUntilInitializedAsync(CancellationToken cancellationToken = default) =>
-            (initialization ?? Task.CompletedTask).WaitAsync(cancellationToken);
         public LutLibrarySnapshot Snapshot(ColorLutStage stage) => Library(Path.GetTempPath());
         public ManagedLutResource? Get(ColorLutStage stage, Guid lutId) => Snapshot(stage).Resources.FirstOrDefault(x => x.LutId == lutId);
         public string ResolvePath(ColorLutStage stage, Guid lutId) => paths![lutId];
@@ -771,15 +771,10 @@ public sealed class PlayerViewerHostLeaseTests
     }
 
     private sealed class DynamicLutLibrary(
-        Func<string, CancellationToken, Task<LutLibrarySnapshot>> refresh,
-        IReadOnlyDictionary<Guid, string> paths) : ILutLibrary
+        Func<string, CancellationToken, Task<LutLibrarySnapshot>> refresh) : ILutLibrary
     {
         public Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default) =>
             refresh(folder, cancellationToken);
-        public Task<ManagedLutResource?> GetAsync(Guid lutId, string folder, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ManagedLutResource?>(null);
-        public Task<string> ResolvePathAsync(Guid lutId, string folder, CancellationToken cancellationToken = default) =>
-            Task.FromResult(paths[lutId]);
     }
 
     private static ManagedLutResource Resource(Guid id, string name, string path) =>

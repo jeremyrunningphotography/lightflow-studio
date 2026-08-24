@@ -6,6 +6,35 @@ namespace LightflowStudio.Tests;
 public class UiLayoutTests
 {
     [Fact]
+    public void BrowserTiles_ExposeIndependentColorAndTransientThumbnailWorkingIndicators()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var color = Named(document, "BrowserColorStateMarker");
+        var working = Named(document, "BrowserThumbnailWorkingIndicator");
+        Assert.Contains("HasColorState", (string?)color.Attribute("Visibility"));
+        Assert.Contains("IsThumbnailGenerating", (string?)working.Attribute("Visibility"));
+        Assert.Equal("True", (string?)working.Attribute("IsIndeterminate"));
+        Assert.NotNull(working.Ancestors().FirstOrDefault(element => element.Name.LocalName == "Grid")?
+            .Elements().FirstOrDefault(element => element.Name.LocalName == "Image"));
+    }
+
+    [Fact]
+    public void BrowserColorIndicator_IsCompactMulticolorWheelWithSelectionBorder()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var marker = Named(document, "BrowserColorStateMarker");
+        var fills = marker.Descendants().Where(element => element.Name.LocalName == "Path")
+            .Select(element => (string?)element.Attribute("Fill")).Where(value => value is not null).Distinct().ToArray();
+        Assert.True(fills.Length >= 6);
+        Assert.Contains(marker.Descendants(), element => element.Name.LocalName == "EllipseGeometry");
+        var selectionTrigger = marker.Descendants().Single(element => element.Name.LocalName == "DataTrigger" &&
+            ((string?)element.Attribute("Binding"))?.Contains("IsSelected", StringComparison.Ordinal) == true);
+        Assert.Equal("#FF000000", (string?)selectionTrigger.Descendants().Single(element =>
+            element.Name.LocalName == "Setter" && (string?)element.Attribute("Property") == "BorderBrush").Attribute("Value"));
+        Assert.Contains("#8FA5ABB3", marker.Descendants().Where(element => element.Name.LocalName == "Setter" &&
+            (string?)element.Attribute("Property") == "BorderBrush").Select(element => (string?)element.Attribute("Value")));
+    }
+    [Fact]
     public void BrowserWorkspace_ExposesFilesystemFirstNavigationAndMediaGrid()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
@@ -721,7 +750,7 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserActions_ArePersistentSharedAndAbsentFromTheStatusBar()
+    public void BrowserActions_KeepSelectionActionsSeparateFromStatusPreviewMaintenance()
     {
         var root = FindRepositoryRoot();
         var document = XDocument.Load(Path.Combine(root, "LightflowStudio", "MainWindow.xaml"));
@@ -745,7 +774,7 @@ public class UiLayoutTests
         Assert.DoesNotContain(actions.Descendants(), element =>
             (string?)element.Attribute(x + "Name") == "BrowserSelectionActionSummary");
         Assert.Equal("BrowserSelectionActionButtonStyle", Named(document, "BrowserExportButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
-        Assert.Equal("BrowserSelectionActionButtonStyle", Named(document, "BrowserRegenerateThumbnailsButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
+        Assert.Equal("BrowserThumbnailSizeStepButtonStyle", Named(document, "BrowserRegenerateThumbnailsButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("BrowserSelectionLutComboStyle", Named(document, "BrowserCameraLutCombo").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("BrowserSelectionLutComboStyle", Named(document, "BrowserCreativeLutCombo").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("150", (string?)document.Descendants(ns + "Style").Single(style =>
@@ -761,7 +790,11 @@ public class UiLayoutTests
         var actionNames = actions.Descendants().Select(element => (string?)element.Attribute(x + "Name"))
             .Where(name => name is not null).ToList();
         Assert.True(actionNames.IndexOf("BrowserCameraLutCombo") < actionNames.IndexOf("BrowserCreativeLutCombo"));
-        Assert.True(actionNames.IndexOf("BrowserCreativeLutCombo") < actionNames.IndexOf("BrowserRegenerateThumbnailsButton"));
+        Assert.DoesNotContain("BrowserRegenerateThumbnailsButton", actionNames);
+        var presentationNames = Named(document, "BrowserPresentationControls").Elements()
+            .Select(element => (string?)element.Attribute(x + "Name")).Where(name => name is not null).ToList();
+        Assert.True(presentationNames.IndexOf("BrowserRegenerateThumbnailsButton") <
+                    presentationNames.IndexOf("BrowserThumbnailSizeDecreaseButton"));
         Assert.Equal("1", (string?)Named(document, "BrowserExportButton").Attribute("Grid.Column"));
         Assert.Null(Named(document, "BrowserCameraLutCombo").Attribute("Click"));
         Assert.Null(Named(document, "BrowserCreativeLutCombo").Attribute("Click"));
@@ -773,7 +806,7 @@ public class UiLayoutTests
         Assert.Contains(app.Descendants(ns + "Style"), style => (string?)style.Attribute(x + "Key") == "LightflowContextMenuStyle");
         Assert.Contains(app.Descendants(ns + "Style"), style => (string?)style.Attribute(x + "Key") == "LightflowMenuItemStyle");
         Assert.Equal(
-            ["Export / Export Subclips…", "Regenerate Thumbnail(s)", "Rename", "Camera LUT", "Creative LUT"],
+            ["Export / Export Subclips…", "Regenerate Previews", "Rename", "Camera LUT", "Creative LUT"],
             contextMenu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
         Assert.All(contextMenu.Elements(ns + "MenuItem").TakeLast(2), submenu => Assert.True(submenu.HasElements));
     }
@@ -961,17 +994,18 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserPresentationControls_OrdersDecreaseButtonSliderThenIncreaseButton()
+    public void BrowserPresentationControls_OrderRegenerateImmediatelyBeforePreviewSizeControls()
     {
         // The small icon (decrease) reads left-to-right before the slider before the large icon (increase),
         // matching the visual "small ... large" convention the mockup called for.
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var presentationControls = Named(document, "BrowserPresentationControls");
+        var regenerate = Named(document, "BrowserRegenerateThumbnailsButton");
         var decreaseButton = Named(document, "BrowserThumbnailSizeDecreaseButton");
         var slider = Named(document, "BrowserThumbnailSizeSlider");
         var increaseButton = Named(document, "BrowserThumbnailSizeIncreaseButton");
 
-        Assert.Equal([decreaseButton, slider, increaseButton], presentationControls.Elements());
+        Assert.Equal([regenerate, decreaseButton, slider, increaseButton], presentationControls.Elements());
     }
 
     [Fact]
@@ -994,16 +1028,21 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserThumbnailSizeStepButtons_HaveDistinctAccessibleNamesAndTooltips()
+    public void BrowserPreviewControls_HaveProductTerminologyAndAccessibleNames()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var decreaseButton = Named(document, "BrowserThumbnailSizeDecreaseButton");
         var increaseButton = Named(document, "BrowserThumbnailSizeIncreaseButton");
 
-        Assert.Equal("Decrease thumbnail size", (string?)decreaseButton.Attribute("ToolTip"));
-        Assert.Equal("Decrease thumbnail size", (string?)decreaseButton.Attribute("AutomationProperties.Name"));
-        Assert.Equal("Increase thumbnail size", (string?)increaseButton.Attribute("ToolTip"));
-        Assert.Equal("Increase thumbnail size", (string?)increaseButton.Attribute("AutomationProperties.Name"));
+        Assert.Equal("Decrease Preview size", (string?)decreaseButton.Attribute("ToolTip"));
+        Assert.Equal("Decrease Preview size", (string?)decreaseButton.Attribute("AutomationProperties.Name"));
+        Assert.Equal("Increase Preview size", (string?)increaseButton.Attribute("ToolTip"));
+        Assert.Equal("Increase Preview size", (string?)increaseButton.Attribute("AutomationProperties.Name"));
+        var regenerate = Named(document, "BrowserRegenerateThumbnailsButton");
+        Assert.Equal("Regenerate Previews", (string?)regenerate.Attribute("ToolTip"));
+        Assert.Equal("Regenerate Previews", (string?)regenerate.Attribute("AutomationProperties.Name"));
+        Assert.Equal("BrowserPresentationControls", (string?)regenerate.Parent?.Attribute(
+            XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name"));
     }
 
     [Fact]

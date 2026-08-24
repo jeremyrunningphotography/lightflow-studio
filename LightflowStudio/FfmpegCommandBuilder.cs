@@ -141,10 +141,14 @@ internal static class FfmpegCommandBuilder
             "-show_packets", "-show_entries", "packet=pts_time", "-of", "json", file];
     public static List<string> ProbeOutput(string file) =>
         ["-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name", "-of", "json", file];
-    public static List<string> ExtractThumbnail(string file, TimeSpan position, int maximumPixelDimension, string output) =>
-        ["-hide_banner", "-loglevel", "error", "-y", "-ss", Seconds(position), "-i", file, "-an", "-frames:v", "1",
-            "-vf", $"scale={maximumPixelDimension}:{maximumPixelDimension}:force_original_aspect_ratio=decrease",
-            "-c:v", "mjpeg", "-q:v", "3", "-f", "image2", output];
+    public static List<string> ExtractThumbnail(string file, TimeSpan position, int maximumPixelDimension, string output,
+        IReadOnlyList<string>? assignedLuts = null)
+    {
+        var filters = assignedLuts?.Select(path => $"lut3d=file='{EscapeFilterPath(path)}'").ToList() ?? [];
+        filters.Add($"scale={maximumPixelDimension}:{maximumPixelDimension}:force_original_aspect_ratio=decrease");
+        return ["-hide_banner", "-loglevel", "error", "-y", "-ss", Seconds(position), "-i", file, "-an", "-frames:v", "1",
+            "-vf", string.Join(',', filters), "-c:v", "mjpeg", "-q:v", "3", "-f", "image2", output];
+    }
     public static List<string> Inspect(string file) => ["-hide_banner", "-show_format", "-show_streams", file];
     public static List<string> Verify(string file) => ["-v", "warning", "-i", file, "-map", "0:v:0", "-f", "null", "NUL"];
     public static List<string> Rewrap(string input, string output) => ["-hide_banner", "-y", "-i", input, "-map", "0", "-c", "copy", "-movflags", "+faststart", output];

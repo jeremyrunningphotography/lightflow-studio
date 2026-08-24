@@ -85,6 +85,7 @@ public partial class PlayerViewerHost : UserControl
 
     /// <summary>Raised after a saved review-range change commits so any host can refresh its own presentation.</summary>
     internal event EventHandler<MediaRangeStateChangedEventArgs>? RangeStateChanged;
+    internal event EventHandler<AssetColorStateChangedEventArgs>? ColorStateChanged;
     internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
     internal PlayerViewerAsset? CurrentAsset => _currentAsset;
 
@@ -523,7 +524,14 @@ public partial class PlayerViewerHost : UserControl
         }
         if (_updatingColor || choice is null || _currentAsset?.AssetId is not Guid assetId || _assetColors is null
             || _cameraLutFolder is null || _creativeLutFolder is null) return;
-        try { await _assetColors.SetStageAsync([assetId], stage, choice.LutId); SetStatus(null); await ApplyColorIntentAsync(await _assetColors.GetAsync(assetId), CancellationToken.None); }
+        try
+        {
+            await _assetColors.SetStageAsync([assetId], stage, choice.LutId);
+            SetStatus(null);
+            var committed = await _assetColors.GetAsync(assetId);
+            ColorStateChanged?.Invoke(this, new(assetId, committed.HasColor));
+            await ApplyColorIntentAsync(committed, CancellationToken.None);
+        }
         catch (Exception exception) { SetStatus($"Color assignment could not be saved. {exception.Message}"); }
     }
 
@@ -1024,4 +1032,10 @@ internal sealed class MediaRangeStateChangedEventArgs(Guid assetId, bool hasSave
 {
     public Guid AssetId { get; } = assetId;
     public bool HasSavedRange { get; } = hasSavedRange;
+}
+
+internal sealed class AssetColorStateChangedEventArgs(Guid assetId, bool hasColor) : EventArgs
+{
+    public Guid AssetId { get; } = assetId;
+    public bool HasColor { get; } = hasColor;
 }

@@ -67,6 +67,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     private ICatalogRecoveryService _recovery;
     private readonly SemaphoreSlim _mutationGate = new(1, 1);
     private readonly PreviewOperationCoordinator _previewOperations = new();
+    private readonly SemaphoreSlim _thumbnailRegenerationGate = new(2, 2);
+    private readonly AssetPreviewGenerationGate _assetPreviewGenerationGate = new();
     private CatalogDatabaseSession? _catalogSession;
 
     private LightflowStorageCoordinator(IStorageConfigurationStore configuration, AppSettings settings,
@@ -95,15 +97,16 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         MediaTypes = MediaTypeRegistry.CreateDefault();
         MediaFolders = new MediaFolderEnumerator(MediaRoots, MediaTypes, new MediaFolderFileSystem());
         CatalogReconciliation = new CatalogReconciliationService(MediaFolders, MediaAssets);
+        MediaRanges = new CatalogMediaRangeStore(() => _catalogSession);
+        Luts = new CatalogFolderLutLibrary(() => _catalogSession);
+        LutCache = new ApplicationLutLibraryCache(Luts);
+        AssetColors = new CatalogAssetColorStore(() => _catalogSession, LutCache);
+        BrowserAssetStates = new CatalogBrowserAssetStateStore(() => _catalogSession);
+        ThumbnailActivity = new ThumbnailGenerationActivity();
         DerivedWork = CreateDerivedWorkScheduler();
         MediaDiscovery = new MediaDiscoveryRefreshService(CatalogReconciliation, () => DerivedWork);
         RecursiveMediaDiscovery = new RecursiveMediaDiscoveryService(MediaFolders, MediaDiscovery);
         MediaMonitoring = new MediaRootMonitoringService(MediaRoots, MediaDiscovery);
-        MediaRanges = new CatalogMediaRangeStore(() => _catalogSession);
-        BrowserAssetStates = new CatalogBrowserAssetStateStore(() => _catalogSession);
-        Luts = new CatalogFolderLutLibrary(() => _catalogSession);
-        LutCache = new ApplicationLutLibraryCache(Luts);
-        AssetColors = new CatalogAssetColorStore(() => _catalogSession, LutCache);
     }
 
     public AppSettings Settings { get; private set; }
@@ -122,6 +125,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public ILutLibrary Luts { get; }
     public ILutLibraryCache LutCache { get; }
     public IAssetColorStore AssetColors { get; }
+    public IThumbnailGenerationActivity ThumbnailActivity { get; }
     /// <summary>#124 (revised): durable Catalog storage for Browser "Include Subfolders" recursive roots. See <see cref="BrowserRecursiveRoot"/>.</summary>
     public IBrowserRecursiveRootService BrowserRecursiveRoots { get; }
     public IMediaTypeRegistry MediaTypes { get; }
@@ -513,21 +517,26 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     }
 
     public async Task<IReadOnlyList<ThumbnailGenerationResult>> RegenerateThumbnailsAsync(
-        IReadOnlyList<Guid> assetIds, CancellationToken cancellationToken = default)
+        IReadOnlyList<Guid> assetIds, CancellationToken cancellationToken = default,
+        IProgress<PreviewRegenerationCompleted>? progress = null,
+        PreviewRegenerationMode mode = PreviewRegenerationMode.Force)
     {
         if (!CatalogAvailable || Previews is null)
             return assetIds.Select(_ => new ThumbnailGenerationResult(ThumbnailGenerationStatus.Failed,
                 Diagnostic: PreviewDiagnostic ?? "Preview storage is unavailable.")).ToArray();
         using var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
-            operations: _previewOperations);
-        var results = new List<ThumbnailGenerationResult>(assetIds.Count);
-        foreach (var assetId in assetIds.Distinct())
+            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity);
+        return await PreviewRegenerationBatch.RunAsync(assetIds, async (assetId, token) =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            results.Add(await thumbnails.GenerateAsync(new(assetId, ForceRefresh: true,
-                Priority: ThumbnailPriority.Visible), cancellationToken).ConfigureAwait(false));
-        }
-        return results;
+            using var assetLease = await _assetPreviewGenerationGate.EnterAsync(assetId, token).ConfigureAwait(false);
+            await _thumbnailRegenerationGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                return await thumbnails.GenerateAsync(new(assetId, ForceRefresh: mode == PreviewRegenerationMode.Force,
+                    Priority: ThumbnailPriority.Visible), token).ConfigureAwait(false);
+            }
+            finally { _thumbnailRegenerationGate.Release(); }
+        }, progress, cancellationToken).ConfigureAwait(false);
     }
 
     private IPreviewMaintenanceService? CreatePreviewMaintenance()
@@ -536,7 +545,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         var metadata = DerivedMediaMetadataFactory.Create(MediaAssets, Previews, Settings,
             operations: _previewOperations);
         var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
-            operations: _previewOperations);
+            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity);
         return new PreviewMaintenanceService(Previews, MediaAssets, metadata, thumbnails,
             _previewOperations, Locations, ownsGenerators: true);
     }
@@ -547,9 +556,9 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         var metadata = DerivedMediaMetadataFactory.Create(MediaAssets, Previews, Settings,
             operations: _previewOperations);
         var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
-            operations: _previewOperations);
+            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity);
         return new DerivedWorkScheduler(MediaAssets, Previews, metadata, thumbnails,
-            ownsGenerators: true, operations: _previewOperations);
+            ownsGenerators: true, operations: _previewOperations, colors: AssetColors);
     }
 
     private async Task DisposeDerivedWorkSchedulerAsync()

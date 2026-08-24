@@ -10,6 +10,11 @@ internal enum PreviewComponentState { Missing, Current, Stale, Failed }
 internal enum PreviewSourceAvailability { Unknown, Available, Missing, Unavailable }
 internal enum PreviewArtifactKind { Thumbnail, StandardPreview }
 
+internal static class PreviewVisualIdentity
+{
+    public const string Original = "lightflow-preview-original-v1";
+}
+
 internal sealed record PreviewSourceIdentity
 {
     public PreviewSourceIdentity(long fileSizeBytes, long lastWriteUtcTicks, int fingerprintVersion, string fingerprint)
@@ -47,14 +52,17 @@ internal sealed record PreviewRecord(
     PreviewComponentState StandardPreviewState,
     string? StandardPreviewRelativePath,
     DateTimeOffset CreatedUtc,
-    DateTimeOffset UpdatedUtc);
+    DateTimeOffset UpdatedUtc,
+    string? ThumbnailVisualIdentity = null,
+    string? StandardPreviewVisualIdentity = null);
 
 internal sealed record PreviewComponentUpdate(
     int GeneratorVersion,
     PreviewComponentState State,
     string? RelativePath = null,
     string? PayloadJson = null,
-    string? RawPayloadJson = null);
+    string? RawPayloadJson = null,
+    string? VisualIdentity = null);
 
 internal interface IPreviewStoreService : IAsyncDisposable
 {
@@ -75,11 +83,14 @@ internal interface IPreviewStoreService : IAsyncDisposable
     Task ClearAllAsync(CancellationToken cancellationToken = default);
     string GetArtifactPath(Guid assetId, PreviewArtifactKind kind, int generatorVersion,
         PreviewSourceIdentity source, string extension);
+    string GetArtifactPath(Guid assetId, PreviewArtifactKind kind, int generatorVersion,
+        PreviewSourceIdentity source, string extension, string visualIdentity) =>
+        GetArtifactPath(assetId, kind, generatorVersion, source, extension);
 }
 
 internal sealed class PreviewStoreService : IPreviewStoreService
 {
-    internal const int SchemaVersion = 1;
+    internal const int SchemaVersion = 2;
     internal const int SqliteApplicationId = 0x4C465052; // LFPR
     private readonly ILightflowStorageLocations _locations;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -179,10 +190,11 @@ internal sealed class PreviewStoreService : IPreviewStoreService
             throw new ArgumentException("A current artifact requires a relative path.", nameof(update));
         var prefix = kind == PreviewArtifactKind.Thumbnail ? "Thumbnail" : "StandardPreview";
         using var command = connection.CreateCommand();
-        command.CommandText = $"UPDATE PreviewRecords SET {prefix}GeneratorVersion=$version,{prefix}State=$state,{prefix}RelativePath=$path,UpdatedUtc=$now WHERE AssetId=$asset;";
+        command.CommandText = $"UPDATE PreviewRecords SET {prefix}GeneratorVersion=$version,{prefix}State=$state,{prefix}RelativePath=$path,{prefix}VisualIdentity=$visual,UpdatedUtc=$now WHERE AssetId=$asset;";
         AddUpdate(command, assetId, update);
         command.Parameters.AddWithValue("$path", string.IsNullOrWhiteSpace(update.RelativePath)
             ? DBNull.Value : NormalizeArtifactRelativePath(update.RelativePath));
+        command.Parameters.AddWithValue("$visual", (object?)update.VisualIdentity ?? DBNull.Value);
         command.ExecuteNonQuery();
         return Read(connection, assetId);
     }, cancellationToken);
@@ -203,7 +215,7 @@ internal sealed class PreviewStoreService : IPreviewStoreService
     {
         var prefix = kind == PreviewArtifactKind.Thumbnail ? "Thumbnail" : "StandardPreview";
         using var command = connection.CreateCommand();
-        command.CommandText = $"UPDATE PreviewRecords SET {prefix}GeneratorVersion=NULL,{prefix}State='missing',{prefix}RelativePath=NULL,UpdatedUtc=$now WHERE AssetId=$asset;";
+        command.CommandText = $"UPDATE PreviewRecords SET {prefix}GeneratorVersion=NULL,{prefix}State='missing',{prefix}RelativePath=NULL,{prefix}VisualIdentity=NULL,UpdatedUtc=$now WHERE AssetId=$asset;";
         command.Parameters.AddWithValue("$now", Utc(DateTimeOffset.UtcNow));
         command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
         command.ExecuteNonQuery();
@@ -229,14 +241,18 @@ internal sealed class PreviewStoreService : IPreviewStoreService
     }, cancellationToken);
 
     public string GetArtifactPath(Guid assetId, PreviewArtifactKind kind, int generatorVersion,
-        PreviewSourceIdentity source, string extension)
+        PreviewSourceIdentity source, string extension) =>
+        GetArtifactPath(assetId, kind, generatorVersion, source, extension, PreviewVisualIdentity.Original);
+
+    public string GetArtifactPath(Guid assetId, PreviewArtifactKind kind, int generatorVersion,
+        PreviewSourceIdentity source, string extension, string visualIdentity)
     {
         if (generatorVersion <= 0) throw new ArgumentOutOfRangeException(nameof(generatorVersion));
         extension = extension.Trim().TrimStart('.').ToLowerInvariant();
         if (extension.Length == 0 || extension.Any(character => !char.IsAsciiLetterOrDigit(character)))
             throw new ArgumentException("Use a simple alphanumeric file extension.", nameof(extension));
         var id = assetId.ToString("N");
-        var material = Encoding.UTF8.GetBytes($"{source.FileSizeBytes}:{source.LastWriteUtcTicks}:{source.FingerprintVersion}:{source.Fingerprint.ToLowerInvariant()}");
+        var material = Encoding.UTF8.GetBytes($"{source.FileSizeBytes}:{source.LastWriteUtcTicks}:{source.FingerprintVersion}:{source.Fingerprint.ToLowerInvariant()}:{visualIdentity}");
         var sourceKey = Convert.ToHexString(SHA256.HashData(material)).ToLowerInvariant()[..32];
         var root = kind == PreviewArtifactKind.Thumbnail
             ? _locations.ThumbnailCacheDirectory
@@ -268,7 +284,9 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         Directory.CreateDirectory(_locations.PreviewsDirectory);
         if (File.Exists(_locations.PreviewsDatabasePath))
         {
-            using var existing = OpenReadOnlyConnection();
+            using (var inspection = OpenReadOnlyConnection()) ValidateForMigration(inspection);
+            using var existing = OpenConnection();
+            Migrate(existing);
             ValidateDatabase(existing);
             _initialized = true;
             return;
@@ -289,8 +307,8 @@ internal sealed class PreviewStoreService : IPreviewStoreService
                 SourceAvailability TEXT NOT NULL CHECK(SourceAvailability IN ('unknown','available','missing','unavailable')),
                 MetadataProbeVersion INTEGER NULL,MetadataState TEXT NOT NULL CHECK(MetadataState IN ('missing','current','stale','failed')),
                 MetadataJson TEXT NULL,RawMetadataJson TEXT NULL,
-                ThumbnailGeneratorVersion INTEGER NULL,ThumbnailState TEXT NOT NULL CHECK(ThumbnailState IN ('missing','current','stale','failed')),ThumbnailRelativePath TEXT NULL,
-                StandardPreviewGeneratorVersion INTEGER NULL,StandardPreviewState TEXT NOT NULL CHECK(StandardPreviewState IN ('missing','current','stale','failed')),StandardPreviewRelativePath TEXT NULL,
+                ThumbnailGeneratorVersion INTEGER NULL,ThumbnailState TEXT NOT NULL CHECK(ThumbnailState IN ('missing','current','stale','failed')),ThumbnailRelativePath TEXT NULL,ThumbnailVisualIdentity TEXT NULL,
+                StandardPreviewGeneratorVersion INTEGER NULL,StandardPreviewState TEXT NOT NULL CHECK(StandardPreviewState IN ('missing','current','stale','failed')),StandardPreviewRelativePath TEXT NULL,StandardPreviewVisualIdentity TEXT NULL,
                 CreatedUtc TEXT NOT NULL,UpdatedUtc TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS IX_PreviewRecords_MetadataState ON PreviewRecords(MetadataState);
             CREATE INDEX IF NOT EXISTS IX_PreviewRecords_ThumbnailState ON PreviewRecords(ThumbnailState);
@@ -355,6 +373,35 @@ internal sealed class PreviewStoreService : IPreviewStoreService
             throw new InvalidDataException("The Preview database identity metadata is incomplete and may be safely rebuilt.");
     }
 
+    private static void ValidateForMigration(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA quick_check;";
+        if (!string.Equals(Convert.ToString(command.ExecuteScalar()), "ok", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("The Preview database failed its integrity check. It may be safely rebuilt.");
+        command.CommandText = "PRAGMA application_id;";
+        if (Convert.ToInt32(command.ExecuteScalar()) != SqliteApplicationId)
+            throw new InvalidDataException("The configured Preview database is not a Lightflow Preview store.");
+        command.CommandText = "SELECT ApplicationIdentity FROM PreviewStoreInfo WHERE SingletonId=1;";
+        if (!string.Equals(Convert.ToString(command.ExecuteScalar()), "LightflowStudio.Previews", StringComparison.Ordinal))
+            throw new InvalidDataException("The Preview database identity metadata is incomplete and may be safely rebuilt.");
+        command.CommandText = "PRAGMA user_version;";
+        if (Convert.ToInt32(command.ExecuteScalar()) is not 1 and not SchemaVersion)
+            throw new InvalidDataException("The Preview database schema is unsupported and may be safely rebuilt.");
+    }
+
+    private static void Migrate(SqliteConnection connection)
+    {
+        using var version = connection.CreateCommand();
+        version.CommandText = "PRAGMA user_version;";
+        if (Convert.ToInt32(version.ExecuteScalar()) != 1) return;
+        using var transaction = connection.BeginTransaction();
+        Execute(connection, transaction, "ALTER TABLE PreviewRecords ADD COLUMN ThumbnailVisualIdentity TEXT NULL;");
+        Execute(connection, transaction, "ALTER TABLE PreviewRecords ADD COLUMN StandardPreviewVisualIdentity TEXT NULL;");
+        Execute(connection, transaction, $"PRAGMA user_version={SchemaVersion};");
+        transaction.Commit();
+    }
+
     private static PreviewRecord? Read(SqliteConnection connection, Guid assetId)
     {
         using var command = connection.CreateCommand();
@@ -369,13 +416,15 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         new(Guid.Parse(reader.GetString(0)), new(reader.GetInt64(1), reader.GetInt64(2), reader.GetInt32(3), reader.GetString(4)),
             ParseAvailability(reader.GetString(5)), NullableInt(reader, 6), ParseState(reader.GetString(7)), NullableString(reader, 8), NullableString(reader, 9),
             NullableInt(reader, 10), ParseState(reader.GetString(11)), NullableString(reader, 12), NullableInt(reader, 13), ParseState(reader.GetString(14)), NullableString(reader, 15),
-            DateTimeOffset.Parse(reader.GetString(16), CultureInfo.InvariantCulture), DateTimeOffset.Parse(reader.GetString(17), CultureInfo.InvariantCulture));
+            DateTimeOffset.Parse(reader.GetString(16), CultureInfo.InvariantCulture), DateTimeOffset.Parse(reader.GetString(17), CultureInfo.InvariantCulture),
+            NullableString(reader, 18), NullableString(reader, 19));
 
     private const string SelectSql = """
         SELECT AssetId,FileSizeBytes,LastWriteUtcTicks,FingerprintVersion,SourceFingerprint,SourceAvailability,
             MetadataProbeVersion,MetadataState,MetadataJson,RawMetadataJson,
             ThumbnailGeneratorVersion,ThumbnailState,ThumbnailRelativePath,
-            StandardPreviewGeneratorVersion,StandardPreviewState,StandardPreviewRelativePath,CreatedUtc,UpdatedUtc
+            StandardPreviewGeneratorVersion,StandardPreviewState,StandardPreviewRelativePath,CreatedUtc,UpdatedUtc,
+            ThumbnailVisualIdentity,StandardPreviewVisualIdentity
         FROM PreviewRecords
         """;
 

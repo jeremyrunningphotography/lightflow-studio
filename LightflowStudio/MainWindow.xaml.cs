@@ -102,6 +102,8 @@ public partial class MainWindow : Window
     private long _browserColorSelectionRevision;
     private bool _updatingBrowserColorSelectors;
     private bool _suppressBatchInputChange;
+    private bool _lutInitializationCompleted;
+    private long _browserVisualIdentityAuditGeneration = -1;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic)
@@ -120,6 +122,8 @@ public partial class MainWindow : Window
         InitializeBrowserQuickFilterButtons();
         SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
+        _storage.ThumbnailActivity.Changed += (_, change) => Dispatcher.BeginInvoke(() =>
+            _browserGrid.ApplyThumbnailGenerating(change.AssetId, change.IsGenerating));
         if (_workspaceState.Current.Browser is { } savedBrowserLocation) ShowBrowserRestoringState(savedBrowserLocation);
         _batchFolderRefreshTimer.Tick += (_, _) =>
         {
@@ -1014,10 +1018,16 @@ public partial class MainWindow : Window
         // scope is active. See BrowserFolderState.RecursiveMediaEntries.
         _browserGrid.Populate(state.RecursiveMediaEntries ?? directFiles);
         UpdateBrowserGridColumns();
-        if (state.DerivedWork is { } batch) _browserGrid.ApplyAssetIdentities(batch.Reconciliation.Items);
+        if (state.DerivedWork is { } batch)
+        {
+            _browserGrid.ApplyAssetIdentities(batch.Reconciliation.Items);
+            foreach (var item in batch.Reconciliation.Items)
+                _browserGrid.ApplyThumbnailGenerating(item.AssetId, _storage.ThumbnailActivity.IsGenerating(item.AssetId));
+        }
         if (state.DerivedWork is { } stateBatch)
             _ = LoadBrowserAssetStatesAsync(stateBatch.Reconciliation.Items, _browserUiGeneration, _browserAssetStateRevision);
         AttachBrowserDerivedWork(state.DerivedWork, _browserUiGeneration);
+        AuditBrowserVisualIdentitiesAfterLutInitialization();
         BrowserCurrentPath.Text = state.Location?.DisplayPath ?? "";
         BrowserBackButton.IsEnabled = state.CanGoBack;
         BrowserForwardButton.IsEnabled = state.CanGoForward;
@@ -1302,24 +1312,28 @@ public partial class MainWindow : Window
     private async Task RegenerateBrowserThumbnailsAsync()
     {
         var state = CurrentBrowserSelectionActions();
-        if (!state.CanRegenerateThumbnails) return;
-        var ids = _browserGrid.SelectedAssetIdsInBrowserOrder;
+        var ids = BrowserThumbnailRegeneration.ResolveTargets(
+            state.CanRegenerateThumbnails ? _browserGrid.SelectedAssetIdsInBrowserOrder : [],
+            state.SelectionCount, _browserGrid.ThumbnailApplicableAssetIdsInScope);
+        if (ids.Count == 0) return;
+        if (BrowserThumbnailRegeneration.RequiresConfirmation(state.SelectionCount, ids.Count) &&
+            MessageBox.Show($"Regenerate Previews for all {ids.Count} applicable assets in the current Browser scope?",
+                "Regenerate Previews", MessageBoxButton.YesNo, MessageBoxImage.Question,
+                MessageBoxResult.No) != MessageBoxResult.Yes) return;
         BrowserRegenerateThumbnailsButton.IsEnabled = false;
-        BrowserStatusText.Text = $"Regenerating {ids.Count} thumbnail{(ids.Count == 1 ? "" : "s")}…";
+        BrowserStatusText.Text = $"Regenerating {ids.Count} Preview{(ids.Count == 1 ? "" : "s")}…";
         try
         {
-            var results = await _storage.RegenerateThumbnailsAsync(ids);
-            for (var index = 0; index < ids.Count; index++)
-                if (results[index].Succeeded && results[index].ThumbnailPath is { } path)
-                    _browserGrid.ApplyThumbnail(ids[index], path);
+            var progress = new Progress<PreviewRegenerationCompleted>(ApplyCompletedPreview);
+            var results = await _storage.RegenerateThumbnailsAsync(ids, progress: progress);
             var failed = results.Count(result => !result.Succeeded);
             BrowserStatusText.Text = failed == 0
-                ? $"Regenerated {results.Count} thumbnail{(results.Count == 1 ? "" : "s")}"
+                ? $"Regenerated {results.Count} Preview{(results.Count == 1 ? "" : "s")}"
                 : $"Regenerated {results.Count - failed}; {failed} could not be regenerated";
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            MessageBox.Show($"Thumbnail regeneration failed: {exception.Message}", "Regenerate thumbnails",
+            MessageBox.Show($"Preview regeneration failed: {exception.Message}", "Regenerate Previews",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally { UpdateBrowserSelectionActions(); }
@@ -1378,13 +1392,41 @@ public partial class MainWindow : Window
         try
         {
             await _storage.AssetColors.SetStageAsync(ids, stage, lutId);
+            var committed = await _storage.AssetColors.GetAsync(ids);
+            foreach (var id in ids)
+            {
+                _browserAssetStateRevisions[id] = ++_browserAssetStateRevision;
+                _browserGrid.ApplyAssetStateFlag(id, BrowserAssetState.Color, committed[id].HasColor);
+            }
             await RefreshBrowserColorSelectorsAsync();
+            _ = RegenerateColorThumbnailsAsync(ids);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException or SqliteException)
         {
             MessageBox.Show($"The {EncodingLutResourceStore.StageName(stage)} LUT assignment failed: {exception.Message}",
                 "Assign Color", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+
+    private async Task RegenerateColorThumbnailsAsync(IReadOnlyList<Guid> ids)
+    {
+        try
+        {
+            await _storage.RegenerateThumbnailsAsync(ids,
+                progress: new Progress<PreviewRegenerationCompleted>(ApplyCompletedPreview),
+                mode: PreviewRegenerationMode.EnsureCurrent);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            BrowserStatusText.Text = $"Color Preview regeneration could not complete: {exception.Message}";
+        }
+    }
+
+    private void ApplyCompletedPreview(PreviewRegenerationCompleted completed)
+    {
+        if (completed.Result.Succeeded && completed.Result.ThumbnailPath is { } path)
+            _browserGrid.ApplyThumbnail(completed.AssetId, path);
     }
 
     private void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -1454,6 +1496,12 @@ public partial class MainWindow : Window
             _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
             _browserGrid.ApplyAssetState(change.AssetId, change.HasSavedRange
                 ? BrowserAssetState.ReviewRange : BrowserAssetState.None);
+        };
+        _playerViewerHost.ColorStateChanged += (_, change) =>
+        {
+            _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
+            _browserGrid.ApplyAssetStateFlag(change.AssetId, BrowserAssetState.Color, change.HasColor);
+            _ = RegenerateColorThumbnailsAsync([change.AssetId]);
         };
         BrowserPlayerHost.Content = _playerViewerHost;
     }
@@ -1724,7 +1772,12 @@ public partial class MainWindow : Window
         if (BrowserExportButton is null) return;
         var state = CurrentBrowserSelectionActions();
         BrowserExportButton.IsEnabled = state.CanExport;
-        BrowserRegenerateThumbnailsButton.IsEnabled = state.CanRegenerateThumbnails;
+        BrowserRegenerateThumbnailsButton.IsEnabled = state.CanRegenerateThumbnails ||
+            state.SelectionCount == 0 && _browserGrid.ThumbnailApplicableAssetIdsInScope.Count > 0;
+        var regenerateLabel = BrowserThumbnailRegeneration.ProductLabel(
+            state.SelectionCount, state.CanRegenerateThumbnails);
+        BrowserRegenerateThumbnailsButton.ToolTip = regenerateLabel;
+        AutomationProperties.SetName(BrowserRegenerateThumbnailsButton, regenerateLabel);
         BrowserCameraLutCombo.IsEnabled = state.CanAssignCameraLut;
         BrowserCreativeLutCombo.IsEnabled = state.CanAssignCreativeLut;
         _ = RefreshBrowserColorSelectorsAsync();
@@ -2381,7 +2434,21 @@ public partial class MainWindow : Window
                 _settings.CameraLutIncludeSubfolders),
             InitializeLutStageAsync(ColorLutStage.Creative, _settings.CreativeLutFolder,
                 _settings.CreativeLutIncludeSubfolders));
+        _lutInitializationCompleted = true;
+        AuditBrowserVisualIdentitiesAfterLutInitialization();
         return PublishCachedLuts();
+    }
+
+    private void AuditBrowserVisualIdentitiesAfterLutInitialization()
+    {
+        var loaded = _lastLoadedBrowserState?.DerivedWork;
+        var scheduler = _storage.DerivedWork;
+        if (!BrowserVisualIdentityAuditPolicy.ShouldSchedule(_lutInitializationCompleted, _browserUiGeneration,
+                _browserVisualIdentityAuditGeneration, loaded is not null, scheduler is not null))
+            return;
+        _browserVisualIdentityAuditGeneration = _browserUiGeneration;
+        var scheduled = scheduler!.TrySchedule(loaded!.Reconciliation, DerivedWorkPriority.Visible);
+        if (scheduled.Accepted) AttachBrowserDerivedWork(scheduled.Batch, _browserUiGeneration);
     }
 
     private async Task InitializeLutStageAsync(ColorLutStage stage, string folder, bool includeSubfolders)
@@ -2551,7 +2618,7 @@ public partial class MainWindow : Window
 
     private async void RebuildPreviews_Click(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show("Clear and rebuild Preview metadata and thumbnails for all available Catalog assets? Offline sources will be skipped and can be rebuilt later.",
+        if (MessageBox.Show("Clear and rebuild Preview metadata and visual Previews for all available Catalog assets? Offline sources will be skipped and can be rebuilt later.",
             "Rebuild Previews", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         await RunPreviewMaintenanceAsync(async token =>
         {

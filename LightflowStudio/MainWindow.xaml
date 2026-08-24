@@ -540,9 +540,6 @@
             DropDownOpened="BrowserCreativeLutCombo_DropDownOpened" SelectionChanged="BrowserCreativeLutCombo_SelectionChanged">
             <ComboBoxItem Content="Creative LUT…" IsEnabled="False"/>
            </ComboBox>
-           <Border Width="1" Height="18" Margin="5,0" Background="{StaticResource ShellDividerBrush}"/>
-           <Button x:Name="BrowserRegenerateThumbnailsButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Regenerate" IsEnabled="False"
-            ToolTip="Regenerate cached thumbnails for the selection" AutomationProperties.Name="Regenerate selected thumbnails" Click="BrowserRegenerateThumbnails_Click"/>
           </StackPanel>
           <Button Grid.Column="1" x:Name="BrowserExportButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Export…" IsEnabled="False"
            ToolTip="Export selected videos or saved subclips" AutomationProperties.Name="Export selected videos" Click="BrowserExport_Click"/>
@@ -600,7 +597,7 @@
                 <Border.ContextMenu>
                  <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export / Export Subclips…" Click="BrowserContextExport_Click"/>
-                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Regenerate Thumbnail(s)" Click="BrowserContextRegenerateThumbnails_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Regenerate Previews" Click="BrowserContextRegenerateThumbnails_Click"/>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename" IsEnabled="False" ToolTip="Media rename is not available yet"/>
                   <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Camera LUT" SubmenuOpened="BrowserContextCameraLut_SubmenuOpened">
@@ -633,7 +630,7 @@
                     Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibility}}"/>
                    <Border x:Name="BrowserAssetStateMarker" HorizontalAlignment="Right" VerticalAlignment="Top"
                     Margin="5" Width="14" Height="14" CornerRadius="7"
-                    Visibility="{Binding HasUserAuthoredState, Converter={StaticResource BoolToVisibility}}"
+                    Visibility="{Binding HasReviewRange, Converter={StaticResource BoolToVisibility}}"
                     ToolTip="{Binding AssetStateLabel}" AutomationProperties.Name="{Binding AssetStateLabel}">
                     <Border.Style>
                      <Style TargetType="Border">
@@ -645,9 +642,34 @@
                       </Style.Triggers>
                      </Style>
                     </Border.Style>
-                    <Path Width="6" Height="6" Stretch="Fill" Fill="#FFFFFFFF"
-                     Data="M 3,0 L 6,3 L 3,6 L 0,3 Z"/>
+                   <Path Width="6" Height="6" Stretch="Fill" Fill="#FFFFFFFF"
+                    Data="M 3,0 L 6,3 L 3,6 L 0,3 Z"/>
                    </Border>
+                   <Border x:Name="BrowserColorStateMarker" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="5,5,24,0" Width="16" Height="16" CornerRadius="8"
+                    BorderThickness="1.5" Padding="1"
+                    Visibility="{Binding HasColorState, Converter={StaticResource BoolToVisibility}}"
+                    ToolTip="Color assigned" AutomationProperties.Name="Color assigned">
+                    <Border.Style>
+                     <Style TargetType="Border">
+                      <Setter Property="Background" Value="#B005070A"/>
+                      <Setter Property="BorderBrush" Value="#8FA5ABB3"/>
+                      <Style.Triggers><DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter Property="BorderBrush" Value="#FF000000"/></DataTrigger></Style.Triggers>
+                     </Style>
+                    </Border.Style>
+                    <Grid Width="11" Height="11">
+                     <Grid.Clip><EllipseGeometry Center="5.5,5.5" RadiusX="5.5" RadiusY="5.5"/></Grid.Clip>
+                     <Path Fill="#E85D5D" Data="M5.5,5.5 L0,0 L5.5,0 Z"/>
+                     <Path Fill="#F2A84B" Data="M5.5,5.5 L5.5,0 L11,0 L11,5.5 Z"/>
+                     <Path Fill="#E6D85A" Data="M5.5,5.5 L11,5.5 L11,11 L5.5,11 Z"/>
+                     <Path Fill="#55B97A" Data="M5.5,5.5 L5.5,11 L0,11 Z"/>
+                     <Path Fill="#4E9ED8" Data="M5.5,5.5 L0,11 L0,5.5 Z"/>
+                     <Path Fill="#A56BD5" Data="M5.5,5.5 L0,5.5 L0,0 Z"/>
+                     <Ellipse Width="4" Height="4" Fill="#20252C" Stroke="#D9FFFFFF" StrokeThickness="0.7"/>
+                    </Grid>
+                   </Border>
+                   <ProgressBar x:Name="BrowserThumbnailWorkingIndicator" Width="38" Height="4" Margin="0,0,0,7" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                    IsIndeterminate="True" Visibility="{Binding IsThumbnailGenerating, Converter={StaticResource BoolToVisibility}}"
+                    ToolTip="Generating Preview" AutomationProperties.Name="Generating Preview"/>
                   </Grid>
                  </Border>
                  <StackPanel Grid.Row="1" Margin="1,7,1,0">
@@ -1067,15 +1089,18 @@
          slider already used — no XAML default declared here, matching that method being the sole source of
          truth for every visual this control shows. -->
     <StackPanel x:Name="BrowserPresentationControls" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+     <Button x:Name="BrowserRegenerateThumbnailsButton" Style="{StaticResource BrowserThumbnailSizeStepButtonStyle}" FontSize="13" Margin="0,0,7,0"
+      Content="&#xE72C;" IsEnabled="False" ToolTip="Regenerate Previews" AutomationProperties.Name="Regenerate Previews"
+      Click="BrowserRegenerateThumbnails_Click"/>
      <Button x:Name="BrowserThumbnailSizeDecreaseButton" Style="{StaticResource BrowserThumbnailSizeStepButtonStyle}" FontSize="9"
-      Content="&#xE80A;" ToolTip="Decrease thumbnail size" AutomationProperties.Name="Decrease thumbnail size"
+      Content="&#xE80A;" ToolTip="Decrease Preview size" AutomationProperties.Name="Decrease Preview size"
       Click="BrowserThumbnailSizeDecreaseButton_Click"/>
      <Slider x:Name="BrowserThumbnailSizeSlider" Style="{StaticResource BrowserThumbnailSizeSliderStyle}" Margin="6,0"
       Minimum="0" Maximum="5" IsSnapToTickEnabled="True" TickFrequency="1"
-      ToolTip="Thumbnail size" AutomationProperties.Name="Thumbnail size"
+      ToolTip="Preview size" AutomationProperties.Name="Preview size"
       ValueChanged="BrowserThumbnailSizeSlider_ValueChanged"/>
      <Button x:Name="BrowserThumbnailSizeIncreaseButton" Style="{StaticResource BrowserThumbnailSizeStepButtonStyle}" FontSize="15"
-      Content="&#xE80A;" ToolTip="Increase thumbnail size" AutomationProperties.Name="Increase thumbnail size"
+      Content="&#xE80A;" ToolTip="Increase Preview size" AutomationProperties.Name="Increase Preview size"
       Click="BrowserThumbnailSizeIncreaseButton_Click"/>
     </StackPanel>
     <TextBlock x:Name="BrowserStatusText" DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"

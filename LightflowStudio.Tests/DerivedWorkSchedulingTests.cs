@@ -45,6 +45,33 @@ public sealed class DerivedWorkSchedulingTests
         Assert.Empty(thumbnails.Calls);
     }
 
+    [Theory]
+    [InlineData(null, "persisted-color-b")]
+    [InlineData("persisted-color-a", "persisted-color-b")]
+    public async Task FreshBrowserLoad_SchedulesPersistedVisualIdentityMismatch(
+        string? cachedVisualIdentity, string committedVisualIdentity)
+    {
+        var asset = Asset("video");
+        var preview = CurrentPreview(asset.Asset) with
+        {
+            ThumbnailVisualIdentity = cachedVisualIdentity ?? PreviewVisualIdentity.Original
+        };
+        var thumbnails = new FakeThumbnails();
+        var colors = new FakeColors(new(asset.Asset.AssetId,
+            new(Guid.NewGuid(), "Persisted Camera", new string('a', 64), LutResourceAvailability.Available),
+            null, committedVisualIdentity));
+        await using var scheduler = new DerivedWorkScheduler(new FakeAssets(asset), new FakePreviews(preview),
+            new FakeMetadata(), thumbnails, colors: colors);
+
+        var batch = Schedule(scheduler, Reconciliation(
+            (asset.Asset.AssetId, CatalogReconciliationItemStatus.Unchanged)), DerivedWorkPriority.Visible);
+        await batch.Completion;
+
+        var call = Assert.Single(thumbnails.Calls);
+        Assert.Equal(asset.Asset.AssetId, call.AssetId);
+        Assert.Equal(ThumbnailPriority.Visible, call.Priority);
+    }
+
     [Fact]
     public async Task RepeatedRefreshesShareOneInFlightAssetWorkItem()
     {
@@ -395,6 +422,19 @@ public sealed class DerivedWorkSchedulingTests
             return Task.FromResult(new ThumbnailGenerationResult(ThumbnailGenerationStatus.Succeeded));
         }
         public void Dispose() { }
+    }
+
+    private sealed class FakeColors(AssetColorIntent intent) : IAssetColorStore
+    {
+        public Task<AssetColorIntent> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(intent);
+        public Task<IReadOnlyDictionary<Guid, AssetColorIntent>> GetAsync(IReadOnlyCollection<Guid> assetIds,
+            CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyDictionary<Guid, AssetColorIntent>>(
+                assetIds.ToDictionary(id => id, _ => intent));
+        public Task SetStageAsync(IReadOnlyCollection<Guid> assetIds, ColorLutStage stage, Guid? lutId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class ConcurrencyMetadata(int expectedMaximum) : IDerivedMediaMetadataService

@@ -183,7 +183,7 @@ public sealed class ExportModalRegressionTests
         var root = FindRepositoryRoot();
         var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
         foreach (var name in new[] { "FormatInfo", "CodecInfo", "ResolutionInfo", "FrameRateInfo", "RateControlInfo",
-                     "QualityInfo", "TargetInfo", "MaxInfo", "CbrInfo", "AudioInfo", "EncoderInfo", "ParallelInfo" })
+                     "QualityInfo", "TargetInfo", "MaxInfo", "CbrInfo", "AudioInfo", "EncoderInfo" })
         {
             var info = Named(xaml, name);
             var tooltip = (string?)info.Attribute("ToolTip");
@@ -221,7 +221,7 @@ public sealed class ExportModalRegressionTests
         Assert.Contains(infoStyle.Descendants(), element => element.Name.LocalName == "Trigger" && (string?)element.Attribute("Property") == "IsKeyboardFocused");
         Assert.DoesNotContain(infoStyle.Descendants(), element => (string?)element.Attribute("Background") is "White" or "LightBlue");
         foreach (var name in new[] { "FormatInfo", "CodecInfo", "ResolutionInfo", "FrameRateInfo", "RateControlInfo",
-                     "QualityInfo", "AudioInfo", "EncoderInfo", "ParallelInfo", "PresetInfo", "TuneInfo", "MultipassInfo",
+                     "QualityInfo", "AudioInfo", "EncoderInfo", "PresetInfo", "TuneInfo", "MultipassInfo",
                      "PixelFormatInfo", "AqInfo", "SpatialAqInfo", "TemporalAqInfo", "DeinterlaceInfo", "FastStartInfo" })
         {
             var info = Named(dialog, name);

@@ -767,3 +767,41 @@ The owned `ExportDialog` is configuration and preflight only. It reads current L
 Name Parts, per-input Camera/Creative Color policy, source traits, saved ranges, source identities, and container-derived output extensions become immutable during final queue materialization. Explicit LUT overrides are copied through the content-addressed Encoding LUT resource store; queued work never retains a live configured LUT-folder path or links back to mutable Browser/Player/Catalog state.
 
 The dedicated Encoding workspace and its compatibility `Start_Click` flow remain available until #172. Review & Rerun continues to target that compatibility surface. Jobs drawer/workspace presentation remains #170/#171 scope.
+## Independent global Export scheduler
+
+Modern Export execution follows this boundary:
+
+`Export setup/preflight → N immutable Export Jobs → atomic global reservation → durable ordered scheduler → single-Job executor → terminal/historical Job`
+
+The modal remains a complete-submission setup surface because deterministic input order, Name Parts sequence,
+Same-as-Source, Color/range snapshots, final paths, and within-submission collision checks require simultaneous
+knowledge. Acceptance then promotes every planned item into an independent `ExportJobDefinition`. `SubmissionId`
+is provenance only; it has no lifecycle, ordering, concurrency, reservation, or executor authority.
+
+The scheduler owns one global queue and `MaxSimultaneousExports` policy (1–8, default 2). Increasing it claims
+additional eligible Waiting Jobs immediately. Decreasing it never stops active FFmpeg work; it simply claims no
+new work until active count falls below the new ceiling. Only Waiting Jobs are eligible and reorderable. Paused
+and NeedsAttention Jobs retain reservations but are skipped, preventing starvation of healthy work behind them.
+
+Queue admission holds one synchronization boundary while it rechecks filesystem state, normalizes complete
+Windows paths case-insensitively, validates all proposed final and `.lightflow` partial paths against current
+reservations, assigns stable queue order, reserves every path, and appends every Job. Any conflict rejects the
+whole submission. Overwrite policy can replace an existing disk output but can never steal a non-terminal Job's
+reservation. Reservations release on Completed, CompletedWithWarnings, Skipped, Failed, or Cancelled; Waiting,
+Running, Paused, and NeedsAttention retain them.
+
+Each claimed Job receives one `EncodingJobExecutor` lease keyed by its independent JobId. FFmpeg building,
+validation, partial cleanup, Color lookup, and output identity remain unchanged. Scheduler concurrency/order are
+execution policy and are excluded from output identity. The modern modal therefore no longer presents Parallel
+exports; the legacy option remains serialized solely for Encoding workspace, old runtime, and History compatibility.
+
+Modern recovery uses version-2 per-file checkpoints in `export-jobs.v2.json`. Waiting/Paused state and queue order
+are restored with reservations; work that was Running at shutdown becomes NeedsAttention and never blindly
+restarts. Existing batch-shaped runtime checkpoints remain untouched and are still surfaced by the legacy
+recovery reader. New completions are recorded immediately as one-item `EncodingJobHistoryRecord`s, while the
+existing batch History schema and Review & Rerun reader remain compatible.
+
+Pause is truthful per file: a Waiting Job may be paused by making it ineligible. Running-job Pause is unavailable
+because current FFmpeg process management safely cancels process trees but does not safely suspend/resume them;
+the old drain-and-pause batch meaning would merely mean completion for a one-file Job. Cancel affects only the
+selected Waiting or Running Job and preserves existing partial-output cleanup.

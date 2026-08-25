@@ -41,6 +41,7 @@ public partial class MainWindow : Window
     private readonly IJobHistoryStore _jobHistory;
     private readonly JobRuntimeStore<EncodingJobOptions, EncodingItemResult> _jobRuntimeStore;
     private readonly ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult> _jobsRuntime;
+    private readonly GlobalExportScheduler _exportScheduler;
     private readonly ExportJobCoordinator _exportCoordinator;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
     private EncodingJobExecutor? _activeJobExecutor;
@@ -126,13 +127,22 @@ public partial class MainWindow : Window
         _jobsRuntime = new ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult>(
             (plan, runtime, paused) => _jobRuntimeStore.Save(plan, runtime, paused));
         _jobsRuntime.Changed += JobsRuntime_Changed;
-        _exportCoordinator = new ExportJobCoordinator(_jobsRuntime, _jobHistory, () =>
+        var modernQueuePath = Path.Combine(Path.GetDirectoryName(storage.Locations.JobRuntimePath)!, "export-jobs.v2.json");
+        _exportScheduler = new GlobalExportScheduler(storage.Settings.MaxSimultaneousExports, () =>
         {
             if (_ffmpeg is null || _ffprobe is null) throw new InvalidOperationException("FFmpeg and FFprobe are required for Export.");
             var executor = new EncodingJobExecutor(_ffmpeg, _ffprobe, _storage.Locations.OutputIdentityDirectory,
                 diagnostic: line => _activityLogFile.TryAppend(line));
             return new ExportExecutorLease(executor.ExecuteAsync, executor.TerminateAll);
+        }, new ExportQueueStore(modernQueuePath), definition => EncodingJobRecovery.Revalidate(
+            definition.PlanItem, definition.Recipe, _storage.Locations.OutputIdentityDirectory), persistMaximum: maximum =>
+        {
+            _settings = _settings with { MaxSimultaneousExports = maximum };
+            try { _storage.SaveSettings(_settings); }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            { _activityLogFile.TryAppend($"[App] Could not save global Export concurrency: {exception.Message}"); }
         });
+        _exportCoordinator = new ExportJobCoordinator(_exportScheduler, _jobHistory);
         _exportCoordinator.Completed += _ => Dispatcher.BeginInvoke(RefreshHistory);
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
@@ -218,6 +228,7 @@ public partial class MainWindow : Window
                 RefreshCatalogBackups();
                 RefreshHistory();
                 LocateTools();
+                _exportScheduler.MaxSimultaneousExports = _settings.MaxSimultaneousExports;
                 ReportRecoveredJobs();
                 await RefreshDependencyHealthAsync();
                 RefreshBatchFiles();

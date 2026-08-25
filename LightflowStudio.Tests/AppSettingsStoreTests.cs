@@ -56,6 +56,17 @@ public sealed class AppSettingsStoreTests : IDisposable
         Assert.Empty(Directory.EnumerateFiles(_folder, "*.tmp"));
     }
 
+    [Fact]
+    public void GlobalExportConcurrencyRoundTripsAndNormalizesToSchedulerBounds()
+    {
+        AppSettingsStore.Save(SettingsPath, new AppSettings { MaxSimultaneousExports = 6 });
+        Assert.Equal(6, AppSettingsStore.Load(SettingsPath).MaxSimultaneousExports);
+        Assert.Equal(EncodingJobConcurrency.Maximum,
+            AppSettings.Normalize(new AppSettings { MaxSimultaneousExports = 99 }).MaxSimultaneousExports);
+        Assert.Equal(EncodingJobConcurrency.Minimum,
+            AppSettings.Normalize(new AppSettings { MaxSimultaneousExports = -2 }).MaxSimultaneousExports);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_folder)) Directory.Delete(_folder, recursive: true);

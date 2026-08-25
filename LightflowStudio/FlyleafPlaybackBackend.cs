@@ -303,9 +303,12 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         var (wasPlaying, restore) = RunOnUi(() => { var playing = player.IsPlaying; var position = TimeSpan.FromTicks(player.CurTime); player.Pause(); return (playing, position); });
         try
         {
+            // Attaching a FlyleafHost initializes/resets the renderer. Doing that after SeekCompleted can
+            // discard the decoded frame which completed the seek, leaving snapshot extraction to race a
+            // replacement render. Make renderer readiness a prerequisite of the seek instead: ShowOneFrame
+            // installs its decoded RendererFrame synchronously before Flyleaf raises SeekCompleted.
+            await EnsureOffscreenSurfaceAsync(token).ConfigureAwait(false);
             var timestamp = await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
-            RunOnUi(EnsureOffscreenSurface);
-            await Task.Delay(50, token).ConfigureAwait(false);
             var bitmap = RunOnUi(() => player.TakeSnapshotToBitmapSource()
                 ?? throw new InvalidOperationException("No decoded video frame is available."));
             var converted = EnsureBgra32(bitmap);
@@ -447,22 +450,43 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
     private static MediaPresentationTimestamp Timestamp(long ticks) => new(TimeSpan.FromTicks(Math.Max(0, ticks)));
 
-    private void EnsureOffscreenSurface()
+    private async Task EnsureOffscreenSurfaceAsync(CancellationToken token)
     {
-        _host ??= new FlyleafHost { Player = _player };
-        if (_host.IsLoaded || _offscreenWindow is not null) return;
-        _offscreenWindow = new Window
+        TaskCompletionSource? loaded = null;
+        RoutedEventHandler? loadedHandler = null;
+        RunOnUi(() =>
         {
-            Content = _host,
-            Width = 2,
-            Height = 2,
-            Left = -32000,
-            Top = -32000,
-            ShowActivated = false,
-            ShowInTaskbar = false,
-            WindowStyle = WindowStyle.None
-        };
-        _offscreenWindow.Show();
+            _host ??= new FlyleafHost { Player = _player };
+            if (_host.IsLoaded) return;
+
+            loaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            loadedHandler = (_, _) => loaded.TrySetResult();
+            _host.Loaded += loadedHandler;
+            _offscreenWindow ??= new Window
+            {
+                Content = _host,
+                Width = 2,
+                Height = 2,
+                Left = -32000,
+                Top = -32000,
+                ShowActivated = false,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.None
+            };
+            _offscreenWindow.Show();
+            if (_host.IsLoaded) loaded.TrySetResult();
+        });
+
+        if (loaded is null) return;
+        try { await loaded.Task.WaitAsync(token).ConfigureAwait(false); }
+        finally
+        {
+            RunOnUi(() =>
+            {
+                if (_host is not null && loadedHandler is not null)
+                    _host.Loaded -= loadedHandler;
+            });
+        }
     }
 
     private void CloseOffscreenWindow()

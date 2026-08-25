@@ -51,6 +51,27 @@
    <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
   </Style>
 
+  <Style x:Key="LightflowToolTipStyle" TargetType="ToolTip">
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+   <Setter Property="Background" Value="{StaticResource ElevatedBrush}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+   <Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="Padding" Value="10,8"/>
+   <Setter Property="MaxWidth" Value="360"/>
+   <Setter Property="HasDropShadow" Value="True"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ToolTip">
+      <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+       BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+       <TextBlock Foreground="{TemplateBinding Foreground}" Text="{TemplateBinding Content}" TextWrapping="Wrap"/>
+      </Border>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style TargetType="ToolTip" BasedOn="{StaticResource LightflowToolTipStyle}"/>
+
   <Style x:Key="PageTitle" TargetType="TextBlock">
    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
    <Setter Property="FontSize" Value="28"/>
@@ -181,8 +202,8 @@
         </ToggleButton.Template>
        </ToggleButton>
        <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False" IsOpen="{TemplateBinding IsDropDownOpen}"
-        Placement="Bottom" PopupAnimation="Fade">
-        <Grid Width="{Binding PlacementTarget.ActualWidth, RelativeSource={RelativeSource AncestorType=Popup}}"
+        PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" Placement="Bottom" HorizontalOffset="0" VerticalOffset="0" PopupAnimation="Fade">
+        <Grid MinWidth="{Binding PlacementTarget.ActualWidth, RelativeSource={RelativeSource AncestorType=Popup}}"
          MaxHeight="{Binding PlacementTarget.MaxDropDownHeight, RelativeSource={RelativeSource AncestorType=Popup}}" Margin="0,4,0,0">
          <Border Background="#171A20" BorderBrush="#4A5260" BorderThickness="1" CornerRadius="7" Padding="2">
           <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

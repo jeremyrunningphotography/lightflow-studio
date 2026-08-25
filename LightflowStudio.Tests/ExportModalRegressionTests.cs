@@ -33,19 +33,23 @@ public sealed class ExportModalRegressionTests
     }
 
     [Fact]
-    public void ModalUsesDarkChromeAndCompactPrimaryLayoutWithoutLeftScrollbar()
+    public void ModalUsesDarkChromeAndCompactPrimaryLayoutWithAutomaticContentScrolling()
     {
         var root = FindRepositoryRoot();
         var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
         var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
         Assert.Equal("1120", (string?)xaml.Root!.Attribute("Width"));
-        Assert.Equal("800", (string?)xaml.Root.Attribute("Height"));
+        Assert.Equal("860", (string?)xaml.Root.Attribute("Height"));
         Assert.Contains("WindowAppearance.EnableDarkTitleBar(this)", source);
         var composer = Named(xaml, "NamePartsComposer");
         Assert.Equal("ItemsControl", composer.Name.LocalName);
         Assert.Contains(composer.Descendants(), x => x.Name.LocalName == "WrapPanel");
         Assert.DoesNotContain(xaml.Descendants(), x => x.Name.LocalName == "ListBox");
-        Assert.DoesNotContain(composer.Ancestors(), x => x.Name.LocalName == "ScrollViewer");
+        var contentScroll = Named(xaml, "ExportContentScroll");
+        Assert.Equal("Auto", (string?)contentScroll.Attribute("VerticalScrollBarVisibility"));
+        Assert.Contains(contentScroll.Descendants(), x => x == composer);
+        Assert.DoesNotContain(Named(xaml, "ExportButton").Ancestors(), x => x == contentScroll);
+        Assert.Contains("ConstrainToCurrentWorkArea", source);
         Assert.NotNull(Named(xaml, "NamePreview"));
         Assert.NotNull(Named(xaml, "CameraCombo"));
     }
@@ -108,7 +112,9 @@ public sealed class ExportModalRegressionTests
         var chipStyle = xaml.Descendants().Single(x => x.Name.LocalName == "Style" && (string?)x.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "NamePartChip");
         Assert.Contains(chipStyle.Elements(), x => (string?)x.Attribute("Property") == "Width" && (string?)x.Attribute("Value") == "112");
         var customText = Named(xaml, "CustomPartText");
-        Assert.Equal("96", (string?)customText.Attribute("Width"));
+        Assert.Equal("88", (string?)customText.Attribute("Width"));
+        Assert.Equal("28", (string?)customText.Attribute("Height"));
+        Assert.Equal("0", (string?)customText.Attribute("Margin"));
         Assert.Equal("Auto", (string?)customText.Attribute("HorizontalScrollBarVisibility"));
         Assert.Equal("{Binding Part.Text}", (string?)customText.Attribute("ToolTip"));
         var extension = Named(xaml, "ExtensionPreview");
@@ -131,6 +137,7 @@ public sealed class ExportModalRegressionTests
         Assert.Contains("PathPreview.Text = _model.PreviewPath", source);
         Assert.Contains("OutputExampleBorder.ToolTip = _model.PreviewPath", source);
         Assert.True(int.Parse((string?)Named(xaml, "OutputExampleBorder").Attribute("MinHeight") ?? "0") >= 50);
+        Assert.Equal("{DynamicResource TextBrush}", (string?)preview.Attribute("Foreground"));
     }
 
     [Fact]
@@ -175,6 +182,37 @@ public sealed class ExportModalRegressionTests
         var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
         Assert.Contains("InfoButton_GotKeyboardFocus", source);
         Assert.Contains("toolTip.IsOpen = true", source);
+    }
+
+    [Fact]
+    public void LightflowHelpUsesDarkReusableTooltipAndExplicitInfoChrome()
+    {
+        var root = FindRepositoryRoot();
+        var app = XDocument.Load(Path.Combine(root, "LightflowStudio", "App.xaml"));
+        var dialog = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var tooltip = app.Descendants().Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute(x + "Key") == "LightflowToolTipStyle");
+        Assert.Contains(tooltip.Elements(), element => (string?)element.Attribute("Property") == "Foreground" && ((string?)element.Attribute("Value"))?.Contains("TextBrush") == true);
+        Assert.Contains(tooltip.Elements(), element => (string?)element.Attribute("Property") == "Background" && ((string?)element.Attribute("Value"))?.Contains("ElevatedBrush") == true);
+        Assert.Contains(tooltip.Descendants(), element => element.Name.LocalName == "TextBlock" && (string?)element.Attribute("TextWrapping") == "Wrap");
+        var infoStyle = dialog.Descendants().Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute(x + "Key") == "InfoHelpButtonStyle");
+        Assert.Contains(infoStyle.Descendants(), element => element.Name.LocalName == "ControlTemplate");
+        Assert.Contains(infoStyle.Descendants(), element => element.Name.LocalName == "Trigger" && (string?)element.Attribute("Property") == "IsKeyboardFocused");
+        Assert.DoesNotContain(infoStyle.Descendants(), element => (string?)element.Attribute("Background") is "White" or "LightBlue");
+    }
+
+    [Fact]
+    public void ComboBoxPopupAlignsBelowAndCannotBeNarrowerThanOwner()
+    {
+        var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
+        var comboStyle = app.Descendants().First(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == "ComboBox");
+        var popup = comboStyle.Descendants().Single(element => element.Name.LocalName == "Popup" &&
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" && attribute.Value == "PART_Popup"));
+        Assert.Equal("Bottom", (string?)popup.Attribute("Placement"));
+        Assert.Equal("{Binding RelativeSource={RelativeSource TemplatedParent}}", (string?)popup.Attribute("PlacementTarget"));
+        var surface = popup.Elements().Single(element => element.Name.LocalName == "Grid");
+        Assert.Contains("PlacementTarget.ActualWidth", (string?)surface.Attribute("MinWidth"));
+        Assert.Null(surface.Attribute("Width"));
     }
 
     [Fact]

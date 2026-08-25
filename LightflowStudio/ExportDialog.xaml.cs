@@ -43,6 +43,7 @@ public partial class ExportDialog : Window
         SpatialAqCheck.IsChecked = model.Encoding.SpatialAq; TemporalAqCheck.IsChecked = model.Encoding.TemporalAq; DeinterlaceCheck.IsChecked = model.Encoding.Deinterlace; FastStartCheck.IsChecked = model.Encoding.FastStart;
         _initializing = false; Sync(); Loaded += async (_, _) =>
         {
+            ConstrainToCurrentWorkArea();
             try { await InitializePreflightAsync(); }
             catch (Exception exception)
             {
@@ -52,6 +53,19 @@ public partial class ExportDialog : Window
                 Sync();
             }
         };
+    }
+
+    private void ConstrainToCurrentWorkArea()
+    {
+        var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        var area = Forms.Screen.FromHandle(handle).WorkingArea;
+        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+        MaxHeight = Math.Max(480, area.Height / dpi.DpiScaleY - 32);
+        MaxWidth = Math.Max(760, area.Width / dpi.DpiScaleX - 32);
+        MinHeight = Math.Min(620, MaxHeight);
+        MinWidth = Math.Min(940, MaxWidth);
+        Height = Math.Min(860, MaxHeight);
+        Width = Math.Min(1120, MaxWidth);
     }
 
     private async Task InitializePreflightAsync()

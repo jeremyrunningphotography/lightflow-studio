@@ -172,7 +172,7 @@
       </Border>
       <ControlTemplate.Triggers>
        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TextChrome" Property="BorderBrush" Value="#596270"/></Trigger>
-       <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TextChrome" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/><Setter TargetName="TextChrome" Property="BorderThickness" Value="2"/></Trigger>
+       <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TextChrome" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/></Trigger>
        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>

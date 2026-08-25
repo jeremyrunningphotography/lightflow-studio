@@ -163,7 +163,7 @@ public partial class ExportDialog : Window
         TargetPrimaryLabel.Visibility = TargetText.Visibility = vbr ? Visibility.Visible : Visibility.Collapsed;
         MaxPrimaryLabel.Visibility = MaxText.Visibility = vbr ? Visibility.Visible : Visibility.Collapsed;
         CbrPrimaryLabel.Visibility = CbrText.Visibility = cbr ? Visibility.Visible : Visibility.Collapsed;
-        AqStrengthPanel.IsEnabled = ExportPresentation.IsAqStrengthEnabled(SpatialAqCheck.IsChecked == true, TemporalAqCheck.IsChecked == true);
+        AqSettingLayout.IsEnabled = ExportPresentation.IsAqStrengthEnabled(SpatialAqCheck.IsChecked == true, TemporalAqCheck.IsChecked == true);
         if (cbr && CbrText.Text != _model.Encoding.TargetBitrateMbps.ToString())
         { _initializing = true; CbrText.Text = _model.Encoding.TargetBitrateMbps.ToString(); _initializing = false; }
         System.Windows.Automation.AutomationProperties.SetHelpText(AdvancedExpander,

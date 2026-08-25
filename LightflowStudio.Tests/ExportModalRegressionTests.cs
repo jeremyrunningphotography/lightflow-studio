@@ -119,10 +119,16 @@ public sealed class ExportModalRegressionTests
         Assert.Contains(chipStyle.Elements(), x => (string?)x.Attribute("Property") == "Width" && (string?)x.Attribute("Value") == "112");
         var customText = Named(xaml, "CustomPartText");
         Assert.Equal("88", (string?)customText.Attribute("Width"));
-        Assert.Equal("28", (string?)customText.Attribute("Height"));
+        Assert.Equal("30", (string?)customText.Attribute("Height"));
+        Assert.Equal("6,2", (string?)customText.Attribute("Padding"));
+        Assert.Equal("Center", (string?)customText.Attribute("VerticalContentAlignment"));
         Assert.Equal("0", (string?)customText.Attribute("Margin"));
         Assert.Equal("Auto", (string?)customText.Attribute("HorizontalScrollBarVisibility"));
         Assert.Equal("{Binding Part.Text}", (string?)customText.Attribute("ToolTip"));
+        var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
+        var textBoxStyle = app.Descendants().First(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == "TextBox");
+        var focusTrigger = textBoxStyle.Descendants().Single(element => element.Name.LocalName == "Trigger" && (string?)element.Attribute("Property") == "IsKeyboardFocused");
+        Assert.DoesNotContain(focusTrigger.Elements(), element => (string?)element.Attribute("Property") == "BorderThickness");
         var extension = Named(xaml, "ExtensionPreview");
         Assert.DoesNotContain(extension.Ancestors(), x => x == composer);
         Assert.Null(extension.Attribute("AllowDrop"));
@@ -233,7 +239,7 @@ public sealed class ExportModalRegressionTests
         Assert.Contains(baseStyle.Elements(), element => (string?)element.Attribute("Property") == "IsSnapToTickEnabled" && (string?)element.Attribute("Value") == "True");
         Assert.NotNull(Named(xaml, "AqStrengthValue"));
         Assert.DoesNotContain("int.TryParse(AqText", source);
-        Assert.Contains("AqStrengthPanel.IsEnabled = ExportPresentation.IsAqStrengthEnabled", source);
+        Assert.Contains("AqSettingLayout.IsEnabled = ExportPresentation.IsAqStrengthEnabled", source);
         Assert.Contains("AqStrengthSlider.Value = ExportPresentation.AqStrength(model.Encoding.AqStrength)", source);
     }
 
@@ -244,11 +250,13 @@ public sealed class ExportModalRegressionTests
         var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
         var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
         var cluster = Named(xaml, "QualityPrimaryLabel").Elements().First(element => element.Name.LocalName == "StackPanel");
-        Assert.Equal(["TextBlock", "Button", "TextBlock"], cluster.Elements().Select(element => element.Name.LocalName));
+        Assert.Equal(["TextBlock", "Button", "Border"], cluster.Elements().Select(element => element.Name.LocalName));
         Assert.Equal("QualityInfo", cluster.Elements().ElementAt(1).Attributes().Single(attribute => attribute.Name.LocalName == "Name").Value);
-        Assert.Equal("QualityValue", cluster.Elements().ElementAt(2).Attributes().Single(attribute => attribute.Name.LocalName == "Name").Value);
+        Assert.Equal(Named(xaml, "QualityValue"), cluster.Elements().ElementAt(2).Descendants().Single());
         var slider = Named(xaml, "QualitySlider");
         Assert.Contains("CqSliderStyle", (string?)slider.Attribute("Style"));
+        Assert.Equal("1", (string?)slider.Attribute("Grid.Row"));
+        Assert.Equal("1", (string?)slider.Attribute("Grid.Column"));
         var style = xaml.Descendants().Single(element => element.Name.LocalName == "Style" &&
             element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "CqSliderStyle"));
         Assert.Contains(style.Elements(), element => (string?)element.Attribute("Property") == "Minimum" && (string?)element.Attribute("Value") == "0");
@@ -264,11 +272,19 @@ public sealed class ExportModalRegressionTests
     {
         var xaml = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ExportDialog.xaml"));
         var value = Named(xaml, "AqStrengthValue");
-        var cluster = value.Parent!;
+        var valueBox = value.Parent!;
+        var cluster = valueBox.Parent!;
         Assert.Equal("AqInfo", cluster.Elements().ElementAt(1).Attributes().Single(attribute => attribute.Name.LocalName == "Name").Value);
-        Assert.Equal(value, cluster.Elements().ElementAt(2));
+        Assert.Equal(valueBox, cluster.Elements().ElementAt(2));
+        Assert.Contains("BoundedValueBox", (string?)valueBox.Attribute("Style"));
         Assert.DoesNotContain(cluster.Descendants(), element => element.Name.LocalName == "Slider");
-        Assert.NotNull(Named(xaml, "AqStrengthPanel"));
+        var sliderPanel = Named(xaml, "AqStrengthPanel");
+        Assert.Equal("1", (string?)sliderPanel.Attribute("Grid.Row"));
+        Assert.Equal("1", (string?)sliderPanel.Attribute("Grid.Column"));
+        var valueStyle = xaml.Descendants().Single(element => element.Name.LocalName == "Style" &&
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "BoundedValueBox"));
+        Assert.Contains(valueStyle.Elements(), element => (string?)element.Attribute("Property") == "MinWidth" && (string?)element.Attribute("Value") == "34");
+        Assert.Contains(valueStyle.Elements(), element => (string?)element.Attribute("Property") == "Margin" && (string?)element.Attribute("Value") == "12,0,0,0");
     }
 
     [Fact]

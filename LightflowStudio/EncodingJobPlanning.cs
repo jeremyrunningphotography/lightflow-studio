@@ -16,7 +16,8 @@ internal sealed record EncodingJobOptions(
     bool IncludeSubfolders = false,
     EncodingColorMode ColorMode = EncodingColorMode.OriginalOrManual,
     int ParallelExports = EncodingJobConcurrency.Default,
-    ExportMaterializationPolicy? MaterializationPolicy = null);
+    ExportMaterializationPolicy? MaterializationPolicy = null,
+    NamePartsDefinition? Naming = null);
 
 internal static class EncodingJobConcurrency
 {
@@ -44,7 +45,9 @@ internal sealed record EncodingSource(
     int? CapabilityOrder = null,
     MaterializedColorPipeline? AssignedColor = null,
     SourceMediaTraits? MediaTraits = null,
-    MaterializedExportSettings? RestoredExport = null);
+    MaterializedExportSettings? RestoredExport = null,
+    DateTimeOffset? NamingTimestamp = null,
+    MaterializedName? RestoredName = null);
 
 internal sealed record EncodingItemResult(
     int ExitCode,
@@ -69,11 +72,14 @@ internal static class EncodingJobPlanner
         Guid? jobId = null,
         DateTimeOffset? createdAt = null)
     {
-        var items = sources
+        if (options.Naming is { } naming)
+            options = options with { Naming = naming with { Parts = naming.Parts.ToArray() } };
+        var orderedSources = sources
             .OrderBy(source => source.CapabilityOrder.HasValue ? 0 : 1)
             .ThenBy(source => source.CapabilityOrder)
             .ThenBy(source => source.CapabilityOrder.HasValue ? null : source.Path, StringComparer.OrdinalIgnoreCase)
-            .Select(source => new JobItemDefinition(
+            .ToList();
+        var items = orderedSources.Select((source, index) => new JobItemDefinition(
                 Guid.NewGuid(),
                 source.Path,
                 source.FileSizeBytes,
@@ -87,7 +93,11 @@ internal static class EncodingJobPlanner
                 source.LastWriteUtcTicks,
                 source.HasAudio,
                 source.AssignedColor,
-                ExportSettingsMaterializer.Materialize(options, source)))
+                ExportSettingsMaterializer.Materialize(options, source),
+                source.RestoredName ?? (options.Naming is { } naming
+                    ? NamePartsRenderer.Materialize(naming,
+                        new(Path.GetFileNameWithoutExtension(source.Path), index + 1, source.NamingTimestamp))
+                    : null)))
             .ToList();
         return new(jobId ?? Guid.NewGuid(), "video.encode", createdAt ?? DateTimeOffset.Now, options, items);
     }
@@ -121,18 +131,12 @@ internal static class EncodingJobPlanner
         {
             Item = item,
             Settings = item.MaterializedExport ?? LegacySettings(definition.Options, item),
-            Path = EncodingPathPlanner.CreateJob(
-                definition.Options.InputFolder,
-                definition.Options.OutputRoot,
-                item.SourceIdentity,
-                (item.MaterializedExport ?? LegacySettings(definition.Options, item)).Resolution,
-                (item.MaterializedExport ?? LegacySettings(definition.Options, item)).Encoding.Container,
-                definition.Options.FilenameSuffix,
-                definition.Options.PreserveFolderStructure).OutputPath
+            Path = CreateOutputPath(definition.Options, item,
+                item.MaterializedExport ?? LegacySettings(definition.Options, item))
         }).ToList();
 
         var collisions = outputJobs
-            .GroupBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(item => NormalizePath(item.Path), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Count() > 1)
             .Select(group => group.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -146,6 +150,12 @@ internal static class EncodingJobPlanner
         var planItems = outputJobs.Select(output =>
         {
             var itemIssues = new List<JobIssue>();
+            if (!string.IsNullOrWhiteSpace(output.Item.MaterializedName?.Problem))
+                itemIssues.Add(new("naming.unresolved", output.Item.MaterializedName.Problem, JobIssueSeverity.Error));
+            if (output.Item.MaterializedName is { Stem: { } stem } && WindowsOutputNameValidator.ValidateStem(stem) is { } nameProblem)
+                itemIssues.Add(new("naming.invalid-filename", nameProblem, JobIssueSeverity.Error));
+            if (Path.GetFileName(output.Path).Length > 255 || Path.GetFullPath(output.Path).Length > 32767)
+                itemIssues.Add(new("naming.path-too-long", $"The planned output path is too long for Windows: {output.Path}", JobIssueSeverity.Error));
             if (!string.IsNullOrWhiteSpace(output.Settings.MaterializationProblem))
                 itemIssues.Add(new("encoding.materialization-unsupported", output.Settings.MaterializationProblem, JobIssueSeverity.Error));
             if (output.Item.MediaRange is { } range) itemIssues.AddRange(range.Validate());
@@ -154,7 +164,7 @@ internal static class EncodingJobPlanner
                 itemIssues.Add(new("encoding.source-overwrite", "The output path cannot be the same as the source path.", JobIssueSeverity.Error));
             if (sourcePaths.Contains(EncodingOutputLifecycle.PartialPathFor(output.Path)))
                 itemIssues.Add(new("encoding.partial-source-collision", "The Lightflow partial output path would collide with a selected source file.", JobIssueSeverity.Error));
-            if (collisions.Contains(output.Path))
+            if (collisions.Contains(NormalizePath(output.Path)))
                 itemIssues.Add(new("encoding.output-collision", $"The planned output collides with another item: {output.Path}", JobIssueSeverity.Error));
             if (output.Settings.Color is { ColorEnabled: true } color)
             {
@@ -193,6 +203,23 @@ internal static class EncodingJobPlanner
 
         return new(definition, plannedAt ?? DateTimeOffset.Now, planItems, issues, workUnit);
     }
+
+    private static string CreateOutputPath(EncodingJobOptions options, JobItemDefinition item,
+        MaterializedExportSettings settings)
+    {
+        if (item.MaterializedName?.Stem is not { } stem)
+            return EncodingPathPlanner.CreateJob(options.InputFolder, options.OutputRoot, item.SourceIdentity,
+                settings.Resolution, settings.Encoding.Container, options.FilenameSuffix,
+                options.PreserveFolderStructure).OutputPath;
+        var relativeDirectory = options.PreserveFolderStructure
+            ? Path.GetDirectoryName(Path.GetRelativePath(options.InputFolder, item.SourceIdentity)) ?? ""
+            : "";
+        return Path.Combine(options.OutputRoot, relativeDirectory,
+            stem + EncodingPathPlanner.ContainerExtension(settings.Encoding.Container));
+    }
+
+    private static string NormalizePath(string path) => Path.GetFullPath(path)
+        .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
     private static bool LutPathIsValid(string? path) => string.IsNullOrEmpty(path)
         || (path.EndsWith(".cube", StringComparison.OrdinalIgnoreCase) && File.Exists(path));

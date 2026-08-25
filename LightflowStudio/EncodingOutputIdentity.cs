@@ -19,12 +19,14 @@ internal sealed record EncodingOutputIdentity(
             ? JsonSerializer.Serialize(new
             {
                 options.Resolution, options.Recovery, options.Encoding, options.LutPath, options.ColorMode,
-                item.AssignedColor, options.FilenameSuffix, options.PreserveFolderStructure
+                item.AssignedColor, options.FilenameSuffix, options.PreserveFolderStructure,
+                options.Naming, item.MaterializedName
             })
             : JsonSerializer.Serialize(new
             {
                 options.Resolution, options.Recovery, options.Encoding, options.LutPath, options.ColorMode,
-                item.AssignedColor, item.MaterializedExport, options.FilenameSuffix, options.PreserveFolderStructure
+                item.AssignedColor, item.MaterializedExport, options.FilenameSuffix, options.PreserveFolderStructure,
+                options.Naming, item.MaterializedName
             });
         return new(Path.GetFullPath(item.SourceIdentity), item.SourceSizeBytes ?? 0,
             item.SourceLastWriteUtcTicks ?? 0, item.ResolvedRange?.RequestedRange.In?.Ticks,

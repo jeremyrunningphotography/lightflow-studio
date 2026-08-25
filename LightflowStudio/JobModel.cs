@@ -99,7 +99,8 @@ internal sealed record JobItemDefinition(
     long? SourceLastWriteUtcTicks = null,
     bool? SourceHasAudio = null,
     MaterializedColorPipeline? AssignedColor = null,
-    MaterializedExportSettings? MaterializedExport = null);
+    MaterializedExportSettings? MaterializedExport = null,
+    MaterializedName? MaterializedName = null);
 
 internal sealed record JobDefinition<TOptions>(
     Guid Id,

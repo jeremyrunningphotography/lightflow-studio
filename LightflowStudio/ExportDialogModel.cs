@@ -22,7 +22,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private string _destination;
     private bool _createSubfolder = true;
     private string _subfolderName = "Exports";
-    private NamePartSeparator _separator;
+    private NamePartSeparator _separator = NamePartSeparator.Hyphen;
     private ExportContainerChoice _container = ExportContainerChoice.SameAsSource;
     private ExportCodecChoice _codec = ExportCodecChoice.SameAsSource;
     private OutputResolution _resolution = OutputResolution.Source;

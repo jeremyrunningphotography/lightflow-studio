@@ -44,6 +44,7 @@ internal static class ExportPresentation
 
     public static string NamePartLabel(NamePartKind kind) => NameParts.Single(x => x.Value == kind).Label;
     public static int AqStrength(int value) => Math.Clamp(value, 1, 15);
+    public static int ConstantQuality(int value) => Math.Clamp(value, 0, 51);
     public static bool IsAqStrengthEnabled(bool spatialAq, bool temporalAq) => spatialAq || temporalAq;
     public static IReadOnlyList<ExportNamePartChip> Composer(IReadOnlyList<NamePart> parts) => parts.Select((part, index) => new ExportNamePartChip(index, part, NamePartLabel(part.Kind))).ToArray();
     public static ExportHardwareStatus Hardware(EncoderCapability capability) => capability.IsUsable

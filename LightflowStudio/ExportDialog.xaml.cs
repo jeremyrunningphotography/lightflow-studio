@@ -40,7 +40,7 @@ public partial class ExportDialog : Window
         MultipassCombo.ItemsSource = ExportPresentation.MultipassModes; Select(MultipassCombo, ExportPresentation.MultipassModes, model.Encoding.Multipass);
         PixelFormatCombo.ItemsSource = ExportPresentation.PixelFormats; Select(PixelFormatCombo, ExportPresentation.PixelFormats, model.Encoding.PixelFormat);
         PresetCombo.ItemsSource = ExportPresentation.EncoderPresets; Select(PresetCombo, ExportPresentation.EncoderPresets, model.Encoding.EncoderPreset);
-        QualityText.Text = model.Encoding.Quality.ToString(); TargetText.Text = model.Encoding.TargetBitrateMbps.ToString(); MaxText.Text = model.Encoding.MaxBitrateMbps.ToString(); CbrText.Text = model.Encoding.TargetBitrateMbps.ToString(); AqStrengthSlider.Value = ExportPresentation.AqStrength(model.Encoding.AqStrength);
+        QualitySlider.Value = ExportPresentation.ConstantQuality(model.Encoding.Quality); TargetText.Text = model.Encoding.TargetBitrateMbps.ToString(); MaxText.Text = model.Encoding.MaxBitrateMbps.ToString(); CbrText.Text = model.Encoding.TargetBitrateMbps.ToString(); AqStrengthSlider.Value = ExportPresentation.AqStrength(model.Encoding.AqStrength);
         SpatialAqCheck.IsChecked = model.Encoding.SpatialAq; TemporalAqCheck.IsChecked = model.Encoding.TemporalAq; DeinterlaceCheck.IsChecked = model.Encoding.Deinterlace; FastStartCheck.IsChecked = model.Encoding.FastStart;
         _initializing = false; Sync(); Loaded += async (_, _) =>
         {
@@ -141,7 +141,7 @@ public partial class ExportDialog : Window
         _model.OverwriteExisting = OverwriteExistingCheck.IsChecked == true; _model.Camera = CameraCombo.SelectedItem as ExportLutChoice ?? _model.Camera; _model.Creative = CreativeCombo.SelectedItem as ExportLutChoice ?? _model.Creative;
         var frameRates = new[] { 0d, 23.976, 24, 25, 29.97, 30, 50, 59.94, 60 };
         var encoding = _model.Encoding with { RateControl = (RateControlCombo.SelectedItem as ExportChoice<RateControlMode>)?.Value ?? _model.Encoding.RateControl, FrameRate = frameRates[Math.Max(0, FrameRateCombo.SelectedIndex)], AudioMode = (AudioEncodingMode)Math.Max(0, AudioCombo.SelectedIndex), Tune = (TuneCombo.SelectedItem as ExportChoice<EncoderTune>)?.Value ?? _model.Encoding.Tune, Multipass = (MultipassCombo.SelectedItem as ExportChoice<MultipassMode>)?.Value ?? _model.Encoding.Multipass, PixelFormat = (PixelFormatCombo.SelectedItem as ExportChoice<VideoPixelFormat>)?.Value ?? _model.Encoding.PixelFormat, SpatialAq = SpatialAqCheck.IsChecked == true, TemporalAq = TemporalAqCheck.IsChecked == true, Deinterlace = DeinterlaceCheck.IsChecked == true, FastStart = FastStartCheck.IsChecked == true };
-        if (int.TryParse(QualityText.Text, out var q)) encoding = encoding with { Quality = q };
+        if (encoding.RateControl == RateControlMode.ConstantQuality) encoding = encoding with { Quality = ExportPresentation.ConstantQuality((int)Math.Round(QualitySlider.Value)) };
         if (encoding.RateControl == RateControlMode.ConstantBitrate && int.TryParse(CbrText.Text, out var cbr)) encoding = encoding with { TargetBitrateMbps = cbr };
         else if (int.TryParse(TargetText.Text, out var target)) encoding = encoding with { TargetBitrateMbps = target };
         if (int.TryParse(MaxText.Text, out var max)) encoding = encoding with { MaxBitrateMbps = max };
@@ -159,7 +159,7 @@ public partial class ExportDialog : Window
         var cq = _model.Encoding.RateControl == RateControlMode.ConstantQuality;
         var vbr = _model.Encoding.RateControl == RateControlMode.VariableBitrate;
         var cbr = _model.Encoding.RateControl == RateControlMode.ConstantBitrate;
-        QualityPrimaryLabel.Visibility = QualityText.Visibility = cq ? Visibility.Visible : Visibility.Collapsed;
+        QualityPrimaryLabel.Visibility = cq ? Visibility.Visible : Visibility.Collapsed;
         TargetPrimaryLabel.Visibility = TargetText.Visibility = vbr ? Visibility.Visible : Visibility.Collapsed;
         MaxPrimaryLabel.Visibility = MaxText.Visibility = vbr ? Visibility.Visible : Visibility.Collapsed;
         CbrPrimaryLabel.Visibility = CbrText.Visibility = cbr ? Visibility.Visible : Visibility.Collapsed;
@@ -173,7 +173,16 @@ public partial class ExportDialog : Window
         ValidationBorder.Visibility = lines.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         ExportButton.IsEnabled = _model.CanExport;
     }
-    private void Browse_Click(object sender, RoutedEventArgs e) { using var dialog = new Forms.FolderBrowserDialog { SelectedPath = DestinationText.Text }; if (dialog.ShowDialog() == Forms.DialogResult.OK) DestinationText.Text = dialog.SelectedPath; }
+    private void Browse_Click(object sender, RoutedEventArgs e)
+    {
+        using var dialog = new Forms.FolderBrowserDialog { Description = "Select the output folder", UseDescriptionForTitle = true };
+        if (MainWindow.ResolveFolderPickerInitialDirectory(DestinationText.Text) is { } start)
+        {
+            dialog.InitialDirectory = start;
+            dialog.SelectedPath = start;
+        }
+        if (dialog.ShowDialog() == Forms.DialogResult.OK) DestinationText.Text = dialog.SelectedPath;
+    }
     private void AddPart_Click(object sender, RoutedEventArgs e) { if (AddPartCombo.SelectedItem is ExportChoice<NamePartKind> choice) _model.AddPart(choice.Value); Sync(); }
     private void RemovePart_Click(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _model.RemovePart(chip.Index); Sync(); } }
     private void MovePartEarlier_Click(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _model.MovePart(chip.Index, -1); Sync(); } }

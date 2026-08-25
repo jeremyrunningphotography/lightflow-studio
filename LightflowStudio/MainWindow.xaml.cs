@@ -2057,7 +2057,11 @@ public partial class MainWindow : Window
     private static string? PickFolder(string description, string? initialFolder = null)
     {
         using var dlg = new Forms.FolderBrowserDialog { Description = description, UseDescriptionForTitle = true };
-        if (ResolveFolderPickerInitialDirectory(initialFolder) is { } start) dlg.SelectedPath = start;
+        if (ResolveFolderPickerInitialDirectory(initialFolder) is { } start)
+        {
+            dlg.InitialDirectory = start;
+            dlg.SelectedPath = start;
+        }
         return dlg.ShowDialog() == Forms.DialogResult.OK ? dlg.SelectedPath : null;
     }
 

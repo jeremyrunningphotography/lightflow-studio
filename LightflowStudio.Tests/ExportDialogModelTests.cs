@@ -90,6 +90,15 @@ public sealed class ExportDialogModelTests : IDisposable
     }
 
     [Fact]
+    public void NewExportDefaultsToHyphenWithoutChangingExplicitStoredDefinitions()
+    {
+        var model = CreateModel("clip.mp4");
+        Assert.Equal(NamePartSeparator.Hyphen, model.Separator);
+        var restored = new NamePartsDefinition([new(NamePartKind.OriginalName), new(NamePartKind.Sequence01)], NamePartSeparator.Underscore);
+        Assert.Equal(NamePartSeparator.Underscore, restored.Separator);
+    }
+
+    [Fact]
     public void PresentationMappingsUseFriendlyProductLabels()
     {
         Assert.Equal("Original name", ExportPresentation.NamePartLabel(NamePartKind.OriginalName));
@@ -122,6 +131,15 @@ public sealed class ExportDialogModelTests : IDisposable
     [InlineData(40, 15)]
     public void AqStrengthPresentationClampsToBackendRange(int value, int expected) =>
         Assert.Equal(expected, ExportPresentation.AqStrength(value));
+
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(0, 0)]
+    [InlineData(18, 18)]
+    [InlineData(51, 51)]
+    [InlineData(70, 51)]
+    public void ConstantQualityPresentationClampsToBackendRange(int value, int expected) =>
+        Assert.Equal(expected, ExportPresentation.ConstantQuality(value));
 
     [Theory]
     [InlineData(false, false, false)]

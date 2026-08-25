@@ -2,26 +2,23 @@
 
 ## Goal
 
-Safely normalize media filenames using reusable metadata-aware templates.
+Safely normalize media filenames using the shared, typed Name Parts architecture established by Export issue #168.
 
-## Tokens
+## Shared Name Parts
 
-- Original filename
-- Original extension
-- Date/time
-- Camera
-- Lens
-- Creator
-- Counter
-- Width and height
-- Video resolution
-- Custom text
+Bulk Rename must consume ordered, serializable Name Parts rather than define a token/template language of its own.
+The shared vocabulary includes Original name, Custom text, Date, Time, Sequence width variants, and source-derived
+Index Number. Rename-specific metadata parts (for example camera, lens, creator, dimensions, or video resolution)
+may extend that vocabulary when #44 is implemented, without changing the shared rendering/materialization contract.
+
+The source extension remains separate from the rendered stem. Bulk Rename may preserve or explicitly change it as
+rename policy, just as Export derives it from the materialized output container.
 
 ## Requirements
 
 - Live before/after preview
 - Collision detection
-- Stable counter ordering
+- Stable sequence ordering from the immutable input plan
 - Undo manifest
 - Include folders or files
 - Case normalization

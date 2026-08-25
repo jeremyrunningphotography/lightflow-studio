@@ -89,6 +89,10 @@ public sealed class ExportModalRegressionTests
         Assert.DoesNotContain("Foreground=\"Black\"", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Advanced export settings", text);
         Assert.Contains("AdvancedToggle", text);
+        Assert.Contains("UnifiedAdvancedBox", text);
+        var contentBorder = advanced.Elements().Single();
+        Assert.Equal("0,1,0,0", (string?)contentBorder.Attribute("BorderThickness"));
+        Assert.Equal("0", (string?)contentBorder.Attribute("Margin") ?? "0");
         Assert.DoesNotContain("Blue", text, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -101,6 +105,12 @@ public sealed class ExportModalRegressionTests
         var mainStack = template.Descendants().First(x => x.Name.LocalName == "StackPanel");
         Assert.Null(mainStack.Attribute("Orientation"));
         Assert.Contains(mainStack.Descendants(), x => x.Name.LocalName == "StackPanel" && (string?)x.Attribute("Orientation") == "Horizontal");
+        var chipStyle = xaml.Descendants().Single(x => x.Name.LocalName == "Style" && (string?)x.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "NamePartChip");
+        Assert.Contains(chipStyle.Elements(), x => (string?)x.Attribute("Property") == "Width" && (string?)x.Attribute("Value") == "112");
+        var customText = Named(xaml, "CustomPartText");
+        Assert.Equal("96", (string?)customText.Attribute("Width"));
+        Assert.Equal("Auto", (string?)customText.Attribute("HorizontalScrollBarVisibility"));
+        Assert.Equal("{Binding Part.Text}", (string?)customText.Attribute("ToolTip"));
         var extension = Named(xaml, "ExtensionPreview");
         Assert.DoesNotContain(extension.Ancestors(), x => x == composer);
         Assert.Null(extension.Attribute("AllowDrop"));
@@ -110,16 +120,17 @@ public sealed class ExportModalRegressionTests
     }
 
     [Fact]
-    public void OutputExampleIsSingleLineEllipsizedWithFullPathTooltipWiring()
+    public void OutputExampleShowsAndWrapsCompletePath()
     {
         var root = FindRepositoryRoot();
         var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
         var preview = Named(xaml, "PathPreview");
-        Assert.Equal("CharacterEllipsis", (string?)preview.Attribute("TextTrimming"));
-        Assert.Equal("NoWrap", (string?)preview.Attribute("TextWrapping"));
+        Assert.Equal("None", (string?)preview.Attribute("TextTrimming"));
+        Assert.Equal("Wrap", (string?)preview.Attribute("TextWrapping"));
         var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
+        Assert.Contains("PathPreview.Text = _model.PreviewPath", source);
         Assert.Contains("OutputExampleBorder.ToolTip = _model.PreviewPath", source);
-        Assert.Equal("Right", (string?)Named(xaml, "OutputFilenamePreview").Attribute("DockPanel.Dock"));
+        Assert.True(int.Parse((string?)Named(xaml, "OutputExampleBorder").Attribute("MinHeight") ?? "0") >= 50);
     }
 
     [Fact]
@@ -148,14 +159,35 @@ public sealed class ExportModalRegressionTests
     }
 
     [Fact]
-    public void EveryPrimarySettingHasMeaningfulTooltip()
+    public void EveryPrimarySettingHasAccessibleLabelInfoHelp()
+    {
+        var root = FindRepositoryRoot();
+        var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
+        foreach (var name in new[] { "FormatInfo", "CodecInfo", "ResolutionInfo", "FrameRateInfo", "RateControlInfo",
+                     "QualityInfo", "TargetInfo", "MaxInfo", "CbrInfo", "AudioInfo", "EncoderInfo", "ParallelInfo" })
+        {
+            var info = Named(xaml, name);
+            var tooltip = (string?)info.Attribute("ToolTip");
+            Assert.True(tooltip?.Length > 30, $"{name} needs a meaningful tooltip.");
+            Assert.False(string.IsNullOrWhiteSpace((string?)info.Attribute("AutomationProperties.Name")));
+            Assert.Contains("InfoButton", (string?)info.Attribute("Style"));
+        }
+        var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
+        Assert.Contains("InfoButton_GotKeyboardFocus", source);
+        Assert.Contains("toolTip.IsOpen = true", source);
+    }
+
+    [Fact]
+    public void EveryAdvancedSettingHasAccessibleLabelInfoHelp()
     {
         var xaml = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ExportDialog.xaml"));
-        foreach (var name in new[] { "ContainerCombo", "CodecCombo", "ResolutionCombo", "FrameRateCombo", "RateControlCombo",
-                     "QualityText", "TargetText", "MaxText", "CbrText", "AudioCombo", "EncoderCombo", "ParallelCombo" })
+        foreach (var name in new[] { "PresetInfo", "TuneInfo", "MultipassInfo", "AqInfo", "PixelFormatInfo",
+                     "SpatialAqInfo", "TemporalAqInfo", "DeinterlaceInfo", "FastStartInfo" })
         {
-            var tooltip = (string?)Named(xaml, name).Attribute("ToolTip");
-            Assert.True(tooltip?.Length > 30, $"{name} needs a meaningful tooltip.");
+            var info = Named(xaml, name);
+            Assert.True(((string?)info.Attribute("ToolTip"))?.Length > 30, $"{name} needs explanatory help.");
+            Assert.False(string.IsNullOrWhiteSpace((string?)info.Attribute("AutomationProperties.Name")));
+            Assert.Contains("InfoButton", (string?)info.Attribute("Style"));
         }
     }
 

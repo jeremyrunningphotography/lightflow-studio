@@ -96,8 +96,8 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal("Custom text", ExportPresentation.NamePartLabel(NamePartKind.CustomText));
         Assert.Equal("Sequence 0001", ExportPresentation.NamePartLabel(NamePartKind.Sequence0001));
         Assert.Equal("Index Number", ExportPresentation.NamePartLabel(NamePartKind.IndexNumber));
-        Assert.Equal(["Same as Source", "4K UHD (3840 × 2160)", "1440p (2560 × 1440)",
-            "1080p (1920 × 1080)", "720p (1280 × 720)", "480p (854 × 480)"],
+        Assert.Equal(["Same as Source", "4K UHD (3840 × 2160 canvas)", "1440p (1440 px high)",
+            "1080p (1080 px high)", "720p (720 px high)", "480p (480 px high)"],
             ExportPresentation.Resolutions.Select(x => x.Label));
         Assert.Equal(["Constant Quality", "Variable Bitrate", "Constant Bitrate"],
             ExportPresentation.RateControls.Select(x => x.Label));

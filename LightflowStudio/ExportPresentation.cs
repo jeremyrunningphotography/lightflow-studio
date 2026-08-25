@@ -31,7 +31,7 @@ internal static class ExportPresentation
     public static IReadOnlyList<ExportChoice<RateControlMode>> RateControls { get; } =
     [Choice(RateControlMode.ConstantQuality, "Constant Quality"), Choice(RateControlMode.VariableBitrate, "Variable Bitrate"), Choice(RateControlMode.ConstantBitrate, "Constant Bitrate")];
     public static IReadOnlyList<ExportChoice<OutputResolution>> Resolutions { get; } =
-    [Choice(OutputResolution.Source, "Same as Source"), Choice(OutputResolution.UltraHd, "4K UHD (3840 × 2160)"), Choice(OutputResolution.Qhd1440, "1440p (2560 × 1440)"), Choice(OutputResolution.FullHd, "1080p (1920 × 1080)"), Choice(OutputResolution.Hd720, "720p (1280 × 720)"), Choice(OutputResolution.Sd480, "480p (854 × 480)")];
+    [Choice(OutputResolution.Source, "Same as Source"), Choice(OutputResolution.UltraHd, "4K UHD (3840 × 2160 canvas)"), Choice(OutputResolution.Qhd1440, "1440p (1440 px high)"), Choice(OutputResolution.FullHd, "1080p (1080 px high)"), Choice(OutputResolution.Hd720, "720p (720 px high)"), Choice(OutputResolution.Sd480, "480p (480 px high)")];
     public static IReadOnlyList<ExportChoice<EncoderTune>> Tunes { get; } =
     [Choice(EncoderTune.HighQuality, "High Quality"), Choice(EncoderTune.LowLatency, "Low Latency"), Choice(EncoderTune.UltraLowLatency, "Ultra-low Latency")];
     public static IReadOnlyList<ExportChoice<MultipassMode>> MultipassModes { get; } =

@@ -136,7 +136,7 @@ public partial class ExportDialog : Window
     private void Sync()
     {
         NamePartsComposer.ItemsSource = ExportPresentation.Composer(_model.NameParts);
-        NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewDirectory; OutputFilenamePreview.Text = _model.PreviewFileName;
+        NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
         PathPreview.ToolTip = OutputExampleBorder.ToolTip = _model.PreviewPath;
         ExtensionPreview.Text = _model.RepresentativeExtension + (_model.HasHeterogeneousExtensions ? "  (varies)" : "");
         ExtensionPreview.ToolTip = _model.ExtensionHelp;
@@ -165,6 +165,19 @@ public partial class ExportDialog : Window
     {
         if (_initializing || sender is not System.Windows.Controls.TextBox { DataContext: ExportNamePartChip chip } box || box.Text == chip.Part.Text) return;
         _model.UpdateCustomText(chip.Index, box.Text); NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
+    }
+
+    private void InfoButton_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button) return;
+        if (button.ToolTip is string help)
+            button.ToolTip = new System.Windows.Controls.ToolTip { Content = help, PlacementTarget = button, Placement = System.Windows.Controls.Primitives.PlacementMode.Right };
+        if (button.ToolTip is System.Windows.Controls.ToolTip toolTip) toolTip.IsOpen = true;
+    }
+
+    private void InfoButton_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button { ToolTip: System.Windows.Controls.ToolTip toolTip }) toolTip.IsOpen = false;
     }
     private void NamePart_MouseDown(object sender, MouseButtonEventArgs e)
     { if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _dragStart = e.GetPosition(this); _dragPartIndex = chip.Index; } }

@@ -105,10 +105,31 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal("High Quality", ExportPresentation.Tunes[0].Label);
         Assert.Contains(ExportPresentation.MultipassModes, x => x.Label == "Full Resolution");
         Assert.Contains(ExportPresentation.PixelFormats, x => x.Label == "YUV 4:2:0 (8-bit)");
+        Assert.Equal(1, ExportPresentation.EncoderPresets.First().Value);
+        Assert.Equal("P1 — Fastest", ExportPresentation.EncoderPresets.First().Label);
+        Assert.Equal(7, ExportPresentation.EncoderPresets.Last().Value);
+        Assert.Equal("P7 — Highest Quality", ExportPresentation.EncoderPresets.Last().Label);
         Assert.DoesNotContain(ExportPresentation.Containers, x => x.Label == x.Value.ToString());
         Assert.DoesNotContain(ExportPresentation.Codecs, x => x.Label == x.Value.ToString());
         Assert.DoesNotContain(ExportPresentation.RateControls, x => x.Label == x.Value.ToString());
     }
+
+    [Theory]
+    [InlineData(-1, 1)]
+    [InlineData(1, 1)]
+    [InlineData(8, 8)]
+    [InlineData(15, 15)]
+    [InlineData(40, 15)]
+    public void AqStrengthPresentationClampsToBackendRange(int value, int expected) =>
+        Assert.Equal(expected, ExportPresentation.AqStrength(value));
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
+    public void AqStrengthAuthorityFollowsEitherAdaptiveQuantizationMode(bool spatial, bool temporal, bool expected) =>
+        Assert.Equal(expected, ExportPresentation.IsAqStrengthEnabled(spatial, temporal));
 
     [Fact]
     public void ComposerPreservesTypedOrderAndProvidesAccessibleActions()

@@ -39,7 +39,8 @@ public partial class ExportDialog : Window
         TuneCombo.ItemsSource = ExportPresentation.Tunes; Select(TuneCombo, ExportPresentation.Tunes, model.Encoding.Tune);
         MultipassCombo.ItemsSource = ExportPresentation.MultipassModes; Select(MultipassCombo, ExportPresentation.MultipassModes, model.Encoding.Multipass);
         PixelFormatCombo.ItemsSource = ExportPresentation.PixelFormats; Select(PixelFormatCombo, ExportPresentation.PixelFormats, model.Encoding.PixelFormat);
-        QualityText.Text = model.Encoding.Quality.ToString(); TargetText.Text = model.Encoding.TargetBitrateMbps.ToString(); MaxText.Text = model.Encoding.MaxBitrateMbps.ToString(); CbrText.Text = model.Encoding.TargetBitrateMbps.ToString(); PresetText.Text = model.Encoding.EncoderPreset.ToString(); AqText.Text = model.Encoding.AqStrength.ToString();
+        PresetCombo.ItemsSource = ExportPresentation.EncoderPresets; Select(PresetCombo, ExportPresentation.EncoderPresets, model.Encoding.EncoderPreset);
+        QualityText.Text = model.Encoding.Quality.ToString(); TargetText.Text = model.Encoding.TargetBitrateMbps.ToString(); MaxText.Text = model.Encoding.MaxBitrateMbps.ToString(); CbrText.Text = model.Encoding.TargetBitrateMbps.ToString(); AqStrengthSlider.Value = ExportPresentation.AqStrength(model.Encoding.AqStrength);
         SpatialAqCheck.IsChecked = model.Encoding.SpatialAq; TemporalAqCheck.IsChecked = model.Encoding.TemporalAq; DeinterlaceCheck.IsChecked = model.Encoding.Deinterlace; FastStartCheck.IsChecked = model.Encoding.FastStart;
         _initializing = false; Sync(); Loaded += async (_, _) =>
         {
@@ -144,7 +145,8 @@ public partial class ExportDialog : Window
         if (encoding.RateControl == RateControlMode.ConstantBitrate && int.TryParse(CbrText.Text, out var cbr)) encoding = encoding with { TargetBitrateMbps = cbr };
         else if (int.TryParse(TargetText.Text, out var target)) encoding = encoding with { TargetBitrateMbps = target };
         if (int.TryParse(MaxText.Text, out var max)) encoding = encoding with { MaxBitrateMbps = max };
-        if (int.TryParse(PresetText.Text, out var preset)) encoding = encoding with { EncoderPreset = preset }; if (int.TryParse(AqText.Text, out var aq)) encoding = encoding with { AqStrength = aq };
+        if (PresetCombo.SelectedItem is ExportChoice<int> preset) encoding = encoding with { EncoderPreset = preset.Value };
+        encoding = encoding with { AqStrength = ExportPresentation.AqStrength((int)Math.Round(AqStrengthSlider.Value)) };
         _model.Encoding = encoding; _model.AdvancedExpanded = AdvancedExpander.IsExpanded; Sync();
     }
     private void Sync()
@@ -161,6 +163,7 @@ public partial class ExportDialog : Window
         TargetPrimaryLabel.Visibility = TargetText.Visibility = vbr ? Visibility.Visible : Visibility.Collapsed;
         MaxPrimaryLabel.Visibility = MaxText.Visibility = vbr ? Visibility.Visible : Visibility.Collapsed;
         CbrPrimaryLabel.Visibility = CbrText.Visibility = cbr ? Visibility.Visible : Visibility.Collapsed;
+        AqStrengthPanel.IsEnabled = ExportPresentation.IsAqStrengthEnabled(SpatialAqCheck.IsChecked == true, TemporalAqCheck.IsChecked == true);
         if (cbr && CbrText.Text != _model.Encoding.TargetBitrateMbps.ToString())
         { _initializing = true; CbrText.Text = _model.Encoding.TargetBitrateMbps.ToString(); _initializing = false; }
         System.Windows.Automation.AutomationProperties.SetHelpText(AdvancedExpander,

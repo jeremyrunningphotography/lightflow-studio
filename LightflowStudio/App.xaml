@@ -32,6 +32,7 @@
   <SolidColorBrush x:Key="MagentaBrush" Color="{StaticResource MagentaColor}"/>
   <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
   <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}"/>
+  <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#CCFFFFFF"/>
   <SolidColorBrush x:Key="ReadyBadgeBackgroundBrush" Color="#17241F"/>
   <SolidColorBrush x:Key="ReadyBadgeBorderBrush" Color="#285845"/>
   <SolidColorBrush x:Key="EncodingBadgeBackgroundBrush" Color="#2B1E18"/>
@@ -54,7 +55,7 @@
   <Style x:Key="LightflowToolTipStyle" TargetType="ToolTip">
    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
    <Setter Property="Background" Value="{StaticResource ElevatedBrush}"/>
-   <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource ToolTipBorderBrush}"/>
    <Setter Property="BorderThickness" Value="1"/>
    <Setter Property="Padding" Value="10,8"/>
    <Setter Property="MaxWidth" Value="360"/>
@@ -162,6 +163,21 @@
    <Setter Property="Padding" Value="9,7"/>
    <Setter Property="Margin" Value="4"/>
    <Setter Property="VerticalContentAlignment" Value="Center"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="TextBox">
+      <Border x:Name="TextChrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+       BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+       <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TextChrome" Property="BorderBrush" Value="#596270"/></Trigger>
+       <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TextChrome" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/><Setter TargetName="TextChrome" Property="BorderThickness" Value="2"/></Trigger>
+       <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
   </Style>
 <Style TargetType="ComboBox">
    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
@@ -214,7 +230,7 @@
        </Popup>
       </Grid>
       <ControlTemplate.Triggers>
-       <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="DropDownToggle" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/></Trigger>
+       <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="{StaticResource OrangeBrush}"/></Trigger>
        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
@@ -235,7 +251,7 @@
       </Border>
       <ControlTemplate.Triggers>
        <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="ItemChrome" Property="Background" Value="#292E37"/><Setter TargetName="ItemChrome" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/></Trigger>
-       <Trigger Property="IsSelected" Value="True"><Setter TargetName="ItemChrome" Property="Background" Value="#3A1E28"/><Setter TargetName="ItemChrome" Property="BorderBrush" Value="{StaticResource MagentaBrush}"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
+       <Trigger Property="IsSelected" Value="True"><Setter TargetName="ItemChrome" Property="Background" Value="#3A241D"/><Setter TargetName="ItemChrome" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>

@@ -94,6 +94,10 @@ public sealed class ExportModalRegressionTests
         Assert.Contains("Advanced export settings", text);
         Assert.Contains("AdvancedToggle", text);
         Assert.Contains("UnifiedAdvancedBox", text);
+        var expandedTrigger = xaml.Descendants().Single(x => x.Name.LocalName == "Trigger" &&
+            (string?)x.Attribute("Property") == "IsExpanded" && (string?)x.Attribute("Value") == "True");
+        Assert.Contains(expandedTrigger.Elements(), x => (string?)x.Attribute("TargetName") == "UnifiedAdvancedBox" &&
+            (string?)x.Attribute("Property") == "BorderBrush" && ((string?)x.Attribute("Value"))?.Contains("ShellFocusBrush") == true);
         var contentBorder = advanced.Elements().Single();
         Assert.Equal("0,1,0,0", (string?)contentBorder.Attribute("BorderThickness"));
         Assert.Equal("0", (string?)contentBorder.Attribute("Margin") ?? "0");
@@ -195,10 +199,59 @@ public sealed class ExportModalRegressionTests
         Assert.Contains(tooltip.Elements(), element => (string?)element.Attribute("Property") == "Foreground" && ((string?)element.Attribute("Value"))?.Contains("TextBrush") == true);
         Assert.Contains(tooltip.Elements(), element => (string?)element.Attribute("Property") == "Background" && ((string?)element.Attribute("Value"))?.Contains("ElevatedBrush") == true);
         Assert.Contains(tooltip.Descendants(), element => element.Name.LocalName == "TextBlock" && (string?)element.Attribute("TextWrapping") == "Wrap");
+        Assert.Contains(tooltip.Elements(), element => (string?)element.Attribute("Property") == "BorderBrush" &&
+            ((string?)element.Attribute("Value"))?.Contains("ToolTipBorderBrush") == true);
+        var tooltipBorder = app.Descendants().Single(element => element.Name.LocalName == "SolidColorBrush" && (string?)element.Attribute(x + "Key") == "ToolTipBorderBrush");
+        Assert.Contains("FFFFFF", (string?)tooltipBorder.Attribute("Color"));
         var infoStyle = dialog.Descendants().Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute(x + "Key") == "InfoHelpButtonStyle");
         Assert.Contains(infoStyle.Descendants(), element => element.Name.LocalName == "ControlTemplate");
         Assert.Contains(infoStyle.Descendants(), element => element.Name.LocalName == "Trigger" && (string?)element.Attribute("Property") == "IsKeyboardFocused");
         Assert.DoesNotContain(infoStyle.Descendants(), element => (string?)element.Attribute("Background") is "White" or "LightBlue");
+    }
+
+    [Fact]
+    public void AdvancedPresetAndAqUseBoundedTypedControls()
+    {
+        var root = FindRepositoryRoot();
+        var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
+        var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
+        Assert.Equal("ComboBox", Named(xaml, "PresetCombo").Name.LocalName);
+        Assert.DoesNotContain(xaml.Descendants(), element => element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" && attribute.Value == "PresetText"));
+        Assert.Contains("Select(PresetCombo, ExportPresentation.EncoderPresets, model.Encoding.EncoderPreset)", source);
+        Assert.Contains("preset.Value", source);
+        var slider = Named(xaml, "AqStrengthSlider");
+        Assert.Equal("Slider", slider.Name.LocalName);
+        Assert.Contains("AqSliderStyle", (string?)slider.Attribute("Style"));
+        var style = xaml.Descendants().Single(element => element.Name.LocalName == "Style" &&
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "AqSliderStyle"));
+        Assert.Contains(style.Elements(), element => (string?)element.Attribute("Property") == "Minimum" && (string?)element.Attribute("Value") == "1");
+        Assert.Contains(style.Elements(), element => (string?)element.Attribute("Property") == "Maximum" && (string?)element.Attribute("Value") == "15");
+        Assert.Contains(style.Elements(), element => (string?)element.Attribute("Property") == "IsSnapToTickEnabled" && (string?)element.Attribute("Value") == "True");
+        Assert.NotNull(Named(xaml, "AqStrengthValue"));
+        Assert.DoesNotContain("int.TryParse(AqText", source);
+        Assert.Contains("AqStrengthPanel.IsEnabled = ExportPresentation.IsAqStrengthEnabled", source);
+        Assert.Contains("AqStrengthSlider.Value = ExportPresentation.AqStrength(model.Encoding.AqStrength)", source);
+    }
+
+    [Fact]
+    public void ExportInteractiveControlsUseExplicitLightflowStateTemplates()
+    {
+        var root = FindRepositoryRoot();
+        var app = XDocument.Load(Path.Combine(root, "LightflowStudio", "App.xaml"));
+        var dialog = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
+        var allMarkup = app + dialog.ToString();
+        Assert.DoesNotContain("Blue", allMarkup, StringComparison.OrdinalIgnoreCase);
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var chip = dialog.Descendants().Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute(x + "Key") == "ChipButton");
+        Assert.Contains("{x:Type Button}", (string?)chip.Attribute("BasedOn"));
+        var textBox = app.Descendants().First(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == "TextBox");
+        Assert.Contains(textBox.Descendants(), element => element.Name.LocalName == "ControlTemplate");
+        Assert.Contains(textBox.Descendants(), element => element.Name.LocalName == "Trigger" && (string?)element.Attribute("Property") == "IsKeyboardFocused");
+        foreach (var key in new[] { "InfoHelpButtonStyle", "AdvancedToggle", "AqSliderStyle" })
+        {
+            var style = dialog.Descendants().Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute(x + "Key") == key);
+            Assert.Contains(style.Descendants(), element => element.Name.LocalName == "ControlTemplate");
+        }
     }
 
     [Fact]

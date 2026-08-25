@@ -39,8 +39,12 @@ internal static class ExportPresentation
     public static IReadOnlyList<ExportChoice<VideoPixelFormat>> PixelFormats { get; } =
     [Choice(VideoPixelFormat.Yuv420p, "YUV 4:2:0 (8-bit)"), Choice(VideoPixelFormat.P010, "P010 (10-bit)")];
     public static IReadOnlyList<ExportChoice<EncoderBackend>> Encoders { get; } = [Choice(EncoderBackend.NvidiaNvenc, "NVIDIA NVENC")];
+    public static IReadOnlyList<ExportChoice<int>> EncoderPresets { get; } =
+    [Choice(1, "P1 — Fastest"), Choice(2, "P2"), Choice(3, "P3"), Choice(4, "P4"), Choice(5, "P5"), Choice(6, "P6"), Choice(7, "P7 — Highest Quality")];
 
     public static string NamePartLabel(NamePartKind kind) => NameParts.Single(x => x.Value == kind).Label;
+    public static int AqStrength(int value) => Math.Clamp(value, 1, 15);
+    public static bool IsAqStrengthEnabled(bool spatialAq, bool temporalAq) => spatialAq || temporalAq;
     public static IReadOnlyList<ExportNamePartChip> Composer(IReadOnlyList<NamePart> parts) => parts.Select((part, index) => new ExportNamePartChip(index, part, NamePartLabel(part.Kind))).ToArray();
     public static ExportHardwareStatus Hardware(EncoderCapability capability) => capability.IsUsable
         ? new("✓ Hardware acceleration available", "NVIDIA NVENC", true, capability.Diagnostic)

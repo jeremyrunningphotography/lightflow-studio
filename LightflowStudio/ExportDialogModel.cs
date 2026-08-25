@@ -242,7 +242,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             var hasRange = input.InitialTrim is { IsFullSource: false };
             var useRange = hasRange && _useRanges[index];
             var rangeText = hasRange && input.InitialTrim is { } range
-                ? $"{FormatTime(range.EffectiveIn)} – {FormatTime(range.EffectiveOut)}"
+                ? $"Use In/Out: {FormatTime(range.EffectiveIn)} – {FormatTime(range.EffectiveOut)}"
                 : "";
             var outputText = "Output name unresolved";
             if (planned?.GetValueOrDefault(input.SourcePath) is { } item)

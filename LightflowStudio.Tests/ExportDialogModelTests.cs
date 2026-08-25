@@ -151,7 +151,7 @@ public sealed class ExportDialogModelTests : IDisposable
 
         Assert.True(model.SubmissionItems[0].HasRange);
         Assert.True(model.SubmissionItems[0].UseRange);
-        Assert.Contains("00:01.0 – 00:03.0", model.SubmissionItems[0].RangeText);
+        Assert.Equal("Use In/Out: 00:01.0 – 00:03.0", model.SubmissionItems[0].RangeText);
         Assert.False(model.SubmissionItems[1].HasRange);
         Assert.Equal("", model.SubmissionItems[1].RangeText);
         Assert.False(model.SubmissionItems[1].RangeControlEnabled);

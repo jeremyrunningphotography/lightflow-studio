@@ -27,13 +27,15 @@ public sealed class ExportModalRegressionTests
         Assert.Equal("False", (string?)global.Attribute("IsThreeState"));
         var rangeCheck = xaml.Descendants().Single(element => element.Attributes().Any(attribute =>
             attribute.Name.LocalName == "Name" && attribute.Value == "RangeCheck"));
-        Assert.Equal("1", (string?)rangeCheck.Attribute("Grid.Column"));
-        Assert.Equal("Use In/Out", (string?)rangeCheck.Attribute("Content"));
+        Assert.Null(rangeCheck.Attribute("Grid.Column"));
+        Assert.Equal("{Binding RangeText}", (string?)rangeCheck.Attribute("Content"));
+        Assert.Equal("0,2,0,0", (string?)rangeCheck.Attribute("Margin"));
         Assert.Equal("{Binding RangeControlEnabled}", (string?)rangeCheck.Attribute("IsEnabled"));
         var noRangeTrigger = xaml.Descendants().Single(element => element.Name.LocalName == "DataTrigger"
             && (string?)element.Attribute("Binding") == "{Binding HasRange}");
         Assert.Contains(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeCheck"
             && (string?)element.Attribute("Value") == "Collapsed");
+        Assert.DoesNotContain(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeText");
         Assert.DoesNotContain(xaml.Descendants(), element => (string?)element.Attribute("Content") is "Use all In/Out" or "Ignore all In/Out");
         Assert.Contains(xaml.Descendants(), element => (string?)element.Attribute("AutomationProperties.Name") == "{Binding RangeAutomationName}");
         Assert.DoesNotContain(xaml.Descendants(), element => (string?)element.Attribute("Content") is "Select all" or "Clear all");

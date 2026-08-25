@@ -39,13 +39,13 @@ internal sealed class EncodingJobExecutor
         {
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);
             lifecycle.Prepare();
-            var colorLuts = options.ColorMode == EncodingColorMode.Assigned
-                            && item.Definition.AssignedColor is { ColorEnabled: true } color
+            var settings = item.Definition.MaterializedExport ?? EncodingJobPlanner.LegacySettings(options, item.Definition);
+            var colorLuts = settings.Color is { ColorEnabled: true } color
                 ? color.OrderedPipeline.Select(_colorResources.Resolve).ToArray()
                 : [];
-            var manualLut = options.ColorMode == EncodingColorMode.OriginalOrManual ? options.LutPath : null;
+            var manualLut = settings.Color is null && options.ColorMode == EncodingColorMode.OriginalOrManual ? options.LutPath : null;
             var args = FfmpegCommandBuilder.Encode(input, lifecycle.PartialPath, manualLut,
-                options.Recovery, options.Resolution, options.DetailedOutput, options.Encoding,
+                options.Recovery, settings.Resolution, options.DetailedOutput, settings.Encoding,
                 item.Definition.ResolvedRange, colorLuts);
             var exit = await RunFfmpegAsync(item.Definition.Id, args, duration, progress, token).ConfigureAwait(false);
             var data = new EncodingItemResult(exit,
@@ -56,7 +56,7 @@ internal sealed class EncodingJobExecutor
 
             var validation = await CaptureAsync(_ffprobe, FfmpegCommandBuilder.ProbeOutput(lifecycle.PartialPath), token).ConfigureAwait(false);
             var expectsAudio = options.Recovery != RecoveryStrategy.VideoOnly
-                               && options.Encoding.AudioMode != AudioEncodingMode.None
+                               && settings.Audio.Mode != MaterializedAudioMode.None
                                && item.Definition.SourceHasAudio != false;
             var validationError = "FFprobe could not open the exported file.";
             if (validation.ExitCode != 0 || !EncodedOutputValidator.TryValidate(validation.StandardOutput,

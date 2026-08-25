@@ -98,7 +98,8 @@ internal sealed record JobItemDefinition(
     ResolvedMediaRange? ResolvedRange = null,
     long? SourceLastWriteUtcTicks = null,
     bool? SourceHasAudio = null,
-    MaterializedColorPipeline? AssignedColor = null);
+    MaterializedColorPipeline? AssignedColor = null,
+    MaterializedExportSettings? MaterializedExport = null);
 
 internal sealed record JobDefinition<TOptions>(
     Guid Id,

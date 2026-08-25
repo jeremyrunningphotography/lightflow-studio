@@ -115,6 +115,17 @@ internal static class JobHistoryPresentation
                 foreach (var resource in color.OrderedPipeline)
                     lines.Add($"  {EncodingLutResourceStore.StageName(resource.Stage)}: {resource.DisplayName} ({resource.ContentSha256})");
             }
+            if (item.Definition.MaterializedExport is { } export)
+            {
+                lines.Add($"  Materialized video: {export.Encoding.Codec}, {export.Encoding.Container}, " +
+                          $"{(export.Encoding.FrameRate == 0 ? "source cadence" : export.Encoding.FrameRate + " fps")}, {export.Resolution}");
+                lines.Add($"  Materialized audio: {export.Audio.Mode}" +
+                          (export.Audio.Fallback is { } fallback
+                              ? $"; AAC fallback {fallback.BitrateKbps} kbps, {(fallback.SampleRate == 0 ? "source rate" : fallback.SampleRate)}, {(fallback.Channels == 0 ? "source channels" : fallback.Channels)}"
+                              : ""));
+                if (!string.IsNullOrWhiteSpace(export.MaterializationProblem))
+                    lines.Add($"  Materialization error: {export.MaterializationProblem}");
+            }
             foreach (var output in result?.OutputPaths ?? item.OutputPaths) lines.Add($"  Output: {output}");
             foreach (var warning in result?.Warnings ?? []) lines.Add($"  Warning: {warning}");
             foreach (var error in result?.Errors ?? []) lines.Add($"  Error: {error}");
@@ -172,7 +183,7 @@ internal static class EncodingHistoryRerun
 
                 var option = new BatchFileOption(source.Item.SourceIdentity,
                     Path.GetRelativePath(preparation.Options.InputFolder, source.Item.SourceIdentity), info.Length,
-                    assignedColor: source.Item.AssignedColor);
+                    assignedColor: source.Item.AssignedColor, restoredExport: source.Item.MaterializedExport);
                 if (source.Item.MediaRange is { } range && !range.IsFullSource) option.ApplyTrim(range);
                 option.IsSelected = true;
                 restored.Add(option);

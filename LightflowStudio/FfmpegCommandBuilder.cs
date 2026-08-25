@@ -126,7 +126,7 @@ internal static class FfmpegCommandBuilder
 
     public static List<string> ProbeDuration(string file) => ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", file];
     public static List<string> ProbeMetadata(string file) =>
-        ["-v", "error", "-show_entries", "format=duration,start_time:stream=codec_type,codec_name,width,height,avg_frame_rate,start_time,duration", "-of", "json", file];
+        ["-v", "error", "-show_entries", "format=format_name,duration,start_time:stream=codec_type,codec_name,width,height,avg_frame_rate,start_time,duration,sample_rate,channels,channel_layout", "-of", "json", file];
     public static List<string> ProbeDerivedMetadata(string file) =>
         ["-v", "error", "-show_entries",
             "format=format_name,format_long_name,duration,start_time,size,bit_rate,tags:stream=index,codec_type,codec_name,codec_long_name,profile,width,height,pix_fmt,bits_per_raw_sample,color_space,color_transfer,color_primaries,avg_frame_rate,r_frame_rate,duration,start_time,sample_rate,channels,channel_layout,bit_rate,tags",

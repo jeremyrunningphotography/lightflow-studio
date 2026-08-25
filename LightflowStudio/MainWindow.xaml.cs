@@ -3562,7 +3562,11 @@ public partial class MainWindow : Window
                 file.SourceIdentity?.LastWriteUtcTicks,
                 file.Metadata?.HasAudio,
                 file.CapabilityOrder,
-                file.AssignedColor);
+                file.AssignedColor,
+                file.Metadata is { } metadata ? new SourceMediaTraits(
+                    metadata.VideoCodec, metadata.Width, metadata.Height, metadata.FrameRate, metadata.Container,
+                    metadata.AudioCodec, metadata.AudioSampleRate, metadata.AudioChannels, metadata.AudioChannelLayout) : null,
+                file.RestoredExport);
         });
         return EncodingJobPlanner.Plan(EncodingJobPlanner.Define(options, sources));
     }

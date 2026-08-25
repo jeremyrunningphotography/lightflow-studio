@@ -8,4 +8,9 @@ internal sealed record MediaMetadata(
     long FileSizeBytes,
     string VideoCodec,
     bool HasAudio,
-    TimeSpan StartTimestamp = default);
+    TimeSpan StartTimestamp = default,
+    string Container = "",
+    string? AudioCodec = null,
+    int? AudioSampleRate = null,
+    int? AudioChannels = null,
+    string? AudioChannelLayout = null);

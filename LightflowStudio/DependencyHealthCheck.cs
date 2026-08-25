@@ -10,7 +10,8 @@ internal sealed record DependencyCheckItem(string Name, DependencyHealth Health,
     public bool IsReady => Health == DependencyHealth.Ready;
 }
 
-internal sealed record DependencyHealthReport(IReadOnlyList<DependencyCheckItem> Items)
+internal sealed record DependencyHealthReport(IReadOnlyList<DependencyCheckItem> Items,
+    IReadOnlyList<EncoderCapability>? EncoderCapabilities = null)
 {
     public bool IsReady => Items.All(item => item.IsReady);
     public string Summary => IsReady ? "Everything needed for export is ready." : $"{Items.Count(item => !item.IsReady)} item{(Items.Count(item => !item.IsReady) == 1 ? "" : "s")} need attention.";
@@ -32,13 +33,24 @@ internal static class DependencyHealthCheck
         {
             items.Add(EncoderUnavailable("H.264 NVIDIA encoder"));
             items.Add(EncoderUnavailable("HEVC NVIDIA encoder"));
-            return new(items);
+            return new(items, CapabilityResults(false, "FFmpeg is unavailable."));
         }
 
-        items.Add(await CheckEncoderAsync(ffmpeg, "h264_nvenc", "H.264 NVIDIA encoder", run, token));
-        items.Add(await CheckEncoderAsync(ffmpeg, "hevc_nvenc", "HEVC NVIDIA encoder", run, token));
-        return new(items);
+        var h264 = await CheckEncoderAsync(ffmpeg, "h264_nvenc", "H.264 NVIDIA encoder", run, token);
+        var hevc = await CheckEncoderAsync(ffmpeg, "hevc_nvenc", "HEVC NVIDIA encoder", run, token);
+        items.Add(h264);
+        items.Add(hevc);
+        return new(items, CapabilityResults(h264.IsReady && hevc.IsReady,
+            h264.IsReady && hevc.IsReady ? "H.264 and HEVC NVENC execution probes succeeded." : $"{h264.Detail} {hevc.Detail}"));
     }
+
+    private static IReadOnlyList<EncoderCapability> CapabilityResults(bool nvencAvailable, string diagnostic) =>
+    [
+        new(EncoderBackend.NvidiaNvenc, nvencAvailable ? EncoderCapabilityState.ImplementedAndAvailable : EncoderCapabilityState.ImplementedButUnavailable, diagnostic),
+        new(EncoderBackend.Cpu, EncoderCapabilityState.NotImplemented, "CPU encoding is not implemented."),
+        new(EncoderBackend.AmdAmf, EncoderCapabilityState.NotImplemented, "AMD AMF encoding is not implemented."),
+        new(EncoderBackend.IntelQuickSync, EncoderCapabilityState.NotImplemented, "Intel Quick Sync encoding is not implemented.")
+    ];
 
     private static async Task<DependencyCheckItem> CheckExecutableAsync(string name, string? path, IReadOnlyList<string> arguments,
         string readySummary, string unavailableSummary, string resolution,

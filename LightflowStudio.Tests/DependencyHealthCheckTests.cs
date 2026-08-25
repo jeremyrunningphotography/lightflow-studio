@@ -16,6 +16,11 @@ public sealed class DependencyHealthCheckTests : IDisposable
         Assert.True(report.IsReady); Assert.All(report.Items, item => Assert.True(item.IsReady)); Assert.Equal(4, report.Items.Count);
         Assert.Equal("Everything needed for export is ready.", report.Summary);
         Assert.All(report.Items, item => Assert.DoesNotContain("encoding", item.Summary, StringComparison.OrdinalIgnoreCase));
+        var capabilities = Assert.IsAssignableFrom<IReadOnlyList<EncoderCapability>>(report.EncoderCapabilities);
+        Assert.Equal(EncoderCapabilityState.ImplementedAndAvailable,
+            capabilities.Single(value => value.Backend == EncoderBackend.NvidiaNvenc).State);
+        Assert.All(capabilities.Where(value => value.Backend != EncoderBackend.NvidiaNvenc),
+            value => Assert.Equal(EncoderCapabilityState.NotImplemented, value.State));
     }
 
     [Fact]

@@ -2,6 +2,9 @@ namespace LightflowStudio;
 
 internal enum EncoderBackend { NvidiaNvenc, Cpu, AmdAmf, IntelQuickSync }
 internal enum VideoCodec { H264, Hevc }
+internal enum VideoCodecPolicy { Explicit, SameAsSource }
+internal enum OutputContainerPolicy { Explicit, SameAsSource }
+internal enum EncodingQualityPolicy { Automatic, Explicit }
 internal enum RateControlMode { ConstantQuality, VariableBitrate, ConstantBitrate }
 internal enum EncoderTune { HighQuality, LowLatency, UltraLowLatency }
 internal enum MultipassMode { Disabled, QuarterResolution, FullResolution }
@@ -54,7 +57,7 @@ internal sealed record EncodingOptions
             AudioMode = Enum.IsDefined(value.AudioMode) ? value.AudioMode : AudioEncodingMode.Copy,
             AudioBitrateKbps = Math.Clamp(value.AudioBitrateKbps, 32, 512),
             AudioSampleRate = value.AudioSampleRate is 0 or 44100 or 48000 or 96000 ? value.AudioSampleRate : 0,
-            AudioChannels = value.AudioChannels is 0 or 1 or 2 ? value.AudioChannels : 0,
+            AudioChannels = value.AudioChannels is >= 0 and <= 8 ? value.AudioChannels : 0,
             Container = Enum.IsDefined(value.Container) ? value.Container : OutputContainer.Mp4
         };
     }
@@ -78,7 +81,7 @@ internal static class EncodingOptionValidator
         if (options.FrameRate is < 0 or > 240) errors.Add("Frame rate must be Source or between 1 and 240 fps.");
         if (options.AudioBitrateKbps is < 32 or > 512) errors.Add("AAC bitrate must be between 32 and 512 kbps.");
         if (options.AudioSampleRate is not (0 or 44100 or 48000 or 96000)) errors.Add("Audio sample rate is not supported.");
-        if (options.AudioChannels is not (0 or 1 or 2)) errors.Add("Audio channels must be Source, Mono, or Stereo.");
+        if (options.AudioChannels is < 0 or > 8) errors.Add("Audio channels must be Source or between 1 and 8 channels.");
         return errors;
     }
 }
@@ -86,4 +89,16 @@ internal static class EncodingOptionValidator
 internal static class EncoderBackendCatalog
 {
     public static bool IsImplemented(EncoderBackend backend) => backend == EncoderBackend.NvidiaNvenc;
+}
+
+internal sealed record AudioFallbackEncoding(
+    int BitrateKbps = 192,
+    int SampleRate = 0,
+    int Channels = 0);
+
+internal enum EncoderCapabilityState { ImplementedAndAvailable, ImplementedButUnavailable, NotImplemented }
+
+internal sealed record EncoderCapability(EncoderBackend Backend, EncoderCapabilityState State, string Diagnostic)
+{
+    public bool IsUsable => State == EncoderCapabilityState.ImplementedAndAvailable;
 }

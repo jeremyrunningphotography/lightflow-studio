@@ -249,14 +249,19 @@ public sealed class ExportModalRegressionTests
         var root = FindRepositoryRoot();
         var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
         var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
-        var cluster = Named(xaml, "QualityPrimaryLabel").Elements().First(element => element.Name.LocalName == "StackPanel");
-        Assert.Equal(["TextBlock", "Button", "Border"], cluster.Elements().Select(element => element.Name.LocalName));
+        var layout = Named(xaml, "QualityPrimaryLabel");
+        var cluster = layout.Elements().First(element => element.Name.LocalName == "StackPanel");
+        Assert.Equal(["TextBlock", "Button"], cluster.Elements().Select(element => element.Name.LocalName));
         Assert.Equal("QualityInfo", cluster.Elements().ElementAt(1).Attributes().Single(attribute => attribute.Name.LocalName == "Name").Value);
-        Assert.Equal(Named(xaml, "QualityValue"), cluster.Elements().ElementAt(2).Descendants().Single());
+        var controls = layout.Elements().Last(element => element.Name.LocalName == "Grid");
+        Assert.Equal("1", (string?)controls.Attribute("Grid.Column"));
+        var valueBox = Named(xaml, "QualityValue").Parent!;
+        Assert.Equal(controls, valueBox.Parent);
+        Assert.Equal("0,0,8,0", (string?)valueBox.Attribute("Margin"));
         var slider = Named(xaml, "QualitySlider");
         Assert.Contains("CqSliderStyle", (string?)slider.Attribute("Style"));
-        Assert.Equal("1", (string?)slider.Attribute("Grid.Row"));
         Assert.Equal("1", (string?)slider.Attribute("Grid.Column"));
+        Assert.Equal(controls, slider.Parent);
         var style = xaml.Descendants().Single(element => element.Name.LocalName == "Style" &&
             element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "CqSliderStyle"));
         Assert.Contains(style.Elements(), element => (string?)element.Attribute("Property") == "Minimum" && (string?)element.Attribute("Value") == "0");
@@ -280,7 +285,9 @@ public sealed class ExportModalRegressionTests
         Assert.DoesNotContain(cluster.Descendants(), element => element.Name.LocalName == "Slider");
         var sliderPanel = Named(xaml, "AqStrengthPanel");
         Assert.Equal("1", (string?)sliderPanel.Attribute("Grid.Row"));
-        Assert.Equal("1", (string?)sliderPanel.Attribute("Grid.Column"));
+        Assert.Null(sliderPanel.Attribute("Grid.Column"));
+        var aqLayout = Named(xaml, "AqSettingLayout");
+        Assert.DoesNotContain(aqLayout.Elements(), element => element.Name.LocalName == "Grid.ColumnDefinitions");
         var valueStyle = xaml.Descendants().Single(element => element.Name.LocalName == "Style" &&
             element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "BoundedValueBox"));
         Assert.Contains(valueStyle.Elements(), element => (string?)element.Attribute("Property") == "MinWidth" && (string?)element.Attribute("Value") == "34");

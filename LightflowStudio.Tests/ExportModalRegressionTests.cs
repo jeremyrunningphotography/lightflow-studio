@@ -212,9 +212,17 @@ public sealed class ExportModalRegressionTests
         var tooltipBorder = app.Descendants().Single(element => element.Name.LocalName == "SolidColorBrush" && (string?)element.Attribute(x + "Key") == "ToolTipBorderBrush");
         Assert.Contains("FFFFFF", (string?)tooltipBorder.Attribute("Color"));
         var infoStyle = dialog.Descendants().Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute(x + "Key") == "InfoHelpButtonStyle");
+        Assert.Contains(infoStyle.Elements(), element => (string?)element.Attribute("Property") == "VerticalAlignment" && (string?)element.Attribute("Value") == "Center");
+        Assert.Contains(infoStyle.Descendants(), element => element.Name.LocalName == "TranslateTransform" && (string?)element.Attribute("Y") == "-2");
         Assert.Contains(infoStyle.Descendants(), element => element.Name.LocalName == "ControlTemplate");
         Assert.Contains(infoStyle.Descendants(), element => element.Name.LocalName == "Trigger" && (string?)element.Attribute("Property") == "IsKeyboardFocused");
         Assert.DoesNotContain(infoStyle.Descendants(), element => (string?)element.Attribute("Background") is "White" or "LightBlue");
+        foreach (var name in new[] { "FormatInfo", "CodecInfo", "ResolutionInfo", "FrameRateInfo", "RateControlInfo",
+                     "QualityInfo", "AudioInfo", "EncoderInfo", "ParallelInfo", "PresetInfo", "TuneInfo", "MultipassInfo",
+                     "PixelFormatInfo", "AqInfo", "SpatialAqInfo", "TemporalAqInfo", "DeinterlaceInfo", "FastStartInfo" })
+        {
+            Assert.Contains("InfoButton", (string?)Named(dialog, name).Attribute("Style"));
+        }
     }
 
     [Fact]

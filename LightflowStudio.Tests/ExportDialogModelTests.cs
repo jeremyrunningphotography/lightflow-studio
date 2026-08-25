@@ -153,7 +153,9 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.True(model.SubmissionItems[0].UseRange);
         Assert.Contains("00:01.0 – 00:03.0", model.SubmissionItems[0].RangeText);
         Assert.False(model.SubmissionItems[1].HasRange);
-        Assert.Equal("Full video", model.SubmissionItems[1].RangeText);
+        Assert.Equal("Use In/Out   No In/Out set", model.SubmissionItems[1].RangeText);
+        Assert.Contains("unavailable", model.SubmissionItems[1].RangeAutomationName);
+        Assert.True(model.GlobalUseRangeState);
         var ranged = model.CurrentPlan!.Items[0];
         var rangedIdentity = EncodingOutputIdentity.Create(ranged.Definition, model.CurrentPlan.Definition.Options);
         Assert.NotNull(ranged.Definition.ResolvedRange);
@@ -167,9 +169,9 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.NotEqual(rangedIdentity, EncodingOutputIdentity.Create(full.Definition, model.CurrentPlan.Definition.Options));
         Assert.Equal(saved, model.Inputs[0].InitialTrim);
 
-        model.UseAllRanges();
+        model.SetGlobalUseRanges(true);
         Assert.NotNull(model.CurrentPlan!.Items[0].Definition.ResolvedRange);
-        model.IgnoreAllRanges();
+        model.SetGlobalUseRanges(false);
         Assert.All(model.SubmissionItems, item => Assert.False(item.UseRange));
         model.SetUseRange(0, true);
         Assert.True(model.SubmissionItems[0].UseRange);
@@ -183,9 +185,27 @@ public sealed class ExportDialogModelTests : IDisposable
         Ready(model, Metadata("h264", "mp4"));
 
         Assert.Contains(model.Errors, issue => issue.Code == "export.range-unresolved");
-        model.IgnoreAllRanges();
+        model.SetGlobalUseRanges(false);
         Assert.DoesNotContain(model.Errors, issue => issue.Code == "export.range-unresolved");
         Assert.True(model.CanExport);
+    }
+
+    [Fact]
+    public void GlobalRangeStateIsCheckedUncheckedOrMixedFromApplicableFiles()
+    {
+        var first = new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3));
+        var second = new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4));
+        var model = CreateModelWithRanges(("first.mp4", first), ("second.mp4", second), ("full.mp4", null));
+
+        Assert.True(model.GlobalUseRangeState);
+        model.SetUseRange(0, false);
+        Assert.Null(model.GlobalUseRangeState);
+        model.SetGlobalUseRanges(false);
+        Assert.False(model.GlobalUseRangeState);
+        Assert.False(model.SubmissionItems[2].UseRange);
+        Assert.False(model.SubmissionItems[2].HasRange);
+        model.SetGlobalUseRanges(true);
+        Assert.True(model.GlobalUseRangeState);
     }
 
     [Fact]

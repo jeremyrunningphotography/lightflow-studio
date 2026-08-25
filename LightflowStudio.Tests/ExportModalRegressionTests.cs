@@ -10,13 +10,22 @@ public sealed class ExportModalRegressionTests
     {
         var xaml = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ExportDialog.xaml"));
         var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ExportDialog.xaml.cs"));
-        var list = Named(xaml, "FilesToExportList");
-        Assert.Equal("220", (string?)list.Attribute("Height"));
-        Assert.Equal("Auto", list.Attributes().Single(attribute => attribute.Name.LocalName.EndsWith("VerticalScrollBarVisibility", StringComparison.Ordinal)).Value);
+        var scroll = Named(xaml, "FilesToExportScroll");
+        var items = Named(xaml, "FilesToExportItems");
+        Assert.Null(scroll.Attribute("Height"));
+        Assert.Equal("220", (string?)scroll.Attribute("MaxHeight"));
+        Assert.Equal("Auto", (string?)scroll.Attribute("VerticalScrollBarVisibility"));
+        Assert.Equal("True", (string?)scroll.Attribute("Focusable"));
+        Assert.Equal("ItemsControl", items.Name.LocalName);
+        Assert.DoesNotContain(xaml.Descendants(), element => element.Name.LocalName == "ListBox");
+        Assert.Contains("ShellSurfaceBrush", (string?)scroll.Attribute("Background"));
+        Assert.Equal("2", (string?)Named(xaml, "FilesToExportPanel").Parent?.Attribute("Grid.Column"));
         Assert.Contains("model.FilesAutomationName", source);
         Assert.Contains("Title = ExportHeading.Text = model.Title", source);
-        Assert.Contains(xaml.Descendants(), element => (string?)element.Attribute("Content") == "Use all In/Out");
-        Assert.Contains(xaml.Descendants(), element => (string?)element.Attribute("Content") == "Ignore all In/Out");
+        var global = Named(xaml, "GlobalUseRangesCheck");
+        Assert.Equal("Use In/Out points", (string?)global.Attribute("Content"));
+        Assert.Equal("True", (string?)global.Attribute("IsThreeState"));
+        Assert.DoesNotContain(xaml.Descendants(), element => (string?)element.Attribute("Content") is "Use all In/Out" or "Ignore all In/Out");
         Assert.Contains(xaml.Descendants(), element => (string?)element.Attribute("AutomationProperties.Name") == "{Binding RangeAutomationName}");
         Assert.DoesNotContain(xaml.Descendants(), element => (string?)element.Attribute("Content") is "Select all" or "Clear all");
     }
@@ -60,8 +69,7 @@ public sealed class ExportModalRegressionTests
         var composer = Named(xaml, "NamePartsComposer");
         Assert.Equal("ItemsControl", composer.Name.LocalName);
         Assert.Contains(composer.Descendants(), x => x.Name.LocalName == "WrapPanel");
-        Assert.Equal("FilesToExportList", xaml.Descendants().Single(x => x.Name.LocalName == "ListBox")
-            .Attributes().Single(attribute => attribute.Name.LocalName == "Name").Value);
+        Assert.DoesNotContain(xaml.Descendants(), x => x.Name.LocalName == "ListBox");
         var contentScroll = Named(xaml, "ExportContentScroll");
         Assert.Equal("Auto", (string?)contentScroll.Attribute("VerticalScrollBarVisibility"));
         Assert.Contains(contentScroll.Descendants(), x => x == composer);

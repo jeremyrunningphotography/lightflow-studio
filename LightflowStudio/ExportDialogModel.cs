@@ -79,6 +79,18 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public string Title => $"Export {_handoff.Inputs.Count} {(_handoff.Inputs.Count == 1 ? "video" : "videos")}";
     public string FilesAutomationName => $"Files to Export, {_handoff.Inputs.Count} {(_handoff.Inputs.Count == 1 ? "file" : "files")}";
     public IReadOnlyList<ExportSubmissionItem> SubmissionItems => BuildSubmissionItems();
+    public bool? GlobalUseRangeState
+    {
+        get
+        {
+            var applicable = _handoff.Inputs.Select((input, index) => (input, index))
+                .Where(value => value.input.InitialTrim is { IsFullSource: false })
+                .Select(value => _useRanges[value.index]).ToArray();
+            if (applicable.Length == 0 || applicable.All(value => value)) return true;
+            if (applicable.All(value => !value)) return false;
+            return null;
+        }
+    }
     public string PreviewName => Preview(PreviewExtension());
     public string PreviewPath => string.IsNullOrWhiteSpace(FinalDestination) ? "Choose an output folder" : Path.Combine(FinalDestination, Preview(PreviewExtension()));
     public string PreviewDirectory => Path.GetDirectoryName(PreviewPath) ?? "";
@@ -119,8 +131,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         _useRanges[index] = use;
         Refresh();
     }
-    public void UseAllRanges() => SetAllRanges(true);
-    public void IgnoreAllRanges() => SetAllRanges(false);
+    public void SetGlobalUseRanges(bool use) => SetAllRanges(use);
     public void ApplyEncoderCapability(EncoderCapability capability) { _encoder = capability; Refresh(); }
     public void AddPart(NamePartKind kind) => NameParts.Add(new(kind, kind == NamePartKind.CustomText ? "Text" : null));
     public void RemovePart(int index) { if (index >= 0 && index < NameParts.Count) NameParts.RemoveAt(index); }
@@ -222,16 +233,19 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             var sourceName = Path.GetFileName(input.SourcePath);
             var hasRange = input.InitialTrim is { IsFullSource: false };
             var useRange = hasRange && _useRanges[index];
-            var rangeText = useRange && input.InitialTrim is { } range
+            var rangeText = hasRange && input.InitialTrim is { } range
                 ? $"Use In/Out   {FormatTime(range.EffectiveIn)} – {FormatTime(range.EffectiveOut)}"
-                : "Full video";
+                : "Use In/Out   No In/Out set";
             var outputText = "Output name unresolved";
             if (planned?.GetValueOrDefault(input.SourcePath) is { } item)
                 outputText = item.Definition.MaterializedName?.Problem is null && item.OutputPaths.FirstOrDefault() is { } path
                     ? "→ " + Path.GetFileName(path)
                     : "Output name unresolved";
+            var rangeAutomationName = hasRange
+                ? $"Use In/Out for {sourceName}"
+                : $"Use In/Out for {sourceName}, unavailable because no In/Out is defined";
             return new ExportSubmissionItem(index, sourceName, outputText, $"Output for {sourceName}: {outputText.TrimStart('→', ' ')}",
-                hasRange, useRange, rangeText, $"Use In/Out for {sourceName}");
+                hasRange, useRange, rangeText, rangeAutomationName);
         }).ToArray();
     }
 

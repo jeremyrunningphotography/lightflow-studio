@@ -23,7 +23,7 @@ public partial class ExportDialog : Window
         InitializeComponent();
         Title = ExportHeading.Text = model.Title;
         FilesToExportHeading.Text = $"Files to Export · {model.Inputs.Count}";
-        System.Windows.Automation.AutomationProperties.SetName(FilesToExportList, model.FilesAutomationName);
+        System.Windows.Automation.AutomationProperties.SetName(FilesToExportScroll, model.FilesAutomationName);
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
         DestinationText.Text = model.Destination;
         CreateSubfolderCheck.IsChecked = model.CreateSubfolder;
@@ -154,7 +154,8 @@ public partial class ExportDialog : Window
     {
         var wasInitializing = _initializing;
         _initializing = true;
-        FilesToExportList.ItemsSource = _model.SubmissionItems;
+        FilesToExportItems.ItemsSource = _model.SubmissionItems;
+        GlobalUseRangesCheck.IsChecked = _model.GlobalUseRangeState;
         _initializing = wasInitializing;
         NamePartsComposer.ItemsSource = ExportPresentation.Composer(_model.NameParts);
         NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
@@ -184,8 +185,12 @@ public partial class ExportDialog : Window
         _model.SetUseRange(item.Index, check.IsChecked == true);
         Sync();
     }
-    private void UseAllRanges_Click(object sender, RoutedEventArgs e) { _model.UseAllRanges(); Sync(); }
-    private void IgnoreAllRanges_Click(object sender, RoutedEventArgs e) { _model.IgnoreAllRanges(); Sync(); }
+    private void GlobalUseRanges_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_initializing || GlobalUseRangesCheck.IsChecked is not { } use) return;
+        _model.SetGlobalUseRanges(use);
+        Sync();
+    }
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
         using var dialog = new Forms.FolderBrowserDialog { Description = "Select the output folder", UseDescriptionForTitle = true };

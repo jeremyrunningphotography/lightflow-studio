@@ -130,3 +130,9 @@ Prefer:
 Avoid:
 
 > UnauthorizedAccessException while initializing destination.
+
+## Focused configuration modals
+
+Use an owned modal for a bounded action that needs substantial configuration but should not become a navigation destination. Keep the originating workspace alive behind it, use a compact two-column layout with primary choices visible and advanced backend controls behind disclosure, and keep validation close to the final action. Cancel must have no durable side effects. After an immutable request is accepted by application services, close immediately; execution progress belongs to Jobs rather than the modal.
+
+Conditional settings must visually follow their typed authority. Hide or disable bitrate fields outside their rate-control mode, audio details when audio is disabled, and explicit values when Same as Source owns materialization. Use concise product terms and keep technical diagnostics available in preflight detail.

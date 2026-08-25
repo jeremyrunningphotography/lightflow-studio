@@ -41,6 +41,7 @@ public partial class MainWindow : Window
     private readonly IJobHistoryStore _jobHistory;
     private readonly JobRuntimeStore<EncodingJobOptions, EncodingItemResult> _jobRuntimeStore;
     private readonly ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult> _jobsRuntime;
+    private readonly ExportJobCoordinator _exportCoordinator;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
     private EncodingJobExecutor? _activeJobExecutor;
     private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
@@ -106,7 +107,6 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _browserEncodingHandoffCts;
     private long _browserColorSelectionRevision;
     private bool _updatingBrowserColorSelectors;
-    private bool _suppressBatchInputChange;
     private bool _lutInitializationCompleted;
     private long _browserVisualIdentityAuditGeneration = -1;
 
@@ -126,6 +126,14 @@ public partial class MainWindow : Window
         _jobsRuntime = new ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult>(
             (plan, runtime, paused) => _jobRuntimeStore.Save(plan, runtime, paused));
         _jobsRuntime.Changed += JobsRuntime_Changed;
+        _exportCoordinator = new ExportJobCoordinator(_jobsRuntime, _jobHistory, () =>
+        {
+            if (_ffmpeg is null || _ffprobe is null) throw new InvalidOperationException("FFmpeg and FFprobe are required for Export.");
+            var executor = new EncodingJobExecutor(_ffmpeg, _ffprobe, _storage.Locations.OutputIdentityDirectory,
+                diagnostic: line => _activityLogFile.TryAppend(line));
+            return new ExportExecutorLease(executor.ExecuteAsync, executor.TerminateAll);
+        });
+        _exportCoordinator.Completed += _ => Dispatcher.BeginInvoke(RefreshHistory);
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
         InitializeBrowserQuickFilterButtons();
@@ -234,6 +242,7 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _exportCoordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
             _activeJobExecutor?.TerminateAll();
             _browserEncodingHandoffCts?.Cancel();
             _browserEncodingHandoffCts = null;
@@ -1976,35 +1985,12 @@ public partial class MainWindow : Window
                 return;
             }
 
-            _batchFolderRefreshTimer.Stop();
-            _batchMetadataCts?.Cancel();
-            _batchMetadataCts?.Dispose();
-            _batchMetadataCts = new CancellationTokenSource();
-            _browserEncodingInvocation = invocation;
-            _suppressBatchInputChange = true;
-            try
-            {
-                InputFolder.Text = result.InputFolder!;
-                Recursive.IsChecked = result.IncludeSubfolders;
-            }
-            finally { _suppressBatchInputChange = false; }
-
-            _batchFiles.Clear();
-            for (var index = 0; index < result.Inputs.Count; index++)
-            {
-                var input = result.Inputs[index];
-                var display = Path.GetRelativePath(InputFolder.Text, input.SourcePath);
-                var option = new BatchFileOption(input.SourcePath, display, input.FileSizeBytes, index,
-                    input.AssignedColor);
-                if (input.InitialTrim is { IsFullSource: false } trim) option.ApplyTrim(trim);
-                _batchFiles.Add(option);
-            }
-            ConfigureAssignedColorUi();
-            UpdatePreserveFolderStructureUi();
-            UpdateBatchFileSummary();
-            _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
-            MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
-            CurrentFileText.Text = $"{result.Inputs.Count} Browser video{(result.Inputs.Count == 1 ? "" : "s")} ready to export.";
+            var resourceStore = new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory);
+            var model = new ExportDialogModel(result, _settings.Encoding,
+                _storage.LutCache.Snapshot(ColorLutStage.Camera).Resources,
+                _storage.LutCache.Snapshot(ColorLutStage.Creative).Resources, resourceStore);
+            var dialog = new ExportDialog(model, _exportCoordinator, _ffprobe) { Owner = this };
+            dialog.ShowDialog();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)
         {
@@ -2071,7 +2057,11 @@ public partial class MainWindow : Window
     private static string? PickFolder(string description, string? initialFolder = null)
     {
         using var dlg = new Forms.FolderBrowserDialog { Description = description, UseDescriptionForTitle = true };
-        if (ResolveFolderPickerInitialDirectory(initialFolder) is { } start) dlg.SelectedPath = start;
+        if (ResolveFolderPickerInitialDirectory(initialFolder) is { } start)
+        {
+            dlg.InitialDirectory = start;
+            dlg.SelectedPath = start;
+        }
         return dlg.ShowDialog() == Forms.DialogResult.OK ? dlg.SelectedPath : null;
     }
 
@@ -2164,7 +2154,7 @@ public partial class MainWindow : Window
     }
     private void InputFolder_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
-        if (!IsLoaded || _suppressBatchInputChange) return;
+        if (!IsLoaded) return;
         _browserEncodingInvocation = null;
         _batchFolderRefreshTimer.Stop();
         _batchMetadataCts?.Cancel();
@@ -2175,7 +2165,7 @@ public partial class MainWindow : Window
     }
     private void Recursive_Changed(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded || _suppressBatchInputChange) return;
+        if (!IsLoaded) return;
         _browserEncodingInvocation = null;
         UpdatePreserveFolderStructureUi();
         RefreshBatchFiles();
@@ -3764,6 +3754,19 @@ public partial class MainWindow : Window
         SaveBatchState();
         SaveWorkspaceState();
         _previewMaintenanceCts?.Cancel();
+        if (!_forceClose && _exportCoordinator.ActiveCount > 0 && _jobCancellation is null)
+        {
+            e.Cancel = true;
+            var exportCloseDialog = new EncodingCloseDialog { Owner = this };
+            exportCloseDialog.ShowDialog();
+            if (exportCloseDialog.Choice == EncodingCloseChoice.CloseNow)
+            {
+                _forceClose = true;
+                _exportCoordinator.TerminateAll();
+                _ = Dispatcher.BeginInvoke(new Action(Close));
+            }
+            return;
+        }
         if (_jobCancellation is null || _forceClose) return;
 
         e.Cancel = true;
@@ -3826,6 +3829,7 @@ public partial class MainWindow : Window
 
     private void CancelActiveEncoding()
     {
+        _exportCoordinator.TerminateAll();
         _activeJobRuntime?.Cancel();
         _activeJobExecutor?.TerminateAll();
         _jobCancellation?.Cancel();

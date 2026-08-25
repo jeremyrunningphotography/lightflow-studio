@@ -96,8 +96,8 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal("Custom text", ExportPresentation.NamePartLabel(NamePartKind.CustomText));
         Assert.Equal("Sequence 0001", ExportPresentation.NamePartLabel(NamePartKind.Sequence0001));
         Assert.Equal("Index Number", ExportPresentation.NamePartLabel(NamePartKind.IndexNumber));
-        Assert.Equal(["Same as Source", "3840 × 2160 (4K UHD)", "2560 × 1440 (1440p)",
-            "1920 × 1080 (1080p)", "1280 × 720 (720p)", "854 × 480 (480p)"],
+        Assert.Equal(["Same as Source", "4K UHD (3840 × 2160)", "1440p (2560 × 1440)",
+            "1080p (1920 × 1080)", "720p (1280 × 720)", "480p (854 × 480)"],
             ExportPresentation.Resolutions.Select(x => x.Label));
         Assert.Equal(["Constant Quality", "Variable Bitrate", "Constant Bitrate"],
             ExportPresentation.RateControls.Select(x => x.Label));
@@ -138,6 +138,37 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal("Hardware acceleration unavailable", unavailable.Heading);
         Assert.Equal("NVIDIA NVENC could not be initialized.", unavailable.Detail);
         Assert.False(unavailable.Available);
+    }
+
+    [Fact]
+    public void ExtensionPreviewIsOutsideNamePartsAndTracksRepresentativeAndHeterogeneousContainers()
+    {
+        var model = CreateModel("a.mp4", "b.mov");
+        Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mov"));
+        Assert.Equal(".mp4", model.RepresentativeExtension);
+        Assert.True(model.HasHeterogeneousExtensions);
+        Assert.Contains("Each file", model.ExtensionHelp);
+        Assert.Single(model.NameParts);
+
+        model.Container = ExportContainerChoice.Mkv;
+        Assert.Equal(".mkv", model.RepresentativeExtension);
+        Assert.EndsWith(".mkv", model.PreviewName);
+        Assert.False(model.HasHeterogeneousExtensions);
+        Assert.Single(model.NameParts);
+    }
+
+    [Theory]
+    [InlineData((int)RateControlMode.ConstantQuality, 17, 40, 80)]
+    [InlineData((int)RateControlMode.VariableBitrate, 18, 32, 64)]
+    [InlineData((int)RateControlMode.ConstantBitrate, 18, 25, 80)]
+    public void PrimaryQualityValuesMaterializeToTypedBackend(int modeValue, int quality, int target, int maximum)
+    {
+        var model = CreateModel("clip.mp4"); Ready(model, Metadata("h264", "mp4"));
+        model.Encoding = model.Encoding with { RateControl = (RateControlMode)modeValue, Quality = quality,
+            TargetBitrateMbps = target, MaxBitrateMbps = maximum };
+        var encoding = model.CurrentPlan!.Definition.Items.Single().MaterializedExport!.Encoding;
+        Assert.Equal(((RateControlMode)modeValue, quality, target, maximum),
+            (encoding.RateControl, encoding.Quality, encoding.TargetBitrateMbps, encoding.MaxBitrateMbps));
     }
 
     private ExportDialogModel CreateModel(string first, string? second = null,

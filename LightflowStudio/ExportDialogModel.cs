@@ -61,11 +61,20 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public IReadOnlyList<JobIssue> Errors => Issues.Where(x => x.Severity == JobIssueSeverity.Error).ToList();
     public IReadOnlyList<JobIssue> Warnings => Issues.Where(x => x.Severity == JobIssueSeverity.Warning).ToList();
     public bool CanExport => _plan?.IsValid == true && _encoder?.IsUsable == true && _metadata.All(x => x is not null);
+    public bool IsAnalyzing => _metadata.Any(x => x is null);
     public string EstimateText => "Estimate unavailable";
     public JobPlan<EncodingJobOptions>? CurrentPlan => _plan;
     public IReadOnlyList<EncodingHandoffInput> Inputs => _handoff.Inputs;
-    public string PreviewName => Preview(".mp4");
+    public string PreviewName => Preview(PreviewExtension());
     public string PreviewPath => string.IsNullOrWhiteSpace(FinalDestination) ? "Choose an output folder" : Path.Combine(FinalDestination, Preview(PreviewExtension()));
+    public string PreviewDirectory => Path.GetDirectoryName(PreviewPath) ?? "";
+    public string PreviewFileName => Path.GetFileName(PreviewPath);
+    public string PreviewStem => Path.GetFileNameWithoutExtension(PreviewName);
+    public string RepresentativeExtension => PreviewExtension();
+    public bool HasHeterogeneousExtensions => PlannedExtensions().Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any();
+    public string ExtensionHelp => HasHeterogeneousExtensions
+        ? $"Representative extension {RepresentativeExtension}. Each file uses the extension from its materialized source container."
+        : $"Output extension {RepresentativeExtension}, determined by the materialized container.";
     public bool QualityAuthoritative => _encoding.RateControl == RateControlMode.ConstantQuality;
     public bool TargetBitrateAuthoritative => _encoding.RateControl is RateControlMode.VariableBitrate or RateControlMode.ConstantBitrate;
     public bool MaxBitrateAuthoritative => _encoding.RateControl == RateControlMode.VariableBitrate;
@@ -182,10 +191,15 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     }
     private string PreviewExtension()
     {
+        var planned = PlannedExtensions();
+        if (planned.Count > 0) return planned[0];
         var sourceExtension = _handoff.Inputs.Count == 0 ? "" : Path.GetExtension(_handoff.Inputs[0].SourcePath).ToLowerInvariant();
         return Container switch
         { ExportContainerChoice.Mov => ".mov", ExportContainerChoice.Mkv => ".mkv", _ => sourceExtension is ".mov" or ".mkv" ? sourceExtension : ".mp4" };
     }
+    private IReadOnlyList<string> PlannedExtensions() => _plan?.Items
+        .Select(item => Path.GetExtension(item.OutputPaths.FirstOrDefault() ?? "").ToLowerInvariant())
+        .Where(extension => !string.IsNullOrWhiteSpace(extension)).ToArray() ?? [];
     private void Set<T>(ref T field, T value, [CallerMemberName] string name = "")
     { if (EqualityComparer<T>.Default.Equals(field, value)) return; field = value; Refresh(); OnChanged(name); }
     private void OnChanged([CallerMemberName] string name = "") => PropertyChanged?.Invoke(this, new(name));

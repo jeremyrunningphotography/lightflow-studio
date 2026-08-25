@@ -787,8 +787,9 @@ Queue admission holds one synchronization boundary while it rechecks filesystem 
 Windows paths case-insensitively, validates all proposed final and `.lightflow` partial paths against current
 reservations, assigns stable queue order, reserves every path, and appends every Job. Any conflict rejects the
 whole submission. Overwrite policy can replace an existing disk output but can never steal a non-terminal Job's
-reservation. Reservations release on Completed, CompletedWithWarnings, Skipped, Failed, or Cancelled; Waiting,
-Running, Paused, and NeedsAttention retain them.
+reservation. A preflight Skip is also revalidated at this boundary: if the output selected for preservation has
+disappeared, the whole proposal is rejected instead of silently recording a stale Skip. Reservations release on
+Completed, CompletedWithWarnings, Skipped, Failed, or Cancelled; Waiting, Running, Paused, and NeedsAttention retain them.
 
 Each claimed Job receives one `EncodingJobExecutor` lease keyed by its independent JobId. FFmpeg building,
 validation, partial cleanup, Color lookup, and output identity remain unchanged. Scheduler concurrency/order are
@@ -800,6 +801,12 @@ are restored with reservations; work that was Running at shutdown becomes NeedsA
 restarts. Existing batch-shaped runtime checkpoints remain untouched and are still surfaced by the legacy
 recovery reader. New completions are recorded immediately as one-item `EncodingJobHistoryRecord`s, while the
 existing batch History schema and Review & Rerun reader remain compatible.
+
+Progress remains a high-frequency runtime notification, but durable checkpoints are coalesced into five-percent
+buckets. Admission, scheduling, state transitions, completion, and shutdown still force persistence. Application
+shutdown is an interruption rather than the user's Cancel command: active Jobs remain durably Running, emit no
+terminal completion/History entry, and recover as NeedsAttention with their reservations intact. Explicit Cancel
+remains terminal, releases the reservation, and records Cancelled normally.
 
 Pause is truthful per file: a Waiting Job may be paused by making it ineligible. Running-job Pause is unavailable
 because current FFmpeg process management safely cancels process trees but does not safely suspend/resume them;

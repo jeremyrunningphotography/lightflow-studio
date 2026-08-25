@@ -6,6 +6,29 @@ namespace LightflowStudio.Tests;
 public sealed class GlobalExportSchedulerTests
 {
     [Fact]
+    public async Task HighFrequencyProgressHasBoundedDurableWritesButEveryRuntimeUpdateRemainsObservable()
+    {
+        var store = new MemoryQueueStore();
+        var changed = 0;
+        await using var scheduler = new GlobalExportScheduler(1, () => new((item, _, progress, _) =>
+        {
+            for (var value = 0; value <= 1000; value++) progress.Report(value / 10d);
+            return Task.FromResult(new JobItemResult<EncodingItemResult>(item.Definition.Id, JobState.Completed,
+                item.OutputPaths, [], [], new(0, TimeSpan.FromSeconds(1), null, TimeSpan.FromSeconds(1))));
+        }, () => { }), store);
+        scheduler.Changed += _ => changed++;
+
+        scheduler.Admit(Proposal("progress", 1));
+        await WaitUntilAsync(() => scheduler.Jobs.Single().State == JobState.Completed);
+
+        Assert.True(changed >= 1000, $"Expected every in-memory progress notification; observed {changed}.");
+        Assert.InRange(store.SaveCount, 20, 25);
+        var checkpoint = Assert.Single(store.Jobs);
+        Assert.Equal(JobState.Completed, checkpoint.State);
+        Assert.Equal(100, checkpoint.ProgressPercent);
+    }
+
+    [Fact]
     public async Task SubmissionCreatesOneIndependentJobPerSourceAndSharesGlobalCeiling()
     {
         var harness = new Harness(2);
@@ -171,6 +194,87 @@ public sealed class GlobalExportSchedulerTests
     }
 
     [Fact]
+    public async Task ExplicitCancelIsTerminalAndDurable()
+    {
+        var store = new MemoryQueueStore();
+        var harness = new Harness(1, store);
+        var completed = new List<ExportJobSnapshot>();
+        harness.Scheduler.Completed += completed.Add;
+        harness.Scheduler.Admit(Proposal("explicit-cancel", 1));
+        await WaitUntilAsync(() => harness.Running == 1);
+        var id = harness.Scheduler.Jobs.Single().JobId;
+        Assert.True(harness.Scheduler.Cancel(id));
+        await WaitUntilAsync(() => harness.Scheduler.Jobs.Single().State == JobState.Cancelled);
+        Assert.Equal(JobState.Cancelled, Assert.Single(store.Jobs).State);
+        Assert.Equal(JobState.Cancelled, Assert.Single(completed).State);
+        await harness.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ShutdownKeepsRunningRecoverableAndWritesNoTerminalCompletion()
+    {
+        var store = new MemoryQueueStore();
+        var harness = new Harness(1, store);
+        var completed = new List<ExportJobSnapshot>();
+        harness.Scheduler.Completed += completed.Add;
+        var proposal = Proposal("shutdown", 1);
+        harness.Scheduler.Admit(proposal);
+        await WaitUntilAsync(() => harness.Running == 1);
+
+        await harness.DisposeAsync();
+
+        Assert.Empty(completed);
+        Assert.Equal(JobState.Running, Assert.Single(store.Jobs).State);
+        var restarts = 0;
+        await using var restored = new GlobalExportScheduler(1, () =>
+        {
+            Interlocked.Increment(ref restarts);
+            return new((item, _, _, _) => Task.FromResult(new JobItemResult<EncodingItemResult>(item.Definition.Id,
+                JobState.Completed, item.OutputPaths, [], [], null)), () => { });
+        }, store);
+        Assert.Equal(JobState.NeedsAttention, restored.Jobs.Single().State);
+        restored.MaxSimultaneousExports = 2;
+        Assert.Equal(0, restarts);
+        Assert.False(restored.Admit(proposal).Accepted);
+    }
+
+    [Fact]
+    public async Task WaitingAndPausedSurviveShutdownWhileRunningBecomesNeedsAttention()
+    {
+        var store = new MemoryQueueStore();
+        var harness = new Harness(1, store);
+        harness.Scheduler.Admit(Proposal("survive", 3));
+        await WaitUntilAsync(() => harness.Running == 1);
+        var waiting = harness.Scheduler.Jobs.Where(job => job.State == JobState.Queued).ToList();
+        Assert.True(harness.Scheduler.Pause(waiting[0].JobId));
+        await harness.DisposeAsync();
+
+        await using var restored = new GlobalExportScheduler(1, () => throw new UnreachableException(), store);
+        Assert.Contains(restored.Jobs, job => job.State == JobState.NeedsAttention);
+        Assert.Contains(restored.Jobs, job => job.State == JobState.Paused);
+        Assert.Contains(restored.Jobs, job => job.State == JobState.Queued);
+    }
+
+    [Fact]
+    public async Task SkipDispositionIsRevalidatedAtomicallyAtAdmission()
+    {
+        var plan = PlanWithSkippedOutputs("skip", 2);
+        var present = plan.Items.Select(item => item.OutputPaths.Single()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        await using var scheduler = new GlobalExportScheduler(1, () => throw new UnreachableException(),
+            inspectOutput: path => new(present.Contains(path), 1));
+        var accepted = scheduler.Admit(ExportSubmissionProposal.FromPlan(plan));
+        Assert.True(accepted.Accepted);
+        Assert.All(accepted.Jobs, job => Assert.Equal(JobState.Skipped, job.State));
+
+        await using var changed = new GlobalExportScheduler(1, () => throw new UnreachableException(),
+            inspectOutput: path => new(!path.EndsWith("skip-1.mp4", StringComparison.OrdinalIgnoreCase), 1));
+        var rejected = changed.Admit(ExportSubmissionProposal.FromPlan(plan));
+        Assert.False(rejected.Accepted);
+        Assert.Equal("export.queue-skip-changed", Assert.Single(rejected.Issues).Code);
+        Assert.Empty(changed.Jobs);
+    }
+
+    [Fact]
     public async Task ModernCoordinatorWritesHistoryForEachCompletedMediaJob()
     {
         var harness = new Harness(2);
@@ -211,6 +315,15 @@ public sealed class GlobalExportSchedulerTests
                 1, TimeSpan.FromSeconds(1), CapabilityOrder: index,
                 RestoredName: sameName is null ? null : new(Path.GetFileNameWithoutExtension(sameName), index, null, null))));
         return EncodingJobPlanner.Plan(definition, _ => new(false, 0));
+    }
+
+    private static JobPlan<EncodingJobOptions> PlanWithSkippedOutputs(string prefix, int count)
+    {
+        var options = new EncodingJobOptions("C:\\input", "C:\\output", OutputResolution.Source,
+            RecoveryStrategy.Normal, new EncodingOptions(), null, "", false, false, false);
+        var definition = EncodingJobPlanner.Define(options, Enumerable.Range(1, count).Select(index =>
+            new EncodingSource($"C:\\input\\{prefix}-{index}.mp4", 1, TimeSpan.FromSeconds(1), CapabilityOrder: index)));
+        return EncodingJobPlanner.Plan(definition, _ => new(true, 100));
     }
 
     private static async Task WaitUntilAsync(Func<bool> predicate)
@@ -269,8 +382,10 @@ public sealed class GlobalExportSchedulerTests
     private sealed class MemoryQueueStore : IExportQueueStore
     {
         private IReadOnlyList<ExportJobCheckpoint> _jobs = [];
+        public int SaveCount { get; private set; }
+        public IReadOnlyList<ExportJobCheckpoint> Jobs => _jobs;
         public IReadOnlyList<ExportJobCheckpoint> Load() => _jobs;
-        public void Save(IReadOnlyList<ExportJobCheckpoint> jobs) => _jobs = jobs.ToList();
+        public void Save(IReadOnlyList<ExportJobCheckpoint> jobs) { SaveCount++; _jobs = jobs.ToList(); }
     }
 
     private sealed class MemoryHistory : IJobHistoryStore

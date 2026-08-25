@@ -106,6 +106,7 @@ internal sealed class ExportQueueStore(string path) : IExportQueueStore
 /// <summary>One application-wide reservation, queue-order, concurrency, lifecycle, and recovery boundary.</summary>
 internal sealed class GlobalExportScheduler : IAsyncDisposable
 {
+    private const int ProgressCheckpointStep = 5;
     private readonly object _sync = new();
     private readonly List<Entry> _jobs = [];
     private readonly Dictionary<Guid, ActiveExecution> _active = [];
@@ -118,6 +119,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
     private long _nextOrder;
     private int _maximum;
     private bool _disposed;
+    private bool _shuttingDown;
 
     public GlobalExportScheduler(int maximum, Func<ExportExecutorLease> executorFactory,
         IExportQueueStore? store = null,
@@ -174,6 +176,9 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
                     && disk.Exists && !proposed.Recipe.OverwriteExistingFiles)
                     return ExportQueueAdmission.Rejected(new JobIssue("export.queue-output-appeared",
                         $"An output file appeared after preflight: {proposed.OutputPath}", JobIssueSeverity.Error));
+                if (proposed.PlanItem.Disposition == JobPlanDisposition.Skip && !disk.Exists)
+                    return ExportQueueAdmission.Rejected(new JobIssue("export.queue-skip-changed",
+                        $"The output selected for preservation changed after preflight: {proposed.OutputPath}", JobIssueSeverity.Error));
                 foreach (var path in ReservationPaths(proposed.OutputPath))
                 {
                     if (!paths.Add(path))
@@ -234,6 +239,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
             if (entry.State == JobState.Running)
             {
                 active = _active.GetValueOrDefault(jobId);
+                if (active is not null) active.UserCancellationRequested = true;
                 active?.Cancellation.Cancel();
                 active?.Lease.Terminate();
             }
@@ -274,8 +280,10 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
         lock (_sync)
         {
             if (_disposed) return;
+            _shuttingDown = true;
             _disposed = true;
             active = _active.Values.ToArray();
+            PersistLocked();
             foreach (var execution in active) execution.Cancellation.Cancel();
         }
         foreach (var execution in active) execution.Lease.Terminate();
@@ -324,7 +332,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
                 _active.Add(entry.Definition.JobId, active);
                 starts.Add((entry, active));
             }
-            PersistLocked();
+            if (starts.Count > 0) PersistLocked();
         }
         foreach (var (entry, active) in starts)
             active.Task = Task.Run(() => ExecuteAsync(entry, active));
@@ -336,9 +344,18 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
         JobItemResult<EncodingItemResult> result;
         try
         {
-            var progress = new Progress<double>(value =>
+            var progress = new InlineProgress(value =>
             {
-                lock (_sync) { entry.ProgressPercent = Math.Clamp(value, 0, 100); PersistLocked(); }
+                lock (_sync)
+                {
+                    entry.ProgressPercent = Math.Clamp(value, 0, 100);
+                    var bucket = (int)Math.Floor(entry.ProgressPercent.Value / ProgressCheckpointStep);
+                    if (bucket != entry.LastProgressCheckpointBucket)
+                    {
+                        entry.LastProgressCheckpointBucket = bucket;
+                        PersistLocked();
+                    }
+                }
                 Changed?.Invoke(Jobs);
             });
             result = await active.Lease.Execute(entry.Definition.PlanItem, entry.Definition.Recipe,
@@ -354,13 +371,21 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
         {
             entry.Elapsed += DateTimeOffset.Now - (entry.ActiveStartedAt ?? DateTimeOffset.Now);
             entry.ActiveStartedAt = null;
+            _active.Remove(entry.Definition.JobId);
+            if (_shuttingDown && !active.UserCancellationRequested)
+            {
+                // Application shutdown is an interruption, not the user's Cancel command. Keep Running durable
+                // so version-2 recovery reclassifies this Job to NeedsAttention and retains its reservation.
+                PersistLocked();
+                active.Cancellation.Dispose();
+                return;
+            }
             entry.State = result.State;
             entry.ProgressPercent = 100;
             entry.CompletedAt = DateTimeOffset.Now;
             entry.Warnings.AddRange(result.Warnings);
             entry.Errors.AddRange(result.Errors);
             entry.Result = result.Data;
-            _active.Remove(entry.Definition.JobId);
             ReleaseLocked(entry.Definition);
             PersistLocked();
             snapshot = SnapshotLocked(entry);
@@ -383,6 +408,8 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
                     ProgressPercent = checkpoint.ProgressPercent, StartedAt = checkpoint.StartedAt,
                     CompletedAt = checkpoint.CompletedAt, Elapsed = checkpoint.Elapsed, Result = checkpoint.Result
                 };
+                entry.LastProgressCheckpointBucket = checkpoint.ProgressPercent is { } percent
+                    ? (int)Math.Floor(percent / ProgressCheckpointStep) : -1;
                 entry.Warnings.AddRange(checkpoint.Warnings);
                 entry.Errors.AddRange(checkpoint.Errors);
                 if (checkpoint.State == JobState.Running)
@@ -444,6 +471,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
         public List<string> Warnings { get; } = [];
         public List<string> Errors { get; } = [];
         public EncodingItemResult? Result { get; set; }
+        public int LastProgressCheckpointBucket { get; set; } = -1;
     }
 
     private sealed class ActiveExecution(ExportExecutorLease lease, CancellationTokenSource cancellation)
@@ -451,5 +479,11 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
         public ExportExecutorLease Lease { get; } = lease;
         public CancellationTokenSource Cancellation { get; } = cancellation;
         public Task Task { get; set; } = Task.CompletedTask;
+        public bool UserCancellationRequested { get; set; }
+    }
+
+    private sealed class InlineProgress(Action<double> report) : IProgress<double>
+    {
+        public void Report(double value) => report(value);
     }
 }

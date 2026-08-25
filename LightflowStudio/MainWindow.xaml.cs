@@ -3773,7 +3773,6 @@ public partial class MainWindow : Window
             if (exportCloseDialog.Choice == EncodingCloseChoice.CloseNow)
             {
                 _forceClose = true;
-                _exportCoordinator.TerminateAll();
                 _ = Dispatcher.BeginInvoke(new Action(Close));
             }
             return;

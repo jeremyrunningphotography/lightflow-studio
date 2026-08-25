@@ -24,7 +24,16 @@ public sealed class ExportModalRegressionTests
         Assert.Contains("Title = ExportHeading.Text = model.Title", source);
         var global = Named(xaml, "GlobalUseRangesCheck");
         Assert.Equal("Use In/Out points", (string?)global.Attribute("Content"));
-        Assert.Equal("True", (string?)global.Attribute("IsThreeState"));
+        Assert.Equal("False", (string?)global.Attribute("IsThreeState"));
+        var rangeCheck = xaml.Descendants().Single(element => element.Attributes().Any(attribute =>
+            attribute.Name.LocalName == "Name" && attribute.Value == "RangeCheck"));
+        Assert.Equal("1", (string?)rangeCheck.Attribute("Grid.Column"));
+        Assert.Equal("Use In/Out", (string?)rangeCheck.Attribute("Content"));
+        Assert.Equal("{Binding RangeControlEnabled}", (string?)rangeCheck.Attribute("IsEnabled"));
+        var noRangeTrigger = xaml.Descendants().Single(element => element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Binding") == "{Binding HasRange}");
+        Assert.Contains(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeCheck"
+            && (string?)element.Attribute("Value") == "Collapsed");
         Assert.DoesNotContain(xaml.Descendants(), element => (string?)element.Attribute("Content") is "Use all In/Out" or "Ignore all In/Out");
         Assert.Contains(xaml.Descendants(), element => (string?)element.Attribute("AutomationProperties.Name") == "{Binding RangeAutomationName}");
         Assert.DoesNotContain(xaml.Descendants(), element => (string?)element.Attribute("Content") is "Select all" or "Clear all");
@@ -64,7 +73,7 @@ public sealed class ExportModalRegressionTests
         var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
         var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
         Assert.Equal("1120", (string?)xaml.Root!.Attribute("Width"));
-        Assert.Equal("860", (string?)xaml.Root.Attribute("Height"));
+        Assert.Equal("900", (string?)xaml.Root.Attribute("Height"));
         Assert.Contains("WindowAppearance.EnableDarkTitleBar(this)", source);
         var composer = Named(xaml, "NamePartsComposer");
         Assert.Equal("ItemsControl", composer.Name.LocalName);
@@ -72,6 +81,14 @@ public sealed class ExportModalRegressionTests
         Assert.DoesNotContain(xaml.Descendants(), x => x.Name.LocalName == "ListBox");
         var contentScroll = Named(xaml, "ExportContentScroll");
         Assert.Equal("Auto", (string?)contentScroll.Attribute("VerticalScrollBarVisibility"));
+        Assert.Contains("StableVerticalScrollViewer", (string?)contentScroll.Attribute("Style"));
+        var stableScroll = xaml.Descendants().Single(element => element.Name.LocalName == "Style"
+            && element.Attributes().Any(attribute => attribute.Name.LocalName == "Key"
+                && attribute.Value == "StableVerticalScrollViewer"));
+        Assert.Contains(stableScroll.Descendants(), element => element.Name.LocalName == "ScrollContentPresenter"
+            && (string?)element.Attribute("Margin") == "0,0,14,0");
+        Assert.Contains(stableScroll.Descendants(), element => element.Name.LocalName == "ScrollBar"
+            && (string?)element.Attribute("HorizontalAlignment") == "Right");
         Assert.Contains(contentScroll.Descendants(), x => x == composer);
         Assert.DoesNotContain(Named(xaml, "ExportButton").Ancestors(), x => x == contentScroll);
         Assert.Contains("ConstrainToCurrentWorkArea", source);

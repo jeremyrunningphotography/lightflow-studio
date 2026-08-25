@@ -18,6 +18,7 @@ internal sealed record ExportSubmissionItem(
     string OutputAutomationText,
     bool HasRange,
     bool UseRange,
+    bool RangeControlEnabled,
     string RangeText,
     string RangeAutomationName);
 
@@ -29,6 +30,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private IReadOnlyList<MediaMetadata?> _metadata;
     private IReadOnlyList<ResolvedMediaRange?> _resolvedRanges;
     private readonly bool[] _useRanges;
+    private bool _rangesGloballyEnabled = true;
     private JobPlan<EncodingJobOptions>? _plan;
     private string _destination;
     private bool _createSubfolder = true;
@@ -86,6 +88,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             var applicable = _handoff.Inputs.Select((input, index) => (input, index))
                 .Where(value => value.input.InitialTrim is { IsFullSource: false })
                 .Select(value => _useRanges[value.index]).ToArray();
+            if (!_rangesGloballyEnabled) return false;
             if (applicable.Length == 0 || applicable.All(value => value)) return true;
             if (applicable.All(value => !value)) return false;
             return null;
@@ -126,12 +129,17 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public void ApplyResolvedRanges(IReadOnlyList<ResolvedMediaRange?> ranges) { _resolvedRanges = ranges.ToArray(); Refresh(); }
     public void SetUseRange(int index, bool use)
     {
-        if (index < 0 || index >= _useRanges.Length || _handoff.Inputs[index].InitialTrim is not { IsFullSource: false }) return;
+        if (!_rangesGloballyEnabled || index < 0 || index >= _useRanges.Length
+            || _handoff.Inputs[index].InitialTrim is not { IsFullSource: false }) return;
         if (_useRanges[index] == use) return;
         _useRanges[index] = use;
         Refresh();
     }
-    public void SetGlobalUseRanges(bool use) => SetAllRanges(use);
+    public void SetGlobalUseRanges(bool use)
+    {
+        _rangesGloballyEnabled = use;
+        SetAllRanges(use, refreshWhenUnchanged: true);
+    }
     public void ApplyEncoderCapability(EncoderCapability capability) { _encoder = capability; Refresh(); }
     public void AddPart(NamePartKind kind) => NameParts.Add(new(kind, kind == NamePartKind.CustomText ? "Text" : null));
     public void RemovePart(int index) { if (index >= 0 && index < NameParts.Count) NameParts.RemoveAt(index); }
@@ -213,7 +221,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         OnChanged(string.Empty);
     }
 
-    private void SetAllRanges(bool use)
+    private void SetAllRanges(bool use, bool refreshWhenUnchanged = false)
     {
         var changed = false;
         for (var index = 0; index < _useRanges.Length; index++)
@@ -222,7 +230,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             _useRanges[index] = use;
             changed = true;
         }
-        if (changed) Refresh();
+        if (changed || refreshWhenUnchanged) Refresh();
     }
 
     private IReadOnlyList<ExportSubmissionItem> BuildSubmissionItems()
@@ -234,8 +242,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             var hasRange = input.InitialTrim is { IsFullSource: false };
             var useRange = hasRange && _useRanges[index];
             var rangeText = hasRange && input.InitialTrim is { } range
-                ? $"Use In/Out   {FormatTime(range.EffectiveIn)} – {FormatTime(range.EffectiveOut)}"
-                : "Use In/Out   No In/Out set";
+                ? $"{FormatTime(range.EffectiveIn)} – {FormatTime(range.EffectiveOut)}"
+                : "";
             var outputText = "Output name unresolved";
             if (planned?.GetValueOrDefault(input.SourcePath) is { } item)
                 outputText = item.Definition.MaterializedName?.Problem is null && item.OutputPaths.FirstOrDefault() is { } path
@@ -245,7 +253,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
                 ? $"Use In/Out for {sourceName}"
                 : $"Use In/Out for {sourceName}, unavailable because no In/Out is defined";
             return new ExportSubmissionItem(index, sourceName, outputText, $"Output for {sourceName}: {outputText.TrimStart('→', ' ')}",
-                hasRange, useRange, rangeText, rangeAutomationName);
+                hasRange, useRange, hasRange && _rangesGloballyEnabled, rangeText, rangeAutomationName);
         }).ToArray();
     }
 

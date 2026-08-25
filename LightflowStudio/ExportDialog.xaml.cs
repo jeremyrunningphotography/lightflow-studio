@@ -67,7 +67,7 @@ public partial class ExportDialog : Window
         MaxWidth = Math.Max(760, area.Width / dpi.DpiScaleX - 32);
         MinHeight = Math.Min(620, MaxHeight);
         MinWidth = Math.Min(940, MaxWidth);
-        Height = Math.Min(860, MaxHeight);
+        Height = Math.Min(900, MaxHeight);
         Width = Math.Min(1120, MaxWidth);
     }
 

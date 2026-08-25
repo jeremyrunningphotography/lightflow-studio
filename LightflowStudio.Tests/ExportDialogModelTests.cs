@@ -153,8 +153,8 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.True(model.SubmissionItems[0].UseRange);
         Assert.Contains("00:01.0 – 00:03.0", model.SubmissionItems[0].RangeText);
         Assert.False(model.SubmissionItems[1].HasRange);
-        Assert.Equal("Use In/Out   No In/Out set", model.SubmissionItems[1].RangeText);
-        Assert.Contains("unavailable", model.SubmissionItems[1].RangeAutomationName);
+        Assert.Equal("", model.SubmissionItems[1].RangeText);
+        Assert.False(model.SubmissionItems[1].RangeControlEnabled);
         Assert.True(model.GlobalUseRangeState);
         var ranged = model.CurrentPlan!.Items[0];
         var rangedIdentity = EncodingOutputIdentity.Create(ranged.Definition, model.CurrentPlan.Definition.Options);
@@ -173,6 +173,12 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.NotNull(model.CurrentPlan!.Items[0].Definition.ResolvedRange);
         model.SetGlobalUseRanges(false);
         Assert.All(model.SubmissionItems, item => Assert.False(item.UseRange));
+        Assert.False(model.SubmissionItems[0].RangeControlEnabled);
+        model.SetUseRange(0, true);
+        Assert.False(model.SubmissionItems[0].UseRange);
+        model.SetGlobalUseRanges(true);
+        Assert.True(model.SubmissionItems[0].UseRange);
+        Assert.True(model.SubmissionItems[0].RangeControlEnabled);
         model.SetUseRange(0, true);
         Assert.True(model.SubmissionItems[0].UseRange);
     }
@@ -202,10 +208,12 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Null(model.GlobalUseRangeState);
         model.SetGlobalUseRanges(false);
         Assert.False(model.GlobalUseRangeState);
+        Assert.All(model.SubmissionItems.Where(item => item.HasRange), item => Assert.False(item.RangeControlEnabled));
         Assert.False(model.SubmissionItems[2].UseRange);
         Assert.False(model.SubmissionItems[2].HasRange);
         model.SetGlobalUseRanges(true);
         Assert.True(model.GlobalUseRangeState);
+        Assert.All(model.SubmissionItems.Where(item => item.HasRange), item => Assert.True(item.UseRange));
     }
 
     [Fact]

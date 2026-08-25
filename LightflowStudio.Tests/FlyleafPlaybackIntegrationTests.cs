@@ -74,7 +74,7 @@ public sealed class FlyleafPlaybackIntegrationTests : IDisposable
             var frame = await playback.GetFrameAsync(expectedPts[4], timeout.Token);
             Assert.True(frame.Width > 0 && frame.Height > 0);
             Assert.Equal(frame.Stride * frame.Height, frame.BgraPixels.Length);
-            Assert.Contains(expectedPts, expected => Close(expected, frame.Timestamp.Position));
+            AssertTimestamp(expectedPts[4], frame.Timestamp);
 
             await playback.OpenAsync(corrupt, timeout.Token);
             Assert.Equal(MediaPlaybackState.Failed, playback.Snapshot.State);

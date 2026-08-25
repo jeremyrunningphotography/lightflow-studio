@@ -21,6 +21,9 @@ public partial class ExportDialog : Window
     {
         _model = model; _coordinator = coordinator; _ffprobe = ffprobe;
         InitializeComponent();
+        Title = ExportHeading.Text = model.Title;
+        FilesToExportHeading.Text = $"Files to Export · {model.Inputs.Count}";
+        System.Windows.Automation.AutomationProperties.SetName(FilesToExportList, model.FilesAutomationName);
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
         DestinationText.Text = model.Destination;
         CreateSubfolderCheck.IsChecked = model.CreateSubfolder;
@@ -149,6 +152,10 @@ public partial class ExportDialog : Window
     }
     private void Sync()
     {
+        var wasInitializing = _initializing;
+        _initializing = true;
+        FilesToExportList.ItemsSource = _model.SubmissionItems;
+        _initializing = wasInitializing;
         NamePartsComposer.ItemsSource = ExportPresentation.Composer(_model.NameParts);
         NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
         PathPreview.ToolTip = OutputExampleBorder.ToolTip = _model.PreviewPath;
@@ -171,6 +178,14 @@ public partial class ExportDialog : Window
         ValidationBorder.Visibility = lines.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         ExportButton.IsEnabled = _model.CanExport;
     }
+    private void RangeUse_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_initializing || sender is not System.Windows.Controls.CheckBox { DataContext: ExportSubmissionItem item } check) return;
+        _model.SetUseRange(item.Index, check.IsChecked == true);
+        Sync();
+    }
+    private void UseAllRanges_Click(object sender, RoutedEventArgs e) { _model.UseAllRanges(); Sync(); }
+    private void IgnoreAllRanges_Click(object sender, RoutedEventArgs e) { _model.IgnoreAllRanges(); Sync(); }
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
         using var dialog = new Forms.FolderBrowserDialog { Description = "Select the output folder", UseDescriptionForTitle = true };

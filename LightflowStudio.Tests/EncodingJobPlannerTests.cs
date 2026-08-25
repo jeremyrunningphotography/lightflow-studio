@@ -145,7 +145,8 @@ public sealed class EncodingJobPlannerTests : IDisposable
         var item = Assert.Single(plan.Items);
         Assert.Equal(JobPlanDisposition.Skip, item.Disposition);
         Assert.Contains(item.Issues, issue => issue.Code == "encoding.existing-output-differs"
-            && issue.Severity == JobIssueSeverity.Warning);
+            && issue.Severity == JobIssueSeverity.Warning
+            && issue.Message == "An output file already exists at this location. It will be skipped unless “Overwrite existing files” is enabled.");
     }
 
     [Fact]

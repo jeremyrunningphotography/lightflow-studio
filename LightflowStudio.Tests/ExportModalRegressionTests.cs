@@ -6,6 +6,22 @@ namespace LightflowStudio.Tests;
 public sealed class ExportModalRegressionTests
 {
     [Fact]
+    public void SubmissionReviewIsBoundedAccessibleAndUsesExplicitRangeActions()
+    {
+        var xaml = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ExportDialog.xaml"));
+        var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ExportDialog.xaml.cs"));
+        var list = Named(xaml, "FilesToExportList");
+        Assert.Equal("220", (string?)list.Attribute("Height"));
+        Assert.Equal("Auto", list.Attributes().Single(attribute => attribute.Name.LocalName.EndsWith("VerticalScrollBarVisibility", StringComparison.Ordinal)).Value);
+        Assert.Contains("model.FilesAutomationName", source);
+        Assert.Contains("Title = ExportHeading.Text = model.Title", source);
+        Assert.Contains(xaml.Descendants(), element => (string?)element.Attribute("Content") == "Use all In/Out");
+        Assert.Contains(xaml.Descendants(), element => (string?)element.Attribute("Content") == "Ignore all In/Out");
+        Assert.Contains(xaml.Descendants(), element => (string?)element.Attribute("AutomationProperties.Name") == "{Binding RangeAutomationName}");
+        Assert.DoesNotContain(xaml.Descendants(), element => (string?)element.Attribute("Content") is "Select all" or "Clear all");
+    }
+
+    [Fact]
     public void ModalIsOwnedFocusedAndDoesNotPresentRuntimeProgress()
     {
         var root = FindRepositoryRoot();
@@ -44,7 +60,8 @@ public sealed class ExportModalRegressionTests
         var composer = Named(xaml, "NamePartsComposer");
         Assert.Equal("ItemsControl", composer.Name.LocalName);
         Assert.Contains(composer.Descendants(), x => x.Name.LocalName == "WrapPanel");
-        Assert.DoesNotContain(xaml.Descendants(), x => x.Name.LocalName == "ListBox");
+        Assert.Equal("FilesToExportList", xaml.Descendants().Single(x => x.Name.LocalName == "ListBox")
+            .Attributes().Single(attribute => attribute.Name.LocalName == "Name").Value);
         var contentScroll = Named(xaml, "ExportContentScroll");
         Assert.Equal("Auto", (string?)contentScroll.Attribute("VerticalScrollBarVisibility"));
         Assert.Contains(contentScroll.Descendants(), x => x == composer);

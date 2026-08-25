@@ -753,3 +753,17 @@ Focus on high-value flows such as selecting inputs, reviewing a plan, starting/c
 - ExifTool packaging approach
 - Plugin boundary and third-party extensibility
 - Pipeline graph format and versioning
+
+## Focused Export action and background ownership
+
+Issue #169 establishes the application flow as:
+
+`Browser/Player Export invocation → focused configuration modal → immutable materialization/preflight → ExportJobCoordinator → shared ApplicationJobsRuntime → EncodingJobExecutor → History`
+
+The owned `ExportDialog` is configuration and preflight only. It reads current LUT cache snapshots without starting discovery, edits a typed `NamePartsDefinition` and `ExportMaterializationPolicy`, evaluates the complete batch with `EncodingJobPlanner`, and submits one final immutable valid plan. Queue acceptance is synchronous; the modal closes immediately and never awaits progress or completion. Browser folder, recursive scope, query/filter state, selection, scroll position, and the reusable Player remain in memory because this path never changes `ShellWorkspace` or rebuilds either presentation.
+
+`ExportJobCoordinator` is an application-lifetime execution boundary. It retains one transient executor lease per accepted plan, queues every plan through the single shared `ApplicationJobsRuntime`, observes terminal completion independently of WPF, records one durable History record, and releases only transient executor ownership. Multiple modal jobs may run concurrently, and #170 can consume the existing runtime collection without another execution refactor. Shutdown terminates every retained FFmpeg executor and disposes the shared runtime safely.
+
+Name Parts, per-input Camera/Creative Color policy, source traits, saved ranges, source identities, and container-derived output extensions become immutable during final queue materialization. Explicit LUT overrides are copied through the content-addressed Encoding LUT resource store; queued work never retains a live configured LUT-folder path or links back to mutable Browser/Player/Catalog state.
+
+The dedicated Encoding workspace and its compatibility `Start_Click` flow remain available until #172. Review & Rerun continues to target that compatibility surface. Jobs drawer/workspace presentation remains #170/#171 scope.

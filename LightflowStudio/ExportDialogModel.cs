@@ -145,7 +145,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             try { OutputDestinationPlanner.ResolveSubfolderName(Resolution, SubfolderName); }
             catch (ArgumentException ex) { extra.Add(new("export.subfolder", ex.Message, JobIssueSeverity.Error)); }
         extra.AddRange(EncodingOptionValidator.Validate(options.Encoding).Select(message => new JobIssue("export.options", message, JobIssueSeverity.Error)));
-        if (_encoder is not null && !_encoder.IsUsable) extra.Add(new("export.encoder-unavailable", _encoder.Diagnostic, JobIssueSeverity.Error));
+        if (_encoder is not null && !_encoder.IsUsable) extra.Add(new("export.encoder-unavailable",
+            "NVIDIA NVENC could not be initialized. Check the hardware acceleration details.", JobIssueSeverity.Error));
         return extra.Count == 0 ? plan : plan with { Issues = plan.Issues.Concat(extra).ToList() };
     }
 

@@ -89,6 +89,57 @@ public sealed class ExportDialogModelTests : IDisposable
         model.ParallelExports = -1; Assert.Equal(EncodingJobConcurrency.Minimum, model.ParallelExports);
     }
 
+    [Fact]
+    public void PresentationMappingsUseFriendlyProductLabels()
+    {
+        Assert.Equal("Original name", ExportPresentation.NamePartLabel(NamePartKind.OriginalName));
+        Assert.Equal("Custom text", ExportPresentation.NamePartLabel(NamePartKind.CustomText));
+        Assert.Equal("Sequence 0001", ExportPresentation.NamePartLabel(NamePartKind.Sequence0001));
+        Assert.Equal("Index Number", ExportPresentation.NamePartLabel(NamePartKind.IndexNumber));
+        Assert.Equal(["Same as Source", "3840 × 2160 (4K UHD)", "2560 × 1440 (1440p)",
+            "1920 × 1080 (1080p)", "1280 × 720 (720p)", "854 × 480 (480p)"],
+            ExportPresentation.Resolutions.Select(x => x.Label));
+        Assert.Equal(["Constant Quality", "Variable Bitrate", "Constant Bitrate"],
+            ExportPresentation.RateControls.Select(x => x.Label));
+        Assert.Equal("NVIDIA NVENC", Assert.Single(ExportPresentation.Encoders).Label);
+        Assert.Equal("High Quality", ExportPresentation.Tunes[0].Label);
+        Assert.Contains(ExportPresentation.MultipassModes, x => x.Label == "Full Resolution");
+        Assert.Contains(ExportPresentation.PixelFormats, x => x.Label == "YUV 4:2:0 (8-bit)");
+        Assert.DoesNotContain(ExportPresentation.Containers, x => x.Label == x.Value.ToString());
+        Assert.DoesNotContain(ExportPresentation.Codecs, x => x.Label == x.Value.ToString());
+        Assert.DoesNotContain(ExportPresentation.RateControls, x => x.Label == x.Value.ToString());
+    }
+
+    [Fact]
+    public void ComposerPreservesTypedOrderAndProvidesAccessibleActions()
+    {
+        var chips = ExportPresentation.Composer([
+            new(NamePartKind.OriginalName), new(NamePartKind.CustomText, "web"), new(NamePartKind.Sequence0001)
+        ]);
+        Assert.Equal(["Original name", "Custom text", "Sequence 0001"], chips.Select(x => x.Label));
+        Assert.Equal([0, 1, 2], chips.Select(x => x.Index));
+        Assert.True(chips[1].IsCustomText);
+        Assert.Equal("Remove Custom text name part", chips[1].RemoveAutomationName);
+        Assert.Equal("Move Sequence 0001 name part earlier", chips[2].MoveEarlierAutomationName);
+    }
+
+    [Fact]
+    public void HardwareCapabilityPresentationIsConciseAndKeepsDiagnosticSeparate()
+    {
+        var available = ExportPresentation.Hardware(new(EncoderBackend.NvidiaNvenc,
+            EncoderCapabilityState.ImplementedAndAvailable, "H.264 and HEVC probes succeeded."));
+        Assert.Equal("✓ Hardware acceleration available", available.Heading);
+        Assert.Equal("NVIDIA NVENC", available.Detail);
+        Assert.DoesNotContain("probe", available.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("probes", available.Diagnostic);
+
+        var unavailable = ExportPresentation.Hardware(new(EncoderBackend.NvidiaNvenc,
+            EncoderCapabilityState.ImplementedButUnavailable, "driver detail"));
+        Assert.Equal("Hardware acceleration unavailable", unavailable.Heading);
+        Assert.Equal("NVIDIA NVENC could not be initialized.", unavailable.Detail);
+        Assert.False(unavailable.Available);
+    }
+
     private ExportDialogModel CreateModel(string first, string? second = null,
         Func<string, OutputFileSnapshot>? inspect = null)
     {

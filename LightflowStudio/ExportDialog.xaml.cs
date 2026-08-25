@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Forms = System.Windows.Forms;
 
 namespace LightflowStudio;
@@ -13,29 +14,31 @@ public partial class ExportDialog : Window
     private readonly ExportJobCoordinator _coordinator;
     private readonly string? _ffprobe;
     private bool _initializing = true;
+    private System.Windows.Point _dragStart;
+    private int? _dragPartIndex;
 
     internal ExportDialog(ExportDialogModel model, ExportJobCoordinator coordinator, string? ffprobe)
     {
         _model = model; _coordinator = coordinator; _ffprobe = ffprobe;
         InitializeComponent();
+        SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
         DestinationText.Text = model.Destination;
         CreateSubfolderCheck.IsChecked = model.CreateSubfolder;
-        NamePartsList.ItemsSource = model.NameParts;
-        AddPartCombo.ItemsSource = Enum.GetValues<NamePartKind>(); AddPartCombo.SelectedIndex = 0;
-        SeparatorCombo.ItemsSource = Enum.GetValues<NamePartSeparator>(); SeparatorCombo.SelectedItem = model.Separator;
-        ContainerCombo.ItemsSource = Enum.GetValues<ExportContainerChoice>(); ContainerCombo.SelectedItem = model.Container;
-        CodecCombo.ItemsSource = Enum.GetValues<ExportCodecChoice>(); CodecCombo.SelectedItem = model.Codec;
-        RateControlCombo.ItemsSource = Enum.GetValues<RateControlMode>(); RateControlCombo.SelectedItem = model.Encoding.RateControl;
-        ResolutionCombo.ItemsSource = Enum.GetValues<OutputResolution>(); ResolutionCombo.SelectedItem = model.Resolution;
+        AddPartCombo.ItemsSource = ExportPresentation.NameParts; AddPartCombo.SelectedIndex = 0;
+        SeparatorCombo.ItemsSource = ExportPresentation.Separators; Select(SeparatorCombo, ExportPresentation.Separators, model.Separator);
+        ContainerCombo.ItemsSource = ExportPresentation.Containers; Select(ContainerCombo, ExportPresentation.Containers, model.Container);
+        CodecCombo.ItemsSource = ExportPresentation.Codecs; Select(CodecCombo, ExportPresentation.Codecs, model.Codec);
+        RateControlCombo.ItemsSource = ExportPresentation.RateControls; Select(RateControlCombo, ExportPresentation.RateControls, model.Encoding.RateControl);
+        ResolutionCombo.ItemsSource = ExportPresentation.Resolutions; Select(ResolutionCombo, ExportPresentation.Resolutions, model.Resolution);
         FrameRateCombo.ItemsSource = new[] { "Same as Source", "23.976", "24", "25", "29.97", "30", "50", "59.94", "60" }; FrameRateCombo.SelectedIndex = 0;
         AudioCombo.ItemsSource = new[] { "Use source audio", "AAC", "No audio" }; AudioCombo.SelectedIndex = (int)model.Encoding.AudioMode;
         ParallelCombo.ItemsSource = Enumerable.Range(EncodingJobConcurrency.Minimum, EncodingJobConcurrency.Maximum).ToArray(); ParallelCombo.SelectedItem = model.ParallelExports;
         CameraCombo.ItemsSource = model.CameraChoices; CameraCombo.SelectedIndex = 0;
         CreativeCombo.ItemsSource = model.CreativeChoices; CreativeCombo.SelectedIndex = 0;
-        ExistingCombo.SelectedIndex = 0;
-        TuneCombo.ItemsSource = Enum.GetValues<EncoderTune>(); TuneCombo.SelectedItem = model.Encoding.Tune;
-        MultipassCombo.ItemsSource = Enum.GetValues<MultipassMode>(); MultipassCombo.SelectedItem = model.Encoding.Multipass;
-        PixelFormatCombo.ItemsSource = Enum.GetValues<VideoPixelFormat>(); PixelFormatCombo.SelectedItem = model.Encoding.PixelFormat;
+        OverwriteExistingCheck.IsChecked = model.OverwriteExisting;
+        TuneCombo.ItemsSource = ExportPresentation.Tunes; Select(TuneCombo, ExportPresentation.Tunes, model.Encoding.Tune);
+        MultipassCombo.ItemsSource = ExportPresentation.MultipassModes; Select(MultipassCombo, ExportPresentation.MultipassModes, model.Encoding.Multipass);
+        PixelFormatCombo.ItemsSource = ExportPresentation.PixelFormats; Select(PixelFormatCombo, ExportPresentation.PixelFormats, model.Encoding.PixelFormat);
         QualityText.Text = model.Encoding.Quality.ToString(); TargetText.Text = model.Encoding.TargetBitrateMbps.ToString(); MaxText.Text = model.Encoding.MaxBitrateMbps.ToString(); PresetText.Text = model.Encoding.EncoderPreset.ToString(); AqText.Text = model.Encoding.AqStrength.ToString();
         SpatialAqCheck.IsChecked = model.Encoding.SpatialAq; TemporalAqCheck.IsChecked = model.Encoding.TemporalAq; DeinterlaceCheck.IsChecked = model.Encoding.Deinterlace; FastStartCheck.IsChecked = model.Encoding.FastStart;
         _initializing = false; Sync(); Loaded += async (_, _) =>
@@ -55,8 +58,12 @@ public partial class ExportDialog : Window
     {
         var capabilities = await new EncoderCapabilityService(_ffprobe is null ? null : Path.Combine(Path.GetDirectoryName(_ffprobe)!, "ffmpeg.exe"), new FfmpegEncoderCapabilityProbe()).GetAsync();
         var nvenc = capabilities.Single(x => x.Backend == EncoderBackend.NvidiaNvenc);
-        EncoderCombo.ItemsSource = capabilities.Where(x => x.State != EncoderCapabilityState.NotImplemented); EncoderCombo.SelectedItem = nvenc;
-        EncoderDiagnostic.Text = nvenc.Diagnostic; _model.ApplyEncoderCapability(nvenc);
+        EncoderCombo.ItemsSource = ExportPresentation.Encoders; EncoderCombo.SelectedIndex = 0;
+        var hardware = ExportPresentation.Hardware(nvenc);
+        HardwareStatusHeading.Text = hardware.Heading;
+        EncoderDiagnostic.Text = hardware.Detail;
+        EncoderDiagnostic.ToolTip = hardware.Diagnostic;
+        _model.ApplyEncoderCapability(nvenc);
         var metadata = new List<MediaMetadata?>();
         foreach (var input in _model.Inputs) metadata.Add(await ProbeAsync(input.SourcePath));
         _model.ApplyMetadata(metadata);
@@ -110,32 +117,58 @@ public partial class ExportDialog : Window
     private void ReadControls()
     {
         _model.Destination = DestinationText.Text; _model.CreateSubfolder = CreateSubfolderCheck.IsChecked == true; _model.SubfolderName = SubfolderText.Text;
-        if (SeparatorCombo.SelectedItem is NamePartSeparator separator) _model.Separator = separator;
-        if (ContainerCombo.SelectedItem is ExportContainerChoice container) _model.Container = container;
-        if (CodecCombo.SelectedItem is ExportCodecChoice codec) _model.Codec = codec;
-        if (ResolutionCombo.SelectedItem is OutputResolution resolution) _model.Resolution = resolution;
+        if (SeparatorCombo.SelectedItem is ExportChoice<NamePartSeparator> separator) _model.Separator = separator.Value;
+        if (ContainerCombo.SelectedItem is ExportChoice<ExportContainerChoice> container) _model.Container = container.Value;
+        if (CodecCombo.SelectedItem is ExportChoice<ExportCodecChoice> codec) _model.Codec = codec.Value;
+        if (ResolutionCombo.SelectedItem is ExportChoice<OutputResolution> resolution) _model.Resolution = resolution.Value;
         _model.ParallelExports = ParallelCombo.SelectedItem is int parallel ? parallel : EncodingJobConcurrency.Default;
-        _model.OverwriteExisting = ExistingCombo.SelectedIndex == 1; _model.Camera = CameraCombo.SelectedItem as ExportLutChoice ?? _model.Camera; _model.Creative = CreativeCombo.SelectedItem as ExportLutChoice ?? _model.Creative;
+        _model.OverwriteExisting = OverwriteExistingCheck.IsChecked == true; _model.Camera = CameraCombo.SelectedItem as ExportLutChoice ?? _model.Camera; _model.Creative = CreativeCombo.SelectedItem as ExportLutChoice ?? _model.Creative;
         var frameRates = new[] { 0d, 23.976, 24, 25, 29.97, 30, 50, 59.94, 60 };
-        var encoding = _model.Encoding with { RateControl = RateControlCombo.SelectedItem is RateControlMode rate ? rate : _model.Encoding.RateControl, FrameRate = frameRates[Math.Max(0, FrameRateCombo.SelectedIndex)], AudioMode = (AudioEncodingMode)Math.Max(0, AudioCombo.SelectedIndex), Tune = TuneCombo.SelectedItem is EncoderTune tune ? tune : _model.Encoding.Tune, Multipass = MultipassCombo.SelectedItem is MultipassMode pass ? pass : _model.Encoding.Multipass, PixelFormat = PixelFormatCombo.SelectedItem is VideoPixelFormat pixel ? pixel : _model.Encoding.PixelFormat, SpatialAq = SpatialAqCheck.IsChecked == true, TemporalAq = TemporalAqCheck.IsChecked == true, Deinterlace = DeinterlaceCheck.IsChecked == true, FastStart = FastStartCheck.IsChecked == true };
+        var encoding = _model.Encoding with { RateControl = (RateControlCombo.SelectedItem as ExportChoice<RateControlMode>)?.Value ?? _model.Encoding.RateControl, FrameRate = frameRates[Math.Max(0, FrameRateCombo.SelectedIndex)], AudioMode = (AudioEncodingMode)Math.Max(0, AudioCombo.SelectedIndex), Tune = (TuneCombo.SelectedItem as ExportChoice<EncoderTune>)?.Value ?? _model.Encoding.Tune, Multipass = (MultipassCombo.SelectedItem as ExportChoice<MultipassMode>)?.Value ?? _model.Encoding.Multipass, PixelFormat = (PixelFormatCombo.SelectedItem as ExportChoice<VideoPixelFormat>)?.Value ?? _model.Encoding.PixelFormat, SpatialAq = SpatialAqCheck.IsChecked == true, TemporalAq = TemporalAqCheck.IsChecked == true, Deinterlace = DeinterlaceCheck.IsChecked == true, FastStart = FastStartCheck.IsChecked == true };
         if (int.TryParse(QualityText.Text, out var q)) encoding = encoding with { Quality = q }; if (int.TryParse(TargetText.Text, out var target)) encoding = encoding with { TargetBitrateMbps = target }; if (int.TryParse(MaxText.Text, out var max)) encoding = encoding with { MaxBitrateMbps = max }; if (int.TryParse(PresetText.Text, out var preset)) encoding = encoding with { EncoderPreset = preset }; if (int.TryParse(AqText.Text, out var aq)) encoding = encoding with { AqStrength = aq };
         _model.Encoding = encoding; _model.AdvancedExpanded = AdvancedExpander.IsExpanded; Sync();
     }
     private void Sync()
     {
+        NamePartsComposer.ItemsSource = ExportPresentation.Composer(_model.NameParts);
         NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
         QualityText.IsEnabled = _model.QualityAuthoritative; TargetText.IsEnabled = _model.TargetBitrateAuthoritative; MaxText.IsEnabled = _model.MaxBitrateAuthoritative;
+        QualityLabel.Opacity = _model.QualityAuthoritative ? 1 : .62;
+        TargetLabel.Opacity = _model.TargetBitrateAuthoritative ? 1 : .62;
+        MaxLabel.Opacity = _model.MaxBitrateAuthoritative ? 1 : .62;
+        System.Windows.Automation.AutomationProperties.SetHelpText(AdvancedExpander,
+            AdvancedExpander.IsExpanded ? "Advanced export settings expanded" : "Advanced export settings collapsed");
         var lines = _model.Errors.Select(x => "Error — " + x.Message).Concat(_model.Warnings.Select(x => "Warning — " + x.Message)).ToList();
         PreflightText.Text = lines.Count == 0 ? (_model.CanExport ? "Ready to export." : "Analyzing sources and encoder availability…") : string.Join(Environment.NewLine, lines);
         ExportButton.IsEnabled = _model.CanExport;
     }
     private void Browse_Click(object sender, RoutedEventArgs e) { using var dialog = new Forms.FolderBrowserDialog { SelectedPath = DestinationText.Text }; if (dialog.ShowDialog() == Forms.DialogResult.OK) DestinationText.Text = dialog.SelectedPath; }
-    private void AddPart_Click(object sender, RoutedEventArgs e) { if (AddPartCombo.SelectedItem is NamePartKind kind) _model.AddPart(kind); NamePartsList.Items.Refresh(); Sync(); }
-    private void RemovePart_Click(object sender, RoutedEventArgs e) { _model.RemovePart(NamePartsList.SelectedIndex); Sync(); }
-    private void MoveUp_Click(object sender, RoutedEventArgs e) { var i=NamePartsList.SelectedIndex; _model.MovePart(i,-1); NamePartsList.SelectedIndex=Math.Max(0,i-1); Sync(); }
-    private void MoveDown_Click(object sender, RoutedEventArgs e) { var i=NamePartsList.SelectedIndex; _model.MovePart(i,1); NamePartsList.SelectedIndex=Math.Min(_model.NameParts.Count-1,i+1); Sync(); }
-    private void NamePart_Selected(object sender, SelectionChangedEventArgs e) { var part=NamePartsList.SelectedItem as NamePart; var custom=part?.Kind==NamePartKind.CustomText; CustomTextBox.Visibility=custom?Visibility.Visible:Visibility.Collapsed; if(custom) CustomTextBox.Text=part!.Text??""; }
-    private void CustomText_Changed(object sender, TextChangedEventArgs e) { if (!_initializing && NamePartsList.SelectedIndex>=0) { _model.UpdateCustomText(NamePartsList.SelectedIndex, CustomTextBox.Text); Sync(); } }
+    private void AddPart_Click(object sender, RoutedEventArgs e) { if (AddPartCombo.SelectedItem is ExportChoice<NamePartKind> choice) _model.AddPart(choice.Value); Sync(); }
+    private void RemovePart_Click(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _model.RemovePart(chip.Index); Sync(); } }
+    private void MovePartEarlier_Click(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _model.MovePart(chip.Index, -1); Sync(); } }
+    private void MovePartLater_Click(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _model.MovePart(chip.Index, 1); Sync(); } }
+    private void CustomPartText_Changed(object sender, TextChangedEventArgs e)
+    {
+        if (_initializing || sender is not System.Windows.Controls.TextBox { DataContext: ExportNamePartChip chip } box || box.Text == chip.Part.Text) return;
+        _model.UpdateCustomText(chip.Index, box.Text); NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
+    }
+    private void NamePart_MouseDown(object sender, MouseButtonEventArgs e)
+    { if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _dragStart = e.GetPosition(this); _dragPartIndex = chip.Index; } }
+    private void NamePart_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _dragPartIndex is null) return;
+        var point = e.GetPosition(this);
+        if (Math.Abs(point.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(point.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        System.Windows.DragDrop.DoDragDrop((DependencyObject)sender, _dragPartIndex.Value, System.Windows.DragDropEffects.Move);
+    }
+    private void NamePart_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(typeof(int)) || ((FrameworkElement)sender).DataContext is not ExportNamePartChip target) return;
+        var source = (int)e.Data.GetData(typeof(int));
+        if (source != target.Index) _model.MovePart(source, target.Index - source);
+        _dragPartIndex = null; Sync();
+    }
+    private static void Select<T>(System.Windows.Controls.ComboBox combo, IReadOnlyList<ExportChoice<T>> choices, T value) => combo.SelectedItem = choices.First(x => EqualityComparer<T>.Default.Equals(x.Value, value));
     private async void Export_Click(object sender, RoutedEventArgs e)
     {
         ExportButton.IsEnabled=false; QueueError.Text="";

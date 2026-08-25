@@ -126,6 +126,9 @@ internal static class JobHistoryPresentation
                 if (!string.IsNullOrWhiteSpace(export.MaterializationProblem))
                     lines.Add($"  Materialization error: {export.MaterializationProblem}");
             }
+            if (item.Definition.MaterializedName is { } name)
+                lines.Add($"  Materialized name: {name.Stem ?? "Unresolved"}" +
+                          (name.Problem is null ? "" : $" ({name.Problem})"));
             foreach (var output in result?.OutputPaths ?? item.OutputPaths) lines.Add($"  Output: {output}");
             foreach (var warning in result?.Warnings ?? []) lines.Add($"  Warning: {warning}");
             foreach (var error in result?.Errors ?? []) lines.Add($"  Error: {error}");
@@ -183,7 +186,8 @@ internal static class EncodingHistoryRerun
 
                 var option = new BatchFileOption(source.Item.SourceIdentity,
                     Path.GetRelativePath(preparation.Options.InputFolder, source.Item.SourceIdentity), info.Length,
-                    assignedColor: source.Item.AssignedColor, restoredExport: source.Item.MaterializedExport);
+                    assignedColor: source.Item.AssignedColor, restoredExport: source.Item.MaterializedExport,
+                    restoredName: source.Item.MaterializedName);
                 if (source.Item.MediaRange is { } range && !range.IsFullSource) option.ApplyTrim(range);
                 option.IsSelected = true;
                 restored.Add(option);

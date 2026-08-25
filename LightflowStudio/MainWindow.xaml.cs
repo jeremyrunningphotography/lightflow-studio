@@ -3566,7 +3566,8 @@ public partial class MainWindow : Window
                 file.Metadata is { } metadata ? new SourceMediaTraits(
                     metadata.VideoCodec, metadata.Width, metadata.Height, metadata.FrameRate, metadata.Container,
                     metadata.AudioCodec, metadata.AudioSampleRate, metadata.AudioChannels, metadata.AudioChannelLayout) : null,
-                file.RestoredExport);
+                file.RestoredExport,
+                RestoredName: file.RestoredName);
         });
         return EncodingJobPlanner.Plan(EncodingJobPlanner.Define(options, sources));
     }

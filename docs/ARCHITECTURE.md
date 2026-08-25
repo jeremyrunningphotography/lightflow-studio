@@ -643,6 +643,40 @@ The default cache quota is 20 GiB and is configurable from Settings (1–1024 Gi
 
 Clear is explicit and confirmed in Settings. It atomically moves the two cache trees into an operation-owned staging directory, transactionally clears rebuildable Preview records, restores the moved trees if the database reset fails, and deletes committed staging data best-effort. Rebuild performs Clear, enumerates stable Catalog assets through the provider-neutral Media Asset service, then invokes the existing #91 metadata and #92 thumbnail services with progress and cancellation. Cancellation leaves completed regenerated entries valid and the store retryable. Browser/discovery scheduling remains outside #93.
 
+## Name Parts and output-name materialization
+
+Name Parts is a capability-neutral durable naming contract; Export is its first consumer. A definition is an ordered
+list of typed parts plus one explicit global separator (`_`, `-`, space, or none), not a template string, FFmpeg
+syntax, or WPF state. The initial parts are Original name, Custom text, Date, Time, five Sequence widths, and Index
+Number. Output extensions are not Name Parts: Export appends the extension from each item's already-materialized
+container, so heterogeneous Same-as-Source batches retain their independent MP4/MOV/MKV results.
+
+The durable boundary is:
+
+**Name Parts definition → per-input naming context/materialization → complete-batch collision-safe output plan → immutable Job execution**
+
+Export snapshots the definition and final deterministic input order in `EncodingJobPlanner.Define`. Sequence is
+1-based in that immutable order; its width variants only change presentation. Index Number is distinct from Sequence:
+it is the trailing contiguous decimal run from the original filename stem and preserves leading zeroes. A missing run
+is an input-specific preflight error and never falls back to Sequence.
+
+Date and Time require an explicit timestamp in the capability-neutral naming input. Current authoritative media state
+does not expose an unambiguous capture timestamp, so Export leaves these parts unresolved when no value is supplied;
+it never substitutes filesystem creation/write time, export time, or the current clock. Date renders `yyyy-MM-dd` and
+Time renders `HH-mm-ss` using invariant formatting when a future consumer supplies an explicit value.
+
+Each job item stores its rendered stem, sequence, resolved index/timestamp context, and any resolution problem. The
+job definition also retains the configured Name Parts definition for History and Review & Rerun. Queued, running,
+recovered, and historical jobs consume the stored materialization and planned output path; they do not reevaluate
+mutable configuration, batch order, metadata, filesystem enumeration, or UI state. Naming participates in resume/output
+identity. Optional fields keep legacy job/History JSON readable, while the dedicated Encoding workspace continues to
+use its isolated `FilenameSuffix` path only when no modern Name Parts definition/materialization exists.
+
+Durable Name Parts rendering is platform-neutral. Export's planning boundary separately applies Windows filename and
+path safety, source/output checks, case-insensitive normalized collision comparison, and the existing explicit
+overwrite/preserve policy across the whole batch before workers start. Workers receive one immutable planned path and
+never invent suffixes or reserve destinations concurrently.
+
 ## Shared batch planning
 
 Before execution, a mature capability should produce a plan containing:

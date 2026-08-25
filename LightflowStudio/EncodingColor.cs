@@ -12,11 +12,17 @@ internal sealed record MaterializedLutResource(
     string ContentSha256,
     string ResourceKey);
 
-internal sealed record MaterializedColorPipeline(
-    bool ColorEnabled,
-    MaterializedLutResource? Camera = null,
-    MaterializedLutResource? Creative = null)
+internal sealed record MaterializedColorPipeline
 {
+    // colorEnabled remains a constructor parameter for serialized pre-#167 compatibility. Current LUT Color
+    // activity is derived exclusively from the final materialized stages.
+    public MaterializedColorPipeline(bool colorEnabled, MaterializedLutResource? Camera = null,
+        MaterializedLutResource? Creative = null)
+    { this.Camera = Camera; this.Creative = Creative; }
+
+    public bool ColorEnabled => HasAssignments;
+    public MaterializedLutResource? Camera { get; init; }
+    public MaterializedLutResource? Creative { get; init; }
     public IReadOnlyList<MaterializedLutResource> OrderedPipeline =>
         new[] { Camera, Creative }.OfType<MaterializedLutResource>().ToArray();
     public bool HasAssignments => Camera is not null || Creative is not null;

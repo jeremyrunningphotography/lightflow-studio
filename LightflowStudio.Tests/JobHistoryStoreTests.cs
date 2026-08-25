@@ -58,7 +58,7 @@ public sealed class JobHistoryStoreTests : IDisposable
         var restored = Assert.Single(EncodingHistoryRerun.Materialize(
             EncodingHistoryRerun.Prepare(loaded)).Restored);
         Assert.Equal(color, restored.AssignedColor);
-        Assert.False(restored.AssignedColor!.ColorEnabled);
+        Assert.True(restored.AssignedColor!.ColorEnabled);
     }
 
     [Fact]

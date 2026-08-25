@@ -88,6 +88,76 @@ public sealed class ExportMaterializationTests
     }
 
     [Fact]
+    public void ColorPolicies_BothNoLut_MaterializeOriginalFromActiveSource()
+    {
+        var selected = new MaterializedColorPipeline(true,
+            Lut(ColorLutStage.Camera, "camera"), Lut(ColorLutStage.Creative, "creative"));
+        var policy = new ExportMaterializationPolicy(
+            Camera: new(ColorStagePolicyMode.NoLut), Creative: new(ColorStagePolicyMode.NoLut));
+
+        var color = MaterializeColor(policy, selected);
+
+        Assert.Null(color.Camera);
+        Assert.Null(color.Creative);
+        Assert.False(color.ColorEnabled);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ColorPolicies_OneSelectedStageRemaining_IsActive(bool retainCamera)
+    {
+        var retainedStage = retainCamera ? ColorLutStage.Camera : ColorLutStage.Creative;
+        var camera = Lut(ColorLutStage.Camera, "camera");
+        var creative = Lut(ColorLutStage.Creative, "creative");
+        var selected = new MaterializedColorPipeline(true, camera, creative);
+        var policy = retainedStage == ColorLutStage.Camera
+            ? new ExportMaterializationPolicy(Camera: new(), Creative: new(ColorStagePolicyMode.NoLut))
+            : new ExportMaterializationPolicy(Camera: new(ColorStagePolicyMode.NoLut), Creative: new());
+
+        var color = MaterializeColor(policy, selected);
+
+        Assert.Equal(retainedStage == ColorLutStage.Camera ? camera : null, color.Camera);
+        Assert.Equal(retainedStage == ColorLutStage.Creative ? creative : null, color.Creative);
+        Assert.True(color.ColorEnabled);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ColorPolicies_OneOverrideOnUnassignedSource_IsActive(bool overrideCamera)
+    {
+        var overrideStage = overrideCamera ? ColorLutStage.Camera : ColorLutStage.Creative;
+        var resource = Lut(overrideStage, "override");
+        var policy = overrideStage == ColorLutStage.Camera
+            ? new ExportMaterializationPolicy(Camera: new(ColorStagePolicyMode.Override, resource), Creative: new(ColorStagePolicyMode.NoLut))
+            : new ExportMaterializationPolicy(Camera: new(ColorStagePolicyMode.NoLut), Creative: new(ColorStagePolicyMode.Override, resource));
+
+        var color = MaterializeColor(policy, null);
+
+        Assert.Equal(overrideStage == ColorLutStage.Camera ? resource : null, color.Camera);
+        Assert.Equal(overrideStage == ColorLutStage.Creative ? resource : null, color.Creative);
+        Assert.True(color.ColorEnabled);
+    }
+
+    [Fact]
+    public void CorrectedOriginalColor_RoundTripsThroughHistoryIntentAndOutputIdentity()
+    {
+        var options = Options(new(Camera: new(ColorStagePolicyMode.NoLut), Creative: new(ColorStagePolicyMode.NoLut)));
+        var selected = new MaterializedColorPipeline(true,
+            Lut(ColorLutStage.Camera, "camera"), Lut(ColorLutStage.Creative, "creative"));
+        var item = EncodingJobPlanner.Define(options,
+            [Source("color.mov", new("h264", 1, 1, 24, "mov"), selected)]).Items.Single();
+        var identity = EncodingOutputIdentity.Create(item, options);
+
+        var restored = JsonSerializer.Deserialize<JobItemDefinition>(JsonSerializer.Serialize(item))!;
+
+        Assert.False(restored.MaterializedExport!.Color!.ColorEnabled);
+        Assert.Empty(restored.MaterializedExport.Color.OrderedPipeline);
+        Assert.Equal(identity, EncodingOutputIdentity.Create(restored, options));
+    }
+
+    [Fact]
     public void MaterializedIntent_RoundTripsAndChangesOutputIdentity()
     {
         var options = Options(new(VideoCodecPolicy.SameAsSource, OutputContainerPolicy.SameAsSource));
@@ -121,6 +191,10 @@ public sealed class ExportMaterializationTests
 
     private static EncodingSource Source(string path, SourceMediaTraits traits, MaterializedColorPipeline? color = null) =>
         new(path, 1, TimeSpan.FromSeconds(1), AssignedColor: color, MediaTraits: traits);
+
+    private static MaterializedColorPipeline MaterializeColor(ExportMaterializationPolicy policy,
+        MaterializedColorPipeline? selected) => ExportSettingsMaterializer.Materialize(Options(policy),
+        Source("color.mov", new("h264", 1, 1, 24, "mov"), selected)).Color!;
 
     private static MaterializedLutResource Lut(ColorLutStage stage, string name) =>
         new(Guid.NewGuid(), stage, name, new string('a', 64), $"aa/{name}.cube");

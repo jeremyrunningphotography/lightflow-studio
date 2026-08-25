@@ -78,9 +78,8 @@ internal static class ExportSettingsMaterializer
         };
         var camera = policy is null ? source.AssignedColor?.Camera : ResolveStage(ColorLutStage.Camera, policy.Camera, source.AssignedColor?.Camera);
         var creative = policy is null ? source.AssignedColor?.Creative : ResolveStage(ColorLutStage.Creative, policy.Creative, source.AssignedColor?.Creative);
-        var hasOverride = policy?.Camera?.Mode == ColorStagePolicyMode.Override || policy?.Creative?.Mode == ColorStagePolicyMode.Override;
         var color = policy is null ? source.AssignedColor : new MaterializedColorPipeline(
-            hasOverride || source.AssignedColor?.ColorEnabled == true, camera, creative);
+            camera is not null || creative is not null, camera, creative);
         return new(encoding, options.Resolution, audio, color, source.MediaTraits,
             policy?.Quality ?? EncodingQualityPolicy.Explicit, problem);
     }

@@ -39,6 +39,7 @@ internal sealed record AppSettings
     public string? CatalogDirectory { get; init; }
     public string? PreviewsDirectory { get; init; }
     public int PreviewCacheQuotaGb { get; init; } = 20;
+    public int MaxSimultaneousExports { get; init; } = EncodingJobConcurrency.Default;
     public Guid? CatalogId { get; init; }
 
     public AppSettings() { }
@@ -60,6 +61,8 @@ internal sealed record AppSettings
             CatalogDirectory = NormalizeStorageDirectory(settings.CatalogDirectory),
             PreviewsDirectory = NormalizeStorageDirectory(settings.PreviewsDirectory),
             PreviewCacheQuotaGb = Math.Clamp(settings.PreviewCacheQuotaGb, 1, 1024),
+            MaxSimultaneousExports = Math.Clamp(settings.MaxSimultaneousExports,
+                EncodingJobConcurrency.Minimum, EncodingJobConcurrency.Maximum),
             DefaultResolution = Enum.IsDefined(settings.DefaultResolution) ? settings.DefaultResolution : OutputResolution.FullHd,
             DefaultRecovery = Enum.IsDefined(settings.DefaultRecovery) ? settings.DefaultRecovery : RecoveryStrategy.Normal,
             EncodingPreset = Enum.IsDefined(settings.EncodingPreset) ? settings.EncodingPreset : EncodingPreset.Recommended,

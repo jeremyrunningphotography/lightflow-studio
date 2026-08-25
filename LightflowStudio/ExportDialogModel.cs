@@ -27,7 +27,6 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private ExportCodecChoice _codec = ExportCodecChoice.SameAsSource;
     private OutputResolution _resolution = OutputResolution.Source;
     private EncodingOptions _encoding;
-    private int _parallelExports = EncodingJobConcurrency.Default;
     private bool _overwrite;
     private bool _advancedExpanded;
     private EncoderCapability? _encoder;
@@ -89,7 +88,6 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public ExportCodecChoice Codec { get => _codec; set => Set(ref _codec, value); }
     public OutputResolution Resolution { get => _resolution; set => Set(ref _resolution, value); }
     public EncodingOptions Encoding { get => _encoding; set => Set(ref _encoding, EncodingOptions.Normalize(value)); }
-    public int ParallelExports { get => _parallelExports; set => Set(ref _parallelExports, Math.Clamp(value, EncodingJobConcurrency.Minimum, EncodingJobConcurrency.Maximum)); }
     public bool OverwriteExisting { get => _overwrite; set => Set(ref _overwrite, value); }
     public bool AdvancedExpanded { get => _advancedExpanded; set => Set(ref _advancedExpanded, value); }
     public ExportLutChoice Camera { get => _camera; set => Set(ref _camera, value); }
@@ -129,7 +127,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
                 Container = Container switch { ExportContainerChoice.Mov => OutputContainer.Mov, ExportContainerChoice.Mkv => OutputContainer.Mkv, _ => OutputContainer.Mp4 },
                 Codec = Codec == ExportCodecChoice.Hevc ? VideoCodec.Hevc : VideoCodec.H264
             }, null, "", _handoff.IncludeSubfolders, OverwriteExisting, false, _handoff.IncludeSubfolders,
-            EncodingColorMode.Assigned, ParallelExports,
+            EncodingColorMode.Assigned, EncodingJobConcurrency.Default,
             new(Codec == ExportCodecChoice.SameAsSource ? VideoCodecPolicy.SameAsSource : VideoCodecPolicy.Explicit,
                 Container == ExportContainerChoice.SameAsSource ? OutputContainerPolicy.SameAsSource : OutputContainerPolicy.Explicit,
                 EncodingQualityPolicy.Automatic, camera ?? PreviewPolicy(Camera), creative ?? PreviewPolicy(Creative),

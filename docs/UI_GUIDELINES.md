@@ -136,3 +136,9 @@ Avoid:
 Use an owned modal for a bounded action that needs substantial configuration but should not become a navigation destination. Keep the originating workspace alive behind it, use a compact two-column layout with primary choices visible and advanced backend controls behind disclosure, and keep validation close to the final action. Cancel must have no durable side effects. After an immutable request is accepted by application services, close immediately; execution progress belongs to Jobs rather than the modal.
 
 Conditional settings must visually follow their typed authority. Hide or disable bitrate fields outside their rate-control mode, audio details when audio is disabled, and explicit values when Same as Source owns materialization. Use concise product terms and keep technical diagnostics available in preflight detail.
+## Modern Export scheduling
+
+The focused Export modal configures output intent only. Do not show per-submission Parallel exports: simultaneous
+Export count is global Jobs execution policy. A multi-file acceptance remains all-or-nothing and closes only after
+every independently materialized Job is admitted to the global queue; synchronous admission errors remain in the
+modal. Future Jobs surfaces consume one stable row per media export, not nested submission/batch cards.

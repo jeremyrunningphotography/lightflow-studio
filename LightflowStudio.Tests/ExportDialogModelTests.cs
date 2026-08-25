@@ -16,7 +16,6 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal(ColorStagePolicyMode.AsSelectedInLightflow, model.Camera.Mode);
         Assert.Equal(ColorStagePolicyMode.AsSelectedInLightflow, model.Creative.Mode);
         Assert.Equal(AudioEncodingMode.Copy, model.Encoding.AudioMode);
-        Assert.Equal(EncodingJobConcurrency.Default, model.ParallelExports);
         Assert.True(model.CreateSubfolder);
         Assert.Equal("Estimate unavailable", model.EstimateText);
     }
@@ -82,11 +81,11 @@ public sealed class ExportDialogModelTests : IDisposable
     }
 
     [Fact]
-    public void ParallelExportBoundsAreClamped()
+    public void ModernRecipeDoesNotAuthorSchedulerConcurrency()
     {
         var model = CreateModel("clip.mp4");
-        model.ParallelExports = 99; Assert.Equal(EncodingJobConcurrency.Maximum, model.ParallelExports);
-        model.ParallelExports = -1; Assert.Equal(EncodingJobConcurrency.Minimum, model.ParallelExports);
+        Ready(model, Metadata("h264", "mp4"));
+        Assert.Equal(EncodingJobConcurrency.Default, model.CurrentPlan!.Definition.Options.ParallelExports);
     }
 
     [Fact]

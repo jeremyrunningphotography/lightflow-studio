@@ -32,7 +32,6 @@ public partial class ExportDialog : Window
         ResolutionCombo.ItemsSource = ExportPresentation.Resolutions; Select(ResolutionCombo, ExportPresentation.Resolutions, model.Resolution);
         FrameRateCombo.ItemsSource = new[] { "Same as Source", "23.976", "24", "25", "29.97", "30", "50", "59.94", "60" }; FrameRateCombo.SelectedIndex = 0;
         AudioCombo.ItemsSource = new[] { "Use source audio", "AAC", "No audio" }; AudioCombo.SelectedIndex = (int)model.Encoding.AudioMode;
-        ParallelCombo.ItemsSource = Enumerable.Range(EncodingJobConcurrency.Minimum, EncodingJobConcurrency.Maximum).ToArray(); ParallelCombo.SelectedItem = model.ParallelExports;
         CameraCombo.ItemsSource = model.CameraChoices; CameraCombo.SelectedIndex = 0;
         CreativeCombo.ItemsSource = model.CreativeChoices; CreativeCombo.SelectedIndex = 0;
         OverwriteExistingCheck.IsChecked = model.OverwriteExisting;
@@ -137,7 +136,6 @@ public partial class ExportDialog : Window
         if (ContainerCombo.SelectedItem is ExportChoice<ExportContainerChoice> container) _model.Container = container.Value;
         if (CodecCombo.SelectedItem is ExportChoice<ExportCodecChoice> codec) _model.Codec = codec.Value;
         if (ResolutionCombo.SelectedItem is ExportChoice<OutputResolution> resolution) _model.Resolution = resolution.Value;
-        _model.ParallelExports = ParallelCombo.SelectedItem is int parallel ? parallel : EncodingJobConcurrency.Default;
         _model.OverwriteExisting = OverwriteExistingCheck.IsChecked == true; _model.Camera = CameraCombo.SelectedItem as ExportLutChoice ?? _model.Camera; _model.Creative = CreativeCombo.SelectedItem as ExportLutChoice ?? _model.Creative;
         var frameRates = new[] { 0d, 23.976, 24, 25, 29.97, 30, 50, 59.94, 60 };
         var encoding = _model.Encoding with { RateControl = (RateControlCombo.SelectedItem as ExportChoice<RateControlMode>)?.Value ?? _model.Encoding.RateControl, FrameRate = frameRates[Math.Max(0, FrameRateCombo.SelectedIndex)], AudioMode = (AudioEncodingMode)Math.Max(0, AudioCombo.SelectedIndex), Tune = (TuneCombo.SelectedItem as ExportChoice<EncoderTune>)?.Value ?? _model.Encoding.Tune, Multipass = (MultipassCombo.SelectedItem as ExportChoice<MultipassMode>)?.Value ?? _model.Encoding.Multipass, PixelFormat = (PixelFormatCombo.SelectedItem as ExportChoice<VideoPixelFormat>)?.Value ?? _model.Encoding.PixelFormat, SpatialAq = SpatialAqCheck.IsChecked == true, TemporalAq = TemporalAqCheck.IsChecked == true, Deinterlace = DeinterlaceCheck.IsChecked == true, FastStart = FastStartCheck.IsChecked == true };

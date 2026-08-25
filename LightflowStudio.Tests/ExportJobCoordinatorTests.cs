@@ -11,7 +11,7 @@ public sealed class ExportJobCoordinatorTests
         var runtime = new ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult>();
         var history = new MemoryHistory();
         var gates = new Dictionary<Guid, TaskCompletionSource<JobItemResult<EncodingItemResult>>>();
-        var coordinator = new ExportJobCoordinator(runtime, history, () => new(
+        var coordinator = new LegacyExportJobCoordinator(runtime, history, () => new(
             (item, _, _, _) => gates[item.Definition.Id].Task, () => { }));
         var first = Plan("first"); var second = Plan("second");
         foreach (var item in first.Items.Concat(second.Items))
@@ -37,7 +37,7 @@ public sealed class ExportJobCoordinatorTests
     {
         var runtime = new ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult>();
         var terminated = 0;
-        var coordinator = new ExportJobCoordinator(runtime, new MemoryHistory(), () => new(
+        var coordinator = new LegacyExportJobCoordinator(runtime, new MemoryHistory(), () => new(
             async (item, _, _, token) => { await Task.Delay(Timeout.InfiniteTimeSpan, token); throw new UnreachableException(); },
             () => Interlocked.Increment(ref terminated)));
         coordinator.Queue(Plan("a")); coordinator.Queue(Plan("b"));

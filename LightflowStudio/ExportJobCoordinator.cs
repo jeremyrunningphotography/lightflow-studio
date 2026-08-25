@@ -1,7 +1,7 @@
 namespace LightflowStudio;
 
 /// <summary>Application lifetime owner for accepted Export plans and their transient executors.</summary>
-internal sealed class ExportJobCoordinator : IAsyncDisposable
+internal sealed class LegacyExportJobCoordinator : IAsyncDisposable
 {
     private readonly object _sync = new();
     private readonly ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult> _runtime;
@@ -10,7 +10,7 @@ internal sealed class ExportJobCoordinator : IAsyncDisposable
     private readonly Dictionary<Guid, ExportExecutorLease> _executors = [];
     private readonly HashSet<Guid> _historyRecorded = [];
 
-    public ExportJobCoordinator(ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult> runtime,
+    public LegacyExportJobCoordinator(ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult> runtime,
         IJobHistoryStore history, Func<ExportExecutorLease> executorFactory)
     {
         _runtime = runtime;

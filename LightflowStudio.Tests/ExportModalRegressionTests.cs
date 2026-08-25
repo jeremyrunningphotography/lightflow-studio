@@ -211,6 +211,9 @@ public sealed class ExportModalRegressionTests
             ((string?)element.Attribute("Value"))?.Contains("ToolTipBorderBrush") == true);
         var tooltipBorder = app.Descendants().Single(element => element.Name.LocalName == "SolidColorBrush" && (string?)element.Attribute(x + "Key") == "ToolTipBorderBrush");
         Assert.Contains("FFFFFF", (string?)tooltipBorder.Attribute("Color"));
+        var labelHelpRow = dialog.Descendants().Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute(x + "Key") == "LabelHelpRow");
+        Assert.Contains(labelHelpRow.Elements(), element => (string?)element.Attribute("Property") == "Orientation" && (string?)element.Attribute("Value") == "Horizontal");
+        Assert.Contains(labelHelpRow.Elements(), element => (string?)element.Attribute("Property") == "VerticalAlignment" && (string?)element.Attribute("Value") == "Center");
         var infoStyle = dialog.Descendants().Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute(x + "Key") == "InfoHelpButtonStyle");
         Assert.Contains(infoStyle.Elements(), element => (string?)element.Attribute("Property") == "VerticalAlignment" && (string?)element.Attribute("Value") == "Center");
         Assert.Contains(infoStyle.Descendants(), element => element.Name.LocalName == "TranslateTransform" && (string?)element.Attribute("Y") == "-2");
@@ -221,8 +224,13 @@ public sealed class ExportModalRegressionTests
                      "QualityInfo", "AudioInfo", "EncoderInfo", "ParallelInfo", "PresetInfo", "TuneInfo", "MultipassInfo",
                      "PixelFormatInfo", "AqInfo", "SpatialAqInfo", "TemporalAqInfo", "DeinterlaceInfo", "FastStartInfo" })
         {
-            Assert.Contains("InfoButton", (string?)Named(dialog, name).Attribute("Style"));
+            var info = Named(dialog, name);
+            Assert.Contains("InfoButton", (string?)info.Attribute("Style"));
+            Assert.Contains("LabelHelpRow", (string?)info.Parent?.Attribute("Style"));
         }
+        var advancedLabel = dialog.Descendants().Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute(x + "Key") == "AdvancedLabel");
+        Assert.DoesNotContain(advancedLabel.Elements(), element => (string?)element.Attribute("Property") == "Margin");
+        Assert.Contains(advancedLabel.Elements(), element => (string?)element.Attribute("Property") == "VerticalAlignment" && (string?)element.Attribute("Value") == "Center");
     }
 
     [Fact]

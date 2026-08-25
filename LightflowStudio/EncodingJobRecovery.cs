@@ -27,7 +27,8 @@ internal static class EncodingJobRecovery
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
         { issues.Add(Error("jobs.source-unreadable", $"The materialized source cannot be inspected: {exception.Message}")); }
 
-        if (options.ColorMode == EncodingColorMode.Assigned && item.Definition.AssignedColor is { ColorEnabled: true } color)
+        var settings = item.Definition.MaterializedExport ?? EncodingJobPlanner.LegacySettings(options, item.Definition);
+        if (settings.Color is { ColorEnabled: true } color)
         {
             colorResources ??= new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory);
             foreach (var resource in color.OrderedPipeline)

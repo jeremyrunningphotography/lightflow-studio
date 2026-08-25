@@ -15,12 +15,17 @@ internal sealed record EncodingOutputIdentity(
 {
     public static EncodingOutputIdentity Create(JobItemDefinition item, EncodingJobOptions options)
     {
-        var optionText = JsonSerializer.Serialize(new
-        {
-            options.Resolution, options.Recovery, options.Encoding, options.LutPath, options.ColorMode,
-            item.AssignedColor,
-            options.FilenameSuffix, options.PreserveFolderStructure
-        });
+        var optionText = item.MaterializedExport is null
+            ? JsonSerializer.Serialize(new
+            {
+                options.Resolution, options.Recovery, options.Encoding, options.LutPath, options.ColorMode,
+                item.AssignedColor, options.FilenameSuffix, options.PreserveFolderStructure
+            })
+            : JsonSerializer.Serialize(new
+            {
+                options.Resolution, options.Recovery, options.Encoding, options.LutPath, options.ColorMode,
+                item.AssignedColor, item.MaterializedExport, options.FilenameSuffix, options.PreserveFolderStructure
+            });
         return new(Path.GetFullPath(item.SourceIdentity), item.SourceSizeBytes ?? 0,
             item.SourceLastWriteUtcTicks ?? 0, item.ResolvedRange?.RequestedRange.In?.Ticks,
             item.ResolvedRange?.RequestedRange.Out?.Ticks,

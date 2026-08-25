@@ -17,13 +17,14 @@ internal sealed class BatchFileOption : INotifyPropertyChanged
     private TrimIndicatorPresentation _trimIndicator = TrimIndicatorPresentation.For(null, null);
 
     public BatchFileOption(string filePath, string displayName, long fileSizeBytes = 0, int? capabilityOrder = null,
-        MaterializedColorPipeline? assignedColor = null)
+        MaterializedColorPipeline? assignedColor = null, MaterializedExportSettings? restoredExport = null)
     {
         FilePath = filePath;
         DisplayName = displayName;
         FileSizeBytes = fileSizeBytes;
         CapabilityOrder = capabilityOrder;
         AssignedColor = assignedColor;
+        RestoredExport = restoredExport;
         SourceIdentity = TrimSourceIdentity.Read(filePath);
         _detailsText = $"Reading details… · {MediaMetadataPresentation.FormatSize(fileSizeBytes)}";
     }
@@ -33,6 +34,7 @@ internal sealed class BatchFileOption : INotifyPropertyChanged
     public long FileSizeBytes { get; }
     public int? CapabilityOrder { get; }
     public MaterializedColorPipeline? AssignedColor { get; }
+    public MaterializedExportSettings? RestoredExport { get; }
     public TrimSourceIdentity? SourceIdentity { get; }
     public MediaMetadata? Metadata { get; private set; }
     public bool MetadataError { get; private set; }

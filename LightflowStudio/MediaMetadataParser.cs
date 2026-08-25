@@ -22,6 +22,8 @@ internal static class MediaMetadataParser
             var codec = ReadString(video, "codec_name");
             var hasAudio = streams.Any(stream =>
                 stream.TryGetProperty("codec_type", out var type) && type.GetString() == "audio");
+            var audio = streams.FirstOrDefault(stream =>
+                stream.TryGetProperty("codec_type", out var type) && type.GetString() == "audio");
             var formatDuration = document.RootElement.TryGetProperty("format", out var format)
                 ? ReadDouble(format, "duration")
                 : 0;
@@ -33,7 +35,11 @@ internal static class MediaMetadataParser
                 : startTimestamp > 0 && formatDuration > startTimestamp ? formatDuration - startTimestamp
                 : formatDuration;
             metadata = new MediaMetadata(width, height, frameRate, duration, fileSizeBytes, codec, hasAudio,
-                TimeSpan.FromSeconds(Math.Max(0, startTimestamp)));
+                TimeSpan.FromSeconds(Math.Max(0, startTimestamp)), ReadString(format, "format_name"),
+                hasAudio ? ReadString(audio, "codec_name") : null,
+                hasAudio ? ReadNullableInt(audio, "sample_rate") : null,
+                hasAudio ? ReadNullableInt(audio, "channels") : null,
+                hasAudio ? ReadString(audio, "channel_layout") : null);
             return width > 0 && height > 0;
         }
         catch (JsonException)
@@ -54,7 +60,9 @@ internal static class MediaMetadataParser
     }
 
     private static string ReadString(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) ? value.GetString() ?? "" : "";
+        element.TryGetProperty(name, out var value)
+            ? value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : value.ToString()
+            : "";
 
     private static int ReadInt(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.TryGetInt32(out var result) ? result : 0;
@@ -64,4 +72,7 @@ internal static class MediaMetadataParser
         && double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var result)
             ? result
             : 0;
+
+    private static int? ReadNullableInt(JsonElement element, string name) =>
+        int.TryParse(ReadString(element, name), NumberStyles.Integer, CultureInfo.InvariantCulture, out var result) ? result : null;
 }

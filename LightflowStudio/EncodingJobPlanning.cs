@@ -15,7 +15,8 @@ internal sealed record EncodingJobOptions(
     bool DetailedOutput,
     bool IncludeSubfolders = false,
     EncodingColorMode ColorMode = EncodingColorMode.OriginalOrManual,
-    int ParallelExports = EncodingJobConcurrency.Default);
+    int ParallelExports = EncodingJobConcurrency.Default,
+    ExportMaterializationPolicy? MaterializationPolicy = null);
 
 internal static class EncodingJobConcurrency
 {
@@ -41,7 +42,9 @@ internal sealed record EncodingSource(
     long? LastWriteUtcTicks = null,
     bool? HasAudio = null,
     int? CapabilityOrder = null,
-    MaterializedColorPipeline? AssignedColor = null);
+    MaterializedColorPipeline? AssignedColor = null,
+    SourceMediaTraits? MediaTraits = null,
+    MaterializedExportSettings? RestoredExport = null);
 
 internal sealed record EncodingItemResult(
     int ExitCode,
@@ -83,7 +86,8 @@ internal static class EncodingJobPlanner
                 source.ResolvedRange,
                 source.LastWriteUtcTicks,
                 source.HasAudio,
-                source.AssignedColor))
+                source.AssignedColor,
+                ExportSettingsMaterializer.Materialize(options, source)))
             .ToList();
         return new(jobId ?? Guid.NewGuid(), "video.encode", createdAt ?? DateTimeOffset.Now, options, items);
     }
@@ -109,17 +113,20 @@ internal static class EncodingJobPlanner
             issues.Add(new("encoding.invalid-lut", "Select a valid .cube LUT or choose No LUT.", JobIssueSeverity.Error));
         if (definition.Options.ColorMode == EncodingColorMode.Assigned && !string.IsNullOrEmpty(definition.Options.LutPath))
             issues.Add(new("encoding.ambiguous-color", "Assigned Color cannot be combined with a manual Export LUT.", JobIssueSeverity.Error));
+        if (definition.Options.MaterializationPolicy is not null && !string.IsNullOrEmpty(definition.Options.LutPath))
+            issues.Add(new("encoding.ambiguous-color", "Camera/Creative Export policies cannot be combined with a legacy manual Export LUT.", JobIssueSeverity.Error));
         colorResources ??= new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory);
 
         var outputJobs = definition.Items.Select(item => new
         {
             Item = item,
+            Settings = item.MaterializedExport ?? LegacySettings(definition.Options, item),
             Path = EncodingPathPlanner.CreateJob(
                 definition.Options.InputFolder,
                 definition.Options.OutputRoot,
                 item.SourceIdentity,
-                definition.Options.Resolution,
-                definition.Options.Encoding.Container,
+                (item.MaterializedExport ?? LegacySettings(definition.Options, item)).Resolution,
+                (item.MaterializedExport ?? LegacySettings(definition.Options, item)).Encoding.Container,
                 definition.Options.FilenameSuffix,
                 definition.Options.PreserveFolderStructure).OutputPath
         }).ToList();
@@ -139,6 +146,8 @@ internal static class EncodingJobPlanner
         var planItems = outputJobs.Select(output =>
         {
             var itemIssues = new List<JobIssue>();
+            if (!string.IsNullOrWhiteSpace(output.Settings.MaterializationProblem))
+                itemIssues.Add(new("encoding.materialization-unsupported", output.Settings.MaterializationProblem, JobIssueSeverity.Error));
             if (output.Item.MediaRange is { } range) itemIssues.AddRange(range.Validate());
             if (output.Item.ResolvedRange is { } resolvedRange) itemIssues.AddRange(resolvedRange.Validate());
             if (string.Equals(Path.GetFullPath(output.Item.SourceIdentity), Path.GetFullPath(output.Path), StringComparison.OrdinalIgnoreCase))
@@ -147,7 +156,7 @@ internal static class EncodingJobPlanner
                 itemIssues.Add(new("encoding.partial-source-collision", "The Lightflow partial output path would collide with a selected source file.", JobIssueSeverity.Error));
             if (collisions.Contains(output.Path))
                 itemIssues.Add(new("encoding.output-collision", $"The planned output collides with another item: {output.Path}", JobIssueSeverity.Error));
-            if (definition.Options.ColorMode == EncodingColorMode.Assigned && output.Item.AssignedColor is { ColorEnabled: true } color)
+            if (output.Settings.Color is { ColorEnabled: true } color)
             {
                 foreach (var resource in color.OrderedPipeline)
                 {
@@ -187,4 +196,16 @@ internal static class EncodingJobPlanner
 
     private static bool LutPathIsValid(string? path) => string.IsNullOrEmpty(path)
         || (path.EndsWith(".cube", StringComparison.OrdinalIgnoreCase) && File.Exists(path));
+
+    internal static MaterializedExportSettings LegacySettings(EncodingJobOptions options, JobItemDefinition item) =>
+        new(EncodingOptions.Normalize(options.Encoding), options.Resolution,
+            options.Encoding.AudioMode switch
+            {
+                AudioEncodingMode.Copy => new(MaterializedAudioMode.SourceCopyPreferred,
+                    new(options.Encoding.AudioBitrateKbps, options.Encoding.AudioSampleRate, options.Encoding.AudioChannels)),
+                AudioEncodingMode.Aac => new(MaterializedAudioMode.EncodedAac,
+                    new(options.Encoding.AudioBitrateKbps, options.Encoding.AudioSampleRate, options.Encoding.AudioChannels)),
+                _ => new(MaterializedAudioMode.None)
+            }, options.ColorMode == EncodingColorMode.Assigned ? item.AssignedColor : null, null,
+            EncodingQualityPolicy.Explicit);
 }

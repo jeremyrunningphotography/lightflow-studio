@@ -135,17 +135,83 @@ public sealed class NamePartsTests : IDisposable
         Assert.Contains(sourceCollision.Items.Single().Issues, issue => issue.Code == "encoding.source-overwrite");
     }
 
-    [Fact]
-    public void ExistingOutputPolicy_IsAppliedToAlreadyMaterializedPath()
+    [Theory]
+    [InlineData(false, (int)JobPlanDisposition.Skip)]
+    [InlineData(true, (int)JobPlanDisposition.Process)]
+    public void ExistingOutputPolicy_IsAppliedToAlreadyMaterializedPath(
+        bool overwrite, int expectedDisposition)
     {
         var input = Path.Combine(_root, "input3");
         Directory.CreateDirectory(input);
         var options = Options(input, Path.Combine(_root, "out3")) with
         { Naming = new([new(NamePartKind.CustomText, "reserved")]) };
+        options = options with { OverwriteExistingFiles = overwrite };
         var plan = EncodingJobPlanner.Plan(EncodingJobPlanner.Define(options,
             [Source(Path.Combine(input, "a.mp4"), "mp4")]), _ => new(true, 10));
-        Assert.Equal(JobPlanDisposition.Skip, plan.Items.Single().Disposition);
+        Assert.Equal((JobPlanDisposition)expectedDisposition, plan.Items.Single().Disposition);
         Assert.Equal("reserved.mp4", Path.GetFileName(plan.Items.Single().OutputPaths.Single()));
+    }
+
+    [Theory]
+    [InlineData(false, "B")]
+    [InlineData(true, "B")]
+    [InlineData(false, "b")]
+    [InlineData(true, "b")]
+    public void Planner_RejectsOutputCollisionWithAnySelectedSourceRegardlessOfCaseOrOverwrite(
+        bool overwrite, string collidingStem)
+    {
+        var input = Path.Combine(_root, $"selected-sources-{overwrite}-{collidingStem}");
+        Directory.CreateDirectory(input);
+        var options = Options(input, input) with
+        {
+            OverwriteExistingFiles = overwrite,
+            Naming = new([new(NamePartKind.OriginalName)])
+        };
+        var sourceA = Path.Combine(input, "A.mp4");
+        var sourceB = Path.Combine(input, "B.mp4");
+        var definition = EncodingJobPlanner.Define(options,
+            [Source(sourceA, "mp4", 1), Source(sourceB, "mp4", 2)]);
+        definition = definition with
+        {
+            Items = definition.Items.Select(item => item with
+            {
+                MaterializedName = item.SourceIdentity == sourceA
+                    ? item.MaterializedName! with { Stem = collidingStem }
+                    : item.MaterializedName! with { Stem = "exported-B" }
+            }).ToList()
+        };
+
+        var plan = EncodingJobPlanner.Plan(definition, _ => new(overwrite, 10));
+        var itemA = plan.Items.Single(item => item.Definition.SourceIdentity == sourceA);
+        Assert.False(plan.IsValid);
+        Assert.Contains(itemA.Issues, issue => issue.Code == "encoding.source-overwrite"
+            && issue.Severity == JobIssueSeverity.Error
+            && issue.Message.Contains(sourceB, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData((int)NamePartKind.IndexNumber)]
+    [InlineData((int)NamePartKind.Date)]
+    public void UnresolvedModernNaming_UsesExplicitNonLegacyPlaceholder(int unresolvedPartValue)
+    {
+        var unresolvedPart = (NamePartKind)unresolvedPartValue;
+        var input = Path.Combine(_root, $"unresolved-{unresolvedPart}");
+        Directory.CreateDirectory(input);
+        var options = Options(input, Path.Combine(_root, "unresolved-output")) with
+        {
+            FilenameSuffix = "_must-not-appear",
+            Naming = new([new(unresolvedPart)])
+        };
+        var plan = EncodingJobPlanner.Plan(EncodingJobPlanner.Define(options,
+            [Source(Path.Combine(input, "clip.mp4"), "mp4")]), _ => new(false, 0));
+        var item = Assert.Single(plan.Items);
+        var outputName = Path.GetFileName(item.OutputPaths.Single());
+
+        Assert.False(plan.IsValid);
+        Assert.Contains(item.Issues, issue => issue.Code == "naming.unresolved");
+        Assert.StartsWith(".lightflow-unresolved-name-", outputName);
+        Assert.EndsWith(".mp4", outputName);
+        Assert.DoesNotContain(options.FilenameSuffix, outputName);
     }
 
     [Fact]

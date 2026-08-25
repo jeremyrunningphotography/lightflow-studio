@@ -140,7 +140,7 @@ internal static class EncodingJobPlanner
             .Where(group => group.Count() > 1)
             .Select(group => group.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var sourcePaths = definition.Items.Select(item => Path.GetFullPath(item.SourceIdentity))
+        var sourcePaths = definition.Items.Select(item => NormalizePath(item.SourceIdentity))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (collisions.Count > 0)
             issues.Add(new("encoding.output-collision", "Multiple selected files would create the same output filename.", JobIssueSeverity.Error));
@@ -160,9 +160,11 @@ internal static class EncodingJobPlanner
                 itemIssues.Add(new("encoding.materialization-unsupported", output.Settings.MaterializationProblem, JobIssueSeverity.Error));
             if (output.Item.MediaRange is { } range) itemIssues.AddRange(range.Validate());
             if (output.Item.ResolvedRange is { } resolvedRange) itemIssues.AddRange(resolvedRange.Validate());
-            if (string.Equals(Path.GetFullPath(output.Item.SourceIdentity), Path.GetFullPath(output.Path), StringComparison.OrdinalIgnoreCase))
-                itemIssues.Add(new("encoding.source-overwrite", "The output path cannot be the same as the source path.", JobIssueSeverity.Error));
-            if (sourcePaths.Contains(EncodingOutputLifecycle.PartialPathFor(output.Path)))
+            if (sourcePaths.Contains(NormalizePath(output.Path)))
+                itemIssues.Add(new("encoding.source-overwrite",
+                    $"The planned output path collides with a selected source file: {output.Path}",
+                    JobIssueSeverity.Error));
+            if (sourcePaths.Contains(NormalizePath(EncodingOutputLifecycle.PartialPathFor(output.Path))))
                 itemIssues.Add(new("encoding.partial-source-collision", "The Lightflow partial output path would collide with a selected source file.", JobIssueSeverity.Error));
             if (collisions.Contains(NormalizePath(output.Path)))
                 itemIssues.Add(new("encoding.output-collision", $"The planned output collides with another item: {output.Path}", JobIssueSeverity.Error));
@@ -207,13 +209,14 @@ internal static class EncodingJobPlanner
     private static string CreateOutputPath(EncodingJobOptions options, JobItemDefinition item,
         MaterializedExportSettings settings)
     {
-        if (item.MaterializedName?.Stem is not { } stem)
+        if (options.Naming is null)
             return EncodingPathPlanner.CreateJob(options.InputFolder, options.OutputRoot, item.SourceIdentity,
                 settings.Resolution, settings.Encoding.Container, options.FilenameSuffix,
                 options.PreserveFolderStructure).OutputPath;
         var relativeDirectory = options.PreserveFolderStructure
             ? Path.GetDirectoryName(Path.GetRelativePath(options.InputFolder, item.SourceIdentity)) ?? ""
             : "";
+        var stem = item.MaterializedName?.Stem ?? $".lightflow-unresolved-name-{item.Id:N}";
         return Path.Combine(options.OutputRoot, relativeDirectory,
             stem + EncodingPathPlanner.ContainerExtension(settings.Encoding.Container));
     }

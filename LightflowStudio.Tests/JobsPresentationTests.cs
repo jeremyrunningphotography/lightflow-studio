@@ -1,9 +1,13 @@
 using LightflowStudio;
+using System.Collections.ObjectModel;
+using System.Windows.Data;
+using System.Windows.Threading;
 using System.Xml.Linq;
 using Xunit;
 
 namespace LightflowStudio.Tests;
 
+[Collection("STA dispatcher tests")]
 public sealed class JobsPresentationTests
 {
     [Fact]
@@ -208,9 +212,87 @@ public sealed class JobsPresentationTests
 
         var source = MainWindowSource();
         var apply = MethodBody(source, "private void ApplyJobsPresentation");
-        Assert.Contains("ReconcileJobsDrawerCards(cards)", apply);
+        Assert.Contains("JobsPresentation.Reconcile(_jobsDrawerCards, cards)", apply);
         Assert.DoesNotContain("_jobsDrawerCards.Clear", apply);
-        Assert.Contains("existing.Apply(desired[index])", MethodBody(source, "private void ReconcileJobsDrawerCards"));
+    }
+
+    [Fact]
+    public void MultiJobAdmissionAndRefreshPreserveCardIdentityAndAuthoritativeOrder()
+    {
+        var snapshots = Enumerable.Range(1, 3).Select(order => Snapshot(order, JobState.Queued)).ToList();
+        var cards = new ObservableCollection<JobCardPresentation>();
+        JobsPresentation.Reconcile(cards, snapshots.Select(job => JobsPresentation.Card(job, false)).ToList());
+        var identities = cards.ToDictionary(card => card.JobId);
+
+        var running = snapshots.Select((job, index) => job with
+        {
+            State = index == 0 ? JobState.Running : JobState.Queued,
+            ProgressPercent = index == 0 ? 35 : null
+        }).ToList();
+        JobsPresentation.Reconcile(cards, running.Select(job => JobsPresentation.Card(job,
+            identities[job.JobId].IsExpanded)).ToList());
+
+        Assert.Equal(3, cards.Count);
+        Assert.All(cards, card => Assert.Same(identities[card.JobId], card));
+        Assert.Equal(35, cards[0].Progress);
+
+        var reordered = new[] { running[2], running[1], running[0] };
+        JobsPresentation.Reconcile(cards, reordered.Select(job => JobsPresentation.Card(job,
+            identities[job.JobId].IsExpanded)).ToList());
+        Assert.Equal(reordered.Select(job => job.JobId), cards.Select(card => card.JobId));
+        Assert.All(cards, card => Assert.Same(identities[card.JobId], card));
+    }
+
+    [Fact]
+    public void RadialBindingsAreExplicitOneWayForStableReadOnlyPresentationProperties()
+    {
+        var radial = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+            .Single(element => element.Name.LocalName == "JobsRadialProgress");
+        Assert.Equal("{Binding Progress, Mode=OneWay}", (string?)radial.Attribute("Progress"));
+        Assert.Equal("{Binding State, Mode=OneWay}", (string?)radial.Attribute("State"));
+        Assert.Equal("{Binding State, Mode=OneWay}", (string?)radial.Attribute("AutomationProperties.Name"));
+        Assert.True(typeof(JobCardPresentation).GetProperty(nameof(JobCardPresentation.State))!
+            .GetSetMethod(nonPublic: true)!.IsPrivate);
+    }
+
+    [Fact]
+    public async Task RadialOneWayBindingsActivateAndRefreshAgainstStablePrivateSetCard()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var snapshot = Snapshot(1, JobState.Queued);
+            var card = JobsPresentation.Card(snapshot, false);
+            var radial = new JobsRadialProgress { DataContext = card };
+            BindingOperations.SetBinding(radial, JobsRadialProgress.ProgressProperty,
+                new Binding(nameof(JobCardPresentation.Progress)) { Mode = BindingMode.OneWay });
+            BindingOperations.SetBinding(radial, JobsRadialProgress.StateProperty,
+                new Binding(nameof(JobCardPresentation.State)) { Mode = BindingMode.OneWay });
+            radial.Measure(new System.Windows.Size(21, 21));
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.Equal("Waiting", radial.State);
+
+            card.Apply(JobsPresentation.Card(snapshot with { State = JobState.Running, ProgressPercent = 42 }, false));
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.Equal("Exporting", radial.State);
+            Assert.Equal(42, radial.Progress);
+        });
+    }
+
+    [Fact]
+    public void UnexpectedInterfaceErrorGateCoalescesReentrancyAndCanReset()
+    {
+        var gate = new UnexpectedInterfaceErrorGate();
+        var admitted = Enumerable.Range(0, 64).AsParallel().Count(_ => gate.TryEnter());
+        Assert.Equal(1, admitted);
+        Assert.False(gate.TryEnter());
+        gate.Exit();
+        Assert.True(gate.TryEnter());
+
+        var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml.cs"));
+        var handler = MethodBody(source, "private void OnDispatcherUnhandledException");
+        Assert.True(handler.IndexOf("ActivityLog.TryAppend", StringComparison.Ordinal) <
+            handler.IndexOf("TryEnter", StringComparison.Ordinal));
+        Assert.Equal(1, handler.Split("MessageBox.Show", StringSplitOptions.None).Length - 1);
     }
 
     [Fact]
@@ -233,7 +315,11 @@ public sealed class JobsPresentationTests
             (string?)element.Attribute("Click") == "JobsDrawerClose_Click");
         Assert.Contains("OpenJobsDrawer", MethodBody(source, "private void JobsDrawerPull_Click"));
         Assert.Contains("CloseJobsDrawer(true)", MethodBody(source, "private void JobsDrawerPull_Click"));
-        Assert.Contains("OpenJobsDrawer();", source[source.IndexOf("SubmissionAccepted", StringComparison.Ordinal)..]);
+        var acceptedStart = source.IndexOf("_exportScheduler.SubmissionAccepted", StringComparison.Ordinal);
+        var acceptedEnd = source.IndexOf("_workspaceState =", acceptedStart, StringComparison.Ordinal);
+        var accepted = source[acceptedStart..acceptedEnd];
+        Assert.Equal(1, accepted.Split("OpenJobsDrawer();", StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("OpenJobsDrawer", MethodBody(source, "private void ExportScheduler_Changed"));
     }
 
     [Fact]

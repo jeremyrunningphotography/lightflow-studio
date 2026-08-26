@@ -1,5 +1,6 @@
 using System.IO;
 using System.ComponentModel;
+using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
 
 namespace LightflowStudio;
@@ -82,6 +83,33 @@ internal static class JobsPresentation
             $"{encoding.Codec} · {encoding.Container}", quality, audio, color, issue, expanded,
             job.State == JobState.Queued, job.State == JobState.Paused, job.State == JobState.NeedsAttention,
             !IsTerminal(job.State), job.State == JobState.Queued);
+    }
+
+    public static void Reconcile(ObservableCollection<JobCardPresentation> cards,
+        IReadOnlyList<JobCardPresentation> desired)
+    {
+        if (cards.Count == desired.Count && desired.Select((card, index) =>
+            card.JobId == cards[index].JobId).All(matches => matches))
+        {
+            for (var index = 0; index < desired.Count; index++) cards[index].Apply(desired[index]);
+            return;
+        }
+        var desiredIds = desired.Select(card => card.JobId).ToHashSet();
+        for (var index = cards.Count - 1; index >= 0; index--)
+            if (!desiredIds.Contains(cards[index].JobId)) cards.RemoveAt(index);
+        for (var index = 0; index < desired.Count; index++)
+        {
+            var existingIndex = -1;
+            for (var candidate = 0; candidate < cards.Count; candidate++)
+                if (cards[candidate].JobId == desired[index].JobId) { existingIndex = candidate; break; }
+            if (existingIndex < 0) cards.Insert(index, desired[index]);
+            else
+            {
+                var existing = cards[existingIndex];
+                existing.Apply(desired[index]);
+                if (existingIndex != index) cards.Move(existingIndex, index);
+            }
+        }
     }
 
     private static string FormatDuration(TimeSpan value) => value.TotalHours >= 1 ? value.ToString(@"h\:mm\:ss") : value.ToString(@"m\:ss");

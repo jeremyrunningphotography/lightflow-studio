@@ -3802,7 +3802,7 @@ public partial class MainWindow : Window
         MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         var cards = JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds)
             .Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId))).ToList();
-        ReconcileJobsDrawerCards(cards);
+        JobsPresentation.Reconcile(_jobsDrawerCards, cards);
         JobsClearFinishedButton.Visibility = cards.Any(card => JobsPresentation.IsClearableFinished(
             jobs.First(job => job.JobId == card.JobId).State)) ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -3811,32 +3811,6 @@ public partial class MainWindow : Window
     {
         if (JobsPresentation.Route() == JobsRoute.FullJobsCompatibility)
             MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.History);
-    }
-
-    private void ReconcileJobsDrawerCards(IReadOnlyList<JobCardPresentation> desired)
-    {
-        if (_jobsDrawerCards.Count == desired.Count && desired.Select((card, index) =>
-            card.JobId == _jobsDrawerCards[index].JobId).All(matches => matches))
-        {
-            for (var index = 0; index < desired.Count; index++) _jobsDrawerCards[index].Apply(desired[index]);
-            return;
-        }
-        var desiredIds = desired.Select(card => card.JobId).ToHashSet();
-        for (var index = _jobsDrawerCards.Count - 1; index >= 0; index--)
-            if (!desiredIds.Contains(_jobsDrawerCards[index].JobId)) _jobsDrawerCards.RemoveAt(index);
-        for (var index = 0; index < desired.Count; index++)
-        {
-            var existingIndex = -1;
-            for (var candidate = 0; candidate < _jobsDrawerCards.Count; candidate++)
-                if (_jobsDrawerCards[candidate].JobId == desired[index].JobId) { existingIndex = candidate; break; }
-            if (existingIndex < 0) _jobsDrawerCards.Insert(index, desired[index]);
-            else
-            {
-                var existing = _jobsDrawerCards[existingIndex];
-                existing.Apply(desired[index]);
-                if (existingIndex != index) _jobsDrawerCards.Move(existingIndex, index);
-            }
-        }
     }
 
     private void OpenJobsDrawer()

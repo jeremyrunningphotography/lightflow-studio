@@ -782,6 +782,13 @@ the scheduler's validated concurrency, waiting reorder, Pause/Resume, retry, and
 Cancel boundaries; the drawer owns no execution or queue order. `SubmissionAccepted` is the sole auto-reveal seam, so
 ordinary progress and terminal notifications cannot reopen a manually closed drawer.
 
+Stable card properties intentionally expose private setters and notify WPF in place. Bindings into the custom radial
+control are therefore explicit `OneWay` bindings: relying on dependency-property default mode caused WPF to attempt a
+source write while realizing each admitted row, raising a `XamlParseException`/read-only-property inner exception.
+Unexpected dispatcher failures are still logged individually, but a narrow reentrancy gate permits only one active
+fatal interface dialog while that modal dispatcher frame is running; the existing deterministic shutdown policy is
+unchanged.
+
 The drawer occupies a persisted 320–620 px shell column. Its otherwise invisible eight-pixel boundary is the resize
 hit target, matching the Locations-pane splitter without adding a visible grip; `WorkspaceLayoutState.JobsDrawerWidth`
 uses the existing restore/capture seam. Child content is clipped and wrapped inside that column, and the Jobs list

@@ -60,13 +60,13 @@ public sealed class JobsPresentationTests
         var drawer = Named(document, "JobsDrawer");
         var list = Named(document, "JobsDrawerList");
         var template = list.Descendants().Single(element => element.Name.LocalName == "DataTemplate");
-        var expander = template.Descendants().Single(element => element.Name.LocalName == "Expander");
+        var row = template.Elements().Single(element => element.Name.LocalName == "StackPanel");
         var reorder = template.Descendants().Where(element => element.Name.LocalName == "Button" &&
             ((string?)element.Attribute("AutomationProperties.Name"))?.StartsWith("Move waiting Job", StringComparison.Ordinal) == true).ToList();
 
         Assert.Equal("380", (string?)drawer.Attribute("Width"));
         Assert.Equal("0,0,16,0", (string?)list.Attribute("Padding"));
-        Assert.Equal("0,0,0,4", (string?)expander.Attribute("Margin"));
+        Assert.Equal("0,0,0,4", (string?)row.Attribute("Margin"));
         Assert.Equal(2, reorder.Count);
         Assert.All(reorder, button => { Assert.Equal("22", (string?)button.Attribute("Width")); Assert.Equal("22", (string?)button.Attribute("Height")); });
         Assert.All(reorder, button => Assert.NotNull(button.Attribute("ToolTip")));
@@ -90,7 +90,41 @@ public sealed class JobsPresentationTests
         Assert.Equal(2, timingGrid.Element(timingGrid.Name.Namespace + "Grid.ColumnDefinitions")!.Elements().Count());
     }
 
+    [Fact]
+    public void Expansion_UsesDedicatedAccessibleCommandAndNeverUnloadLifecycleEvents()
+    {
+        var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+            .Single(element => element.Name.LocalName == "DataTemplate");
+        var toggle = template.Descendants().Single(element => (string?)element.Attribute("Click") == "JobExpansionToggle_Click");
+        var detail = template.Descendants().Single(element => ((string?)element.Attribute("Visibility"))?.Contains("IsExpanded", StringComparison.Ordinal) == true);
+        var source = MainWindowSource();
+
+        Assert.Contains("Toggle details for", (string?)toggle.Attribute("AutomationProperties.Name"));
+        Assert.Contains("BoolToVisibility", (string?)detail.Attribute("Visibility"));
+        Assert.DoesNotContain(template.Descendants(), element => element.Name.LocalName == "Expander");
+        Assert.DoesNotContain("private void JobExpanded", source);
+        Assert.DoesNotContain("private void JobCollapsed", source);
+        Assert.Contains("var expanded = _expandedJobIds.Add(id);", source);
+        Assert.Contains("row.Children.OfType<Border>().Single().Visibility", source);
+    }
+
+    [Fact]
+    public void CancellableJobs_ExcludeEveryTerminalStateAndCancelAllUsesSchedulerSnapshot()
+    {
+        var states = new[] { JobState.Queued, JobState.Paused, JobState.Running, JobState.NeedsAttention,
+            JobState.Completed, JobState.CompletedWithWarnings, JobState.Skipped, JobState.Failed, JobState.Cancelled };
+        var cancellable = JobsPresentation.CancellableJobs(states.Select((state, index) => Snapshot(index + 1, state)));
+        Assert.Equal([JobState.Queued, JobState.Paused, JobState.Running, JobState.NeedsAttention], cancellable.Select(job => job.State));
+
+        var source = MainWindowSource();
+        Assert.Contains("JobsPresentation.CancellableJobs(_exportScheduler.Jobs).Select(job => job.JobId).ToList()", source);
+        Assert.Contains("foreach (var id in intended) _exportScheduler.Cancel(id);", source);
+        Assert.Contains("Cancel all {intended.Count} cancellable", source);
+        Assert.Contains("job.OutputPath", source);
+    }
+
     private static XDocument DrawerDocument() => XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+    private static string MainWindowSource() => File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
     private static XElement Named(XDocument document, string name) => document.Descendants().Single(element =>
         (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == name);
     private static string FindRepositoryRoot()

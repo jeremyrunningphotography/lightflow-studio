@@ -11,6 +11,9 @@ internal static class JobsPresentation
 
     public static bool HasNonTerminalJobs(IEnumerable<ExportJobSnapshot> jobs) => jobs.Any(job => !IsTerminal(job.State));
 
+    public static IReadOnlyList<ExportJobSnapshot> CancellableJobs(IEnumerable<ExportJobSnapshot> jobs) =>
+        jobs.Where(job => !IsTerminal(job.State)).ToList();
+
     public static string StatusText(IEnumerable<ExportJobSnapshot> jobs)
     {
         var current = jobs.Where(job => !IsTerminal(job.State)).ToList();

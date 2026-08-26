@@ -3786,6 +3786,9 @@ public partial class MainWindow : Window
         JobsStatusButton.Content = JobsPresentation.StatusText(jobs);
         AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open Jobs activity.");
         JobsStatusButton.ToolTip = JobsPresentation.HasNonTerminalJobs(jobs) ? "Open current Jobs activity" : "Open Jobs history";
+        var cancellableCount = JobsPresentation.CancellableJobs(jobs).Count;
+        JobsCancelAllButton.Visibility = cancellableCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        AutomationProperties.SetName(JobsCancelAllButton, $"Cancel all {cancellableCount} cancellable Jobs");
         MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         var cards = JobsPresentation.VisibleJobs(jobs).Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId))).ToList();
         _jobsDrawerCards.Clear();
@@ -3813,8 +3816,14 @@ public partial class MainWindow : Window
     }
 
     private void JobsDrawerClose_Click(object sender, RoutedEventArgs e) => CloseJobsDrawer(true);
-    private void JobExpanded(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.Tag is Guid id) _expandedJobIds.Add(id); }
-    private void JobCollapsed(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.Tag is Guid id) _expandedJobIds.Remove(id); }
+    private void JobExpansionToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (JobIdFrom(sender) is not { } id) return;
+        var expanded = _expandedJobIds.Add(id);
+        if (!expanded) _expandedJobIds.Remove(id);
+        if ((sender as FrameworkElement)?.Parent is Grid header && header.Parent is StackPanel row)
+            row.Children.OfType<Border>().Single().Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private void MaximumExports_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -3832,9 +3841,22 @@ public partial class MainWindow : Window
     private void JobsCancel_Click(object sender, RoutedEventArgs e)
     {
         if (JobIdFrom(sender) is not { } id) return;
-        var answer = MessageBox.Show("Cancel this Export Job? Incomplete output uses the existing cleanup policy.",
+        var job = _exportScheduler.Jobs.FirstOrDefault(snapshot => snapshot.JobId == id && !JobsPresentation.IsTerminal(snapshot.State));
+        if (job is null) return;
+        var answer = MessageBox.Show($"Cancel this Export Job?\n\n{job.OutputPath}\n\nIncomplete output uses the existing cleanup policy.",
             "Cancel Export Job", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (answer == MessageBoxResult.Yes) _exportScheduler.Cancel(id);
+    }
+
+    private void JobsCancelAll_Click(object sender, RoutedEventArgs e)
+    {
+        var intended = JobsPresentation.CancellableJobs(_exportScheduler.Jobs).Select(job => job.JobId).ToList();
+        if (intended.Count == 0) return;
+        var noun = intended.Count == 1 ? "Job" : "Jobs";
+        var answer = MessageBox.Show($"Cancel all {intended.Count} cancellable {noun}?\n\nAlready completed, failed, or cancelled Jobs are unaffected. Incomplete outputs use the existing cleanup policy.",
+            "Cancel all Export Jobs", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes) return;
+        foreach (var id in intended) _exportScheduler.Cancel(id);
     }
 
     private void Window_Closing(object? sender, CancelEventArgs e)

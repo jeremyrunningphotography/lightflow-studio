@@ -108,7 +108,8 @@ public sealed class JobsPresentationTests
         Assert.DoesNotContain("private void JobExpanded", source);
         Assert.DoesNotContain("private void JobCollapsed", source);
         Assert.Contains("var expanded = _expandedJobIds.Add(id);", source);
-        Assert.Contains("row.Children.OfType<Border>().Single().Visibility", source);
+        Assert.Contains("ApplyJobsPresentation(_exportScheduler.Jobs);", MethodBody(source, "JobExpansionToggle_Click"));
+        Assert.DoesNotContain("Children.OfType", MethodBody(source, "JobExpansionToggle_Click"));
     }
 
     [Fact]
@@ -153,8 +154,35 @@ public sealed class JobsPresentationTests
 
         Assert.Equal(2, carets.Count);
         Assert.All(carets, caret => Assert.Contains("IsExpanded", (string?)caret.Attribute("Visibility")));
+        Assert.All(carets, caret => Assert.Equal("Center", (string?)caret.Attribute("VerticalAlignment")));
         Assert.Contains("BoolToVisibility", (string?)reorder.Attribute("Visibility"));
         Assert.DoesNotContain(template.Descendants(), element => element.Name.LocalName == "Expander");
+    }
+
+    [Fact]
+    public void DisclosureGutter_IsFullHeightAndStopsBeforeIndependentRowTargets()
+    {
+        var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+            .Single(element => element.Name.LocalName == "DataTemplate");
+        var toggle = template.Descendants().Single(element =>
+            (string?)element.Attribute("Click") == "JobExpansionToggle_Click");
+        var identityGrid = toggle.Parent!;
+        var columns = identityGrid.Element(identityGrid.Name.Namespace + "Grid.ColumnDefinitions")!.Elements().ToList();
+
+        Assert.Equal("0", (string?)toggle.Attribute("Grid.Column"));
+        Assert.Equal("Stretch", (string?)toggle.Attribute("HorizontalAlignment"));
+        Assert.Equal("Stretch", (string?)toggle.Attribute("VerticalAlignment"));
+        Assert.Equal("22", (string?)columns[0].Attribute("Width"));
+        Assert.Contains("IsExpanded", (string?)toggle.Attribute("AutomationProperties.ItemStatus"));
+        Assert.DoesNotContain(toggle.Descendants(), element => element.Name.LocalName == "JobsRadialProgress");
+        Assert.DoesNotContain(toggle.Descendants(), element =>
+            (string?)element.Attribute("Text") == "{Binding Name}");
+        Assert.DoesNotContain(toggle.Descendants(), element =>
+            ((string?)element.Attribute("Click"))?.StartsWith("JobsMove", StringComparison.Ordinal) == true);
+
+        var handler = MethodBody(MainWindowSource(), "JobExpansionToggle_Click");
+        Assert.Equal(1, handler.Split("_expandedJobIds.Add(id)", StringSplitOptions.None).Length - 1);
+        Assert.Equal(1, handler.Split("_expandedJobIds.Remove(id)", StringSplitOptions.None).Length - 1);
     }
 
     [Fact]

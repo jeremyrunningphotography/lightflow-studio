@@ -3837,8 +3837,7 @@ public partial class MainWindow : Window
         if (JobIdFrom(sender) is not { } id) return;
         var expanded = _expandedJobIds.Add(id);
         if (!expanded) _expandedJobIds.Remove(id);
-        if ((sender as FrameworkElement)?.Parent is Grid header && header.Parent is StackPanel row)
-            row.Children.OfType<Border>().Single().Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        ApplyJobsPresentation(_exportScheduler.Jobs);
     }
 
     private void MaximumExports_SelectionChanged(object sender, SelectionChangedEventArgs e)

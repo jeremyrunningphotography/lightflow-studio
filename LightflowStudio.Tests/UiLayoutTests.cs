@@ -856,7 +856,8 @@ public class UiLayoutTests
         var shellGrid = document.Root.Element(ns + "Grid")!;
 
         Assert.Equal("Horizontal", (string?)itemsPanel.Attribute("Orientation"));
-        Assert.Equal("1", (string?)Named(document, "MainTabs").Attribute("Grid.Row"));
+        Assert.Equal("0", (string?)Named(document, "MainTabs").Attribute("Grid.Column"));
+        Assert.Equal("1", (string?)Named(document, "MainTabs").Parent!.Attribute("Grid.Row"));
         Assert.Null(shellGrid.Element(ns + "Grid.ColumnDefinitions"));
         Assert.DoesNotContain(navigation.Parent!.Parent!.Descendants(), element =>
             (string?)element.Attribute("Background") == "{StaticResource BrandGradient}");
@@ -945,7 +946,7 @@ public class UiLayoutTests
         Assert.Equal(statusBar, appStatusText.Ancestors(ns + "Border").First());
         // The shared bar is a sibling of MainTabs (outside the TabControl entirely), not nested inside the
         // Browser tab's own content, so it's unaffected by which tab is active.
-        Assert.Equal(mainTabs.Parent, statusBar.Parent);
+        Assert.Equal(mainTabs.Parent!.Parent, statusBar.Parent);
         Assert.DoesNotContain(gridHost.Descendants(), element => element == statusText);
         Assert.DoesNotContain(mainTabs.Descendants(), element => element == statusText);
     }

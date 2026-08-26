@@ -43,6 +43,9 @@ public partial class MainWindow : Window
     private readonly ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult> _jobsRuntime;
     private readonly GlobalExportScheduler _exportScheduler;
     private readonly ExportJobCoordinator _exportCoordinator;
+    private readonly ObservableCollection<JobCardPresentation> _jobsDrawerCards = [];
+    private readonly HashSet<Guid> _expandedJobIds = [];
+    private int _jobsPresentationPending;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
     private EncodingJobExecutor? _activeJobExecutor;
     private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
@@ -144,6 +147,11 @@ public partial class MainWindow : Window
         });
         _exportCoordinator = new ExportJobCoordinator(_exportScheduler, _jobHistory);
         _exportCoordinator.Completed += _ => Dispatcher.BeginInvoke(RefreshHistory);
+        _exportScheduler.Changed += ExportScheduler_Changed;
+        _exportScheduler.SubmissionAccepted += _ => Dispatcher.BeginInvoke(() =>
+        {
+            OpenJobsDrawer();
+        });
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
         InitializeBrowserQuickFilterButtons();
@@ -211,6 +219,7 @@ public partial class MainWindow : Window
                 }
                 BatchFileList.ItemsSource = _batchFiles;
                 HistoryList.ItemsSource = _historyRecords;
+                JobsDrawerList.ItemsSource = _jobsDrawerCards;
                 MediaRootsList.ItemsSource = _mediaRoots;
                 BrowserFolderTree.ItemsSource = _browserTree.Roots;
                 BrowserGridRows.ItemsSource = _browserGrid.Rows;
@@ -229,6 +238,7 @@ public partial class MainWindow : Window
                 RefreshHistory();
                 LocateTools();
                 _exportScheduler.MaxSimultaneousExports = _settings.MaxSimultaneousExports;
+                ApplyJobsPresentation(_exportScheduler.Jobs);
                 ReportRecoveredJobs();
                 await RefreshDependencyHealthAsync();
                 RefreshBatchFiles();
@@ -3759,6 +3769,73 @@ public partial class MainWindow : Window
         AppendLog(logMessage);
     }
     private void Cancel_Click(object sender, RoutedEventArgs e) => CancelActiveEncoding();
+
+    private void ExportScheduler_Changed(IReadOnlyList<ExportJobSnapshot> jobs)
+    {
+        if (Interlocked.Exchange(ref _jobsPresentationPending, 1) != 0) return;
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            try { ApplyJobsPresentation(_exportScheduler.Jobs); }
+            finally { Interlocked.Exchange(ref _jobsPresentationPending, 0); }
+        }));
+    }
+
+    private void ApplyJobsPresentation(IReadOnlyList<ExportJobSnapshot> jobs)
+    {
+        if (JobsStatusButton is null) return;
+        JobsStatusButton.Content = JobsPresentation.StatusText(jobs);
+        AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open Jobs activity.");
+        JobsStatusButton.ToolTip = JobsPresentation.HasNonTerminalJobs(jobs) ? "Open current Jobs activity" : "Open Jobs history";
+        MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
+        var cards = JobsPresentation.VisibleJobs(jobs).Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId))).ToList();
+        _jobsDrawerCards.Clear();
+        foreach (var card in cards) _jobsDrawerCards.Add(card);
+    }
+
+    private void JobsStatus_Click(object sender, RoutedEventArgs e)
+    {
+        if (JobsPresentation.Route(_exportScheduler.Jobs) == JobsRoute.HistoryCompatibility)
+        { MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.History); return; }
+        if (JobsDrawer.Visibility == Visibility.Visible) CloseJobsDrawer(true); else OpenJobsDrawer();
+    }
+
+    private void OpenJobsDrawer()
+    {
+        if (JobsDrawer is null) return;
+        JobsDrawerColumn.Width = new GridLength(380);
+        JobsDrawer.Visibility = Visibility.Visible;
+    }
+
+    private void CloseJobsDrawer(bool manual)
+    {
+        JobsDrawer.Visibility = Visibility.Collapsed;
+        JobsDrawerColumn.Width = new GridLength(0);
+    }
+
+    private void JobsDrawerClose_Click(object sender, RoutedEventArgs e) => CloseJobsDrawer(true);
+    private void JobExpanded(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.Tag is Guid id) _expandedJobIds.Add(id); }
+    private void JobCollapsed(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.Tag is Guid id) _expandedJobIds.Remove(id); }
+
+    private void MaximumExports_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var maximum = (MaximumExportsCombo?.SelectedIndex ?? -1) + EncodingJobConcurrency.Minimum;
+        if (maximum >= EncodingJobConcurrency.Minimum && maximum != _exportScheduler.MaxSimultaneousExports)
+            _exportScheduler.MaxSimultaneousExports = maximum;
+    }
+
+    private Guid? JobIdFrom(object sender) => (sender as FrameworkElement)?.Tag is Guid id ? id : null;
+    private void JobsPause_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.Pause(id); }
+    private void JobsResume_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.Resume(id); }
+    private void JobsRetry_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.RetryNeedsAttention(id); }
+    private void JobsMoveUp_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.MoveWaiting(id, -1); }
+    private void JobsMoveDown_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.MoveWaiting(id, 1); }
+    private void JobsCancel_Click(object sender, RoutedEventArgs e)
+    {
+        if (JobIdFrom(sender) is not { } id) return;
+        var answer = MessageBox.Show("Cancel this Export Job? Incomplete output uses the existing cleanup policy.",
+            "Cancel Export Job", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer == MessageBoxResult.Yes) _exportScheduler.Cancel(id);
+    }
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {

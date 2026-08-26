@@ -142,3 +142,9 @@ The focused Export modal configures output intent only. Do not show per-submissi
 Export count is global Jobs execution policy. A multi-file acceptance remains all-or-nothing and closes only after
 every independently materialized Job is admitted to the global queue; synchronous admission errors remain in the
 modal. Future Jobs surfaces consume one stable row per media export, not nested submission/batch cards.
+
+The canonical Jobs entry lives in the global bottom status bar. With non-terminal work it toggles a compact
+right-side drawer without navigating away from Browser or Player; with no non-terminal work #170 temporarily routes
+to History until #171 replaces that compatibility destination. Rows expose filename, textual state, ETA, and a
+shape-plus-color radial state at a glance. Expansion reveals the complete output path and materialized settings.
+Waiting reorder always updates scheduler order and includes explicit keyboard-focusable earlier/later buttons.

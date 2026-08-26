@@ -305,7 +305,9 @@
    </Grid>
   </Border>
 
-  <TabControl Grid.Row="1" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
+  <Grid Grid.Row="1">
+  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition x:Name="JobsDrawerColumn" Width="0"/></Grid.ColumnDefinitions>
+  <TabControl Grid.Column="0" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
    SelectionChanged="MainTabs_SelectionChanged">
    <TabItem>
     <Grid Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}">
@@ -1072,6 +1074,37 @@
     </Border></Grid>
    </TabItem>
   </TabControl>
+  <Border Grid.Column="1" x:Name="JobsDrawer" Width="380" Background="{StaticResource ShellSurfaceBrush}"
+   BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1,0,0,0" Visibility="Collapsed">
+   <Grid Margin="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <DockPanel Margin="0,0,0,12">
+     <Button DockPanel.Dock="Right" Style="{StaticResource BrowserThumbnailSizeStepButtonStyle}" Content="&#xE711;" ToolTip="Close Jobs drawer" AutomationProperties.Name="Close Jobs drawer" Click="JobsDrawerClose_Click"/>
+     <StackPanel><TextBlock Style="{StaticResource PageTitle}" FontSize="18" Text="Jobs"/><TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Current and recent exports"/></StackPanel>
+    </DockPanel>
+    <DockPanel Grid.Row="1" Margin="0,0,0,12"><TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="Maximum simultaneous exports"/>
+     <ComboBox x:Name="MaximumExportsCombo" DockPanel.Dock="Right" Width="58" SelectedValuePath="Content" SelectionChanged="MaximumExports_SelectionChanged">
+      <ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/><ComboBoxItem Content="4"/><ComboBoxItem Content="5"/><ComboBoxItem Content="6"/><ComboBoxItem Content="7"/><ComboBoxItem Content="8"/>
+     </ComboBox></DockPanel>
+    <ListBox Grid.Row="2" x:Name="JobsDrawerList" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+     <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="IsTabStop" Value="False"/></Style></ListBox.ItemContainerStyle>
+     <ListBox.ItemTemplate><DataTemplate><Expander Margin="0,0,0,9" Tag="{Binding JobId}" IsExpanded="{Binding IsExpanded, Mode=OneTime}" Expanded="JobExpanded" Collapsed="JobCollapsed">
+      <Expander.Header><Grid Width="326"><Grid.ColumnDefinitions><ColumnDefinition Width="34"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <local:JobsRadialProgress Width="25" Height="25" Progress="{Binding Progress}" State="{Binding State}" AutomationProperties.Name="{Binding State}"/>
+       <StackPanel Grid.Column="1"><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis"/><TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11"><Run Text="{Binding State}"/><Run Text="  "/><Run Text="{Binding Eta}"/></TextBlock></StackPanel>
+       <StackPanel Grid.Column="2" Orientation="Horizontal"><Button Content="↑" Tag="{Binding JobId}" IsEnabled="{Binding CanReorder}" ToolTip="Move waiting Job earlier" AutomationProperties.Name="Move waiting Job earlier" Click="JobsMoveUp_Click"/><Button Content="↓" Tag="{Binding JobId}" IsEnabled="{Binding CanReorder}" ToolTip="Move waiting Job later" AutomationProperties.Name="Move waiting Job later" Click="JobsMoveDown_Click"/></StackPanel>
+      </Grid></Expander.Header>
+      <Border Margin="0,8,0,0" Padding="10" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="7"><StackPanel>
+       <ProgressBar Height="5" Maximum="100" Value="{Binding Progress}"/><DockPanel Margin="0,5,0,9"><TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding Elapsed, StringFormat=Elapsed {0}}"/><TextBlock DockPanel.Dock="Right" Foreground="{StaticResource TextBrush}" Text="{Binding Progress, StringFormat={}{0:0}%}"/></DockPanel>
+       <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="OUTPUT"/><TextBlock Foreground="{StaticResource TextBrush}" Text="{Binding OutputPath}" TextWrapping="Wrap"/>
+       <TextBlock Margin="0,8,0,0" Foreground="{StaticResource MutedTextBrush}" Text="{Binding ResolutionAndFrameRate}"/><TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding CodecAndContainer}"/><TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding Quality}"/><TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding Audio, StringFormat=Audio: {0}}"/><TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding Color, StringFormat=Color: {0}}"/>
+       <TextBlock Margin="0,7,0,0" Foreground="{StaticResource WarningBrush}" FontSize="11" Text="{Binding Issue}" TextWrapping="Wrap"/>
+       <WrapPanel HorizontalAlignment="Right" Margin="0,9,0,0"><Button Content="Pause" Tag="{Binding JobId}" IsEnabled="{Binding CanPause}" Click="JobsPause_Click"/><Button Content="Resume" Tag="{Binding JobId}" IsEnabled="{Binding CanResume}" Click="JobsResume_Click"/><Button Content="Retry" Tag="{Binding JobId}" IsEnabled="{Binding CanRetry}" Click="JobsRetry_Click"/><Button Style="{StaticResource DangerButton}" Content="Cancel…" Tag="{Binding JobId}" IsEnabled="{Binding CanCancel}" Click="JobsCancel_Click"/></WrapPanel>
+      </StackPanel></Border>
+     </Expander></DataTemplate></ListBox.ItemTemplate>
+    </ListBox>
+   </Grid>
+  </Border>
+  </Grid>
 
   <!--
    One application-wide status strip rather than a Browser-specific bar stacked above an unrelated global
@@ -1106,6 +1139,7 @@
     <TextBlock x:Name="BrowserStatusText" DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
      FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="380" Margin="0,0,14,0" Visibility="Collapsed"/>
     <Border x:Name="BrowserStatusDivider" DockPanel.Dock="Right" Width="1" Margin="0,9,14,9" Background="{StaticResource ShellDividerBrush}" Visibility="Collapsed"/>
+    <Button x:Name="JobsStatusButton" DockPanel.Dock="Right" Margin="0,0,12,0" Padding="9,3" Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextBrush}" Content="Jobs" ToolTip="Open Jobs activity" AutomationProperties.Name="Jobs, no active work" Click="JobsStatus_Click"/>
     <Ellipse DockPanel.Dock="Left" Width="7" Height="7" Fill="{StaticResource SuccessBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
     <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"
      TextTrimming="CharacterEllipsis" Text="Checking FFmpeg…"/>

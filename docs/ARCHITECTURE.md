@@ -773,6 +773,13 @@ Modern Export execution follows this boundary:
 
 `Export setup/preflight → N immutable Export Jobs → atomic global reservation → durable ordered scheduler → single-Job executor → terminal/historical Job`
 
+The global Jobs drawer is a presentation/control projection directly over `GlobalExportScheduler.Jobs`. One scheduler
+snapshot produces one file row; submission provenance never creates a runtime container. The shell coalesces
+high-frequency `Changed` notifications onto the WPF background dispatcher, while expansion state remains keyed by
+stable `JobId`. Drawer commands call the scheduler's validated concurrency, waiting reorder, Pause/Resume, retry, and
+Cancel boundaries; the drawer owns no execution or queue order. `SubmissionAccepted` is the sole auto-reveal seam, so
+ordinary progress and terminal notifications cannot reopen a manually closed drawer.
+
 The modal remains a complete-submission setup surface because deterministic input order, Name Parts sequence,
 Same-as-Source, Color/range snapshots, final paths, and within-submission collision checks require simultaneous
 knowledge. Acceptance then promotes every planned item into an independent `ExportJobDefinition`. `SubmissionId`

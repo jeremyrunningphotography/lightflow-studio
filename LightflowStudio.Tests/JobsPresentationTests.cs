@@ -1,4 +1,5 @@
 using LightflowStudio;
+using System.Xml.Linq;
 using Xunit;
 
 namespace LightflowStudio.Tests;
@@ -50,6 +51,53 @@ public sealed class JobsPresentationTests
             Assert.Equal(glyph, JobsPresentation.Glyph(state));
             Assert.Equal(stateText, JobsPresentation.StateText(state));
         }
+    }
+
+    [Fact]
+    public void DrawerRows_AreDenseAndReorderButtonsRemainCompactFocusTargets()
+    {
+        var document = DrawerDocument();
+        var drawer = Named(document, "JobsDrawer");
+        var list = Named(document, "JobsDrawerList");
+        var template = list.Descendants().Single(element => element.Name.LocalName == "DataTemplate");
+        var expander = template.Descendants().Single(element => element.Name.LocalName == "Expander");
+        var reorder = template.Descendants().Where(element => element.Name.LocalName == "Button" &&
+            ((string?)element.Attribute("AutomationProperties.Name"))?.StartsWith("Move waiting Job", StringComparison.Ordinal) == true).ToList();
+
+        Assert.Equal("380", (string?)drawer.Attribute("Width"));
+        Assert.Equal("0,0,16,0", (string?)list.Attribute("Padding"));
+        Assert.Equal("0,0,0,4", (string?)expander.Attribute("Margin"));
+        Assert.Equal(2, reorder.Count);
+        Assert.All(reorder, button => { Assert.Equal("22", (string?)button.Attribute("Width")); Assert.Equal("22", (string?)button.Attribute("Height")); });
+        Assert.All(reorder, button => Assert.NotNull(button.Attribute("ToolTip")));
+    }
+
+    [Fact]
+    public void ExpandedCard_PreservesFullPathAndUsesOneProgressValueWithoutTimingOverlap()
+    {
+        var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+            .Single(element => element.Name.LocalName == "DataTemplate");
+        var path = template.Descendants().Single(element => (string?)element.Attribute("Text") == "{Binding OutputPath}");
+        var progress = template.Descendants().Single(element => element.Name.LocalName == "ProgressBar");
+        var percentage = template.Descendants().Single(element => ((string?)element.Attribute("Text"))?.Contains("Progress, StringFormat", StringComparison.Ordinal) == true);
+        var timingGrid = percentage.Parent!;
+
+        Assert.Equal("Wrap", (string?)path.Attribute("TextWrapping"));
+        Assert.Equal("{Binding OutputPath}", (string?)path.Attribute("ToolTip"));
+        Assert.Equal("{Binding Progress}", (string?)progress.Attribute("Value"));
+        Assert.Contains("{Binding Progress", (string?)percentage.Attribute("Text"));
+        Assert.Equal("1", (string?)percentage.Attribute("Grid.Column"));
+        Assert.Equal(2, timingGrid.Element(timingGrid.Name.Namespace + "Grid.ColumnDefinitions")!.Elements().Count());
+    }
+
+    private static XDocument DrawerDocument() => XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+    private static XElement Named(XDocument document, string name) => document.Descendants().Single(element =>
+        (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == name);
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "LightflowStudio"))) directory = directory.Parent;
+        return directory?.FullName ?? throw new DirectoryNotFoundException("Repository root not found.");
     }
 
     private static ExportJobSnapshot Snapshot(int order, JobState state)

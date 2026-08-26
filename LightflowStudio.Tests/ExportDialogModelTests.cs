@@ -17,7 +17,7 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal(ColorStagePolicyMode.AsSelectedInLightflow, model.Creative.Mode);
         Assert.Equal(AudioEncodingMode.Copy, model.Encoding.AudioMode);
         Assert.True(model.CreateSubfolder);
-        Assert.Equal("Estimate unavailable", model.EstimateText);
+        Assert.Equal("1 file ready to export", model.ReadySummary);
     }
 
     [Fact]
@@ -151,9 +151,13 @@ public sealed class ExportDialogModelTests : IDisposable
 
         Assert.True(model.SubmissionItems[0].HasRange);
         Assert.True(model.SubmissionItems[0].UseRange);
-        Assert.Equal("Use In/Out: 00:01.0 – 00:03.0", model.SubmissionItems[0].RangeText);
+        Assert.Equal(24, model.SubmissionItems[0].ExportSegmentLeft, 3);
+        Assert.Equal(48, model.SubmissionItems[0].ExportSegmentWidth, 3);
+        Assert.Contains("00:01.0 – 00:03.0", model.SubmissionItems[0].RangeToolTip);
+        Assert.Contains("2.0 s selected", model.SubmissionItems[0].RangeToolTip);
         Assert.False(model.SubmissionItems[1].HasRange);
-        Assert.Equal("", model.SubmissionItems[1].RangeText);
+        Assert.Equal(0, model.SubmissionItems[1].ExportSegmentLeft);
+        Assert.Equal(240, model.SubmissionItems[1].ExportSegmentWidth);
         Assert.False(model.SubmissionItems[1].RangeControlEnabled);
         Assert.True(model.GlobalUseRangeState);
         var ranged = model.CurrentPlan!.Items[0];
@@ -162,6 +166,9 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal(2.04, ranged.WorkEstimate.Value!.Value, 2);
 
         model.SetUseRange(0, false);
+        Assert.Equal(0, model.SubmissionItems[0].ExportSegmentLeft);
+        Assert.Equal(240, model.SubmissionItems[0].ExportSegmentWidth);
+        Assert.StartsWith("Full source", model.SubmissionItems[0].RangeToolTip);
         var full = model.CurrentPlan!.Items[0];
         Assert.Null(full.Definition.ResolvedRange);
         Assert.Null(full.Definition.MediaRange!.In);
@@ -181,6 +188,45 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.True(model.SubmissionItems[0].RangeControlEnabled);
         model.SetUseRange(0, true);
         Assert.True(model.SubmissionItems[0].UseRange);
+    }
+
+    [Fact]
+    public void ReadySummaryUsesSubmissionCountAndOnlyDefensibleMaterializedBitrates()
+    {
+        var model = CreateModel("a.mp4", "b.mp4");
+        Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
+        Assert.Equal("2 files ready to export", model.ReadySummary);
+
+        model.Encoding = model.Encoding with
+        {
+            RateControl = RateControlMode.ConstantBitrate,
+            TargetBitrateMbps = 20,
+            AudioMode = AudioEncodingMode.Aac,
+            AudioBitrateKbps = 192
+        };
+        Assert.Equal("2 files ready to export · Est. 26 MB", model.ReadySummary);
+
+        model.Encoding = model.Encoding with { RateControl = RateControlMode.VariableBitrate };
+        Assert.Equal("2 files ready to export", model.ReadySummary);
+        model.Encoding = model.Encoding with { RateControl = RateControlMode.ConstantQuality };
+        Assert.Equal("2 files ready to export", model.ReadySummary);
+    }
+
+    [Fact]
+    public void SubmissionRowsRemainDistinctWhenFuturePlansRepeatASource()
+    {
+        var path = Path.Combine(_root, "repeated.mp4");
+        File.WriteAllText(path, "source");
+        var first = new EncodingHandoffInput(Guid.NewGuid(), Guid.NewGuid(), path, "repeated.mp4", 6,
+            new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)));
+        var second = first with { AssetId = Guid.NewGuid(), InitialTrim = new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(9)) };
+        var model = new ExportDialogModel(new([first, second], [], _root), new EncodingOptions(), [], [],
+            new FakeResources(), _ => new(false, 0));
+        model.ApplyMetadata([Metadata("h264", "mp4"), Metadata("h264", "mp4")]);
+
+        Assert.Equal(2, model.SubmissionItems.Count);
+        Assert.Equal(["→ repeated-001.mp4", "→ repeated-002.mp4"], model.SubmissionItems.Select(item => item.OutputText));
+        Assert.Equal([24d, 144d], model.SubmissionItems.Select(item => item.ExportSegmentLeft));
     }
 
     [Fact]

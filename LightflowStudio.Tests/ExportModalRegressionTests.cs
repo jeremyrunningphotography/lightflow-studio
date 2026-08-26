@@ -28,14 +28,20 @@ public sealed class ExportModalRegressionTests
         var rangeCheck = xaml.Descendants().Single(element => element.Attributes().Any(attribute =>
             attribute.Name.LocalName == "Name" && attribute.Value == "RangeCheck"));
         Assert.Null(rangeCheck.Attribute("Grid.Column"));
-        Assert.Equal("{Binding RangeText}", (string?)rangeCheck.Attribute("Content"));
-        Assert.Equal("0,2,0,0", (string?)rangeCheck.Attribute("Margin"));
+        Assert.Equal("Use In/Out", (string?)rangeCheck.Attribute("Content"));
         Assert.Equal("{Binding RangeControlEnabled}", (string?)rangeCheck.Attribute("IsEnabled"));
+        var timeline = Named(xaml, "RangeTimeline");
+        Assert.Equal("1", (string?)timeline.Attribute("Grid.Column"));
+        Assert.Equal("True", (string?)timeline.Attribute("Focusable"));
+        Assert.Equal("{Binding RangeToolTip}", (string?)timeline.Attribute("ToolTip"));
+        Assert.Equal("{Binding TimelineAutomationName}", (string?)timeline.Attribute("AutomationProperties.Name"));
+        Assert.Contains(timeline.Descendants(), element => (string?)element.Attribute("Canvas.Left") == "{Binding ExportSegmentLeft}"
+            && (string?)element.Attribute("Width") == "{Binding ExportSegmentWidth}");
         var noRangeTrigger = xaml.Descendants().Single(element => element.Name.LocalName == "DataTrigger"
             && (string?)element.Attribute("Binding") == "{Binding HasRange}");
         Assert.Contains(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeCheck"
-            && (string?)element.Attribute("Value") == "Collapsed");
-        Assert.DoesNotContain(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeText");
+            && (string?)element.Attribute("Value") == "Hidden");
+        Assert.DoesNotContain(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeTimeline");
         Assert.DoesNotContain(xaml.Descendants(), element => (string?)element.Attribute("Content") is "Use all In/Out" or "Ignore all In/Out");
         Assert.Contains(xaml.Descendants(), element => (string?)element.Attribute("AutomationProperties.Name") == "{Binding RangeAutomationName}");
         Assert.DoesNotContain(xaml.Descendants(), element => (string?)element.Attribute("Content") is "Select all" or "Clear all");
@@ -50,6 +56,7 @@ public sealed class ExportModalRegressionTests
         Assert.Equal("CenterOwner", (string?)xaml.Root!.Attribute("WindowStartupLocation"));
         Assert.DoesNotContain("Estimate unavailable", xaml.ToString());
         Assert.DoesNotContain("Ready to export", xaml.ToString());
+        Assert.NotNull(Named(xaml, "ReadySummaryText"));
         Assert.DoesNotContain("ProgressBar", xaml.Descendants().Select(x => x.Name.LocalName));
         Assert.Contains("_coordinator.Queue(plan); DialogResult=true", text);
         Assert.DoesNotContain("await runtime.Completion", text);

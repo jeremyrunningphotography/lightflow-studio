@@ -177,6 +177,7 @@ public partial class ExportDialog : Window
         var lines = _model.IsAnalyzing ? [] : _model.Errors.Select(x => "Error — " + x.Message).Concat(_model.Warnings.Select(x => "Warning — " + x.Message)).ToList();
         ValidationText.Text = string.Join(Environment.NewLine, lines);
         ValidationBorder.Visibility = lines.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        ReadySummaryText.Text = _model.ReadySummary;
         ExportButton.IsEnabled = _model.CanExport;
     }
     private void RangeUse_Changed(object sender, RoutedEventArgs e)
@@ -222,6 +223,22 @@ public partial class ExportDialog : Window
     private void InfoButton_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
         if (sender is System.Windows.Controls.Button { ToolTip: System.Windows.Controls.ToolTip toolTip }) toolTip.IsOpen = false;
+    }
+    private void RangeTimeline_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is not FrameworkElement element) return;
+        if (element.ToolTip is string help)
+            element.ToolTip = new System.Windows.Controls.ToolTip
+            {
+                Content = help,
+                PlacementTarget = element,
+                Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom
+            };
+        if (element.ToolTip is System.Windows.Controls.ToolTip toolTip) toolTip.IsOpen = true;
+    }
+    private void RangeTimeline_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is FrameworkElement { ToolTip: System.Windows.Controls.ToolTip toolTip }) toolTip.IsOpen = false;
     }
     private void NamePart_MouseDown(object sender, MouseButtonEventArgs e)
     { if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _dragStart = e.GetPosition(this); _dragPartIndex = chip.Index; } }

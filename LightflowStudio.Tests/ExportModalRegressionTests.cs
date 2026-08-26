@@ -37,6 +37,13 @@ public sealed class ExportModalRegressionTests
         Assert.Equal("{Binding TimelineAutomationName}", (string?)timeline.Attribute("AutomationProperties.Name"));
         Assert.Contains(timeline.Descendants(), element => (string?)element.Attribute("Canvas.Left") == "{Binding ExportSegmentLeft}"
             && (string?)element.Attribute("Width") == "{Binding ExportSegmentWidth}");
+        Assert.Equal("120", (string?)timeline.Descendants().Single(element => element.Name.LocalName == "Canvas").Attribute("Width"));
+        var sourceName = xaml.Descendants().Single(element => (string?)element.Attribute("Text") == "{Binding SourceFileName}");
+        var outputName = xaml.Descendants().Single(element => (string?)element.Attribute("Text") == "{Binding OutputText}");
+        Assert.Equal("{DynamicResource MutedTextBrush}", (string?)sourceName.Attribute("Foreground"));
+        Assert.Null(sourceName.Attribute("FontWeight"));
+        Assert.Equal("SemiBold", (string?)outputName.Attribute("FontWeight"));
+        Assert.Equal("{DynamicResource TextBrush}", (string?)outputName.Attribute("Foreground"));
         var noRangeTrigger = xaml.Descendants().Single(element => element.Name.LocalName == "DataTrigger"
             && (string?)element.Attribute("Binding") == "{Binding HasRange}");
         Assert.Contains(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeCheck"

@@ -37,7 +37,13 @@ public sealed class ExportModalRegressionTests
         Assert.Equal("{Binding TimelineAutomationName}", (string?)timeline.Attribute("AutomationProperties.Name"));
         Assert.Contains(timeline.Descendants(), element => (string?)element.Attribute("Canvas.Left") == "{Binding ExportSegmentLeft}"
             && (string?)element.Attribute("Width") == "{Binding ExportSegmentWidth}");
-        Assert.Equal("120", (string?)timeline.Descendants().Single(element => element.Name.LocalName == "Canvas").Attribute("Width"));
+        Assert.Equal("240", (string?)timeline.Descendants().Single(element => element.Name.LocalName == "Canvas").Attribute("Width"));
+        Assert.Equal("14", (string?)timeline.Attribute("Height"));
+        var timelineBars = timeline.Descendants().Where(element => element.Name.LocalName == "Border").ToArray();
+        Assert.Contains(timelineBars, element => (string?)element.Attribute("Width") == "240"
+            && (string?)element.Attribute("Height") == "2");
+        Assert.Contains(timelineBars, element => (string?)element.Attribute("Width") == "{Binding ExportSegmentWidth}"
+            && (string?)element.Attribute("Height") == "4");
         var sourceName = xaml.Descendants().Single(element => (string?)element.Attribute("Text") == "{Binding SourceFileName}");
         var outputName = xaml.Descendants().Single(element => (string?)element.Attribute("Text") == "{Binding OutputText}");
         Assert.Equal("{DynamicResource MutedTextBrush}", (string?)sourceName.Attribute("Foreground"));

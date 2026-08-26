@@ -151,13 +151,13 @@ public sealed class ExportDialogModelTests : IDisposable
 
         Assert.True(model.SubmissionItems[0].HasRange);
         Assert.True(model.SubmissionItems[0].UseRange);
-        Assert.Equal(12, model.SubmissionItems[0].ExportSegmentLeft, 3);
-        Assert.Equal(24, model.SubmissionItems[0].ExportSegmentWidth, 3);
+        Assert.Equal(24, model.SubmissionItems[0].ExportSegmentLeft, 3);
+        Assert.Equal(48, model.SubmissionItems[0].ExportSegmentWidth, 3);
         Assert.Contains("00:01.0 – 00:03.0", model.SubmissionItems[0].RangeToolTip);
         Assert.Contains("2.0 s selected", model.SubmissionItems[0].RangeToolTip);
         Assert.False(model.SubmissionItems[1].HasRange);
         Assert.Equal(0, model.SubmissionItems[1].ExportSegmentLeft);
-        Assert.Equal(120, model.SubmissionItems[1].ExportSegmentWidth);
+        Assert.Equal(240, model.SubmissionItems[1].ExportSegmentWidth);
         Assert.False(model.SubmissionItems[1].RangeControlEnabled);
         Assert.True(model.GlobalUseRangeState);
         var ranged = model.CurrentPlan!.Items[0];
@@ -167,7 +167,7 @@ public sealed class ExportDialogModelTests : IDisposable
 
         model.SetUseRange(0, false);
         Assert.Equal(0, model.SubmissionItems[0].ExportSegmentLeft);
-        Assert.Equal(120, model.SubmissionItems[0].ExportSegmentWidth);
+        Assert.Equal(240, model.SubmissionItems[0].ExportSegmentWidth);
         Assert.StartsWith("Full source", model.SubmissionItems[0].RangeToolTip);
         var full = model.CurrentPlan!.Items[0];
         Assert.Null(full.Definition.ResolvedRange);
@@ -226,7 +226,7 @@ public sealed class ExportDialogModelTests : IDisposable
 
         Assert.Equal(2, model.SubmissionItems.Count);
         Assert.Equal(["→ repeated-001.mp4", "→ repeated-002.mp4"], model.SubmissionItems.Select(item => item.OutputText));
-        Assert.Equal([12d, 72d], model.SubmissionItems.Select(item => item.ExportSegmentLeft));
+        Assert.Equal([24d, 144d], model.SubmissionItems.Select(item => item.ExportSegmentLeft));
     }
 
     [Fact]

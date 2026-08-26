@@ -246,7 +246,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
 
     private IReadOnlyList<ExportSubmissionItem> BuildSubmissionItems()
     {
-        const double timelineWidth = 120;
+        const double timelineWidth = 240;
         var planned = _plan?.Items;
         return _handoff.Inputs.Select((input, index) =>
         {

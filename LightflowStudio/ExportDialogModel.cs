@@ -11,6 +11,20 @@ internal enum ExportCodecChoice { SameAsSource, H264, Hevc }
 internal sealed record ExportLutChoice(string Label, ColorStagePolicyMode Mode,
     ManagedLutResource? Resource = null);
 
+internal sealed record ExportSubmissionItem(
+    int Index,
+    string SourceFileName,
+    string OutputText,
+    string OutputAutomationText,
+    bool HasRange,
+    bool UseRange,
+    bool RangeControlEnabled,
+    string RangeAutomationName,
+    double ExportSegmentLeft,
+    double ExportSegmentWidth,
+    string RangeToolTip,
+    string TimelineAutomationName);
+
 internal sealed class ExportDialogModel : INotifyPropertyChanged
 {
     private readonly EncodingHandoffResult _handoff;
@@ -18,6 +32,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private readonly IEncodingLutResourceStore _resourceStore;
     private IReadOnlyList<MediaMetadata?> _metadata;
     private IReadOnlyList<ResolvedMediaRange?> _resolvedRanges;
+    private readonly bool[] _useRanges;
+    private bool _rangesGloballyEnabled = true;
     private JobPlan<EncodingJobOptions>? _plan;
     private string _destination;
     private bool _createSubfolder = true;
@@ -42,13 +58,14 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         _encoding = EncodingOptions.Normalize(defaults) with { AudioMode = AudioEncodingMode.Copy, FrameRate = 0 };
         _metadata = Enumerable.Repeat<MediaMetadata?>(null, handoff.Inputs.Count).ToArray();
         _resolvedRanges = Enumerable.Repeat<ResolvedMediaRange?>(null, handoff.Inputs.Count).ToArray();
+        _useRanges = handoff.Inputs.Select(input => input.InitialTrim is { IsFullSource: false }).ToArray();
         _resourceStore = resourceStore;
         _inspectOutput = inspectOutput ?? OutputFileSnapshot.Read;
         CameraChoices = BuildLutChoices(cameraLuts);
         CreativeChoices = BuildLutChoices(creativeLuts);
         _camera = CameraChoices[0];
         _creative = CreativeChoices[0];
-        NameParts = new ObservableCollection<NamePart>([new(NamePartKind.OriginalName)]);
+        NameParts = new ObservableCollection<NamePart>([new(NamePartKind.OriginalName), new(NamePartKind.Sequence001)]);
         NameParts.CollectionChanged += (_, _) => Refresh();
         Refresh();
     }
@@ -61,9 +78,33 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public IReadOnlyList<JobIssue> Warnings => Issues.Where(x => x.Severity == JobIssueSeverity.Warning).ToList();
     public bool CanExport => _plan?.IsValid == true && _encoder?.IsUsable == true && _metadata.All(x => x is not null);
     public bool IsAnalyzing => _metadata.Any(x => x is null);
-    public string EstimateText => "Estimate unavailable";
+    public string ReadySummary
+    {
+        get
+        {
+            var count = _plan?.Items.Count ?? 0;
+            var text = $"{count} {(count == 1 ? "file" : "files")} ready to export";
+            return EstimateOutputBytes() is { } bytes ? $"{text} · Est. {FormatBytes(bytes)}" : text;
+        }
+    }
     public JobPlan<EncodingJobOptions>? CurrentPlan => _plan;
     public IReadOnlyList<EncodingHandoffInput> Inputs => _handoff.Inputs;
+    public string Title => $"Export {_handoff.Inputs.Count} {(_handoff.Inputs.Count == 1 ? "video" : "videos")}";
+    public string FilesAutomationName => $"Files to Export, {_handoff.Inputs.Count} {(_handoff.Inputs.Count == 1 ? "file" : "files")}";
+    public IReadOnlyList<ExportSubmissionItem> SubmissionItems => BuildSubmissionItems();
+    public bool? GlobalUseRangeState
+    {
+        get
+        {
+            var applicable = _handoff.Inputs.Select((input, index) => (input, index))
+                .Where(value => value.input.InitialTrim is { IsFullSource: false })
+                .Select(value => _useRanges[value.index]).ToArray();
+            if (!_rangesGloballyEnabled) return false;
+            if (applicable.Length == 0 || applicable.All(value => value)) return true;
+            if (applicable.All(value => !value)) return false;
+            return null;
+        }
+    }
     public string PreviewName => Preview(PreviewExtension());
     public string PreviewPath => string.IsNullOrWhiteSpace(FinalDestination) ? "Choose an output folder" : Path.Combine(FinalDestination, Preview(PreviewExtension()));
     public string PreviewDirectory => Path.GetDirectoryName(PreviewPath) ?? "";
@@ -97,6 +138,19 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
 
     public void ApplyMetadata(IReadOnlyList<MediaMetadata?> metadata) { _metadata = metadata.ToArray(); Refresh(); }
     public void ApplyResolvedRanges(IReadOnlyList<ResolvedMediaRange?> ranges) { _resolvedRanges = ranges.ToArray(); Refresh(); }
+    public void SetUseRange(int index, bool use)
+    {
+        if (!_rangesGloballyEnabled || index < 0 || index >= _useRanges.Length
+            || _handoff.Inputs[index].InitialTrim is not { IsFullSource: false }) return;
+        if (_useRanges[index] == use) return;
+        _useRanges[index] = use;
+        Refresh();
+    }
+    public void SetGlobalUseRanges(bool use)
+    {
+        _rangesGloballyEnabled = use;
+        SetAllRanges(use, refreshWhenUnchanged: true);
+    }
     public void ApplyEncoderCapability(EncoderCapability capability) { _encoder = capability; Refresh(); }
     public void AddPart(NamePartKind kind) => NameParts.Add(new(kind, kind == NamePartKind.CustomText ? "Text" : null));
     public void RemovePart(int index) { if (index >= 0 && index < NameParts.Count) NameParts.RemoveAt(index); }
@@ -135,9 +189,10 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         var sources = _handoff.Inputs.Select((input, index) =>
         {
             var metadata = _metadata.ElementAtOrDefault(index);
+            var useRange = _useRanges[index] && input.InitialTrim is { IsFullSource: false };
             return new EncodingSource(input.SourcePath, input.FileSizeBytes,
                 metadata is null ? input.InitialTrim?.SourceDuration : TimeSpan.FromSeconds(metadata.DurationSeconds),
-                input.InitialTrim, _resolvedRanges.ElementAtOrDefault(index), LastWriteUtcTicks: TrimSourceIdentity.Read(input.SourcePath)?.LastWriteUtcTicks,
+                useRange ? input.InitialTrim : null, useRange ? _resolvedRanges.ElementAtOrDefault(index) : null, LastWriteUtcTicks: TrimSourceIdentity.Read(input.SourcePath)?.LastWriteUtcTicks,
                 HasAudio: metadata?.HasAudio, CapabilityOrder: index, AssignedColor: input.AssignedColor,
                 MediaTraits: metadata is null ? null : new(metadata.VideoCodec, metadata.Width, metadata.Height,
                     metadata.FrameRate, metadata.Container, metadata.AudioCodec, metadata.AudioSampleRate,
@@ -154,6 +209,13 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         extra.AddRange(EncodingOptionValidator.Validate(options.Encoding).Select(message => new JobIssue("export.options", message, JobIssueSeverity.Error)));
         if (_encoder is not null && !_encoder.IsUsable) extra.Add(new("export.encoder-unavailable",
             "NVIDIA NVENC could not be initialized. Check the hardware acceleration details.", JobIssueSeverity.Error));
+        if (!_metadata.Any(value => value is null))
+            for (var index = 0; index < _useRanges.Length; index++)
+                if (_useRanges[index] && _handoff.Inputs[index].InitialTrim is { IsFullSource: false }
+                    && _resolvedRanges.ElementAtOrDefault(index) is null)
+                    extra.Add(new("export.range-unresolved",
+                        $"The saved In/Out range for '{Path.GetFileName(_handoff.Inputs[index].SourcePath)}' could not be validated. Ignore its In/Out range to export the full video.",
+                        JobIssueSeverity.Error));
         return extra.Count == 0 ? plan : plan with { Issues = plan.Issues.Concat(extra).ToList() };
     }
 
@@ -169,6 +231,93 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         }
         OnChanged(string.Empty);
     }
+
+    private void SetAllRanges(bool use, bool refreshWhenUnchanged = false)
+    {
+        var changed = false;
+        for (var index = 0; index < _useRanges.Length; index++)
+        {
+            if (_handoff.Inputs[index].InitialTrim is not { IsFullSource: false } || _useRanges[index] == use) continue;
+            _useRanges[index] = use;
+            changed = true;
+        }
+        if (changed || refreshWhenUnchanged) Refresh();
+    }
+
+    private IReadOnlyList<ExportSubmissionItem> BuildSubmissionItems()
+    {
+        const double timelineWidth = 240;
+        var planned = _plan?.Items;
+        return _handoff.Inputs.Select((input, index) =>
+        {
+            var sourceName = Path.GetFileName(input.SourcePath);
+            var hasRange = input.InitialTrim is { IsFullSource: false };
+            var useRange = hasRange && _useRanges[index];
+            var outputText = "Output name unresolved";
+            var item = planned?.ElementAtOrDefault(index);
+            if (item is not null)
+                outputText = item.Definition.MaterializedName?.Problem is null && item.OutputPaths.FirstOrDefault() is { } path
+                    ? "→ " + Path.GetFileName(path)
+                    : "Output name unresolved";
+            var proposedRange = useRange
+                ? item?.Definition.ResolvedRange?.RequestedRange ?? item?.Definition.MediaRange ?? input.InitialTrim
+                : item?.Definition.MediaRange;
+            var sourceDuration = proposedRange?.SourceDuration ?? input.InitialTrim?.SourceDuration
+                ?? (_metadata.ElementAtOrDefault(index) is { } metadata ? TimeSpan.FromSeconds(metadata.DurationSeconds) : TimeSpan.Zero);
+            var exportIn = useRange && proposedRange is not null ? proposedRange.EffectiveIn : TimeSpan.Zero;
+            var exportOut = useRange && proposedRange is not null ? proposedRange.EffectiveOut : sourceDuration;
+            var hasUsableDuration = sourceDuration > TimeSpan.Zero;
+            var left = hasUsableDuration ? Math.Clamp(exportIn.TotalSeconds / sourceDuration.TotalSeconds, 0, 1) * timelineWidth : 0;
+            var right = hasUsableDuration ? Math.Clamp(exportOut.TotalSeconds / sourceDuration.TotalSeconds, 0, 1) * timelineWidth : timelineWidth;
+            var width = Math.Max(2, right - left);
+            var rangeToolTip = useRange && proposedRange is not null
+                ? $"{FormatTime(exportIn)} – {FormatTime(exportOut)} · {FormatDuration(exportOut - exportIn)} selected of {FormatDuration(sourceDuration)}"
+                : $"Full source · {FormatDuration(sourceDuration)}";
+            var timelineAutomationName = useRange && proposedRange is not null
+                ? $"Export range {FormatTime(exportIn)} to {FormatTime(exportOut)} of {FormatDuration(sourceDuration)} for {sourceName}"
+                : $"Export full source, {FormatDuration(sourceDuration)}, for {sourceName}";
+            var rangeAutomationName = hasRange
+                ? $"Use In/Out for {sourceName}"
+                : $"Use In/Out for {sourceName}, unavailable because no In/Out is defined";
+            return new ExportSubmissionItem(index, sourceName, outputText, $"Output for {sourceName}: {outputText.TrimStart('→', ' ')}",
+                hasRange, useRange, hasRange && _rangesGloballyEnabled, rangeAutomationName, left, width,
+                rangeToolTip, timelineAutomationName);
+        }).ToArray();
+    }
+
+    private static string FormatTime(TimeSpan value) => value.TotalHours >= 1
+        ? value.ToString(@"h\:mm\:ss\.f")
+        : value.ToString(@"mm\:ss\.f");
+
+    private static string FormatDuration(TimeSpan value) => value.TotalHours >= 1
+        ? value.ToString(@"h\:mm\:ss\.f")
+        : value.TotalMinutes >= 1 ? value.ToString(@"m\:ss\.f") : $"{value.TotalSeconds:0.0} s";
+
+    private double? EstimateOutputBytes()
+    {
+        if (_plan is null || _plan.Items.Count == 0 || _metadata.Any(value => value is null)) return null;
+        double totalBits = 0;
+        foreach (var item in _plan.Items)
+        {
+            var settings = item.Definition.MaterializedExport;
+            var duration = item.Definition.MediaRange?.EffectiveDuration;
+            if (settings is null || settings.Encoding.RateControl != RateControlMode.ConstantBitrate
+                || duration is null or { Ticks: <= 0 }) return null;
+            var bitsPerSecond = settings.Encoding.TargetBitrateMbps * 1_000_000d;
+            if (item.Definition.SourceHasAudio != false)
+            {
+                if (settings.Audio.Mode == MaterializedAudioMode.SourceCopyPreferred) return null;
+                if (settings.Audio.Mode == MaterializedAudioMode.EncodedAac)
+                    bitsPerSecond += (settings.Audio.Fallback?.BitrateKbps ?? 0) * 1_000d;
+            }
+            totalBits += bitsPerSecond * duration.Value.TotalSeconds;
+        }
+        return totalBits / 8d * 1.02d;
+    }
+
+    private static string FormatBytes(double bytes) => bytes >= 1_000_000_000
+        ? $"{bytes / 1_000_000_000:0.00} GB"
+        : bytes >= 1_000_000 ? $"{bytes / 1_000_000:0} MB" : $"{bytes / 1_000:0} KB";
 
     private static IReadOnlyList<ExportLutChoice> BuildLutChoices(IReadOnlyList<ManagedLutResource> resources) =>
         [new("As selected in Lightflow", ColorStagePolicyMode.AsSelectedInLightflow),

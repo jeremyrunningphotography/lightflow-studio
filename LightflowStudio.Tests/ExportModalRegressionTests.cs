@@ -6,6 +6,61 @@ namespace LightflowStudio.Tests;
 public sealed class ExportModalRegressionTests
 {
     [Fact]
+    public void SubmissionReviewIsBoundedAccessibleAndUsesExplicitRangeActions()
+    {
+        var xaml = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ExportDialog.xaml"));
+        var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ExportDialog.xaml.cs"));
+        var scroll = Named(xaml, "FilesToExportScroll");
+        var items = Named(xaml, "FilesToExportItems");
+        Assert.Null(scroll.Attribute("Height"));
+        Assert.Equal("220", (string?)scroll.Attribute("MaxHeight"));
+        Assert.Equal("Auto", (string?)scroll.Attribute("VerticalScrollBarVisibility"));
+        Assert.Equal("True", (string?)scroll.Attribute("Focusable"));
+        Assert.Equal("ItemsControl", items.Name.LocalName);
+        Assert.DoesNotContain(xaml.Descendants(), element => element.Name.LocalName == "ListBox");
+        Assert.Contains("ShellSurfaceBrush", (string?)scroll.Attribute("Background"));
+        Assert.Equal("2", (string?)Named(xaml, "FilesToExportPanel").Parent?.Attribute("Grid.Column"));
+        Assert.Contains("model.FilesAutomationName", source);
+        Assert.Contains("Title = ExportHeading.Text = model.Title", source);
+        var global = Named(xaml, "GlobalUseRangesCheck");
+        Assert.Equal("Use In/Out points", (string?)global.Attribute("Content"));
+        Assert.Equal("False", (string?)global.Attribute("IsThreeState"));
+        var rangeCheck = xaml.Descendants().Single(element => element.Attributes().Any(attribute =>
+            attribute.Name.LocalName == "Name" && attribute.Value == "RangeCheck"));
+        Assert.Null(rangeCheck.Attribute("Grid.Column"));
+        Assert.Equal("Use In/Out", (string?)rangeCheck.Attribute("Content"));
+        Assert.Equal("{Binding RangeControlEnabled}", (string?)rangeCheck.Attribute("IsEnabled"));
+        var timeline = Named(xaml, "RangeTimeline");
+        Assert.Equal("1", (string?)timeline.Attribute("Grid.Column"));
+        Assert.Equal("True", (string?)timeline.Attribute("Focusable"));
+        Assert.Equal("{Binding RangeToolTip}", (string?)timeline.Attribute("ToolTip"));
+        Assert.Equal("{Binding TimelineAutomationName}", (string?)timeline.Attribute("AutomationProperties.Name"));
+        Assert.Contains(timeline.Descendants(), element => (string?)element.Attribute("Canvas.Left") == "{Binding ExportSegmentLeft}"
+            && (string?)element.Attribute("Width") == "{Binding ExportSegmentWidth}");
+        Assert.Equal("240", (string?)timeline.Descendants().Single(element => element.Name.LocalName == "Canvas").Attribute("Width"));
+        Assert.Equal("14", (string?)timeline.Attribute("Height"));
+        var timelineBars = timeline.Descendants().Where(element => element.Name.LocalName == "Border").ToArray();
+        Assert.Contains(timelineBars, element => (string?)element.Attribute("Width") == "240"
+            && (string?)element.Attribute("Height") == "2");
+        Assert.Contains(timelineBars, element => (string?)element.Attribute("Width") == "{Binding ExportSegmentWidth}"
+            && (string?)element.Attribute("Height") == "4");
+        var sourceName = xaml.Descendants().Single(element => (string?)element.Attribute("Text") == "{Binding SourceFileName}");
+        var outputName = xaml.Descendants().Single(element => (string?)element.Attribute("Text") == "{Binding OutputText}");
+        Assert.Equal("{DynamicResource MutedTextBrush}", (string?)sourceName.Attribute("Foreground"));
+        Assert.Null(sourceName.Attribute("FontWeight"));
+        Assert.Equal("SemiBold", (string?)outputName.Attribute("FontWeight"));
+        Assert.Equal("{DynamicResource TextBrush}", (string?)outputName.Attribute("Foreground"));
+        var noRangeTrigger = xaml.Descendants().Single(element => element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Binding") == "{Binding HasRange}");
+        Assert.Contains(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeCheck"
+            && (string?)element.Attribute("Value") == "Hidden");
+        Assert.DoesNotContain(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeTimeline");
+        Assert.DoesNotContain(xaml.Descendants(), element => (string?)element.Attribute("Content") is "Use all In/Out" or "Ignore all In/Out");
+        Assert.Contains(xaml.Descendants(), element => (string?)element.Attribute("AutomationProperties.Name") == "{Binding RangeAutomationName}");
+        Assert.DoesNotContain(xaml.Descendants(), element => (string?)element.Attribute("Content") is "Select all" or "Clear all");
+    }
+
+    [Fact]
     public void ModalIsOwnedFocusedAndDoesNotPresentRuntimeProgress()
     {
         var root = FindRepositoryRoot();
@@ -14,6 +69,7 @@ public sealed class ExportModalRegressionTests
         Assert.Equal("CenterOwner", (string?)xaml.Root!.Attribute("WindowStartupLocation"));
         Assert.DoesNotContain("Estimate unavailable", xaml.ToString());
         Assert.DoesNotContain("Ready to export", xaml.ToString());
+        Assert.NotNull(Named(xaml, "ReadySummaryText"));
         Assert.DoesNotContain("ProgressBar", xaml.Descendants().Select(x => x.Name.LocalName));
         Assert.Contains("_coordinator.Queue(plan); DialogResult=true", text);
         Assert.DoesNotContain("await runtime.Completion", text);
@@ -39,7 +95,7 @@ public sealed class ExportModalRegressionTests
         var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
         var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
         Assert.Equal("1120", (string?)xaml.Root!.Attribute("Width"));
-        Assert.Equal("860", (string?)xaml.Root.Attribute("Height"));
+        Assert.Equal("900", (string?)xaml.Root.Attribute("Height"));
         Assert.Contains("WindowAppearance.EnableDarkTitleBar(this)", source);
         var composer = Named(xaml, "NamePartsComposer");
         Assert.Equal("ItemsControl", composer.Name.LocalName);
@@ -47,6 +103,14 @@ public sealed class ExportModalRegressionTests
         Assert.DoesNotContain(xaml.Descendants(), x => x.Name.LocalName == "ListBox");
         var contentScroll = Named(xaml, "ExportContentScroll");
         Assert.Equal("Auto", (string?)contentScroll.Attribute("VerticalScrollBarVisibility"));
+        Assert.Contains("StableVerticalScrollViewer", (string?)contentScroll.Attribute("Style"));
+        var stableScroll = xaml.Descendants().Single(element => element.Name.LocalName == "Style"
+            && element.Attributes().Any(attribute => attribute.Name.LocalName == "Key"
+                && attribute.Value == "StableVerticalScrollViewer"));
+        Assert.Contains(stableScroll.Descendants(), element => element.Name.LocalName == "ScrollContentPresenter"
+            && (string?)element.Attribute("Margin") == "0,0,14,0");
+        Assert.Contains(stableScroll.Descendants(), element => element.Name.LocalName == "ScrollBar"
+            && (string?)element.Attribute("HorizontalAlignment") == "Right");
         Assert.Contains(contentScroll.Descendants(), x => x == composer);
         Assert.DoesNotContain(Named(xaml, "ExportButton").Ancestors(), x => x == contentScroll);
         Assert.Contains("ConstrainToCurrentWorkArea", source);

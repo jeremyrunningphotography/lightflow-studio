@@ -925,9 +925,9 @@
        <Grid><TextBlock x:Name="HistoryEmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="No Jobs match this view."/>
         <ListBox x:Name="HistoryList" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" SelectionChanged="HistoryList_SelectionChanged">
          <ListBox.ItemTemplate><DataTemplate><Grid Margin="4,6"><Grid.ColumnDefinitions><ColumnDefinition Width="32"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-          <local:JobsRadialProgress Width="23" Height="23" Progress="{Binding Progress}" State="{Binding State}" AutomationProperties.Name="{Binding StateText}"/>
-          <StackPanel Grid.Column="1"><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis"/><TextBlock Margin="0,3,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11"><Run Text="{Binding StateText}"/><Run Text="  "/><Run Text="{Binding LegacyNote}"/></TextBlock><TextBlock Margin="0,2,0,0" Foreground="{StaticResource WarningBrush}" FontSize="10" Text="{Binding Issue}" TextTrimming="CharacterEllipsis"/></StackPanel>
-          <TextBlock Grid.Column="2" Margin="10,0,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="{Binding Timing}"/>
+          <local:JobsRadialProgress Width="23" Height="23" Progress="{Binding Progress, Mode=OneWay}" State="{Binding State, Mode=OneWay}" AutomationProperties.Name="{Binding StateText, Mode=OneWay}"/>
+          <StackPanel Grid.Column="1"><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding Name, Mode=OneWay}" TextTrimming="CharacterEllipsis"/><TextBlock Margin="0,3,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11"><Run Text="{Binding StateText, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding LegacyNote, Mode=OneWay}"/></TextBlock><TextBlock Margin="0,2,0,0" Foreground="{StaticResource WarningBrush}" FontSize="10" Text="{Binding Issue, Mode=OneWay}" TextTrimming="CharacterEllipsis"/></StackPanel>
+          <TextBlock Grid.Column="2" Margin="10,0,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="{Binding Timing, Mode=OneWay}"/>
          </Grid></DataTemplate></ListBox.ItemTemplate>
         </ListBox>
        </Grid>

@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private JobCancellation? _jobCancellation;
     private readonly BatchProgressState _batchProgress = new();
     private readonly string? _commandLineFolder;
+    private readonly bool _jobsWorkspaceSmokeTest;
     private readonly LightflowStorageCoordinator _storage;
     private readonly StorageStartupStatus _storageStartupStatus;
     private readonly string? _storageDiagnostic;
@@ -205,6 +206,7 @@ public partial class MainWindow : Window
             if (WindowState != WindowState.Minimized) _lastNonMinimizedWindowState = WindowState;
         };
         _commandLineFolder = Environment.GetCommandLineArgs().Skip(1).FirstOrDefault(Directory.Exists);
+        _jobsWorkspaceSmokeTest = Environment.GetCommandLineArgs().Contains("--jobs-workspace-smoke-test", StringComparer.OrdinalIgnoreCase);
         Loaded += async (_, _) =>
         {
             try
@@ -239,6 +241,8 @@ public partial class MainWindow : Window
 
                 RefreshCatalogBackups();
                 RefreshHistory();
+                if (_jobsWorkspaceSmokeTest)
+                    MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.History);
                 LocateTools();
                 _exportScheduler.MaxSimultaneousExports = _settings.MaxSimultaneousExports;
                 ApplyJobsPresentation(_exportScheduler.Jobs);

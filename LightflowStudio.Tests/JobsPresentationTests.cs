@@ -75,7 +75,7 @@ public sealed class JobsPresentationTests
             ((string?)element.Attribute("AutomationProperties.Name"))?.StartsWith("Move waiting Job", StringComparison.Ordinal) == true).ToList();
 
         Assert.Null(drawer.Attribute("Width"));
-        Assert.Equal("320", (string?)drawer.Attribute("MinWidth"));
+        Assert.Equal(WorkspaceState.MinJobsDrawerWidth.ToString(), (string?)drawer.Attribute("MinWidth"));
         Assert.Equal("620", (string?)drawer.Attribute("MaxWidth"));
         Assert.Equal("0,0,16,0", (string?)list.Attribute("Padding"));
         Assert.Equal("0,0,0,4", (string?)row.Attribute("Margin"));
@@ -124,25 +124,65 @@ public sealed class JobsPresentationTests
     }
 
     [Fact]
-    public void CancellableJobs_ExcludeEveryTerminalStateAndCancelAllUsesSchedulerSnapshot()
+    public void BulkAction_UsesOnlyAuthoritativeActiveStatesAndUpdatesFromSchedulerSnapshot()
     {
         var states = new[] { JobState.Queued, JobState.Paused, JobState.Running, JobState.NeedsAttention,
             JobState.Completed, JobState.CompletedWithWarnings, JobState.Skipped, JobState.Failed, JobState.Cancelled };
         var cancellable = JobsPresentation.CancellableJobs(states.Select((state, index) => Snapshot(index + 1, state)));
         Assert.Equal([JobState.Queued, JobState.Paused, JobState.Running, JobState.NeedsAttention], cancellable.Select(job => job.State));
+        var bulkCancellable = JobsPresentation.BulkCancellableJobs(states.Select((state, index) => Snapshot(index + 1, state)));
+        Assert.Equal([JobState.Queued, JobState.Paused, JobState.Running], bulkCancellable.Select(job => job.State));
 
         var source = MainWindowSource();
-        Assert.Contains("JobsPresentation.CancellableJobs(_exportScheduler.Jobs).Select(job => job.JobId).ToList()", source);
+        Assert.Contains("JobsPresentation.BulkCancellableJobs(jobs).Select(job => job.JobId).ToList()", source);
         Assert.Contains("foreach (var id in intended) _exportScheduler.Cancel(id);", source);
-        Assert.Contains("Cancel all {intended.Count} cancellable", source);
+        Assert.Contains("Cancel all {intended.Count} active", source);
         Assert.Contains("job.OutputPath", source);
 
         var apply = MethodBody(source, "private void ApplyJobsPresentation");
-        Assert.Contains("JobsCancelAllButton.IsEnabled = cancellableCount > 0", apply);
+        Assert.Contains("JobsPresentation.BulkCancellableJobs(jobs)", apply);
+        Assert.Contains("JobsCancelAllButton.Content = cancelAll ? \"Cancel all\" : \"Clear all\"", apply);
+        Assert.Contains("JobsCancelAllButton.IsEnabled = bulkAction != JobsBulkAction.None", apply);
         Assert.DoesNotContain("JobsCancelAllButton.Visibility", apply);
         var button = Named(DrawerDocument(), "JobsCancelAllButton");
+        Assert.Equal("Clear all", (string?)button.Attribute("Content"));
         Assert.Equal("False", (string?)button.Attribute("IsEnabled"));
         Assert.Null(button.Attribute("Visibility"));
+    }
+
+    [Theory]
+    [InlineData((int)JobState.Running, true)]
+    [InlineData((int)JobState.Queued, true)]
+    [InlineData((int)JobState.Paused, true)]
+    [InlineData((int)JobState.NeedsAttention, false)]
+    [InlineData((int)JobState.Completed, false)]
+    public void BulkAction_ActiveDecisionMatchesProductStates(int state, bool expected) =>
+        Assert.Equal(expected, JobsPresentation.IsBulkActive((JobState)state));
+
+    [Theory]
+    [InlineData((int)JobState.NeedsAttention, true)]
+    [InlineData((int)JobState.Completed, true)]
+    [InlineData((int)JobState.CompletedWithWarnings, true)]
+    [InlineData((int)JobState.Skipped, true)]
+    [InlineData((int)JobState.Cancelled, true)]
+    [InlineData((int)JobState.Failed, true)]
+    [InlineData((int)JobState.Running, false)]
+    [InlineData((int)JobState.Queued, false)]
+    [InlineData((int)JobState.Paused, false)]
+    public void BulkAction_ClearDecisionIncludesOnlyDismissibleRows(int state, bool expected) =>
+        Assert.Equal(expected, JobsPresentation.IsDismissibleDrawerRow((JobState)state));
+
+    [Fact]
+    public void BulkAction_ContextRulesCoverActiveRecoveryTerminalMixedAndEmptySnapshots()
+    {
+        Assert.Equal(JobsBulkAction.CancelAll, JobsPresentation.BulkAction([Snapshot(1, JobState.Running)]));
+        Assert.Equal(JobsBulkAction.CancelAll, JobsPresentation.BulkAction([Snapshot(1, JobState.Queued)]));
+        Assert.Equal(JobsBulkAction.CancelAll, JobsPresentation.BulkAction([Snapshot(1, JobState.Paused)]));
+        Assert.Equal(JobsBulkAction.ClearAll, JobsPresentation.BulkAction([Snapshot(1, JobState.NeedsAttention)]));
+        Assert.Equal(JobsBulkAction.ClearAll, JobsPresentation.BulkAction([Snapshot(1, JobState.Completed)]));
+        Assert.Equal(JobsBulkAction.CancelAll, JobsPresentation.BulkAction([
+            Snapshot(1, JobState.Running), Snapshot(2, JobState.NeedsAttention), Snapshot(3, JobState.Failed)]));
+        Assert.Equal(JobsBulkAction.None, JobsPresentation.BulkAction([]));
     }
 
     [Fact]
@@ -158,8 +198,26 @@ public sealed class JobsPresentationTests
         Assert.Equal("SizeWE", (string?)splitter.Attribute("Cursor"));
         Assert.DoesNotContain(splitter.Descendants(), element => element.Name.LocalName is "Thumb" or "Path" or "Ellipse");
         Assert.Equal("620", (string?)column.Attribute("MaxWidth"));
+        Assert.Equal(WorkspaceState.MinJobsDrawerWidth.ToString(), (string?)Named(document, "JobsDrawer").Attribute("MinWidth"));
         Assert.Equal("Disabled", (string?)list.Attribute("ScrollViewer.HorizontalScrollBarVisibility"));
         Assert.Contains("SetJobsDrawerWidth(_jobsDrawerWidth)", MainWindowSource());
+    }
+
+    [Fact]
+    public void DrawerHeader_UsesCompactActiveExportsLabelAndKeepsControlsOnOneLine()
+    {
+        var document = DrawerDocument();
+        var combo = Named(document, "MaximumExportsCombo");
+        var button = Named(document, "JobsCancelAllButton");
+        var header = combo.Parent!;
+
+        Assert.Contains(header.Elements(), element => (string?)element.Attribute("Text") == "Active exports");
+        Assert.DoesNotContain(header.Descendants(), element => (string?)element.Attribute("Text") == "Maximum simultaneous exports");
+        Assert.Equal("1", (string?)combo.Attribute("Grid.Column"));
+        Assert.Equal("2", (string?)button.Attribute("Grid.Column"));
+        Assert.Equal("65", (string?)button.Attribute("MinWidth"));
+        Assert.Contains("simultaneously", (string?)combo.Attribute("ToolTip"));
+        Assert.Equal(340, WorkspaceState.MinJobsDrawerWidth);
     }
 
     [Fact]
@@ -365,22 +423,23 @@ public sealed class JobsPresentationTests
     }
 
     [Fact]
-    public void ClearFinished_IsTransientAndNeverHidesNeedsAttentionOrActiveWork()
+    public void ClearAll_IsTransientAndCanDismissNeedsAttentionButNeverActiveWork()
     {
-        Assert.True(JobsPresentation.IsClearableFinished(JobState.Completed));
-        Assert.True(JobsPresentation.IsClearableFinished(JobState.Cancelled));
-        Assert.True(JobsPresentation.IsClearableFinished(JobState.Failed));
-        Assert.False(JobsPresentation.IsClearableFinished(JobState.NeedsAttention));
-        Assert.False(JobsPresentation.IsClearableFinished(JobState.Queued));
-        Assert.False(JobsPresentation.IsClearableFinished(JobState.Running));
-        Assert.False(JobsPresentation.IsClearableFinished(JobState.Paused));
+        Assert.True(JobsPresentation.IsDismissibleDrawerRow(JobState.Completed));
+        Assert.True(JobsPresentation.IsDismissibleDrawerRow(JobState.NeedsAttention));
+        Assert.False(JobsPresentation.IsDismissibleDrawerRow(JobState.Queued));
+        Assert.False(JobsPresentation.IsDismissibleDrawerRow(JobState.Running));
+        Assert.False(JobsPresentation.IsDismissibleDrawerRow(JobState.Paused));
 
         var completed = Snapshot(1, JobState.Completed);
         var waiting = Snapshot(2, JobState.Queued);
         Assert.Equal([waiting.JobId], JobsPresentation.VisibleJobs([completed, waiting], new HashSet<Guid> { completed.JobId }).Select(job => job.JobId));
         var source = MainWindowSource();
         Assert.Contains("_dismissedTerminalJobIds.Add(job.JobId)", source);
-        Assert.DoesNotContain("_jobHistory", MethodBody(source, "private void JobsClearFinished_Click"));
+        var bulk = MethodBody(source, "private void JobsCancelAll_Click");
+        Assert.Contains("IsDismissibleDrawerRow", bulk);
+        Assert.DoesNotContain("_jobHistory", bulk);
+        Assert.DoesNotContain(DrawerDocument().Descendants(), element => (string?)element.Attribute("Content") == "Clear finished");
     }
 
     [Fact]

@@ -3796,16 +3796,23 @@ public partial class MainWindow : Window
         JobsDrawerPullButton.Tag = activeCount > 0 ? "Active" : "Idle";
         JobsDrawerPullCount.Text = activeCount.ToString();
         JobsDrawerPullCount.Visibility = activeCount > 0 ? Visibility.Visible : Visibility.Collapsed;
-        var cancellableCount = JobsPresentation.CancellableJobs(jobs).Count;
-        JobsCancelAllButton.IsEnabled = cancellableCount > 0;
-        JobsCancelAllButton.ToolTip = cancellableCount > 0 ? $"Cancel all {cancellableCount} cancellable Jobs" : "No cancellable Jobs";
-        AutomationProperties.SetName(JobsCancelAllButton, $"Cancel all {cancellableCount} cancellable Jobs");
         MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
-        var cards = JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds)
+        var visibleJobs = JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds);
+        var cancellableCount = JobsPresentation.BulkCancellableJobs(jobs).Count;
+        var clearableCount = visibleJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State));
+        var bulkAction = JobsPresentation.BulkAction(visibleJobs);
+        var cancelAll = bulkAction == JobsBulkAction.CancelAll;
+        JobsCancelAllButton.Content = cancelAll ? "Cancel all" : "Clear all";
+        JobsCancelAllButton.IsEnabled = bulkAction != JobsBulkAction.None;
+        JobsCancelAllButton.ToolTip = cancelAll
+            ? $"Cancel {cancellableCount} active Jobs"
+            : clearableCount > 0 ? $"Remove {clearableCount} Jobs from this drawer only" : "No Jobs to clear";
+        AutomationProperties.SetName(JobsCancelAllButton, cancelAll
+            ? $"Cancel all {cancellableCount} active Jobs"
+            : clearableCount > 0 ? $"Clear all {clearableCount} dismissible Jobs from drawer" : "Clear all, no Jobs to clear");
+        var cards = visibleJobs
             .Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId))).ToList();
         JobsPresentation.Reconcile(_jobsDrawerCards, cards);
-        JobsClearFinishedButton.Visibility = cards.Any(card => JobsPresentation.IsClearableFinished(
-            jobs.First(job => job.JobId == card.JobId).State)) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void JobsStatus_Click(object sender, RoutedEventArgs e)
@@ -3877,18 +3884,19 @@ public partial class MainWindow : Window
 
     private void JobsCancelAll_Click(object sender, RoutedEventArgs e)
     {
-        var intended = JobsPresentation.CancellableJobs(_exportScheduler.Jobs).Select(job => job.JobId).ToList();
-        if (intended.Count == 0) return;
-        var noun = intended.Count == 1 ? "Job" : "Jobs";
-        if (!ConfirmationDialog.Confirm(this, "Cancel all Export Jobs", $"Cancel all {intended.Count} cancellable {noun}?",
-            "Already completed, failed, or cancelled Jobs are unaffected. Incomplete outputs use the existing cleanup policy.",
-            null, "Cancel all")) return;
-        foreach (var id in intended) _exportScheduler.Cancel(id);
-    }
-
-    private void JobsClearFinished_Click(object sender, RoutedEventArgs e)
-    {
-        foreach (var job in _exportScheduler.Jobs.Where(job => JobsPresentation.IsClearableFinished(job.State)))
+        var jobs = _exportScheduler.Jobs;
+        var intended = JobsPresentation.BulkCancellableJobs(jobs).Select(job => job.JobId).ToList();
+        if (intended.Count > 0)
+        {
+            var noun = intended.Count == 1 ? "Job" : "Jobs";
+            if (!ConfirmationDialog.Confirm(this, "Cancel all Export Jobs", $"Cancel all {intended.Count} active {noun}?",
+                "Needs-attention and terminal Jobs are unaffected. Incomplete outputs use the existing cleanup policy.",
+                null, "Cancel all")) return;
+            foreach (var id in intended) _exportScheduler.Cancel(id);
+            return;
+        }
+        foreach (var job in JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds)
+                     .Where(job => JobsPresentation.IsDismissibleDrawerRow(job.State)))
             _dismissedTerminalJobIds.Add(job.JobId);
         ApplyJobsPresentation(_exportScheduler.Jobs);
     }

@@ -17,6 +17,24 @@ internal static class JobsPresentation
     public static IReadOnlyList<ExportJobSnapshot> CancellableJobs(IEnumerable<ExportJobSnapshot> jobs) =>
         jobs.Where(job => !IsTerminal(job.State)).ToList();
 
+    public static bool IsBulkActive(JobState state) => state is JobState.Queued or JobState.Running or JobState.Paused;
+
+    public static IReadOnlyList<ExportJobSnapshot> BulkCancellableJobs(IEnumerable<ExportJobSnapshot> jobs)
+    {
+        var active = jobs.Where(job => IsBulkActive(job.State)).ToList();
+        var cancellableIds = CancellableJobs(active).Select(job => job.JobId).ToHashSet();
+        return active.Where(job => cancellableIds.Contains(job.JobId)).ToList();
+    }
+
+    public static bool IsDismissibleDrawerRow(JobState state) => IsTerminal(state) || state == JobState.NeedsAttention;
+
+    public static JobsBulkAction BulkAction(IEnumerable<ExportJobSnapshot> visibleJobs)
+    {
+        var jobs = visibleJobs.ToList();
+        if (BulkCancellableJobs(jobs).Count > 0) return JobsBulkAction.CancelAll;
+        return jobs.Any(job => IsDismissibleDrawerRow(job.State)) ? JobsBulkAction.ClearAll : JobsBulkAction.None;
+    }
+
     public static string StatusText(IEnumerable<ExportJobSnapshot> jobs)
     {
         var current = jobs.Where(job => !IsTerminal(job.State)).ToList();
@@ -116,6 +134,7 @@ internal static class JobsPresentation
 }
 
 internal enum JobsRoute { FullJobsCompatibility }
+internal enum JobsBulkAction { None, CancelAll, ClearAll }
 
 internal sealed class JobCardPresentation(Guid jobId, string name, string glyph, string state, double progress,
     bool showProgress, string elapsed, string? eta, string outputPath, string resolutionAndFrameRate,

@@ -63,7 +63,7 @@ internal sealed record WorkspaceState
     // Mirrors MainWindow.xaml's BrowserNavigationColumn MinWidth/MaxWidth.
     public const double MinLocationsPaneWidth = 220;
     public const double MaxLocationsPaneWidth = 520;
-    public const double MinJobsDrawerWidth = 320;
+    public const double MinJobsDrawerWidth = 340;
     public const double MaxJobsDrawerWidth = 620;
 
     public int Version { get; init; } = CurrentVersion;

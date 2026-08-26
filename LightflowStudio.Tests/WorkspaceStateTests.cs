@@ -30,7 +30,7 @@ public sealed class WorkspaceStateStoreTests : IDisposable
             Browser = new() { RootId = rootId, RelativeFolder = "Trips/Iceland", LastResolvedAbsolutePath = @"D:\Trips\Iceland",
                 IncludeSubfolders = true },
             Window = new() { Width = 1500, Height = 950, Left = 40, Top = 20, IsMaximized = true },
-            Layout = new() { BrowserLocationsPaneWidth = 300 }
+            Layout = new() { BrowserLocationsPaneWidth = 300, JobsDrawerWidth = 440 }
         };
 
         WorkspaceStateStore.Save(StatePath, state);
@@ -46,6 +46,7 @@ public sealed class WorkspaceStateStoreTests : IDisposable
         Assert.Equal(20, loaded.Window.Top);
         Assert.True(loaded.Window.IsMaximized);
         Assert.Equal(300, loaded.Layout!.BrowserLocationsPaneWidth);
+        Assert.Equal(440, loaded.Layout.JobsDrawerWidth);
     }
 
     [Fact]
@@ -192,6 +193,16 @@ public sealed class WorkspaceStateNormalizationTests
         var state = new WorkspaceState { Layout = new() { BrowserLocationsPaneWidth = saved } };
 
         Assert.Equal(expected, WorkspaceState.Normalize(state).Layout!.BrowserLocationsPaneWidth);
+    }
+
+    [Theory]
+    [InlineData(100, WorkspaceState.MinJobsDrawerWidth)]
+    [InlineData(9000, WorkspaceState.MaxJobsDrawerWidth)]
+    [InlineData(440, 440)]
+    public void Normalize_ClampsJobsDrawerWidthToItsSupportedRange(double saved, double expected)
+    {
+        var state = new WorkspaceState { Layout = new() { JobsDrawerWidth = saved } };
+        Assert.Equal(expected, WorkspaceState.Normalize(state).Layout!.JobsDrawerWidth);
     }
 
     [Theory]

@@ -5,6 +5,7 @@ namespace LightflowStudio;
 
 public partial class App : System.Windows.Application
 {
+    private readonly UnexpectedInterfaceErrorGate _unexpectedInterfaceErrorGate = new();
     internal static ActivityLogFile ActivityLog { get; private set; } = null!;
     internal LightflowStorageCoordinator? Storage { get; private set; }
     internal static MediaPlaybackCoordinator Playback { get; } = new(() =>
@@ -60,10 +61,15 @@ public partial class App : System.Windows.Application
     {
         ActivityLog.TryAppend($"[App] Unhandled UI exception: {e.Exception}");
         e.Handled = true;
-        System.Windows.MessageBox.Show(
-            $"Lightflow encountered an unexpected interface error and must close. Diagnostic details were written to:\n\n{ActivityLog.Path}",
-            "Lightflow Studio", MessageBoxButton.OK, MessageBoxImage.Error);
-        Shutdown(1);
+        if (!_unexpectedInterfaceErrorGate.TryEnter()) return;
+        try
+        {
+            System.Windows.MessageBox.Show(
+                $"Lightflow encountered an unexpected interface error and must close. Diagnostic details were written to:\n\n{ActivityLog.Path}",
+                "Lightflow Studio", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        }
+        finally { _unexpectedInterfaceErrorGate.Exit(); }
     }
 
     private void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e) =>
@@ -74,4 +80,11 @@ public partial class App : System.Windows.Application
         ActivityLog.TryAppend($"[App] Unobserved task exception: {e.Exception}");
         e.SetObserved();
     }
+}
+
+internal sealed class UnexpectedInterfaceErrorGate
+{
+    private int _active;
+    public bool TryEnter() => Interlocked.CompareExchange(ref _active, 1, 0) == 0;
+    public void Exit() => Interlocked.Exchange(ref _active, 0);
 }

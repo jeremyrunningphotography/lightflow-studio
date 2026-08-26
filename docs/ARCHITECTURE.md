@@ -163,7 +163,7 @@ Issue #121 adds a versioned, WPF-independent `WorkspaceStateService` over `works
 
 Hands-on testing of #121 surfaced a noticeable dead period before the restored folder/tree/media appeared. Instrumented timing on real hardware (a real, previously-Catalogued folder, not a synthetic empty one) found the delay had two independent causes, addressed separately rather than papered over with a spinner. First, `MainWindow`'s `Loaded` handler previously ran `RefreshDependencyHealthAsync` (~640-780ms — it spawns real `ffmpeg`/`ffprobe` subprocesses), `RefreshHistory`, `RefreshBatchFiles`, and `RefreshLuts` — all Encoding/History-tab work invisible on the Browser-default startup screen — sequentially *before* Browser restoration was ever kicked off; reordering so `RefreshBrowserStorageAsync` and `RestoreBrowserLocationAsync` run first cut the delay before restoration starts from roughly 1.1s to roughly 0.16s, a genuine reduction in serialized work rather than a perceived-only fix. Second, the reconciliation `BrowserLocationRestoration.RestoreAsync` itself performs for a real, already-Catalogued folder (source fingerprinting/observation over its files) remained roughly 2.2s for a real multi-clip video folder in testing; that cost is inherent to #99's reconciliation design and is not addressed here — instead, `MainWindow.ShowBrowserRestoringState` reflects the saved destination (`BrowserLocationRestoration.DescribeSavedLocation`, a pure function reading only the already-loaded `RelativeFolder`'s last segment or the diagnostic `LastResolvedAbsolutePath`, no I/O) as `Loading <folder>…` with a subtle indeterminate `ProgressBar`, reusing the existing in-canvas `BrowserLoadingOverlay` rather than a modal dialog or splash screen. This is set in `MainWindow`'s constructor immediately after `ApplyRestoredWorkspaceLayout`, before `Loaded` even fires, so it is part of the window's first rendered frame. Ancestor/sibling tree materialization was already fire-and-forget via `RevealBrowserTreeAncestorsAsync` before this change and needed no further deferral. Every non-success restoration outcome (offline root, unresolvable folder, cancellation, or an unexpected exception) explicitly restores an honest terminal state — `ApplyBrowserNavigationFailure` for a diagnosable failure, or `MainWindow.ShowDefaultBrowserEmptyState` otherwise — so the loading overlay and its custom label can never linger.
 
-`WorkspaceWindowPlacement.Clamp` is a pure function validating saved window bounds against the currently connected monitors' work areas (supplied as plain `ScreenWorkArea` rectangles, independent of WPF or `System.Windows.Forms.Screen`) before `MainWindow`'s constructor applies them, ahead of `Show()`. Bounds are enforced to the window's declared minimum size and, when no connected monitor shows enough of the saved position to be usable (monitor removed, resolution/DPI changed), are recovered centered on the primary work area instead of reopening off-screen. Only maximized/normal state is tracked (`WorkspaceWindowState` has no minimized concept at all), and `MainWindow` seeds its last-non-minimized `WindowState` immediately after applying a restored value rather than waiting on `StateChanged`, since that event does not fire for the window's initial programmatic state. The Locations-pane width follows the same restore-before-show, capture-at-`Window_Closing` pattern by reading/writing `BrowserNavigationColumn`'s `GridLength` directly; `WorkspaceLayoutState` carries only that one dimension today, and future workspace splitters (Inspector width, Player filmstrip height, Compare divider position) add further nullable properties to the same record without any architectural change.
+`WorkspaceWindowPlacement.Clamp` is a pure function validating saved window bounds against the currently connected monitors' work areas (supplied as plain `ScreenWorkArea` rectangles, independent of WPF or `System.Windows.Forms.Screen`) before `MainWindow`'s constructor applies them, ahead of `Show()`. Bounds are enforced to the window's declared minimum size and, when no connected monitor shows enough of the saved position to be usable (monitor removed, resolution/DPI changed), are recovered centered on the primary work area instead of reopening off-screen. Only maximized/normal state is tracked (`WorkspaceWindowState` has no minimized concept at all), and `MainWindow` seeds its last-non-minimized `WindowState` immediately after applying a restored value rather than waiting on `StateChanged`, since that event does not fire for the window's initial programmatic state. The Locations-pane and Jobs-drawer widths follow the same restore-before-show, capture-at-`Window_Closing` pattern by reading/writing their shell columns' `GridLength` directly; future workspace splitters (Inspector width, Player filmstrip height, Compare divider position) add further nullable properties to the same `WorkspaceLayoutState` record without any architectural change.
 
 Issue #124 adds recursive Browser scope — Include Subfolders. Its final design (a product/architecture course correction after hands-on use of an earlier continuous-outline revision, described further below) separates four distinct concepts that are easy to conflate: (1) the **selected Browser location** — the one folder actually open, always `BrowserNavigationSession.State.Location`; (2) **Catalog recursive-root configuration** — durable, user-authored `BrowserRecursiveRoot` rows, each an "Include Subfolders was turned on here" marker, root-agnostic (`RootId` + normalized relative folder, never an absolute physical path) and independent of whatever folder happens to be open; (3) **effective inherited scope mode** — whether the *selected* location is itself a stored root or a descendant of one, derived fresh on every navigation via `BrowserRecursiveRootLogic.IsEffectivelyRecursive`, never cached or manually toggled; and (4) `BrowserQuery` — sort/filter/search, which this feature never touches at all. The pipeline these four compose into is `selected location + effective mode (derived from Catalog recursive roots) → candidate media set → BrowserQuery → visible ordered result set`, extending #108/#109's pipeline rather than replacing it.
 
@@ -772,6 +772,40 @@ The dedicated Encoding workspace and its compatibility `Start_Click` flow remain
 Modern Export execution follows this boundary:
 
 `Export setup/preflight → N immutable Export Jobs → atomic global reservation → durable ordered scheduler → single-Job executor → terminal/historical Job`
+
+The global Jobs drawer is a presentation/control projection directly over `GlobalExportScheduler.Jobs`. One scheduler
+snapshot produces one file row; submission provenance never creates a runtime container. The shell coalesces
+high-frequency `Changed` notifications onto the WPF background dispatcher and reconciles existing observable cards
+in place by stable `JobId`, so a progress refresh cannot replace a pressed disclosure button between pointer-down and
+pointer-up. Expansion state remains keyed by `JobId` and is applied directly to that stable card. Drawer commands call
+the scheduler's validated concurrency, waiting reorder, Pause/Resume, retry, and
+Cancel boundaries; the drawer owns no execution or queue order. `SubmissionAccepted` is the sole auto-reveal seam, so
+ordinary progress and terminal notifications cannot reopen a manually closed drawer.
+
+Stable card properties intentionally expose private setters and notify WPF in place. Every Jobs target whose metadata
+binds two-way by default is therefore explicit `OneWay`: the custom radial control, the inline `Run.Text` status, and
+the expanded `ProgressBar.Value`. Relying on target defaults caused WPF to attempt a source write while realizing or
+recycling an admitted row, raising a `XamlParseException` or direct read-only-property `InvalidOperationException`.
+Unexpected dispatcher failures are still logged individually, but a narrow reentrancy gate permits only one active
+fatal interface dialog while that modal dispatcher frame is running; the existing deterministic shutdown policy is
+unchanged.
+
+The drawer occupies a persisted 320–620 px shell column. Its otherwise invisible eight-pixel boundary is the resize
+hit target, matching the Locations-pane splitter without adding a visible grip; `WorkspaceLayoutState.JobsDrawerWidth`
+uses the existing restore/capture seam. Child content is clipped and wrapped inside that column, and the Jobs list
+disables horizontal scrolling, so filenames and full output paths can never dictate shell width. `Clear finished`
+only suppresses eligible terminal JobIds in this in-memory drawer projection. It does not mutate scheduler recovery,
+output reservations, or durable History, and actionable `NeedsAttention` Jobs remain visible. Job cancellation
+confirmations use the reusable dark-shell `ConfirmationDialog`, while the actual lifecycle operation remains owned by
+`GlobalExportScheduler`.
+
+The bottom status-bar Jobs action now routes unconditionally through `JobsRoute.FullJobsCompatibility` to the current
+History workspace; #171 replaces that single compatibility destination with the full Jobs view. It never toggles the
+drawer. A persistent narrow vertical pull tab in the main content's reserved right gutter is the drawer's sole manual
+open/close control. The adjacent star/splitter/pixel-column grid makes the drawer consume shell width and resize
+Browser/Player rather than overlaying them; closing immediately restores the space. The pull remains available while
+idle, gains restrained active/count emphasis for non-terminal work, and `SubmissionAccepted` retains the independent
+one-time auto-reveal behavior.
 
 The modal remains a complete-submission setup surface because deterministic input order, Name Parts sequence,
 Same-as-Source, Color/range snapshots, final paths, and within-submission collision checks require simultaneous

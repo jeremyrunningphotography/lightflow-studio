@@ -42,6 +42,21 @@ public sealed class GlobalExportSchedulerTests
     }
 
     [Fact]
+    public async Task MultiJobAdmissionPublishesOneSubmissionAcceptedAutoRevealSignal()
+    {
+        var harness = new Harness(1);
+        var accepted = new List<Guid>();
+        harness.Scheduler.SubmissionAccepted += accepted.Add;
+
+        var admission = harness.Scheduler.Admit(Proposal("auto-reveal", 3));
+
+        Assert.True(admission.Accepted);
+        Assert.Equal(3, admission.Jobs.Count);
+        Assert.Equal(admission.Jobs[0].Definition.SubmissionId, Assert.Single(accepted));
+        await harness.DisposeAsync();
+    }
+
+    [Fact]
     public async Task SeparateSubmissionsUseOneQueueAndLiveIncreaseStartsMore()
     {
         var harness = new Harness(1);

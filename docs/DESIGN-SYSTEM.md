@@ -47,8 +47,19 @@ supports that operation, so selection changes never shift the Browser layout. Th
 each tile's context menu and use Explorer-familiar right-click selection semantics. Regenerate Previews instead sits
 as a compact refresh-style icon in the Browser status/presentation area immediately left of the Preview-size controls:
 it applies to the applicable selection when one exists, or to the current effective Browser scope when none does.
-The bottom status bar otherwise remains limited to application health, Browser counts, Preview activity, and Preview
-presentation size.
+The bottom status bar otherwise remains limited to application health, Browser counts, Preview activity, Preview
+presentation size, and the application-wide Jobs affordance. The Jobs drawer uses the same flat dark shell surfaces,
+divider, text, warning, orange active, and green success vocabulary. Its reusable radial indicator fills clockwise
+for real progress and pairs every color with text and a distinct hollow/check/pause/error/cancel shape. Lists retain
+recycling virtualization and bound transient terminal feedback to avoid heavyweight unbounded activity controls.
+The drawer's disclosure controls use the same quiet transparent-button, raised-hover, and orange focus vocabulary as
+the rest of the shell rather than native WPF expander chrome. Its resize boundary remains visually empty, with only
+the `SizeWE` cursor revealing the interaction. Destructive Jobs confirmations use Lightflow's dark card/window chrome
+and explicit default/cancel actions instead of native message-box styling.
+Jobs navigation and drawer access use distinct affordances: the bottom status action opens the full Jobs destination,
+while a narrow vertical right-edge pull tab toggles the compact drawer. The tab uses subdued shell chrome when idle,
+orange emphasis/count for active work, directional carets, and the standard keyboard-focus border; no duplicate close
+button appears inside the drawer.
 
 Selection actions use compact purpose-built transparent button chrome, short labels, and separators between general
 media actions and Color actions. Camera and Creative are action-picker `ComboBox` controls using the same

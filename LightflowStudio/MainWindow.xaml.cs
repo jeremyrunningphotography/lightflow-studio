@@ -3797,7 +3797,8 @@ public partial class MainWindow : Window
         JobsDrawerPullCount.Text = activeCount.ToString();
         JobsDrawerPullCount.Visibility = activeCount > 0 ? Visibility.Visible : Visibility.Collapsed;
         var cancellableCount = JobsPresentation.CancellableJobs(jobs).Count;
-        JobsCancelAllButton.Visibility = cancellableCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        JobsCancelAllButton.IsEnabled = cancellableCount > 0;
+        JobsCancelAllButton.ToolTip = cancellableCount > 0 ? $"Cancel all {cancellableCount} cancellable Jobs" : "No cancellable Jobs";
         AutomationProperties.SetName(JobsCancelAllButton, $"Cancel all {cancellableCount} cancellable Jobs");
         MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         var cards = JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds)

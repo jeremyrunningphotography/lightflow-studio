@@ -136,6 +136,13 @@ public sealed class JobsPresentationTests
         Assert.Contains("foreach (var id in intended) _exportScheduler.Cancel(id);", source);
         Assert.Contains("Cancel all {intended.Count} cancellable", source);
         Assert.Contains("job.OutputPath", source);
+
+        var apply = MethodBody(source, "private void ApplyJobsPresentation");
+        Assert.Contains("JobsCancelAllButton.IsEnabled = cancellableCount > 0", apply);
+        Assert.DoesNotContain("JobsCancelAllButton.Visibility", apply);
+        var button = Named(DrawerDocument(), "JobsCancelAllButton");
+        Assert.Equal("False", (string?)button.Attribute("IsEnabled"));
+        Assert.Null(button.Attribute("Visibility"));
     }
 
     [Fact]

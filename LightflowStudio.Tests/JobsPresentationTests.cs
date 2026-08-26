@@ -497,6 +497,35 @@ public sealed class JobsPresentationTests
         Assert.Single(JobsWorkspacePresentation.Project([waiting], [failed], "input-2", JobsWorkspaceFilter.Failed));
     }
 
+    [Fact]
+    public void FullWorkspace_SelectionEligibilityRequiresTheCompleteSelection()
+    {
+        var waiting = WorkspaceItem(1, JobState.Queued, current: true);
+        var paused = WorkspaceItem(2, JobState.Paused, current: true);
+        var attention = WorkspaceItem(3, JobState.NeedsAttention, current: true);
+        var history = WorkspaceItem(4, JobState.Completed, current: false, history: true);
+
+        Assert.True(JobsSelectionEligibility.For([waiting]).CanPause);
+        Assert.True(JobsSelectionEligibility.For([paused]).CanResume);
+        Assert.True(JobsSelectionEligibility.For([waiting, paused, attention]).CanCancel);
+        Assert.False(JobsSelectionEligibility.For([waiting, history]).CanCancel);
+        Assert.False(JobsSelectionEligibility.For([history, waiting]).CanClearHistory);
+        Assert.True(JobsSelectionEligibility.For([history]).CanClearHistory);
+        Assert.False(JobsSelectionEligibility.For([]).CanCancel);
+    }
+
+    [Fact]
+    public void FullWorkspace_SelectionSurvivesByJobIdentityAndIntersectsTheVisibleSet()
+    {
+        var first = WorkspaceItem(1, JobState.Running, current: true);
+        var second = WorkspaceItem(2, JobState.Queued, current: true);
+        var selected = new[] { first.JobId, second.JobId };
+
+        Assert.Equal(selected.ToHashSet(), JobsWorkspacePresentation.SurvivingSelection(selected, [first, second]));
+        Assert.Equal(new HashSet<Guid> { second.JobId }, JobsWorkspacePresentation.SurvivingSelection(selected, [second]));
+        Assert.Empty(JobsWorkspacePresentation.SurvivingSelection(selected, []));
+    }
+
     private static XDocument DrawerDocument() => XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
     private static string MainWindowSource() => File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
     private static string MethodBody(string source, string signature)
@@ -545,5 +574,12 @@ public sealed class JobsPresentationTests
         var result = new JobResult<EncodingItemResult>(id, state, completed.AddMinutes(-1), completed, results,
             summary, [], state == JobState.Failed ? ["failed"] : []);
         return new(id, "video.encode", definition.CreatedAt, result.StartedAt, completed, state, definition, plan, result);
+    }
+
+    private static JobsWorkspaceItem WorkspaceItem(int order, JobState state, bool current, bool history = false)
+    {
+        var id = Guid.Parse($"00000000-0000-0000-0000-{order:D12}");
+        return new(id, history ? id : null, null, current, false, $"Job {order}", "Export", state, null, "Now",
+            $@"C:\input-{order}.mp4", $@"C:\output-{order}.mp4", "", "Details", DateTimeOffset.Now, order);
     }
 }

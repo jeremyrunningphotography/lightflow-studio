@@ -21,6 +21,22 @@ internal sealed record JobsWorkspaceItem(
     public string LegacyNote => IsLegacyProjection ? "Legacy History record · record-level rerun and removal" : "";
 }
 
+internal sealed record JobsSelectionEligibility(
+    IReadOnlyList<JobsWorkspaceItem> Items, bool CanPause, bool CanResume, bool CanCancel, bool CanClearHistory)
+{
+    public bool IsSingle => Items.Count == 1;
+
+    public static JobsSelectionEligibility For(IEnumerable<JobsWorkspaceItem> selected)
+    {
+        var items = selected.ToList();
+        return new(items,
+            items.Count > 0 && items.All(item => item.CanPause),
+            items.Count > 0 && items.All(item => item.CanResume),
+            items.Count > 0 && items.All(item => item.CanCancel),
+            items.Count > 0 && items.All(item => item.CanRemoveHistory));
+    }
+}
+
 internal static class JobsWorkspacePresentation
 {
     public static IReadOnlyList<JobsWorkspaceItem> Project(IReadOnlyList<ExportJobSnapshot> current,
@@ -48,6 +64,13 @@ internal static class JobsWorkspacePresentation
 
     public static IReadOnlySet<Guid> BackingHistoryRecordIds(IEnumerable<JobsWorkspaceItem> items) =>
         items.Where(item => item.HistoryRecordId is not null).Select(item => item.HistoryRecordId!.Value).ToHashSet();
+
+    public static IReadOnlySet<Guid> SurvivingSelection(IEnumerable<Guid> selectedJobIds,
+        IEnumerable<JobsWorkspaceItem> visibleItems)
+    {
+        var selected = selectedJobIds.ToHashSet();
+        return visibleItems.Where(item => selected.Contains(item.JobId)).Select(item => item.JobId).ToHashSet();
+    }
 
     public static string RemovalScope(IReadOnlyList<EncodingJobHistoryRecord> records)
     {

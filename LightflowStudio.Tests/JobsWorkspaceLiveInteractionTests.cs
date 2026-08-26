@@ -12,7 +12,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
     [Fact]
     public async Task StatusJobs_ActivatesEmptyWorkspaceAndDrawerRemainsIndependent()
     {
-        await RunAsync(seedHistory: false, async window =>
+        await RunAsync(seedHistoryCount: 0, async window =>
         {
             Assert.Empty(window.HistoryList.Items);
             RaiseClick(window.JobsStatusButton);
@@ -32,7 +32,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
     [Fact]
     public async Task StatusJobs_RealizesDurableHistoryRowAndCanNavigateAwayAndBack()
     {
-        await RunAsync(seedHistory: true, async window =>
+        await RunAsync(seedHistoryCount: 1, async window =>
         {
             RaiseClick(window.JobsStatusButton);
             await RealizeJobsWorkspaceAsync(window);
@@ -52,7 +52,42 @@ public sealed class JobsWorkspaceLiveInteractionTests
         });
     }
 
-    private static async Task RunAsync(bool seedHistory, Func<MainWindow, Task> body)
+    [Fact]
+    public async Task FullJobs_ExtendedSelectionSurvivesRefreshFiltersDeterministicallyAndBackPreservesShell()
+    {
+        await RunAsync(seedHistoryCount: 2, async window =>
+        {
+            RaiseClick(window.JobsStatusButton);
+            RaiseClick(window.RefreshHistoryButton);
+            await RealizeJobsWorkspaceAsync(window);
+
+            Assert.Equal(SelectionMode.Extended, window.HistoryList.SelectionMode);
+            Assert.Equal(2, window.HistoryList.Items.Count);
+            window.HistoryList.SelectAll();
+            Assert.Equal(2, window.HistoryList.SelectedItems.Count);
+            Assert.True(window.JobsClearHistoryButton.IsEnabled);
+
+            var selectedIds = window.HistoryList.SelectedItems.Cast<JobsWorkspaceItem>().Select(item => item.JobId).ToHashSet();
+            RaiseClick(window.RefreshHistoryButton);
+            Assert.Equal(selectedIds, window.HistoryList.SelectedItems.Cast<JobsWorkspaceItem>().Select(item => item.JobId).ToHashSet());
+
+            window.JobsSearchText.Text = "does-not-match-any-job";
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.Empty(window.HistoryList.SelectedItems);
+            Assert.False(window.JobsClearHistoryButton.IsEnabled);
+            window.JobsSearchText.Clear();
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.Empty(window.HistoryList.SelectedItems);
+
+            RaiseClick(window.JobsBackToBrowserButton);
+            Assert.Equal(ShellWorkspaceSelection.Index(ShellWorkspace.Browser), window.MainTabs.SelectedIndex);
+            RaiseClick(window.JobsStatusButton);
+            await RealizeJobsWorkspaceAsync(window);
+            Assert.Equal(2, window.HistoryList.Items.Count);
+        });
+    }
+
+    private static async Task RunAsync(int seedHistoryCount, Func<MainWindow, Task> body)
     {
         var root = Path.Combine(Path.GetTempPath(), $"lightflow-jobs-live-{Guid.NewGuid():N}");
         await StaDispatcher.RunAsync(async () =>
@@ -61,7 +96,8 @@ public sealed class JobsWorkspaceLiveInteractionTests
             var startup = await LightflowStorageCoordinator.StartAsync(root);
             Assert.True(startup.IsReady, startup.Diagnostic);
             var storage = startup.Coordinator!;
-            if (seedHistory) new JobHistoryStore(storage.Locations.JobHistoryPath).Add(HistoryRecord());
+            var history = new JobHistoryStore(storage.Locations.JobHistoryPath);
+            for (var index = 0; index < seedHistoryCount; index++) history.Add(HistoryRecord());
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic)
             {
                 WindowStartupLocation = WindowStartupLocation.Manual,

@@ -1,6 +1,9 @@
 using LightflowStudio;
 using System.Collections.ObjectModel;
+using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Threading;
 using System.Xml.Linq;
 using Xunit;
@@ -93,7 +96,7 @@ public sealed class JobsPresentationTests
 
         Assert.Equal("Wrap", (string?)path.Attribute("TextWrapping"));
         Assert.Equal("{Binding OutputPath}", (string?)path.Attribute("ToolTip"));
-        Assert.Equal("{Binding Progress}", (string?)progress.Attribute("Value"));
+        Assert.Equal("{Binding Progress, Mode=OneWay}", (string?)progress.Attribute("Value"));
         Assert.Contains("{Binding Progress", (string?)percentage.Attribute("Text"));
         Assert.Equal("1", (string?)percentage.Attribute("Grid.Column"));
         Assert.Equal(2, timingGrid.Element(timingGrid.Name.Namespace + "Grid.ColumnDefinitions")!.Elements().Count());
@@ -244,15 +247,30 @@ public sealed class JobsPresentationTests
     }
 
     [Fact]
-    public void RadialBindingsAreExplicitOneWayForStableReadOnlyPresentationProperties()
+    public void DrawerBindingsAreExplicitOneWayForStableReadOnlyPresentationProperties()
     {
-        var radial = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+        var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+            .Single(element => element.Name.LocalName == "DataTemplate");
+        var radial = template.Descendants()
             .Single(element => element.Name.LocalName == "JobsRadialProgress");
+        var stateRun = template.Descendants().Single(element => element.Name.LocalName == "Run" &&
+            ((string?)element.Attribute("Text"))?.Contains("Binding State", StringComparison.Ordinal) == true);
+        var etaRun = template.Descendants().Single(element => element.Name.LocalName == "Run" &&
+            ((string?)element.Attribute("Text"))?.Contains("Binding Eta", StringComparison.Ordinal) == true);
+        var progressBar = template.Descendants().Single(element => element.Name.LocalName == "ProgressBar");
         Assert.Equal("{Binding Progress, Mode=OneWay}", (string?)radial.Attribute("Progress"));
         Assert.Equal("{Binding State, Mode=OneWay}", (string?)radial.Attribute("State"));
         Assert.Equal("{Binding State, Mode=OneWay}", (string?)radial.Attribute("AutomationProperties.Name"));
+        Assert.Equal("{Binding State, Mode=OneWay}", (string?)stateRun.Attribute("Text"));
+        Assert.Equal("{Binding Eta, Mode=OneWay}", (string?)etaRun.Attribute("Text"));
+        Assert.All(template.Descendants().Where(element => element.Name.LocalName == "Run" &&
+            ((string?)element.Attribute("Text"))?.StartsWith("{Binding", StringComparison.Ordinal) == true),
+            run => Assert.Contains("Mode=OneWay", (string?)run.Attribute("Text")));
+        Assert.Equal("{Binding Progress, Mode=OneWay}", (string?)progressBar.Attribute("Value"));
         Assert.True(typeof(JobCardPresentation).GetProperty(nameof(JobCardPresentation.State))!
             .GetSetMethod(nonPublic: true)!.IsPrivate);
+        Assert.True(((FrameworkPropertyMetadata)Run.TextProperty.GetMetadata(typeof(Run))).BindsTwoWayByDefault);
+        Assert.True(((FrameworkPropertyMetadata)ProgressBar.ValueProperty.GetMetadata(typeof(ProgressBar))).BindsTwoWayByDefault);
     }
 
     [Fact]
@@ -263,18 +281,35 @@ public sealed class JobsPresentationTests
             var snapshot = Snapshot(1, JobState.Queued);
             var card = JobsPresentation.Card(snapshot, false);
             var radial = new JobsRadialProgress { DataContext = card };
+            var statusRun = new Run { DataContext = card };
+            var etaRun = new Run { DataContext = card };
+            var progressBar = new ProgressBar { DataContext = card };
             BindingOperations.SetBinding(radial, JobsRadialProgress.ProgressProperty,
                 new Binding(nameof(JobCardPresentation.Progress)) { Mode = BindingMode.OneWay });
             BindingOperations.SetBinding(radial, JobsRadialProgress.StateProperty,
                 new Binding(nameof(JobCardPresentation.State)) { Mode = BindingMode.OneWay });
+            BindingOperations.SetBinding(statusRun, Run.TextProperty,
+                new Binding(nameof(JobCardPresentation.State)) { Mode = BindingMode.OneWay });
+            BindingOperations.SetBinding(etaRun, Run.TextProperty,
+                new Binding(nameof(JobCardPresentation.Eta)) { Mode = BindingMode.OneWay });
+            BindingOperations.SetBinding(progressBar, ProgressBar.ValueProperty,
+                new Binding(nameof(JobCardPresentation.Progress)) { Mode = BindingMode.OneWay });
             radial.Measure(new System.Windows.Size(21, 21));
             await Dispatcher.Yield(DispatcherPriority.DataBind);
             Assert.Equal("Waiting", radial.State);
+            Assert.Equal("Waiting", statusRun.Text);
+            Assert.Equal("", etaRun.Text);
 
-            card.Apply(JobsPresentation.Card(snapshot with { State = JobState.Running, ProgressPercent = 42 }, false));
+            card.Apply(JobsPresentation.Card(snapshot with
+            {
+                State = JobState.Running, ProgressPercent = 42, Eta = TimeSpan.FromSeconds(20)
+            }, false));
             await Dispatcher.Yield(DispatcherPriority.DataBind);
             Assert.Equal("Exporting", radial.State);
             Assert.Equal(42, radial.Progress);
+            Assert.Equal("Exporting", statusRun.Text);
+            Assert.Equal("About 0:20 remaining", etaRun.Text);
+            Assert.Equal(42, progressBar.Value);
         });
     }
 

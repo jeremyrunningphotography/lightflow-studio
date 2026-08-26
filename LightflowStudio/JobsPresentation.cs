@@ -41,12 +41,17 @@ internal static class JobsPresentation
         JobState.Failed or JobState.NeedsAttention => "!", JobState.Cancelled => "×", _ => "○"
     };
 
-    public static IReadOnlyList<ExportJobSnapshot> VisibleJobs(IEnumerable<ExportJobSnapshot> jobs)
+    public static bool IsClearableFinished(JobState state) => state is JobState.Completed or JobState.CompletedWithWarnings
+        or JobState.Skipped or JobState.Cancelled or JobState.Failed;
+
+    public static IReadOnlyList<ExportJobSnapshot> VisibleJobs(IEnumerable<ExportJobSnapshot> jobs,
+        IReadOnlySet<Guid>? dismissedTerminalJobIds = null)
     {
         var ordered = jobs.OrderBy(job => job.QueueOrder).ToList();
         var recentIds = ordered.Where(job => IsTerminal(job.State)).OrderByDescending(job => job.CompletedAt)
             .Take(MaximumRecentTerminalJobs).Select(job => job.JobId).ToHashSet();
-        return ordered.Where(job => !IsTerminal(job.State) || recentIds.Contains(job.JobId)).ToList();
+        return ordered.Where(job => (!IsTerminal(job.State) || recentIds.Contains(job.JobId))
+            && !(dismissedTerminalJobIds?.Contains(job.JobId) ?? false)).ToList();
     }
 
     public static JobCardPresentation Card(ExportJobSnapshot job, bool expanded)

@@ -52,6 +52,10 @@ presentation size, and the application-wide Jobs affordance. The Jobs drawer use
 divider, text, warning, orange active, and green success vocabulary. Its reusable radial indicator fills clockwise
 for real progress and pairs every color with text and a distinct hollow/check/pause/error/cancel shape. Lists retain
 recycling virtualization and bound transient terminal feedback to avoid heavyweight unbounded activity controls.
+The drawer's disclosure controls use the same quiet transparent-button, raised-hover, and orange focus vocabulary as
+the rest of the shell rather than native WPF expander chrome. Its resize boundary remains visually empty, with only
+the `SizeWE` cursor revealing the interaction. Destructive Jobs confirmations use Lightflow's dark card/window chrome
+and explicit default/cancel actions instead of native message-box styling.
 
 Selection actions use compact purpose-built transparent button chrome, short labels, and separators between general
 media actions and Color actions. Camera and Creative are action-picker `ComboBox` controls using the same

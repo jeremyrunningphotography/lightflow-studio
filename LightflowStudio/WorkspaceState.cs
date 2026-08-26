@@ -44,6 +44,7 @@ internal sealed record WorkspaceWindowState
 internal sealed record WorkspaceLayoutState
 {
     public double? BrowserLocationsPaneWidth { get; init; }
+    public double? JobsDrawerWidth { get; init; }
 
     /// <summary>
     /// #125: the Browser's chosen thumbnail-size level, persisted as a plain index into
@@ -62,6 +63,8 @@ internal sealed record WorkspaceState
     // Mirrors MainWindow.xaml's BrowserNavigationColumn MinWidth/MaxWidth.
     public const double MinLocationsPaneWidth = 220;
     public const double MaxLocationsPaneWidth = 520;
+    public const double MinJobsDrawerWidth = 320;
+    public const double MaxJobsDrawerWidth = 620;
 
     public int Version { get; init; } = CurrentVersion;
     public WorkspaceBrowserLocationState? Browser { get; init; }
@@ -113,12 +116,16 @@ internal sealed record WorkspaceState
         var paneWidth = layout.BrowserLocationsPaneWidth is { } width && double.IsFinite(width)
             ? Math.Clamp(width, MinLocationsPaneWidth, MaxLocationsPaneWidth)
             : (double?)null;
+        var jobsDrawerWidth = layout.JobsDrawerWidth is { } drawerWidth && double.IsFinite(drawerWidth)
+            ? Math.Clamp(drawerWidth, MinJobsDrawerWidth, MaxJobsDrawerWidth)
+            : (double?)null;
         // Clamped rather than discarded: an out-of-range level (e.g. from a future build with more sizes,
         // opened by an older one) still lands on a valid size instead of silently reverting to the default.
         var thumbnailSizeLevel = layout.BrowserThumbnailSizeLevel is { } level
             ? Math.Clamp(level, 0, BrowserGridLayout.ThumbnailSizes.Count - 1)
             : (int?)null;
-        return layout with { BrowserLocationsPaneWidth = paneWidth, BrowserThumbnailSizeLevel = thumbnailSizeLevel };
+        return layout with { BrowserLocationsPaneWidth = paneWidth, JobsDrawerWidth = jobsDrawerWidth,
+            BrowserThumbnailSizeLevel = thumbnailSizeLevel };
     }
 }
 
@@ -204,6 +211,9 @@ internal sealed class WorkspaceStateService
     // recently, since SaveWorkspaceState calls both setters back-to-back at the same shutdown/debounce point.
     public void SetBrowserLocationsPaneWidth(double width) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { BrowserLocationsPaneWidth = width } };
+
+    public void SetJobsDrawerWidth(double width) =>
+        _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { JobsDrawerWidth = width } };
 
     public void SetBrowserThumbnailSizeLevel(int level) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { BrowserThumbnailSizeLevel = level } };

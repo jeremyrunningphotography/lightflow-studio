@@ -74,6 +74,9 @@ Use explicit states:
 
 Avoid ambiguous states such as merely “Done” when warnings occurred.
 
+Transient activity views may offer `Clear finished`, but clearing presentation must not imply deletion of durable
+History or recovery records. Keep actionable recovery states visible until the user resolves them.
+
 ## Error presentation
 
 The primary error message should answer:

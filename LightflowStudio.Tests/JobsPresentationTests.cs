@@ -60,11 +60,13 @@ public sealed class JobsPresentationTests
         var drawer = Named(document, "JobsDrawer");
         var list = Named(document, "JobsDrawerList");
         var template = list.Descendants().Single(element => element.Name.LocalName == "DataTemplate");
-        var row = template.Elements().Single(element => element.Name.LocalName == "StackPanel");
+        var row = template.Elements().Single(element => element.Name.LocalName == "Grid");
         var reorder = template.Descendants().Where(element => element.Name.LocalName == "Button" &&
             ((string?)element.Attribute("AutomationProperties.Name"))?.StartsWith("Move waiting Job", StringComparison.Ordinal) == true).ToList();
 
-        Assert.Equal("380", (string?)drawer.Attribute("Width"));
+        Assert.Null(drawer.Attribute("Width"));
+        Assert.Equal("320", (string?)drawer.Attribute("MinWidth"));
+        Assert.Equal("620", (string?)drawer.Attribute("MaxWidth"));
         Assert.Equal("0,0,16,0", (string?)list.Attribute("Padding"));
         Assert.Equal("0,0,0,4", (string?)row.Attribute("Margin"));
         Assert.Equal(2, reorder.Count);
@@ -96,7 +98,8 @@ public sealed class JobsPresentationTests
         var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
             .Single(element => element.Name.LocalName == "DataTemplate");
         var toggle = template.Descendants().Single(element => (string?)element.Attribute("Click") == "JobExpansionToggle_Click");
-        var detail = template.Descendants().Single(element => ((string?)element.Attribute("Visibility"))?.Contains("IsExpanded", StringComparison.Ordinal) == true);
+        var detail = template.Descendants().Single(element => element.Name.LocalName == "Border" &&
+            ((string?)element.Attribute("Visibility"))?.Contains("IsExpanded", StringComparison.Ordinal) == true);
         var source = MainWindowSource();
 
         Assert.Contains("Toggle details for", (string?)toggle.Attribute("AutomationProperties.Name"));
@@ -123,8 +126,80 @@ public sealed class JobsPresentationTests
         Assert.Contains("job.OutputPath", source);
     }
 
+    [Fact]
+    public void DrawerResize_UsesCleanBoundaryHitTargetAndColumnOwnedBounds()
+    {
+        var document = DrawerDocument();
+        var splitter = Named(document, "JobsDrawerSplitter");
+        var column = Named(document, "JobsDrawerColumn");
+        var list = Named(document, "JobsDrawerList");
+
+        Assert.Equal("8", (string?)splitter.Attribute("Width"));
+        Assert.Equal("Transparent", (string?)splitter.Attribute("Background"));
+        Assert.Equal("SizeWE", (string?)splitter.Attribute("Cursor"));
+        Assert.DoesNotContain(splitter.Descendants(), element => element.Name.LocalName is "Thumb" or "Path" or "Ellipse");
+        Assert.Equal("620", (string?)column.Attribute("MaxWidth"));
+        Assert.Equal("Disabled", (string?)list.Attribute("ScrollViewer.HorizontalScrollBarVisibility"));
+        Assert.Contains("SetJobsDrawerWidth(_jobsDrawerWidth)", MainWindowSource());
+    }
+
+    [Fact]
+    public void DisclosureAndTerminalRows_UseLightflowStateAndHideWaitingControls()
+    {
+        var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+            .Single(element => element.Name.LocalName == "DataTemplate");
+        var carets = template.Descendants().Where(element => (string?)element.Attribute("Text") is "›" or "⌄").ToList();
+        var reorder = template.Descendants().Single(element => ((string?)element.Attribute("Visibility"))?.Contains("CanReorder", StringComparison.Ordinal) == true);
+
+        Assert.Equal(2, carets.Count);
+        Assert.All(carets, caret => Assert.Contains("IsExpanded", (string?)caret.Attribute("Visibility")));
+        Assert.Contains("BoolToVisibility", (string?)reorder.Attribute("Visibility"));
+        Assert.DoesNotContain(template.Descendants(), element => element.Name.LocalName == "Expander");
+    }
+
+    [Fact]
+    public void ClearFinished_IsTransientAndNeverHidesNeedsAttentionOrActiveWork()
+    {
+        Assert.True(JobsPresentation.IsClearableFinished(JobState.Completed));
+        Assert.True(JobsPresentation.IsClearableFinished(JobState.Cancelled));
+        Assert.True(JobsPresentation.IsClearableFinished(JobState.Failed));
+        Assert.False(JobsPresentation.IsClearableFinished(JobState.NeedsAttention));
+        Assert.False(JobsPresentation.IsClearableFinished(JobState.Queued));
+        Assert.False(JobsPresentation.IsClearableFinished(JobState.Running));
+        Assert.False(JobsPresentation.IsClearableFinished(JobState.Paused));
+
+        var completed = Snapshot(1, JobState.Completed);
+        var waiting = Snapshot(2, JobState.Queued);
+        Assert.Equal([waiting.JobId], JobsPresentation.VisibleJobs([completed, waiting], new HashSet<Guid> { completed.JobId }).Select(job => job.JobId));
+        var source = MainWindowSource();
+        Assert.Contains("_dismissedTerminalJobIds.Add(job.JobId)", source);
+        Assert.DoesNotContain("_jobHistory", MethodBody(source, "private void JobsClearFinished_Click"));
+    }
+
+    [Fact]
+    public void JobsConfirmations_UseReusableDarkDialogInsteadOfNativeMessageBox()
+    {
+        var source = MainWindowSource();
+        var cancel = MethodBody(source, "private void JobsCancel_Click");
+        var cancelAll = MethodBody(source, "private void JobsCancelAll_Click");
+        var dialog = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ConfirmationDialog.xaml"));
+
+        Assert.Contains("ConfirmationDialog.Confirm", cancel);
+        Assert.Contains("ConfirmationDialog.Confirm", cancelAll);
+        Assert.DoesNotContain("MessageBox", cancel + cancelAll);
+        Assert.Equal("{StaticResource WindowBrush}", (string?)dialog.Root!.Attribute("Background"));
+        Assert.Contains(dialog.Descendants(), element => (string?)element.Attribute("IsDefault") == "True");
+        Assert.Contains(dialog.Descendants(), element => (string?)element.Attribute("IsCancel") == "True");
+    }
+
     private static XDocument DrawerDocument() => XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
     private static string MainWindowSource() => File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
+    private static string MethodBody(string source, string signature)
+    {
+        var start = source.IndexOf(signature, StringComparison.Ordinal);
+        var next = source.IndexOf("\n    private ", start + signature.Length, StringComparison.Ordinal);
+        return source[start..(next < 0 ? source.Length : next)];
+    }
     private static XElement Named(XDocument document, string name) => document.Descendants().Single(element =>
         (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == name);
     private static string FindRepositoryRoot()

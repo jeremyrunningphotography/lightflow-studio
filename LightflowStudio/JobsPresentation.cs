@@ -1,4 +1,6 @@
 using System.IO;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
 namespace LightflowStudio;
 
@@ -24,8 +26,7 @@ internal static class JobsPresentation
             : $"Jobs · {current.Count} active";
     }
 
-    public static JobsRoute Route(IEnumerable<ExportJobSnapshot> jobs) =>
-        HasNonTerminalJobs(jobs) ? JobsRoute.Drawer : JobsRoute.HistoryCompatibility;
+    public static JobsRoute Route() => JobsRoute.FullJobsCompatibility;
 
     public static string StateText(JobState state) => state switch
     {
@@ -86,9 +87,60 @@ internal static class JobsPresentation
     private static string FormatDuration(TimeSpan value) => value.TotalHours >= 1 ? value.ToString(@"h\:mm\:ss") : value.ToString(@"m\:ss");
 }
 
-internal enum JobsRoute { Drawer, HistoryCompatibility }
+internal enum JobsRoute { FullJobsCompatibility }
 
-internal sealed record JobCardPresentation(Guid JobId, string Name, string Glyph, string State, double Progress,
-    bool ShowProgress, string Elapsed, string? Eta, string OutputPath, string ResolutionAndFrameRate,
-    string CodecAndContainer, string Quality, string Audio, string Color, string? Issue, bool IsExpanded,
-    bool CanPause, bool CanResume, bool CanRetry, bool CanCancel, bool CanReorder);
+internal sealed class JobCardPresentation(Guid jobId, string name, string glyph, string state, double progress,
+    bool showProgress, string elapsed, string? eta, string outputPath, string resolutionAndFrameRate,
+    string codecAndContainer, string quality, string audio, string color, string? issue, bool isExpanded,
+    bool canPause, bool canResume, bool canRetry, bool canCancel, bool canReorder) : INotifyPropertyChanged
+{
+    public Guid JobId { get; } = jobId;
+    public string Name { get; private set; } = name;
+    public string Glyph { get; private set; } = glyph;
+    public string State { get; private set; } = state;
+    public double Progress { get; private set; } = progress;
+    public bool ShowProgress { get; private set; } = showProgress;
+    public string Elapsed { get; private set; } = elapsed;
+    public string? Eta { get; private set; } = eta;
+    public string OutputPath { get; private set; } = outputPath;
+    public string ResolutionAndFrameRate { get; private set; } = resolutionAndFrameRate;
+    public string CodecAndContainer { get; private set; } = codecAndContainer;
+    public string Quality { get; private set; } = quality;
+    public string Audio { get; private set; } = audio;
+    public string Color { get; private set; } = color;
+    public string? Issue { get; private set; } = issue;
+    public bool IsExpanded { get; private set; } = isExpanded;
+    public bool CanPause { get; private set; } = canPause;
+    public bool CanResume { get; private set; } = canResume;
+    public bool CanRetry { get; private set; } = canRetry;
+    public bool CanCancel { get; private set; } = canCancel;
+    public bool CanReorder { get; private set; } = canReorder;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void Apply(JobCardPresentation value)
+    {
+        if (value.JobId != JobId) throw new ArgumentException("A Job card can only be updated from the same JobId.", nameof(value));
+        Set(Name, value.Name, next => Name = next); Set(Glyph, value.Glyph, next => Glyph = next);
+        Set(State, value.State, next => State = next); Set(Progress, value.Progress, next => Progress = next);
+        Set(ShowProgress, value.ShowProgress, next => ShowProgress = next); Set(Elapsed, value.Elapsed, next => Elapsed = next);
+        Set(Eta, value.Eta, next => Eta = next); Set(OutputPath, value.OutputPath, next => OutputPath = next);
+        Set(ResolutionAndFrameRate, value.ResolutionAndFrameRate, next => ResolutionAndFrameRate = next);
+        Set(CodecAndContainer, value.CodecAndContainer, next => CodecAndContainer = next);
+        Set(Quality, value.Quality, next => Quality = next); Set(Audio, value.Audio, next => Audio = next);
+        Set(Color, value.Color, next => Color = next); Set(Issue, value.Issue, next => Issue = next);
+        SetExpanded(value.IsExpanded); Set(CanPause, value.CanPause, next => CanPause = next);
+        Set(CanResume, value.CanResume, next => CanResume = next); Set(CanRetry, value.CanRetry, next => CanRetry = next);
+        Set(CanCancel, value.CanCancel, next => CanCancel = next); Set(CanReorder, value.CanReorder, next => CanReorder = next);
+    }
+
+    public void SetExpanded(bool expanded) => Set(IsExpanded, expanded, next => IsExpanded = next);
+
+    private void Set<T>(T current, T value, Action<T> assign,
+        [CallerArgumentExpression(nameof(current))] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(current, value)) return;
+        assign(value);
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}

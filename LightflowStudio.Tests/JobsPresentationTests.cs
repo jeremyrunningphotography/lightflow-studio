@@ -7,13 +7,16 @@ namespace LightflowStudio.Tests;
 public sealed class JobsPresentationTests
 {
     [Fact]
-    public void StatusAndRoute_CountIndependentFileJobs()
+    public void StatusCountsIndependentFileJobsAndRouteAlwaysTargetsFullJobsCompatibility()
     {
         var jobs = new[] { Snapshot(1, JobState.Running), Snapshot(2, JobState.Running) }
             .Concat(Enumerable.Range(3, 8).Select(order => Snapshot(order, JobState.Queued))).ToList();
         Assert.Equal("Jobs · 2 exporting · 8 waiting", JobsPresentation.StatusText(jobs));
-        Assert.Equal(JobsRoute.Drawer, JobsPresentation.Route(jobs));
-        Assert.Equal(JobsRoute.HistoryCompatibility, JobsPresentation.Route([Snapshot(1, JobState.Completed)]));
+        Assert.Equal(JobsRoute.FullJobsCompatibility, JobsPresentation.Route());
+        var statusHandler = MethodBody(MainWindowSource(), "private void JobsStatus_Click");
+        Assert.Contains("ShellWorkspace.History", statusHandler);
+        Assert.DoesNotContain("OpenJobsDrawer", statusHandler);
+        Assert.DoesNotContain("CloseJobsDrawer", statusHandler);
     }
 
     [Fact]
@@ -108,7 +111,8 @@ public sealed class JobsPresentationTests
         Assert.DoesNotContain("private void JobExpanded", source);
         Assert.DoesNotContain("private void JobCollapsed", source);
         Assert.Contains("var expanded = _expandedJobIds.Add(id);", source);
-        Assert.Contains("ApplyJobsPresentation(_exportScheduler.Jobs);", MethodBody(source, "JobExpansionToggle_Click"));
+        Assert.Contains("SetExpanded(expanded)", MethodBody(source, "JobExpansionToggle_Click"));
+        Assert.DoesNotContain("ApplyJobsPresentation", MethodBody(source, "JobExpansionToggle_Click"));
         Assert.DoesNotContain("Children.OfType", MethodBody(source, "JobExpansionToggle_Click"));
     }
 
@@ -183,6 +187,53 @@ public sealed class JobsPresentationTests
         var handler = MethodBody(MainWindowSource(), "JobExpansionToggle_Click");
         Assert.Equal(1, handler.Split("_expandedJobIds.Add(id)", StringSplitOptions.None).Length - 1);
         Assert.Equal(1, handler.Split("_expandedJobIds.Remove(id)", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
+    public void LiveRefreshUpdatesStableCardWithoutReplacingDisclosureTargetOrExpansionState()
+    {
+        var snapshot = Snapshot(1, JobState.Running);
+        var initial = JobsPresentation.Card(snapshot, false);
+        var identity = initial;
+        for (var activation = 0; activation < 20; activation++)
+        {
+            var requested = !initial.IsExpanded;
+            initial.SetExpanded(requested);
+            var refresh = JobsPresentation.Card(snapshot with { ProgressPercent = activation + 1 }, requested);
+            initial.Apply(refresh);
+            Assert.Same(identity, initial);
+            Assert.Equal(requested, initial.IsExpanded);
+            Assert.Equal(activation + 1, initial.Progress);
+        }
+
+        var source = MainWindowSource();
+        var apply = MethodBody(source, "private void ApplyJobsPresentation");
+        Assert.Contains("ReconcileJobsDrawerCards(cards)", apply);
+        Assert.DoesNotContain("_jobsDrawerCards.Clear", apply);
+        Assert.Contains("existing.Apply(desired[index])", MethodBody(source, "private void ReconcileJobsDrawerCards"));
+    }
+
+    [Fact]
+    public void DrawerPullOwnsToggleAndShellColumnsPushMainContent()
+    {
+        var document = DrawerDocument();
+        var pull = Named(document, "JobsDrawerPullButton");
+        var main = Named(document, "MainTabs");
+        var drawer = Named(document, "JobsDrawer");
+        var splitter = Named(document, "JobsDrawerSplitter");
+        var source = MainWindowSource();
+
+        Assert.Equal("JobsDrawerPull_Click", (string?)pull.Attribute("Click"));
+        Assert.Equal("Right", (string?)pull.Attribute("HorizontalAlignment"));
+        Assert.Equal("0,0,28,0", (string?)main.Attribute("Margin"));
+        Assert.Equal("2", (string?)drawer.Attribute("Grid.Column"));
+        Assert.Equal("1", (string?)splitter.Attribute("Grid.Column"));
+        Assert.Equal("PreviousAndNext", (string?)splitter.Attribute("ResizeBehavior"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute("Click") == "JobsDrawerClose_Click");
+        Assert.Contains("OpenJobsDrawer", MethodBody(source, "private void JobsDrawerPull_Click"));
+        Assert.Contains("CloseJobsDrawer(true)", MethodBody(source, "private void JobsDrawerPull_Click"));
+        Assert.Contains("OpenJobsDrawer();", source[source.IndexOf("SubmissionAccepted", StringComparison.Ordinal)..]);
     }
 
     [Fact]

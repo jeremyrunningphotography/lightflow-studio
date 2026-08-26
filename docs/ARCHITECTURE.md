@@ -775,8 +775,10 @@ Modern Export execution follows this boundary:
 
 The global Jobs drawer is a presentation/control projection directly over `GlobalExportScheduler.Jobs`. One scheduler
 snapshot produces one file row; submission provenance never creates a runtime container. The shell coalesces
-high-frequency `Changed` notifications onto the WPF background dispatcher, while expansion state remains keyed by
-stable `JobId`. Drawer commands call the scheduler's validated concurrency, waiting reorder, Pause/Resume, retry, and
+high-frequency `Changed` notifications onto the WPF background dispatcher and reconciles existing observable cards
+in place by stable `JobId`, so a progress refresh cannot replace a pressed disclosure button between pointer-down and
+pointer-up. Expansion state remains keyed by `JobId` and is applied directly to that stable card. Drawer commands call
+the scheduler's validated concurrency, waiting reorder, Pause/Resume, retry, and
 Cancel boundaries; the drawer owns no execution or queue order. `SubmissionAccepted` is the sole auto-reveal seam, so
 ordinary progress and terminal notifications cannot reopen a manually closed drawer.
 
@@ -788,6 +790,14 @@ only suppresses eligible terminal JobIds in this in-memory drawer projection. It
 output reservations, or durable History, and actionable `NeedsAttention` Jobs remain visible. Job cancellation
 confirmations use the reusable dark-shell `ConfirmationDialog`, while the actual lifecycle operation remains owned by
 `GlobalExportScheduler`.
+
+The bottom status-bar Jobs action now routes unconditionally through `JobsRoute.FullJobsCompatibility` to the current
+History workspace; #171 replaces that single compatibility destination with the full Jobs view. It never toggles the
+drawer. A persistent narrow vertical pull tab in the main content's reserved right gutter is the drawer's sole manual
+open/close control. The adjacent star/splitter/pixel-column grid makes the drawer consume shell width and resize
+Browser/Player rather than overlaying them; closing immediately restores the space. The pull remains available while
+idle, gains restrained active/count emphasis for non-terminal work, and `SubmissionAccepted` retains the independent
+one-time auto-reveal behavior.
 
 The modal remains a complete-submission setup surface because deterministic input order, Name Parts sequence,
 Same-as-Source, Color/range snapshots, final paths, and within-submission collision checks require simultaneous

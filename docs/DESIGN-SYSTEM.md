@@ -56,6 +56,10 @@ The drawer's disclosure controls use the same quiet transparent-button, raised-h
 the rest of the shell rather than native WPF expander chrome. Its resize boundary remains visually empty, with only
 the `SizeWE` cursor revealing the interaction. Destructive Jobs confirmations use Lightflow's dark card/window chrome
 and explicit default/cancel actions instead of native message-box styling.
+Jobs navigation and drawer access use distinct affordances: the bottom status action opens the full Jobs destination,
+while a narrow vertical right-edge pull tab toggles the compact drawer. The tab uses subdued shell chrome when idle,
+orange emphasis/count for active work, directional carets, and the standard keyboard-focus border; no duplicate close
+button appears inside the drawer.
 
 Selection actions use compact purpose-built transparent button chrome, short labels, and separators between general
 media actions and Color actions. Camera and Creative are action-picker `ComboBox` controls using the same

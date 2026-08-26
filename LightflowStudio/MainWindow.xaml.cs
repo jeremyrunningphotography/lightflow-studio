@@ -3781,8 +3781,8 @@ public partial class MainWindow : Window
         if (Interlocked.Exchange(ref _jobsPresentationPending, 1) != 0) return;
         _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
-            try { ApplyJobsPresentation(_exportScheduler.Jobs); }
-            finally { Interlocked.Exchange(ref _jobsPresentationPending, 0); }
+            Interlocked.Exchange(ref _jobsPresentationPending, 0);
+            ApplyJobsPresentation(_exportScheduler.Jobs);
         }));
     }
 
@@ -3790,25 +3790,53 @@ public partial class MainWindow : Window
     {
         if (JobsStatusButton is null) return;
         JobsStatusButton.Content = JobsPresentation.StatusText(jobs);
-        AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open Jobs activity.");
-        JobsStatusButton.ToolTip = JobsPresentation.HasNonTerminalJobs(jobs) ? "Open current Jobs activity" : "Open Jobs history";
+        AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs history.");
+        JobsStatusButton.ToolTip = "Open full Jobs history";
+        var activeCount = jobs.Count(job => !JobsPresentation.IsTerminal(job.State));
+        JobsDrawerPullButton.Tag = activeCount > 0 ? "Active" : "Idle";
+        JobsDrawerPullCount.Text = activeCount.ToString();
+        JobsDrawerPullCount.Visibility = activeCount > 0 ? Visibility.Visible : Visibility.Collapsed;
         var cancellableCount = JobsPresentation.CancellableJobs(jobs).Count;
         JobsCancelAllButton.Visibility = cancellableCount > 0 ? Visibility.Visible : Visibility.Collapsed;
         AutomationProperties.SetName(JobsCancelAllButton, $"Cancel all {cancellableCount} cancellable Jobs");
         MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         var cards = JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds)
             .Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId))).ToList();
-        _jobsDrawerCards.Clear();
-        foreach (var card in cards) _jobsDrawerCards.Add(card);
+        ReconcileJobsDrawerCards(cards);
         JobsClearFinishedButton.Visibility = cards.Any(card => JobsPresentation.IsClearableFinished(
             jobs.First(job => job.JobId == card.JobId).State)) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void JobsStatus_Click(object sender, RoutedEventArgs e)
     {
-        if (JobsPresentation.Route(_exportScheduler.Jobs) == JobsRoute.HistoryCompatibility)
-        { MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.History); return; }
-        if (JobsDrawer.Visibility == Visibility.Visible) CloseJobsDrawer(true); else OpenJobsDrawer();
+        if (JobsPresentation.Route() == JobsRoute.FullJobsCompatibility)
+            MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.History);
+    }
+
+    private void ReconcileJobsDrawerCards(IReadOnlyList<JobCardPresentation> desired)
+    {
+        if (_jobsDrawerCards.Count == desired.Count && desired.Select((card, index) =>
+            card.JobId == _jobsDrawerCards[index].JobId).All(matches => matches))
+        {
+            for (var index = 0; index < desired.Count; index++) _jobsDrawerCards[index].Apply(desired[index]);
+            return;
+        }
+        var desiredIds = desired.Select(card => card.JobId).ToHashSet();
+        for (var index = _jobsDrawerCards.Count - 1; index >= 0; index--)
+            if (!desiredIds.Contains(_jobsDrawerCards[index].JobId)) _jobsDrawerCards.RemoveAt(index);
+        for (var index = 0; index < desired.Count; index++)
+        {
+            var existingIndex = -1;
+            for (var candidate = 0; candidate < _jobsDrawerCards.Count; candidate++)
+                if (_jobsDrawerCards[candidate].JobId == desired[index].JobId) { existingIndex = candidate; break; }
+            if (existingIndex < 0) _jobsDrawerCards.Insert(index, desired[index]);
+            else
+            {
+                var existing = _jobsDrawerCards[existingIndex];
+                existing.Apply(desired[index]);
+                if (existingIndex != index) _jobsDrawerCards.Move(existingIndex, index);
+            }
+        }
     }
 
     private void OpenJobsDrawer()
@@ -3819,6 +3847,9 @@ public partial class MainWindow : Window
         JobsDrawerSplitterColumn.Width = new GridLength(8);
         JobsDrawerSplitter.Visibility = Visibility.Visible;
         JobsDrawer.Visibility = Visibility.Visible;
+        JobsDrawerPullChevron.Text = "›";
+        JobsDrawerPullButton.ToolTip = "Close Jobs drawer";
+        AutomationProperties.SetName(JobsDrawerPullButton, "Close Jobs drawer");
     }
 
     private void CloseJobsDrawer(bool manual)
@@ -3829,15 +3860,21 @@ public partial class MainWindow : Window
         JobsDrawerSplitterColumn.Width = new GridLength(0);
         JobsDrawerColumn.MinWidth = 0;
         JobsDrawerColumn.Width = new GridLength(0);
+        JobsDrawerPullChevron.Text = "‹";
+        JobsDrawerPullButton.ToolTip = "Open Jobs drawer";
+        AutomationProperties.SetName(JobsDrawerPullButton, "Open Jobs drawer");
     }
 
-    private void JobsDrawerClose_Click(object sender, RoutedEventArgs e) => CloseJobsDrawer(true);
+    private void JobsDrawerPull_Click(object sender, RoutedEventArgs e)
+    {
+        if (JobsDrawer.Visibility == Visibility.Visible) CloseJobsDrawer(true); else OpenJobsDrawer();
+    }
     private void JobExpansionToggle_Click(object sender, RoutedEventArgs e)
     {
         if (JobIdFrom(sender) is not { } id) return;
         var expanded = _expandedJobIds.Add(id);
         if (!expanded) _expandedJobIds.Remove(id);
-        ApplyJobsPresentation(_exportScheduler.Jobs);
+        _jobsDrawerCards.FirstOrDefault(card => card.JobId == id)?.SetExpanded(expanded);
     }
 
     private void MaximumExports_SelectionChanged(object sender, SelectionChangedEventArgs e)

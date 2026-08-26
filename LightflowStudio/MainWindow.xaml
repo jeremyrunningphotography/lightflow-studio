@@ -16,6 +16,13 @@
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Chrome" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="4"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Opacity" Value="0.82"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
 
+  <Style x:Key="JobsDrawerPullButtonStyle" TargetType="Button">
+   <Setter Property="Width" Value="28"/><Setter Property="Height" Value="96"/><Setter Property="Padding" Value="0"/>
+   <Setter Property="Background" Value="{StaticResource ShellSurfaceBrush}"/><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/><Setter Property="BorderThickness" Value="1,1,0,1"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6,0,0,6"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger><Trigger Property="Tag" Value="Active"><Setter Property="Foreground" Value="{StaticResource ShellFocusBrush}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+
   <!-- Shared dark "chip" chrome for every standalone Browser toolbar control (the search field, Sort, and
        the quick-filter segmented group) so the row reads as one purpose-designed toolbar rather than a row
        of default form controls with their own mismatched borders. -->
@@ -313,7 +320,7 @@
 
   <Grid Grid.Row="1">
   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition x:Name="JobsDrawerSplitterColumn" Width="0"/><ColumnDefinition x:Name="JobsDrawerColumn" Width="0" MaxWidth="620"/></Grid.ColumnDefinitions>
-  <TabControl Grid.Column="0" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
+  <TabControl Grid.Column="0" Margin="0,0,28,0" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
    SelectionChanged="MainTabs_SelectionChanged">
    <TabItem>
     <Grid Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}">
@@ -1080,14 +1087,12 @@
     </Border></Grid>
    </TabItem>
   </TabControl>
+  <Button Grid.Column="0" x:Name="JobsDrawerPullButton" Style="{StaticResource JobsDrawerPullButtonStyle}" HorizontalAlignment="Right" VerticalAlignment="Center" Tag="Idle" ToolTip="Open Jobs drawer" AutomationProperties.Name="Open Jobs drawer" Click="JobsDrawerPull_Click"><StackPanel HorizontalAlignment="Center"><TextBlock x:Name="JobsDrawerPullChevron" HorizontalAlignment="Center" FontSize="15" Text="‹"/><TextBlock Margin="0,4,0,0" HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="11" Text="Jobs"><TextBlock.LayoutTransform><RotateTransform Angle="-90"/></TextBlock.LayoutTransform></TextBlock><TextBlock x:Name="JobsDrawerPullCount" Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="10" Visibility="Collapsed"/></StackPanel></Button>
   <GridSplitter Grid.Column="1" x:Name="JobsDrawerSplitter" Width="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent" Cursor="SizeWE" Visibility="Collapsed" ToolTip="Drag to resize Jobs drawer" AutomationProperties.Name="Resize Jobs drawer"><GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template></GridSplitter>
   <Border Grid.Column="2" x:Name="JobsDrawer" MinWidth="320" MaxWidth="620" ClipToBounds="True" Background="{StaticResource ShellSurfaceBrush}"
    BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1,0,0,0" Visibility="Collapsed">
    <Grid Margin="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <DockPanel Margin="0,0,0,12">
-     <Button DockPanel.Dock="Right" Style="{StaticResource BrowserThumbnailSizeStepButtonStyle}" Content="&#xE711;" ToolTip="Close Jobs drawer" AutomationProperties.Name="Close Jobs drawer" Click="JobsDrawerClose_Click"/>
-     <StackPanel><TextBlock Style="{StaticResource PageTitle}" FontSize="18" Text="Jobs"/><TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Current and recent exports"/></StackPanel>
-    </DockPanel>
+    <StackPanel Margin="0,0,0,12"><TextBlock Style="{StaticResource PageTitle}" FontSize="18" Text="Jobs"/><TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Current and recent exports"/></StackPanel>
     <DockPanel Grid.Row="1" Margin="0,0,0,10"><Button x:Name="JobsCancelAllButton" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="7,3" Style="{StaticResource DangerButton}" Content="Cancel all…" Visibility="Collapsed" ToolTip="Cancel all cancellable Jobs" AutomationProperties.Name="Cancel all cancellable Jobs" Click="JobsCancelAll_Click"/><TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="Maximum simultaneous exports"/>
      <ComboBox x:Name="MaximumExportsCombo" DockPanel.Dock="Right" Width="58" SelectedValuePath="Content" SelectionChanged="MaximumExports_SelectionChanged">
       <ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/><ComboBoxItem Content="4"/><ComboBoxItem Content="5"/><ComboBoxItem Content="6"/><ComboBoxItem Content="7"/><ComboBoxItem Content="8"/>

@@ -1,5 +1,13 @@
 # Lightflow dark-only design system
 
+## Shared Jobs status language
+
+The compact drawer and full Jobs workspace share `JobsPresentation` state text and `JobsRadialProgress` semantics:
+Exporting uses orange radial progress; Waiting is a neutral hollow state; Paused and Needs attention use distinct
+text/icon treatments; Completed is green; Completed with warnings remains visibly distinct from Failed; Failed is
+red; Cancelled is subdued; and Skipped truthfully communicates preserved output. Status is always conveyed with text
+and shape/icon as well as color. The full workspace may add detail and diagnostics without changing this vocabulary.
+
 Lightflow Studio uses one intentional dark appearance. There is no light theme, automatic system-theme variant, or theme selector. The interface is a neutral frame for photography and video rather than a decorative surface competing with the media.
 
 ## Surface hierarchy

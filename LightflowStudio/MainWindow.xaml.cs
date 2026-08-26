@@ -50,7 +50,8 @@ public partial class MainWindow : Window
     private double _jobsDrawerWidth = 380;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
     private EncodingJobExecutor? _activeJobExecutor;
-    private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
+    private readonly ObservableCollection<JobsWorkspaceItem> _historyRecords = [];
+    private IReadOnlyList<EncodingJobHistoryRecord> _durableHistoryRecords = [];
     private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
     private IReadOnlyList<LutOption> _lutOptions = [LutCatalog.NoLut];
     private long _lutSettingsRevision;
@@ -3470,23 +3471,109 @@ public partial class MainWindow : Window
 
     private void RefreshHistory()
     {
-        _historyRecords.Clear();
-        foreach (var record in _jobHistory.Load()) _historyRecords.Add(record);
+        _durableHistoryRecords = _jobHistory.Load();
+        RefreshJobsWorkspace();
+    }
+
+    private void RefreshJobsWorkspace()
+    {
+        if (HistoryList is null) return;
+        var selected = HistoryList.SelectedItem as JobsWorkspaceItem;
+        var filter = (JobsWorkspaceFilter)Math.Clamp(JobsFilter?.SelectedIndex ?? 0, 0, 7);
+        var projected = JobsWorkspacePresentation.Project(_exportScheduler.Jobs, _durableHistoryRecords,
+            JobsSearchText?.Text, filter);
+        FullJobsMaximumExports.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
+        ReconcileJobsWorkspace(projected);
         HistoryEmptyText.Visibility = _historyRecords.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (selected is not null)
+            HistoryList.SelectedItem = _historyRecords.FirstOrDefault(item => item.JobId == selected.JobId
+                && item.HistoryRecordId == selected.HistoryRecordId);
         if (_historyRecords.Count > 0 && HistoryList.SelectedItem is null) HistoryList.SelectedIndex = 0;
+        JobsClearHistoryButton.IsEnabled = _historyRecords.Any(item => item.CanRemoveHistory);
+    }
+
+    private void ReconcileJobsWorkspace(IReadOnlyList<JobsWorkspaceItem> next)
+    {
+        for (var index = _historyRecords.Count - 1; index >= 0; index--)
+            if (!next.Any(item => item.JobId == _historyRecords[index].JobId
+                && item.HistoryRecordId == _historyRecords[index].HistoryRecordId)) _historyRecords.RemoveAt(index);
+        for (var index = 0; index < next.Count; index++)
+        {
+            var existing = _historyRecords.FirstOrDefault(item => item.JobId == next[index].JobId
+                && item.HistoryRecordId == next[index].HistoryRecordId);
+            if (existing is null) _historyRecords.Insert(index, next[index]);
+            else
+            {
+                var currentIndex = _historyRecords.IndexOf(existing);
+                if (currentIndex != index) _historyRecords.Move(currentIndex, index);
+                if (_historyRecords[index] != next[index]) _historyRecords[index] = next[index];
+            }
+        }
     }
 
     private void HistoryList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        HistoryDetails.Text = (HistoryList.SelectedItem as EncodingJobHistoryRecord)?.DetailDisplay ?? "Select a job to inspect its results.";
-        HistoryRerunButton.IsEnabled = HistoryList.SelectedItem is EncodingJobHistoryRecord;
+        var item = HistoryList.SelectedItem as JobsWorkspaceItem;
+        HistoryDetails.Text = item?.Details ?? "Select a job to inspect its results.";
+        HistoryRerunButton.IsEnabled = item?.CanReviewAndRerun == true;
+        JobsPauseButton.IsEnabled = item?.CanPause == true;
+        JobsResumeButton.IsEnabled = item?.CanResume == true;
+        JobsRetryButton.IsEnabled = item?.CanRetry == true;
+        JobsCancelButton.IsEnabled = item?.CanCancel == true;
+        JobsMoveEarlierButton.IsEnabled = item?.CanReorder == true;
+        JobsMoveLaterButton.IsEnabled = item?.CanReorder == true;
+        JobsRevealOutputButton.IsEnabled = item is not null && File.Exists(item.OutputPath);
     }
 
     private void RefreshHistory_Click(object sender, RoutedEventArgs e) => RefreshHistory();
 
+    private void JobsSearchText_Changed(object sender, TextChangedEventArgs e) { if (IsLoaded) RefreshJobsWorkspace(); }
+    private void JobsFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (IsLoaded) RefreshJobsWorkspace(); }
+    private void FullJobsMaximumExports_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (IsLoaded && FullJobsMaximumExports.SelectedIndex >= 0)
+            _exportScheduler.MaxSimultaneousExports = FullJobsMaximumExports.SelectedIndex + EncodingJobConcurrency.Minimum;
+    }
+
+    private void ClearJobsHistory_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = HistoryList.SelectedItem as JobsWorkspaceItem;
+        var candidates = selected?.CanRemoveHistory == true ? [selected] : _historyRecords.Where(item => item.CanRemoveHistory).ToList();
+        var ids = JobsWorkspacePresentation.BackingHistoryRecordIds(candidates);
+        var records = _durableHistoryRecords.Where(record => ids.Contains(record.JobId)).ToList();
+        if (records.Count == 0) return;
+        var legacy = records.Count(record => record.Plan.Items.Count != 1);
+        var detail = "Review & Rerun and provenance for these records will no longer be available. " +
+                     "Exported media, active Jobs, recovery state, and output identity are not deleted." +
+                     (legacy > 0 ? $" {legacy} legacy record{(legacy == 1 ? " is" : "s are")} indivisible and will be removed as a whole." : "");
+        if (!ConfirmationDialog.Confirm(this, "Clear durable Job History",
+                JobsWorkspacePresentation.RemovalScope(records), detail, null, "Clear history")) return;
+        _jobHistory.Remove(ids);
+        RefreshHistory();
+    }
+
+    private void RevealJobOutput_Click(object sender, RoutedEventArgs e)
+    {
+        if (HistoryList.SelectedItem is not JobsWorkspaceItem item || !File.Exists(item.OutputPath)) return;
+        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.OutputPath}\"") { UseShellExecute = true });
+    }
+
+    private void FullJobsPause_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) _exportScheduler.Pause(item.JobId); }
+    private void FullJobsResume_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) _exportScheduler.Resume(item.JobId); }
+    private void FullJobsRetry_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) _exportScheduler.RetryNeedsAttention(item.JobId); }
+    private void FullJobsMoveEarlier_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) _exportScheduler.MoveWaiting(item.JobId, -1); }
+    private void FullJobsMoveLater_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) _exportScheduler.MoveWaiting(item.JobId, 1); }
+    private void FullJobsCancel_Click(object sender, RoutedEventArgs e)
+    {
+        if (HistoryList.SelectedItem is not JobsWorkspaceItem { CanCancel: true } item) return;
+        if (ConfirmationDialog.Confirm(this, "Cancel Export Job", $"Cancel {item.Name}?",
+                "Incomplete output uses the existing cleanup policy.", item.OutputPath, "Cancel Job"))
+            _exportScheduler.Cancel(item.JobId);
+    }
+
     private void RerunHistory_Click(object sender, RoutedEventArgs e)
     {
-        if (HistoryList.SelectedItem is not EncodingJobHistoryRecord record) return;
+        if (HistoryList.SelectedItem is not JobsWorkspaceItem { HistoryRecord: { } record }) return;
         var preparation = EncodingHistoryRerun.Prepare(record);
         var restoration = EncodingHistoryRerun.Materialize(preparation);
         if (restoration.Restored.Count == 0)
@@ -3813,6 +3900,7 @@ public partial class MainWindow : Window
         var cards = visibleJobs
             .Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId))).ToList();
         JobsPresentation.Reconcile(_jobsDrawerCards, cards);
+        if (MainTabs?.SelectedIndex == ShellWorkspaceSelection.Index(ShellWorkspace.History)) RefreshJobsWorkspace();
     }
 
     private void JobsStatus_Click(object sender, RoutedEventArgs e)

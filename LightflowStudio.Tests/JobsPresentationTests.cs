@@ -458,6 +458,45 @@ public sealed class JobsPresentationTests
         Assert.Contains(dialog.Descendants(), element => (string?)element.Attribute("IsCancel") == "True");
     }
 
+    [Fact]
+    public void FullWorkspace_DeduplicatesModernTerminalJobByStableJobIdAndSchedulerWins()
+    {
+        var current = Snapshot(1, JobState.Completed);
+        var history = History(current.Definition.PlanItem.Definition, current.JobId, JobState.Completed);
+
+        var item = Assert.Single(JobsWorkspacePresentation.Project([current], [history]));
+
+        Assert.True(item.IsCurrent);
+        Assert.Equal(history.JobId, item.HistoryRecordId);
+        Assert.Equal(current.JobId, item.JobId);
+    }
+
+    [Fact]
+    public void FullWorkspace_ProjectsLegacyChildrenButKeepsBackingRecordIndivisible()
+    {
+        var first = Snapshot(1, JobState.Completed).Definition.PlanItem.Definition;
+        var second = Snapshot(2, JobState.Failed).Definition.PlanItem.Definition;
+        var record = History([first, second], Guid.NewGuid(), JobState.Failed);
+
+        var items = JobsWorkspacePresentation.Project([], [record]);
+
+        Assert.Equal(2, items.Count);
+        Assert.All(items, item => Assert.True(item.IsLegacyProjection));
+        Assert.All(items, item => Assert.Equal(record.JobId, item.HistoryRecordId));
+        Assert.Equal(new HashSet<Guid> { record.JobId }, JobsWorkspacePresentation.BackingHistoryRecordIds(items));
+    }
+
+    [Fact]
+    public void FullWorkspace_FiltersAndSearchesCurrentAndHistoricalJobsTogether()
+    {
+        var waiting = Snapshot(1, JobState.Queued);
+        var failedItem = Snapshot(2, JobState.Failed).Definition.PlanItem.Definition;
+        var failed = History(failedItem, Guid.NewGuid(), JobState.Failed);
+
+        Assert.Single(JobsWorkspacePresentation.Project([waiting], [failed], filter: JobsWorkspaceFilter.Waiting));
+        Assert.Single(JobsWorkspacePresentation.Project([waiting], [failed], "input-2", JobsWorkspaceFilter.Failed));
+    }
+
     private static XDocument DrawerDocument() => XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
     private static string MainWindowSource() => File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
     private static string MethodBody(string source, string signature)
@@ -486,5 +525,25 @@ public sealed class JobsPresentationTests
         return new(definition, state, state == JobState.Running ? 42 : null, DateTimeOffset.Now,
             JobsPresentation.IsTerminal(state) ? DateTimeOffset.Now.AddMinutes(order) : null,
             TimeSpan.FromSeconds(12), state == JobState.Running ? TimeSpan.FromSeconds(20) : null, [], [], null);
+    }
+
+    private static EncodingJobHistoryRecord History(JobItemDefinition item, Guid id, JobState state) => History([item], id, state);
+
+    private static EncodingJobHistoryRecord History(IReadOnlyList<JobItemDefinition> items, Guid id, JobState state)
+    {
+        var completed = DateTimeOffset.Now;
+        var options = new EncodingJobOptions(@"C:\", @"C:\out", OutputResolution.FullHd, RecoveryStrategy.Normal,
+            new EncodingOptions(), null, "", false, true, false);
+        var definition = new JobDefinition<EncodingJobOptions>(id, "video.encode", completed.AddMinutes(-2), options, items);
+        var plans = items.Select((item, index) => new JobPlanItem(item, [$@"C:\out\output-{index + 1}.mp4"],
+            JobPlanDisposition.Process, JobWorkEstimate.Determinate(JobWorkUnit.MediaDuration, 60), [])).ToList();
+        var plan = new JobPlan<EncodingJobOptions>(definition, completed.AddMinutes(-1), plans, [], JobWorkUnit.MediaDuration);
+        var results = plans.Select(item => new JobItemResult<EncodingItemResult>(item.Definition.Id, state,
+            item.OutputPaths, [], state == JobState.Failed ? ["failed"] : [], null)).ToList();
+        var summary = new JobResultSummary(items.Count, state == JobState.Completed ? items.Count : 0, 0, 0, 0,
+            state == JobState.Failed ? items.Count : 0);
+        var result = new JobResult<EncodingItemResult>(id, state, completed.AddMinutes(-1), completed, results,
+            summary, [], state == JobState.Failed ? ["failed"] : []);
+        return new(id, "video.encode", definition.CreatedAt, result.StartedAt, completed, state, definition, plan, result);
     }
 }

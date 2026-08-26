@@ -423,6 +423,81 @@ public sealed class JobsPresentationTests
     }
 
     [Fact]
+    public void DrawerPullLabelReadsFromRightEdgeWithoutChangingItsInteractionContract()
+    {
+        var document = DrawerDocument();
+        var pull = Named(document, "JobsDrawerPullButton");
+        var label = pull.Descendants().Single(element => (string?)element.Attribute("Text") == "Jobs");
+        var rotation = label.Descendants().Single(element => element.Name.LocalName == "RotateTransform");
+
+        Assert.Equal("90", (string?)rotation.Attribute("Angle"));
+        Assert.Equal("JobsDrawerPullButtonStyle", ((string?)pull.Attribute("Style"))?.Split(' ').Last().TrimEnd('}'));
+        Assert.Equal("JobsDrawerPull_Click", (string?)pull.Attribute("Click"));
+        var style = document.Descendants().Single(element =>
+            (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "JobsDrawerPullButtonStyle");
+        Assert.Contains(style.Descendants(), element => (string?)element.Attribute("Property") == "Width" && (string?)element.Attribute("Value") == "28");
+        Assert.Contains(style.Descendants(), element => (string?)element.Attribute("Property") == "Height" && (string?)element.Attribute("Value") == "96");
+    }
+
+    [Fact]
+    public void FullJobsSelectionChromeOverridesSystemBlueAndSeparatesSelectionHoverAndFocus()
+    {
+        var document = DrawerDocument();
+        var list = Named(document, "HistoryList");
+        Assert.Equal("{StaticResource JobsListItemStyle}", (string?)list.Attribute("ItemContainerStyle"));
+        var style = document.Descendants().Single(element =>
+            (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "JobsListItemStyle");
+        var text = style.ToString();
+        Assert.Contains("ShellSelectionBrush", text);
+        Assert.Contains("ShellRaisedBrush", text);
+        Assert.Contains("ShellFocusBrush", text);
+        Assert.Contains("SelectionRail", text);
+        Assert.DoesNotContain("HighlightBrush", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("SystemColors", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(style.Descendants(), element => (string?)element.Attribute("Property") == "IsSelected");
+        Assert.Contains(style.Descendants(), element => (string?)element.Attribute("Property") == "IsKeyboardFocused");
+        Assert.Contains(style.Descendants(), element => (string?)element.Attribute("Property") == "IsMouseOver");
+        var radial = list.Descendants().Single(element => element.Name.LocalName == "JobsRadialProgress");
+        Assert.Equal("{Binding State, Mode=OneWay}", (string?)radial.Attribute("State"));
+        Assert.DoesNotContain("IsSelected", radial.ToString());
+    }
+
+    [Fact]
+    public void FullJobsSearchUsesNonTextWatermarkAndAccessibleLightweightAffordance()
+    {
+        var document = DrawerDocument();
+        var search = Named(document, "JobsSearchText");
+        var placeholder = Named(document, "JobsSearchPlaceholder");
+        var icon = Named(document, "JobsSearchIcon");
+
+        Assert.Null(search.Attribute("Text"));
+        Assert.Equal("Search Jobs", (string?)search.Attribute("AutomationProperties.Name"));
+        Assert.Contains("ElementName=JobsSearchText", (string?)placeholder.Attribute("Visibility"));
+        Assert.Contains("StringEmptyToVisibility", (string?)placeholder.Attribute("Visibility"));
+        Assert.Equal("Search Jobs…", (string?)placeholder.Attribute("Text"));
+        Assert.Equal("False", (string?)placeholder.Attribute("IsHitTestVisible"));
+        Assert.Equal("False", (string?)icon.Attribute("IsHitTestVisible"));
+        Assert.DoesNotContain("Key.A", MethodBody(MainWindowSource(), "private void MainWindow_PreviewKeyDown"));
+    }
+
+    [Fact]
+    public void FullJobsUserFacingVocabularyDoesNotExposeHistoryPersistenceTerms()
+    {
+        var document = DrawerDocument();
+        var visibleAttributes = document.Descendants().SelectMany(element => element.Attributes())
+            .Where(attribute => attribute.Name.LocalName is "Text" or "Content" or "ToolTip" or
+                "AutomationProperties.Name" or "AutomationProperties.HelpText")
+            .Select(attribute => attribute.Value).ToList();
+        Assert.DoesNotContain(visibleAttributes, value => value.Contains("history", StringComparison.OrdinalIgnoreCase));
+        var source = MainWindowSource();
+        Assert.DoesNotContain("Clear selected history", source, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Clear durable Job History", source, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Open full Jobs history", source, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IJobHistoryStore", source);
+        Assert.Contains("EncodingHistoryRerun", source);
+    }
+
+    [Fact]
     public void ClearAll_IsTransientAndCanDismissNeedsAttentionButNeverActiveWork()
     {
         Assert.True(JobsPresentation.IsDismissibleDrawerRow(JobState.Completed));
@@ -484,6 +559,14 @@ public sealed class JobsPresentationTests
         Assert.All(items, item => Assert.True(item.IsLegacyProjection));
         Assert.All(items, item => Assert.Equal(record.JobId, item.HistoryRecordId));
         Assert.Equal(new HashSet<Guid> { record.JobId }, JobsWorkspacePresentation.BackingHistoryRecordIds(items));
+        Assert.All(items, item =>
+        {
+            Assert.Contains("Older Jobs saved together", item.LegacyNote);
+            Assert.DoesNotContain("History", item.LegacyNote, StringComparison.OrdinalIgnoreCase);
+        });
+        var scope = JobsWorkspacePresentation.RemovalScope([record]);
+        Assert.Contains("2 saved Jobs", scope);
+        Assert.DoesNotContain("History", scope, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

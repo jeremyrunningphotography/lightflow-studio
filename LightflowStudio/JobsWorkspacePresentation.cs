@@ -18,7 +18,7 @@ internal sealed record JobsWorkspaceItem(
     public bool CanReorder => IsCurrent && State == JobState.Queued;
     public bool CanReviewAndRerun => HistoryRecord is not null;
     public bool CanRemoveHistory => HistoryRecordId is not null;
-    public string LegacyNote => IsLegacyProjection ? "Legacy History record · record-level rerun and removal" : "";
+    public string LegacyNote => IsLegacyProjection ? "Older Jobs saved together · group-level Review & Rerun and removal" : "";
 }
 
 internal sealed record JobsSelectionEligibility(
@@ -74,12 +74,15 @@ internal static class JobsWorkspacePresentation
 
     public static string RemovalScope(IReadOnlyList<EncodingJobHistoryRecord> records)
     {
-        if (records.Count == 0) return "No durable terminal History records are selected.";
+        if (records.Count == 0) return "No saved Jobs are selected.";
         var oldest = records.Min(record => record.CompletedAt).ToLocalTime();
         var newest = records.Max(record => record.CompletedAt).ToLocalTime();
-        var states = string.Join(", ", records.GroupBy(record => JobsPresentation.StateText(record.State))
+        var jobStates = records.SelectMany(record => record.Plan.Items.Select(item =>
+            record.Result.Items.FirstOrDefault(result => result.ItemId == item.Definition.Id)?.State ?? record.State));
+        var states = string.Join(", ", jobStates.GroupBy(JobsPresentation.StateText)
             .OrderBy(group => group.Key).Select(group => $"{group.Count()} {group.Key.ToLowerInvariant()}"));
-        return $"Permanently remove {records.Count} History record{(records.Count == 1 ? "" : "s")} ({states}) from {oldest:g} through {newest:g}?";
+        var jobs = records.Sum(record => record.Plan.Items.Count);
+        return $"Permanently delete {jobs} saved Job{(jobs == 1 ? "" : "s")} ({states}) from {oldest:g} through {newest:g}?";
     }
 
     private static JobsWorkspaceItem FromCurrent(ExportJobSnapshot job, EncodingJobHistoryRecord? history)

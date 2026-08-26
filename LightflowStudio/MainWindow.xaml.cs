@@ -3461,7 +3461,7 @@ public partial class MainWindow : Window
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
                 {
-                    AppendLog($"Could not save this batch to History: {exception.Message}");
+                    AppendLog($"Could not save these Jobs for later: {exception.Message}");
                 }
             }
 
@@ -3580,11 +3580,11 @@ public partial class MainWindow : Window
         var records = _durableHistoryRecords.Where(record => ids.Contains(record.JobId)).ToList();
         if (records.Count == 0) return;
         var legacy = records.Count(record => record.Plan.Items.Count != 1);
-        var detail = "Review & Rerun and provenance for these records will no longer be available. " +
+        var detail = "Their saved Lightflow details, provenance, and Review & Rerun availability will be removed. " +
                      "Exported media, active Jobs, recovery state, and output identity are not deleted." +
-                     (legacy > 0 ? $" {legacy} legacy record{(legacy == 1 ? " is" : "s are")} indivisible and will be removed as a whole." : "");
-        if (!ConfirmationDialog.Confirm(this, "Clear durable Job History",
-                JobsWorkspacePresentation.RemovalScope(records), detail, null, "Clear history")) return;
+                     (legacy > 0 ? " Some selected older Jobs were originally saved together and must be deleted together; all Jobs in those saved groups will be removed." : "");
+        if (!ConfirmationDialog.Confirm(this, "Delete selected Jobs",
+                JobsWorkspacePresentation.RemovalScope(records), detail, null, "Delete Jobs")) return;
         _jobHistory.Remove(ids);
         RefreshHistory();
     }
@@ -3931,8 +3931,8 @@ public partial class MainWindow : Window
     {
         if (JobsStatusButton is null) return;
         JobsStatusButton.Content = JobsPresentation.StatusText(jobs);
-        AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs history.");
-        JobsStatusButton.ToolTip = "Open full Jobs history";
+        AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs workspace.");
+        JobsStatusButton.ToolTip = "Open full Jobs workspace";
         var activeCount = jobs.Count(job => !JobsPresentation.IsTerminal(job.State));
         JobsDrawerPullButton.Tag = activeCount > 0 ? "Active" : "Idle";
         JobsDrawerPullCount.Text = activeCount.ToString();

@@ -63,9 +63,35 @@ public sealed class JobsWorkspaceLiveInteractionTests
 
             Assert.Equal(SelectionMode.Extended, window.HistoryList.SelectionMode);
             Assert.Equal(2, window.HistoryList.Items.Count);
+            Assert.Equal(Visibility.Visible, window.JobsSearchPlaceholder.Visibility);
             window.HistoryList.SelectAll();
             Assert.Equal(2, window.HistoryList.SelectedItems.Count);
             Assert.True(window.JobsClearHistoryButton.IsEnabled);
+
+            var containers = window.HistoryList.Items.Cast<object>().Select(item =>
+                Assert.IsType<ListBoxItem>(window.HistoryList.ItemContainerGenerator.ContainerFromItem(item))).ToList();
+            Assert.All(containers, container =>
+            {
+                var chrome = Assert.IsType<Border>(container.Template.FindName("Chrome", container));
+                var rail = Assert.IsType<Border>(container.Template.FindName("SelectionRail", container));
+                Assert.Same(window.FindResource("ShellSelectionBrush"), chrome.Background);
+                Assert.Equal(Visibility.Visible, rail.Visibility);
+            });
+            containers[0].Focus();
+            await Dispatcher.Yield(DispatcherPriority.Render);
+            var focusedChrome = Assert.IsType<Border>(containers[0].Template.FindName("Chrome", containers[0]));
+            Assert.Equal(new Thickness(2), focusedChrome.BorderThickness);
+
+            window.JobsSearchText.Text = "source";
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.Equal(Visibility.Collapsed, window.JobsSearchPlaceholder.Visibility);
+            window.JobsSearchText.Focus();
+            window.JobsSearchText.SelectAll();
+            Assert.Equal(window.JobsSearchText.Text.Length, window.JobsSearchText.SelectionLength);
+            Assert.Equal(2, window.HistoryList.SelectedItems.Count);
+            window.JobsSearchText.Clear();
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.Equal(Visibility.Visible, window.JobsSearchPlaceholder.Visibility);
 
             var selectedIds = window.HistoryList.SelectedItems.Cast<JobsWorkspaceItem>().Select(item => item.JobId).ToHashSet();
             RaiseClick(window.RefreshHistoryButton);

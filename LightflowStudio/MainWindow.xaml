@@ -112,7 +112,7 @@
           Stretch="Uniform" Width="15" Height="13" HorizontalAlignment="Center" VerticalAlignment="Center"
           Data="M1,2 L6,2 L7.5,4 L15,4 L15,12 L1,12 Z"/>
         </Grid>
-        <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="Subfolders"/>
+        <TextBlock x:Name="ScopeLabel" Margin="6,0,0,0" VerticalAlignment="Center" Text="Subfolders"/>
        </StackPanel>
       </Border>
       <ControlTemplate.Triggers>
@@ -128,6 +128,7 @@
              rather than the tree's own separate folder color. -->
         <Setter TargetName="ScopeGlyphFilled" Property="Fill" Value="{StaticResource ShellFocusBrush}"/>
        </Trigger>
+       <Trigger Property="Tag" Value="Compact"><Setter TargetName="ScopeLabel" Property="Visibility" Value="Collapsed"/></Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
     </Setter.Value>
@@ -425,13 +426,14 @@
        <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template>
       </GridSplitter>
       <Grid Grid.Column="2" x:Name="BrowserCenter">
-       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition x:Name="BrowserNavigationGap" Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition x:Name="BrowserNavigationGap" Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
        <Grid Grid.Row="0" x:Name="BrowserBrowseToolbar">
-       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="4"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="4"/><RowDefinition Height="Auto"/><RowDefinition Height="4"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
        <Border Grid.Row="0" x:Name="BrowserNavigationToolbar" Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid x:Name="BrowserLocationScopeLayout">
          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="16"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition x:Name="BrowserScopeGapColumn" Width="16"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
          <StackPanel Orientation="Horizontal">
           <Button x:Name="BrowserBackButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Back" AutomationProperties.Name="Back" Click="BrowserBack_Click" Content="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
           <Button x:Name="BrowserForwardButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Forward" AutomationProperties.Name="Forward" Click="BrowserForward_Click" Content="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
@@ -449,7 +451,7 @@
         #109's media-area toolbar: narrows and presents the scope the Locations sidebar already chose.
         Search/filter/sort/status live here, never in the left sidebar, and never inside folder navigation.
        -->
-       <Border Grid.Row="2" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="10,8" IsEnabled="False">
+       <Border Grid.Row="2" Grid.Column="0" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="10,8" IsEnabled="False">
         <StackPanel>
          <WrapPanel x:Name="BrowserQueryLayout" Orientation="Horizontal">
           <!-- Independent per-category toggles (multiple may be active; OR within the facet), presented as
@@ -550,8 +552,7 @@
          </ItemsControl>
         </StackPanel>
        </Border>
-       </Grid>
-       <Border Grid.Row="2" x:Name="BrowserSelectionActionToolbar" Background="{StaticResource ShellSurfaceBrush}"
+       <Border Grid.Row="2" Grid.Column="1" x:Name="BrowserSelectionActionToolbar" Background="{StaticResource ShellSurfaceBrush}"
         BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="7" Padding="8,5">
          <Grid x:Name="BrowserSelectionActionLayout">
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -573,6 +574,7 @@
            ToolTip="Export selected videos or saved subclips" AutomationProperties.Name="Export selected videos" Click="BrowserExport_Click"/>
          </Grid>
         </Border>
+       </Grid>
        <!-- The one authoritative background for the whole media canvas (loading/content/empty/failure alike)
             — every descendant surface between this Border and an individual tile's own card chrome is
             deliberately Transparent (never merely unset) so nothing but this single Background can ever paint
@@ -582,7 +584,7 @@
             above) render with a faint anti-aliased seam between them even when their fill colors are
             identical; rounding every descendant's layout to whole device pixels here removes that seam at its
             source instead of papering over it with an opaque overlay. -->
-       <Border Grid.Row="4" x:Name="BrowserGridHost" Style="{StaticResource ShellPanel}" Background="#0D0F13" Padding="14"
+       <Border Grid.Row="2" x:Name="BrowserGridHost" Style="{StaticResource ShellPanel}" Background="#0D0F13" Padding="14"
         UseLayoutRounding="True" SizeChanged="BrowserGridHost_SizeChanged" MouseLeftButtonDown="BrowserGridHost_MouseLeftButtonDown">
         <Grid Background="Transparent">
          <ItemsControl x:Name="BrowserGridRows" Background="Transparent" Focusable="True" KeyDown="BrowserGridRows_KeyDown"
@@ -737,7 +739,7 @@
            this one region's content changes. Content is a lazily-created PlayerViewerHost instance (see
            MainWindow.EnsurePlayerViewerHost) so the reusable Player/Viewer content is never directly dependent
            on MainWindow — this ContentControl only ever hosts it. -->
-      <ContentControl Grid.Row="4" x:Name="BrowserPlayerHost" Focusable="False" Visibility="Collapsed"/>
+       <ContentControl Grid.Row="2" x:Name="BrowserPlayerHost" Focusable="False" Visibility="Collapsed"/>
      </Grid>
     </Grid>
    </TabItem>

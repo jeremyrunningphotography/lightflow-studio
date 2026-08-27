@@ -1859,29 +1859,48 @@ public partial class MainWindow : Window
                 BrowserNavigationColumn.Width = new GridLength(effectiveLocationsWidth);
 
             var centerWidth = Math.Max(0, BrowserWorkspaceRoot.ActualWidth - effectiveLocationsWidth - BrowserNavigationSplitter.ActualWidth);
-            var compactLocationScope = centerWidth < 380;
-            Grid.SetRow(BrowserIncludeSubfoldersButton, compactLocationScope ? 1 : 0);
-            Grid.SetColumn(BrowserIncludeSubfoldersButton, compactLocationScope ? 0 : 5);
-            Grid.SetColumnSpan(BrowserIncludeSubfoldersButton, compactLocationScope ? 6 : 1);
+            var compactLocationChrome = centerWidth < 380;
+            BrowserBackButton.Width = compactLocationChrome ? 26 : 38;
+            BrowserForwardButton.Width = compactLocationChrome ? 26 : 38;
+            BrowserUpButton.Width = compactLocationChrome ? 26 : 38;
+            BrowserRefreshButton.Width = compactLocationChrome ? 26 : 38;
+            BrowserGoButton.Padding = compactLocationChrome ? new Thickness(3, 7, 3, 7) : new Thickness(12, 7, 12, 7);
+            BrowserCurrentPath.Margin = compactLocationChrome ? new Thickness(1, 0, 1, 0) : new Thickness(14, 0, 6, 0);
+            BrowserScopeGapColumn.Width = new GridLength(compactLocationChrome ? 4 : 16);
+            BrowserIncludeSubfoldersButton.Padding = compactLocationChrome ? new Thickness(3, 7, 3, 7) : new Thickness(10, 7, 10, 7);
+            BrowserIncludeSubfoldersButton.Tag = compactLocationChrome ? "Compact" : null;
+            Grid.SetRow(BrowserIncludeSubfoldersButton, 0);
+            Grid.SetColumn(BrowserIncludeSubfoldersButton, 5);
+            Grid.SetColumnSpan(BrowserIncludeSubfoldersButton, 1);
             BrowserIncludeSubfoldersButton.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
-            BrowserIncludeSubfoldersButton.Margin = compactLocationScope
-                ? new Thickness(0, 6, 0, 0)
-                : new Thickness(0);
+            BrowserIncludeSubfoldersButton.Margin = new Thickness(0);
 
-            var compactActions = centerWidth < 420;
-            BrowserColorActions.Orientation = compactActions
-                ? System.Windows.Controls.Orientation.Vertical
-                : System.Windows.Controls.Orientation.Horizontal;
+            const double combinedLowerControlsBreakpoint = 1120;
+            var stackLowerControls = centerWidth < combinedLowerControlsBreakpoint;
+            Grid.SetRow(BrowserQueryToolbar, 2);
+            Grid.SetColumn(BrowserQueryToolbar, 0);
+            Grid.SetColumnSpan(BrowserQueryToolbar, stackLowerControls ? 2 : 1);
+            Grid.SetRow(BrowserSelectionActionToolbar, stackLowerControls ? 4 : 2);
+            Grid.SetColumn(BrowserSelectionActionToolbar, stackLowerControls ? 0 : 1);
+            Grid.SetColumnSpan(BrowserSelectionActionToolbar, stackLowerControls ? 2 : 1);
+            BrowserSelectionActionToolbar.Margin = stackLowerControls
+                ? new Thickness(0)
+                : new Thickness(8, 0, 0, 0);
+
+            BrowserColorActions.Orientation = System.Windows.Controls.Orientation.Horizontal;
             Grid.SetRow(BrowserColorActions, 0);
             Grid.SetColumn(BrowserColorActions, 0);
-            Grid.SetColumnSpan(BrowserColorActions, compactActions ? 2 : 1);
-            Grid.SetRow(BrowserExportButton, compactActions ? 1 : 0);
-            Grid.SetColumn(BrowserExportButton, compactActions ? 0 : 1);
-            Grid.SetColumnSpan(BrowserExportButton, compactActions ? 2 : 1);
-            BrowserExportButton.HorizontalAlignment = compactActions
-                ? System.Windows.HorizontalAlignment.Left
-                : System.Windows.HorizontalAlignment.Right;
-            BrowserExportButton.Margin = compactActions ? new Thickness(0, 8, 0, 0) : new Thickness(4);
+            Grid.SetColumnSpan(BrowserColorActions, 1);
+            Grid.SetRow(BrowserExportButton, 0);
+            Grid.SetColumn(BrowserExportButton, 1);
+            Grid.SetColumnSpan(BrowserExportButton, 1);
+            BrowserExportButton.HorizontalAlignment = System.Windows.HorizontalAlignment.Right;
+            BrowserExportButton.Margin = new Thickness(12, 0, 4, 0);
+            var lutWidth = centerWidth < 420
+                ? Math.Clamp((centerWidth - 120) / 2, 40, 150)
+                : 150;
+            BrowserCameraLutCombo.Width = lutWidth;
+            BrowserCreativeLutCombo.Width = lutWidth;
         }
         finally { _applyingBrowserResponsiveLayout = false; }
     }

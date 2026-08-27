@@ -186,6 +186,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
             var playerHost = window.BrowserPlayerHost;
             Assert.Equal(0, Grid.GetRow(window.BrowserNavigationToolbar));
             Assert.Equal(2, Grid.GetRow(window.BrowserQueryToolbar));
+            Assert.Equal(4, Grid.GetRow(window.BrowserSelectionActionToolbar));
 
             RaiseClick(window.JobsDrawerPullButton);
             await RealizeJobsWorkspaceAsync(window);
@@ -194,6 +195,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
             Assert.True(window.BrowserNavigationColumn.ActualWidth < 520);
             Assert.Equal(0, Grid.GetRow(window.BrowserNavigationToolbar));
             Assert.Equal(2, Grid.GetRow(window.BrowserQueryToolbar));
+            Assert.Equal(4, Grid.GetRow(window.BrowserSelectionActionToolbar));
             AssertContained(window.BrowserCenter, window.BrowserWorkspaceRoot);
             AssertContained(window.BrowserBrowseToolbar, window.BrowserCenter);
             AssertContained(window.BrowserSelectionActionToolbar, window.BrowserCenter);
@@ -227,6 +229,35 @@ public sealed class JobsWorkspaceLiveInteractionTests
             AssertContained(window.BrowserCenter, window.BrowserWorkspaceRoot);
             Assert.Same(playerHost, window.BrowserPlayerHost);
         }, persistedLocationsWidth: 520, persistedDrawerWidth: 380, windowWidth: 1120);
+    }
+
+    [Fact]
+    public async Task LowerBrowserControls_SwitchWholeGroupsBetweenWideAndDrawerConstrainedLayouts()
+    {
+        await RunAsync(seedHistoryCount: 0, async window =>
+        {
+            Assert.Equal(0, Grid.GetRow(window.BrowserNavigationToolbar));
+            Assert.Equal(2, Grid.GetRow(window.BrowserQueryToolbar));
+            Assert.Equal(2, Grid.GetRow(window.BrowserSelectionActionToolbar));
+            Assert.Equal(0, Grid.GetColumn(window.BrowserQueryToolbar));
+            Assert.Equal(1, Grid.GetColumn(window.BrowserSelectionActionToolbar));
+
+            RaiseClick(window.JobsDrawerPullButton);
+            await RealizeJobsWorkspaceAsync(window);
+            Assert.Equal(2, Grid.GetRow(window.BrowserQueryToolbar));
+            Assert.Equal(4, Grid.GetRow(window.BrowserSelectionActionToolbar));
+            Assert.Equal(0, Grid.GetColumn(window.BrowserSelectionActionToolbar));
+            Assert.Equal(2, Grid.GetColumnSpan(window.BrowserSelectionActionToolbar));
+            AssertContained(window.BrowserQueryToolbar, window.BrowserBrowseToolbar);
+            AssertContained(window.BrowserSelectionActionToolbar, window.BrowserBrowseToolbar);
+            AssertContained(window.BrowserGridHost, window.BrowserCenter);
+
+            RaiseClick(window.JobsDrawerPullButton);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            window.UpdateLayout();
+            Assert.Equal(2, Grid.GetRow(window.BrowserSelectionActionToolbar));
+            Assert.Equal(1, Grid.GetColumn(window.BrowserSelectionActionToolbar));
+        }, persistedLocationsWidth: 280, persistedDrawerWidth: 380, windowWidth: 1800);
     }
 
     private static async Task RunAsync(int seedHistoryCount, Func<MainWindow, Task> body,

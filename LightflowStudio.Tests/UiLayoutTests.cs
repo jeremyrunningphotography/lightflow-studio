@@ -250,7 +250,7 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserToolbars_ArePermanentlyStackedAndSubfoldersFollowsRefreshInTheLocationRow()
+    public void BrowserControls_KeepLocationPermanentAndDeclareWideLowerGroupOrder()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
@@ -265,7 +265,8 @@ public class UiLayoutTests
         var sortCombo = Named(document, "BrowserSortCombo");
 
         Assert.Equal(ns + "ToggleButton", toggle.Name);
-        Assert.Null(browseToolbar.Element(ns + "Grid.ColumnDefinitions"));
+        var browseColumns = browseToolbar.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").ToList();
+        Assert.Equal(["*", "Auto"], browseColumns.Select(column => (string?)column.Attribute("Width")));
         Assert.Equal("0", (string?)navigationToolbar.Attribute("Grid.Row"));
         Assert.Equal("2", (string?)queryToolbar.Attribute("Grid.Row"));
         Assert.Contains(toggle.Ancestors(), ancestor => ancestor == navigationToolbar);
@@ -752,9 +753,13 @@ public class UiLayoutTests
         var query = Named(document, "BrowserQueryToolbar");
 
         Assert.Equal("0", (string?)browse.Attribute("Grid.Row"));
-        Assert.Null(browse.Element(ns + "Grid.ColumnDefinitions"));
+        Assert.Equal(["*", "Auto"], browse.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition")
+            .Select(column => (string?)column.Attribute("Width")));
         Assert.Equal("0", (string?)navigation.Attribute("Grid.Row"));
         Assert.Equal("2", (string?)query.Attribute("Grid.Row"));
+        Assert.Equal("0", (string?)query.Attribute("Grid.Column"));
+        Assert.Equal("1", (string?)actions.Attribute("Grid.Column"));
+        Assert.Contains(actions.Ancestors(), ancestor => ancestor == browse);
         Assert.DoesNotContain(document.Descendants(ns + "ColumnDefinition"), column =>
             (string?)column.Attribute("Width") == "520" && column.Ancestors().Contains(browse));
         Assert.Equal("2", (string?)actions.Attribute("Grid.Row"));
@@ -1192,17 +1197,17 @@ public class UiLayoutTests
     [Fact]
     public void BrowserWorkspaceGrid_NoLongerReservesRowsForItsOwnStatusBar()
     {
-        // Reclaimed vertical space: the Browser tab's inner Grid goes back to 5 rows (folder toolbar, gap,
-        // query toolbar/chips, gap, grid) now that status lives in the shared application-wide bar.
+        // The combined responsive toolbar occupies one Auto row above the media; no separate selection-action
+        // row remains in the Browser center grid.
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
         var gridHost = Named(document, "BrowserGridHost");
         var browserWorkspaceGrid = gridHost.Parent!;
         var rowDefinitions = browserWorkspaceGrid.Element(ns + "Grid.RowDefinitions")!.Elements(ns + "RowDefinition").ToList();
 
-        Assert.Equal(5, rowDefinitions.Count);
-        Assert.Equal("4", (string?)gridHost.Attribute("Grid.Row"));
-        Assert.Equal("*", (string?)rowDefinitions[4].Attribute("Height"));
+        Assert.Equal(3, rowDefinitions.Count);
+        Assert.Equal("2", (string?)gridHost.Attribute("Grid.Row"));
+        Assert.Equal("*", (string?)rowDefinitions[2].Attribute("Height"));
     }
 
     [Fact]

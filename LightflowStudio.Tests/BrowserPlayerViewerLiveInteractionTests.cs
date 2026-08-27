@@ -56,7 +56,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
             Assert.True(created.Succeeded, created.Diagnostic);
 
             var window = NewOffscreenWindow(storage, startup);
-            window.Width = 1120;
+            window.Width = 1800;
             window.Height = 720;
             try
             {
@@ -93,6 +93,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
 
                 var host = Assert.IsType<PlayerViewerHost>(window.BrowserPlayerHost.Content);
                 await WaitUntilAsync(() => host.CurrentAsset?.Name == "photo.jpg", "the Viewer to finish opening the photo");
+                Assert.Equal(2, Grid.GetRow(window.BrowserSelectionActionToolbar));
 
                 RaiseClick(window.JobsDrawerPullButton);
                 window.UpdateLayout();
@@ -100,6 +101,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 window.UpdateLayout();
                 Assert.Equal(Visibility.Visible, window.JobsDrawer.Visibility);
                 Assert.Equal("photo.jpg", host.CurrentAsset?.Name);
+                Assert.Equal(4, Grid.GetRow(window.BrowserSelectionActionToolbar));
                 AssertContained(window.BrowserPlayerHost, window.BrowserCenter);
                 window.JobsDrawerColumn.Width = new GridLength(610);
                 window.UpdateLayout();
@@ -110,6 +112,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 RaiseClick(window.JobsDrawerPullButton);
                 window.UpdateLayout();
                 Assert.Equal("photo.jpg", host.CurrentAsset?.Name);
+                Assert.Equal(2, Grid.GetRow(window.BrowserSelectionActionToolbar));
                 AssertContained(window.BrowserPlayerHost, window.BrowserCenter);
 
                 // Esc, handled by PlayerViewerHost's own PreviewKeyDown — raised directly on that control

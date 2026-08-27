@@ -823,10 +823,11 @@ confirmations use the reusable dark-shell `ConfirmationDialog`, while the actual
 `GlobalExportScheduler`.
 
 The Browser does not declare a center `MinWidth`: when the drawer consumes shell width, the remaining Browser column
-is authoritative. Navigation/address/scope and refinement/sort are permanent stacked toolbar rows at every width;
-the refinement controls wrap as semantic groups, while an exceptionally constrained location row may place its
-Subfolders scope control on a second line without merging it into refinement. Color/Export actions retain their own
-third toolbar row. Locations keeps its persisted preferred width, but may use a smaller temporary effective width when
+is authoritative. Navigation/address/scope remains the permanent first toolbar row. Below it, refinement/sort and
+Color/Export are whole logical groups: they share one lower row when `BrowserCenter` is at least 1120 device-independent
+pixels wide and the complete Color/Export group moves beneath refinement below that breakpoint. Refinement controls may
+wrap within their own group under extreme pressure; navigation placement never changes, although its chrome compacts
+and the Subfolders text label yields to its still-accessible icon at the narrowest supported center. Locations keeps its persisted preferred width, but may use a smaller temporary effective width when
 the current window/drawer combination needs room for a usable media center; closing or narrowing the drawer restores
 the preference without rewriting it. Grid and Player share that same constrained center cell, so neither can arrange
 under the drawer and Player identity/playback context is never reconstructed during resize.

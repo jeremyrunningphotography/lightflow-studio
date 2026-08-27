@@ -409,7 +409,7 @@ public sealed class JobsPresentationTests
 
         Assert.Equal("JobsDrawerPull_Click", (string?)pull.Attribute("Click"));
         Assert.Equal("Right", (string?)pull.Attribute("HorizontalAlignment"));
-        Assert.Equal("0,0,28,0", (string?)main.Attribute("Margin"));
+        Assert.Equal("0,0,14,0", (string?)main.Attribute("Margin"));
         Assert.Equal("2", (string?)drawer.Attribute("Grid.Column"));
         Assert.Equal("1", (string?)splitter.Attribute("Grid.Column"));
         Assert.Equal("PreviousAndNext", (string?)splitter.Attribute("ResizeBehavior"));

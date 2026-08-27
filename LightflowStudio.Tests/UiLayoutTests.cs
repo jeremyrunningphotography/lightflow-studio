@@ -966,6 +966,62 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void JobsHeaderButtons_ShareToolbarHeightWhileDangerActionRetainsSemanticStyle()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+
+        foreach (var styleName in new[] { "JobsHeaderButtonStyle", "JobsHeaderDangerButtonStyle" })
+        {
+            var style = document.Descendants(ns + "Style").Single(element =>
+                (string?)element.Attribute(x + "Key") == styleName);
+            Assert.Contains(style.Elements(ns + "Setter"), setter =>
+                (string?)setter.Attribute("Property") == "Height" &&
+                (string?)setter.Attribute("Value") == "{StaticResource JobsToolbarControlHeight}");
+        }
+
+        var danger = document.Descendants(ns + "Style").Single(element =>
+            (string?)element.Attribute(x + "Key") == "JobsHeaderDangerButtonStyle");
+        Assert.Equal("{StaticResource DangerButton}", (string?)danger.Attribute("BasedOn"));
+        Assert.Equal("{StaticResource JobsHeaderButtonStyle}", (string?)Named(document, "JobsBackToBrowserButton").Attribute("Style"));
+        Assert.Equal("{StaticResource JobsHeaderButtonStyle}", (string?)Named(document, "RefreshHistoryButton").Attribute("Style"));
+        Assert.Equal("{StaticResource JobsHeaderDangerButtonStyle}", (string?)Named(document, "JobsClearHistoryButton").Attribute("Style"));
+    }
+
+    [Fact]
+    public void BrowserAndJobsPanels_UseCompactExplicitContainerSpacing()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+
+        Assert.Equal("6,5", (string?)Named(document, "BrowserNavigationToolbar").Attribute("Padding"));
+        Assert.Equal("5,4", (string?)Named(document, "BrowserQueryToolbar").Attribute("Padding"));
+        Assert.Equal("5,4", (string?)Named(document, "BrowserSelectionActionToolbar").Attribute("Padding"));
+        Assert.Equal("7", (string?)Named(document, "BrowserGridHost").Attribute("Padding"));
+        Assert.Equal("4", (string?)Named(document, "BrowserNavigationGap").Attribute("Height"));
+        Assert.Equal("7,6,7,7", (string?)Named(document, "JobsWorkspace").Attribute("Margin"));
+        Assert.Equal("1,0,0,5", (string?)Named(document, "JobsHeader").Attribute("Margin"));
+        Assert.Equal("0,0,0,5", (string?)Named(document, "JobsToolbar").Attribute("Margin"));
+    }
+
+    [Fact]
+    public void ExportAndPlayerGroupedSurfaces_DoNotRetainOldDensityOverrides()
+    {
+        var root = FindRepositoryRoot();
+        var export = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
+        var player = XDocument.Load(Path.Combine(root, "LightflowStudio", "PlayerViewerHost.xaml"));
+        var ns = export.Root!.Name.Namespace;
+
+        Assert.Equal("11", (string?)export.Root.Descendants(ns + "Grid").First(grid =>
+            grid.Parent == export.Root).Attribute("Margin"));
+        var explicitExportPanels = export.Descendants(ns + "Border").Where(border =>
+            (string?)border.Attribute("Style") == "{StaticResource ShellPanel}" && border.Attribute("Padding") is not null);
+        Assert.All(explicitExportPanels, panel => Assert.Equal("7", (string?)panel.Attribute("Padding")));
+        Assert.Equal("7,5,7,5", (string?)Named(player, "TransportBar").Attribute("Padding"));
+        Assert.Equal("6,0,6,6", (string?)Named(player, "TransportBar").Attribute("Margin"));
+    }
+
+    [Fact]
     public void BrowserCenterHasNoMinimumThatCanOverflowTheDrawerAllocatedColumn()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));

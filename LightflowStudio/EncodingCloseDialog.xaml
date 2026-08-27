@@ -8,7 +8,7 @@
   <Grid>
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
    <TextBlock Style="{StaticResource PageTitle}" FontSize="23" Text="A video is still being processed"/>
-   <TextBlock Grid.Row="1" Margin="0,10,0,12" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"
+   <TextBlock Grid.Row="1" Margin="0,5,0,6" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"
     Text="Processing is temporarily paused. Choose whether to finish the current file before closing, stop immediately, or keep the application running."/>
    <Border Grid.Row="2" Background="#2B171D" BorderBrush="#67303E" BorderThickness="1" CornerRadius="8" Padding="6">
     <TextBlock Foreground="#F3C3CE" TextWrapping="Wrap" LineHeight="19"

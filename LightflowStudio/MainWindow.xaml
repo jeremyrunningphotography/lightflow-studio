@@ -195,6 +195,12 @@
    </Setter>
   </Style>
 
+  <Style x:Key="BrowserExportActionButtonStyle" TargetType="Button" BasedOn="{StaticResource BrowserSelectionActionButtonStyle}">
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+   <Setter Property="Background" Value="{StaticResource ShellSurfaceBrush}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
+  </Style>
+
   <Style x:Key="BrowserSelectionLutComboStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
    <Setter Property="Height" Value="28"/>
    <Setter Property="Width" Value="150"/>
@@ -420,10 +426,12 @@
       </GridSplitter>
       <Grid Grid.Column="2" x:Name="BrowserCenter">
        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition x:Name="BrowserNavigationGap" Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-       <Grid Grid.Row="0" x:Name="BrowserBrowseToolbar"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-       <Border Grid.Column="0" x:Name="BrowserNavigationToolbar" Style="{StaticResource ShellPanel}" Padding="12,9">
-        <Grid>
-         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Grid Grid.Row="0" x:Name="BrowserBrowseToolbar">
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="4"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <Border Grid.Row="0" x:Name="BrowserNavigationToolbar" Style="{StaticResource ShellPanel}" Padding="12,9">
+        <Grid x:Name="BrowserLocationScopeLayout">
+         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="16"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
          <StackPanel Orientation="Horizontal">
           <Button x:Name="BrowserBackButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Back" AutomationProperties.Name="Back" Click="BrowserBack_Click" Content="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
           <Button x:Name="BrowserForwardButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Forward" AutomationProperties.Name="Forward" Click="BrowserForward_Click" Content="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
@@ -432,33 +440,18 @@
          <TextBox Grid.Column="1" x:Name="BrowserCurrentPath" Margin="14,0,6,0" VerticalAlignment="Center" Text="" ToolTip="Type a local, mapped, or network folder path" AutomationProperties.Name="Current folder path" KeyDown="BrowserCurrentPath_KeyDown"/>
          <Button Grid.Column="2" x:Name="BrowserGoButton" Padding="12,7" Content="Go" ToolTip="Open the entered folder" AutomationProperties.Name="Open folder path" Click="BrowserGo_Click"/>
          <Button Grid.Column="3" x:Name="BrowserRefreshButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Refresh current folder" AutomationProperties.Name="Refresh current folder" Click="BrowserRefresh_Click" Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+         <ToggleButton Grid.Column="5" x:Name="BrowserIncludeSubfoldersButton" Style="{StaticResource BrowserScopeToggleButtonStyle}" IsEnabled="False"
+          ToolTip="Include Subfolders — browse this folder and every descendant folder as one media set"
+          AutomationProperties.Name="Include Subfolders" Click="BrowserIncludeSubfoldersButton_Click"/>
         </Grid>
        </Border>
        <!--
         #109's media-area toolbar: narrows and presents the scope the Locations sidebar already chose.
         Search/filter/sort/status live here, never in the left sidebar, and never inside folder navigation.
        -->
-       <Border Grid.Column="1" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="10,8" IsEnabled="False" Margin="8,0,0,0">
+       <Border Grid.Row="2" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="10,8" IsEnabled="False">
         <StackPanel>
-         <Grid x:Name="BrowserQueryLayout">
-          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-          <Grid.ColumnDefinitions>
-           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="16"/>
-           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
-           <ColumnDefinition Width="*"/><ColumnDefinition Width="10"/>
-           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
-           <ColumnDefinition Width="Auto"/>
-          </Grid.ColumnDefinitions>
-          <!-- #124: scope narrows the candidate set first; the media-type controls immediately to its right
-               then narrow that same query-facing view further — placement mirrors that pipeline order. The
-               wider (16px, vs. the 10px used everywhere else in this row) gap that follows is the only thing
-               separating it from the segmented group: enough that it doesn't read as one of those segments,
-               not so much that it reads as unrelated to the media controls it scopes. IsEnabled/IsChecked
-               reflect BrowserNavigationSession.ScopeMode — see MainWindow.SyncBrowserScopeToggle — and this
-               control never writes to BrowserQuery. -->
-          <ToggleButton x:Name="BrowserIncludeSubfoldersButton" Style="{StaticResource BrowserScopeToggleButtonStyle}" IsEnabled="False"
-           ToolTip="Include Subfolders — browse this folder and every descendant folder as one media set"
-           AutomationProperties.Name="Include Subfolders" Click="BrowserIncludeSubfoldersButton_Click"/>
+         <WrapPanel x:Name="BrowserQueryLayout" Orientation="Horizontal">
           <!-- Independent per-category toggles (multiple may be active; OR within the facet), presented as
                one segmented control; Filter ▾ (below) additionally supports stacking with other, future
                fields for the compound case this row cannot express alone. Both read/write the same
@@ -467,13 +460,13 @@
                BrowserGridModel.PresentableCategories is appended after it from code-behind
                (InitializeBrowserQuickFilterButtons) so the row can never drift from what the grid actually
                presents. -->
-          <Border Grid.Column="2" x:Name="BrowserMediaTypeGroup" Style="{StaticResource BrowserToolbarChipStyle}" ClipToBounds="True" ToolTip="Toggle media types shown">
+          <Border x:Name="BrowserMediaTypeGroup" Style="{StaticResource BrowserToolbarChipStyle}" ClipToBounds="True" ToolTip="Toggle media types shown" Margin="0,0,10,4">
            <StackPanel x:Name="BrowserQuickFilterSegments" Orientation="Horizontal">
             <ToggleButton x:Name="BrowserQuickFilterAllButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Content="All"
              AutomationProperties.Name="Show all media types" Click="BrowserQuickFilterAllButton_Click"/>
            </StackPanel>
           </Border>
-          <Border Grid.Column="4" x:Name="BrowserSearchGroup" Style="{StaticResource BrowserToolbarChipStyle}" MinWidth="170">
+          <Border x:Name="BrowserSearchGroup" Style="{StaticResource BrowserToolbarChipStyle}" Width="190" Margin="0,0,10,4">
            <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
             <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
@@ -490,7 +483,7 @@
           <!-- Progressive disclosure: Filter ▾ opens a compact predicate editor rather than exposing a
                permanent row of one-off filter controls; active predicates surface as removable chips
                beneath, appearing only while at least one is active. -->
-          <ToggleButton Grid.Column="6" x:Name="BrowserFilterButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Content="Filter &#x25BE;"
+          <ToggleButton x:Name="BrowserFilterButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Content="Filter &#x25BE;" Margin="0,0,10,4"
            ToolTip="Add a filter" AutomationProperties.Name="Add a filter"/>
           <Popup x:Name="BrowserFilterPopup" IsOpen="{Binding IsChecked, ElementName=BrowserFilterButton, Mode=TwoWay}"
            PlacementTarget="{Binding ElementName=BrowserFilterButton}" Placement="Bottom" VerticalOffset="4"
@@ -517,7 +510,7 @@
                actually loads, not declared here: WPF can raise SelectionChanged while InitializeComponent
                is still connecting later-declared named elements, and the handler reads sibling controls
                that would not exist yet. -->
-          <Border Grid.Column="8" x:Name="BrowserSortGroup" Style="{StaticResource BrowserToolbarChipStyle}">
+          <Border x:Name="BrowserSortGroup" Style="{StaticResource BrowserToolbarChipStyle}" Margin="0,0,0,4">
            <StackPanel Orientation="Horizontal">
             <TextBlock Margin="10,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Sort"/>
             <ComboBox x:Name="BrowserSortCombo" MinWidth="132" Background="Transparent" BorderThickness="0" Margin="0" VerticalAlignment="Center"
@@ -535,7 +528,7 @@
              AutomationProperties.Name="Toggle sort direction" Click="BrowserSortDirection_Click"/>
            </StackPanel>
           </Border>
-         </Grid>
+         </WrapPanel>
          <!-- Collapsed (and empty) whenever no predicate is active, so the toolbar stays a single quiet row
               for ordinary browsing — see MainWindow.SyncBrowserQueryToolbarVisuals. -->
          <ItemsControl x:Name="BrowserFilterChips" Margin="0,8,0,0" Visibility="Collapsed" Focusable="False">
@@ -576,7 +569,7 @@
             <ComboBoxItem Content="Creative LUT…" IsEnabled="False"/>
            </ComboBox>
           </StackPanel>
-          <Button Grid.Column="1" x:Name="BrowserExportButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Export…" IsEnabled="False"
+          <Button Grid.Column="1" x:Name="BrowserExportButton" Style="{StaticResource BrowserExportActionButtonStyle}" Content="Export…" IsEnabled="False"
            ToolTip="Export selected videos or saved subclips" AutomationProperties.Name="Export selected videos" Click="BrowserExport_Click"/>
          </Grid>
         </Border>

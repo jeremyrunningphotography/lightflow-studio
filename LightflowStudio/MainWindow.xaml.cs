@@ -1859,26 +1859,14 @@ public partial class MainWindow : Window
                 BrowserNavigationColumn.Width = new GridLength(effectiveLocationsWidth);
 
             var centerWidth = Math.Max(0, BrowserWorkspaceRoot.ActualWidth - effectiveLocationsWidth - BrowserNavigationSplitter.ActualWidth);
-            var stackBrowseGroups = centerWidth < 760;
-            Grid.SetRow(BrowserNavigationToolbar, 0);
-            Grid.SetColumn(BrowserNavigationToolbar, 0);
-            Grid.SetColumnSpan(BrowserNavigationToolbar, stackBrowseGroups ? 2 : 1);
-            Grid.SetRow(BrowserQueryToolbar, stackBrowseGroups ? 1 : 0);
-            Grid.SetColumn(BrowserQueryToolbar, stackBrowseGroups ? 0 : 1);
-            Grid.SetColumnSpan(BrowserQueryToolbar, stackBrowseGroups ? 2 : 1);
-            BrowserQueryToolbar.Margin = stackBrowseGroups ? new Thickness(0, 8, 0, 0) : new Thickness(8, 0, 0, 0);
-
-            var compactQuery = centerWidth < 620;
-            ArrangeQueryGroup(BrowserIncludeSubfoldersButton, compactQuery ? 0 : 0, compactQuery ? 0 : 0, compactQuery ? 9 : 1);
-            ArrangeQueryGroup(BrowserMediaTypeGroup, compactQuery ? 1 : 0, compactQuery ? 0 : 2, compactQuery ? 9 : 1);
-            ArrangeQueryGroup(BrowserSearchGroup, compactQuery ? 2 : 0, compactQuery ? 0 : 4, compactQuery ? 9 : 1);
-            ArrangeQueryGroup(BrowserFilterButton, compactQuery ? 3 : 0, compactQuery ? 0 : 6, compactQuery ? 9 : 1);
-            ArrangeQueryGroup(BrowserFilterPopup, compactQuery ? 3 : 0, compactQuery ? 0 : 6, compactQuery ? 9 : 1);
-            ArrangeQueryGroup(BrowserSortGroup, compactQuery ? 4 : 0, compactQuery ? 0 : 8, compactQuery ? 9 : 1);
-            BrowserMediaTypeGroup.Margin = compactQuery ? new Thickness(0, 8, 0, 0) : new Thickness(0);
-            BrowserSearchGroup.Margin = compactQuery ? new Thickness(0, 8, 0, 0) : new Thickness(0);
-            BrowserFilterButton.Margin = compactQuery ? new Thickness(0, 8, 0, 0) : new Thickness(0);
-            BrowserSortGroup.Margin = compactQuery ? new Thickness(0, 8, 0, 0) : new Thickness(0);
+            var compactLocationScope = centerWidth < 380;
+            Grid.SetRow(BrowserIncludeSubfoldersButton, compactLocationScope ? 1 : 0);
+            Grid.SetColumn(BrowserIncludeSubfoldersButton, compactLocationScope ? 0 : 5);
+            Grid.SetColumnSpan(BrowserIncludeSubfoldersButton, compactLocationScope ? 6 : 1);
+            BrowserIncludeSubfoldersButton.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
+            BrowserIncludeSubfoldersButton.Margin = compactLocationScope
+                ? new Thickness(0, 6, 0, 0)
+                : new Thickness(0);
 
             var compactActions = centerWidth < 420;
             BrowserColorActions.Orientation = compactActions
@@ -1896,14 +1884,6 @@ public partial class MainWindow : Window
             BrowserExportButton.Margin = compactActions ? new Thickness(0, 8, 0, 0) : new Thickness(4);
         }
         finally { _applyingBrowserResponsiveLayout = false; }
-    }
-
-    private static void ArrangeQueryGroup(FrameworkElement element, int row, int column, int columnSpan)
-    {
-        Grid.SetRow(element, row);
-        Grid.SetColumn(element, column);
-        Grid.SetColumnSpan(element, columnSpan);
-        element.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
     }
 
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)

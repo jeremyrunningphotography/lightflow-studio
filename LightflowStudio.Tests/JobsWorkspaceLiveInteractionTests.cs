@@ -184,15 +184,16 @@ public sealed class JobsWorkspaceLiveInteractionTests
             Assert.Equal(1120, window.ActualWidth, 1);
             Assert.Equal(520, window.BrowserNavigationColumn.ActualWidth, 1);
             var playerHost = window.BrowserPlayerHost;
+            Assert.Equal(0, Grid.GetRow(window.BrowserNavigationToolbar));
+            Assert.Equal(2, Grid.GetRow(window.BrowserQueryToolbar));
 
             RaiseClick(window.JobsDrawerPullButton);
             await RealizeJobsWorkspaceAsync(window);
             Assert.Equal(Visibility.Visible, window.JobsDrawer.Visibility);
             Assert.Equal(380, window.JobsDrawerColumn.ActualWidth, 1);
             Assert.True(window.BrowserNavigationColumn.ActualWidth < 520);
-            Assert.Equal(1, Grid.GetRow(window.BrowserQueryToolbar));
-            Assert.Equal(1, Grid.GetRow(window.BrowserMediaTypeGroup));
-            Assert.Equal(4, Grid.GetRow(window.BrowserSortGroup));
+            Assert.Equal(0, Grid.GetRow(window.BrowserNavigationToolbar));
+            Assert.Equal(2, Grid.GetRow(window.BrowserQueryToolbar));
             AssertContained(window.BrowserCenter, window.BrowserWorkspaceRoot);
             AssertContained(window.BrowserBrowseToolbar, window.BrowserCenter);
             AssertContained(window.BrowserSelectionActionToolbar, window.BrowserCenter);
@@ -209,7 +210,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
                 AssertContained(window.BrowserBrowseToolbar, window.BrowserCenter);
                 AssertContained(window.BrowserSelectionActionToolbar, window.BrowserCenter);
                 AssertContained(playerHost, window.BrowserCenter);
-                AssertContained(window.BrowserIncludeSubfoldersButton, window.BrowserQueryToolbar);
+                AssertContained(window.BrowserIncludeSubfoldersButton, window.BrowserNavigationToolbar);
                 AssertContained(window.BrowserMediaTypeGroup, window.BrowserQueryToolbar);
                 AssertContained(window.BrowserSearchGroup, window.BrowserQueryToolbar);
                 AssertContained(window.BrowserFilterButton, window.BrowserQueryToolbar);

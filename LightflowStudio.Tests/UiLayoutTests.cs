@@ -241,25 +241,22 @@ public class UiLayoutTests
         var toolbarGrid = Named(document, "BrowserRefreshButton").Parent!;
         Assert.Contains(toolbarGrid.Elements(ns + "TextBox"), element =>
             (string?)element.Attribute(xNamespace + "Name") == "BrowserCurrentPath");
-        // #124: Include Subfolders lives in the media toolbar (BrowserQueryToolbar), not here — see
-        // IncludeSubfoldersToggle_LivesInTheMediaToolbarImmediatelyBeforeTheMediaTypeControls.
-        Assert.Equal(4, toolbarGrid.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").Count());
+        Assert.Equal(6, toolbarGrid.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").Count());
+        Assert.Contains(toolbarGrid.Elements(ns + "ToggleButton"), element =>
+            (string?)element.Attribute(xNamespace + "Name") == "BrowserIncludeSubfoldersButton");
 
         Assert.Equal("28,16,28,24", (string?)shell.Root.Elements(shell.Root.Name.Namespace + "Thickness")
             .Single(thickness => (string?)thickness.Attribute(xNamespace + "Key") == "ShellWorkspacePadding"));
     }
 
     [Fact]
-    public void IncludeSubfoldersToggle_LivesInTheMediaToolbarImmediatelyBeforeTheMediaTypeControls()
+    public void BrowserToolbars_ArePermanentlyStackedAndSubfoldersFollowsRefreshInTheLocationRow()
     {
-        // #124 (revised): scope narrows the candidate set first, so Include Subfolders now sits in the media
-        // toolbar immediately before All/Images/RAW/Video, reading left-to-right as
-        // Include Subfolders -> media type -> Search -> Filter -> Sort. It must not live in the folder
-        // navigation bar, must not introduce a new toolbar row, and must not become (or merge visually into)
-        // the segmented media-type control.
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
         var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var browseToolbar = Named(document, "BrowserBrowseToolbar");
+        var navigationToolbar = Named(document, "BrowserNavigationToolbar");
         var toggle = Named(document, "BrowserIncludeSubfoldersButton");
         var queryToolbar = Named(document, "BrowserQueryToolbar");
         var mediaTypeSegments = Named(document, "BrowserQuickFilterSegments");
@@ -268,25 +265,26 @@ public class UiLayoutTests
         var sortCombo = Named(document, "BrowserSortCombo");
 
         Assert.Equal(ns + "ToggleButton", toggle.Name);
-        Assert.Contains(toggle.Ancestors(), ancestor => ancestor == queryToolbar);
-        Assert.DoesNotContain(toggle.Ancestors(), ancestor => ancestor == Named(document, "BrowserGoButton").Parent);
+        Assert.Null(browseToolbar.Element(ns + "Grid.ColumnDefinitions"));
+        Assert.Equal("0", (string?)navigationToolbar.Attribute("Grid.Row"));
+        Assert.Equal("2", (string?)queryToolbar.Attribute("Grid.Row"));
+        Assert.Contains(toggle.Ancestors(), ancestor => ancestor == navigationToolbar);
+        Assert.DoesNotContain(toggle.Ancestors(), ancestor => ancestor == queryToolbar);
+        var locationRow = toggle.Parent!;
+        var locationSiblings = locationRow.Elements().ToList();
+        Assert.True(locationSiblings.IndexOf(Named(document, "BrowserRefreshButton")) < locationSiblings.IndexOf(toggle));
 
-        // Reading order: toggle, then media-type segments, then search, then filter, then sort — using the
-        // shared toolbar Grid's direct-child declaration order (WPF renders Grid children by Grid.Column,
-        // and declaration order here matches that column order exactly).
-        var toolbarRow = toggle.Parent!;
+        var toolbarRow = Named(document, "BrowserQueryLayout");
         var mediaTypeChip = mediaTypeSegments.Parent!;
         var searchChip = searchBox.Ancestors().First(ancestor => ancestor.Parent == toolbarRow);
         var sortChip = sortCombo.Ancestors().First(ancestor => ancestor.Parent == toolbarRow);
         var siblings = toolbarRow.Elements().ToList();
         int IndexOf(XElement element) => siblings.IndexOf(element);
-        Assert.True(IndexOf(toggle) < IndexOf(mediaTypeChip));
         Assert.True(IndexOf(mediaTypeChip) < IndexOf(searchChip));
         Assert.True(IndexOf(searchChip) < IndexOf(filterButton));
         Assert.True(IndexOf(filterButton) < IndexOf(sortChip));
 
         // Visually distinct from, not merged into, the segmented All/Images/RAW/Video group.
-        Assert.NotSame(toggle.Parent, mediaTypeSegments);
         Assert.DoesNotContain(mediaTypeSegments.Elements(ns + "ToggleButton"), element =>
             (string?)element.Attribute(xNamespace + "Name") == "BrowserIncludeSubfoldersButton");
 
@@ -750,11 +748,13 @@ public class UiLayoutTests
         var browse = Named(document, "BrowserBrowseToolbar");
         var actions = Named(document, "BrowserSelectionActionToolbar");
         var contextMenu = Named(document, "BrowserGridRows").Descendants(ns + "ContextMenu").Single();
-        var browseColumns = browse.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").ToList();
+        var navigation = Named(document, "BrowserNavigationToolbar");
+        var query = Named(document, "BrowserQueryToolbar");
 
         Assert.Equal("0", (string?)browse.Attribute("Grid.Row"));
-        Assert.Equal("*", (string?)browseColumns[0].Attribute("Width"));
-        Assert.Equal("Auto", (string?)browseColumns[1].Attribute("Width"));
+        Assert.Null(browse.Element(ns + "Grid.ColumnDefinitions"));
+        Assert.Equal("0", (string?)navigation.Attribute("Grid.Row"));
+        Assert.Equal("2", (string?)query.Attribute("Grid.Row"));
         Assert.DoesNotContain(document.Descendants(ns + "ColumnDefinition"), column =>
             (string?)column.Attribute("Width") == "520" && column.Ancestors().Contains(browse));
         Assert.Equal("2", (string?)actions.Attribute("Grid.Row"));
@@ -763,7 +763,17 @@ public class UiLayoutTests
             (string?)text.Attribute("Text") == "SELECTION");
         Assert.DoesNotContain(actions.Descendants(), element =>
             (string?)element.Attribute(x + "Name") == "BrowserSelectionActionSummary");
-        Assert.Equal("BrowserSelectionActionButtonStyle", Named(document, "BrowserExportButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
+        Assert.Equal("BrowserExportActionButtonStyle", Named(document, "BrowserExportButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
+        var exportStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(x + "Key") == "BrowserExportActionButtonStyle");
+        Assert.Equal("{StaticResource BrowserSelectionActionButtonStyle}", (string?)exportStyle.Attribute("BasedOn"));
+        Assert.Equal("{StaticResource ShellFocusBrush}", (string?)exportStyle.Elements(ns + "Setter")
+            .Single(setter => (string?)setter.Attribute("Property") == "BorderBrush").Attribute("Value"));
+        var baseActionStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(x + "Key") == "BrowserSelectionActionButtonStyle");
+        Assert.Contains(baseActionStyle.Descendants(ns + "Trigger"), trigger =>
+            (string?)trigger.Attribute("Property") == "IsEnabled" && (string?)trigger.Attribute("Value") == "False" &&
+            trigger.Elements(ns + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Opacity"));
         Assert.Equal("BrowserThumbnailSizeStepButtonStyle", Named(document, "BrowserRegenerateThumbnailsButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("BrowserSelectionLutComboStyle", Named(document, "BrowserCameraLutCombo").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("BrowserSelectionLutComboStyle", Named(document, "BrowserCreativeLutCombo").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));

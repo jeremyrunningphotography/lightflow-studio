@@ -30,7 +30,7 @@ public sealed class WorkspaceStateStoreTests : IDisposable
             Browser = new() { RootId = rootId, RelativeFolder = "Trips/Iceland", LastResolvedAbsolutePath = @"D:\Trips\Iceland",
                 IncludeSubfolders = true },
             Window = new() { Width = 1500, Height = 950, Left = 40, Top = 20, IsMaximized = true },
-            Layout = new() { BrowserLocationsPaneWidth = 300, JobsDrawerWidth = 440 }
+            Layout = new() { BrowserLocationsPaneWidth = 300, JobsDrawerWidth = 440, FullJobsListPaneWidth = 510 }
         };
 
         WorkspaceStateStore.Save(StatePath, state);
@@ -47,6 +47,7 @@ public sealed class WorkspaceStateStoreTests : IDisposable
         Assert.True(loaded.Window.IsMaximized);
         Assert.Equal(300, loaded.Layout!.BrowserLocationsPaneWidth);
         Assert.Equal(440, loaded.Layout.JobsDrawerWidth);
+        Assert.Equal(510, loaded.Layout.FullJobsListPaneWidth);
     }
 
     [Fact]
@@ -206,6 +207,16 @@ public sealed class WorkspaceStateNormalizationTests
     }
 
     [Theory]
+    [InlineData(100, WorkspaceState.MinFullJobsListPaneWidth)]
+    [InlineData(9000, WorkspaceState.MaxFullJobsListPaneWidth)]
+    [InlineData(430, 430)]
+    public void Normalize_ClampsFullJobsListPaneWidthToItsSupportedRange(double saved, double expected)
+    {
+        var state = new WorkspaceState { Layout = new() { FullJobsListPaneWidth = saved } };
+        Assert.Equal(expected, WorkspaceState.Normalize(state).Layout!.FullJobsListPaneWidth);
+    }
+
+    [Theory]
     [InlineData(-1, 0)]
     [InlineData(-100, 0)]
     [InlineData(6, 5)]
@@ -279,6 +290,7 @@ public sealed class WorkspaceStateServiceTests
         service.SetBrowserLocation(rootId, "Trips/Iceland", @"D:\Trips\Iceland");
         service.SetWindow(new() { Width = 1300, Height = 800, Left = 10, Top = 10 });
         service.SetBrowserLocationsPaneWidth(310);
+        service.SetFullJobsListPaneWidth(500);
 
         Assert.Equal(rootId, service.Current.Browser!.RootId);
         // #124 (revised): recursive-scope state now lives in the Catalog, not workspace state — SetBrowserLocation
@@ -286,6 +298,7 @@ public sealed class WorkspaceStateServiceTests
         Assert.False(service.Current.Browser.IncludeSubfolders);
         Assert.Equal(1300, service.Current.Window!.Width);
         Assert.Equal(310, service.Current.Layout!.BrowserLocationsPaneWidth);
+        Assert.Equal(500, service.Current.Layout.FullJobsListPaneWidth);
         Assert.False(File.Exists(path));
     }
 

@@ -47,6 +47,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<JobCardPresentation> _jobsDrawerCards = [];
     private readonly HashSet<Guid> _expandedJobIds = [];
     private readonly HashSet<Guid> _dismissedTerminalJobIds = [];
+    private readonly HashSet<Guid> _deletedFullJobsTerminalJobIds = [];
     private int _jobsPresentationPending;
     private double _jobsDrawerWidth = 380;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
@@ -318,6 +319,8 @@ public partial class MainWindow : Window
             BrowserNavigationColumn.Width = new GridLength(paneWidth);
         if (_workspaceState.Current.Layout?.JobsDrawerWidth is { } drawerWidth)
             _jobsDrawerWidth = drawerWidth;
+        if (_workspaceState.Current.Layout?.FullJobsListPaneWidth is { } jobsListWidth)
+            FullJobsListColumn.Width = new GridLength(jobsListWidth);
 
         // Unconditional (not just inside an `if`): this is also what seeds Resources["BrowserTileWidth"]/
         // ["BrowserTileThumbnailHeight"] for the very first frame, whether or not a size was ever saved.
@@ -414,6 +417,7 @@ public partial class MainWindow : Window
         _workspaceState.SetBrowserLocationsPaneWidth(BrowserNavigationColumn.ActualWidth);
         if (JobsDrawer.Visibility == Visibility.Visible) _jobsDrawerWidth = JobsDrawerColumn.ActualWidth;
         _workspaceState.SetJobsDrawerWidth(_jobsDrawerWidth);
+        _workspaceState.SetFullJobsListPaneWidth(FullJobsListColumn.ActualWidth);
         _workspaceState.SetBrowserThumbnailSizeLevel((int)_browserThumbnailSize);
         _workspaceState.Save();
     }
@@ -3501,7 +3505,7 @@ public partial class MainWindow : Window
         var focusedJobId = FocusedJobsWorkspaceItem()?.JobId;
         var filter = (JobsWorkspaceFilter)Math.Clamp(JobsFilter?.SelectedIndex ?? 0, 0, 7);
         var projected = JobsWorkspacePresentation.Project(_exportScheduler.Jobs, _durableHistoryRecords,
-            JobsSearchText?.Text, filter);
+            JobsSearchText?.Text, filter, _deletedFullJobsTerminalJobIds);
         FullJobsMaximumExports.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         ReconcileJobsWorkspace(projected);
         HistoryEmptyText.Visibility = _historyRecords.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -3617,7 +3621,9 @@ public partial class MainWindow : Window
                      (legacy > 0 ? " Some selected older Jobs were originally saved together and must be deleted together; all Jobs in those saved groups will be removed." : "");
         if (!ConfirmationDialog.Confirm(this, "Delete selected Jobs",
                 JobsWorkspacePresentation.RemovalScope(records), detail, null, "Delete Jobs")) return;
+        var terminalSchedulerJobIds = JobsWorkspacePresentation.TerminalSchedulerJobIdsForDeletedHistory(candidates, ids);
         _jobHistory.Remove(ids);
+        _deletedFullJobsTerminalJobIds.UnionWith(terminalSchedulerJobIds);
         RefreshHistory();
     }
 

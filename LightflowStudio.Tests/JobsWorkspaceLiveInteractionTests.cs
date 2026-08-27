@@ -124,7 +124,60 @@ public sealed class JobsWorkspaceLiveInteractionTests
         });
     }
 
-    private static async Task RunAsync(int seedHistoryCount, Func<MainWindow, Task> body)
+    [Fact]
+    public async Task FullJobs_InvisibleSplitterResizesOnlyItsPanesAndPreservesSelectionAndDetails()
+    {
+        await RunAsync(seedHistoryCount: 2, async window =>
+        {
+            RaiseClick(window.JobsStatusButton);
+            await RealizeJobsWorkspaceAsync(window);
+            window.HistoryList.SelectedIndex = 0;
+            var selected = Assert.IsType<JobsWorkspaceItem>(window.HistoryList.SelectedItem);
+            var details = window.HistoryDetails.Text;
+            var drawerWidth = window.JobsDrawerColumn.Width;
+            var browserWidth = window.BrowserNavigationColumn.Width;
+            var original = window.FullJobsListColumn.ActualWidth;
+
+            window.FullJobsPaneSplitter.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0)
+                { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragStartedEvent });
+            window.FullJobsPaneSplitter.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(40, 0)
+                { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+            window.FullJobsPaneSplitter.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(40, 0, false)
+                { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragCompletedEvent });
+            await RealizeJobsWorkspaceAsync(window);
+
+            Assert.True(window.FullJobsListColumn.ActualWidth > original);
+            Assert.Equal(selected.JobId, Assert.IsType<JobsWorkspaceItem>(window.HistoryList.SelectedItem).JobId);
+            Assert.Equal(details, window.HistoryDetails.Text);
+            Assert.Equal(drawerWidth, window.JobsDrawerColumn.Width);
+            Assert.Equal(browserWidth, window.BrowserNavigationColumn.Width);
+            Assert.False(window.FullJobsPaneSplitter.Focusable);
+            Assert.True(VirtualizingPanel.GetIsVirtualizing(window.HistoryList));
+
+            RaiseSplitterDrag(window.FullJobsPaneSplitter, -10000);
+            await RealizeJobsWorkspaceAsync(window);
+            Assert.True(window.FullJobsListColumn.ActualWidth >= WorkspaceState.MinFullJobsListPaneWidth);
+            RaiseSplitterDrag(window.FullJobsPaneSplitter, 10000);
+            await RealizeJobsWorkspaceAsync(window);
+            Assert.True(window.FullJobsListColumn.ActualWidth <= WorkspaceState.MaxFullJobsListPaneWidth);
+            var detailsColumn = window.FullJobsListColumn.Parent is Grid owner ? owner.ColumnDefinitions[2] : null;
+            Assert.NotNull(detailsColumn);
+            Assert.True(detailsColumn.ActualWidth >= 320);
+        });
+    }
+
+    [Fact]
+    public async Task FullJobs_RestoresPersistedListPaneWidth()
+    {
+        await RunAsync(seedHistoryCount: 0, window =>
+        {
+            Assert.Equal(590, window.FullJobsListColumn.Width.Value);
+            return Task.CompletedTask;
+        }, persistedJobsListWidth: 590);
+    }
+
+    private static async Task RunAsync(int seedHistoryCount, Func<MainWindow, Task> body,
+        double? persistedJobsListWidth = null)
     {
         var root = Path.Combine(Path.GetTempPath(), $"lightflow-jobs-live-{Guid.NewGuid():N}");
         await StaDispatcher.RunAsync(async () =>
@@ -133,6 +186,9 @@ public sealed class JobsWorkspaceLiveInteractionTests
             var startup = await LightflowStorageCoordinator.StartAsync(root);
             Assert.True(startup.IsReady, startup.Diagnostic);
             var storage = startup.Coordinator!;
+            if (persistedJobsListWidth is { } width)
+                WorkspaceStateStore.Save(storage.Locations.WorkspaceStatePath,
+                    new WorkspaceState { Layout = new() { FullJobsListPaneWidth = width } });
             var history = new JobHistoryStore(storage.Locations.JobHistoryPath);
             for (var index = 0; index < seedHistoryCount; index++) history.Add(HistoryRecord());
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic)
@@ -168,6 +224,16 @@ public sealed class JobsWorkspaceLiveInteractionTests
 
     private static void RaiseClick(System.Windows.Controls.Primitives.ButtonBase button) =>
         button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+
+    private static void RaiseSplitterDrag(GridSplitter splitter, double horizontalChange)
+    {
+        splitter.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0)
+            { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragStartedEvent });
+        splitter.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(horizontalChange, 0)
+            { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+        splitter.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(horizontalChange, 0, false)
+            { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragCompletedEvent });
+    }
 
     private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 20000)
     {

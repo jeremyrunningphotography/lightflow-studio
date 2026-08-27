@@ -17,7 +17,7 @@ internal sealed record JobsWorkspaceItem(
     public bool CanCancel => IsCurrent && State is JobState.Queued or JobState.Running or JobState.Paused or JobState.NeedsAttention;
     public bool CanReorder => IsCurrent && State == JobState.Queued;
     public bool CanReviewAndRerun => HistoryRecord is not null;
-    public bool CanRemoveHistory => HistoryRecordId is not null;
+    public bool CanRemoveHistory => HistoryRecordId is not null && (!SchedulerOwned || JobsPresentation.IsTerminal(State));
     public string LegacyNote => IsLegacyProjection ? "Older Jobs saved together · group-level Review & Rerun and removal" : "";
 }
 
@@ -41,11 +41,13 @@ internal static class JobsWorkspacePresentation
 {
     public static IReadOnlyList<JobsWorkspaceItem> Project(IReadOnlyList<ExportJobSnapshot> current,
         IReadOnlyList<EncodingJobHistoryRecord> history, string? search = null,
-        JobsWorkspaceFilter filter = JobsWorkspaceFilter.All)
+        JobsWorkspaceFilter filter = JobsWorkspaceFilter.All,
+        IReadOnlySet<Guid>? suppressedTerminalJobIds = null)
     {
         var historyById = history.ToDictionary(record => record.JobId);
         var currentIds = current.Select(job => job.JobId).ToHashSet();
-        var items = current.Select(job => FromCurrent(job, historyById.GetValueOrDefault(job.JobId))).Concat(history
+        var items = current.Where(job => suppressedTerminalJobIds?.Contains(job.JobId) != true || !JobsPresentation.IsTerminal(job.State))
+            .Select(job => FromCurrent(job, historyById.GetValueOrDefault(job.JobId))).Concat(history
             .Where(record => !currentIds.Contains(record.JobId))
             .SelectMany(FromHistory));
         if (!string.IsNullOrWhiteSpace(search))
@@ -64,6 +66,12 @@ internal static class JobsWorkspacePresentation
 
     public static IReadOnlySet<Guid> BackingHistoryRecordIds(IEnumerable<JobsWorkspaceItem> items) =>
         items.Where(item => item.HistoryRecordId is not null).Select(item => item.HistoryRecordId!.Value).ToHashSet();
+
+    public static IReadOnlySet<Guid> TerminalSchedulerJobIdsForDeletedHistory(IEnumerable<JobsWorkspaceItem> items,
+        IReadOnlySet<Guid> deletedHistoryRecordIds) => items.Where(item => item.SchedulerOwned
+            && JobsPresentation.IsTerminal(item.State)
+            && item.HistoryRecordId is { } historyId && deletedHistoryRecordIds.Contains(historyId))
+        .Select(item => item.JobId).ToHashSet();
 
     public static IReadOnlySet<Guid> SurvivingSelection(IEnumerable<Guid> selectedJobIds,
         IEnumerable<JobsWorkspaceItem> visibleItems)
@@ -95,7 +103,7 @@ internal static class JobsWorkspacePresentation
         details.AddRange(job.Warnings.Select(value => $"Warning: {value}"));
         details.AddRange(job.Errors.Select(value => $"Error: {value}"));
         return new(job.JobId, history?.JobId, history, true, false, job.DisplayName, "Export", job.State, job.ProgressPercent,
-            job.State == JobState.Running && job.Eta is { } eta ? $"ETA {eta:hh\\:mm\\:ss}" : job.Definition.AcceptedAt.ToLocalTime().ToString("g"),
+            job.State == JobState.Running && job.Eta is { } eta ? $"ETA {eta:hh\\:mm\\:ss}" : CompactTimestamp(job.Definition.AcceptedAt),
             source, job.OutputPath, job.Errors.FirstOrDefault() ?? job.Warnings.FirstOrDefault() ?? "",
             string.Join(Environment.NewLine, details), job.StartedAt ?? job.Definition.AcceptedAt, job.QueueOrder);
     }
@@ -110,7 +118,7 @@ internal static class JobsWorkspacePresentation
             var state = result?.State ?? record.State;
             yield return new(item.Definition.Id, record.JobId, record, false, legacy,
                 Path.GetFileName(output.Length == 0 ? item.Definition.SourceIdentity : output), "Export", state, 100,
-                record.CompletedAt.ToLocalTime().ToString("g"), item.Definition.SourceIdentity, output,
+                CompactTimestamp(record.CompletedAt), item.Definition.SourceIdentity, output,
                 result?.Errors.FirstOrDefault() ?? result?.Warnings.FirstOrDefault() ?? "",
                 record.DetailDisplay, record.CompletedAt, long.MaxValue);
         }
@@ -125,6 +133,8 @@ internal static class JobsWorkspacePresentation
         if (item.MaterializedExport is { } export)
             lines.Add($"Export: {export.Encoding.Codec}, {export.Encoding.Container}, {export.Resolution}; audio {export.Audio.Mode}");
     }
+
+    private static string CompactTimestamp(DateTimeOffset value) => value.ToLocalTime().ToString("MMM d, HH:mm");
 
     private static bool Matches(JobState state, JobsWorkspaceFilter filter) => filter switch
     {

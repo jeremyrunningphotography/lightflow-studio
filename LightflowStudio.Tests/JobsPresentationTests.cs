@@ -564,6 +564,89 @@ public sealed class JobsPresentationTests
         Assert.Equal(current.JobId, item.JobId);
     }
 
+    [Theory]
+    [InlineData((int)JobState.Completed)]
+    [InlineData((int)JobState.CompletedWithWarnings)]
+    [InlineData((int)JobState.Skipped)]
+    [InlineData((int)JobState.Failed)]
+    [InlineData((int)JobState.Cancelled)]
+    public void FullWorkspace_DeletedModernTerminalJobStaysSuppressedWhileDrawerRemainsIndependent(int stateValue)
+    {
+        var state = (JobState)stateValue;
+        var current = Snapshot(1, state) with
+        {
+            Warnings = state == JobState.Cancelled ? ["Could not remove incomplete output"] : [],
+            Errors = state == JobState.Failed ? ["Encoding failed"] : []
+        };
+        var history = History(current.Definition.PlanItem.Definition, current.JobId, state);
+        var initial = Assert.Single(JobsWorkspacePresentation.Project([current], [history]));
+        Assert.True(initial.CanRemoveHistory);
+
+        var deletedHistoryIds = JobsWorkspacePresentation.BackingHistoryRecordIds([initial]);
+        var tombstones = JobsWorkspacePresentation.TerminalSchedulerJobIdsForDeletedHistory([initial], deletedHistoryIds);
+        Assert.Equal(new HashSet<Guid> { current.JobId }, tombstones);
+        Assert.Empty(JobsWorkspacePresentation.Project([current], [], suppressedTerminalJobIds: tombstones));
+        Assert.Empty(JobsWorkspacePresentation.Project([current], [], suppressedTerminalJobIds: tombstones));
+        Assert.Single(JobsPresentation.VisibleJobs([current]));
+    }
+
+    [Theory]
+    [InlineData((int)JobState.Queued)]
+    [InlineData((int)JobState.Running)]
+    [InlineData((int)JobState.Paused)]
+    [InlineData((int)JobState.NeedsAttention)]
+    public void FullWorkspace_TombstonesNeverHideActiveOrRecoverableJobs(int stateValue)
+    {
+        var state = (JobState)stateValue;
+        var current = Snapshot(1, state);
+        var saved = History(current.Definition.PlanItem.Definition, current.JobId, JobState.Completed);
+        var projected = Assert.Single(JobsWorkspacePresentation.Project([current], [saved],
+            suppressedTerminalJobIds: new HashSet<Guid> { current.JobId }));
+        Assert.False(projected.CanRemoveHistory);
+    }
+
+    [Fact]
+    public void FullWorkspace_DeletingSelectedTerminalJobsSuppressesOnlyThoseJobIdsAndReconcilesSelection()
+    {
+        var deleted = Snapshot(1, JobState.Completed);
+        var surviving = Snapshot(2, JobState.Cancelled);
+        var tombstones = new HashSet<Guid> { deleted.JobId };
+
+        var projected = JobsWorkspacePresentation.Project([deleted, surviving], [],
+            suppressedTerminalJobIds: tombstones);
+
+        Assert.Equal([surviving.JobId], projected.Select(item => item.JobId));
+        Assert.Equal(new HashSet<Guid> { surviving.JobId }, JobsWorkspacePresentation.SurvivingSelection(
+            [deleted.JobId, surviving.JobId], projected));
+    }
+
+    [Fact]
+    public void FullJobsUsesInvisiblePersistedSplitterAndResilientTimingColumn()
+    {
+        var document = DrawerDocument();
+        var splitter = Named(document, "FullJobsPaneSplitter");
+        var listColumn = Named(document, "FullJobsListColumn");
+        var timing = Named(document, "HistoryList").Descendants().Single(element =>
+            ((string?)element.Attribute("Text"))?.Contains("Binding Timing", StringComparison.Ordinal) == true);
+
+        Assert.Equal("Transparent", (string?)splitter.Attribute("Background"));
+        Assert.Equal("SizeWE", (string?)splitter.Attribute("Cursor"));
+        Assert.Equal("PreviousAndNext", (string?)splitter.Attribute("ResizeBehavior"));
+        Assert.Equal("False", (string?)splitter.Attribute("Focusable"));
+        Assert.Contains(splitter.Descendants(), element => element.Name.LocalName == "Grid" &&
+            (string?)element.Attribute("Background") == "Transparent");
+        Assert.Equal(WorkspaceState.MinFullJobsListPaneWidth.ToString(), (string?)listColumn.Attribute("MinWidth"));
+        Assert.Equal(WorkspaceState.MaxFullJobsListPaneWidth.ToString(), (string?)listColumn.Attribute("MaxWidth"));
+        Assert.Equal("104", (string?)timing.Attribute("Width"));
+        Assert.Equal("CharacterEllipsis", (string?)timing.Attribute("TextTrimming"));
+        Assert.Equal("{Binding Timing, Mode=OneWay}", (string?)timing.Attribute("ToolTip"));
+        var source = MainWindowSource();
+        Assert.Contains("SetFullJobsListPaneWidth", source);
+        Assert.Contains("_deletedFullJobsTerminalJobIds", source);
+        var active = Assert.Single(JobsWorkspacePresentation.Project([Snapshot(1, JobState.Running)], []));
+        Assert.Equal("ETA 00:00:20", active.Timing);
+    }
+
     [Fact]
     public void FullWorkspace_ProjectsLegacyChildrenButKeepsBackingRecordIndivisible()
     {

@@ -395,6 +395,21 @@ public sealed class GlobalExportSchedulerTests
         await harness.DisposeAsync();
     }
 
+    [Fact]
+    public async Task RestartDoesNotRestoreTerminalSchedulerSnapshots()
+    {
+        var store = new MemoryQueueStore();
+        var jobs = Proposal("terminal-restart", 5).Jobs;
+        var states = new[] { JobState.Completed, JobState.CompletedWithWarnings, JobState.Skipped,
+            JobState.Failed, JobState.Cancelled };
+        store.Save(jobs.Select((job, index) => new ExportJobCheckpoint(job, states[index], 100,
+            DateTimeOffset.Now, DateTimeOffset.Now, TimeSpan.Zero, [], [], null)).ToList());
+
+        await using var restored = new GlobalExportScheduler(1, () => throw new UnreachableException(), store);
+
+        Assert.Empty(restored.Jobs);
+    }
+
     private static ExportSubmissionProposal Proposal(string prefix, int count, string output = "C:\\output", string? sameName = null) =>
         ExportSubmissionProposal.FromPlan(Plan(prefix, count, output, sameName));
 

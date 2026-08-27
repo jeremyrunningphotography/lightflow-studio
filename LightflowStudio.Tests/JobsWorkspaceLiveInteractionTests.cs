@@ -238,16 +238,26 @@ public sealed class JobsWorkspaceLiveInteractionTests
         {
             Assert.Equal(0, Grid.GetRow(window.BrowserNavigationToolbar));
             Assert.Equal(2, Grid.GetRow(window.BrowserQueryToolbar));
+            var startsWide = UsesCombinedLowerRow(window);
             Assert.Equal(ExpectedSelectionActionRow(window), Grid.GetRow(window.BrowserSelectionActionToolbar));
             Assert.Equal(0, Grid.GetColumn(window.BrowserQueryToolbar));
-            Assert.Equal(1, Grid.GetColumn(window.BrowserSelectionActionToolbar));
+            Assert.Equal(startsWide ? 1 : 0, Grid.GetColumn(window.BrowserSelectionActionToolbar));
+            Assert.Equal(startsWide ? 1 : 2, Grid.GetColumnSpan(window.BrowserSelectionActionToolbar));
             Assert.Equal(2, Grid.GetColumnSpan(window.BrowserNavigationToolbar));
             var navigationBounds = window.BrowserNavigationToolbar.TransformToAncestor(window.BrowserBrowseToolbar)
                 .TransformBounds(new Rect(new Point(), window.BrowserNavigationToolbar.RenderSize));
             Assert.Equal(window.BrowserBrowseToolbar.ActualWidth, navigationBounds.Right, 1);
-            Assert.True(window.BrowserNavigationToolbar.ActualWidth > window.BrowserQueryToolbar.ActualWidth);
-            Assert.True(window.BrowserCurrentPath.ActualWidth > 300);
-            Assert.Equal(window.BrowserQueryToolbar.ActualHeight, window.BrowserSelectionActionToolbar.ActualHeight, 1);
+            if (startsWide)
+            {
+                Assert.True(window.BrowserNavigationToolbar.ActualWidth > window.BrowserQueryToolbar.ActualWidth);
+                Assert.True(window.BrowserCurrentPath.ActualWidth > 300);
+                Assert.Equal(window.BrowserQueryToolbar.ActualHeight, window.BrowserSelectionActionToolbar.ActualHeight, 1);
+            }
+            else
+            {
+                AssertContained(window.BrowserQueryToolbar, window.BrowserBrowseToolbar);
+                AssertContained(window.BrowserSelectionActionToolbar, window.BrowserBrowseToolbar);
+            }
             AssertRow2ControlHeights(window);
 
             RaiseClick(window.JobsDrawerPullButton);
@@ -267,8 +277,10 @@ public sealed class JobsWorkspaceLiveInteractionTests
             RaiseClick(window.JobsDrawerPullButton);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             window.UpdateLayout();
+            var endsWide = UsesCombinedLowerRow(window);
             Assert.Equal(ExpectedSelectionActionRow(window), Grid.GetRow(window.BrowserSelectionActionToolbar));
-            Assert.Equal(1, Grid.GetColumn(window.BrowserSelectionActionToolbar));
+            Assert.Equal(endsWide ? 1 : 0, Grid.GetColumn(window.BrowserSelectionActionToolbar));
+            Assert.Equal(endsWide ? 1 : 2, Grid.GetColumnSpan(window.BrowserSelectionActionToolbar));
         }, persistedLocationsWidth: 280, persistedDrawerWidth: 380, windowWidth: 1800);
     }
 
@@ -344,7 +356,9 @@ public sealed class JobsWorkspaceLiveInteractionTests
     }
 
     private static int ExpectedSelectionActionRow(MainWindow window) =>
-        window.BrowserCenter.ActualWidth >= 1120 ? 2 : 4;
+        UsesCombinedLowerRow(window) ? 2 : 4;
+
+    private static bool UsesCombinedLowerRow(MainWindow window) => window.BrowserCenter.ActualWidth >= 1120;
 
     private static void AssertContained(FrameworkElement child, FrameworkElement ancestor)
     {

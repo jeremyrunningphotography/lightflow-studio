@@ -818,6 +818,38 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserRow2_UsesOneAuthoritativeControlHeightAcrossRefineColorAndExport()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var heightResource = document.Descendants().Single(element =>
+            (string?)element.Attribute(x + "Key") == "BrowserRow2ControlHeight");
+        Assert.Equal("34", heightResource.Value);
+
+        foreach (var styleName in new[] { "BrowserToolbarChipStyle", "BrowserToolbarToggleButtonStyle",
+                     "BrowserQuickFilterSegmentStyle", "BrowserSelectionActionButtonStyle", "BrowserSelectionLutComboStyle" })
+        {
+            var style = document.Descendants(ns + "Style").Single(element =>
+                (string?)element.Attribute(x + "Key") == styleName);
+            Assert.Contains(style.Elements(ns + "Setter"), setter =>
+                (string?)setter.Attribute("Property") == "Height" &&
+                (string?)setter.Attribute("Value") == "{StaticResource BrowserRow2ControlHeight}");
+        }
+
+        Assert.Equal("{StaticResource BrowserRow2ControlHeight}",
+            (string?)Named(document, "BrowserSortCombo").Attribute("Height"));
+        Assert.Equal("{StaticResource BrowserRow2ControlHeight}",
+            (string?)Named(document, "BrowserSortDirectionButton").Attribute("Height"));
+        Assert.Equal("Center", (string?)Named(document, "BrowserColorActions").Descendants(ns + "TextBlock")
+            .Single(text => (string?)text.Attribute("Text") == "COLOR").Attribute("VerticalAlignment"));
+        Assert.Equal("{StaticResource BrowserExportActionButtonStyle}",
+            (string?)Named(document, "BrowserExportButton").Attribute("Style"));
+        Assert.Equal((string?)Named(document, "BrowserQueryToolbar").Attribute("Padding"),
+            (string?)Named(document, "BrowserSelectionActionToolbar").Attribute("Padding"));
+    }
+
+    [Fact]
     public void PlayerColorRow_ContainsRightAlignedCurrentAssetExport()
     {
         var root = FindRepositoryRoot();

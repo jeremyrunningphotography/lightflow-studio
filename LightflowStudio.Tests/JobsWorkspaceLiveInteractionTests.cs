@@ -247,6 +247,8 @@ public sealed class JobsWorkspaceLiveInteractionTests
             Assert.Equal(window.BrowserBrowseToolbar.ActualWidth, navigationBounds.Right, 1);
             Assert.True(window.BrowserNavigationToolbar.ActualWidth > window.BrowserQueryToolbar.ActualWidth);
             Assert.True(window.BrowserCurrentPath.ActualWidth > 300);
+            Assert.Equal(window.BrowserQueryToolbar.ActualHeight, window.BrowserSelectionActionToolbar.ActualHeight, 1);
+            AssertRow2ControlHeights(window);
 
             RaiseClick(window.JobsDrawerPullButton);
             await RealizeJobsWorkspaceAsync(window);
@@ -255,6 +257,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
             navigationBounds = window.BrowserNavigationToolbar.TransformToAncestor(window.BrowserBrowseToolbar)
                 .TransformBounds(new Rect(new Point(), window.BrowserNavigationToolbar.RenderSize));
             Assert.Equal(window.BrowserBrowseToolbar.ActualWidth, navigationBounds.Right, 1);
+            AssertRow2ControlHeights(window);
             Assert.Equal(0, Grid.GetColumn(window.BrowserSelectionActionToolbar));
             Assert.Equal(2, Grid.GetColumnSpan(window.BrowserSelectionActionToolbar));
             AssertContained(window.BrowserQueryToolbar, window.BrowserBrowseToolbar);
@@ -329,6 +332,15 @@ public sealed class JobsWorkspaceLiveInteractionTests
             { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
         splitter.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(horizontalChange, 0, false)
             { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragCompletedEvent });
+    }
+
+    private static void AssertRow2ControlHeights(MainWindow window)
+    {
+        const double expected = 34;
+        foreach (var control in new FrameworkElement[] { window.BrowserMediaTypeGroup, window.BrowserSearchGroup,
+                     window.BrowserFilterButton, window.BrowserSortGroup, window.BrowserCameraLutCombo,
+                     window.BrowserCreativeLutCombo, window.BrowserExportButton })
+            Assert.Equal(expected, control.ActualHeight, 1);
     }
 
     private static void AssertContained(FrameworkElement child, FrameworkElement ancestor)

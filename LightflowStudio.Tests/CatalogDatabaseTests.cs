@@ -101,6 +101,93 @@ public sealed class CatalogDatabaseTests : IDisposable
     }
 
     [Fact]
+    public async Task Subclips_PersistIndependentPreciseSnapshotsWithStableIdentityNameAndOrder()
+    {
+        var result = await CreateService().CreateNewAsync();
+        var session = result.Session!;
+        var rootId = InsertRoot(session, "Archive");
+        var assetId = InsertAsset(session, rootId, "clip.mp4", "clip.mp4");
+        var ranges = new CatalogMediaRangeStore(() => session);
+        var subclips = new CatalogSubclipService(() => session,
+            () => new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero));
+        var firstRange = new MediaRange(TimeSpan.FromTicks(900_000_001), TimeSpan.FromTicks(123_456_789), TimeSpan.FromTicks(456_789_123));
+
+        await ranges.SaveAsync(assetId, firstRange);
+        var first = await subclips.CreateAsync(assetId, firstRange);
+        var duplicate = await subclips.CreateAsync(assetId, firstRange);
+        await ranges.SaveAsync(assetId, new MediaRange(firstRange.SourceDuration, TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(30)));
+        var renamed = await subclips.RenameAsync(first.SubclipId, first.Revision, "Opening beat");
+        var reordered = await subclips.ReorderAsync(assetId,
+            [new(duplicate.SubclipId, duplicate.Revision), new(first.SubclipId, renamed.Revision)]);
+
+        Assert.NotEqual(first.SubclipId, duplicate.SubclipId);
+        Assert.Equal((firstRange.In, firstRange.Out), (first.In, first.Out));
+        Assert.Equal(first.SubclipId, renamed.SubclipId);
+        Assert.Equal((first.In, first.Out), (renamed.In, renamed.Out));
+        Assert.Equal([duplicate.SubclipId, first.SubclipId], reordered.Select(item => item.SubclipId));
+        Assert.Equal([0, 1], reordered.Select(item => item.Ordinal));
+
+        var reopened = await new CatalogSubclipService(() => session).ListAsync(assetId);
+        Assert.Equal([duplicate.SubclipId, first.SubclipId], reopened.Select(item => item.SubclipId));
+        Assert.Equal(firstRange.In, reopened[1].In);
+        Assert.Equal(firstRange.Out, reopened[1].Out);
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Subclips_ValidateAtomicallyNameDeterministicallyAndRejectStaleMutation()
+    {
+        var result = await CreateService().CreateNewAsync();
+        var session = result.Session!;
+        var rootId = InsertRoot(session, "Archive");
+        var assetId = InsertAsset(session, rootId, "clip.mp4", "clip.mp4");
+        var subclips = new CatalogSubclipService(() => session);
+        var valid = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(20));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => subclips.CreateAsync(assetId, new(valid.SourceDuration, Out: valid.Out)));
+        await Assert.ThrowsAsync<ArgumentException>(() => subclips.CreateAsync(assetId, new(valid.SourceDuration, valid.In)));
+        Assert.Equal(0L, Scalar(session, "SELECT count(*) FROM Subclips;"));
+
+        var first = await subclips.CreateAsync(assetId, valid);
+        var second = await subclips.CreateAsync(assetId, valid);
+        await subclips.RenameAsync(first.SubclipId, first.Revision, "Custom");
+        second = await subclips.RenameAsync(second.SubclipId, second.Revision, "Custom");
+        var third = await subclips.CreateAsync(assetId, valid);
+        Assert.Equal("Subclip 1", third.Name);
+        await Assert.ThrowsAsync<SubclipConcurrencyException>(() => subclips.RenameAsync(first.SubclipId, first.Revision, "Stale"));
+
+        await Assert.ThrowsAsync<SubclipConcurrencyException>(() => subclips.ReorderAsync(assetId,
+            [new(first.SubclipId, first.Revision), new(second.SubclipId, second.Revision), new(third.SubclipId, third.Revision)]));
+
+        await subclips.DeleteAsync(second.SubclipId, second.Revision);
+        var remaining = await subclips.ListAsync(assetId);
+        Assert.Equal([first.SubclipId, third.SubclipId], remaining.Select(item => item.SubclipId));
+        Assert.Equal([0, 1], remaining.Select(item => item.Ordinal));
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Subclips_RapidConcurrentCreatesAreDistinctOrderedAndRootRemapIndependent()
+    {
+        var result = await CreateService().CreateNewAsync();
+        var session = result.Session!;
+        var rootId = InsertRoot(session, "Archive");
+        var assetId = InsertAsset(session, rootId, "clip.mp4", "clip.mp4");
+        var subclips = new CatalogSubclipService(() => session);
+        var range = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+
+        var created = await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => subclips.CreateAsync(assetId, range)));
+        Assert.Equal(12, created.Select(item => item.SubclipId).Distinct().Count());
+        var ordered = await subclips.ListAsync(assetId);
+        Assert.Equal(Enumerable.Range(0, 12), ordered.Select(item => item.Ordinal));
+
+        Execute(session, "UPDATE MediaRoots SET DisplayName='Remapped' WHERE RootId=$root;", ("$root", rootId.ToString("D")));
+        var afterRemap = await subclips.ListAsync(assetId);
+        Assert.Equal(ordered.Select(item => item.SubclipId), afterRemap.Select(item => item.SubclipId));
+        await session.DisposeAsync();
+    }
+
+    [Fact]
     public async Task BrowserAssetStateStore_ProjectsSavedRangesForRequestedAssetsAndClearsThem()
     {
         var result = await CreateService().CreateNewAsync();

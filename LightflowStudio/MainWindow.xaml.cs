@@ -1470,7 +1470,7 @@ public partial class MainWindow : Window
     private void EnsurePlayerViewerHost()
     {
         if (_playerViewerHost is not null) return;
-        _playerViewerHost = new PlayerViewerHost(App.Playback, _storage.MediaRanges,
+        _playerViewerHost = new PlayerViewerHost(App.Playback, _storage.MediaRanges, _storage.Subclips,
             new FrameScreengrabService(() => _storage.Settings.ScreengrabDirectory), lutCache: _storage.LutCache,
             assetColors: _storage.AssetColors, cameraLutFolder: () => _storage.Settings.CameraLutFolder,
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder);

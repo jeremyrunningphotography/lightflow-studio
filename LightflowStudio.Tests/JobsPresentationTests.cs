@@ -19,6 +19,8 @@ public sealed class JobsPresentationTests
         var jobs = new[] { Snapshot(1, JobState.Running), Snapshot(2, JobState.Running) }
             .Concat(Enumerable.Range(3, 8).Select(order => Snapshot(order, JobState.Queued))).ToList();
         Assert.Equal("Jobs · 2 exporting · 8 waiting", JobsPresentation.StatusText(jobs));
+        Assert.Equal("Jobs · Queue paused · 2 exporting · 8 waiting", JobsPresentation.StatusText(jobs, true));
+        Assert.Equal("Jobs · Queue paused", JobsPresentation.StatusText([], true));
         Assert.Equal(JobsRoute.FullJobsCompatibility, JobsPresentation.Route());
         var statusHandler = MethodBody(MainWindowSource(), "private void JobsStatus_Click");
         Assert.Contains("ShellWorkspace.History", statusHandler);
@@ -214,7 +216,7 @@ public sealed class JobsPresentationTests
         Assert.Contains(header.Elements(), element => (string?)element.Attribute("Text") == "Active exports");
         Assert.DoesNotContain(header.Descendants(), element => (string?)element.Attribute("Text") == "Maximum simultaneous exports");
         Assert.Equal("1", (string?)combo.Attribute("Grid.Column"));
-        Assert.Equal("2", (string?)button.Attribute("Grid.Column"));
+        Assert.Equal("3", (string?)button.Attribute("Grid.Column"));
         Assert.Equal("65", (string?)button.Attribute("MinWidth"));
         Assert.Contains("simultaneously", (string?)combo.Attribute("ToolTip"));
         Assert.Equal(340, WorkspaceState.MinJobsDrawerWidth);
@@ -458,8 +460,24 @@ public sealed class JobsPresentationTests
         Assert.Contains(style.Descendants(), element => (string?)element.Attribute("Property") == "IsKeyboardFocused");
         Assert.Contains(style.Descendants(), element => (string?)element.Attribute("Property") == "IsMouseOver");
         var radial = list.Descendants().Single(element => element.Name.LocalName == "JobsRadialProgress");
-        Assert.Equal("{Binding State, Mode=OneWay}", (string?)radial.Attribute("State"));
+        Assert.Equal("{Binding StateText, Mode=OneWay}", (string?)radial.Attribute("State"));
         Assert.DoesNotContain("IsSelected", radial.ToString());
+    }
+
+    [Fact]
+    public void QueueGateIsGlobalAccessibleAndAvailableInBothJobsSurfaces()
+    {
+        var document = DrawerDocument();
+        foreach (var name in new[] { "FullJobsQueueGateButton", "JobsQueueGateButton" })
+        {
+            var button = Named(document, name);
+            Assert.Equal("Pause Queue", (string?)button.Attribute("Content"));
+            Assert.Equal("JobsQueueGate_Click", (string?)button.Attribute("Click"));
+            Assert.Contains("running exports continue", (string?)button.Attribute("ToolTip"), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("Pause Queue", (string?)button.Attribute("AutomationProperties.Name"));
+        }
+        Assert.Contains("IsQueuePaused", MethodBody(MainWindowSource(), "private void JobsQueueGate_Click"));
+        Assert.NotEqual(JobsRadialProgress.StateColor("Exporting"), JobsRadialProgress.StateColor("Waiting"));
     }
 
     [Fact]

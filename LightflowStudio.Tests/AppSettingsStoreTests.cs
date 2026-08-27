@@ -67,6 +67,14 @@ public sealed class AppSettingsStoreTests : IDisposable
             AppSettings.Normalize(new AppSettings { MaxSimultaneousExports = -2 }).MaxSimultaneousExports);
     }
 
+    [Fact]
+    public void GlobalExportQueueGateRoundTrips()
+    {
+        AppSettingsStore.Save(SettingsPath, new AppSettings { IsExportQueuePaused = true });
+
+        Assert.True(AppSettingsStore.Load(SettingsPath).IsExportQueuePaused);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_folder)) Directory.Delete(_folder, recursive: true);

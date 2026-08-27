@@ -22,8 +22,19 @@ public sealed class JobsWorkspaceLiveInteractionTests
             Assert.True(window.IsVisible);
             Assert.Equal(Visibility.Collapsed, window.JobsDrawer.Visibility);
 
+            RaiseClick(window.FullJobsQueueGateButton);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert.Equal("Resume Queue", window.FullJobsQueueGateButton.Content);
+            Assert.Equal("Resume Queue", window.JobsQueueGateButton.Content);
+            Assert.Contains("Queue paused", window.JobsStatusButton.Content.ToString());
+            Assert.Same(window.FindResource("ShellSelectionBrush"), window.FullJobsQueueGateButton.Background);
+
             RaiseClick(window.JobsDrawerPullButton);
             Assert.Equal(Visibility.Visible, window.JobsDrawer.Visibility);
+            RaiseClick(window.JobsQueueGateButton);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert.Equal("Pause Queue", window.FullJobsQueueGateButton.Content);
+            Assert.DoesNotContain("Queue paused", window.JobsStatusButton.Content.ToString());
             RaiseClick(window.JobsDrawerPullButton);
             Assert.Equal(Visibility.Collapsed, window.JobsDrawer.Visibility);
         });

@@ -49,10 +49,11 @@ Issue #108 turns the center into a virtualized media Preview grid. Lightflow's B
 
 Issue #147 consolidates navigation/location and #109 refinement controls into a compact Browse toolbar area directly above the grid, never inside the Locations sidebar. Location/scope is the permanent first row (Back/Forward/Up, current path, Go, Refresh, then Include Subfolders). The lower region treats refine/sort (All/Images/RAW/Video, search, `Filter ▾`, Sort) and Color/Export as stable logical groups: at 1120 or more device-independent pixels of Browser-center width they share one row in refine → Color → Export order; below that breakpoint the entire Color/Export group drops beneath refinement. The address field owns the flexible `*` remainder; refinement controls wrap only within their own group under extreme Jobs pressure. Every standalone refinement control shares one dark "chip" chrome (`BrowserToolbarChipStyle`/matching custom `ControlTemplate`s: a `ShellSurfaceBrush` fill, a 1px `ShellDividerBrush` border, and a 6px corner radius) instead of each falling back to its own default WPF control chrome, so the row reads as one purpose-designed toolbar rather than a mix of form controls.
 
-A second selection-action toolbar permanently reserves its own row between Browse and the media canvas. Its Export,
-Rename, Camera LUT, and Creative LUT controls remain visible and become enabled only when the complete selection
-supports that operation, so selection changes never shift the Browser layout. The same selection actions appear in
-each tile's context menu and use Explorer-familiar right-click selection semantics. Regenerate Previews instead sits
+A compact Color/Export action panel follows refinement on the shared lower row at wide Browser-center widths and moves
+as one complete group beneath refinement at constrained widths. Camera LUT, Creative LUT, and Export remain visible
+and become enabled only when the complete selection supports that operation, so selection changes never shift the
+Browser layout. Corresponding selection actions appear in each tile's context menu and use Explorer-familiar
+right-click selection semantics. Regenerate Previews instead sits
 as a compact refresh-style icon in the Browser status/presentation area immediately left of the Preview-size controls:
 it applies to the applicable selection when one exists, or to the current effective Browser scope when none does.
 The bottom status bar otherwise remains limited to application health, Browser counts, Preview activity, Preview
@@ -75,8 +76,8 @@ refinement moves through deliberate grouped rows, and selection Color/Export act
 space must never let a child minimum arrange Browser content beneath the drawer; Player and Grid use the same bounded
 media cell and resize in place.
 
-Selection actions use compact purpose-built transparent button chrome, short labels, and separators between general
-media actions and Color actions. Camera and Creative are action-picker `ComboBox` controls using the same
+Selection actions use compact purpose-built transparent button chrome. Camera and Creative are action-picker
+`ComboBox` controls using the same
 Lightflow dropdown/option templates as Player; their neutral prompts are restored after every bulk operation and
 therefore never claim a single current LUT for a heterogeneous selection. Tile context menus retain conventional
 submenu behavior but opt into application-scoped Lightflow `ContextMenu`, `MenuItem`, and separator templates,

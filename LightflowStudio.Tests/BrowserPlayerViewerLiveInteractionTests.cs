@@ -93,7 +93,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
 
                 var host = Assert.IsType<PlayerViewerHost>(window.BrowserPlayerHost.Content);
                 await WaitUntilAsync(() => host.CurrentAsset?.Name == "photo.jpg", "the Viewer to finish opening the photo");
-                Assert.Equal(2, Grid.GetRow(window.BrowserSelectionActionToolbar));
+                Assert.Equal(ExpectedSelectionActionRow(window), Grid.GetRow(window.BrowserSelectionActionToolbar));
 
                 RaiseClick(window.JobsDrawerPullButton);
                 window.UpdateLayout();
@@ -112,7 +112,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 RaiseClick(window.JobsDrawerPullButton);
                 window.UpdateLayout();
                 Assert.Equal("photo.jpg", host.CurrentAsset?.Name);
-                Assert.Equal(2, Grid.GetRow(window.BrowserSelectionActionToolbar));
+                Assert.Equal(ExpectedSelectionActionRow(window), Grid.GetRow(window.BrowserSelectionActionToolbar));
                 AssertContained(window.BrowserPlayerHost, window.BrowserCenter);
 
                 // Esc, handled by PlayerViewerHost's own PreviewKeyDown — raised directly on that control
@@ -298,6 +298,9 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
         Assert.True(bounds.Left >= -1 && bounds.Right <= ancestor.ActualWidth + 1,
             $"{child.Name} is outside {ancestor.Name}: {bounds} vs {ancestor.ActualWidth:0.##}");
     }
+
+    private static int ExpectedSelectionActionRow(MainWindow window) =>
+        window.BrowserCenter.ActualWidth >= 1120 ? 2 : 4;
 
     private static async Task WaitUntilAsync(Func<bool> condition, string waitingFor, int timeoutMs = 20000)
     {

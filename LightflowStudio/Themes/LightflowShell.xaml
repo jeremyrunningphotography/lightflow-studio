@@ -18,8 +18,10 @@
  <SolidColorBrush x:Key="ShellSelectionBrush" Color="{StaticResource ShellSelectionColor}"/>
  <SolidColorBrush x:Key="ShellNavigationTextBrush" Color="{StaticResource ShellNavigationTextColor}"/>
 
- <Thickness x:Key="ShellWorkspacePadding">28,16,28,24</Thickness>
- <Thickness x:Key="ShellPanelPadding">18</Thickness>
+ <!-- App-wide density contract: spacing is intentionally compact while type, icons, media,
+      borders, splitters, and the window's usable dimensions retain their established scale. -->
+ <Thickness x:Key="ShellWorkspacePadding">14,8,14,12</Thickness>
+ <Thickness x:Key="ShellPanelPadding">9</Thickness>
 
  <Style x:Key="ShellPanel" TargetType="Border">
   <Setter Property="Background" Value="{StaticResource ShellPanelBrush}"/>

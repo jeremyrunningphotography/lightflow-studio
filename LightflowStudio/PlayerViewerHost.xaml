@@ -75,7 +75,7 @@
   <Grid>
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
 
-   <DockPanel Grid.Row="0" Margin="12,10,12,8">
+   <DockPanel Grid.Row="0" Margin="6,5,6,4">
     <Button x:Name="BackButton" DockPanel.Dock="Left" Padding="10,6" Click="BackButton_Click"
      ToolTip="Back to Browser (Esc)" AutomationProperties.Name="Back to Browser">
      <!-- A horizontal StackPanel top-aligns its children by default rather than stretching them, and the
@@ -103,7 +103,7 @@
      TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Visibility="Collapsed"/>
    </Grid>
 
-   <Border Grid.Row="2" x:Name="TransportBar" Margin="12,0,12,12" Padding="14,10,14,9" Visibility="Collapsed"
+   <Border Grid.Row="2" x:Name="TransportBar" Margin="6,0,6,6" Padding="7,5,7,5" Visibility="Collapsed"
     Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
     <Grid>
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>

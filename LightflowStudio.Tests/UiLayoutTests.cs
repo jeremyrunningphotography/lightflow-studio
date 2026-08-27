@@ -245,7 +245,7 @@ public class UiLayoutTests
         Assert.Contains(toolbarGrid.Elements(ns + "ToggleButton"), element =>
             (string?)element.Attribute(xNamespace + "Name") == "BrowserIncludeSubfoldersButton");
 
-        Assert.Equal("28,16,28,24", (string?)shell.Root.Elements(shell.Root.Name.Namespace + "Thickness")
+        Assert.Equal("14,8,14,12", (string?)shell.Root.Elements(shell.Root.Name.Namespace + "Thickness")
             .Single(thickness => (string?)thickness.Attribute(xNamespace + "Key") == "ShellWorkspacePadding"));
     }
 
@@ -899,6 +899,70 @@ public class UiLayoutTests
             (string?)element.Attribute("Background") == "{StaticResource BrandGradient}");
         Assert.Equal("60", (string?)shellGrid.Element(ns + "Grid.RowDefinitions")!
             .Elements(ns + "RowDefinition").First().Attribute("Height"));
+    }
+
+    [Fact]
+    public void SharedDensity_UsesCompactWorkspacePanelCardAndControlSpacing()
+    {
+        var root = FindRepositoryRoot();
+        var shell = XDocument.Load(Path.Combine(root, "LightflowStudio", "Themes", "LightflowShell.xaml"));
+        var app = XDocument.Load(Path.Combine(root, "LightflowStudio", "App.xaml"));
+        var ns = app.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+
+        Assert.Equal("14,8,14,12", shell.Descendants().Single(element =>
+            (string?)element.Attribute(x + "Key") == "ShellWorkspacePadding").Value);
+        Assert.Equal("9", shell.Descendants().Single(element =>
+            (string?)element.Attribute(x + "Key") == "ShellPanelPadding").Value);
+        Assert.Equal("7,4", app.Descendants().Single(element =>
+            (string?)element.Attribute(x + "Key") == "CompactControlPadding").Value);
+        var card = app.Descendants(ns + "Style").Single(element => (string?)element.Attribute(x + "Key") == "Card");
+        Assert.Contains(card.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Padding" &&
+            (string?)setter.Attribute("Value") == "{StaticResource CompactCardPadding}");
+    }
+
+    [Fact]
+    public void JobsHeader_PlacesTitleAndActionsOnFirstRowWithSubtitleBelow()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var header = Named(document, "JobsHeader");
+        var title = header.Elements(ns + "TextBlock").Single(element => (string?)element.Attribute("Text") == "Jobs");
+        var subtitle = header.Elements(ns + "TextBlock").Single(element =>
+            ((string?)element.Attribute("Text"))?.StartsWith("Manage current") == true);
+        var actions = header.Elements(ns + "StackPanel").Single();
+
+        Assert.Null(title.Attribute("Grid.Row"));
+        Assert.Equal("1", (string?)subtitle.Attribute("Grid.Row"));
+        Assert.Equal("1", (string?)actions.Attribute("Grid.Column"));
+        Assert.Equal(new[] { "JobsBackToBrowserButton", "RefreshHistoryButton", "JobsClearHistoryButton" },
+            actions.Elements(ns + "Button").Select(button => (string?)button.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name")));
+    }
+
+    [Fact]
+    public void JobsToolbar_UsesOneAuthoritativeHeightForSearchStatusConcurrencyAndQueueGate()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var height = document.Descendants().Single(element =>
+            (string?)element.Attribute(x + "Key") == "JobsToolbarControlHeight");
+        Assert.Equal("34", height.Value);
+
+        foreach (var styleName in new[] { "JobsToolbarTextBoxStyle", "JobsToolbarComboBoxStyle", "JobsToolbarButtonStyle" })
+        {
+            var style = document.Descendants(ns + "Style").Single(element =>
+                (string?)element.Attribute(x + "Key") == styleName);
+            Assert.Contains(style.Elements(ns + "Setter"), setter =>
+                (string?)setter.Attribute("Property") == "Height" &&
+                (string?)setter.Attribute("Value") == "{StaticResource JobsToolbarControlHeight}");
+        }
+
+        Assert.Equal("{StaticResource JobsToolbarTextBoxStyle}", (string?)Named(document, "JobsSearchText").Attribute("Style"));
+        Assert.Equal("{StaticResource JobsToolbarComboBoxStyle}", (string?)Named(document, "JobsFilter").Attribute("Style"));
+        Assert.Equal("{StaticResource JobsToolbarComboBoxStyle}", (string?)Named(document, "FullJobsMaximumExports").Attribute("Style"));
+        Assert.Equal("{StaticResource JobsToolbarButtonStyle}", (string?)Named(document, "FullJobsQueueGateButton").Attribute("Style"));
     }
 
     [Fact]

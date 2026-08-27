@@ -116,8 +116,10 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
     private readonly Func<ExportJobDefinition, IReadOnlyList<JobIssue>>? _revalidateRecovered;
     private readonly Func<string, OutputFileSnapshot> _inspectOutput;
     private readonly Action<int>? _persistMaximum;
+    private readonly Action<bool>? _persistQueuePaused;
     private long _nextOrder;
     private int _maximum;
+    private bool _isQueuePaused;
     private bool _disposed;
     private bool _shuttingDown;
 
@@ -125,7 +127,9 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
         IExportQueueStore? store = null,
         Func<ExportJobDefinition, IReadOnlyList<JobIssue>>? revalidateRecovered = null,
         Func<string, OutputFileSnapshot>? inspectOutput = null,
-        Action<int>? persistMaximum = null)
+        Action<int>? persistMaximum = null,
+        bool isQueuePaused = false,
+        Action<bool>? persistQueuePaused = null)
     {
         _maximum = EncodingJobConcurrency.Validate(maximum);
         _executorFactory = executorFactory ?? throw new ArgumentNullException(nameof(executorFactory));
@@ -133,6 +137,8 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
         _revalidateRecovered = revalidateRecovered;
         _inspectOutput = inspectOutput ?? OutputFileSnapshot.Read;
         _persistMaximum = persistMaximum;
+        _isQueuePaused = isQueuePaused;
+        _persistQueuePaused = persistQueuePaused;
         Restore(store?.Load() ?? []);
     }
 
@@ -154,6 +160,34 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
     public IReadOnlyList<ExportJobSnapshot> Jobs
     {
         get { lock (_sync) return _jobs.OrderBy(job => job.Definition.QueueOrder).Select(SnapshotLocked).ToList(); }
+    }
+
+    public bool IsQueuePaused { get { lock (_sync) return _isQueuePaused; } }
+
+    public bool PauseQueue()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (_isQueuePaused) return false;
+            _isQueuePaused = true;
+        }
+        _persistQueuePaused?.Invoke(true);
+        Changed?.Invoke(Jobs);
+        return true;
+    }
+
+    public bool ResumeQueue()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (!_isQueuePaused) return false;
+            _isQueuePaused = false;
+        }
+        _persistQueuePaused?.Invoke(false);
+        PublishAndSchedule();
+        return true;
     }
 
     public ExportQueueAdmission Admit(ExportSubmissionProposal proposal)
@@ -310,7 +344,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
         List<(Entry Entry, ActiveExecution Active)> starts = [];
         lock (_sync)
         {
-            if (_disposed) return;
+            if (_disposed || _isQueuePaused) return;
             while (_active.Count < _maximum)
             {
                 var entry = _jobs.Where(job => job.State == JobState.Queued)

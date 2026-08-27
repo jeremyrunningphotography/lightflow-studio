@@ -40,6 +40,7 @@ internal sealed record AppSettings
     public string? PreviewsDirectory { get; init; }
     public int PreviewCacheQuotaGb { get; init; } = 20;
     public int MaxSimultaneousExports { get; init; } = EncodingJobConcurrency.Default;
+    public bool IsExportQueuePaused { get; init; }
     public Guid? CatalogId { get; init; }
 
     public AppSettings() { }

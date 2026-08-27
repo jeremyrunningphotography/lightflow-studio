@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private JobCancellation? _jobCancellation;
     private readonly BatchProgressState _batchProgress = new();
     private readonly string? _commandLineFolder;
+    private readonly bool _jobsWorkspaceSmokeTest;
     private readonly LightflowStorageCoordinator _storage;
     private readonly StorageStartupStatus _storageStartupStatus;
     private readonly string? _storageDiagnostic;
@@ -46,11 +47,14 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<JobCardPresentation> _jobsDrawerCards = [];
     private readonly HashSet<Guid> _expandedJobIds = [];
     private readonly HashSet<Guid> _dismissedTerminalJobIds = [];
+    private readonly HashSet<Guid> _deletedFullJobsTerminalJobIds = [];
     private int _jobsPresentationPending;
     private double _jobsDrawerWidth = 380;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
     private EncodingJobExecutor? _activeJobExecutor;
-    private readonly ObservableCollection<EncodingJobHistoryRecord> _historyRecords = [];
+    private readonly ObservableCollection<JobsWorkspaceItem> _historyRecords = [];
+    private bool _synchronizingJobsSelection;
+    private IReadOnlyList<EncodingJobHistoryRecord> _durableHistoryRecords = [];
     private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
     private IReadOnlyList<LutOption> _lutOptions = [LutCatalog.NoLut];
     private long _lutSettingsRevision;
@@ -146,6 +150,12 @@ public partial class MainWindow : Window
             try { _storage.SaveSettings(_settings); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             { _activityLogFile.TryAppend($"[App] Could not save global Export concurrency: {exception.Message}"); }
+        }, isQueuePaused: storage.Settings.IsExportQueuePaused, persistQueuePaused: paused =>
+        {
+            _settings = _settings with { IsExportQueuePaused = paused };
+            try { _storage.SaveSettings(_settings); }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            { _activityLogFile.TryAppend($"[App] Could not save the Export queue pause policy: {exception.Message}"); }
         });
         _exportCoordinator = new ExportJobCoordinator(_exportScheduler, _jobHistory);
         _exportCoordinator.Completed += _ => Dispatcher.BeginInvoke(RefreshHistory);
@@ -204,6 +214,7 @@ public partial class MainWindow : Window
             if (WindowState != WindowState.Minimized) _lastNonMinimizedWindowState = WindowState;
         };
         _commandLineFolder = Environment.GetCommandLineArgs().Skip(1).FirstOrDefault(Directory.Exists);
+        _jobsWorkspaceSmokeTest = Environment.GetCommandLineArgs().Contains("--jobs-workspace-smoke-test", StringComparer.OrdinalIgnoreCase);
         Loaded += async (_, _) =>
         {
             try
@@ -238,6 +249,8 @@ public partial class MainWindow : Window
 
                 RefreshCatalogBackups();
                 RefreshHistory();
+                if (_jobsWorkspaceSmokeTest)
+                    MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.History);
                 LocateTools();
                 _exportScheduler.MaxSimultaneousExports = _settings.MaxSimultaneousExports;
                 ApplyJobsPresentation(_exportScheduler.Jobs);
@@ -306,6 +319,8 @@ public partial class MainWindow : Window
             BrowserNavigationColumn.Width = new GridLength(paneWidth);
         if (_workspaceState.Current.Layout?.JobsDrawerWidth is { } drawerWidth)
             _jobsDrawerWidth = drawerWidth;
+        if (_workspaceState.Current.Layout?.FullJobsListPaneWidth is { } jobsListWidth)
+            FullJobsListColumn.Width = new GridLength(jobsListWidth);
 
         // Unconditional (not just inside an `if`): this is also what seeds Resources["BrowserTileWidth"]/
         // ["BrowserTileThumbnailHeight"] for the very first frame, whether or not a size was ever saved.
@@ -402,6 +417,7 @@ public partial class MainWindow : Window
         _workspaceState.SetBrowserLocationsPaneWidth(BrowserNavigationColumn.ActualWidth);
         if (JobsDrawer.Visibility == Visibility.Visible) _jobsDrawerWidth = JobsDrawerColumn.ActualWidth;
         _workspaceState.SetJobsDrawerWidth(_jobsDrawerWidth);
+        _workspaceState.SetFullJobsListPaneWidth(FullJobsListColumn.ActualWidth);
         _workspaceState.SetBrowserThumbnailSizeLevel((int)_browserThumbnailSize);
         _workspaceState.Save();
     }
@@ -1778,6 +1794,14 @@ public partial class MainWindow : Window
     /// <summary>Ctrl+F focuses the Browser search box, but only while the Browser workspace is showing an open, filterable location.</summary>
     private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && MainTabs.SelectedIndex == ShellWorkspaceSelection.Index(ShellWorkspace.History)
+            && Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase
+            && Keyboard.FocusedElement is not System.Windows.Controls.ComboBox)
+        {
+            MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Browser);
+            e.Handled = true;
+            return;
+        }
         if (e.Key != Key.F || !Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
         if (MainTabs.SelectedIndex != ShellWorkspaceSelection.Index(ShellWorkspace.Browser) || !BrowserQueryToolbar.IsEnabled) return;
         BrowserSearchBox.Focus();
@@ -3447,7 +3471,7 @@ public partial class MainWindow : Window
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
                 {
-                    AppendLog($"Could not save this batch to History: {exception.Message}");
+                    AppendLog($"Could not save these Jobs for later: {exception.Message}");
                 }
             }
 
@@ -3470,23 +3494,178 @@ public partial class MainWindow : Window
 
     private void RefreshHistory()
     {
-        _historyRecords.Clear();
-        foreach (var record in _jobHistory.Load()) _historyRecords.Add(record);
+        _durableHistoryRecords = _jobHistory.Load();
+        RefreshJobsWorkspace();
+    }
+
+    private void RefreshJobsWorkspace()
+    {
+        if (HistoryList is null) return;
+        var selectedIds = HistoryList.SelectedItems.Cast<JobsWorkspaceItem>().Select(item => item.JobId).ToHashSet();
+        var focusedJobId = FocusedJobsWorkspaceItem()?.JobId;
+        var filter = (JobsWorkspaceFilter)Math.Clamp(JobsFilter?.SelectedIndex ?? 0, 0, 7);
+        var projected = JobsWorkspacePresentation.Project(_exportScheduler.Jobs, _durableHistoryRecords,
+            JobsSearchText?.Text, filter, _deletedFullJobsTerminalJobIds);
+        FullJobsMaximumExports.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
+        ReconcileJobsWorkspace(projected);
         HistoryEmptyText.Visibility = _historyRecords.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (_historyRecords.Count > 0 && HistoryList.SelectedItem is null) HistoryList.SelectedIndex = 0;
+        RestoreJobsSelection(JobsWorkspacePresentation.SurvivingSelection(selectedIds, _historyRecords), focusedJobId);
+    }
+
+    private JobsWorkspaceItem? FocusedJobsWorkspaceItem()
+    {
+        for (var current = Keyboard.FocusedElement as DependencyObject; current is not null;
+             current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is not ListBoxItem container) continue;
+            return ItemsControl.ItemsControlFromItemContainer(container) == HistoryList
+                ? container.DataContext as JobsWorkspaceItem
+                : null;
+        }
+        return null;
+    }
+
+    private void RestoreJobsSelection(IReadOnlySet<Guid> selectedIds, Guid? focusedJobId)
+    {
+        _synchronizingJobsSelection = true;
+        try
+        {
+            HistoryList.SelectedItems.Clear();
+            foreach (var item in _historyRecords.Where(item => selectedIds.Contains(item.JobId)))
+                HistoryList.SelectedItems.Add(item);
+        }
+        finally { _synchronizingJobsSelection = false; }
+        ApplyJobsSelection();
+        if (focusedJobId is not { } id) return;
+        var focusedItem = _historyRecords.FirstOrDefault(item => item.JobId == id);
+        if (focusedItem is not null && HistoryList.ItemContainerGenerator.ContainerFromItem(focusedItem) is ListBoxItem container)
+            container.Focus();
+    }
+
+    private void ReconcileJobsWorkspace(IReadOnlyList<JobsWorkspaceItem> next)
+    {
+        for (var index = _historyRecords.Count - 1; index >= 0; index--)
+            if (!next.Any(item => item.JobId == _historyRecords[index].JobId
+                && item.HistoryRecordId == _historyRecords[index].HistoryRecordId)) _historyRecords.RemoveAt(index);
+        for (var index = 0; index < next.Count; index++)
+        {
+            var existing = _historyRecords.FirstOrDefault(item => item.JobId == next[index].JobId
+                && item.HistoryRecordId == next[index].HistoryRecordId);
+            if (existing is null) _historyRecords.Insert(index, next[index]);
+            else
+            {
+                var currentIndex = _historyRecords.IndexOf(existing);
+                if (currentIndex != index) _historyRecords.Move(currentIndex, index);
+                if (_historyRecords[index] != next[index]) _historyRecords[index] = next[index];
+            }
+        }
     }
 
     private void HistoryList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        HistoryDetails.Text = (HistoryList.SelectedItem as EncodingJobHistoryRecord)?.DetailDisplay ?? "Select a job to inspect its results.";
-        HistoryRerunButton.IsEnabled = HistoryList.SelectedItem is EncodingJobHistoryRecord;
+        if (!_synchronizingJobsSelection) ApplyJobsSelection();
+    }
+
+    private JobsSelectionEligibility CurrentJobsSelection() =>
+        JobsSelectionEligibility.For(HistoryList.SelectedItems.Cast<JobsWorkspaceItem>());
+
+    private void ApplyJobsSelection()
+    {
+        var selection = CurrentJobsSelection();
+        var item = selection.IsSingle ? selection.Items[0] : null;
+        HistoryDetails.Text = selection.Items.Count > 1 ? $"{selection.Items.Count} Jobs selected. Actions apply only when every selected Job is eligible."
+            : item?.Details ?? "Select a job to inspect its results.";
+        HistoryRerunButton.IsEnabled = item?.CanReviewAndRerun == true;
+        JobsPauseButton.IsEnabled = selection.CanPause;
+        JobsResumeButton.IsEnabled = selection.CanResume;
+        JobsRetryButton.IsEnabled = item?.CanRetry == true;
+        JobsCancelButton.IsEnabled = selection.CanCancel;
+        JobsClearHistoryButton.IsEnabled = selection.CanClearHistory;
+        JobsMoveEarlierButton.IsEnabled = item?.CanReorder == true;
+        JobsMoveLaterButton.IsEnabled = item?.CanReorder == true;
+        JobsRevealOutputButton.IsEnabled = item is not null && File.Exists(item.OutputPath);
+        JobsPauseButton.Content = selection.Items.Count > 1 ? "Pause selected" : "Pause";
+        JobsResumeButton.Content = selection.Items.Count > 1 ? "Resume selected" : "Resume";
+        JobsPauseButton.ToolTip = selection.Items.Count > 1
+            ? "Hold all selected Waiting Jobs before they start"
+            : "Hold this Waiting Job before it starts";
+        JobsResumeButton.ToolTip = selection.Items.Count > 1
+            ? "Return all selected individually paused Jobs to the eligible queue"
+            : "Return this individually paused Job to the eligible queue";
+        AutomationProperties.SetHelpText(JobsPauseButton, JobsPauseButton.ToolTip.ToString()!);
+        AutomationProperties.SetHelpText(JobsResumeButton, JobsResumeButton.ToolTip.ToString()!);
+        JobsCancelButton.Content = selection.Items.Count > 1 ? "Cancel selected…" : "Cancel…";
     }
 
     private void RefreshHistory_Click(object sender, RoutedEventArgs e) => RefreshHistory();
 
+    private void JobsSearchText_Changed(object sender, TextChangedEventArgs e) { if (IsLoaded) RefreshJobsWorkspace(); }
+    private void JobsFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (IsLoaded) RefreshJobsWorkspace(); }
+    private void FullJobsMaximumExports_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (IsLoaded && FullJobsMaximumExports.SelectedIndex >= 0)
+            _exportScheduler.MaxSimultaneousExports = FullJobsMaximumExports.SelectedIndex + EncodingJobConcurrency.Minimum;
+    }
+
+    private void ClearJobsHistory_Click(object sender, RoutedEventArgs e)
+    {
+        var selection = CurrentJobsSelection();
+        if (!selection.CanClearHistory) return;
+        var candidates = selection.Items;
+        var ids = JobsWorkspacePresentation.BackingHistoryRecordIds(candidates);
+        var records = _durableHistoryRecords.Where(record => ids.Contains(record.JobId)).ToList();
+        if (records.Count == 0) return;
+        var legacy = records.Count(record => record.Plan.Items.Count != 1);
+        var detail = "Their saved Lightflow details, provenance, and Review & Rerun availability will be removed. " +
+                     "Exported media, active Jobs, recovery state, and output identity are not deleted." +
+                     (legacy > 0 ? " Some selected older Jobs were originally saved together and must be deleted together; all Jobs in those saved groups will be removed." : "");
+        if (!ConfirmationDialog.Confirm(this, "Delete selected Jobs",
+                JobsWorkspacePresentation.RemovalScope(records), detail, null, "Delete Jobs")) return;
+        var terminalSchedulerJobIds = JobsWorkspacePresentation.TerminalSchedulerJobIdsForDeletedHistory(candidates, ids);
+        _jobHistory.Remove(ids);
+        _deletedFullJobsTerminalJobIds.UnionWith(terminalSchedulerJobIds);
+        RefreshHistory();
+    }
+
+    private void RevealJobOutput_Click(object sender, RoutedEventArgs e)
+    {
+        if (HistoryList.SelectedItem is not JobsWorkspaceItem item || !File.Exists(item.OutputPath)) return;
+        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.OutputPath}\"") { UseShellExecute = true });
+    }
+
+    private void FullJobsPause_Click(object sender, RoutedEventArgs e)
+    {
+        var selection = CurrentJobsSelection();
+        if (!selection.CanPause) return;
+        foreach (var id in selection.Items.Select(item => item.JobId).ToList()) _exportScheduler.Pause(id);
+    }
+    private void FullJobsResume_Click(object sender, RoutedEventArgs e)
+    {
+        var selection = CurrentJobsSelection();
+        if (!selection.CanResume) return;
+        foreach (var id in selection.Items.Select(item => item.JobId).ToList()) _exportScheduler.Resume(id);
+    }
+    private void FullJobsRetry_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) _exportScheduler.RetryNeedsAttention(item.JobId); }
+    private void FullJobsMoveEarlier_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) _exportScheduler.MoveWaiting(item.JobId, -1); }
+    private void FullJobsMoveLater_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) _exportScheduler.MoveWaiting(item.JobId, 1); }
+    private void FullJobsCancel_Click(object sender, RoutedEventArgs e)
+    {
+        var selection = CurrentJobsSelection();
+        if (!selection.CanCancel) return;
+        var intended = selection.Items.Select(item => item.JobId).ToList();
+        var single = selection.IsSingle ? selection.Items[0] : null;
+        if (ConfirmationDialog.Confirm(this, selection.IsSingle ? "Cancel Export Job" : "Cancel Selected Export Jobs",
+                selection.IsSingle ? $"Cancel {single!.Name}?" : $"Cancel all {intended.Count} selected Jobs?",
+                "Incomplete output uses the existing cleanup policy.", single?.OutputPath, selection.IsSingle ? "Cancel Job" : "Cancel selected"))
+            foreach (var id in intended) _exportScheduler.Cancel(id);
+    }
+
+    private void JobsBackToBrowser_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Browser);
+
     private void RerunHistory_Click(object sender, RoutedEventArgs e)
     {
-        if (HistoryList.SelectedItem is not EncodingJobHistoryRecord record) return;
+        if (HistoryList.SelectedItem is not JobsWorkspaceItem { HistoryRecord: { } record }) return;
         var preparation = EncodingHistoryRerun.Prepare(record);
         var restoration = EncodingHistoryRerun.Materialize(preparation);
         if (restoration.Restored.Count == 0)
@@ -3789,14 +3968,17 @@ public partial class MainWindow : Window
     private void ApplyJobsPresentation(IReadOnlyList<ExportJobSnapshot> jobs)
     {
         if (JobsStatusButton is null) return;
-        JobsStatusButton.Content = JobsPresentation.StatusText(jobs);
-        AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs history.");
-        JobsStatusButton.ToolTip = "Open full Jobs history";
+        var queuePaused = _exportScheduler.IsQueuePaused;
+        JobsStatusButton.Content = JobsPresentation.StatusText(jobs, queuePaused);
+        AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs workspace.");
+        JobsStatusButton.ToolTip = "Open full Jobs workspace";
         var activeCount = jobs.Count(job => !JobsPresentation.IsTerminal(job.State));
         JobsDrawerPullButton.Tag = activeCount > 0 ? "Active" : "Idle";
         JobsDrawerPullCount.Text = activeCount.ToString();
         JobsDrawerPullCount.Visibility = activeCount > 0 ? Visibility.Visible : Visibility.Collapsed;
         MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
+        ApplyQueueGatePresentation(FullJobsQueueGateButton, queuePaused);
+        ApplyQueueGatePresentation(JobsQueueGateButton, queuePaused);
         var visibleJobs = JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds);
         var cancellableCount = JobsPresentation.BulkCancellableJobs(jobs).Count;
         var clearableCount = visibleJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State));
@@ -3813,6 +3995,7 @@ public partial class MainWindow : Window
         var cards = visibleJobs
             .Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId))).ToList();
         JobsPresentation.Reconcile(_jobsDrawerCards, cards);
+        if (MainTabs?.SelectedIndex == ShellWorkspaceSelection.Index(ShellWorkspace.History)) RefreshJobsWorkspace();
     }
 
     private void JobsStatus_Click(object sender, RoutedEventArgs e)
@@ -3864,6 +4047,35 @@ public partial class MainWindow : Window
         var maximum = (MaximumExportsCombo?.SelectedIndex ?? -1) + EncodingJobConcurrency.Minimum;
         if (maximum >= EncodingJobConcurrency.Minimum && maximum != _exportScheduler.MaxSimultaneousExports)
             _exportScheduler.MaxSimultaneousExports = maximum;
+    }
+
+    private void JobsQueueGate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_exportScheduler.IsQueuePaused) _exportScheduler.ResumeQueue();
+        else _exportScheduler.PauseQueue();
+    }
+
+    private static void ApplyQueueGatePresentation(System.Windows.Controls.Button button, bool paused)
+    {
+        button.Content = paused ? "Resume Queue" : "Pause Queue";
+        button.Tag = paused ? "Paused" : "Running";
+        button.ToolTip = paused ? "Resume starting queued Jobs" : "Hold queued Jobs; running exports continue";
+        AutomationProperties.SetName(button, paused ? "Resume Queue, queue paused" : "Pause Queue");
+        AutomationProperties.SetHelpText(button, paused
+            ? "Allow eligible Waiting Jobs to start up to Active exports."
+            : "Hold queued Jobs before they start. Running exports continue.");
+        button.FontWeight = paused ? FontWeights.SemiBold : FontWeights.Normal;
+        button.Opacity = paused ? 1 : 0.9;
+        if (paused)
+        {
+            button.Background = (System.Windows.Media.Brush)button.FindResource("ShellSelectionBrush");
+            button.BorderBrush = (System.Windows.Media.Brush)button.FindResource("ShellFocusBrush");
+        }
+        else
+        {
+            button.ClearValue(System.Windows.Controls.Control.BackgroundProperty);
+            button.ClearValue(System.Windows.Controls.Control.BorderBrushProperty);
+        }
     }
 
     private Guid? JobIdFrom(object sender) => (sender as FrameworkElement)?.Tag is Guid id ? id : null;

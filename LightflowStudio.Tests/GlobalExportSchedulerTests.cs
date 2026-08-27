@@ -181,6 +181,83 @@ public sealed class GlobalExportSchedulerTests
     }
 
     [Fact]
+    public async Task PausedQueueAdmitsDurablyWithoutStartingAndResumeHonorsQueueOrderAndCeiling()
+    {
+        var persisted = false;
+        var harness = new Harness(2, isQueuePaused: true, persistQueuePaused: value => persisted = value);
+        var admission = harness.Scheduler.Admit(Proposal("held", 4));
+        Assert.True(admission.Accepted);
+        Assert.True(harness.Scheduler.IsQueuePaused);
+        Assert.All(admission.Jobs, job => Assert.Equal(JobState.Queued,
+            harness.Scheduler.Jobs.Single(snapshot => snapshot.JobId == job.JobId).State));
+        Assert.Empty(harness.Started);
+
+        var last = admission.Jobs[^1].JobId;
+        Assert.True(harness.Scheduler.MoveWaiting(last, -1));
+        var expectedFirstClaims = harness.Scheduler.Jobs.Where(job => job.State == JobState.Queued)
+            .OrderBy(job => job.QueueOrder).Take(2).Select(job => job.JobId).ToList();
+        Assert.True(harness.Scheduler.ResumeQueue());
+        await WaitUntilAsync(() => harness.Running == 2);
+
+        Assert.False(persisted);
+        Assert.Equal(expectedFirstClaims, harness.Started);
+        Assert.Equal(2, harness.MaximumObserved);
+        await harness.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task PausingQueueLetsRunningFinishButBlocksEveryClaimTriggerUntilResume()
+    {
+        var persisted = false;
+        var harness = new Harness(2, persistQueuePaused: value => persisted = value);
+        harness.Scheduler.Admit(Proposal("gate", 4));
+        await WaitUntilAsync(() => harness.Running == 2);
+
+        Assert.True(harness.Scheduler.PauseQueue());
+        Assert.True(persisted);
+        harness.Scheduler.MaxSimultaneousExports = 4;
+        harness.Scheduler.Admit(Proposal("new", 1));
+        harness.CompleteOne();
+        harness.CompleteOne();
+        await WaitUntilAsync(() => harness.Running == 0);
+
+        Assert.Equal(2, harness.Started.Count);
+        Assert.Equal(3, harness.Scheduler.Jobs.Count(job => job.State == JobState.Queued));
+        var individuallyPaused = harness.Scheduler.Jobs.First(job => job.State == JobState.Queued).JobId;
+        Assert.True(harness.Scheduler.Pause(individuallyPaused));
+        Assert.True(harness.Scheduler.Resume(individuallyPaused));
+        Assert.True(harness.Scheduler.Cancel(individuallyPaused));
+        Assert.Equal(2, harness.Started.Count);
+
+        Assert.True(harness.Scheduler.ResumeQueue());
+        await WaitUntilAsync(() => harness.Running == 2);
+        Assert.Equal(4, harness.Started.Count);
+        await harness.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task PersistedQueueGateSurvivesRestartAndRunningRecoveryStillNeedsAttention()
+    {
+        var store = new MemoryQueueStore();
+        var proposal = Proposal("restart-held", 2);
+        store.Save([
+            new(proposal.Jobs[0], JobState.Running, 22, DateTimeOffset.Now, null, TimeSpan.Zero, [], [], null),
+            new(proposal.Jobs[1], JobState.Queued, null, null, null, TimeSpan.Zero, [], [], null)]);
+        var starts = 0;
+        await using var restored = new GlobalExportScheduler(2, () =>
+        {
+            Interlocked.Increment(ref starts);
+            throw new UnreachableException();
+        }, store, isQueuePaused: true);
+
+        Assert.True(restored.IsQueuePaused);
+        Assert.Contains(restored.Jobs, job => job.State == JobState.NeedsAttention);
+        Assert.Contains(restored.Jobs, job => job.State == JobState.Queued);
+        restored.MaxSimultaneousExports = 3;
+        Assert.Equal(0, starts);
+    }
+
+    [Fact]
     public async Task WaitingReorderChangesNextClaimAndRunningCannotMove()
     {
         var harness = new Harness(1);
@@ -318,6 +395,21 @@ public sealed class GlobalExportSchedulerTests
         await harness.DisposeAsync();
     }
 
+    [Fact]
+    public async Task RestartDoesNotRestoreTerminalSchedulerSnapshots()
+    {
+        var store = new MemoryQueueStore();
+        var jobs = Proposal("terminal-restart", 5).Jobs;
+        var states = new[] { JobState.Completed, JobState.CompletedWithWarnings, JobState.Skipped,
+            JobState.Failed, JobState.Cancelled };
+        store.Save(jobs.Select((job, index) => new ExportJobCheckpoint(job, states[index], 100,
+            DateTimeOffset.Now, DateTimeOffset.Now, TimeSpan.Zero, [], [], null)).ToList());
+
+        await using var restored = new GlobalExportScheduler(1, () => throw new UnreachableException(), store);
+
+        Assert.Empty(restored.Jobs);
+    }
+
     private static ExportSubmissionProposal Proposal(string prefix, int count, string output = "C:\\output", string? sameName = null) =>
         ExportSubmissionProposal.FromPlan(Plan(prefix, count, output, sameName));
 
@@ -352,7 +444,8 @@ public sealed class GlobalExportSchedulerTests
         private readonly object _sync = new();
         private readonly Dictionary<Guid, TaskCompletionSource<JobItemResult<EncodingItemResult>>> _gates = [];
         private int _running;
-        public Harness(int maximum, IExportQueueStore? store = null)
+        public Harness(int maximum, IExportQueueStore? store = null, bool isQueuePaused = false,
+            Action<bool>? persistQueuePaused = null)
         {
             Scheduler = new(maximum, () => new(async (item, _, _, token) =>
             {
@@ -361,7 +454,7 @@ public sealed class GlobalExportSchedulerTests
                 using var registration = token.Register(() => gate.TrySetCanceled(token));
                 try { return await gate.Task; }
                 finally { lock (_sync) _running--; }
-            }, () => { }), store);
+            }, () => { }), store, isQueuePaused: isQueuePaused, persistQueuePaused: persistQueuePaused);
         }
         public GlobalExportScheduler Scheduler { get; }
         public List<Guid> Started { get; } = [];

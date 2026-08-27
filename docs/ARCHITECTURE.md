@@ -12,6 +12,29 @@
 
 Lightflow Studio is evolving from a video-focused application into a capability-based media utility. The architecture changes incrementally: existing capabilities move onto shared contracts as they mature instead of requiring a flag-day rewrite.
 
+## Unified Jobs presentation
+
+The full Jobs workspace is a keyed presentation/query layer over two existing authorities. `GlobalExportScheduler`
+remains the sole owner of modern current execution, queue order, progress, concurrency, reservations, commands, and
+recovery. `JobHistoryStore` remains the durable terminal-record boundary. The workspace never polls FFmpeg or
+reconstructs non-terminal state from History.
+
+Modern terminal Jobs are written as one-item History records with the same `JobId`. While such a Job remains in the
+scheduler snapshot, the combined projection emits one row keyed by that `JobId`, uses scheduler state for live
+presentation, and attaches the matching History record only for durable Review & Rerun/removal actions. After restart,
+terminal modern Jobs naturally project from History alone. Progress reconciliation updates keyed rows without
+replacing the entire historical collection.
+
+Legacy multi-item History records are projected as individually inspectable media rows, but every row retains its
+backing historical record identity. The record stays indivisible for Review & Rerun and deletion and is never rewritten
+into modern Jobs. `EncodingHistoryRerun` continues to revalidate source identity and reconstruct a reviewable Encoding
+setup; it never executes directly.
+
+Durable History removal is exposed only through `IJobHistoryStore`. The store atomically rewrites the versioned History
+document for explicit record IDs. It does not touch the modern scheduler checkpoint, legacy unfinished-runtime
+checkpoint, exported/partial media, reservations, or output-identity artifacts. This is distinct from the compact
+drawer's session-only dismissal.
+
 ## Platform boundaries
 
 Lightflow Studio is Windows-first, not Windows-entangled. Shared product semantics remain platform-neutral wherever practical. Platform-specific implementations belong behind explicit boundaries; platform and runtime concepts must not leak into durable domain models or shared contracts.

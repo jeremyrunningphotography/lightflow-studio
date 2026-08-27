@@ -742,7 +742,7 @@ public class UiLayoutTests
         var tabs = Named(document, "MainTabs").Elements(ns + "TabItem").ToList();
 
         Assert.Equal("0", (string?)Named(document, "MainTabs").Attribute("SelectedIndex"));
-        Assert.Equal(["Browser", "Export", "Media Tools", "History", "Premiere Helper", "Settings", "About"], labels);
+        Assert.Equal(["Browser", "Export", "Media Tools", "Jobs", "Premiere Helper", "Settings", "About"], labels);
         Assert.Equal(labels.Count, tabs.Count);
         Assert.Contains(tabs[0].Descendants(), element =>
             (string?)element.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "BrowserFolderTree");

@@ -146,6 +146,7 @@ public sealed class ReleasePackagingTests
         var script = File.ReadAllText(PathAtRoot("scripts", "Build-Release.ps1"));
 
         Assert.Contains("--startup-smoke-test", script);
+        Assert.Contains("--jobs-workspace-smoke-test", script);
         Assert.Contains("WaitForExit(8000)", script);
         Assert.Contains("exited during the Browser startup smoke test", script);
         Assert.Contains("Stop-Process -InputObject $startupSmoke", script);

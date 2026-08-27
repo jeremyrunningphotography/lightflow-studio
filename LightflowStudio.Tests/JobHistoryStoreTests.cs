@@ -98,6 +98,35 @@ public sealed class JobHistoryStoreTests : IDisposable
         Assert.Equal([JobState.Failed, JobState.Cancelled, JobState.Completed], store.Load().Select(record => record.State));
     }
 
+    [Fact]
+    public void Remove_AtomicallyDeletesOnlyExplicitBackingRecords()
+    {
+        var store = new JobHistoryStore(StorePath);
+        var keep = Record(JobState.Completed, DateTimeOffset.Parse("2026-01-01T00:00:00Z"));
+        var remove = Record(JobState.Failed, DateTimeOffset.Parse("2026-01-02T00:00:00Z"),
+            [Item("legacy-a.mp4"), Item("legacy-b.mp4")]);
+        store.Add(keep);
+        store.Add(remove);
+
+        Assert.Equal(1, store.Remove(new HashSet<Guid> { remove.JobId }));
+        Assert.Equal(keep.JobId, Assert.Single(store.Load()).JobId);
+        Assert.False(File.Exists(StorePath + ".tmp"));
+    }
+
+    [Fact]
+    public void Remove_UnknownOrEmptyScopeDoesNotRewriteHistory()
+    {
+        var store = new JobHistoryStore(StorePath);
+        var record = Record(JobState.Completed, DateTimeOffset.UtcNow);
+        store.Add(record);
+        var before = File.GetLastWriteTimeUtc(StorePath);
+
+        Assert.Equal(0, store.Remove(new HashSet<Guid>()));
+        Assert.Equal(0, store.Remove(new HashSet<Guid> { Guid.NewGuid() }));
+        Assert.Equal(before, File.GetLastWriteTimeUtc(StorePath));
+        Assert.Equal(record.JobId, Assert.Single(store.Load()).JobId);
+    }
+
     [Theory]
     [InlineData((int)JobState.Completed)]
     [InlineData((int)JobState.CompletedWithWarnings)]

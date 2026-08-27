@@ -48,13 +48,13 @@ if ($catalogRuntimeCheck.ExitCode -ne 0) { throw "Packaged Catalog SQLite runtim
 # Exercise the real packaged WPF startup through MainWindow.Loaded and delayed template rendering.
 # The process must remain alive after Browser storage initialization; short-lived XAML/startup crashes fail packaging.
 $startupSmoke = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
-    -ArgumentList "--startup-smoke-test" -WorkingDirectory $appDirectory `
+    -ArgumentList "--startup-smoke-test", "--jobs-workspace-smoke-test" -WorkingDirectory $appDirectory `
     -PassThru -WindowStyle Hidden
 try {
     if ($startupSmoke.WaitForExit(8000)) {
         throw "Packaged application exited during the Browser startup smoke test (exit code $($startupSmoke.ExitCode))."
     }
-    Write-Host "Packaged Browser startup remained healthy after initialization." -ForegroundColor Green
+    Write-Host "Packaged Browser startup and full Jobs workspace activation remained healthy after initialization." -ForegroundColor Green
     $null = $startupSmoke.CloseMainWindow()
     if (-not $startupSmoke.WaitForExit(5000)) { Stop-Process -InputObject $startupSmoke -Force }
 }

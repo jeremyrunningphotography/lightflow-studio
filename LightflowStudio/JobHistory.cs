@@ -20,6 +20,7 @@ internal interface IJobHistoryStore
 {
     IReadOnlyList<EncodingJobHistoryRecord> Load();
     void Add(EncodingJobHistoryRecord record);
+    int Remove(IReadOnlySet<Guid> recordIds) => throw new NotSupportedException("This History store does not support removal.");
 }
 
 internal sealed class JobHistoryStore : IJobHistoryStore
@@ -53,13 +54,31 @@ internal sealed class JobHistoryStore : IJobHistoryStore
         ArgumentNullException.ThrowIfNull(record);
         var records = Load().Where(existing => existing.JobId != record.JobId).Append(record)
             .OrderByDescending(existing => existing.CompletedAt).Take(MaximumRecords).ToList();
+        Write(records);
+    }
+
+    public int Remove(IReadOnlySet<Guid> recordIds)
+    {
+        ArgumentNullException.ThrowIfNull(recordIds);
+        if (recordIds.Count == 0) return 0;
+        var existing = Load();
+        var retained = existing.Where(record => !recordIds.Contains(record.JobId)).ToList();
+        var removed = existing.Count - retained.Count;
+        if (removed == 0) return 0;
+        Write(retained);
+        return removed;
+    }
+
+    private void Write(IReadOnlyList<EncodingJobHistoryRecord> records)
+    {
         var directory = Path.GetDirectoryName(_path);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
         var temporary = _path + ".tmp";
         try
         {
             File.WriteAllText(temporary, JsonSerializer.Serialize(new HistoryDocument(SchemaVersion, records), JsonOptions));
-            File.Move(temporary, _path, true);
+            if (File.Exists(_path)) File.Replace(temporary, _path, null);
+            else File.Move(temporary, _path);
         }
         finally { try { if (File.Exists(temporary)) File.Delete(temporary); } catch { } }
     }

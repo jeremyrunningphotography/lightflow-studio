@@ -35,9 +35,18 @@ internal static class JobsPresentation
         return jobs.Any(job => IsDismissibleDrawerRow(job.State)) ? JobsBulkAction.ClearAll : JobsBulkAction.None;
     }
 
-    public static string StatusText(IEnumerable<ExportJobSnapshot> jobs)
+    public static string StatusText(IEnumerable<ExportJobSnapshot> jobs, bool queuePaused = false)
     {
         var current = jobs.Where(job => !IsTerminal(job.State)).ToList();
+        if (queuePaused)
+        {
+            var parts = new List<string> { "Jobs", "Queue paused" };
+            var exportingWhileHeld = current.Count(job => job.State == JobState.Running);
+            var waitingWhileHeld = current.Count(job => job.State == JobState.Queued);
+            if (exportingWhileHeld > 0) parts.Add($"{exportingWhileHeld} exporting");
+            if (waitingWhileHeld > 0) parts.Add($"{waitingWhileHeld} waiting");
+            return string.Join(" · ", parts);
+        }
         if (current.Count == 0) return "Jobs";
         var exporting = current.Count(job => job.State == JobState.Running);
         var waiting = current.Count(job => job.State == JobState.Queued);

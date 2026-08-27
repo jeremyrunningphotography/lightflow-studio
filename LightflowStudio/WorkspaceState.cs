@@ -45,6 +45,7 @@ internal sealed record WorkspaceLayoutState
 {
     public double? BrowserLocationsPaneWidth { get; init; }
     public double? JobsDrawerWidth { get; init; }
+    public double? FullJobsListPaneWidth { get; init; }
 
     /// <summary>
     /// #125: the Browser's chosen thumbnail-size level, persisted as a plain index into
@@ -65,6 +66,8 @@ internal sealed record WorkspaceState
     public const double MaxLocationsPaneWidth = 520;
     public const double MinJobsDrawerWidth = 340;
     public const double MaxJobsDrawerWidth = 620;
+    public const double MinFullJobsListPaneWidth = 340;
+    public const double MaxFullJobsListPaneWidth = 720;
 
     public int Version { get; init; } = CurrentVersion;
     public WorkspaceBrowserLocationState? Browser { get; init; }
@@ -119,12 +122,16 @@ internal sealed record WorkspaceState
         var jobsDrawerWidth = layout.JobsDrawerWidth is { } drawerWidth && double.IsFinite(drawerWidth)
             ? Math.Clamp(drawerWidth, MinJobsDrawerWidth, MaxJobsDrawerWidth)
             : (double?)null;
+        var fullJobsListPaneWidth = layout.FullJobsListPaneWidth is { } listWidth && double.IsFinite(listWidth)
+            ? Math.Clamp(listWidth, MinFullJobsListPaneWidth, MaxFullJobsListPaneWidth)
+            : (double?)null;
         // Clamped rather than discarded: an out-of-range level (e.g. from a future build with more sizes,
         // opened by an older one) still lands on a valid size instead of silently reverting to the default.
         var thumbnailSizeLevel = layout.BrowserThumbnailSizeLevel is { } level
             ? Math.Clamp(level, 0, BrowserGridLayout.ThumbnailSizes.Count - 1)
             : (int?)null;
         return layout with { BrowserLocationsPaneWidth = paneWidth, JobsDrawerWidth = jobsDrawerWidth,
+            FullJobsListPaneWidth = fullJobsListPaneWidth,
             BrowserThumbnailSizeLevel = thumbnailSizeLevel };
     }
 }
@@ -214,6 +221,9 @@ internal sealed class WorkspaceStateService
 
     public void SetJobsDrawerWidth(double width) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { JobsDrawerWidth = width } };
+
+    public void SetFullJobsListPaneWidth(double width) =>
+        _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { FullJobsListPaneWidth = width } };
 
     public void SetBrowserThumbnailSizeLevel(int level) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { BrowserThumbnailSizeLevel = level } };

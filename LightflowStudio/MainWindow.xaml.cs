@@ -1471,7 +1471,9 @@ public partial class MainWindow : Window
     {
         if (_playerViewerHost is not null) return;
         _playerViewerHost = new PlayerViewerHost(App.Playback, _storage.MediaRanges, _storage.Subclips,
-            new FrameScreengrabService(() => _storage.Settings.ScreengrabDirectory), lutCache: _storage.LutCache,
+            new FrameScreengrabService(() => _storage.Settings.ScreengrabDirectory),
+            subclipPosters: _storage.CreateSubclipPosterService(),
+            lutCache: _storage.LutCache,
             assetColors: _storage.AssetColors, cameraLutFolder: () => _storage.Settings.CameraLutFolder,
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();

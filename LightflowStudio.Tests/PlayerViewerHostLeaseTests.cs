@@ -550,6 +550,40 @@ public sealed class PlayerViewerHostLeaseTests
     }
 
     [Fact]
+    public async Task SubclipPanel_LoadsDurableOrderAndSelectionSeeksWithoutSavingWorkingRange()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var assetId = Guid.NewGuid();
+            var now = DateTimeOffset.UtcNow;
+            var subclips = new FakeSubclipService();
+            subclips.Items.Add(new(Guid.NewGuid(), assetId, "Second take", 0, TimeSpan.FromSeconds(10),
+                TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(60), 1, now, now));
+            subclips.Items.Add(new(Guid.NewGuid(), assetId, "Close-up", 1, TimeSpan.FromSeconds(30),
+                TimeSpan.FromSeconds(35), TimeSpan.FromSeconds(60), 1, now, now));
+            var range = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(50));
+            var store = new FakeRangeStore(range);
+            var host = new PlayerViewerHost(coordinator, store, subclips);
+            var window = new Window { Content = host };
+            window.Show();
+
+            await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, assetId),
+                new(Guid.NewGuid(), "clip.mp4", "clip.mp4", Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
+
+            Assert.Equal(2, host.SubclipsList.Items.Count);
+            Assert.Equal("Second take", ((SubclipPanelItem)host.SubclipsList.Items[0]).Name);
+            host.SubclipsList.SelectedIndex = 1;
+            await WaitUntilAsync(() => backend.SeekPositions.Contains(TimeSpan.FromSeconds(30)), "Subclip In seek");
+            Assert.Equal(0, store.SaveCount);
+            Assert.Contains("Reviewing Close-up", host.SubclipsStatusText.Text);
+            window.Close();
+        });
+    }
+
+    [Fact]
     public async Task CrossingBoundary_ClearsOppositeWithoutMutatingSubclipAndSRejectsPartialRange()
     {
         await StaDispatcher.RunAsync(async () =>
@@ -843,6 +877,7 @@ public sealed class PlayerViewerHostLeaseTests
 
     private sealed class FakeSubclipService : ISubclipService
     {
+        public List<Subclip> Items { get; } = [];
         public int CreateCount { get; private set; }
         public Guid AssetId { get; private set; }
         public MediaRange? Range { get; private set; }
@@ -851,11 +886,13 @@ public sealed class PlayerViewerHostLeaseTests
             CreateCount++;
             AssetId = assetId;
             Range = workingRange;
-            return Task.FromResult(new Subclip(Guid.NewGuid(), assetId, "Subclip 1", 0, workingRange.In!.Value,
-                workingRange.Out!.Value, workingRange.SourceDuration, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            var created = new Subclip(Guid.NewGuid(), assetId, $"Subclip {Items.Count + 1}", Items.Count, workingRange.In!.Value,
+                workingRange.Out!.Value, workingRange.SourceDuration, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            Items.Add(created);
+            return Task.FromResult(created);
         }
         public Task<IReadOnlyList<Subclip>> ListAsync(Guid assetId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<Subclip>>([]);
+            Task.FromResult<IReadOnlyList<Subclip>>(Items.Where(item => item.AssetId == assetId).OrderBy(item => item.Ordinal).ToArray());
         public Task<Subclip> RenameAsync(Guid subclipId, long expectedRevision, string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task DeleteAsync(Guid subclipId, long expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<Subclip>> ReorderAsync(Guid assetId, IReadOnlyList<SubclipOrder> order, CancellationToken cancellationToken = default) => throw new NotSupportedException();

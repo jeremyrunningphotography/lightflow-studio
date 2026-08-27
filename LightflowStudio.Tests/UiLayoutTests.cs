@@ -854,6 +854,17 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserCenterHasNoMinimumThatCanOverflowTheDrawerAllocatedColumn()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var center = Named(document, "BrowserCenter");
+        var root = Named(document, "BrowserWorkspaceRoot");
+        Assert.Null(center.Attribute("MinWidth"));
+        Assert.Equal("BrowserWorkspaceRoot_SizeChanged", (string?)root.Attribute("SizeChanged"));
+        Assert.Equal("BrowserNavigationSplitter_DragCompleted", (string?)Named(document, "BrowserNavigationSplitter").Attribute("DragCompleted"));
+    }
+
+    [Fact]
     public void TrimEditor_UsesLightflowBrandingAndKeepsSeekSeparateFromRangeIndicator()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "TrimEditorWindow.xaml"));

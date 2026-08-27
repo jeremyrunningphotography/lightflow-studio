@@ -813,7 +813,7 @@ Unexpected dispatcher failures are still logged individually, but a narrow reent
 fatal interface dialog while that modal dispatcher frame is running; the existing deterministic shutdown policy is
 unchanged.
 
-The drawer occupies a persisted 320–620 px shell column. Its otherwise invisible eight-pixel boundary is the resize
+The drawer occupies a persisted 340–620 px shell column. Its otherwise invisible eight-pixel boundary is the resize
 hit target, matching the Locations-pane splitter without adding a visible grip; `WorkspaceLayoutState.JobsDrawerWidth`
 uses the existing restore/capture seam. Child content is clipped and wrapped inside that column, and the Jobs list
 disables horizontal scrolling, so filenames and full output paths can never dictate shell width. `Clear finished`
@@ -821,6 +821,14 @@ only suppresses eligible terminal JobIds in this in-memory drawer projection. It
 output reservations, or durable History, and actionable `NeedsAttention` Jobs remain visible. Job cancellation
 confirmations use the reusable dark-shell `ConfirmationDialog`, while the actual lifecycle operation remains owned by
 `GlobalExportScheduler`.
+
+The Browser does not declare a center `MinWidth`: when the drawer consumes shell width, the remaining Browser column
+is authoritative. Navigation/address and refinement toolbars switch between side-by-side and grouped stacked rows
+from their available center width; refinement controls reflow as semantic groups, and Color/Export actions adapt on
+their own row. Locations keeps its persisted preferred width, but may use a smaller temporary effective width when
+the current window/drawer combination needs room for a usable media center; closing or narrowing the drawer restores
+the preference without rewriting it. Grid and Player share that same constrained center cell, so neither can arrange
+under the drawer and Player identity/playback context is never reconstructed during resize.
 
 The bottom status-bar Jobs action routes unconditionally to the secondary full Jobs destination. It never toggles the
 drawer. A persistent narrow vertical pull tab in the main content's reserved right gutter is the drawer's sole manual

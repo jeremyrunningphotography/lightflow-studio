@@ -42,6 +42,11 @@ public sealed class ShellWorkspaceTests
         Assert.DoesNotContain(document.Descendants(), element => (string?)element.Attribute(names + "Name") == "Navigation");
         var menu = document.Descendants().Single(element => (string?)element.Attribute(names + "Name") == "ApplicationMenu");
         Assert.Equal(["Settings", "About"], menu.Elements().Select(element => (string?)element.Attribute("Header")));
+        Assert.Equal("{StaticResource LightflowContextMenuStyle}", (string?)menu.Attribute("Style"));
+        Assert.All(menu.Elements(), item =>
+            Assert.Equal("{StaticResource LightflowMenuItemStyle}", (string?)item.Attribute("Style")));
+        Assert.All(menu.Elements(), item => Assert.False(string.IsNullOrWhiteSpace(
+            (string?)item.Attribute("AutomationProperties.Name"))));
         var button = document.Descendants().Single(element => (string?)element.Attribute(names + "Name") == "ApplicationMenuButton");
         Assert.Equal("Application menu", (string?)button.Attribute("AutomationProperties.Name"));
     }

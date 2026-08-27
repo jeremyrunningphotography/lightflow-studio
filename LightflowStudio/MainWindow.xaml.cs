@@ -50,6 +50,8 @@ public partial class MainWindow : Window
     private readonly HashSet<Guid> _deletedFullJobsTerminalJobIds = [];
     private int _jobsPresentationPending;
     private double _jobsDrawerWidth = 380;
+    private double _browserLocationsPreferredWidth = 280;
+    private bool _applyingBrowserResponsiveLayout;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
     private EncodingJobExecutor? _activeJobExecutor;
     private readonly ObservableCollection<JobsWorkspaceItem> _historyRecords = [];
@@ -315,7 +317,10 @@ public partial class MainWindow : Window
         }
 
         if (_workspaceState.Current.Layout?.BrowserLocationsPaneWidth is { } paneWidth)
+        {
+            _browserLocationsPreferredWidth = paneWidth;
             BrowserNavigationColumn.Width = new GridLength(paneWidth);
+        }
         if (_workspaceState.Current.Layout?.JobsDrawerWidth is { } drawerWidth)
             _jobsDrawerWidth = drawerWidth;
         if (_workspaceState.Current.Layout?.FullJobsListPaneWidth is { } jobsListWidth)
@@ -413,7 +418,7 @@ public partial class MainWindow : Window
                 Top = bounds.Top,
                 IsMaximized = _lastNonMinimizedWindowState == WindowState.Maximized
             });
-        _workspaceState.SetBrowserLocationsPaneWidth(BrowserNavigationColumn.ActualWidth);
+        _workspaceState.SetBrowserLocationsPaneWidth(_browserLocationsPreferredWidth);
         if (JobsDrawer.Visibility == Visibility.Visible) _jobsDrawerWidth = JobsDrawerColumn.ActualWidth;
         _workspaceState.SetJobsDrawerWidth(_jobsDrawerWidth);
         _workspaceState.SetFullJobsListPaneWidth(FullJobsListColumn.ActualWidth);
@@ -1903,6 +1908,84 @@ public partial class MainWindow : Window
             BrowserLutActionPicker.Present(ColorLutStage.Creative, [], []));
         _updatingBrowserColorSelectors = false;
         BrowserCameraLutCombo.IsEnabled = BrowserCreativeLutCombo.IsEnabled = false;
+    }
+
+    private void BrowserWorkspaceRoot_SizeChanged(object sender, SizeChangedEventArgs e) =>
+        ApplyBrowserResponsiveLayout();
+
+    private void BrowserNavigationSplitter_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (_applyingBrowserResponsiveLayout) return;
+        _browserLocationsPreferredWidth = Math.Clamp(BrowserNavigationColumn.ActualWidth,
+            WorkspaceState.MinLocationsPaneWidth, WorkspaceState.MaxLocationsPaneWidth);
+        ApplyBrowserResponsiveLayout();
+    }
+
+    private void ApplyBrowserResponsiveLayout()
+    {
+        if (BrowserWorkspaceRoot is null || BrowserWorkspaceRoot.ActualWidth <= 0 || _applyingBrowserResponsiveLayout) return;
+        _applyingBrowserResponsiveLayout = true;
+        try
+        {
+            const double temporaryMinimumLocationsWidth = 140;
+            const double minimumUsefulCenterWidth = 220;
+            var maximumLocationsWidth = Math.Max(temporaryMinimumLocationsWidth,
+                BrowserWorkspaceRoot.ActualWidth - BrowserNavigationSplitter.ActualWidth - minimumUsefulCenterWidth);
+            var constrained = maximumLocationsWidth < WorkspaceState.MinLocationsPaneWidth;
+            BrowserNavigationColumn.MinWidth = constrained
+                ? temporaryMinimumLocationsWidth
+                : WorkspaceState.MinLocationsPaneWidth;
+            var effectiveLocationsWidth = Math.Min(_browserLocationsPreferredWidth, maximumLocationsWidth);
+            effectiveLocationsWidth = Math.Max(BrowserNavigationColumn.MinWidth, effectiveLocationsWidth);
+            if (Math.Abs(BrowserNavigationColumn.Width.Value - effectiveLocationsWidth) > 0.5)
+                BrowserNavigationColumn.Width = new GridLength(effectiveLocationsWidth);
+
+            var centerWidth = Math.Max(0, BrowserWorkspaceRoot.ActualWidth - effectiveLocationsWidth - BrowserNavigationSplitter.ActualWidth);
+            var stackBrowseGroups = centerWidth < 760;
+            Grid.SetRow(BrowserNavigationToolbar, 0);
+            Grid.SetColumn(BrowserNavigationToolbar, 0);
+            Grid.SetColumnSpan(BrowserNavigationToolbar, stackBrowseGroups ? 2 : 1);
+            Grid.SetRow(BrowserQueryToolbar, stackBrowseGroups ? 1 : 0);
+            Grid.SetColumn(BrowserQueryToolbar, stackBrowseGroups ? 0 : 1);
+            Grid.SetColumnSpan(BrowserQueryToolbar, stackBrowseGroups ? 2 : 1);
+            BrowserQueryToolbar.Margin = stackBrowseGroups ? new Thickness(0, 8, 0, 0) : new Thickness(8, 0, 0, 0);
+
+            var compactQuery = centerWidth < 620;
+            ArrangeQueryGroup(BrowserIncludeSubfoldersButton, compactQuery ? 0 : 0, compactQuery ? 0 : 0, compactQuery ? 9 : 1);
+            ArrangeQueryGroup(BrowserMediaTypeGroup, compactQuery ? 1 : 0, compactQuery ? 0 : 2, compactQuery ? 9 : 1);
+            ArrangeQueryGroup(BrowserSearchGroup, compactQuery ? 2 : 0, compactQuery ? 0 : 4, compactQuery ? 9 : 1);
+            ArrangeQueryGroup(BrowserFilterButton, compactQuery ? 3 : 0, compactQuery ? 0 : 6, compactQuery ? 9 : 1);
+            ArrangeQueryGroup(BrowserFilterPopup, compactQuery ? 3 : 0, compactQuery ? 0 : 6, compactQuery ? 9 : 1);
+            ArrangeQueryGroup(BrowserSortGroup, compactQuery ? 4 : 0, compactQuery ? 0 : 8, compactQuery ? 9 : 1);
+            BrowserMediaTypeGroup.Margin = compactQuery ? new Thickness(0, 8, 0, 0) : new Thickness(0);
+            BrowserSearchGroup.Margin = compactQuery ? new Thickness(0, 8, 0, 0) : new Thickness(0);
+            BrowserFilterButton.Margin = compactQuery ? new Thickness(0, 8, 0, 0) : new Thickness(0);
+            BrowserSortGroup.Margin = compactQuery ? new Thickness(0, 8, 0, 0) : new Thickness(0);
+
+            var compactActions = centerWidth < 420;
+            BrowserColorActions.Orientation = compactActions
+                ? System.Windows.Controls.Orientation.Vertical
+                : System.Windows.Controls.Orientation.Horizontal;
+            Grid.SetRow(BrowserColorActions, 0);
+            Grid.SetColumn(BrowserColorActions, 0);
+            Grid.SetColumnSpan(BrowserColorActions, compactActions ? 2 : 1);
+            Grid.SetRow(BrowserExportButton, compactActions ? 1 : 0);
+            Grid.SetColumn(BrowserExportButton, compactActions ? 0 : 1);
+            Grid.SetColumnSpan(BrowserExportButton, compactActions ? 2 : 1);
+            BrowserExportButton.HorizontalAlignment = compactActions
+                ? System.Windows.HorizontalAlignment.Left
+                : System.Windows.HorizontalAlignment.Right;
+            BrowserExportButton.Margin = compactActions ? new Thickness(0, 8, 0, 0) : new Thickness(4);
+        }
+        finally { _applyingBrowserResponsiveLayout = false; }
+    }
+
+    private static void ArrangeQueryGroup(FrameworkElement element, int row, int column, int columnSpan)
+    {
+        Grid.SetRow(element, row);
+        Grid.SetColumn(element, column);
+        Grid.SetColumnSpan(element, columnSpan);
+        element.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
     }
 
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)

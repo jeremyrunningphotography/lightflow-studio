@@ -69,6 +69,12 @@ while a narrow vertical right-edge pull tab toggles the compact drawer. The tab 
 orange emphasis/count for active work, directional carets, and the standard keyboard-focus border; no duplicate close
 button appears inside the drawer.
 
+When the Jobs drawer reduces Browser width, Browser remains contained rather than clipped at the drawer boundary.
+The Locations preference is temporarily constrained only when necessary, navigation/address keeps group integrity,
+refinement moves through deliberate grouped rows, and selection Color/Export actions adapt independently. Removing
+space must never let a child minimum arrange Browser content beneath the drawer; Player and Grid use the same bounded
+media cell and resize in place.
+
 Selection actions use compact purpose-built transparent button chrome, short labels, and separators between general
 media actions and Color actions. Camera and Creative are action-picker `ComboBox` controls using the same
 Lightflow dropdown/option templates as Player; their neutral prompts are restored after every bulk operation and

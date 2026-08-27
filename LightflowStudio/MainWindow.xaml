@@ -326,9 +326,9 @@
      ToolTip="Application menu" AutomationProperties.Name="Application menu" AutomationProperties.HelpText="Open Settings or About"
      Click="ApplicationMenu_Click">
      <Button.ContextMenu>
-      <ContextMenu x:Name="ApplicationMenu" Placement="Bottom" PlacementTarget="{Binding ElementName=ApplicationMenuButton}">
-       <MenuItem Header="Settings" AutomationProperties.Name="Settings" Click="OpenSettings_Click"/>
-       <MenuItem Header="About" AutomationProperties.Name="About" Click="OpenAbout_Click"/>
+      <ContextMenu x:Name="ApplicationMenu" Style="{StaticResource LightflowContextMenuStyle}" Placement="Bottom" PlacementTarget="{Binding ElementName=ApplicationMenuButton}">
+       <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Settings" AutomationProperties.Name="Settings" Click="OpenSettings_Click"/>
+       <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="About" AutomationProperties.Name="About" Click="OpenAbout_Click"/>
       </ContextMenu>
      </Button.ContextMenu>
     </Button>
@@ -340,7 +340,7 @@
   <TabControl Grid.Column="0" Margin="0,0,28,0" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
    SelectionChanged="MainTabs_SelectionChanged">
    <TabItem>
-    <Grid Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}">
+    <Grid x:Name="BrowserWorkspaceRoot" Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}" SizeChanged="BrowserWorkspaceRoot_SizeChanged">
       <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource ShellPanel}">
        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
@@ -414,12 +414,13 @@
       </Border>
       <GridSplitter x:Name="BrowserNavigationSplitter" Grid.Column="1" Width="8" HorizontalAlignment="Stretch"
        VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent"
-       Cursor="SizeWE" ToolTip="Drag to resize folder navigation" AutomationProperties.Name="Resize folder navigation">
+       Cursor="SizeWE" ToolTip="Drag to resize folder navigation" AutomationProperties.Name="Resize folder navigation"
+       DragCompleted="BrowserNavigationSplitter_DragCompleted">
        <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template>
       </GridSplitter>
-      <Grid Grid.Column="2" MinWidth="520">
+      <Grid Grid.Column="2" x:Name="BrowserCenter">
        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition x:Name="BrowserNavigationGap" Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-       <Grid Grid.Row="0" x:Name="BrowserBrowseToolbar"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Grid Grid.Row="0" x:Name="BrowserBrowseToolbar"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
        <Border Grid.Column="0" x:Name="BrowserNavigationToolbar" Style="{StaticResource ShellPanel}" Padding="12,9">
         <Grid>
          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -439,7 +440,8 @@
        -->
        <Border Grid.Column="1" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="10,8" IsEnabled="False" Margin="8,0,0,0">
         <StackPanel>
-         <Grid>
+         <Grid x:Name="BrowserQueryLayout">
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <Grid.ColumnDefinitions>
            <ColumnDefinition Width="Auto"/><ColumnDefinition Width="16"/>
            <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
@@ -465,13 +467,13 @@
                BrowserGridModel.PresentableCategories is appended after it from code-behind
                (InitializeBrowserQuickFilterButtons) so the row can never drift from what the grid actually
                presents. -->
-          <Border Grid.Column="2" Style="{StaticResource BrowserToolbarChipStyle}" ClipToBounds="True" ToolTip="Toggle media types shown">
+          <Border Grid.Column="2" x:Name="BrowserMediaTypeGroup" Style="{StaticResource BrowserToolbarChipStyle}" ClipToBounds="True" ToolTip="Toggle media types shown">
            <StackPanel x:Name="BrowserQuickFilterSegments" Orientation="Horizontal">
             <ToggleButton x:Name="BrowserQuickFilterAllButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Content="All"
              AutomationProperties.Name="Show all media types" Click="BrowserQuickFilterAllButton_Click"/>
            </StackPanel>
           </Border>
-          <Border Grid.Column="4" Style="{StaticResource BrowserToolbarChipStyle}" MinWidth="170">
+          <Border Grid.Column="4" x:Name="BrowserSearchGroup" Style="{StaticResource BrowserToolbarChipStyle}" MinWidth="170">
            <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
             <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
@@ -515,7 +517,7 @@
                actually loads, not declared here: WPF can raise SelectionChanged while InitializeComponent
                is still connecting later-declared named elements, and the handler reads sibling controls
                that would not exist yet. -->
-          <Border Grid.Column="8" Style="{StaticResource BrowserToolbarChipStyle}">
+          <Border Grid.Column="8" x:Name="BrowserSortGroup" Style="{StaticResource BrowserToolbarChipStyle}">
            <StackPanel Orientation="Horizontal">
             <TextBlock Margin="10,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Sort"/>
             <ComboBox x:Name="BrowserSortCombo" MinWidth="132" Background="Transparent" BorderThickness="0" Margin="0" VerticalAlignment="Center"
@@ -558,9 +560,10 @@
        </Grid>
        <Border Grid.Row="2" x:Name="BrowserSelectionActionToolbar" Background="{StaticResource ShellSurfaceBrush}"
         BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="7" Padding="8,5">
-         <Grid>
+         <Grid x:Name="BrowserSelectionActionLayout">
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <StackPanel x:Name="BrowserColorActions" Orientation="Horizontal" VerticalAlignment="Center">
            <TextBlock Margin="3,0,5,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="COLOR"/>
            <ComboBox x:Name="BrowserCameraLutCombo" Style="{StaticResource BrowserSelectionLutComboStyle}" IsEnabled="False" SelectedIndex="0"
             ToolTip="Assign a Camera/technical LUT to all selected videos" AutomationProperties.Name="Assign Camera LUT"

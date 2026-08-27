@@ -56,6 +56,8 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
             Assert.True(created.Succeeded, created.Diagnostic);
 
             var window = NewOffscreenWindow(storage, startup);
+            window.Width = 1120;
+            window.Height = 720;
             try
             {
                 window.Show();
@@ -91,6 +93,24 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
 
                 var host = Assert.IsType<PlayerViewerHost>(window.BrowserPlayerHost.Content);
                 await WaitUntilAsync(() => host.CurrentAsset?.Name == "photo.jpg", "the Viewer to finish opening the photo");
+
+                RaiseClick(window.JobsDrawerPullButton);
+                window.UpdateLayout();
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                window.UpdateLayout();
+                Assert.Equal(Visibility.Visible, window.JobsDrawer.Visibility);
+                Assert.Equal("photo.jpg", host.CurrentAsset?.Name);
+                AssertContained(window.BrowserPlayerHost, window.BrowserCenter);
+                window.JobsDrawerColumn.Width = new GridLength(610);
+                window.UpdateLayout();
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                window.UpdateLayout();
+                Assert.Equal("photo.jpg", host.CurrentAsset?.Name);
+                AssertContained(window.BrowserPlayerHost, window.BrowserCenter);
+                RaiseClick(window.JobsDrawerPullButton);
+                window.UpdateLayout();
+                Assert.Equal("photo.jpg", host.CurrentAsset?.Name);
+                AssertContained(window.BrowserPlayerHost, window.BrowserCenter);
 
                 // Esc, handled by PlayerViewerHost's own PreviewKeyDown — raised directly on that control
                 // rather than relying on real keyboard focus routing, which an off-screen test window cannot
@@ -268,6 +288,13 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
 
     private static void RaiseClick(System.Windows.Controls.Primitives.ButtonBase button) =>
         button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+
+    private static void AssertContained(FrameworkElement child, FrameworkElement ancestor)
+    {
+        var bounds = child.TransformToAncestor(ancestor).TransformBounds(new Rect(child.RenderSize));
+        Assert.True(bounds.Left >= -1 && bounds.Right <= ancestor.ActualWidth + 1,
+            $"{child.Name} is outside {ancestor.Name}: {bounds} vs {ancestor.ActualWidth:0.##}");
+    }
 
     private static async Task WaitUntilAsync(Func<bool> condition, string waitingFor, int timeoutMs = 20000)
     {

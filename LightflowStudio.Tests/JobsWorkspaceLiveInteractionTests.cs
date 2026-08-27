@@ -176,8 +176,61 @@ public sealed class JobsWorkspaceLiveInteractionTests
         }, persistedJobsListWidth: 590);
     }
 
+    [Fact]
+    public async Task DrawerConsumesWidthAndBrowserGroupsReflowWithoutLosingWideLocationsPreference()
+    {
+        await RunAsync(seedHistoryCount: 0, async window =>
+        {
+            Assert.Equal(1120, window.ActualWidth, 1);
+            Assert.Equal(520, window.BrowserNavigationColumn.ActualWidth, 1);
+            var playerHost = window.BrowserPlayerHost;
+
+            RaiseClick(window.JobsDrawerPullButton);
+            await RealizeJobsWorkspaceAsync(window);
+            Assert.Equal(Visibility.Visible, window.JobsDrawer.Visibility);
+            Assert.Equal(380, window.JobsDrawerColumn.ActualWidth, 1);
+            Assert.True(window.BrowserNavigationColumn.ActualWidth < 520);
+            Assert.Equal(1, Grid.GetRow(window.BrowserQueryToolbar));
+            Assert.Equal(1, Grid.GetRow(window.BrowserMediaTypeGroup));
+            Assert.Equal(4, Grid.GetRow(window.BrowserSortGroup));
+            AssertContained(window.BrowserCenter, window.BrowserWorkspaceRoot);
+            AssertContained(window.BrowserBrowseToolbar, window.BrowserCenter);
+            AssertContained(window.BrowserSelectionActionToolbar, window.BrowserCenter);
+            AssertContained(window.BrowserGridHost, window.BrowserCenter);
+            AssertContained(playerHost, window.BrowserCenter);
+
+            foreach (var drawerWidth in new[] { 340d, 380d, 610d })
+            {
+                window.JobsDrawerColumn.Width = new GridLength(drawerWidth);
+                window.UpdateLayout();
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                window.UpdateLayout();
+                AssertContained(window.BrowserCenter, window.BrowserWorkspaceRoot);
+                AssertContained(window.BrowserBrowseToolbar, window.BrowserCenter);
+                AssertContained(window.BrowserSelectionActionToolbar, window.BrowserCenter);
+                AssertContained(playerHost, window.BrowserCenter);
+                AssertContained(window.BrowserIncludeSubfoldersButton, window.BrowserQueryToolbar);
+                AssertContained(window.BrowserMediaTypeGroup, window.BrowserQueryToolbar);
+                AssertContained(window.BrowserSearchGroup, window.BrowserQueryToolbar);
+                AssertContained(window.BrowserFilterButton, window.BrowserQueryToolbar);
+                AssertContained(window.BrowserSortGroup, window.BrowserQueryToolbar);
+                AssertContained(window.BrowserColorActions, window.BrowserSelectionActionToolbar);
+                AssertContained(window.BrowserExportButton, window.BrowserSelectionActionToolbar);
+            }
+
+            RaiseClick(window.JobsDrawerPullButton);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            window.UpdateLayout();
+            Assert.Equal(Visibility.Collapsed, window.JobsDrawer.Visibility);
+            Assert.Equal(520, window.BrowserNavigationColumn.ActualWidth, 1);
+            AssertContained(window.BrowserCenter, window.BrowserWorkspaceRoot);
+            Assert.Same(playerHost, window.BrowserPlayerHost);
+        }, persistedLocationsWidth: 520, persistedDrawerWidth: 380, windowWidth: 1120);
+    }
+
     private static async Task RunAsync(int seedHistoryCount, Func<MainWindow, Task> body,
-        double? persistedJobsListWidth = null)
+        double? persistedJobsListWidth = null, double? persistedLocationsWidth = null,
+        double? persistedDrawerWidth = null, double? windowWidth = null)
     {
         var root = Path.Combine(Path.GetTempPath(), $"lightflow-jobs-live-{Guid.NewGuid():N}");
         await StaDispatcher.RunAsync(async () =>
@@ -186,9 +239,10 @@ public sealed class JobsWorkspaceLiveInteractionTests
             var startup = await LightflowStorageCoordinator.StartAsync(root);
             Assert.True(startup.IsReady, startup.Diagnostic);
             var storage = startup.Coordinator!;
-            if (persistedJobsListWidth is { } width)
+            if (persistedJobsListWidth is not null || persistedLocationsWidth is not null || persistedDrawerWidth is not null)
                 WorkspaceStateStore.Save(storage.Locations.WorkspaceStatePath,
-                    new WorkspaceState { Layout = new() { FullJobsListPaneWidth = width } });
+                    new WorkspaceState { Layout = new() { FullJobsListPaneWidth = persistedJobsListWidth,
+                        BrowserLocationsPaneWidth = persistedLocationsWidth, JobsDrawerWidth = persistedDrawerWidth } });
             var history = new JobHistoryStore(storage.Locations.JobHistoryPath);
             for (var index = 0; index < seedHistoryCount; index++) history.Add(HistoryRecord());
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic)
@@ -198,6 +252,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
                 Top = -32000,
                 ShowInTaskbar = false
             };
+            if (windowWidth is { } requestedWidth) window.Width = requestedWidth;
             try
             {
                 window.Show();
@@ -233,6 +288,14 @@ public sealed class JobsWorkspaceLiveInteractionTests
             { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
         splitter.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(horizontalChange, 0, false)
             { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragCompletedEvent });
+    }
+
+    private static void AssertContained(FrameworkElement child, FrameworkElement ancestor)
+    {
+        var bounds = child.TransformToAncestor(ancestor).TransformBounds(new Rect(child.RenderSize));
+        Assert.True(bounds.Left >= -1, $"{child.Name} begins outside {ancestor.Name}: {bounds}");
+        Assert.True(bounds.Right <= ancestor.ActualWidth + 1,
+            $"{child.Name} extends beyond {ancestor.Name}: {bounds.Right:0.##} > {ancestor.ActualWidth:0.##}");
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 20000)

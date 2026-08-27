@@ -228,6 +228,32 @@ public sealed class ExportModalRegressionTests
     }
 
     [Fact]
+    public void FilesReviewUsesOneAccessibleDarkInlineIssueIndicatorAndGlobalOnlySummary()
+    {
+        var root = FindRepositoryRoot();
+        var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
+        var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var indicator = Named(xaml, "IssueIndicator");
+        Assert.Equal("Button", indicator.Name.LocalName);
+        Assert.Equal("{Binding IssueGlyph}", (string?)indicator.Attribute("Content"));
+        Assert.Equal("{Binding IssueToolTip}", (string?)indicator.Attribute("ToolTip"));
+        Assert.Equal("{Binding IssueAutomationName}", (string?)indicator.Attribute("AutomationProperties.Name"));
+        Assert.Equal("{Binding IssueToolTip}", (string?)indicator.Attribute("AutomationProperties.HelpText"));
+        Assert.Equal("RangeTimeline_GotKeyboardFocus", (string?)indicator.Attribute("GotKeyboardFocus"));
+        Assert.Equal("Collapsed", (string?)indicator.Attribute("Visibility"));
+        var style = xaml.Descendants().Single(element => element.Name.LocalName == "Style" &&
+            (string?)element.Attribute(x + "Key") == "SubmissionIssueButtonStyle");
+        Assert.Contains(style.Descendants(), element => element.Name.LocalName == "ControlTemplate");
+        Assert.Contains(style.Descendants(), element => element.Name.LocalName == "DataTrigger" &&
+            (string?)element.Attribute("Binding") == "{Binding HasError}");
+        Assert.Contains("_model.GlobalErrors", source);
+        Assert.Contains("_model.GlobalWarnings", source);
+        Assert.DoesNotContain("_model.Errors.Select", source);
+        Assert.DoesNotContain("OutputFileSnapshot", source);
+    }
+
+    [Fact]
     public void PrimarySettingsAreSingleColumnAndExposeConditionalQualityParameters()
     {
         var xaml = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ExportDialog.xaml"));

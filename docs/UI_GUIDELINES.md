@@ -60,6 +60,11 @@ Before processing, show:
 - Active preset
 - Recovery or destructive behavior
 
+Attach item-specific preflight warnings and errors to the corresponding prospective item rather than repeating them
+in a detached message block. Use one compact, keyboard-focusable, non-color-only indicator per affected row; its
+Lightflow-styled tooltip and accessible help expose concise structured severity and messages in deterministic order.
+Keep genuinely submission-wide validation at the modal level, and derive both presentations from the same typed plan.
+
 ## Status language
 
 Use explicit states:

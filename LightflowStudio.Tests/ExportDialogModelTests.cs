@@ -114,6 +114,70 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal("Export 1 video", CreateModel("solo.mp4").Title);
     }
 
+    [Fact]
+    public void ItemPreflightWarningsAttachOnlyToTheirTypedPlannedRows()
+    {
+        var model = CreateModel("warning.mp4", "clean.mp4", inspect: path =>
+            new(Path.GetFileName(path).StartsWith("warning-", StringComparison.Ordinal), 10));
+        Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
+
+        var warning = model.SubmissionItems[0];
+        var clean = model.SubmissionItems[1];
+        Assert.Equal(model.CurrentPlan!.Items[0].Definition.Id, warning.PlannedItemId);
+        Assert.NotEqual(warning.PlannedItemId, clean.PlannedItemId);
+        Assert.True(warning.HasIssues);
+        Assert.False(warning.HasError);
+        Assert.Contains("Warning for warning.mp4", warning.IssueToolTip);
+        Assert.Contains("warning-001.mp4", warning.IssueToolTip);
+        Assert.False(clean.HasIssues);
+        Assert.Empty(model.GlobalWarnings);
+    }
+
+    [Fact]
+    public void RepeatedItemWarningsStayInlineAndOverwriteRematerializationClearsThem()
+    {
+        var model = CreateModel("first.mp4", "second.mp4", inspect: _ => new(true, 10));
+        Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
+
+        Assert.All(model.SubmissionItems, item => Assert.True(item.HasIssues));
+        Assert.Empty(model.GlobalWarnings);
+        Assert.Equal(2, model.SubmissionItems.Select(item => item.PlannedItemId).Distinct().Count());
+
+        model.OverwriteExisting = true;
+
+        Assert.All(model.SubmissionItems, item => Assert.False(item.HasIssues));
+        Assert.All(model.CurrentPlan!.Items, item => Assert.Equal(JobPlanDisposition.Process, item.Disposition));
+    }
+
+    [Fact]
+    public void MultipleTypedIssuesUseOneErrorStateAndDeterministicTooltip()
+    {
+        var model = CreateModel("clip.mp4", inspect: _ => new(true, 10));
+        Ready(model, Metadata("h264", "mp4"));
+        model.NameParts.Clear();
+        model.AddPart(NamePartKind.CustomText);
+        model.UpdateCustomText(0, "bad:name");
+
+        var row = Assert.Single(model.SubmissionItems);
+        Assert.True(row.HasError);
+        Assert.True(row.Issues.Count >= 2);
+        Assert.StartsWith("Error for clip.mp4", row.IssueToolTip);
+        Assert.True(row.IssueToolTip.IndexOf("Error —", StringComparison.Ordinal) <
+                    row.IssueToolTip.IndexOf("Warning —", StringComparison.Ordinal));
+        Assert.Contains("Error for clip.mp4", row.IssueAutomationName);
+    }
+
+    [Fact]
+    public void SubmissionWideIssuesRemainGlobalAndDoNotMarkRows()
+    {
+        var model = CreateModel("clip.mp4");
+        Ready(model, Metadata("h264", "mp4"));
+        model.Destination = "relative";
+
+        Assert.Contains(model.GlobalErrors, issue => issue.Code == "export.destination");
+        Assert.False(Assert.Single(model.SubmissionItems).HasIssues);
+    }
+
     [Theory]
     [InlineData(5)]
     [InlineData(20)]
@@ -227,6 +291,26 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal(2, model.SubmissionItems.Count);
         Assert.Equal(["→ repeated-001.mp4", "→ repeated-002.mp4"], model.SubmissionItems.Select(item => item.OutputText));
         Assert.Equal([24d, 144d], model.SubmissionItems.Select(item => item.ExportSegmentLeft));
+    }
+
+    [Fact]
+    public void RepeatedSourceRangeIssueUsesPlannedItemIdentityNotSourcePath()
+    {
+        var path = Path.Combine(_root, "repeated.mp4");
+        File.WriteAllText(path, "source");
+        var first = new EncodingHandoffInput(Guid.NewGuid(), Guid.NewGuid(), path, "repeated.mp4", 6,
+            new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)));
+        var second = first with { AssetId = Guid.NewGuid(), InitialTrim = new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(9)) };
+        var model = new ExportDialogModel(new([first, second], [], _root), new EncodingOptions(), [], [],
+            new FakeResources(), _ => new(false, 0));
+        model.ApplyMetadata([Metadata("h264", "mp4"), Metadata("h264", "mp4")]);
+        model.ApplyResolvedRanges([null, new(second.InitialTrim!, TimeSpan.Zero, TimeSpan.FromSeconds(6),
+            TimeSpan.FromSeconds(9), TimeSpan.FromSeconds(3))]);
+
+        Assert.True(model.SubmissionItems[0].HasError);
+        Assert.False(model.SubmissionItems[1].HasIssues);
+        Assert.NotEqual(model.SubmissionItems[0].PlannedItemId, model.SubmissionItems[1].PlannedItemId);
+        Assert.Empty(model.GlobalErrors);
     }
 
     [Fact]

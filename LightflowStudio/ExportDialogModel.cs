@@ -13,6 +13,7 @@ internal sealed record ExportLutChoice(string Label, ColorStagePolicyMode Mode,
 
 internal sealed record ExportSubmissionItem(
     int Index,
+    Guid PlannedItemId,
     string SourceFileName,
     string OutputText,
     string OutputAutomationText,
@@ -23,7 +24,30 @@ internal sealed record ExportSubmissionItem(
     double ExportSegmentLeft,
     double ExportSegmentWidth,
     string RangeToolTip,
-    string TimelineAutomationName);
+    string TimelineAutomationName,
+    IReadOnlyList<JobIssue> Issues)
+{
+    private IEnumerable<JobIssue> OrderedIssues => Issues
+        .OrderByDescending(issue => issue.Severity)
+        .ThenBy(issue => issue.Code, StringComparer.Ordinal);
+    public bool HasIssues => Issues.Count > 0;
+    public bool HasError => Issues.Any(issue => issue.Severity == JobIssueSeverity.Error);
+    public string IssueSeverityText => HasError ? "Error" : "Warning";
+    public string IssueToolTip
+    {
+        get
+        {
+            if (!HasIssues) return "";
+            var output = OutputText.TrimStart('→', ' ');
+            var messages = OrderedIssues
+                .Select(issue => $"{(issue.Severity == JobIssueSeverity.Error ? "Error" : "Warning")} — {issue.Message}");
+            return $"{IssueSeverityText} for {SourceFileName} → {output}{Environment.NewLine}{string.Join(Environment.NewLine, messages)}";
+        }
+    }
+    public string IssueAutomationName => HasIssues
+        ? $"{IssueSeverityText} for {SourceFileName}, output {OutputText.TrimStart('→', ' ')}. {string.Join(" ", OrderedIssues.Select(issue => $"{(issue.Severity == JobIssueSeverity.Error ? "Error" : "Warning")}: {issue.Message}"))}"
+        : "";
+}
 
 internal sealed class ExportDialogModel : INotifyPropertyChanged
 {
@@ -76,6 +100,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public IReadOnlyList<JobIssue> Issues => _plan is null ? [] : _plan.Issues.Concat(_plan.Items.SelectMany(x => x.Issues)).ToList();
     public IReadOnlyList<JobIssue> Errors => Issues.Where(x => x.Severity == JobIssueSeverity.Error).ToList();
     public IReadOnlyList<JobIssue> Warnings => Issues.Where(x => x.Severity == JobIssueSeverity.Warning).ToList();
+    public IReadOnlyList<JobIssue> GlobalErrors => _plan?.Issues.Where(x => x.Severity == JobIssueSeverity.Error).ToList() ?? [];
+    public IReadOnlyList<JobIssue> GlobalWarnings => _plan?.Issues.Where(x => x.Severity == JobIssueSeverity.Warning).ToList() ?? [];
     public bool CanExport => _plan?.IsValid == true && _encoder?.IsUsable == true && _metadata.All(x => x is not null);
     public bool IsAnalyzing => _metadata.Any(x => x is null);
     public string ReadySummary
@@ -201,6 +227,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         var definition = EncodingJobPlanner.Define(options, sources);
         var plan = EncodingJobPlanner.Plan(definition, _inspectOutput, colorResources: _resourceStore);
         var extra = new List<JobIssue>();
+        var itemIssues = new Dictionary<int, List<JobIssue>>();
         if (string.IsNullOrWhiteSpace(Destination) || !Path.IsPathFullyQualified(Destination))
             extra.Add(new("export.destination", "Choose a valid absolute output folder.", JobIssueSeverity.Error));
         if (CreateSubfolder)
@@ -213,9 +240,16 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             for (var index = 0; index < _useRanges.Length; index++)
                 if (_useRanges[index] && _handoff.Inputs[index].InitialTrim is { IsFullSource: false }
                     && _resolvedRanges.ElementAtOrDefault(index) is null)
-                    extra.Add(new("export.range-unresolved",
+                    itemIssues[index] = [new("export.range-unresolved",
                         $"The saved In/Out range for '{Path.GetFileName(_handoff.Inputs[index].SourcePath)}' could not be validated. Ignore its In/Out range to export the full video.",
-                        JobIssueSeverity.Error));
+                        JobIssueSeverity.Error)];
+        if (itemIssues.Count > 0)
+            plan = plan with
+            {
+                Items = plan.Items.Select((item, index) => itemIssues.TryGetValue(index, out var additions)
+                    ? item with { Issues = item.Issues.Concat(additions).ToList() }
+                    : item).ToList()
+            };
         return extra.Count == 0 ? plan : plan with { Issues = plan.Issues.Concat(extra).ToList() };
     }
 
@@ -279,9 +313,9 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             var rangeAutomationName = hasRange
                 ? $"Use In/Out for {sourceName}"
                 : $"Use In/Out for {sourceName}, unavailable because no In/Out is defined";
-            return new ExportSubmissionItem(index, sourceName, outputText, $"Output for {sourceName}: {outputText.TrimStart('→', ' ')}",
+            return new ExportSubmissionItem(index, item?.Definition.Id ?? Guid.Empty, sourceName, outputText, $"Output for {sourceName}: {outputText.TrimStart('→', ' ')}",
                 hasRange, useRange, hasRange && _rangesGloballyEnabled, rangeAutomationName, left, width,
-                rangeToolTip, timelineAutomationName);
+                rangeToolTip, timelineAutomationName, item?.Issues ?? []);
         }).ToArray();
     }
 

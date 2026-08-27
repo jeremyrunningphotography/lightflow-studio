@@ -228,6 +228,46 @@ public sealed class ExportModalRegressionTests
     }
 
     [Fact]
+    public void FilesReviewUsesOneAccessibleDarkInlineIssueIndicatorAndGlobalOnlySummary()
+    {
+        var root = FindRepositoryRoot();
+        var app = XDocument.Load(Path.Combine(root, "LightflowStudio", "App.xaml"));
+        var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
+        var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var indicator = Named(xaml, "IssueIndicator");
+        Assert.Equal("Button", indicator.Name.LocalName);
+        Assert.Null(indicator.Attribute("Content"));
+        Assert.Equal("{Binding IssueToolTip}", (string?)indicator.Attribute("ToolTip"));
+        Assert.Equal("{Binding IssueAutomationName}", (string?)indicator.Attribute("AutomationProperties.Name"));
+        Assert.Equal("{Binding IssueToolTip}", (string?)indicator.Attribute("AutomationProperties.HelpText"));
+        Assert.Equal("RangeTimeline_GotKeyboardFocus", (string?)indicator.Attribute("GotKeyboardFocus"));
+        Assert.Equal("Collapsed", (string?)indicator.Attribute("Visibility"));
+        var style = xaml.Descendants().Single(element => element.Name.LocalName == "Style" &&
+            (string?)element.Attribute(x + "Key") == "SubmissionIssueButtonStyle");
+        Assert.Contains(style.Descendants(), element => element.Name.LocalName == "ControlTemplate");
+        var icon = style.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "AttentionIcon");
+        Assert.Equal("Path", icon.Name.LocalName);
+        Assert.Equal("14", (string?)icon.Attribute("Width"));
+        Assert.Equal("14", (string?)icon.Attribute("Height"));
+        Assert.Equal("Uniform", (string?)icon.Attribute("Stretch"));
+        Assert.Equal("{TemplateBinding Foreground}", (string?)icon.Attribute("Fill"));
+        Assert.Equal("{StaticResource SemanticAttentionIconGeometry}", (string?)icon.Attribute("Data"));
+        Assert.DoesNotContain(style.Descendants(), element => element.Name.LocalName == "TextBlock");
+        var geometry = app.Descendants().Single(element => element.Name.LocalName == "GeometryGroup" &&
+            (string?)element.Attribute(x + "Key") == "SemanticAttentionIconGeometry");
+        Assert.Equal("EvenOdd", (string?)geometry.Attribute("FillRule"));
+        Assert.Equal(3, geometry.Elements().Count(element => element.Name.LocalName == "EllipseGeometry"));
+        Assert.Single(geometry.Elements(), element => element.Name.LocalName == "RectangleGeometry");
+        Assert.Contains(style.Descendants(), element => element.Name.LocalName == "DataTrigger" &&
+            (string?)element.Attribute("Binding") == "{Binding HasError}");
+        Assert.Contains("_model.GlobalErrors", source);
+        Assert.Contains("_model.GlobalWarnings", source);
+        Assert.DoesNotContain("_model.Errors.Select", source);
+        Assert.DoesNotContain("OutputFileSnapshot", source);
+    }
+
+    [Fact]
     public void PrimarySettingsAreSingleColumnAndExposeConditionalQualityParameters()
     {
         var xaml = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ExportDialog.xaml"));

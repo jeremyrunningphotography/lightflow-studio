@@ -174,7 +174,7 @@ public partial class ExportDialog : Window
         { _initializing = true; CbrText.Text = _model.Encoding.TargetBitrateMbps.ToString(); _initializing = false; }
         System.Windows.Automation.AutomationProperties.SetHelpText(AdvancedExpander,
             AdvancedExpander.IsExpanded ? "Advanced export settings expanded" : "Advanced export settings collapsed");
-        var lines = _model.IsAnalyzing ? [] : _model.Errors.Select(x => "Error — " + x.Message).Concat(_model.Warnings.Select(x => "Warning — " + x.Message)).ToList();
+        var lines = _model.IsAnalyzing ? [] : _model.GlobalErrors.Select(x => "Error — " + x.Message).Concat(_model.GlobalWarnings.Select(x => "Warning — " + x.Message)).ToList();
         ValidationText.Text = string.Join(Environment.NewLine, lines);
         ValidationBorder.Visibility = lines.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         ReadySummaryText.Text = _model.ReadySummary;

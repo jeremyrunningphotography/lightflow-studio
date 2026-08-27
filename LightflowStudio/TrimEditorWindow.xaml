@@ -37,11 +37,11 @@
  </Window.Resources>
  <Grid Background="{StaticResource WindowBrush}">
   <Border Height="3" VerticalAlignment="Top" Background="{StaticResource BrandGradient}"/>
-  <Grid Margin="24,22,24,22">
+  <Grid Margin="12,11,12,11">
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
-  <DockPanel Margin="2,0,2,16">
+  <DockPanel Margin="1,0,1,8">
    <Border DockPanel.Dock="Left" Width="52" Height="52" Margin="0,0,14,0" Background="#0A0B0F" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10"><Image Source="Assets/Branding/jr-glow-source.png" Margin="4" Stretch="Uniform"/></Border>
    <Border DockPanel.Dock="Right" VerticalAlignment="Center" Padding="10,5" Background="#2B1E18" BorderBrush="{StaticResource EncodingBadgeBorderBrush}" BorderThickness="1" CornerRadius="12"><TextBlock Foreground="{StaticResource OrangeBrush}" FontSize="11" FontWeight="SemiBold" Text="FRAME-ACCURATE TRIM"/></Border>
    <StackPanel VerticalAlignment="Center"><TextBlock Style="{StaticResource PageTitle}" FontSize="24" Text="Trim Video"/><TextBlock x:Name="SourceName" Margin="0,3,12,0" Style="{StaticResource PageSubtitle}" TextTrimming="CharacterEllipsis"/></StackPanel>
@@ -53,7 +53,7 @@
    </Grid>
   </Border>
 
-  <Border Grid.Row="2" Margin="0,14,0,0" Padding="14,10,14,9" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
+  <Border Grid.Row="2" Margin="0,7,0,0" Padding="7,5,7,5" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
   <Grid>
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="7"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
    <Slider x:Name="PositionSlider" Style="{StaticResource PlaybackTimelineSlider}" Minimum="0" Maximum="1" ValueChanged="PositionSlider_ValueChanged" PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown" IsEnabled="False" ToolTip="Click anywhere to seek, or drag the playhead"/>

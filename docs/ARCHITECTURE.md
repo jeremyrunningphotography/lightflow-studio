@@ -138,7 +138,7 @@ WPF views and code-behind currently own navigation, dialogs, accessibility behav
 
 `MainWindow` still coordinates the Encoding page while that feature is migrated incrementally. Its process pause/close behavior is intentionally retained rather than introducing a broad MVVM rewrite.
 
-`MainWindow` is also the permanent Lightflow application shell. `ShellWorkspace` gives Browser, Encoding, Media Tools, History, Premiere Helper, Settings, and About stable semantic identities while the content-only host preserves each existing workspace. Browser is index zero and the startup default; compact horizontal application navigation and workspace selection remain two-way synchronized. Features that intentionally return to Encoding use the semantic workspace contract rather than a numeric tab index. The application navigation occupies a restrained top header rather than a permanent side rail, preserving the Browser's left edge for Media Roots/folders and maximizing width for future media plus Inspector presentation. Upcoming Browser and Player slices extend this host instead of creating another long-lived top-level window.
+`MainWindow` is the permanent Lightflow application shell, with Browser/Player as its stable home rather than one peer module among many. Focused actions such as Export open owned modals without replacing or rebuilding that home. The global bottom Jobs affordance opens the secondary full Jobs destination; its explicit Back action returns to the already-live Browser/Player context. The independent right-edge pull controls only the compact Jobs drawer. A restrained upper-right application menu exposes Settings and About without recreating a module strip or capability launcher. `ShellDestination` maps only these supported transitions; retired or unknown tab identities resolve to Home. Legacy Review & Rerun alone may enter a hidden compatibility review surface after `EncodingHistoryRerun` revalidation, and that surface has no permanent navigation or persisted shell identity.
 
 The shell is intentionally dark-only. Shared neutral canvas, surface, panel, raised, divider, focus, and selection resources live in `Themes/LightflowShell.xaml`; existing reusable control styles remain application-scoped. Warm brand color is reserved for focus, primary action, small identity details, and status—not broad content surfaces—so photography and video can remain visually authoritative. Keyboard focus, redundant selected-state weight, minimum window dimensions, and resizable grid regions are part of the shell contract. See [Dark-only design system](DESIGN-SYSTEM.md).
 
@@ -783,13 +783,13 @@ Issue #169 establishes the application flow as:
 
 `Browser/Player Export invocation → focused configuration modal → immutable materialization/preflight → ExportJobCoordinator → shared ApplicationJobsRuntime → EncodingJobExecutor → History`
 
-The owned `ExportDialog` is configuration and preflight only. It reads current LUT cache snapshots without starting discovery, edits a typed `NamePartsDefinition` and `ExportMaterializationPolicy`, evaluates the complete batch with `EncodingJobPlanner`, and submits one final immutable valid plan. Queue acceptance is synchronous; the modal closes immediately and never awaits progress or completion. Browser folder, recursive scope, query/filter state, selection, scroll position, and the reusable Player remain in memory because this path never changes `ShellWorkspace` or rebuilds either presentation.
+The owned `ExportDialog` is configuration and preflight only. It reads current LUT cache snapshots without starting discovery, edits a typed `NamePartsDefinition` and `ExportMaterializationPolicy`, evaluates the complete batch with `EncodingJobPlanner`, and submits one final immutable valid plan. Queue acceptance is synchronous; the modal closes immediately and never awaits progress or completion. Browser folder, recursive scope, query/filter state, selection, scroll position, and the reusable Player remain in memory because this path never leaves Home or rebuilds either presentation.
 
 `ExportJobCoordinator` is an application-lifetime execution boundary. It retains one transient executor lease per accepted plan, queues every plan through the single shared `ApplicationJobsRuntime`, observes terminal completion independently of WPF, records one durable History record, and releases only transient executor ownership. Multiple modal jobs may run concurrently, and #170 can consume the existing runtime collection without another execution refactor. Shutdown terminates every retained FFmpeg executor and disposes the shared runtime safely.
 
 Name Parts, per-input Camera/Creative Color policy, source traits, saved ranges, source identities, and container-derived output extensions become immutable during final queue materialization. Explicit LUT overrides are copied through the content-addressed Encoding LUT resource store; queued work never retains a live configured LUT-folder path or links back to mutable Browser/Player/Catalog state.
 
-The dedicated Encoding workspace and its compatibility `Start_Click` flow remain available until #172. Review & Rerun continues to target that compatibility surface. Jobs drawer/workspace presentation remains #170/#171 scope.
+The dedicated Encoding destination is retired. Its proven controls remain loaded only as the smallest hidden compatibility review surface for legacy Review & Rerun records whose recovery, output, and LUT semantics are not representable by the modern focused modal. `EncodingHistoryRerun.Prepare` and `Materialize` still revalidate sources/resources/output identity before that review surface opens, and execution still requires an explicit user action. No Browser/Player or modern Export path can navigate there.
 ## Independent global Export scheduler
 
 Modern Export execution follows this boundary:
@@ -813,7 +813,7 @@ Unexpected dispatcher failures are still logged individually, but a narrow reent
 fatal interface dialog while that modal dispatcher frame is running; the existing deterministic shutdown policy is
 unchanged.
 
-The drawer occupies a persisted 320–620 px shell column. Its otherwise invisible eight-pixel boundary is the resize
+The drawer occupies a persisted 340–620 px shell column. Its otherwise invisible eight-pixel boundary is the resize
 hit target, matching the Locations-pane splitter without adding a visible grip; `WorkspaceLayoutState.JobsDrawerWidth`
 uses the existing restore/capture seam. Child content is clipped and wrapped inside that column, and the Jobs list
 disables horizontal scrolling, so filenames and full output paths can never dictate shell width. `Clear finished`
@@ -822,8 +822,17 @@ output reservations, or durable History, and actionable `NeedsAttention` Jobs re
 confirmations use the reusable dark-shell `ConfirmationDialog`, while the actual lifecycle operation remains owned by
 `GlobalExportScheduler`.
 
-The bottom status-bar Jobs action now routes unconditionally through `JobsRoute.FullJobsCompatibility` to the current
-History workspace; #171 replaces that single compatibility destination with the full Jobs view. It never toggles the
+The Browser does not declare a center `MinWidth`: when the drawer consumes shell width, the remaining Browser column
+is authoritative. Navigation/address/scope remains the permanent first toolbar row. Below it, refinement/sort and
+Color/Export are whole logical groups: they share one lower row when `BrowserCenter` is at least 1120 device-independent
+pixels wide and the complete Color/Export group moves beneath refinement below that breakpoint. Refinement controls may
+wrap within their own group under extreme pressure; navigation placement never changes, although its chrome compacts
+and the Subfolders text label yields to its still-accessible icon at the narrowest supported center. Locations keeps its persisted preferred width, but may use a smaller temporary effective width when
+the current window/drawer combination needs room for a usable media center; closing or narrowing the drawer restores
+the preference without rewriting it. Grid and Player share that same constrained center cell, so neither can arrange
+under the drawer and Player identity/playback context is never reconstructed during resize.
+
+The bottom status-bar Jobs action routes unconditionally to the secondary full Jobs destination. It never toggles the
 drawer. A persistent narrow vertical pull tab in the main content's reserved right gutter is the drawer's sole manual
 open/close control. The adjacent star/splitter/pixel-column grid makes the drawer consume shell width and resize
 Browser/Player rather than overlaying them; closing immediately restores the space. The pull remains available while

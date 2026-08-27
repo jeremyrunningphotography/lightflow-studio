@@ -1,22 +1,36 @@
 namespace LightflowStudio;
 
-internal enum ShellWorkspace
+internal enum ShellDestination
 {
-    Browser = 0,
-    Encoding = 1,
-    MediaTools = 2,
-    History = 3,
-    PremiereHelper = 4,
-    Settings = 5,
-    About = 6
+    Home,
+    CompatibilityExportReview,
+    Jobs,
+    Settings,
+    About
 }
 
-internal static class ShellWorkspaceSelection
+internal static class ShellDestinationSelection
 {
-    public static ShellWorkspace Default => ShellWorkspace.Browser;
-    public static int Index(ShellWorkspace workspace) => (int)workspace;
+    public static ShellDestination Default => ShellDestination.Home;
 
-    public static ShellWorkspace FromIndex(int index) => Enum.IsDefined(typeof(ShellWorkspace), index)
-        ? (ShellWorkspace)index
-        : Default;
+    // The compatibility review retains the proven legacy controls without exposing their old workspace.
+    public static int Index(ShellDestination destination) => destination switch
+    {
+        ShellDestination.Home => 0,
+        ShellDestination.CompatibilityExportReview => 1,
+        ShellDestination.Jobs => 2,
+        ShellDestination.Settings => 3,
+        ShellDestination.About => 4,
+        _ => 0
+    };
+
+    public static ShellDestination FromIndex(int index) => index switch
+    {
+        0 => ShellDestination.Home,
+        1 => ShellDestination.CompatibilityExportReview,
+        2 => ShellDestination.Jobs,
+        3 => ShellDestination.Settings,
+        4 => ShellDestination.About,
+        _ => Default
+    };
 }

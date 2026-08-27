@@ -50,6 +50,8 @@ public partial class MainWindow : Window
     private readonly HashSet<Guid> _deletedFullJobsTerminalJobIds = [];
     private int _jobsPresentationPending;
     private double _jobsDrawerWidth = 380;
+    private double _browserLocationsPreferredWidth = 280;
+    private bool _applyingBrowserResponsiveLayout;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
     private EncodingJobExecutor? _activeJobExecutor;
     private readonly ObservableCollection<JobsWorkspaceItem> _historyRecords = [];
@@ -228,7 +230,6 @@ public partial class MainWindow : Window
                 if (_commandLineFolder is not null)
                 {
                     InputFolder.Text = _commandLineFolder;
-                    MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
                 }
                 BatchFileList.ItemsSource = _batchFiles;
                 HistoryList.ItemsSource = _historyRecords;
@@ -244,13 +245,12 @@ public partial class MainWindow : Window
                 // which the user is looking at yet. Measured on real hardware: this alone cut the delay
                 // before restoration starts from ~1.1s to ~0.16s. Restoration itself proceeds independently.
                 await RefreshBrowserStorageAsync();
-                TraceBrowserRecursiveState("1: after Catalog opens / storage entries populated");
                 _ = RestoreBrowserLocationAsync(_workspaceState.Current.Browser);
 
                 RefreshCatalogBackups();
                 RefreshHistory();
                 if (_jobsWorkspaceSmokeTest)
-                    MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.History);
+                    MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs);
                 LocateTools();
                 _exportScheduler.MaxSimultaneousExports = _settings.MaxSimultaneousExports;
                 ApplyJobsPresentation(_exportScheduler.Jobs);
@@ -316,7 +316,10 @@ public partial class MainWindow : Window
         }
 
         if (_workspaceState.Current.Layout?.BrowserLocationsPaneWidth is { } paneWidth)
+        {
+            _browserLocationsPreferredWidth = paneWidth;
             BrowserNavigationColumn.Width = new GridLength(paneWidth);
+        }
         if (_workspaceState.Current.Layout?.JobsDrawerWidth is { } drawerWidth)
             _jobsDrawerWidth = drawerWidth;
         if (_workspaceState.Current.Layout?.FullJobsListPaneWidth is { } jobsListWidth)
@@ -414,7 +417,7 @@ public partial class MainWindow : Window
                 Top = bounds.Top,
                 IsMaximized = _lastNonMinimizedWindowState == WindowState.Maximized
             });
-        _workspaceState.SetBrowserLocationsPaneWidth(BrowserNavigationColumn.ActualWidth);
+        _workspaceState.SetBrowserLocationsPaneWidth(_browserLocationsPreferredWidth);
         if (JobsDrawer.Visibility == Visibility.Visible) _jobsDrawerWidth = JobsDrawerColumn.ActualWidth;
         _workspaceState.SetJobsDrawerWidth(_jobsDrawerWidth);
         _workspaceState.SetFullJobsListPaneWidth(FullJobsListColumn.ActualWidth);
@@ -432,7 +435,6 @@ public partial class MainWindow : Window
     {
         if (saved is null) return;
         var generation = ++_browserUiGeneration;
-        TraceBrowserRecursiveState($"2: workspace restore target known RootId={saved.RootId} RelativeFolder='{saved.RelativeFolder}'");
         // Already showing from ShowBrowserRestoringState (called before Loaded even fires); re-asserted
         // here so this method stays correct regardless of what state the canvas was left in beforehand.
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
@@ -456,7 +458,6 @@ public partial class MainWindow : Window
                 }
                 else ShowDefaultBrowserEmptyState();
             }
-            TraceBrowserRecursiveState("5: after startup navigation completes");
         }
         catch (OperationCanceledException)
         {
@@ -525,13 +526,11 @@ public partial class MainWindow : Window
     {
         if (_synchronizingBrowserTree || e.NewValue is not BrowserTreeNode { IsPlaceholder: false } node) return;
         if (ReferenceEquals(node, _browserTreeRevealedNode)) { _browserTreeRevealedNode = null; return; }
-        TraceBrowserRecursiveState($"6: immediately before selecting another folder ('{node.DisplayName}')");
         RequestBrowserTreeSelection(node);
         if (node.Storage is { Kind: BrowserStorageKind.ManagedRoot, RootId: { } rootId })
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(rootId));
         else if (!string.IsNullOrWhiteSpace(node.AbsolutePath))
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(node.AbsolutePath));
-        TraceBrowserRecursiveState($"7: immediately after SelectedItemChanged navigation completed ('{node.DisplayName}')");
     }
 
     /// <summary>
@@ -686,7 +685,6 @@ public partial class MainWindow : Window
                 Math.Min(verticalOffset, BrowserFolderScrollViewer.ScrollableHeight));
             BrowserFolderScrollViewer.ScrollToHorizontalOffset(
                 Math.Min(horizontalOffset, BrowserFolderScrollViewer.ScrollableWidth));
-            TraceBrowserRecursiveState($"9: after WPF layout/Dispatcher Loaded pass for '{node.DisplayName}'");
         });
     }
 
@@ -749,7 +747,6 @@ public partial class MainWindow : Window
 
         if (generation == _browserUiGeneration && _browserTree.SelectedNode is { } selected)
             BringBrowserTreeNodeIntoView(selected);
-        TraceBrowserRecursiveState($"3: after startup tree path materialization (generation={generation}, current={_browserUiGeneration})");
     }
 
     /// <summary>
@@ -765,7 +762,6 @@ public partial class MainWindow : Window
     private void SyncBrowserTreeRecursiveIcons()
     {
         foreach (var root in _browserTree.Roots) SyncBrowserTreeRecursiveIcon(root);
-        TraceBrowserRecursiveState("8: after SyncBrowserTreeRecursiveIcons");
     }
 
     private void SyncBrowserTreeRecursiveIcon(BrowserTreeNode node)
@@ -775,77 +771,6 @@ public partial class MainWindow : Window
         foreach (var child in node.Children) SyncBrowserTreeRecursiveIcon(child);
     }
 
-    // #124 TEMPORARY DIAGNOSTIC: investigating a live-packaged-app-only report (reproducible neither in
-    // isolated service/model tests nor in live-WPF tests driving a real MainWindow) that a startup-restored
-    // recursive subtree's icons can lose their filled state once another folder in the same subtree is
-    // selected. Every line is prefixed "BROWSER-RECURSIVE-TRACE " for easy isolation in activity.log. Remove
-    // once the failing layer (model state vs. visual binding vs. duplicate node identity) is identified.
-    private void TraceBrowserRecursiveState(string checkpoint)
-    {
-        try
-        {
-            var log = new StringBuilder();
-            log.AppendLine($"BROWSER-RECURSIVE-TRACE ==== checkpoint: {checkpoint} ====");
-            log.AppendLine("BROWSER-RECURSIVE-TRACE Catalog recursive roots: " +
-                (_browserRecursiveRoots.Count == 0 ? "(none)" : string.Join(" | ",
-                    _browserRecursiveRoots.Select(root => $"RootId={root.RootId} RelativeFolder='{root.RelativeFolder}'"))));
-
-            var nodes = DescendantBrowserTreeNodes(_browserTree.Roots)
-                .Where(node => !node.IsPlaceholder && node.RootId is not null).ToList();
-            var duplicates = nodes.GroupBy(node => (node.RootId, RelativeFolder: node.RelativeFolder ?? ""))
-                .Where(group => group.Count() > 1).ToList();
-            if (duplicates.Count > 0)
-            {
-                foreach (var duplicate in duplicates)
-                    log.AppendLine("BROWSER-RECURSIVE-TRACE *** DUPLICATE NODE IDENTITY *** " +
-                        $"RootId={duplicate.Key.RootId} RelativeFolder='{duplicate.Key.RelativeFolder}' " +
-                        $"count={duplicate.Count()} hashes=[{string.Join(",", duplicate.Select(node => node.GetHashCode()))}]");
-            }
-            else
-            {
-                log.AppendLine("BROWSER-RECURSIVE-TRACE no duplicate (RootId, RelativeFolder) node identities found");
-            }
-
-            foreach (var node in nodes)
-            {
-                var governing = BrowserRecursiveRootLogic.GoverningRoots(_browserRecursiveRoots, node.RootId!.Value, node.RelativeFolder ?? "");
-                var container = FindBrowserTreeItem(BrowserFolderTree, node);
-                string visualState;
-                if (container is null)
-                {
-                    visualState = "container=<not realized>";
-                }
-                else
-                {
-                    var outline = FindDescendantByName(container, "FolderIcon") as UIElement;
-                    var filled = FindDescendantByName(container, "FolderIconFilled") as UIElement;
-                    visualState = $"container=<realized> outlineVisibility={outline?.Visibility.ToString() ?? "<not found>"} " +
-                        $"filledVisibility={filled?.Visibility.ToString() ?? "<not found>"} " +
-                        $"containerIsSelected={container.IsSelected} containerDataContextSameAsNode={ReferenceEquals(container.DataContext, node)}";
-                }
-                log.AppendLine($"BROWSER-RECURSIVE-TRACE node hash={node.GetHashCode()} name='{node.DisplayName}' " +
-                    $"RootId={node.RootId} RelativeFolder='{node.RelativeFolder}' IsSelected={node.IsSelected} " +
-                    $"IsRecursiveScope={node.IsRecursiveScope} IsFilledFolderIcon={node.IsFilledFolderIcon} " +
-                    $"governingRootCount={governing.Count} {visualState}");
-            }
-            _activityLogFile.TryAppend(log.ToString());
-        }
-        catch (Exception exception)
-        {
-            // Diagnostics must never destabilize the app it is trying to observe.
-            try { _activityLogFile.TryAppend($"BROWSER-RECURSIVE-TRACE trace itself threw at checkpoint '{checkpoint}': {exception}"); }
-            catch { /* truly best-effort */ }
-        }
-    }
-
-    private static IEnumerable<BrowserTreeNode> DescendantBrowserTreeNodes(IEnumerable<BrowserTreeNode> nodes)
-    {
-        foreach (var node in nodes)
-        {
-            yield return node;
-            foreach (var descendant in DescendantBrowserTreeNodes(node.Children)) yield return descendant;
-        }
-    }
 
     private static DependencyObject? FindDescendantByName(DependencyObject parent, string name)
     {
@@ -949,9 +874,7 @@ public partial class MainWindow : Window
         if (_synchronizingBrowserScopeMode) return;
         var enabled = BrowserIncludeSubfoldersButton.IsChecked == true;
         var mode = enabled ? BrowserScopeMode.IncludeSubfolders : BrowserScopeMode.DirectFolder;
-        TraceBrowserRecursiveState($"10a: before Subfolders toggle click (enabling={enabled})");
         await RunBrowserNavigationAsync(() => _browserNavigation.SetIncludeSubfoldersAsync(enabled), mode);
-        TraceBrowserRecursiveState($"10b: after Subfolders toggle sequence (enabled={enabled})");
     }
 
     /// <summary>Applies a successful navigation result and reveals its Locations-tree ancestors. Returns false (without side effects) for a stale, null, or non-success state.</summary>
@@ -1218,7 +1141,6 @@ public partial class MainWindow : Window
             SyncBrowserScopeToggle(scope.Mode);
             RequestBrowserTreeSelection(scope.Location);
             _ = RevealBrowserTreeAncestorsAsync(scope.Location, _browserUiGeneration);
-            TraceBrowserRecursiveState("4: after EffectiveScopeDetermined handler body (ancestor reveal still in flight)");
         });
 
     private void ApplyBrowserNavigationFailure(BrowserFolderState failure)
@@ -1794,16 +1716,16 @@ public partial class MainWindow : Window
     /// <summary>Ctrl+F focuses the Browser search box, but only while the Browser workspace is showing an open, filterable location.</summary>
     private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && MainTabs.SelectedIndex == ShellWorkspaceSelection.Index(ShellWorkspace.History)
+        if (e.Key == Key.Escape && MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)
             && Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase
             && Keyboard.FocusedElement is not System.Windows.Controls.ComboBox)
         {
-            MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Browser);
+            MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home);
             e.Handled = true;
             return;
         }
         if (e.Key != Key.F || !Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
-        if (MainTabs.SelectedIndex != ShellWorkspaceSelection.Index(ShellWorkspace.Browser) || !BrowserQueryToolbar.IsEnabled) return;
+        if (MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Home) || !BrowserQueryToolbar.IsEnabled) return;
         BrowserSearchBox.Focus();
         BrowserSearchBox.SelectAll();
         e.Handled = true;
@@ -1906,6 +1828,83 @@ public partial class MainWindow : Window
         BrowserCameraLutCombo.IsEnabled = BrowserCreativeLutCombo.IsEnabled = false;
     }
 
+    private void BrowserWorkspaceRoot_SizeChanged(object sender, SizeChangedEventArgs e) =>
+        ApplyBrowserResponsiveLayout();
+
+    private void BrowserNavigationSplitter_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (_applyingBrowserResponsiveLayout) return;
+        _browserLocationsPreferredWidth = Math.Clamp(BrowserNavigationColumn.ActualWidth,
+            WorkspaceState.MinLocationsPaneWidth, WorkspaceState.MaxLocationsPaneWidth);
+        ApplyBrowserResponsiveLayout();
+    }
+
+    private void ApplyBrowserResponsiveLayout()
+    {
+        if (BrowserWorkspaceRoot is null || BrowserWorkspaceRoot.ActualWidth <= 0 || _applyingBrowserResponsiveLayout) return;
+        _applyingBrowserResponsiveLayout = true;
+        try
+        {
+            const double temporaryMinimumLocationsWidth = 140;
+            const double minimumUsefulCenterWidth = 220;
+            var maximumLocationsWidth = Math.Max(temporaryMinimumLocationsWidth,
+                BrowserWorkspaceRoot.ActualWidth - BrowserNavigationSplitter.ActualWidth - minimumUsefulCenterWidth);
+            var constrained = maximumLocationsWidth < WorkspaceState.MinLocationsPaneWidth;
+            BrowserNavigationColumn.MinWidth = constrained
+                ? temporaryMinimumLocationsWidth
+                : WorkspaceState.MinLocationsPaneWidth;
+            var effectiveLocationsWidth = Math.Min(_browserLocationsPreferredWidth, maximumLocationsWidth);
+            effectiveLocationsWidth = Math.Max(BrowserNavigationColumn.MinWidth, effectiveLocationsWidth);
+            if (Math.Abs(BrowserNavigationColumn.Width.Value - effectiveLocationsWidth) > 0.5)
+                BrowserNavigationColumn.Width = new GridLength(effectiveLocationsWidth);
+
+            var centerWidth = Math.Max(0, BrowserWorkspaceRoot.ActualWidth - effectiveLocationsWidth - BrowserNavigationSplitter.ActualWidth);
+            var compactLocationChrome = centerWidth < 380;
+            BrowserBackButton.Width = compactLocationChrome ? 26 : 38;
+            BrowserForwardButton.Width = compactLocationChrome ? 26 : 38;
+            BrowserUpButton.Width = compactLocationChrome ? 26 : 38;
+            BrowserRefreshButton.Width = compactLocationChrome ? 26 : 38;
+            BrowserGoButton.Padding = compactLocationChrome ? new Thickness(3, 7, 3, 7) : new Thickness(12, 7, 12, 7);
+            BrowserCurrentPath.Margin = compactLocationChrome ? new Thickness(1, 0, 1, 0) : new Thickness(14, 0, 6, 0);
+            BrowserScopeGapColumn.Width = new GridLength(compactLocationChrome ? 4 : 16);
+            BrowserIncludeSubfoldersButton.Padding = compactLocationChrome ? new Thickness(3, 7, 3, 7) : new Thickness(10, 7, 10, 7);
+            BrowserIncludeSubfoldersButton.Tag = compactLocationChrome ? "Compact" : null;
+            Grid.SetRow(BrowserIncludeSubfoldersButton, 0);
+            Grid.SetColumn(BrowserIncludeSubfoldersButton, 5);
+            Grid.SetColumnSpan(BrowserIncludeSubfoldersButton, 1);
+            BrowserIncludeSubfoldersButton.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
+            BrowserIncludeSubfoldersButton.Margin = new Thickness(0);
+
+            const double combinedLowerControlsBreakpoint = 1120;
+            var stackLowerControls = centerWidth < combinedLowerControlsBreakpoint;
+            Grid.SetRow(BrowserQueryToolbar, 2);
+            Grid.SetColumn(BrowserQueryToolbar, 0);
+            Grid.SetColumnSpan(BrowserQueryToolbar, stackLowerControls ? 2 : 1);
+            Grid.SetRow(BrowserSelectionActionToolbar, stackLowerControls ? 4 : 2);
+            Grid.SetColumn(BrowserSelectionActionToolbar, stackLowerControls ? 0 : 1);
+            Grid.SetColumnSpan(BrowserSelectionActionToolbar, stackLowerControls ? 2 : 1);
+            BrowserSelectionActionToolbar.Margin = stackLowerControls
+                ? new Thickness(0)
+                : new Thickness(8, 0, 0, 0);
+
+            BrowserColorActions.Orientation = System.Windows.Controls.Orientation.Horizontal;
+            Grid.SetRow(BrowserColorActions, 0);
+            Grid.SetColumn(BrowserColorActions, 0);
+            Grid.SetColumnSpan(BrowserColorActions, 1);
+            Grid.SetRow(BrowserExportButton, 0);
+            Grid.SetColumn(BrowserExportButton, 1);
+            Grid.SetColumnSpan(BrowserExportButton, 1);
+            BrowserExportButton.HorizontalAlignment = System.Windows.HorizontalAlignment.Right;
+            BrowserExportButton.Margin = new Thickness(12, 0, 4, 0);
+            var lutWidth = centerWidth < 420
+                ? Math.Clamp((centerWidth - 120) / 2, 40, 150)
+                : 150;
+            BrowserCameraLutCombo.Width = lutWidth;
+            BrowserCreativeLutCombo.Width = lutWidth;
+        }
+        finally { _applyingBrowserResponsiveLayout = false; }
+    }
+
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!ReferenceEquals(e.Source, MainTabs)) return;
@@ -1913,10 +1912,28 @@ public partial class MainWindow : Window
         // #110: switching to another workspace while a video is open in the Player/Viewer must not leave it
         // silently playing audio in a hidden tab. This pauses rather than returning to Grid — switching tabs
         // is not "leaving" the Browser, so the open asset and its position stay exactly as the user left them.
-        if (MainTabs.SelectedIndex != ShellWorkspaceSelection.Index(ShellWorkspace.Browser) &&
+        if (MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Home) &&
             _browserPresentation == BrowserPresentationMode.PlayerViewer && _playerViewerHost is not null)
             _ = _playerViewerHost.PauseIfPlayingAsync();
     }
+
+    private void ApplicationMenu_Click(object sender, RoutedEventArgs e)
+    {
+        ApplicationMenu.PlacementTarget = ApplicationMenuButton;
+        ApplicationMenu.IsOpen = true;
+    }
+
+    private void OpenSettings_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Settings);
+
+    private void OpenAbout_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.About);
+
+    private void UtilityBackToBrowser_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home);
+
+    private void CompatibilityReviewBack_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs);
 
     /// <summary>
     /// #126: one application-wide status strip rather than a Browser-specific bar stacked above an unrelated
@@ -1931,7 +1948,7 @@ public partial class MainWindow : Window
     private void SyncBrowserStatusBarVisibility()
     {
         if (BrowserStatusText is null) return;
-        var isBrowserActive = MainTabs.SelectedIndex == ShellWorkspaceSelection.Index(ShellWorkspace.Browser);
+        var isBrowserActive = MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home);
         var visibility = isBrowserActive ? Visibility.Visible : Visibility.Collapsed;
         BrowserStatusText.Visibility = visibility;
         BrowserStatusDivider.Visibility = visibility;
@@ -2006,9 +2023,6 @@ public partial class MainWindow : Window
         _ffprobe = ExecutableLocator.Find("ffprobe.exe", Path.Combine(baseDir, "ffmpeg", "bin", "ffprobe.exe"), configured: besideFfmpeg);
         StatusText.Text = _ffmpeg is null ? "FFmpeg not found — configure it in Settings" : $"FFmpeg ready: {_ffmpeg}";
     }
-
-    private void OpenEncodingWorkspace_Click(object sender, RoutedEventArgs e) =>
-        MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
 
     private async Task ApplyEncodingHandoffAsync(CapabilityInvocation invocation)
     {
@@ -3131,12 +3145,6 @@ public partial class MainWindow : Window
         Recursive.IsChecked == true,
         (OutputDestinationMode)Math.Clamp(OutputMode.SelectedIndex, 0, 2),
         PreserveFolderStructure.IsChecked == true);
-    private void BrowseMedia_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Filter = "Video files|*.mp4;*.mov;*.mxf;*.mkv;*.avi|All files|*.*" };
-        if (Directory.Exists(_settings.DefaultVideoFolder)) dialog.InitialDirectory = _settings.DefaultVideoFolder;
-        if (dialog.ShowDialog() == true) MediaPath.Text = dialog.FileName;
-    }
     private async void Start_Click(object sender, RoutedEventArgs e)
     {
         if (!ValidateEncoderInputs()) return;
@@ -3661,7 +3669,7 @@ public partial class MainWindow : Window
     }
 
     private void JobsBackToBrowser_Click(object sender, RoutedEventArgs e) =>
-        MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Browser);
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home);
 
     private void RerunHistory_Click(object sender, RoutedEventArgs e)
     {
@@ -3703,7 +3711,7 @@ public partial class MainWindow : Window
         ConfigureAssignedColorUi(options.ColorMode);
         UpdateBatchFileSummary();
         _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
-        MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.CompatibilityExportReview);
         CurrentFileText.Text = EncodingHistoryRerun.RestorationMessage(restoration);
     }
     private bool ValidateEncoderInputs()
@@ -3995,13 +4003,12 @@ public partial class MainWindow : Window
         var cards = visibleJobs
             .Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId))).ToList();
         JobsPresentation.Reconcile(_jobsDrawerCards, cards);
-        if (MainTabs?.SelectedIndex == ShellWorkspaceSelection.Index(ShellWorkspace.History)) RefreshJobsWorkspace();
+        if (MainTabs?.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
     }
 
     private void JobsStatus_Click(object sender, RoutedEventArgs e)
     {
-        if (JobsPresentation.Route() == JobsRoute.FullJobsCompatibility)
-            MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.History);
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs);
     }
 
     private void OpenJobsDrawer()
@@ -4258,63 +4265,6 @@ public partial class MainWindow : Window
         if (_ffprobe is null) return 0;
         var result = await CaptureAsync(_ffprobe, FfmpegCommandBuilder.ProbeDuration(file), token);
         return double.TryParse(result.StdOut.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : 0;
-    }
-
-    private async void Inspect_Click(object sender, RoutedEventArgs e) => await ToolAction(async () =>
-    {
-        EnsureProbe(); var r = await CaptureLoggedAsync("Inspect", _ffprobe!, FfmpegCommandBuilder.Inspect(MediaPath.Text), CancellationToken.None); ToolsOutput.Text = r.StdOut + r.StdErr;
-    });
-
-    private async void Verify_Click(object sender, RoutedEventArgs e) => await ToolAction(async () =>
-    {
-        EnsureMedia(); EnsureFfmpeg(); ToolsOutput.Text = "Verifying every decodable frame…";
-        var r = await CaptureLoggedAsync("Verify", _ffmpeg!, FfmpegCommandBuilder.Verify(MediaPath.Text), CancellationToken.None);
-        var report = Path.Combine(Path.GetDirectoryName(MediaPath.Text)!, Path.GetFileNameWithoutExtension(MediaPath.Text) + "_verification.csv");
-        var status = r.ExitCode == 0 ? "completed" : "failed";
-        File.WriteAllText(report, "file,status,exit_code,notes\r\n" + CsvFormatter.Escape(MediaPath.Text) + $",{status},{r.ExitCode}," + CsvFormatter.Escape(r.StdErr));
-        ToolsOutput.Text = $"Verification {status}. Report: {report}\r\n\r\n{r.StdErr}";
-    });
-
-    private async void Rewrap_Click(object sender, RoutedEventArgs e) => await ToolAction(async () =>
-    {
-        EnsureMedia(); EnsureFfmpeg(); var output = Path.Combine(Path.GetDirectoryName(MediaPath.Text)!, Path.GetFileNameWithoutExtension(MediaPath.Text) + "_rewrapped.mp4");
-        var r = await CaptureLoggedAsync("Rewrap", _ffmpeg!, FfmpegCommandBuilder.Rewrap(MediaPath.Text, output), CancellationToken.None);
-        ToolsOutput.Text = r.ExitCode == 0 ? $"Created: {output}" : r.StdErr;
-    });
-
-    private async void Proxy_Click(object sender, RoutedEventArgs e) => await ToolAction(async () =>
-    {
-        EnsureMedia(); EnsureFfmpeg(); var output = Path.Combine(Path.GetDirectoryName(MediaPath.Text)!, Path.GetFileNameWithoutExtension(MediaPath.Text) + "_proxy.mp4");
-        var r = await CaptureLoggedAsync("Proxy", _ffmpeg!, FfmpegCommandBuilder.Proxy(MediaPath.Text, output), CancellationToken.None);
-        ToolsOutput.Text = r.ExitCode == 0 ? $"Created: {output}" : r.StdErr;
-    });
-
-    private async void ContactSheet_Click(object sender, RoutedEventArgs e) => await ToolAction(async () =>
-    {
-        EnsureMedia(); EnsureFfmpeg(); var output = Path.Combine(Path.GetDirectoryName(MediaPath.Text)!, Path.GetFileNameWithoutExtension(MediaPath.Text) + "_contact-sheet.jpg");
-        var r = await CaptureLoggedAsync("ContactSheet", _ffmpeg!, FfmpegCommandBuilder.ContactSheet(MediaPath.Text, output), CancellationToken.None);
-        ToolsOutput.Text = r.ExitCode == 0 ? $"Created: {output}" : r.StdErr;
-    });
-
-    private async Task ToolAction(Func<Task> action)
-    {
-        try { await action(); }
-        catch (Exception ex)
-        {
-            _activityLogFile.TryAppend($"[App] Media tool action failed: {ex}");
-            MessageBox.Show(ex.Message, "Media tool", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    private void EnsureMedia() { if (!File.Exists(MediaPath.Text)) throw new InvalidOperationException("Select a valid media file."); }
-    private void EnsureFfmpeg() { if (_ffmpeg is null) throw new InvalidOperationException("FFmpeg was not found."); }
-    private void EnsureProbe() { EnsureMedia(); if (_ffprobe is null) throw new InvalidOperationException("ffprobe.exe was not found beside FFmpeg or in PATH."); }
-
-    private void OpenPremiere_Click(object sender, RoutedEventArgs e)
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "PremiereHelper");
-        if (!Directory.Exists(path)) path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "PremiereHelper"));
-        if (Directory.Exists(path)) Process.Start(new ProcessStartInfo("explorer.exe", path) { UseShellExecute = true });
-        else MessageBox.Show("PremiereHelper folder not found. It is included at the package root.");
     }
 
     private static Process StartProcess(string exe, IEnumerable<string> args, bool redirectError)

@@ -241,25 +241,22 @@ public class UiLayoutTests
         var toolbarGrid = Named(document, "BrowserRefreshButton").Parent!;
         Assert.Contains(toolbarGrid.Elements(ns + "TextBox"), element =>
             (string?)element.Attribute(xNamespace + "Name") == "BrowserCurrentPath");
-        // #124: Include Subfolders lives in the media toolbar (BrowserQueryToolbar), not here — see
-        // IncludeSubfoldersToggle_LivesInTheMediaToolbarImmediatelyBeforeTheMediaTypeControls.
-        Assert.Equal(4, toolbarGrid.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").Count());
+        Assert.Equal(6, toolbarGrid.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").Count());
+        Assert.Contains(toolbarGrid.Elements(ns + "ToggleButton"), element =>
+            (string?)element.Attribute(xNamespace + "Name") == "BrowserIncludeSubfoldersButton");
 
-        Assert.Equal("28,16,28,24", (string?)shell.Root.Elements(shell.Root.Name.Namespace + "Thickness")
+        Assert.Equal("14,8,14,12", (string?)shell.Root.Elements(shell.Root.Name.Namespace + "Thickness")
             .Single(thickness => (string?)thickness.Attribute(xNamespace + "Key") == "ShellWorkspacePadding"));
     }
 
     [Fact]
-    public void IncludeSubfoldersToggle_LivesInTheMediaToolbarImmediatelyBeforeTheMediaTypeControls()
+    public void BrowserControls_KeepLocationPermanentAndDeclareWideLowerGroupOrder()
     {
-        // #124 (revised): scope narrows the candidate set first, so Include Subfolders now sits in the media
-        // toolbar immediately before All/Images/RAW/Video, reading left-to-right as
-        // Include Subfolders -> media type -> Search -> Filter -> Sort. It must not live in the folder
-        // navigation bar, must not introduce a new toolbar row, and must not become (or merge visually into)
-        // the segmented media-type control.
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
         var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var browseToolbar = Named(document, "BrowserBrowseToolbar");
+        var navigationToolbar = Named(document, "BrowserNavigationToolbar");
         var toggle = Named(document, "BrowserIncludeSubfoldersButton");
         var queryToolbar = Named(document, "BrowserQueryToolbar");
         var mediaTypeSegments = Named(document, "BrowserQuickFilterSegments");
@@ -268,25 +265,28 @@ public class UiLayoutTests
         var sortCombo = Named(document, "BrowserSortCombo");
 
         Assert.Equal(ns + "ToggleButton", toggle.Name);
-        Assert.Contains(toggle.Ancestors(), ancestor => ancestor == queryToolbar);
-        Assert.DoesNotContain(toggle.Ancestors(), ancestor => ancestor == Named(document, "BrowserGoButton").Parent);
+        var browseColumns = browseToolbar.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").ToList();
+        Assert.Equal(["*", "Auto"], browseColumns.Select(column => (string?)column.Attribute("Width")));
+        Assert.Equal("0", (string?)navigationToolbar.Attribute("Grid.Row"));
+        Assert.Equal("2", (string?)navigationToolbar.Attribute("Grid.ColumnSpan"));
+        Assert.Equal("2", (string?)queryToolbar.Attribute("Grid.Row"));
+        Assert.Contains(toggle.Ancestors(), ancestor => ancestor == navigationToolbar);
+        Assert.DoesNotContain(toggle.Ancestors(), ancestor => ancestor == queryToolbar);
+        var locationRow = toggle.Parent!;
+        var locationSiblings = locationRow.Elements().ToList();
+        Assert.True(locationSiblings.IndexOf(Named(document, "BrowserRefreshButton")) < locationSiblings.IndexOf(toggle));
 
-        // Reading order: toggle, then media-type segments, then search, then filter, then sort — using the
-        // shared toolbar Grid's direct-child declaration order (WPF renders Grid children by Grid.Column,
-        // and declaration order here matches that column order exactly).
-        var toolbarRow = toggle.Parent!;
+        var toolbarRow = Named(document, "BrowserQueryLayout");
         var mediaTypeChip = mediaTypeSegments.Parent!;
         var searchChip = searchBox.Ancestors().First(ancestor => ancestor.Parent == toolbarRow);
         var sortChip = sortCombo.Ancestors().First(ancestor => ancestor.Parent == toolbarRow);
         var siblings = toolbarRow.Elements().ToList();
         int IndexOf(XElement element) => siblings.IndexOf(element);
-        Assert.True(IndexOf(toggle) < IndexOf(mediaTypeChip));
         Assert.True(IndexOf(mediaTypeChip) < IndexOf(searchChip));
         Assert.True(IndexOf(searchChip) < IndexOf(filterButton));
         Assert.True(IndexOf(filterButton) < IndexOf(sortChip));
 
         // Visually distinct from, not merged into, the segmented All/Images/RAW/Video group.
-        Assert.NotSame(toggle.Parent, mediaTypeSegments);
         Assert.DoesNotContain(mediaTypeSegments.Elements(ns + "ToggleButton"), element =>
             (string?)element.Attribute(xNamespace + "Name") == "BrowserIncludeSubfoldersButton");
 
@@ -710,43 +710,33 @@ public class UiLayoutTests
             (string?)element.Attribute("Text") == "JEREMY RUNNING PHOTOGRAPHY");
     }
     [Fact]
-    public void NavigationIconsAndLabels_AreVerticallyCenteredInAStableGrid()
+    public void ApplicationUtilityControl_IsCompactAccessibleAndRightAligned()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
-        var ns = document.Root!.Name.Namespace;
-        var navigation = Named(document, "Navigation");
-        var items = navigation.Elements(ns + "ListBoxItem").ToList();
-
-        Assert.Equal(7, items.Count);
-        foreach (var item in items)
-        {
-            var grid = item.Element(ns + "Grid")!;
-            var text = grid.Elements(ns + "TextBlock").ToList();
-            Assert.Equal("22", (string?)grid.Attribute("Height"));
-            Assert.All(text, element => Assert.Equal("Center", (string?)element.Attribute("VerticalAlignment")));
-            Assert.Equal("Center", (string?)text[0].Attribute("TextAlignment"));
-            Assert.Equal("Segoe Fluent Icons, Segoe MDL2 Assets", (string?)text[0].Attribute("FontFamily"));
-        }
+        var button = Named(document, "ApplicationMenuButton");
+        Assert.Equal("2", (string?)button.Attribute("Grid.Column"));
+        Assert.Equal("36", (string?)button.Attribute("Width"));
+        Assert.Equal("Center", (string?)button.Attribute("VerticalAlignment"));
+        Assert.Equal("Segoe Fluent Icons, Segoe MDL2 Assets", (string?)button.Attribute("FontFamily"));
+        Assert.Equal("Application menu", (string?)button.Attribute("AutomationProperties.Name"));
     }
 
     [Fact]
-    public void PermanentShell_StartsInBrowserAndKeepsExistingWorkspacesReachable()
+    public void PermanentShell_StartsAtBrowserPlayerHomeWithoutAPeerModuleStrip()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
-        var navigation = Named(document, "Navigation");
-        var labels = navigation.Elements(ns + "ListBoxItem")
-            .Select(item => item.Descendants(ns + "TextBlock").Last())
-            .Select(label => (string?)label.Attribute("Text"))
-            .ToList();
         var tabs = Named(document, "MainTabs").Elements(ns + "TabItem").ToList();
 
         Assert.Equal("0", (string?)Named(document, "MainTabs").Attribute("SelectedIndex"));
-        Assert.Equal(["Browser", "Export", "Media Tools", "Jobs", "Premiere Helper", "Settings", "About"], labels);
-        Assert.Equal(labels.Count, tabs.Count);
+        Assert.DoesNotContain(document.Descendants(), element => element.Attributes().Any(attribute =>
+            attribute.Name.LocalName == "Name" && attribute.Value == "Navigation"));
         Assert.Contains(tabs[0].Descendants(), element =>
             (string?)element.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "BrowserFolderTree");
-        Assert.Contains(tabs[1].Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "Export");
+        Assert.Equal("Collapsed", (string?)tabs[1].Attribute("Visibility"));
+        Assert.Contains(tabs[2].Descendants(), element =>
+            (string?)element.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "HistoryList");
+        Assert.Equal(5, tabs.Count);
     }
 
     [Fact]
@@ -760,11 +750,17 @@ public class UiLayoutTests
         var browse = Named(document, "BrowserBrowseToolbar");
         var actions = Named(document, "BrowserSelectionActionToolbar");
         var contextMenu = Named(document, "BrowserGridRows").Descendants(ns + "ContextMenu").Single();
-        var browseColumns = browse.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").ToList();
+        var navigation = Named(document, "BrowserNavigationToolbar");
+        var query = Named(document, "BrowserQueryToolbar");
 
         Assert.Equal("0", (string?)browse.Attribute("Grid.Row"));
-        Assert.Equal("*", (string?)browseColumns[0].Attribute("Width"));
-        Assert.Equal("Auto", (string?)browseColumns[1].Attribute("Width"));
+        Assert.Equal(["*", "Auto"], browse.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition")
+            .Select(column => (string?)column.Attribute("Width")));
+        Assert.Equal("0", (string?)navigation.Attribute("Grid.Row"));
+        Assert.Equal("2", (string?)query.Attribute("Grid.Row"));
+        Assert.Equal("0", (string?)query.Attribute("Grid.Column"));
+        Assert.Equal("1", (string?)actions.Attribute("Grid.Column"));
+        Assert.Contains(actions.Ancestors(), ancestor => ancestor == browse);
         Assert.DoesNotContain(document.Descendants(ns + "ColumnDefinition"), column =>
             (string?)column.Attribute("Width") == "520" && column.Ancestors().Contains(browse));
         Assert.Equal("2", (string?)actions.Attribute("Grid.Row"));
@@ -773,7 +769,17 @@ public class UiLayoutTests
             (string?)text.Attribute("Text") == "SELECTION");
         Assert.DoesNotContain(actions.Descendants(), element =>
             (string?)element.Attribute(x + "Name") == "BrowserSelectionActionSummary");
-        Assert.Equal("BrowserSelectionActionButtonStyle", Named(document, "BrowserExportButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
+        Assert.Equal("BrowserExportActionButtonStyle", Named(document, "BrowserExportButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
+        var exportStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(x + "Key") == "BrowserExportActionButtonStyle");
+        Assert.Equal("{StaticResource BrowserSelectionActionButtonStyle}", (string?)exportStyle.Attribute("BasedOn"));
+        Assert.Equal("{StaticResource ShellFocusBrush}", (string?)exportStyle.Elements(ns + "Setter")
+            .Single(setter => (string?)setter.Attribute("Property") == "BorderBrush").Attribute("Value"));
+        var baseActionStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(x + "Key") == "BrowserSelectionActionButtonStyle");
+        Assert.Contains(baseActionStyle.Descendants(ns + "Trigger"), trigger =>
+            (string?)trigger.Attribute("Property") == "IsEnabled" && (string?)trigger.Attribute("Value") == "False" &&
+            trigger.Elements(ns + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Opacity"));
         Assert.Equal("BrowserThumbnailSizeStepButtonStyle", Named(document, "BrowserRegenerateThumbnailsButton").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("BrowserSelectionLutComboStyle", Named(document, "BrowserCameraLutCombo").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("BrowserSelectionLutComboStyle", Named(document, "BrowserCreativeLutCombo").Attribute("Style")!.Value.Split(' ').Last().TrimEnd('}'));
@@ -812,6 +818,38 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserRow2_UsesOneAuthoritativeControlHeightAcrossRefineColorAndExport()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var heightResource = document.Descendants().Single(element =>
+            (string?)element.Attribute(x + "Key") == "BrowserRow2ControlHeight");
+        Assert.Equal("34", heightResource.Value);
+
+        foreach (var styleName in new[] { "BrowserToolbarChipStyle", "BrowserToolbarToggleButtonStyle",
+                     "BrowserQuickFilterSegmentStyle", "BrowserSelectionActionButtonStyle", "BrowserSelectionLutComboStyle" })
+        {
+            var style = document.Descendants(ns + "Style").Single(element =>
+                (string?)element.Attribute(x + "Key") == styleName);
+            Assert.Contains(style.Elements(ns + "Setter"), setter =>
+                (string?)setter.Attribute("Property") == "Height" &&
+                (string?)setter.Attribute("Value") == "{StaticResource BrowserRow2ControlHeight}");
+        }
+
+        Assert.Equal("{StaticResource BrowserRow2ControlHeight}",
+            (string?)Named(document, "BrowserSortCombo").Attribute("Height"));
+        Assert.Equal("{StaticResource BrowserRow2ControlHeight}",
+            (string?)Named(document, "BrowserSortDirectionButton").Attribute("Height"));
+        Assert.Equal("Center", (string?)Named(document, "BrowserColorActions").Descendants(ns + "TextBlock")
+            .Single(text => (string?)text.Attribute("Text") == "COLOR").Attribute("VerticalAlignment"));
+        Assert.Equal("{StaticResource BrowserExportActionButtonStyle}",
+            (string?)Named(document, "BrowserExportButton").Attribute("Style"));
+        Assert.Equal((string?)Named(document, "BrowserQueryToolbar").Attribute("Padding"),
+            (string?)Named(document, "BrowserSelectionActionToolbar").Attribute("Padding"));
+    }
+
+    [Fact]
     public void PlayerColorRow_ContainsRightAlignedCurrentAssetExport()
     {
         var root = FindRepositoryRoot();
@@ -840,29 +878,158 @@ public class UiLayoutTests
             element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "ShellPanel"));
         Assert.Contains("Themes/LightflowShell.xaml", app);
         Assert.DoesNotContain("LightTheme", app, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("Once", (string?)Named(window, "Navigation").Attribute("KeyboardNavigation.TabNavigation"));
+        Assert.Equal("Application menu", (string?)Named(window, "ApplicationMenuButton").Attribute("AutomationProperties.Name"));
         Assert.True(double.Parse((string?)window.Root!.Attribute("MinWidth") ?? "0") >= 1120);
         Assert.True(double.Parse((string?)window.Root.Attribute("MinHeight") ?? "0") >= 720);
     }
 
     [Fact]
-    public void WorkspaceNavigation_IsCompactAndLeavesBrowserLeftEdgeForFolderContext()
+    public void HeaderUtilityMenu_IsCompactAndLeavesBrowserLeftEdgeForFolderContext()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
-        var navigation = Named(document, "Navigation");
-        var itemsPanel = navigation.Element(ns + "ListBox.ItemsPanel")!
-            .Descendants(ns + "StackPanel").Single();
+        var menuButton = Named(document, "ApplicationMenuButton");
         var shellGrid = document.Root.Element(ns + "Grid")!;
 
-        Assert.Equal("Horizontal", (string?)itemsPanel.Attribute("Orientation"));
+        Assert.Equal("2", (string?)menuButton.Attribute("Grid.Column"));
         Assert.Equal("0", (string?)Named(document, "MainTabs").Attribute("Grid.Column"));
         Assert.Equal("1", (string?)Named(document, "MainTabs").Parent!.Attribute("Grid.Row"));
         Assert.Null(shellGrid.Element(ns + "Grid.ColumnDefinitions"));
-        Assert.DoesNotContain(navigation.Parent!.Parent!.Descendants(), element =>
+        Assert.DoesNotContain(menuButton.Parent!.Descendants(), element =>
             (string?)element.Attribute("Background") == "{StaticResource BrandGradient}");
         Assert.Equal("60", (string?)shellGrid.Element(ns + "Grid.RowDefinitions")!
             .Elements(ns + "RowDefinition").First().Attribute("Height"));
+    }
+
+    [Fact]
+    public void SharedDensity_UsesCompactWorkspacePanelCardAndControlSpacing()
+    {
+        var root = FindRepositoryRoot();
+        var shell = XDocument.Load(Path.Combine(root, "LightflowStudio", "Themes", "LightflowShell.xaml"));
+        var app = XDocument.Load(Path.Combine(root, "LightflowStudio", "App.xaml"));
+        var ns = app.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+
+        Assert.Equal("14,8,14,12", shell.Descendants().Single(element =>
+            (string?)element.Attribute(x + "Key") == "ShellWorkspacePadding").Value);
+        Assert.Equal("9", shell.Descendants().Single(element =>
+            (string?)element.Attribute(x + "Key") == "ShellPanelPadding").Value);
+        Assert.Equal("7,4", app.Descendants().Single(element =>
+            (string?)element.Attribute(x + "Key") == "CompactControlPadding").Value);
+        var card = app.Descendants(ns + "Style").Single(element => (string?)element.Attribute(x + "Key") == "Card");
+        Assert.Contains(card.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Padding" &&
+            (string?)setter.Attribute("Value") == "{StaticResource CompactCardPadding}");
+    }
+
+    [Fact]
+    public void JobsHeader_PlacesTitleAndActionsOnFirstRowWithSubtitleBelow()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var header = Named(document, "JobsHeader");
+        var title = header.Elements(ns + "TextBlock").Single(element => (string?)element.Attribute("Text") == "Jobs");
+        var subtitle = header.Elements(ns + "TextBlock").Single(element =>
+            ((string?)element.Attribute("Text"))?.StartsWith("Manage current") == true);
+        var actions = header.Elements(ns + "StackPanel").Single();
+
+        Assert.Null(title.Attribute("Grid.Row"));
+        Assert.Equal("1", (string?)subtitle.Attribute("Grid.Row"));
+        Assert.Equal("1", (string?)actions.Attribute("Grid.Column"));
+        Assert.Equal(new[] { "JobsBackToBrowserButton", "RefreshHistoryButton", "JobsClearHistoryButton" },
+            actions.Elements(ns + "Button").Select(button => (string?)button.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name")));
+    }
+
+    [Fact]
+    public void JobsToolbar_UsesOneAuthoritativeHeightForSearchStatusConcurrencyAndQueueGate()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var height = document.Descendants().Single(element =>
+            (string?)element.Attribute(x + "Key") == "JobsToolbarControlHeight");
+        Assert.Equal("34", height.Value);
+
+        foreach (var styleName in new[] { "JobsToolbarTextBoxStyle", "JobsToolbarComboBoxStyle", "JobsToolbarButtonStyle" })
+        {
+            var style = document.Descendants(ns + "Style").Single(element =>
+                (string?)element.Attribute(x + "Key") == styleName);
+            Assert.Contains(style.Elements(ns + "Setter"), setter =>
+                (string?)setter.Attribute("Property") == "Height" &&
+                (string?)setter.Attribute("Value") == "{StaticResource JobsToolbarControlHeight}");
+        }
+
+        Assert.Equal("{StaticResource JobsToolbarTextBoxStyle}", (string?)Named(document, "JobsSearchText").Attribute("Style"));
+        Assert.Equal("{StaticResource JobsToolbarComboBoxStyle}", (string?)Named(document, "JobsFilter").Attribute("Style"));
+        Assert.Equal("{StaticResource JobsToolbarComboBoxStyle}", (string?)Named(document, "FullJobsMaximumExports").Attribute("Style"));
+        Assert.Equal("{StaticResource JobsToolbarButtonStyle}", (string?)Named(document, "FullJobsQueueGateButton").Attribute("Style"));
+    }
+
+    [Fact]
+    public void JobsHeaderButtons_ShareToolbarHeightWhileDangerActionRetainsSemanticStyle()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+
+        foreach (var styleName in new[] { "JobsHeaderButtonStyle", "JobsHeaderDangerButtonStyle" })
+        {
+            var style = document.Descendants(ns + "Style").Single(element =>
+                (string?)element.Attribute(x + "Key") == styleName);
+            Assert.Contains(style.Elements(ns + "Setter"), setter =>
+                (string?)setter.Attribute("Property") == "Height" &&
+                (string?)setter.Attribute("Value") == "{StaticResource JobsToolbarControlHeight}");
+        }
+
+        var danger = document.Descendants(ns + "Style").Single(element =>
+            (string?)element.Attribute(x + "Key") == "JobsHeaderDangerButtonStyle");
+        Assert.Equal("{StaticResource DangerButton}", (string?)danger.Attribute("BasedOn"));
+        Assert.Equal("{StaticResource JobsHeaderButtonStyle}", (string?)Named(document, "JobsBackToBrowserButton").Attribute("Style"));
+        Assert.Equal("{StaticResource JobsHeaderButtonStyle}", (string?)Named(document, "RefreshHistoryButton").Attribute("Style"));
+        Assert.Equal("{StaticResource JobsHeaderDangerButtonStyle}", (string?)Named(document, "JobsClearHistoryButton").Attribute("Style"));
+    }
+
+    [Fact]
+    public void BrowserAndJobsPanels_UseCompactExplicitContainerSpacing()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+
+        Assert.Equal("6,5", (string?)Named(document, "BrowserNavigationToolbar").Attribute("Padding"));
+        Assert.Equal("5,4", (string?)Named(document, "BrowserQueryToolbar").Attribute("Padding"));
+        Assert.Equal("5,4", (string?)Named(document, "BrowserSelectionActionToolbar").Attribute("Padding"));
+        Assert.Equal("7", (string?)Named(document, "BrowserGridHost").Attribute("Padding"));
+        Assert.Equal("4", (string?)Named(document, "BrowserNavigationGap").Attribute("Height"));
+        Assert.Equal("7,6,7,7", (string?)Named(document, "JobsWorkspace").Attribute("Margin"));
+        Assert.Equal("1,0,0,5", (string?)Named(document, "JobsHeader").Attribute("Margin"));
+        Assert.Equal("0,0,0,5", (string?)Named(document, "JobsToolbar").Attribute("Margin"));
+    }
+
+    [Fact]
+    public void ExportAndPlayerGroupedSurfaces_DoNotRetainOldDensityOverrides()
+    {
+        var root = FindRepositoryRoot();
+        var export = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
+        var player = XDocument.Load(Path.Combine(root, "LightflowStudio", "PlayerViewerHost.xaml"));
+        var ns = export.Root!.Name.Namespace;
+
+        Assert.Equal("11", (string?)export.Root.Descendants(ns + "Grid").First(grid =>
+            grid.Parent == export.Root).Attribute("Margin"));
+        var explicitExportPanels = export.Descendants(ns + "Border").Where(border =>
+            (string?)border.Attribute("Style") == "{StaticResource ShellPanel}" && border.Attribute("Padding") is not null);
+        Assert.All(explicitExportPanels, panel => Assert.Equal("7", (string?)panel.Attribute("Padding")));
+        Assert.Equal("7,5,7,5", (string?)Named(player, "TransportBar").Attribute("Padding"));
+        Assert.Equal("6,0,6,6", (string?)Named(player, "TransportBar").Attribute("Margin"));
+    }
+
+    [Fact]
+    public void BrowserCenterHasNoMinimumThatCanOverflowTheDrawerAllocatedColumn()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var center = Named(document, "BrowserCenter");
+        var root = Named(document, "BrowserWorkspaceRoot");
+        Assert.Null(center.Attribute("MinWidth"));
+        Assert.Equal("BrowserWorkspaceRoot_SizeChanged", (string?)root.Attribute("SizeChanged"));
+        Assert.Equal("BrowserNavigationSplitter_DragCompleted", (string?)Named(document, "BrowserNavigationSplitter").Attribute("DragCompleted"));
     }
 
     [Fact]
@@ -1183,17 +1350,17 @@ public class UiLayoutTests
     [Fact]
     public void BrowserWorkspaceGrid_NoLongerReservesRowsForItsOwnStatusBar()
     {
-        // Reclaimed vertical space: the Browser tab's inner Grid goes back to 5 rows (folder toolbar, gap,
-        // query toolbar/chips, gap, grid) now that status lives in the shared application-wide bar.
+        // The combined responsive toolbar occupies one Auto row above the media; no separate selection-action
+        // row remains in the Browser center grid.
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
         var gridHost = Named(document, "BrowserGridHost");
         var browserWorkspaceGrid = gridHost.Parent!;
         var rowDefinitions = browserWorkspaceGrid.Element(ns + "Grid.RowDefinitions")!.Elements(ns + "RowDefinition").ToList();
 
-        Assert.Equal(5, rowDefinitions.Count);
-        Assert.Equal("4", (string?)gridHost.Attribute("Grid.Row"));
-        Assert.Equal("*", (string?)rowDefinitions[4].Attribute("Height"));
+        Assert.Equal(3, rowDefinitions.Count);
+        Assert.Equal("2", (string?)gridHost.Attribute("Grid.Row"));
+        Assert.Equal("*", (string?)rowDefinitions[2].Attribute("Height"));
     }
 
     [Fact]

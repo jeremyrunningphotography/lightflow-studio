@@ -31,7 +31,7 @@ Body text should remain readable against every dark surface. Muted text is for s
 ## Interaction and accessibility
 
 - Keyboard focus must remain visible on every interactive control.
-- Top-level workspace navigation supports normal keyboard traversal and keeps selection visibly distinct through both surface and font weight.
+- The application menu, focused actions, full Jobs entry, and Back actions support normal keyboard traversal and visible focus.
 - Hit targets should normally be at least the size of the existing shell navigation and standard buttons.
 - Disabled, selected, warning, success, and failure states cannot be communicated by color alone.
 - Layout must remain usable at the declared 1120 × 720 minimum and resize normally under standard Windows minimize, maximize, restore, and DPI behavior.
@@ -39,7 +39,7 @@ Body text should remain readable against every dark surface. Muted text is for s
 
 ## Workspace composition
 
-The permanent shell hosts one workspace at a time. Browser is the default. Encoding, Settings, and existing utilities remain peers in the same host and are reached from the compact horizontal application header. Application navigation must not occupy a permanent left rail: Browser owns that edge for Media Roots/folder navigation, and future Player/Viewer presentation needs the width for media plus Inspector. Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
+The permanent shell treats Browser/Player as Home. It has no permanent module strip or peer capability rail. Focused actions and owned modals configure work from media context; the bottom status affordance enters secondary full Jobs; the right-edge pull independently controls the compact drawer; and a restrained upper-right gear menu exposes only application utilities such as Settings and About. Back actions restore the already-live Home content. Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
 
 The Browser owns a resizable filesystem-oriented Locations panel and uses the remaining width for the current folder. Its 280-pixel initial width can be adjusted between sensible bounds through an invisible eight-pixel boundary whose resize cursor provides the interaction feedback; the width remains in place for the current window session. Deep hierarchies scroll horizontally instead of colliding with disclosure, icon, or scrollbar chrome. Familiar drives and mapped/removable storage are primary entry points; managed Media Roots appear as pinned libraries rather than setup prerequisites. The left pane is the single owner of folder hierarchy and selection. Its compact Back/Forward/Up/Refresh toolbar and editable path field remain synchronized with that hierarchy. The center is reserved for files/media in the selected folder and does not repeat child folders. Online state is reinforced with text as well as color; unavailable storage remains visible so the workspace can explain what happened. Loading and empty/error states occupy the media canvas without replacing navigation context.
 
@@ -47,12 +47,13 @@ Folder hierarchy rows use a compact 28-pixel interaction target. Disclosure, ico
 
 Issue #108 turns the center into a virtualized media Preview grid. Lightflow's Browser is a media browser, not a general-purpose file browser: the grid presents only supported still image, RAW image, and video assets. Folders, standalone audio, and unknown/unsupported files (documents, archives, executables, sidecar files) are excluded from the canvas entirely rather than occupying a tile of their own, so density and attention are never spent on filesystem noise the workspace cannot act on. Tiles are compact (168px wide), evenly spaced, and reflow with the available width rather than scrolling horizontally; media stays visually dominant, so a tile is mostly its Preview with a single line of restrained, trimmed filename text beneath. A tile without a generated Preview yet shows a calm, muted category glyph rather than a spinner or other decorative placeholder, keeping the grid quiet while large folders finish generating. Selection uses the shared selection/focus surface and border treatment rather than an unrelated accent, and remains restrained enough that many selected tiles in view do not read as visual noise. Player/Viewer, Inspector/Color, and Browser-to-capability handoff arrive in later Browser slices without changing the shell or Browser ownership of the left edge. Issue #138 reserves the Preview's upper-right corner for one compact marker representing durable user-authored asset state. Its Lightflow-owned vector diamond remains crisp at every Preview size; its normal surface is neutral gray and changes to the existing bright orange focus/selection brush only with tile selection. The accessible description carries the meaning while the geometric mark stays subordinate to the media; detailed state-specific visualization remains in the owning workspace, and future attributes extend this aggregate marker rather than accumulating unrelated badges over the Preview.
 
-Issue #147 consolidates navigation/location and #109 refinement controls into one Browse toolbar directly above the grid, never inside the Locations sidebar. It contains Back/Forward/Up/Refresh, the current path, Include Subfolders, All/Images/RAW/Video refinement, search, `Filter ▾`, and Sort. The navigation/address group owns the flexible `*` remainder so its path naturally grows and shrinks; the refinement group is an `Auto`-sized trailing anchor rather than competing with a fixed 520-pixel address column. Every standalone refinement control shares one dark "chip" chrome (`BrowserToolbarChipStyle`/matching custom `ControlTemplate`s: a `ShellSurfaceBrush` fill, a 1px `ShellDividerBrush` border, and a 6px corner radius) instead of each falling back to its own default WPF control chrome, so the row reads as one purpose-designed toolbar rather than a mix of form controls.
+Issue #147 consolidates navigation/location and #109 refinement controls into a compact Browse toolbar area directly above the grid, never inside the Locations sidebar. Location/scope is the permanent first row (Back/Forward/Up, current path, Go, Refresh, then Include Subfolders). The lower region treats refine/sort (All/Images/RAW/Video, search, `Filter ▾`, Sort) and Color/Export as stable logical groups: at 1120 or more device-independent pixels of Browser-center width they share one row in refine → Color → Export order; below that breakpoint the entire Color/Export group drops beneath refinement. The address field owns the flexible `*` remainder; refinement controls wrap only within their own group under extreme Jobs pressure. Every standalone refinement control shares one dark "chip" chrome (`BrowserToolbarChipStyle`/matching custom `ControlTemplate`s: a `ShellSurfaceBrush` fill, a 1px `ShellDividerBrush` border, and a 6px corner radius) instead of each falling back to its own default WPF control chrome, so the row reads as one purpose-designed toolbar rather than a mix of form controls.
 
-A second selection-action toolbar permanently reserves its own row between Browse and the media canvas. Its Export,
-Rename, Camera LUT, and Creative LUT controls remain visible and become enabled only when the complete selection
-supports that operation, so selection changes never shift the Browser layout. The same selection actions appear in
-each tile's context menu and use Explorer-familiar right-click selection semantics. Regenerate Previews instead sits
+A compact Color/Export action panel follows refinement on the shared lower row at wide Browser-center widths and moves
+as one complete group beneath refinement at constrained widths. Camera LUT, Creative LUT, and Export remain visible
+and become enabled only when the complete selection supports that operation, so selection changes never shift the
+Browser layout. Corresponding selection actions appear in each tile's context menu and use Explorer-familiar
+right-click selection semantics. Regenerate Previews instead sits
 as a compact refresh-style icon in the Browser status/presentation area immediately left of the Preview-size controls:
 it applies to the applicable selection when one exists, or to the current effective Browser scope when none does.
 The bottom status bar otherwise remains limited to application health, Browser counts, Preview activity, Preview
@@ -69,8 +70,14 @@ while a narrow vertical right-edge pull tab toggles the compact drawer. The tab 
 orange emphasis/count for active work, directional carets, and the standard keyboard-focus border; no duplicate close
 button appears inside the drawer.
 
-Selection actions use compact purpose-built transparent button chrome, short labels, and separators between general
-media actions and Color actions. Camera and Creative are action-picker `ComboBox` controls using the same
+When the Jobs drawer reduces Browser width, Browser remains contained rather than clipped at the drawer boundary.
+The Locations preference is temporarily constrained only when necessary, navigation/address keeps group integrity,
+refinement moves through deliberate grouped rows, and selection Color/Export actions adapt independently. Removing
+space must never let a child minimum arrange Browser content beneath the drawer; Player and Grid use the same bounded
+media cell and resize in place.
+
+Selection actions use compact purpose-built transparent button chrome. Camera and Creative are action-picker
+`ComboBox` controls using the same
 Lightflow dropdown/option templates as Player; their neutral prompts are restored after every bulk operation and
 therefore never claim a single current LUT for a heterogeneous selection. Tile context menus retain conventional
 submenu behavior but opt into application-scoped Lightflow `ContextMenu`, `MenuItem`, and separator templates,

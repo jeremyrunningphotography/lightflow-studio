@@ -37,7 +37,7 @@ public sealed class BrowserStatusBarRegressionTests
         var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
         var body = source[methodStart..methodEnd];
 
-        Assert.Contains("ShellWorkspaceSelection.Index(ShellWorkspace.Browser)", body);
+        Assert.Contains("ShellDestinationSelection.Index(ShellDestination.Home)", body);
         Assert.Contains("BrowserStatusText.Visibility = visibility;", body);
         Assert.Contains("BrowserStatusDivider.Visibility = visibility;", body);
         // #110: BrowserPresentationControls (the thumbnail-size slider) is Grid-presentation-specific, so it

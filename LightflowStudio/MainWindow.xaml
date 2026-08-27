@@ -2,10 +2,13 @@
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:local="clr-namespace:LightflowStudio"
+ xmlns:sys="clr-namespace:System;assembly=System.Runtime"
  Title="Lightflow Studio" Icon="Assets/Branding/LightflowStudio.ico"
  Height="900" Width="1440" MinHeight="720" MinWidth="1120" WindowStartupLocation="CenterScreen"
  Closing="Window_Closing" PreviewKeyDown="MainWindow_PreviewKeyDown">
  <Window.Resources>
+  <sys:Double x:Key="BrowserRow2ControlHeight">34</sys:Double>
+  <sys:Double x:Key="JobsToolbarControlHeight">34</sys:Double>
   <local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility"/>
   <local:StringEmptyToVisibilityConverter x:Key="StringEmptyToVisibility"/>
   <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
@@ -29,7 +32,7 @@
   <Style x:Key="JobsListItemStyle" TargetType="ListBoxItem">
    <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Background" Value="Transparent"/>
    <Setter Property="BorderBrush" Value="Transparent"/><Setter Property="BorderThickness" Value="1"/>
-   <Setter Property="Padding" Value="3"/><Setter Property="Margin" Value="0,1"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+   <Setter Property="Padding" Value="2"/><Setter Property="Margin" Value="0,1"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
     <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" SnapsToDevicePixels="True"><Grid><Border x:Name="SelectionRail" Width="3" HorizontalAlignment="Left" Margin="0,5" CornerRadius="1.5" Background="{StaticResource ShellFocusBrush}" Visibility="Collapsed"/><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/></Grid></Border>
     <ControlTemplate.Triggers>
@@ -45,6 +48,7 @@
        the quick-filter segmented group) so the row reads as one purpose-designed toolbar rather than a row
        of default form controls with their own mismatched borders. -->
   <Style x:Key="BrowserToolbarChipStyle" TargetType="Border">
+   <Setter Property="Height" Value="{StaticResource BrowserRow2ControlHeight}"/>
    <Setter Property="Background" Value="{StaticResource ShellSurfaceBrush}"/>
    <Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/>
    <Setter Property="BorderThickness" Value="1"/>
@@ -55,7 +59,8 @@
        selection/focus accent already used for the quick-filter segments and the grid's own tile selection,
        rather than a bright default ToggleButton chrome. -->
   <Style x:Key="BrowserToolbarToggleButtonStyle" TargetType="ToggleButton">
-   <Setter Property="Padding" Value="12,7"/>
+   <Setter Property="Height" Value="{StaticResource BrowserRow2ControlHeight}"/>
+   <Setter Property="Padding" Value="6,4"/>
    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
    <Setter Property="FontSize" Value="12"/>
    <Setter Property="Cursor" Value="Hand"/>
@@ -95,7 +100,7 @@
        "Subfolders" label. The label already names the operation, so the glyph itself only needs to read as
        on/off, not encode hierarchy on its own. -->
   <Style x:Key="BrowserScopeToggleButtonStyle" TargetType="ToggleButton">
-   <Setter Property="Padding" Value="10,7"/>
+   <Setter Property="Padding" Value="5,4"/>
    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
    <Setter Property="FontSize" Value="12"/>
    <Setter Property="Cursor" Value="Hand"/>
@@ -112,7 +117,7 @@
           Stretch="Uniform" Width="15" Height="13" HorizontalAlignment="Center" VerticalAlignment="Center"
           Data="M1,2 L6,2 L7.5,4 L15,4 L15,12 L1,12 Z"/>
         </Grid>
-        <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="Subfolders"/>
+        <TextBlock x:Name="ScopeLabel" Margin="6,0,0,0" VerticalAlignment="Center" Text="Subfolders"/>
        </StackPanel>
       </Border>
       <ControlTemplate.Triggers>
@@ -128,6 +133,7 @@
              rather than the tree's own separate folder color. -->
         <Setter TargetName="ScopeGlyphFilled" Property="Fill" Value="{StaticResource ShellFocusBrush}"/>
        </Trigger>
+       <Trigger Property="Tag" Value="Compact"><Setter TargetName="ScopeLabel" Property="Visibility" Value="Collapsed"/></Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
     </Setter.Value>
@@ -138,7 +144,8 @@
        Border (which clips their square corners into its own rounded shape) and divide with a thin right
        border rather than each carrying its own chip chrome, so the four read as one control. -->
   <Style x:Key="BrowserQuickFilterSegmentStyle" TargetType="ToggleButton">
-   <Setter Property="Padding" Value="12,7"/>
+   <Setter Property="Height" Value="{StaticResource BrowserRow2ControlHeight}"/>
+   <Setter Property="Padding" Value="6,4"/>
    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
    <Setter Property="FontSize" Value="12"/>
    <Setter Property="Cursor" Value="Hand"/>
@@ -169,11 +176,12 @@
   </Style>
 
   <Style x:Key="BrowserSelectionActionButtonStyle" TargetType="Button">
+   <Setter Property="Height" Value="{StaticResource BrowserRow2ControlHeight}"/>
    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
    <Setter Property="Background" Value="Transparent"/>
    <Setter Property="BorderBrush" Value="Transparent"/>
    <Setter Property="BorderThickness" Value="1"/>
-   <Setter Property="Padding" Value="9,5"/>
+   <Setter Property="Padding" Value="5,3"/>
    <Setter Property="Margin" Value="1,0"/>
    <Setter Property="FontSize" Value="12"/>
    <Setter Property="Cursor" Value="Hand"/>
@@ -195,10 +203,32 @@
    </Setter>
   </Style>
 
+  <Style x:Key="JobsToolbarTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+   <Setter Property="Height" Value="{StaticResource JobsToolbarControlHeight}"/><Setter Property="Margin" Value="0"/>
+  </Style>
+  <Style x:Key="JobsToolbarComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+   <Setter Property="Height" Value="{StaticResource JobsToolbarControlHeight}"/><Setter Property="Margin" Value="0"/>
+  </Style>
+  <Style x:Key="JobsToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Height" Value="{StaticResource JobsToolbarControlHeight}"/><Setter Property="Margin" Value="0"/>
+  </Style>
+  <Style x:Key="JobsHeaderButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Height" Value="{StaticResource JobsToolbarControlHeight}"/>
+  </Style>
+  <Style x:Key="JobsHeaderDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource DangerButton}">
+   <Setter Property="Height" Value="{StaticResource JobsToolbarControlHeight}"/>
+  </Style>
+
+  <Style x:Key="BrowserExportActionButtonStyle" TargetType="Button" BasedOn="{StaticResource BrowserSelectionActionButtonStyle}">
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+   <Setter Property="Background" Value="{StaticResource ShellSurfaceBrush}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
+  </Style>
+
   <Style x:Key="BrowserSelectionLutComboStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-   <Setter Property="Height" Value="28"/>
+   <Setter Property="Height" Value="{StaticResource BrowserRow2ControlHeight}"/>
    <Setter Property="Width" Value="150"/>
-   <Setter Property="Padding" Value="7,3"/>
+   <Setter Property="Padding" Value="4,2"/>
    <Setter Property="Margin" Value="2,0"/>
    <Setter Property="FontSize" Value="12"/>
    <Setter Property="ItemTemplate">
@@ -313,7 +343,7 @@
 
   <Border Background="{StaticResource NavigationBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1" Padding="18,0">
    <Grid>
-    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
      <Image Source="Assets/Branding/jr-glow-source.png" Width="38" Height="38" Stretch="Uniform"/>
      <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
@@ -321,32 +351,31 @@
       <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="JEREMY RUNNING PHOTOGRAPHY"/>
      </StackPanel>
     </StackPanel>
-    <ListBox Grid.Column="1" x:Name="Navigation" Style="{StaticResource NavigationList}" ItemContainerStyle="{StaticResource NavigationItem}"
-     HorizontalAlignment="Center" VerticalAlignment="Center" SelectedIndex="{Binding ElementName=MainTabs, Path=SelectedIndex, Mode=TwoWay}"
-     KeyboardNavigation.TabNavigation="Once" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
-     <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListBox.ItemsPanel>
-     <ListBoxItem IsSelected="True" ToolTip="Browse media" AutomationProperties.Name="Browser workspace"><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE8B7;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Browser"/></Grid></ListBoxItem>
-     <ListBoxItem AutomationProperties.Name="Export workspace"><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE768;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Export"/></Grid></ListBoxItem>
-     <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE8B1;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Media Tools"/></Grid></ListBoxItem>
-     <ListBoxItem AutomationProperties.Name="Jobs workspace"><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE81C;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Jobs"/></Grid></ListBoxItem>
-     <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE943;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Premiere Helper"/></Grid></ListBoxItem>
-     <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE713;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Settings"/></Grid></ListBoxItem>
-     <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE946;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="About"/></Grid></ListBoxItem>
-    </ListBox>
+    <Button Grid.Column="2" x:Name="ApplicationMenuButton" Width="36" Height="36" Padding="0" Margin="8,0,0,0"
+     VerticalAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Content="&#xE713;"
+     ToolTip="Application menu" AutomationProperties.Name="Application menu" AutomationProperties.HelpText="Open Settings or About"
+     Click="ApplicationMenu_Click">
+     <Button.ContextMenu>
+      <ContextMenu x:Name="ApplicationMenu" Style="{StaticResource LightflowContextMenuStyle}" Placement="Bottom" PlacementTarget="{Binding ElementName=ApplicationMenuButton}">
+       <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Settings" AutomationProperties.Name="Settings" Click="OpenSettings_Click"/>
+       <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="About" AutomationProperties.Name="About" Click="OpenAbout_Click"/>
+      </ContextMenu>
+     </Button.ContextMenu>
+    </Button>
    </Grid>
   </Border>
 
   <Grid Grid.Row="1">
   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition x:Name="JobsDrawerSplitterColumn" Width="0"/><ColumnDefinition x:Name="JobsDrawerColumn" Width="0" MaxWidth="620"/></Grid.ColumnDefinitions>
-  <TabControl Grid.Column="0" Margin="0,0,28,0" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
+  <TabControl Grid.Column="0" Margin="0,0,14,0" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
    SelectionChanged="MainTabs_SelectionChanged">
    <TabItem>
-    <Grid Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}">
+    <Grid x:Name="BrowserWorkspaceRoot" Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}" SizeChanged="BrowserWorkspaceRoot_SizeChanged">
       <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource ShellPanel}">
        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
         <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Locations"/>
-        <Grid Grid.Row="1" Margin="0,12,0,0">
+        <Grid Grid.Row="1" Margin="0,6,0,0">
          <ScrollViewer x:Name="BrowserFolderScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
           CanContentScroll="False" Padding="0,0,2,2" Focusable="False" Style="{StaticResource BrowserFolderScrollViewerStyle}">
          <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}"
@@ -415,15 +444,19 @@
       </Border>
       <GridSplitter x:Name="BrowserNavigationSplitter" Grid.Column="1" Width="8" HorizontalAlignment="Stretch"
        VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent"
-       Cursor="SizeWE" ToolTip="Drag to resize folder navigation" AutomationProperties.Name="Resize folder navigation">
+       Cursor="SizeWE" ToolTip="Drag to resize folder navigation" AutomationProperties.Name="Resize folder navigation"
+       DragCompleted="BrowserNavigationSplitter_DragCompleted">
        <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template>
       </GridSplitter>
-      <Grid Grid.Column="2" MinWidth="520">
-       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition x:Name="BrowserNavigationGap" Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-       <Grid Grid.Row="0" x:Name="BrowserBrowseToolbar"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-       <Border Grid.Column="0" x:Name="BrowserNavigationToolbar" Style="{StaticResource ShellPanel}" Padding="12,9">
-        <Grid>
-         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <Grid Grid.Column="2" x:Name="BrowserCenter">
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition x:Name="BrowserNavigationGap" Height="4"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+       <Grid Grid.Row="0" x:Name="BrowserBrowseToolbar">
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="2"/><RowDefinition Height="Auto"/><RowDefinition Height="2"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Border Grid.Row="0" Grid.ColumnSpan="2" x:Name="BrowserNavigationToolbar" Style="{StaticResource ShellPanel}" Padding="6,5">
+        <Grid x:Name="BrowserLocationScopeLayout">
+         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition x:Name="BrowserScopeGapColumn" Width="16"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
          <StackPanel Orientation="Horizontal">
           <Button x:Name="BrowserBackButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Back" AutomationProperties.Name="Back" Click="BrowserBack_Click" Content="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
           <Button x:Name="BrowserForwardButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Forward" AutomationProperties.Name="Forward" Click="BrowserForward_Click" Content="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
@@ -432,32 +465,18 @@
          <TextBox Grid.Column="1" x:Name="BrowserCurrentPath" Margin="14,0,6,0" VerticalAlignment="Center" Text="" ToolTip="Type a local, mapped, or network folder path" AutomationProperties.Name="Current folder path" KeyDown="BrowserCurrentPath_KeyDown"/>
          <Button Grid.Column="2" x:Name="BrowserGoButton" Padding="12,7" Content="Go" ToolTip="Open the entered folder" AutomationProperties.Name="Open folder path" Click="BrowserGo_Click"/>
          <Button Grid.Column="3" x:Name="BrowserRefreshButton" Width="38" Padding="0,7" IsEnabled="False" ToolTip="Refresh current folder" AutomationProperties.Name="Refresh current folder" Click="BrowserRefresh_Click" Content="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+         <ToggleButton Grid.Column="5" x:Name="BrowserIncludeSubfoldersButton" Style="{StaticResource BrowserScopeToggleButtonStyle}" IsEnabled="False"
+          ToolTip="Include Subfolders — browse this folder and every descendant folder as one media set"
+          AutomationProperties.Name="Include Subfolders" Click="BrowserIncludeSubfoldersButton_Click"/>
         </Grid>
        </Border>
        <!--
         #109's media-area toolbar: narrows and presents the scope the Locations sidebar already chose.
         Search/filter/sort/status live here, never in the left sidebar, and never inside folder navigation.
        -->
-       <Border Grid.Column="1" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="10,8" IsEnabled="False" Margin="8,0,0,0">
+       <Border Grid.Row="2" Grid.Column="0" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="5,4" IsEnabled="False">
         <StackPanel>
-         <Grid>
-          <Grid.ColumnDefinitions>
-           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="16"/>
-           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
-           <ColumnDefinition Width="*"/><ColumnDefinition Width="10"/>
-           <ColumnDefinition Width="Auto"/><ColumnDefinition Width="10"/>
-           <ColumnDefinition Width="Auto"/>
-          </Grid.ColumnDefinitions>
-          <!-- #124: scope narrows the candidate set first; the media-type controls immediately to its right
-               then narrow that same query-facing view further — placement mirrors that pipeline order. The
-               wider (16px, vs. the 10px used everywhere else in this row) gap that follows is the only thing
-               separating it from the segmented group: enough that it doesn't read as one of those segments,
-               not so much that it reads as unrelated to the media controls it scopes. IsEnabled/IsChecked
-               reflect BrowserNavigationSession.ScopeMode — see MainWindow.SyncBrowserScopeToggle — and this
-               control never writes to BrowserQuery. -->
-          <ToggleButton x:Name="BrowserIncludeSubfoldersButton" Style="{StaticResource BrowserScopeToggleButtonStyle}" IsEnabled="False"
-           ToolTip="Include Subfolders — browse this folder and every descendant folder as one media set"
-           AutomationProperties.Name="Include Subfolders" Click="BrowserIncludeSubfoldersButton_Click"/>
+         <WrapPanel x:Name="BrowserQueryLayout" Orientation="Horizontal">
           <!-- Independent per-category toggles (multiple may be active; OR within the facet), presented as
                one segmented control; Filter ▾ (below) additionally supports stacking with other, future
                fields for the compound case this row cannot express alone. Both read/write the same
@@ -466,13 +485,13 @@
                BrowserGridModel.PresentableCategories is appended after it from code-behind
                (InitializeBrowserQuickFilterButtons) so the row can never drift from what the grid actually
                presents. -->
-          <Border Grid.Column="2" Style="{StaticResource BrowserToolbarChipStyle}" ClipToBounds="True" ToolTip="Toggle media types shown">
+          <Border x:Name="BrowserMediaTypeGroup" Style="{StaticResource BrowserToolbarChipStyle}" ClipToBounds="True" ToolTip="Toggle media types shown" Margin="0,0,10,4">
            <StackPanel x:Name="BrowserQuickFilterSegments" Orientation="Horizontal">
             <ToggleButton x:Name="BrowserQuickFilterAllButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Content="All"
              AutomationProperties.Name="Show all media types" Click="BrowserQuickFilterAllButton_Click"/>
            </StackPanel>
           </Border>
-          <Border Grid.Column="4" Style="{StaticResource BrowserToolbarChipStyle}" MinWidth="170">
+          <Border x:Name="BrowserSearchGroup" Style="{StaticResource BrowserToolbarChipStyle}" Width="190" Margin="0,0,10,4">
            <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
             <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
@@ -489,12 +508,12 @@
           <!-- Progressive disclosure: Filter ▾ opens a compact predicate editor rather than exposing a
                permanent row of one-off filter controls; active predicates surface as removable chips
                beneath, appearing only while at least one is active. -->
-          <ToggleButton Grid.Column="6" x:Name="BrowserFilterButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Content="Filter &#x25BE;"
+          <ToggleButton x:Name="BrowserFilterButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Content="Filter &#x25BE;" Margin="0,0,10,4"
            ToolTip="Add a filter" AutomationProperties.Name="Add a filter"/>
           <Popup x:Name="BrowserFilterPopup" IsOpen="{Binding IsChecked, ElementName=BrowserFilterButton, Mode=TwoWay}"
            PlacementTarget="{Binding ElementName=BrowserFilterButton}" Placement="Bottom" VerticalOffset="4"
            StaysOpen="False" AllowsTransparency="True">
-           <Border Width="208" Padding="14" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="8">
+           <Border Width="208" Padding="7" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="8">
             <StackPanel>
              <TextBlock Style="{StaticResource FieldLabel}" Margin="4,0,4,4" Text="MEDIA TYPE"/>
              <!-- IsChecked is synced from code-behind once a predicate is added/removed, not declared here —
@@ -516,10 +535,10 @@
                actually loads, not declared here: WPF can raise SelectionChanged while InitializeComponent
                is still connecting later-declared named elements, and the handler reads sibling controls
                that would not exist yet. -->
-          <Border Grid.Column="8" Style="{StaticResource BrowserToolbarChipStyle}">
+          <Border x:Name="BrowserSortGroup" Style="{StaticResource BrowserToolbarChipStyle}" Margin="0,0,0,4">
            <StackPanel Orientation="Horizontal">
             <TextBlock Margin="10,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Sort"/>
-            <ComboBox x:Name="BrowserSortCombo" MinWidth="132" Background="Transparent" BorderThickness="0" Margin="0" VerticalAlignment="Center"
+            <ComboBox x:Name="BrowserSortCombo" Height="{StaticResource BrowserRow2ControlHeight}" MinWidth="132" Background="Transparent" BorderThickness="0" Margin="0" VerticalAlignment="Center"
              ToolTip="Sort by" AutomationProperties.Name="Sort by" SelectionChanged="BrowserSortCombo_SelectionChanged">
              <ComboBoxItem Content="Name"/>
              <ComboBoxItem Content="Capture date"/>
@@ -529,12 +548,12 @@
              <ComboBoxItem Content="Duration"/>
             </ComboBox>
             <Border Width="1" Margin="0,7" Background="{StaticResource ShellDividerBrush}"/>
-            <Button x:Name="BrowserSortDirectionButton" Width="32" Padding="0,7" Background="Transparent" BorderThickness="0" Margin="0" Content="&#xE70E;"
+            <Button x:Name="BrowserSortDirectionButton" Width="32" Height="{StaticResource BrowserRow2ControlHeight}" Padding="0,7" Background="Transparent" BorderThickness="0" Margin="0" Content="&#xE70E;"
              FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" ToolTip="Sort ascending (click to reverse)"
              AutomationProperties.Name="Toggle sort direction" Click="BrowserSortDirection_Click"/>
            </StackPanel>
           </Border>
-         </Grid>
+         </WrapPanel>
          <!-- Collapsed (and empty) whenever no predicate is active, so the toolbar stays a single quiet row
               for ordinary browsing — see MainWindow.SyncBrowserQueryToolbarVisuals. -->
          <ItemsControl x:Name="BrowserFilterChips" Margin="0,8,0,0" Visibility="Collapsed" Focusable="False">
@@ -556,12 +575,12 @@
          </ItemsControl>
         </StackPanel>
        </Border>
-       </Grid>
-       <Border Grid.Row="2" x:Name="BrowserSelectionActionToolbar" Background="{StaticResource ShellSurfaceBrush}"
-        BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="7" Padding="8,5">
-         <Grid>
+       <Border Grid.Row="2" Grid.Column="1" x:Name="BrowserSelectionActionToolbar" Background="{StaticResource ShellSurfaceBrush}"
+        BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="7" Padding="5,4">
+         <Grid x:Name="BrowserSelectionActionLayout">
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <StackPanel x:Name="BrowserColorActions" Orientation="Horizontal" VerticalAlignment="Center">
            <TextBlock Margin="3,0,5,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="COLOR"/>
            <ComboBox x:Name="BrowserCameraLutCombo" Style="{StaticResource BrowserSelectionLutComboStyle}" IsEnabled="False" SelectedIndex="0"
             ToolTip="Assign a Camera/technical LUT to all selected videos" AutomationProperties.Name="Assign Camera LUT"
@@ -574,10 +593,11 @@
             <ComboBoxItem Content="Creative LUT…" IsEnabled="False"/>
            </ComboBox>
           </StackPanel>
-          <Button Grid.Column="1" x:Name="BrowserExportButton" Style="{StaticResource BrowserSelectionActionButtonStyle}" Content="Export…" IsEnabled="False"
+          <Button Grid.Column="1" x:Name="BrowserExportButton" Style="{StaticResource BrowserExportActionButtonStyle}" Content="Export…" IsEnabled="False"
            ToolTip="Export selected videos or saved subclips" AutomationProperties.Name="Export selected videos" Click="BrowserExport_Click"/>
          </Grid>
         </Border>
+       </Grid>
        <!-- The one authoritative background for the whole media canvas (loading/content/empty/failure alike)
             — every descendant surface between this Border and an individual tile's own card chrome is
             deliberately Transparent (never merely unset) so nothing but this single Background can ever paint
@@ -587,7 +607,7 @@
             above) render with a faint anti-aliased seam between them even when their fill colors are
             identical; rounding every descendant's layout to whole device pixels here removes that seam at its
             source instead of papering over it with an opaque overlay. -->
-       <Border Grid.Row="4" x:Name="BrowserGridHost" Style="{StaticResource ShellPanel}" Background="#0D0F13" Padding="14"
+       <Border Grid.Row="2" x:Name="BrowserGridHost" Style="{StaticResource ShellPanel}" Background="#0D0F13" Padding="7"
         UseLayoutRounding="True" SizeChanged="BrowserGridHost_SizeChanged" MouseLeftButtonDown="BrowserGridHost_MouseLeftButtonDown">
         <Grid Background="Transparent">
          <ItemsControl x:Name="BrowserGridRows" Background="Transparent" Focusable="True" KeyDown="BrowserGridRows_KeyDown"
@@ -742,15 +762,16 @@
            this one region's content changes. Content is a lazily-created PlayerViewerHost instance (see
            MainWindow.EnsurePlayerViewerHost) so the reusable Player/Viewer content is never directly dependent
            on MainWindow — this ContentControl only ever hosts it. -->
-      <ContentControl Grid.Row="4" x:Name="BrowserPlayerHost" Focusable="False" Visibility="Collapsed"/>
+       <ContentControl Grid.Row="2" x:Name="BrowserPlayerHost" Focusable="False" Visibility="Collapsed"/>
      </Grid>
     </Grid>
    </TabItem>
-   <TabItem>
+   <TabItem Visibility="Collapsed" AutomationProperties.Name="Compatibility export review">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-     <Grid Margin="28,24,28,28">
+     <Grid Margin="14,12,14,14">
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <StackPanel Margin="2,0,0,20">
+       <Button HorizontalAlignment="Left" Margin="0,0,0,8" Content="← Back to Jobs" Click="CompatibilityReviewBack_Click"/>
        <TextBlock Style="{StaticResource PageTitle}" Text="Export"/>
        <TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Apply a LUT and create consistent, edit-ready H.264 files from an entire folder."/>
       </StackPanel>
@@ -915,34 +936,19 @@
    </TabItem>
 
    <TabItem>
-    <Grid Margin="28,24,28,28">
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-     <StackPanel Margin="2,0,0,20"><TextBlock Style="{StaticResource PageTitle}" Text="Media Tools"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Inspect, verify, rewrap, proxy, or create a visual contact sheet from one media file."/></StackPanel>
-     <Border Grid.Row="1" Style="{StaticResource Card}">
-      <StackPanel><TextBlock Style="{StaticResource FieldLabel}" Text="MEDIA FILE"/><DockPanel><Button DockPanel.Dock="Right" Content="Browse…" Click="BrowseMedia_Click"/><TextBox x:Name="MediaPath"/></DockPanel></StackPanel>
-     </Border>
-     <Border Grid.Row="2" Style="{StaticResource Card}">
-      <StackPanel><TextBlock Style="{StaticResource SectionTitle}" Margin="4,0,4,10" Text="Choose an action"/>
-       <WrapPanel><Button Content="Inspect Metadata" Click="Inspect_Click"/><Button Content="Verify / CSV Report" Click="Verify_Click"/><Button Content="Lossless Rewrap" Click="Rewrap_Click"/><Button Content="Create 1080p Proxy" Click="Proxy_Click"/><Button Content="Generate Contact Sheet" Click="ContactSheet_Click"/></WrapPanel>
-      </StackPanel>
-     </Border>
-     <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Style="{StaticResource SectionTitle}" Margin="4,0,4,10" Text="Tool Output"/><TextBox Grid.Row="1" x:Name="ToolsOutput" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" FontSize="12" VerticalContentAlignment="Top" HorizontalContentAlignment="Left" VerticalScrollBarVisibility="Auto"/></Grid></Border>
-    </Grid>
-   </TabItem>
-
-   <TabItem>
-    <Grid Margin="28,24,28,28">
+    <Grid x:Name="JobsWorkspace" Margin="7,6,7,7">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-     <DockPanel Margin="2,0,0,20">
-      <WrapPanel DockPanel.Dock="Right" HorizontalAlignment="Right"><Button x:Name="RefreshHistoryButton" Content="Refresh" Click="RefreshHistory_Click"/><Button x:Name="JobsClearHistoryButton" Style="{StaticResource DangerButton}" Content="Delete selected Jobs…" IsEnabled="False" Click="ClearJobsHistory_Click"/></WrapPanel>
-      <StackPanel><Button x:Name="JobsBackToBrowserButton" HorizontalAlignment="Left" Margin="0,0,0,8" Content="← Back to Browser" Click="JobsBackToBrowser_Click"/><TextBlock Style="{StaticResource PageTitle}" Text="Jobs"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Manage current and saved Jobs in one place."/></StackPanel>
-     </DockPanel>
+     <Grid x:Name="JobsHeader" Margin="1,0,0,5"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <TextBlock Style="{StaticResource PageTitle}" Text="Jobs"/>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button x:Name="JobsBackToBrowserButton" Style="{StaticResource JobsHeaderButtonStyle}" Content="← Back to Browser" Click="JobsBackToBrowser_Click"/><Border Width="8"/><Button x:Name="RefreshHistoryButton" Style="{StaticResource JobsHeaderButtonStyle}" Content="Refresh" Click="RefreshHistory_Click"/><Button x:Name="JobsClearHistoryButton" Style="{StaticResource JobsHeaderDangerButtonStyle}" Content="Delete selected Jobs…" IsEnabled="False" Click="ClearJobsHistory_Click"/></StackPanel>
+      <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitle}" Margin="0,2,0,0" Text="Manage current and saved Jobs in one place."/>
+     </Grid>
      <Grid Grid.Row="1"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition x:Name="FullJobsListColumn" Width="430" MinWidth="340" MaxWidth="720"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*" MinWidth="320"/></Grid.ColumnDefinitions>
-      <Grid Grid.ColumnSpan="3" Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="190"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Grid><TextBox x:Name="JobsSearchText" Padding="30,7,9,7" ToolTip="Search Jobs by filename, source, output, or state" AutomationProperties.Name="Search Jobs" AutomationProperties.HelpText="Search Jobs by filename, source, output, or state" TextChanged="JobsSearchText_Changed"/><TextBlock x:Name="JobsSearchIcon" Margin="13,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Foreground="{StaticResource MutedTextBrush}" FontSize="13" Text="&#xE721;"/><TextBlock x:Name="JobsSearchPlaceholder" Margin="32,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{StaticResource MutedTextBrush}" Text="Search Jobs…" Visibility="{Binding Text, ElementName=JobsSearchText, Converter={StaticResource StringEmptyToVisibility}}"/></Grid><ComboBox Grid.Column="1" x:Name="JobsFilter" Margin="8,0,0,0" SelectedIndex="0" SelectionChanged="JobsFilter_SelectionChanged"><ComboBoxItem Content="All Jobs"/><ComboBoxItem Content="Active / Exporting"/><ComboBoxItem Content="Waiting"/><ComboBoxItem Content="Paused"/><ComboBoxItem Content="Needs attention"/><ComboBoxItem Content="Failed"/><ComboBoxItem Content="Completed"/><ComboBoxItem Content="Cancelled"/></ComboBox><StackPanel Grid.Column="2" Orientation="Horizontal" Margin="12,0,0,0"><TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="Active exports"/><ComboBox x:Name="FullJobsMaximumExports" Width="58" Margin="8,0,0,0" SelectionChanged="FullJobsMaximumExports_SelectionChanged"><ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/><ComboBoxItem Content="4"/><ComboBoxItem Content="5"/><ComboBoxItem Content="6"/><ComboBoxItem Content="7"/><ComboBoxItem Content="8"/></ComboBox><Button x:Name="FullJobsQueueGateButton" MinWidth="96" Margin="8,4,4,4" Content="Pause Queue" ToolTip="Hold queued Jobs; running exports continue" AutomationProperties.Name="Pause Queue" AutomationProperties.HelpText="Hold queued Jobs before they start. Running exports continue." Click="JobsQueueGate_Click"/></StackPanel></Grid>
+      <Grid x:Name="JobsToolbar" Grid.ColumnSpan="3" Margin="0,0,0,5"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="190"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Grid><TextBox x:Name="JobsSearchText" Style="{StaticResource JobsToolbarTextBoxStyle}" Padding="26,4,7,4" ToolTip="Search Jobs by filename, source, output, or state" AutomationProperties.Name="Search Jobs" AutomationProperties.HelpText="Search Jobs by filename, source, output, or state" TextChanged="JobsSearchText_Changed"/><TextBlock x:Name="JobsSearchIcon" Margin="9,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Foreground="{StaticResource MutedTextBrush}" FontSize="13" Text="&#xE721;"/><TextBlock x:Name="JobsSearchPlaceholder" Margin="27,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{StaticResource MutedTextBrush}" Text="Search Jobs…" Visibility="{Binding Text, ElementName=JobsSearchText, Converter={StaticResource StringEmptyToVisibility}}"/></Grid><ComboBox Grid.Column="1" x:Name="JobsFilter" Style="{StaticResource JobsToolbarComboBoxStyle}" Margin="4,0,0,0" SelectedIndex="0" SelectionChanged="JobsFilter_SelectionChanged"><ComboBoxItem Content="All Jobs"/><ComboBoxItem Content="Active / Exporting"/><ComboBoxItem Content="Waiting"/><ComboBoxItem Content="Paused"/><ComboBoxItem Content="Needs attention"/><ComboBoxItem Content="Failed"/><ComboBoxItem Content="Completed"/><ComboBoxItem Content="Cancelled"/></ComboBox><StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,0,0,0"><TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="Active exports"/><ComboBox x:Name="FullJobsMaximumExports" Style="{StaticResource JobsToolbarComboBoxStyle}" Width="58" Margin="4,0,0,0" SelectionChanged="FullJobsMaximumExports_SelectionChanged"><ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/><ComboBoxItem Content="4"/><ComboBoxItem Content="5"/><ComboBoxItem Content="6"/><ComboBoxItem Content="7"/><ComboBoxItem Content="8"/></ComboBox><Button x:Name="FullJobsQueueGateButton" Style="{StaticResource JobsToolbarButtonStyle}" MinWidth="96" Margin="4,0,0,0" Content="Pause Queue" ToolTip="Hold queued Jobs; running exports continue" AutomationProperties.Name="Pause Queue" AutomationProperties.HelpText="Hold queued Jobs before they start. Running exports continue." Click="JobsQueueGate_Click"/></StackPanel></Grid>
       <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,4,0">
        <Grid><TextBlock x:Name="HistoryEmptyText" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="No Jobs match this view."/>
         <ListBox x:Name="HistoryList" SelectionMode="Extended" ItemContainerStyle="{StaticResource JobsListItemStyle}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" SelectionChanged="HistoryList_SelectionChanged">
-         <ListBox.ItemTemplate><DataTemplate><Grid Margin="4,6"><Grid.ColumnDefinitions><ColumnDefinition Width="32"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <ListBox.ItemTemplate><DataTemplate><Grid Margin="2,3"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
           <local:JobsRadialProgress Width="23" Height="23" Progress="{Binding Progress, Mode=OneWay}" State="{Binding StateText, Mode=OneWay}" AutomationProperties.Name="{Binding StateText, Mode=OneWay}"/>
           <StackPanel Grid.Column="1"><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding Name, Mode=OneWay}" TextTrimming="CharacterEllipsis"/><TextBlock Margin="0,3,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11"><Run Text="{Binding StateText, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding LegacyNote, Mode=OneWay}"/></TextBlock><TextBlock Margin="0,2,0,0" Foreground="{StaticResource WarningBrush}" FontSize="10" Text="{Binding Issue, Mode=OneWay}" TextTrimming="CharacterEllipsis"/></StackPanel>
           <TextBlock Grid.Column="2" Width="104" Margin="10,0,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="{Binding Timing, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Timing, Mode=OneWay}" AutomationProperties.Name="{Binding Timing, StringFormat=Timing {0}, Mode=OneWay}"/>
@@ -953,7 +959,7 @@
       <GridSplitter x:Name="FullJobsPaneSplitter" Grid.Row="1" Grid.Column="1" Width="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent" Cursor="SizeWE" Focusable="False" IsTabStop="False" ToolTip="Drag to resize Jobs list and details" AutomationProperties.Name="Resize Jobs list and details"><GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template></GridSplitter>
       <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Card}" Margin="4,0,0,0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
        <TextBlock Style="{StaticResource SectionTitle}" Text="Job details"/>
-       <TextBox Grid.Row="1" x:Name="HistoryDetails" Margin="0,12,0,12" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas" FontSize="12" Text="Select a job to inspect its results."/>
+       <TextBox Grid.Row="1" x:Name="HistoryDetails" Margin="0,6,0,6" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas" FontSize="12" Text="Select a job to inspect its results."/>
        <WrapPanel Grid.Row="2" HorizontalAlignment="Right"><Button x:Name="JobsRevealOutputButton" Content="Reveal output" IsEnabled="False" Click="RevealJobOutput_Click"/><Button x:Name="JobsMoveEarlierButton" Content="Earlier" IsEnabled="False" Click="FullJobsMoveEarlier_Click"/><Button x:Name="JobsMoveLaterButton" Content="Later" IsEnabled="False" Click="FullJobsMoveLater_Click"/><Button x:Name="JobsPauseButton" Content="Pause" IsEnabled="False" ToolTip="Hold this Waiting Job before it starts" AutomationProperties.HelpText="Hold this Waiting Job before it starts" Click="FullJobsPause_Click"/><Button x:Name="JobsResumeButton" Content="Resume" IsEnabled="False" ToolTip="Return this individually paused Job to the eligible queue" AutomationProperties.HelpText="Return this individually paused Job to the eligible queue" Click="FullJobsResume_Click"/><Button x:Name="JobsRetryButton" Content="Retry" IsEnabled="False" Click="FullJobsRetry_Click"/><Button x:Name="JobsCancelButton" Style="{StaticResource DangerButton}" Content="Cancel…" IsEnabled="False" Click="FullJobsCancel_Click"/><Button x:Name="HistoryRerunButton" Style="{StaticResource PrimaryButton}" Content="Review &amp; Rerun" IsEnabled="False" Click="RerunHistory_Click"/></WrapPanel>
       </Grid></Border>
      </Grid>
@@ -961,23 +967,9 @@
    </TabItem>
 
    <TabItem>
-    <ScrollViewer VerticalScrollBarVisibility="Auto"><Grid Margin="28,24,28,28">
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <StackPanel Margin="2,0,0,20"><TextBlock Style="{StaticResource PageTitle}" Text="Premiere Helper"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Export individual timeline clips from Premiere Pro with the included ExtendScript workflow."/></StackPanel>
-     <Border Grid.Row="1" Style="{StaticResource Card}">
-      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="220"/></Grid.ColumnDefinitions>
-       <StackPanel Margin="4"><TextBlock Style="{StaticResource SectionTitle}" Text="Experimental timeline exporter"/><TextBlock Margin="0,10,20,16" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="20" Text="The included helper exports each clip on video track V1 as an individual file using sequence In/Out points. Visible timeline effects and adjustment layers are included. Test on a duplicate project first."/><Button HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Content="Open Premiere Helper Folder" Click="OpenPremiere_Click"/></StackPanel>
-       <Image Grid.Column="1" Source="Assets/Branding/jr-glow-source.png" Stretch="Uniform" Opacity="0.78"/>
-      </Grid>
-     </Border>
-     <Border Grid.Row="2" Background="#1D171B" BorderBrush="#55303C" BorderThickness="1" CornerRadius="9" Padding="14"><TextBlock Foreground="#E9BAC7" TextWrapping="Wrap" Text="Tip: duplicate the Premiere project before running timeline automation, and confirm the Adobe Media Encoder preset before a long export."/></Border>
-    </Grid></ScrollViewer>
-   </TabItem>
-
-   <TabItem>
-    <ScrollViewer VerticalScrollBarVisibility="Auto"><Grid Margin="28,24,28,28">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"><Grid Margin="14,12,14,14">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <StackPanel Margin="2,0,0,20"><TextBlock Style="{StaticResource PageTitle}" Text="Settings"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Choose the folders, tools, and defaults restored whenever the application starts."/></StackPanel>
+     <StackPanel Margin="2,0,0,20"><Button HorizontalAlignment="Left" Margin="0,0,0,8" Content="← Back to Browser" Click="UtilityBackToBrowser_Click"/><TextBlock Style="{StaticResource PageTitle}" Text="Settings"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Choose the folders, tools, and defaults restored whenever the application starts."/></StackPanel>
       <Border Grid.Row="1" Style="{StaticResource Card}"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
        <TextBlock Grid.ColumnSpan="2" Style="{StaticResource SectionTitle}" Margin="4,0,4,12" Text="Folders"/>
        <StackPanel Grid.Row="1" Grid.ColumnSpan="2"><TextBlock Style="{StaticResource FieldLabel}" Text="DEFAULT VIDEO FOLDER"/><DockPanel><Button DockPanel.Dock="Right" Content="Browse…" Click="BrowseDefaultVideoFolder_Click"/><TextBox x:Name="SettingsDefaultVideoFolder"/></DockPanel></StackPanel>
@@ -987,11 +979,11 @@
      </Grid></Border>
      <Border Grid.Row="2" Style="{StaticResource Card}"><StackPanel>
       <TextBlock Style="{StaticResource SectionTitle}" Margin="4,0,4,10" Text="Lightflow Storage"/>
-      <Border Background="#111319" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="12" Margin="4,0,4,10"><StackPanel>
+      <Border Background="#111319" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="6" Margin="2,0,2,5"><StackPanel>
        <DockPanel><Button DockPanel.Dock="Right" Content="Change…" Click="ChangeCatalogLocation_Click"/><StackPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="Catalog Location"/><TextBlock Margin="0,4,16,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="Contains important Lightflow library data. Changing this location performs a protected migration and keeps the original Catalog. The live Catalog must remain on a local drive; mapped network drives are unsupported."/></StackPanel></DockPanel>
        <TextBox x:Name="SettingsCatalogDirectory" Margin="4,8,4,0" IsReadOnly="True"/>
       </StackPanel></Border>
-      <Border Background="#111319" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="12" Margin="4,0,4,0"><StackPanel>
+      <Border Background="#111319" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="6" Margin="2,0,2,0"><StackPanel>
        <DockPanel><Button x:Name="ChangePreviewsLocationButton" DockPanel.Dock="Right" Content="Change…" Click="ChangePreviewsLocation_Click"/><StackPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="Previews Location"/><TextBlock Margin="0,4,16,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="Previews can use significant disk space. They are rebuildable and may be moved to another drive independently."/></StackPanel></DockPanel>
        <TextBox x:Name="SettingsPreviewsDirectory" Margin="4,8,4,0" IsReadOnly="True"/>
        <Grid Margin="4,10,4,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -1001,7 +993,7 @@
        <ProgressBar x:Name="PreviewMaintenanceProgress" Margin="4,8,4,0" Height="8" Minimum="0" Maximum="1" Visibility="Collapsed"/>
        <TextBlock x:Name="PreviewMaintenanceStatus" Margin="4,6,4,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
       </StackPanel></Border>
-      <Border Background="#111319" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="12" Margin="4,10,4,0"><StackPanel>
+      <Border Background="#111319" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="6" Margin="2,5,2,0"><StackPanel>
        <DockPanel><StackPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="Catalog Backup &amp; Recovery"/><TextBlock Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="Lightflow keeps validated Catalog backups separately from rebuildable Previews. Restore is explicit and protects the current Catalog before making changes."/></StackPanel></DockPanel>
        <ComboBox x:Name="CatalogBackupSelection" Margin="4,10,4,0" DisplayMemberPath="DisplayName"/>
        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0"><Button Content="Back Up Now" Click="BackupCatalog_Click"/><Button Content="Restore Selected…" Click="RestoreCatalog_Click"/></StackPanel>
@@ -1011,7 +1003,7 @@
       <DockPanel Margin="4,0,4,10"><Button DockPanel.Dock="Right" Content="Add Media Root…" Click="AddMediaRoot_Click"/><StackPanel><TextBlock Style="{StaticResource SectionTitle}" Text="Media Roots"/><TextBlock Margin="0,4,16,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="Stable Catalog locations for originals. Each computer connects the same logical root to its own folder path."/></StackPanel></DockPanel>
       <TextBlock x:Name="MediaRootsEmptyText" Margin="4,8" Foreground="{StaticResource MutedTextBrush}" Text="No Media Roots yet."/>
       <ItemsControl x:Name="MediaRootsList"><ItemsControl.ItemTemplate><DataTemplate>
-       <Border Background="#111319" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="12" Margin="4,3"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Border Background="#111319" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="6" Margin="2,2"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <StackPanel><DockPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding DisplayName}"/><Border Margin="10,0,0,0" Padding="7,2" CornerRadius="8" Background="#34261A"><TextBlock FontSize="10" Foreground="{StaticResource OrangeBrush}" Text="{Binding Availability}"/></Border></DockPanel><TextBlock Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" Text="{Binding PhysicalPath}"/><TextBlock Margin="0,3,0,0" Foreground="#D7A25C" TextWrapping="Wrap" Text="{Binding Diagnostic}"/></StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button Content="Rename" Click="RenameMediaRoot_Click"/><Button Content="Reconnect…" Click="ReconnectMediaRoot_Click"/></StackPanel>
        </Grid></Border>
@@ -1081,7 +1073,7 @@
           <ToggleButton Grid.Column="3" x:Name="RequirementHelpButton" Style="{StaticResource RequirementInfoButton}" Content="i"
            MouseEnter="RequirementHelp_MouseEnter" MouseLeave="RequirementHelp_MouseLeave"/>
           <Popup IsOpen="{Binding IsChecked, ElementName=RequirementHelpButton, Mode=TwoWay}" PlacementTarget="{Binding ElementName=RequirementHelpButton}" Placement="Right" HorizontalOffset="8" AllowsTransparency="True" StaysOpen="True">
-           <Border Width="340" Padding="14" Background="#20242C" BorderBrush="#596270" BorderThickness="1" CornerRadius="8"
+           <Border Width="340" Padding="7" Background="#20242C" BorderBrush="#596270" BorderThickness="1" CornerRadius="8"
             Tag="{Binding ElementName=RequirementHelpButton}" MouseLeftButtonUp="RequirementHelpPopup_Click">
             <StackPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding Name}"/><TextBlock Margin="0,6,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Text="{Binding Resolution}"/><TextBlock Margin="0,7,0,0" Foreground="#7F8998" FontSize="11" TextWrapping="Wrap" Text="{Binding Detail}"/></StackPanel>
            </Border>
@@ -1099,10 +1091,10 @@
    </TabItem>
 
    <TabItem>
-    <Grid Margin="28,24,28,28"><Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Width="620" Padding="28">
+    <Grid Margin="7,6,7,7"><Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Width="620" Padding="7">
      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="210"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Image Source="Assets/Branding/jr-glow-source.png" Width="190" Height="190" Stretch="Uniform"/>
-      <StackPanel Grid.Column="1" Margin="24,10,0,0"><TextBlock Style="{StaticResource PageTitle}" Text="Lightflow Studio"/><TextBlock Margin="0,4,0,16" Foreground="{StaticResource OrangeBrush}" FontSize="12" FontWeight="SemiBold" Text="JEREMY RUNNING PHOTOGRAPHY"/><TextBlock Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="20" Text="Video processing and workflow tools for batch export, media inspection, recovery, and Premiere Pro exports."/><Border Height="2" Margin="0,22,0,16" Background="{StaticResource BrandGradient}"/><TextBlock x:Name="AboutVersionText" Foreground="{StaticResource MutedTextBrush}"/></StackPanel>
+     <StackPanel Grid.Column="1" Margin="24,10,0,0"><Button HorizontalAlignment="Left" Margin="0,0,0,8" Content="← Back to Browser" Click="UtilityBackToBrowser_Click"/><TextBlock Style="{StaticResource PageTitle}" Text="Lightflow Studio"/><TextBlock Margin="0,4,0,16" Foreground="{StaticResource OrangeBrush}" FontSize="12" FontWeight="SemiBold" Text="JEREMY RUNNING PHOTOGRAPHY"/><TextBlock Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="20" Text="Video processing and workflow tools for batch export and media review."/><Border Height="2" Margin="0,22,0,16" Background="{StaticResource BrandGradient}"/><TextBlock x:Name="AboutVersionText" Foreground="{StaticResource MutedTextBrush}"/></StackPanel>
      </Grid>
     </Border></Grid>
    </TabItem>
@@ -1111,9 +1103,9 @@
   <GridSplitter Grid.Column="1" x:Name="JobsDrawerSplitter" Width="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent" Cursor="SizeWE" Visibility="Collapsed" ToolTip="Drag to resize Jobs drawer" AutomationProperties.Name="Resize Jobs drawer"><GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template></GridSplitter>
   <Border Grid.Column="2" x:Name="JobsDrawer" MinWidth="340" MaxWidth="620" ClipToBounds="True" Background="{StaticResource ShellSurfaceBrush}"
    BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1,0,0,0" Visibility="Collapsed">
-   <Grid Margin="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <StackPanel Margin="0,0,0,12"><TextBlock Style="{StaticResource PageTitle}" FontSize="18" Text="Jobs"/><TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Current and recent exports"/></StackPanel>
-    <Grid Grid.Row="1" Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="Active exports" ToolTip="Controls how many exports may execute simultaneously" AutomationProperties.HelpText="Controls how many exports may execute simultaneously"/>
+   <Grid Margin="8"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <StackPanel Margin="0,0,0,6"><TextBlock Style="{StaticResource PageTitle}" FontSize="18" Text="Jobs"/><TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Current and recent exports"/></StackPanel>
+    <Grid Grid.Row="1" Margin="0,0,0,5"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="Active exports" ToolTip="Controls how many exports may execute simultaneously" AutomationProperties.HelpText="Controls how many exports may execute simultaneously"/>
      <ComboBox Grid.Column="1" x:Name="MaximumExportsCombo" Margin="8,0,0,0" Width="58" ToolTip="Maximum exports that may execute simultaneously" AutomationProperties.Name="Active exports" AutomationProperties.HelpText="Controls how many exports may execute simultaneously" SelectedValuePath="Content" SelectionChanged="MaximumExports_SelectionChanged">
       <ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/><ComboBoxItem Content="4"/><ComboBoxItem Content="5"/><ComboBoxItem Content="6"/><ComboBoxItem Content="7"/><ComboBoxItem Content="8"/>
      </ComboBox><Button Grid.Column="2" x:Name="JobsQueueGateButton" Margin="8,0,0,0" Padding="7,3" MinWidth="88" Content="Pause Queue" ToolTip="Hold queued Jobs; running exports continue" AutomationProperties.Name="Pause Queue" AutomationProperties.HelpText="Hold queued Jobs before they start. Running exports continue." Click="JobsQueueGate_Click"/><Button Grid.Column="3" x:Name="JobsCancelAllButton" Margin="8,0,0,0" Padding="7,3" MinWidth="65" Style="{StaticResource DangerButton}" Content="Clear all" IsEnabled="False" ToolTip="No Jobs to clear" AutomationProperties.Name="Clear all, no Jobs to clear" Click="JobsCancelAll_Click"/></Grid>

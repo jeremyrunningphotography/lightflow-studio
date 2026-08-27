@@ -816,8 +816,8 @@ public partial class PlayerViewerHost : UserControl
     private async void SetIn_Click(object sender, RoutedEventArgs e)
     {
         if (_service?.SourceInfo is not { } info || _service.Snapshot.DisplayedTimestamp is not { } timestamp) return;
-        var candidate = new MediaRange(info.Duration, timestamp.Position, _reviewRange?.Out);
-        if (candidate.Validate().Count != 0) { SetStatus("In must be before Out and before the end of the source."); return; }
+        var candidate = ReviewRangeBoundaryPolicy.SetIn(info.Duration, _reviewRange, timestamp.Position);
+        if (candidate.Validate().Count != 0) { SetStatus("In must be before the end of the source."); return; }
         try { await SaveRangeAsync(candidate); SetStatus(null); }
         catch (Exception exception) { SetStatus($"The range could not be saved. {exception.Message}"); }
     }
@@ -825,8 +825,8 @@ public partial class PlayerViewerHost : UserControl
     private async void SetOut_Click(object sender, RoutedEventArgs e)
     {
         if (_service?.SourceInfo is not { } info || _service.Snapshot.DisplayedTimestamp is not { } timestamp) return;
-        var candidate = new MediaRange(info.Duration, _reviewRange?.In, timestamp.Position);
-        if (candidate.Validate().Count != 0) { SetStatus("Out must be after In."); return; }
+        var candidate = ReviewRangeBoundaryPolicy.SetOut(info.Duration, _reviewRange, timestamp.Position);
+        if (candidate.Validate().Count != 0) { SetStatus("Out must be after the start of the source."); return; }
         try { await SaveRangeAsync(candidate); SetStatus(null); }
         catch (Exception exception) { SetStatus($"The range could not be saved. {exception.Message}"); }
     }

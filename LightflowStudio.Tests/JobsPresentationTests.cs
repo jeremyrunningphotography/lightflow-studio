@@ -14,16 +14,16 @@ namespace LightflowStudio.Tests;
 public sealed class JobsPresentationTests
 {
     [Fact]
-    public void StatusCountsIndependentFileJobsAndRouteAlwaysTargetsFullJobsCompatibility()
+    public void StatusCountsIndependentFileJobsAndStatusActionTargetsFullJobsDirectly()
     {
         var jobs = new[] { Snapshot(1, JobState.Running), Snapshot(2, JobState.Running) }
             .Concat(Enumerable.Range(3, 8).Select(order => Snapshot(order, JobState.Queued))).ToList();
         Assert.Equal("Jobs · 2 exporting · 8 waiting", JobsPresentation.StatusText(jobs));
         Assert.Equal("Jobs · Queue paused · 2 exporting · 8 waiting", JobsPresentation.StatusText(jobs, true));
         Assert.Equal("Jobs · Queue paused", JobsPresentation.StatusText([], true));
-        Assert.Equal(JobsRoute.FullJobsCompatibility, JobsPresentation.Route());
         var statusHandler = MethodBody(MainWindowSource(), "private void JobsStatus_Click");
-        Assert.Contains("ShellWorkspace.History", statusHandler);
+        Assert.Contains("ShellDestination.Jobs", statusHandler);
+        Assert.DoesNotContain("Compatibility", statusHandler);
         Assert.DoesNotContain("OpenJobsDrawer", statusHandler);
         Assert.DoesNotContain("CloseJobsDrawer", statusHandler);
     }

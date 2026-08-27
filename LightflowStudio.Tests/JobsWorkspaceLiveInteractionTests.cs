@@ -18,7 +18,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
             RaiseClick(window.JobsStatusButton);
             await RealizeJobsWorkspaceAsync(window);
 
-            Assert.Equal(ShellWorkspaceSelection.Index(ShellWorkspace.History), window.MainTabs.SelectedIndex);
+            Assert.Equal(ShellDestinationSelection.Index(ShellDestination.Jobs), window.MainTabs.SelectedIndex);
             Assert.True(window.IsVisible);
             Assert.Equal(Visibility.Collapsed, window.JobsDrawer.Visibility);
 
@@ -53,12 +53,12 @@ public sealed class JobsWorkspaceLiveInteractionTests
             Assert.NotNull(window.HistoryList.ItemContainerGenerator.ContainerFromItem(item));
             Assert.True(window.IsVisible);
 
-            window.MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Browser);
+            window.MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             RaiseClick(window.JobsStatusButton);
             await RealizeJobsWorkspaceAsync(window);
 
-            Assert.Equal(ShellWorkspaceSelection.Index(ShellWorkspace.History), window.MainTabs.SelectedIndex);
+            Assert.Equal(ShellDestinationSelection.Index(ShellDestination.Jobs), window.MainTabs.SelectedIndex);
             Assert.True(window.IsVisible);
         });
     }
@@ -117,7 +117,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
             Assert.Empty(window.HistoryList.SelectedItems);
 
             RaiseClick(window.JobsBackToBrowserButton);
-            Assert.Equal(ShellWorkspaceSelection.Index(ShellWorkspace.Browser), window.MainTabs.SelectedIndex);
+            Assert.Equal(ShellDestinationSelection.Index(ShellDestination.Home), window.MainTabs.SelectedIndex);
             RaiseClick(window.JobsStatusButton);
             await RealizeJobsWorkspaceAsync(window);
             Assert.Equal(2, window.HistoryList.Items.Count);

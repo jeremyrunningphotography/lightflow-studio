@@ -186,7 +186,7 @@ public sealed class BrowserQueryRegressionTests
 
         Assert.Contains("e.Key != Key.F", body);
         Assert.Contains("ModifierKeys.Control", body);
-        Assert.Contains("ShellWorkspaceSelection.Index(ShellWorkspace.Browser)", body);
+        Assert.Contains("ShellDestinationSelection.Index(ShellDestination.Home)", body);
         Assert.Contains("BrowserQueryToolbar.IsEnabled", body);
         Assert.Contains("BrowserSearchBox.Focus();", body);
         Assert.Contains("e.Handled = true;", body);

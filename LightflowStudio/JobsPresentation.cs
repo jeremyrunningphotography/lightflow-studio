@@ -54,7 +54,6 @@ internal static class JobsPresentation
             : $"Jobs · {current.Count} active";
     }
 
-    public static JobsRoute Route() => JobsRoute.FullJobsCompatibility;
 
     public static string StateText(JobState state) => state switch
     {
@@ -142,7 +141,6 @@ internal static class JobsPresentation
     private static string FormatDuration(TimeSpan value) => value.TotalHours >= 1 ? value.ToString(@"h\:mm\:ss") : value.ToString(@"m\:ss");
 }
 
-internal enum JobsRoute { FullJobsCompatibility }
 internal enum JobsBulkAction { None, CancelAll, ClearAll }
 
 internal sealed class JobCardPresentation(Guid jobId, string name, string glyph, string state, double progress,

@@ -710,43 +710,33 @@ public class UiLayoutTests
             (string?)element.Attribute("Text") == "JEREMY RUNNING PHOTOGRAPHY");
     }
     [Fact]
-    public void NavigationIconsAndLabels_AreVerticallyCenteredInAStableGrid()
+    public void ApplicationUtilityControl_IsCompactAccessibleAndRightAligned()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
-        var ns = document.Root!.Name.Namespace;
-        var navigation = Named(document, "Navigation");
-        var items = navigation.Elements(ns + "ListBoxItem").ToList();
-
-        Assert.Equal(7, items.Count);
-        foreach (var item in items)
-        {
-            var grid = item.Element(ns + "Grid")!;
-            var text = grid.Elements(ns + "TextBlock").ToList();
-            Assert.Equal("22", (string?)grid.Attribute("Height"));
-            Assert.All(text, element => Assert.Equal("Center", (string?)element.Attribute("VerticalAlignment")));
-            Assert.Equal("Center", (string?)text[0].Attribute("TextAlignment"));
-            Assert.Equal("Segoe Fluent Icons, Segoe MDL2 Assets", (string?)text[0].Attribute("FontFamily"));
-        }
+        var button = Named(document, "ApplicationMenuButton");
+        Assert.Equal("2", (string?)button.Attribute("Grid.Column"));
+        Assert.Equal("36", (string?)button.Attribute("Width"));
+        Assert.Equal("Center", (string?)button.Attribute("VerticalAlignment"));
+        Assert.Equal("Segoe Fluent Icons, Segoe MDL2 Assets", (string?)button.Attribute("FontFamily"));
+        Assert.Equal("Application menu", (string?)button.Attribute("AutomationProperties.Name"));
     }
 
     [Fact]
-    public void PermanentShell_StartsInBrowserAndKeepsExistingWorkspacesReachable()
+    public void PermanentShell_StartsAtBrowserPlayerHomeWithoutAPeerModuleStrip()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
-        var navigation = Named(document, "Navigation");
-        var labels = navigation.Elements(ns + "ListBoxItem")
-            .Select(item => item.Descendants(ns + "TextBlock").Last())
-            .Select(label => (string?)label.Attribute("Text"))
-            .ToList();
         var tabs = Named(document, "MainTabs").Elements(ns + "TabItem").ToList();
 
         Assert.Equal("0", (string?)Named(document, "MainTabs").Attribute("SelectedIndex"));
-        Assert.Equal(["Browser", "Export", "Media Tools", "Jobs", "Premiere Helper", "Settings", "About"], labels);
-        Assert.Equal(labels.Count, tabs.Count);
+        Assert.DoesNotContain(document.Descendants(), element => element.Attributes().Any(attribute =>
+            attribute.Name.LocalName == "Name" && attribute.Value == "Navigation"));
         Assert.Contains(tabs[0].Descendants(), element =>
             (string?)element.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "BrowserFolderTree");
-        Assert.Contains(tabs[1].Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "Export");
+        Assert.Equal("Collapsed", (string?)tabs[1].Attribute("Visibility"));
+        Assert.Contains(tabs[2].Descendants(), element =>
+            (string?)element.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "HistoryList");
+        Assert.Equal(5, tabs.Count);
     }
 
     [Fact]
@@ -840,26 +830,24 @@ public class UiLayoutTests
             element.Attributes().Any(attribute => attribute.Name.LocalName == "Key" && attribute.Value == "ShellPanel"));
         Assert.Contains("Themes/LightflowShell.xaml", app);
         Assert.DoesNotContain("LightTheme", app, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("Once", (string?)Named(window, "Navigation").Attribute("KeyboardNavigation.TabNavigation"));
+        Assert.Equal("Application menu", (string?)Named(window, "ApplicationMenuButton").Attribute("AutomationProperties.Name"));
         Assert.True(double.Parse((string?)window.Root!.Attribute("MinWidth") ?? "0") >= 1120);
         Assert.True(double.Parse((string?)window.Root.Attribute("MinHeight") ?? "0") >= 720);
     }
 
     [Fact]
-    public void WorkspaceNavigation_IsCompactAndLeavesBrowserLeftEdgeForFolderContext()
+    public void HeaderUtilityMenu_IsCompactAndLeavesBrowserLeftEdgeForFolderContext()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
-        var navigation = Named(document, "Navigation");
-        var itemsPanel = navigation.Element(ns + "ListBox.ItemsPanel")!
-            .Descendants(ns + "StackPanel").Single();
+        var menuButton = Named(document, "ApplicationMenuButton");
         var shellGrid = document.Root.Element(ns + "Grid")!;
 
-        Assert.Equal("Horizontal", (string?)itemsPanel.Attribute("Orientation"));
+        Assert.Equal("2", (string?)menuButton.Attribute("Grid.Column"));
         Assert.Equal("0", (string?)Named(document, "MainTabs").Attribute("Grid.Column"));
         Assert.Equal("1", (string?)Named(document, "MainTabs").Parent!.Attribute("Grid.Row"));
         Assert.Null(shellGrid.Element(ns + "Grid.ColumnDefinitions"));
-        Assert.DoesNotContain(navigation.Parent!.Parent!.Descendants(), element =>
+        Assert.DoesNotContain(menuButton.Parent!.Descendants(), element =>
             (string?)element.Attribute("Background") == "{StaticResource BrandGradient}");
         Assert.Equal("60", (string?)shellGrid.Element(ns + "Grid.RowDefinitions")!
             .Elements(ns + "RowDefinition").First().Attribute("Height"));

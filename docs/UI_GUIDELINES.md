@@ -2,13 +2,13 @@
 
 ## Jobs surfaces
 
-- The bottom status-bar Jobs affordance always navigates to the full Jobs workspace hosted in the transitional
-  History shell slot. The right-edge pull control exclusively opens and closes the compact Jobs drawer.
+- The bottom status-bar Jobs affordance always navigates to the secondary full Jobs destination. The right-edge pull
+  exclusively opens and closes the compact Jobs drawer, and Back restores the already-live Browser/Player home.
 - The full workspace combines scheduler-current and durable historical per-file Jobs in a virtualized list + details
   layout. Search and status filters apply across both sources; waiting order and concurrency controls call the one
   global scheduler.
 - Running Jobs may be cancelled but never show an unsupported Pause action. Pause/Resume is limited to waiting Jobs;
-  Needs attention retry always uses scheduler revalidation. Historical reruns always open reviewable Encoding setup.
+  Needs attention retry always uses scheduler revalidation. Historical reruns always open reviewable setup and never execute immediately.
 - `Clear history…` names durable deletion explicitly and uses the dark Lightflow confirmation surface. Confirmation
   states record count, statuses, time span, provenance/rerun loss, legacy record indivisibility, and output safety.
 - Drawer clearing remains transient presentation cleanup and must never imply durable History deletion.
@@ -20,20 +20,10 @@ deliberately less intimidating than the tools it wraps.
 
 ## Navigation
 
-Organize the application by user capability rather than implementation technology.
-
-Suggested top-level navigation:
-
-- Video
-- Images
-- Organize
-- Metadata
-- Verify
-- Workflows
-- Settings
-
-Keep experimental tools visibly marked. Do not place mature and experimental behavior
-behind identical visual treatment.
+Browser/Player is Home, not a tab in a permanent module strip. Invoke capabilities as focused actions or modals from
+the media context. Full Jobs is the only secondary operational destination and is entered from the bottom status
+affordance. Keep the compact Jobs drawer independent. Put rare application utilities—currently Settings and About—
+behind the lightweight upper-right application menu; do not turn that menu into a capability launcher.
 
 ## Standard tool layout
 
@@ -159,8 +149,8 @@ Export count is global Jobs execution policy. A multi-file acceptance remains al
 every independently materialized Job is admitted to the global queue; synchronous admission errors remain in the
 modal. Future Jobs surfaces consume one stable row per media export, not nested submission/batch cards.
 
-The canonical full Jobs entry lives in the global bottom status bar and always routes to the full Jobs workspace in
-the History-hosted compatibility destination. A separate persistent right-edge pull tab toggles the compact drawer without
+The canonical full Jobs entry lives in the global bottom status bar and always routes to the secondary full Jobs destination.
+A separate persistent right-edge pull tab toggles the compact drawer without
 navigating away from Browser or Player; the drawer consumes shell width rather than covering media content. Rows expose filename, textual state, ETA, and a
 shape-plus-color radial state at a glance. Expansion reveals the complete output path and materialized settings.
 Waiting reorder always updates scheduler order and includes explicit keyboard-focusable earlier/later buttons.

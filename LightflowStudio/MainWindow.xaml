@@ -313,7 +313,7 @@
 
   <Border Background="{StaticResource NavigationBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1" Padding="18,0">
    <Grid>
-    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
      <Image Source="Assets/Branding/jr-glow-source.png" Width="38" Height="38" Stretch="Uniform"/>
      <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
@@ -321,18 +321,17 @@
       <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="JEREMY RUNNING PHOTOGRAPHY"/>
      </StackPanel>
     </StackPanel>
-    <ListBox Grid.Column="1" x:Name="Navigation" Style="{StaticResource NavigationList}" ItemContainerStyle="{StaticResource NavigationItem}"
-     HorizontalAlignment="Center" VerticalAlignment="Center" SelectedIndex="{Binding ElementName=MainTabs, Path=SelectedIndex, Mode=TwoWay}"
-     KeyboardNavigation.TabNavigation="Once" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
-     <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListBox.ItemsPanel>
-     <ListBoxItem IsSelected="True" ToolTip="Browse media" AutomationProperties.Name="Browser workspace"><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE8B7;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Browser"/></Grid></ListBoxItem>
-     <ListBoxItem AutomationProperties.Name="Export workspace"><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE768;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Export"/></Grid></ListBoxItem>
-     <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE8B1;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Media Tools"/></Grid></ListBoxItem>
-     <ListBoxItem AutomationProperties.Name="Jobs workspace"><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE81C;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Jobs"/></Grid></ListBoxItem>
-     <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE943;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Premiere Helper"/></Grid></ListBoxItem>
-     <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE713;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Settings"/></Grid></ListBoxItem>
-     <ListBoxItem><Grid Height="22"><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Text="&#xE946;"/><TextBlock Grid.Column="1" VerticalAlignment="Center" Text="About"/></Grid></ListBoxItem>
-    </ListBox>
+    <Button Grid.Column="2" x:Name="ApplicationMenuButton" Width="36" Height="36" Padding="0" Margin="8,0,0,0"
+     VerticalAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Content="&#xE713;"
+     ToolTip="Application menu" AutomationProperties.Name="Application menu" AutomationProperties.HelpText="Open Settings or About"
+     Click="ApplicationMenu_Click">
+     <Button.ContextMenu>
+      <ContextMenu x:Name="ApplicationMenu" Placement="Bottom" PlacementTarget="{Binding ElementName=ApplicationMenuButton}">
+       <MenuItem Header="Settings" AutomationProperties.Name="Settings" Click="OpenSettings_Click"/>
+       <MenuItem Header="About" AutomationProperties.Name="About" Click="OpenAbout_Click"/>
+      </ContextMenu>
+     </Button.ContextMenu>
+    </Button>
    </Grid>
   </Border>
 
@@ -746,11 +745,12 @@
      </Grid>
     </Grid>
    </TabItem>
-   <TabItem>
+   <TabItem Visibility="Collapsed" AutomationProperties.Name="Compatibility export review">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
      <Grid Margin="28,24,28,28">
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <StackPanel Margin="2,0,0,20">
+       <Button HorizontalAlignment="Left" Margin="0,0,0,8" Content="← Back to Jobs" Click="CompatibilityReviewBack_Click"/>
        <TextBlock Style="{StaticResource PageTitle}" Text="Export"/>
        <TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Apply a LUT and create consistent, edit-ready H.264 files from an entire folder."/>
       </StackPanel>
@@ -916,22 +916,6 @@
 
    <TabItem>
     <Grid Margin="28,24,28,28">
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-     <StackPanel Margin="2,0,0,20"><TextBlock Style="{StaticResource PageTitle}" Text="Media Tools"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Inspect, verify, rewrap, proxy, or create a visual contact sheet from one media file."/></StackPanel>
-     <Border Grid.Row="1" Style="{StaticResource Card}">
-      <StackPanel><TextBlock Style="{StaticResource FieldLabel}" Text="MEDIA FILE"/><DockPanel><Button DockPanel.Dock="Right" Content="Browse…" Click="BrowseMedia_Click"/><TextBox x:Name="MediaPath"/></DockPanel></StackPanel>
-     </Border>
-     <Border Grid.Row="2" Style="{StaticResource Card}">
-      <StackPanel><TextBlock Style="{StaticResource SectionTitle}" Margin="4,0,4,10" Text="Choose an action"/>
-       <WrapPanel><Button Content="Inspect Metadata" Click="Inspect_Click"/><Button Content="Verify / CSV Report" Click="Verify_Click"/><Button Content="Lossless Rewrap" Click="Rewrap_Click"/><Button Content="Create 1080p Proxy" Click="Proxy_Click"/><Button Content="Generate Contact Sheet" Click="ContactSheet_Click"/></WrapPanel>
-      </StackPanel>
-     </Border>
-     <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Style="{StaticResource SectionTitle}" Margin="4,0,4,10" Text="Tool Output"/><TextBox Grid.Row="1" x:Name="ToolsOutput" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" FontSize="12" VerticalContentAlignment="Top" HorizontalContentAlignment="Left" VerticalScrollBarVisibility="Auto"/></Grid></Border>
-    </Grid>
-   </TabItem>
-
-   <TabItem>
-    <Grid Margin="28,24,28,28">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
      <DockPanel Margin="2,0,0,20">
       <WrapPanel DockPanel.Dock="Right" HorizontalAlignment="Right"><Button x:Name="RefreshHistoryButton" Content="Refresh" Click="RefreshHistory_Click"/><Button x:Name="JobsClearHistoryButton" Style="{StaticResource DangerButton}" Content="Delete selected Jobs…" IsEnabled="False" Click="ClearJobsHistory_Click"/></WrapPanel>
@@ -962,22 +946,8 @@
 
    <TabItem>
     <ScrollViewer VerticalScrollBarVisibility="Auto"><Grid Margin="28,24,28,28">
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <StackPanel Margin="2,0,0,20"><TextBlock Style="{StaticResource PageTitle}" Text="Premiere Helper"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Export individual timeline clips from Premiere Pro with the included ExtendScript workflow."/></StackPanel>
-     <Border Grid.Row="1" Style="{StaticResource Card}">
-      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="220"/></Grid.ColumnDefinitions>
-       <StackPanel Margin="4"><TextBlock Style="{StaticResource SectionTitle}" Text="Experimental timeline exporter"/><TextBlock Margin="0,10,20,16" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="20" Text="The included helper exports each clip on video track V1 as an individual file using sequence In/Out points. Visible timeline effects and adjustment layers are included. Test on a duplicate project first."/><Button HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Content="Open Premiere Helper Folder" Click="OpenPremiere_Click"/></StackPanel>
-       <Image Grid.Column="1" Source="Assets/Branding/jr-glow-source.png" Stretch="Uniform" Opacity="0.78"/>
-      </Grid>
-     </Border>
-     <Border Grid.Row="2" Background="#1D171B" BorderBrush="#55303C" BorderThickness="1" CornerRadius="9" Padding="14"><TextBlock Foreground="#E9BAC7" TextWrapping="Wrap" Text="Tip: duplicate the Premiere project before running timeline automation, and confirm the Adobe Media Encoder preset before a long export."/></Border>
-    </Grid></ScrollViewer>
-   </TabItem>
-
-   <TabItem>
-    <ScrollViewer VerticalScrollBarVisibility="Auto"><Grid Margin="28,24,28,28">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <StackPanel Margin="2,0,0,20"><TextBlock Style="{StaticResource PageTitle}" Text="Settings"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Choose the folders, tools, and defaults restored whenever the application starts."/></StackPanel>
+     <StackPanel Margin="2,0,0,20"><Button HorizontalAlignment="Left" Margin="0,0,0,8" Content="← Back to Browser" Click="UtilityBackToBrowser_Click"/><TextBlock Style="{StaticResource PageTitle}" Text="Settings"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Choose the folders, tools, and defaults restored whenever the application starts."/></StackPanel>
       <Border Grid.Row="1" Style="{StaticResource Card}"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
        <TextBlock Grid.ColumnSpan="2" Style="{StaticResource SectionTitle}" Margin="4,0,4,12" Text="Folders"/>
        <StackPanel Grid.Row="1" Grid.ColumnSpan="2"><TextBlock Style="{StaticResource FieldLabel}" Text="DEFAULT VIDEO FOLDER"/><DockPanel><Button DockPanel.Dock="Right" Content="Browse…" Click="BrowseDefaultVideoFolder_Click"/><TextBox x:Name="SettingsDefaultVideoFolder"/></DockPanel></StackPanel>
@@ -1102,7 +1072,7 @@
     <Grid Margin="28,24,28,28"><Border Style="{StaticResource Card}" HorizontalAlignment="Center" VerticalAlignment="Center" Width="620" Padding="28">
      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="210"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Image Source="Assets/Branding/jr-glow-source.png" Width="190" Height="190" Stretch="Uniform"/>
-      <StackPanel Grid.Column="1" Margin="24,10,0,0"><TextBlock Style="{StaticResource PageTitle}" Text="Lightflow Studio"/><TextBlock Margin="0,4,0,16" Foreground="{StaticResource OrangeBrush}" FontSize="12" FontWeight="SemiBold" Text="JEREMY RUNNING PHOTOGRAPHY"/><TextBlock Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="20" Text="Video processing and workflow tools for batch export, media inspection, recovery, and Premiere Pro exports."/><Border Height="2" Margin="0,22,0,16" Background="{StaticResource BrandGradient}"/><TextBlock x:Name="AboutVersionText" Foreground="{StaticResource MutedTextBrush}"/></StackPanel>
+     <StackPanel Grid.Column="1" Margin="24,10,0,0"><Button HorizontalAlignment="Left" Margin="0,0,0,8" Content="← Back to Browser" Click="UtilityBackToBrowser_Click"/><TextBlock Style="{StaticResource PageTitle}" Text="Lightflow Studio"/><TextBlock Margin="0,4,0,16" Foreground="{StaticResource OrangeBrush}" FontSize="12" FontWeight="SemiBold" Text="JEREMY RUNNING PHOTOGRAPHY"/><TextBlock Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="20" Text="Video processing and workflow tools for batch export and media review."/><Border Height="2" Margin="0,22,0,16" Background="{StaticResource BrandGradient}"/><TextBlock x:Name="AboutVersionText" Foreground="{StaticResource MutedTextBrush}"/></StackPanel>
      </Grid>
     </Border></Grid>
    </TabItem>

@@ -31,7 +31,7 @@ Body text should remain readable against every dark surface. Muted text is for s
 ## Interaction and accessibility
 
 - Keyboard focus must remain visible on every interactive control.
-- Top-level workspace navigation supports normal keyboard traversal and keeps selection visibly distinct through both surface and font weight.
+- The application menu, focused actions, full Jobs entry, and Back actions support normal keyboard traversal and visible focus.
 - Hit targets should normally be at least the size of the existing shell navigation and standard buttons.
 - Disabled, selected, warning, success, and failure states cannot be communicated by color alone.
 - Layout must remain usable at the declared 1120 × 720 minimum and resize normally under standard Windows minimize, maximize, restore, and DPI behavior.
@@ -39,7 +39,7 @@ Body text should remain readable against every dark surface. Muted text is for s
 
 ## Workspace composition
 
-The permanent shell hosts one workspace at a time. Browser is the default. Encoding, Settings, and existing utilities remain peers in the same host and are reached from the compact horizontal application header. Application navigation must not occupy a permanent left rail: Browser owns that edge for Media Roots/folder navigation, and future Player/Viewer presentation needs the width for media plus Inspector. Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
+The permanent shell treats Browser/Player as Home. It has no permanent module strip or peer capability rail. Focused actions and owned modals configure work from media context; the bottom status affordance enters secondary full Jobs; the right-edge pull independently controls the compact drawer; and a restrained upper-right gear menu exposes only application utilities such as Settings and About. Back actions restore the already-live Home content. Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
 
 The Browser owns a resizable filesystem-oriented Locations panel and uses the remaining width for the current folder. Its 280-pixel initial width can be adjusted between sensible bounds through an invisible eight-pixel boundary whose resize cursor provides the interaction feedback; the width remains in place for the current window session. Deep hierarchies scroll horizontally instead of colliding with disclosure, icon, or scrollbar chrome. Familiar drives and mapped/removable storage are primary entry points; managed Media Roots appear as pinned libraries rather than setup prerequisites. The left pane is the single owner of folder hierarchy and selection. Its compact Back/Forward/Up/Refresh toolbar and editable path field remain synchronized with that hierarchy. The center is reserved for files/media in the selected folder and does not repeat child folders. Online state is reinforced with text as well as color; unavailable storage remains visible so the workspace can explain what happened. Loading and empty/error states occupy the media canvas without replacing navigation context.
 

@@ -200,7 +200,9 @@ public sealed class GlobalExportSchedulerTests
         await WaitUntilAsync(() => harness.Running == 2);
 
         Assert.False(persisted);
-        Assert.Equal(expectedFirstClaims, harness.Started);
+        // Both eligible Jobs are claimed under one scheduler decision, but their independent executor tasks may
+        // enter the harness in either order. Verify the claimed set and ceiling without imposing thread timing.
+        Assert.Equal(expectedFirstClaims.Order(), harness.Started.Order());
         Assert.Equal(2, harness.MaximumObserved);
         await harness.DisposeAsync();
     }

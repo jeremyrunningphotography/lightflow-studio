@@ -228,7 +228,6 @@ public partial class MainWindow : Window
                 if (_commandLineFolder is not null)
                 {
                     InputFolder.Text = _commandLineFolder;
-                    MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
                 }
                 BatchFileList.ItemsSource = _batchFiles;
                 HistoryList.ItemsSource = _historyRecords;
@@ -250,7 +249,7 @@ public partial class MainWindow : Window
                 RefreshCatalogBackups();
                 RefreshHistory();
                 if (_jobsWorkspaceSmokeTest)
-                    MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.History);
+                    MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs);
                 LocateTools();
                 _exportScheduler.MaxSimultaneousExports = _settings.MaxSimultaneousExports;
                 ApplyJobsPresentation(_exportScheduler.Jobs);
@@ -1794,16 +1793,16 @@ public partial class MainWindow : Window
     /// <summary>Ctrl+F focuses the Browser search box, but only while the Browser workspace is showing an open, filterable location.</summary>
     private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && MainTabs.SelectedIndex == ShellWorkspaceSelection.Index(ShellWorkspace.History)
+        if (e.Key == Key.Escape && MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)
             && Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase
             && Keyboard.FocusedElement is not System.Windows.Controls.ComboBox)
         {
-            MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Browser);
+            MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home);
             e.Handled = true;
             return;
         }
         if (e.Key != Key.F || !Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
-        if (MainTabs.SelectedIndex != ShellWorkspaceSelection.Index(ShellWorkspace.Browser) || !BrowserQueryToolbar.IsEnabled) return;
+        if (MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Home) || !BrowserQueryToolbar.IsEnabled) return;
         BrowserSearchBox.Focus();
         BrowserSearchBox.SelectAll();
         e.Handled = true;
@@ -1913,10 +1912,28 @@ public partial class MainWindow : Window
         // #110: switching to another workspace while a video is open in the Player/Viewer must not leave it
         // silently playing audio in a hidden tab. This pauses rather than returning to Grid — switching tabs
         // is not "leaving" the Browser, so the open asset and its position stay exactly as the user left them.
-        if (MainTabs.SelectedIndex != ShellWorkspaceSelection.Index(ShellWorkspace.Browser) &&
+        if (MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Home) &&
             _browserPresentation == BrowserPresentationMode.PlayerViewer && _playerViewerHost is not null)
             _ = _playerViewerHost.PauseIfPlayingAsync();
     }
+
+    private void ApplicationMenu_Click(object sender, RoutedEventArgs e)
+    {
+        ApplicationMenu.PlacementTarget = ApplicationMenuButton;
+        ApplicationMenu.IsOpen = true;
+    }
+
+    private void OpenSettings_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Settings);
+
+    private void OpenAbout_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.About);
+
+    private void UtilityBackToBrowser_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home);
+
+    private void CompatibilityReviewBack_Click(object sender, RoutedEventArgs e) =>
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs);
 
     /// <summary>
     /// #126: one application-wide status strip rather than a Browser-specific bar stacked above an unrelated
@@ -1931,7 +1948,7 @@ public partial class MainWindow : Window
     private void SyncBrowserStatusBarVisibility()
     {
         if (BrowserStatusText is null) return;
-        var isBrowserActive = MainTabs.SelectedIndex == ShellWorkspaceSelection.Index(ShellWorkspace.Browser);
+        var isBrowserActive = MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home);
         var visibility = isBrowserActive ? Visibility.Visible : Visibility.Collapsed;
         BrowserStatusText.Visibility = visibility;
         BrowserStatusDivider.Visibility = visibility;
@@ -2006,9 +2023,6 @@ public partial class MainWindow : Window
         _ffprobe = ExecutableLocator.Find("ffprobe.exe", Path.Combine(baseDir, "ffmpeg", "bin", "ffprobe.exe"), configured: besideFfmpeg);
         StatusText.Text = _ffmpeg is null ? "FFmpeg not found — configure it in Settings" : $"FFmpeg ready: {_ffmpeg}";
     }
-
-    private void OpenEncodingWorkspace_Click(object sender, RoutedEventArgs e) =>
-        MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
 
     private async Task ApplyEncodingHandoffAsync(CapabilityInvocation invocation)
     {
@@ -3131,12 +3145,6 @@ public partial class MainWindow : Window
         Recursive.IsChecked == true,
         (OutputDestinationMode)Math.Clamp(OutputMode.SelectedIndex, 0, 2),
         PreserveFolderStructure.IsChecked == true);
-    private void BrowseMedia_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Filter = "Video files|*.mp4;*.mov;*.mxf;*.mkv;*.avi|All files|*.*" };
-        if (Directory.Exists(_settings.DefaultVideoFolder)) dialog.InitialDirectory = _settings.DefaultVideoFolder;
-        if (dialog.ShowDialog() == true) MediaPath.Text = dialog.FileName;
-    }
     private async void Start_Click(object sender, RoutedEventArgs e)
     {
         if (!ValidateEncoderInputs()) return;
@@ -3661,7 +3669,7 @@ public partial class MainWindow : Window
     }
 
     private void JobsBackToBrowser_Click(object sender, RoutedEventArgs e) =>
-        MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Browser);
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home);
 
     private void RerunHistory_Click(object sender, RoutedEventArgs e)
     {
@@ -3703,7 +3711,7 @@ public partial class MainWindow : Window
         ConfigureAssignedColorUi(options.ColorMode);
         UpdateBatchFileSummary();
         _ = LoadBatchMetadataAsync(_batchFiles.ToList(), _batchMetadataCts.Token);
-        MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.Encoding);
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.CompatibilityExportReview);
         CurrentFileText.Text = EncodingHistoryRerun.RestorationMessage(restoration);
     }
     private bool ValidateEncoderInputs()
@@ -3995,13 +4003,12 @@ public partial class MainWindow : Window
         var cards = visibleJobs
             .Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId))).ToList();
         JobsPresentation.Reconcile(_jobsDrawerCards, cards);
-        if (MainTabs?.SelectedIndex == ShellWorkspaceSelection.Index(ShellWorkspace.History)) RefreshJobsWorkspace();
+        if (MainTabs?.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
     }
 
     private void JobsStatus_Click(object sender, RoutedEventArgs e)
     {
-        if (JobsPresentation.Route() == JobsRoute.FullJobsCompatibility)
-            MainTabs.SelectedIndex = ShellWorkspaceSelection.Index(ShellWorkspace.History);
+        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs);
     }
 
     private void OpenJobsDrawer()
@@ -4258,63 +4265,6 @@ public partial class MainWindow : Window
         if (_ffprobe is null) return 0;
         var result = await CaptureAsync(_ffprobe, FfmpegCommandBuilder.ProbeDuration(file), token);
         return double.TryParse(result.StdOut.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : 0;
-    }
-
-    private async void Inspect_Click(object sender, RoutedEventArgs e) => await ToolAction(async () =>
-    {
-        EnsureProbe(); var r = await CaptureLoggedAsync("Inspect", _ffprobe!, FfmpegCommandBuilder.Inspect(MediaPath.Text), CancellationToken.None); ToolsOutput.Text = r.StdOut + r.StdErr;
-    });
-
-    private async void Verify_Click(object sender, RoutedEventArgs e) => await ToolAction(async () =>
-    {
-        EnsureMedia(); EnsureFfmpeg(); ToolsOutput.Text = "Verifying every decodable frame…";
-        var r = await CaptureLoggedAsync("Verify", _ffmpeg!, FfmpegCommandBuilder.Verify(MediaPath.Text), CancellationToken.None);
-        var report = Path.Combine(Path.GetDirectoryName(MediaPath.Text)!, Path.GetFileNameWithoutExtension(MediaPath.Text) + "_verification.csv");
-        var status = r.ExitCode == 0 ? "completed" : "failed";
-        File.WriteAllText(report, "file,status,exit_code,notes\r\n" + CsvFormatter.Escape(MediaPath.Text) + $",{status},{r.ExitCode}," + CsvFormatter.Escape(r.StdErr));
-        ToolsOutput.Text = $"Verification {status}. Report: {report}\r\n\r\n{r.StdErr}";
-    });
-
-    private async void Rewrap_Click(object sender, RoutedEventArgs e) => await ToolAction(async () =>
-    {
-        EnsureMedia(); EnsureFfmpeg(); var output = Path.Combine(Path.GetDirectoryName(MediaPath.Text)!, Path.GetFileNameWithoutExtension(MediaPath.Text) + "_rewrapped.mp4");
-        var r = await CaptureLoggedAsync("Rewrap", _ffmpeg!, FfmpegCommandBuilder.Rewrap(MediaPath.Text, output), CancellationToken.None);
-        ToolsOutput.Text = r.ExitCode == 0 ? $"Created: {output}" : r.StdErr;
-    });
-
-    private async void Proxy_Click(object sender, RoutedEventArgs e) => await ToolAction(async () =>
-    {
-        EnsureMedia(); EnsureFfmpeg(); var output = Path.Combine(Path.GetDirectoryName(MediaPath.Text)!, Path.GetFileNameWithoutExtension(MediaPath.Text) + "_proxy.mp4");
-        var r = await CaptureLoggedAsync("Proxy", _ffmpeg!, FfmpegCommandBuilder.Proxy(MediaPath.Text, output), CancellationToken.None);
-        ToolsOutput.Text = r.ExitCode == 0 ? $"Created: {output}" : r.StdErr;
-    });
-
-    private async void ContactSheet_Click(object sender, RoutedEventArgs e) => await ToolAction(async () =>
-    {
-        EnsureMedia(); EnsureFfmpeg(); var output = Path.Combine(Path.GetDirectoryName(MediaPath.Text)!, Path.GetFileNameWithoutExtension(MediaPath.Text) + "_contact-sheet.jpg");
-        var r = await CaptureLoggedAsync("ContactSheet", _ffmpeg!, FfmpegCommandBuilder.ContactSheet(MediaPath.Text, output), CancellationToken.None);
-        ToolsOutput.Text = r.ExitCode == 0 ? $"Created: {output}" : r.StdErr;
-    });
-
-    private async Task ToolAction(Func<Task> action)
-    {
-        try { await action(); }
-        catch (Exception ex)
-        {
-            _activityLogFile.TryAppend($"[App] Media tool action failed: {ex}");
-            MessageBox.Show(ex.Message, "Media tool", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    private void EnsureMedia() { if (!File.Exists(MediaPath.Text)) throw new InvalidOperationException("Select a valid media file."); }
-    private void EnsureFfmpeg() { if (_ffmpeg is null) throw new InvalidOperationException("FFmpeg was not found."); }
-    private void EnsureProbe() { EnsureMedia(); if (_ffprobe is null) throw new InvalidOperationException("ffprobe.exe was not found beside FFmpeg or in PATH."); }
-
-    private void OpenPremiere_Click(object sender, RoutedEventArgs e)
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "PremiereHelper");
-        if (!Directory.Exists(path)) path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "PremiereHelper"));
-        if (Directory.Exists(path)) Process.Start(new ProcessStartInfo("explorer.exe", path) { UseShellExecute = true });
-        else MessageBox.Show("PremiereHelper folder not found. It is included at the package root.");
     }
 
     private static Process StartProcess(string exe, IEnumerable<string> args, bool redirectError)

@@ -32,7 +32,6 @@ internal sealed record ExportSubmissionItem(
         .ThenBy(issue => issue.Code, StringComparer.Ordinal);
     public bool HasIssues => Issues.Count > 0;
     public bool HasError => Issues.Any(issue => issue.Severity == JobIssueSeverity.Error);
-    public string IssueGlyph => HasError ? "!" : "⚠";
     public string IssueSeverityText => HasError ? "Error" : "Warning";
     public string IssueToolTip
     {

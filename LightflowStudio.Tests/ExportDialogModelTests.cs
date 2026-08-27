@@ -127,7 +127,6 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.NotEqual(warning.PlannedItemId, clean.PlannedItemId);
         Assert.True(warning.HasIssues);
         Assert.False(warning.HasError);
-        Assert.Equal("⚠", warning.IssueGlyph);
         Assert.Contains("Warning for warning.mp4", warning.IssueToolTip);
         Assert.Contains("warning-001.mp4", warning.IssueToolTip);
         Assert.False(clean.HasIssues);
@@ -161,7 +160,6 @@ public sealed class ExportDialogModelTests : IDisposable
 
         var row = Assert.Single(model.SubmissionItems);
         Assert.True(row.HasError);
-        Assert.Equal("!", row.IssueGlyph);
         Assert.True(row.Issues.Count >= 2);
         Assert.StartsWith("Error for clip.mp4", row.IssueToolTip);
         Assert.True(row.IssueToolTip.IndexOf("Error —", StringComparison.Ordinal) <

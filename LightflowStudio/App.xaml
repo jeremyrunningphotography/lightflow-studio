@@ -32,6 +32,12 @@
   <SolidColorBrush x:Key="MagentaBrush" Color="{StaticResource MagentaColor}"/>
   <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
   <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}"/>
+  <GeometryGroup x:Key="SemanticAttentionIconGeometry" FillRule="EvenOdd">
+   <EllipseGeometry Center="8,8" RadiusX="6.4" RadiusY="6.4"/>
+   <EllipseGeometry Center="8,8" RadiusX="4.9" RadiusY="4.9"/>
+   <RectangleGeometry Rect="7.25,4.15,1.5,5.15" RadiusX="0.7" RadiusY="0.7"/>
+   <EllipseGeometry Center="8,11.45" RadiusX="0.85" RadiusY="0.85"/>
+  </GeometryGroup>
   <Thickness x:Key="CompactControlPadding">7,4</Thickness>
   <Thickness x:Key="CompactControlMargin">2</Thickness>
   <Thickness x:Key="CompactPrimaryPadding">9,5</Thickness>

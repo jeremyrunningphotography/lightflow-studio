@@ -22,6 +22,10 @@ The shell uses a small elevation vocabulary from `Themes/LightflowShell.xaml`:
 
 Broad surfaces stay neutral. Orange, red, and magenta are brand accents, not background themes. Use them for primary actions, visible focus, compact status, and small identity details. Success and warning colors must be accompanied by text, iconography, shape, or another non-color cue.
 
+Small semantic icons use resolution-independent vector geometry on a consistent design canvas, with intentional
+stroke/shape weight and optical centering at their rendered size. Reuse shared geometry for the same semantic meaning
+rather than accumulating subtly different font glyphs or near-duplicate paths.
+
 ## Type and spacing
 
 Segoe UI Variable Text with Segoe UI fallback is the application typeface. Workspace titles, section titles, labels, body text, and muted supporting text form the standard hierarchy. Shell padding and panel padding are shared resources; new workspaces should reuse them before introducing additional spacing values.

@@ -550,6 +550,40 @@ public sealed class PlayerViewerHostLeaseTests
     }
 
     [Fact]
+    public async Task S_CreatesExactlyOneSnapshotWithoutChangingRangeOrPlaybackAndTextEntryIsExcluded()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var range = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromTicks(123_456_789), TimeSpan.FromTicks(234_567_891));
+            var store = new FakeRangeStore(range);
+            var subclips = new FakeSubclipService();
+            var host = new PlayerViewerHost(coordinator, store, subclips);
+            var window = new Window { Content = host };
+            window.Show();
+            var assetId = Guid.NewGuid();
+            await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, assetId),
+                new(Guid.NewGuid(), "clip.mp4", "clip.mp4", Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
+            var positionBefore = host.PositionSlider.Value;
+            var pauseBefore = backend.PauseCallCount;
+
+            Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
+            await WaitUntilAsync(() => subclips.CreateCount == 1, "Subclip creation");
+
+            Assert.Equal(assetId, subclips.AssetId);
+            Assert.Equal(range, subclips.Range);
+            Assert.Equal(positionBefore, host.PositionSlider.Value);
+            Assert.Equal(pauseBefore, backend.PauseCallCount);
+            Assert.Equal(0, store.SaveCount);
+            Assert.True(PlayerViewerHost.IsTextEntryControl(new System.Windows.Controls.TextBox()));
+            Assert.True(PlayerViewerHost.IsTextEntryControl(new System.Windows.Controls.ComboBox { IsEditable = true }));
+            window.Close();
+        });
+    }
+
+    [Fact]
     public async Task PreviousFrame_RetainsCurrentFrameWhileNativeSurfaceReconstructsThenPublishesSettledFrame()
     {
         await StaDispatcher.RunAsync(async () =>
@@ -779,6 +813,26 @@ public sealed class PlayerViewerHostLeaseTests
             SavedRange = range;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeSubclipService : ISubclipService
+    {
+        public int CreateCount { get; private set; }
+        public Guid AssetId { get; private set; }
+        public MediaRange? Range { get; private set; }
+        public Task<Subclip> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
+        {
+            CreateCount++;
+            AssetId = assetId;
+            Range = workingRange;
+            return Task.FromResult(new Subclip(Guid.NewGuid(), assetId, "Subclip 1", 0, workingRange.In!.Value,
+                workingRange.Out!.Value, workingRange.SourceDuration, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+        }
+        public Task<IReadOnlyList<Subclip>> ListAsync(Guid assetId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Subclip>>([]);
+        public Task<Subclip> RenameAsync(Guid subclipId, long expectedRevision, string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteAsync(Guid subclipId, long expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<Subclip>> ReorderAsync(Guid assetId, IReadOnlyList<SubclipOrder> order, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeScreengrabService : IFrameScreengrabService

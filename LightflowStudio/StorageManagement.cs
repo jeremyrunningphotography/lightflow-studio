@@ -98,6 +98,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         MediaFolders = new MediaFolderEnumerator(MediaRoots, MediaTypes, new MediaFolderFileSystem());
         CatalogReconciliation = new CatalogReconciliationService(MediaFolders, MediaAssets);
         MediaRanges = new CatalogMediaRangeStore(() => _catalogSession);
+        Subclips = new CatalogSubclipService(() => _catalogSession);
         Luts = new CatalogFolderLutLibrary(() => _catalogSession);
         LutCache = new ApplicationLutLibraryCache(Luts);
         AssetColors = new CatalogAssetColorStore(() => _catalogSession, LutCache);
@@ -121,6 +122,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public IBrowserLocationResolver BrowserLocations { get; }
     public IMediaAssetService MediaAssets { get; }
     public IMediaRangeStore MediaRanges { get; }
+    public ISubclipService Subclips { get; }
     public IBrowserAssetStateStore BrowserAssetStates { get; }
     public ILutLibrary Luts { get; }
     public ILutLibraryCache LutCache { get; }

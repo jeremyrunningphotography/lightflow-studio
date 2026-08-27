@@ -27,6 +27,7 @@ public partial class PlayerViewerHost : UserControl
 {
     private readonly MediaPlaybackCoordinator _coordinator;
     private readonly IMediaRangeStore? _rangeStore;
+    private readonly ISubclipService? _subclips;
     private readonly IFrameScreengrabService? _screengrabService;
     private readonly IFolderLauncher _folderLauncher;
     private readonly ILutLibraryCache? _lutCache;
@@ -63,13 +64,14 @@ public partial class PlayerViewerHost : UserControl
         AssetColorIntent Intent, PlayerColorPipeline Pipeline, string? Diagnostic);
 
     internal PlayerViewerHost(MediaPlaybackCoordinator coordinator, IMediaRangeStore? rangeStore = null,
-        IFrameScreengrabService? screengrabService = null, IFolderLauncher? folderLauncher = null,
+        ISubclipService? subclips = null, IFrameScreengrabService? screengrabService = null, IFolderLauncher? folderLauncher = null,
         ILutLibraryCache? lutCache = null, IAssetColorStore? assetColors = null,
         Func<string>? cameraLutFolder = null, Func<string>? creativeLutFolder = null,
         Action<PlayerOpenMilestone>? openMilestone = null)
     {
         _coordinator = coordinator;
         _rangeStore = rangeStore;
+        _subclips = subclips;
         _screengrabService = screengrabService;
         _folderLauncher = folderLauncher ?? new ShellFolderLauncher();
         _lutCache = lutCache;
@@ -829,6 +831,19 @@ public partial class PlayerViewerHost : UserControl
         catch (Exception exception) { SetStatus($"The range could not be saved. {exception.Message}"); }
     }
 
+    private async void CreateSubclip()
+    {
+        if (_subclips is null || _currentAsset?.AssetId is not Guid assetId) return;
+        if (_reviewRange?.In is null) { SetStatus("Set an In point before creating a Subclip."); return; }
+        if (_reviewRange.Out is null) { SetStatus("Set an Out point before creating a Subclip."); return; }
+        try
+        {
+            var subclip = await _subclips.CreateAsync(assetId, _reviewRange);
+            SetStatus($"{subclip.Name} created.");
+        }
+        catch (Exception exception) { SetStatus($"The Subclip could not be created. {exception.Message}"); }
+    }
+
     private async void ClearIn_Click(object sender, RoutedEventArgs e) => await ClearBoundaryAsync(clearIn: true);
     private async void ClearOut_Click(object sender, RoutedEventArgs e) => await ClearBoundaryAsync(clearIn: false);
 
@@ -942,6 +957,7 @@ public partial class PlayerViewerHost : UserControl
     /// </summary>
     private void PlayerViewerHost_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (e.Key == Key.S && IsTextEntryControl(e.OriginalSource as DependencyObject)) return;
         if (e.Key is Key.Left or Key.Right && IsArrowKeyOwnedByFocusedControl(e.OriginalSource as DependencyObject))
             return;
         switch (e.Key)
@@ -967,6 +983,10 @@ public partial class PlayerViewerHost : UserControl
             case Key.O when _service is not null && PositionSlider.IsEnabled:
                 e.Handled = true;
                 SetOut_Click(this, new RoutedEventArgs());
+                return;
+            case Key.S when _service is not null && PositionSlider.IsEnabled && _currentAsset?.AssetId is not null:
+                e.Handled = true;
+                CreateSubclip();
                 return;
             case Key.Left when _service is not null && PositionSlider.IsEnabled:
                 e.Handled = true;
@@ -1000,6 +1020,18 @@ public partial class PlayerViewerHost : UserControl
         {
             if (element is System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.Slider or
                 System.Windows.Controls.Primitives.Thumb or System.Windows.Controls.Primitives.Selector)
+                return true;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return false;
+    }
+
+    internal static bool IsTextEntryControl(DependencyObject? element)
+    {
+        while (element is not null)
+        {
+            if (element is System.Windows.Controls.Primitives.TextBoxBase ||
+                element is System.Windows.Controls.ComboBox combo && combo.IsEditable)
                 return true;
             element = VisualTreeHelper.GetParent(element);
         }

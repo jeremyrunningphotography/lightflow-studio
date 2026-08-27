@@ -18,7 +18,8 @@ internal static class CatalogMigrations
         new(3, "Durable asset media ranges", ApplyVersion3),
         new(4, "Managed LUT resources and durable asset Color intent", ApplyVersion4),
         new(5, "Folder-backed LUT resource identity", ApplyVersion5),
-        new(6, "Per-asset Color processing enabled state", ApplyVersion6)
+        new(6, "Per-asset Color processing enabled state", ApplyVersion6),
+        new(7, "Durable named and ordered asset Subclips", ApplyVersion7)
     ];
 
     private static void ApplyVersion1(
@@ -297,6 +298,31 @@ internal static class CatalogMigrations
             CREATE INDEX IX_MediaAssetColor_CreativeLutId ON MediaAssetColor (CreativeLutId);
 
             DROP TABLE MediaAssetColorV5;
+            """);
+    }
+
+    private static void ApplyVersion7(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CatalogMigrationContext context)
+    {
+        Execute(connection, transaction, """
+            CREATE TABLE Subclips (
+                SubclipId TEXT NOT NULL PRIMARY KEY CHECK (length(SubclipId) = 36),
+                AssetId TEXT NOT NULL,
+                Name TEXT NOT NULL CHECK (length(trim(Name)) > 0),
+                Ordinal INTEGER NOT NULL CHECK (Ordinal >= 0),
+                InTicks INTEGER NOT NULL CHECK (InTicks >= 0),
+                OutTicks INTEGER NOT NULL CHECK (OutTicks > InTicks),
+                SourceDurationTicks INTEGER NOT NULL CHECK (SourceDurationTicks > 0 AND OutTicks <= SourceDurationTicks),
+                Revision INTEGER NOT NULL DEFAULT 1 CHECK (Revision > 0),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                FOREIGN KEY (AssetId) REFERENCES MediaAssets (AssetId) ON DELETE CASCADE,
+                UNIQUE (AssetId, Ordinal)
+            );
+
+            CREATE INDEX IX_Subclips_AssetId_Ordinal ON Subclips (AssetId, Ordinal);
             """);
     }
 

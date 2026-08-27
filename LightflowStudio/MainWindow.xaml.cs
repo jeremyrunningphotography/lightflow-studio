@@ -245,7 +245,6 @@ public partial class MainWindow : Window
                 // which the user is looking at yet. Measured on real hardware: this alone cut the delay
                 // before restoration starts from ~1.1s to ~0.16s. Restoration itself proceeds independently.
                 await RefreshBrowserStorageAsync();
-                TraceBrowserRecursiveState("1: after Catalog opens / storage entries populated");
                 _ = RestoreBrowserLocationAsync(_workspaceState.Current.Browser);
 
                 RefreshCatalogBackups();
@@ -436,7 +435,6 @@ public partial class MainWindow : Window
     {
         if (saved is null) return;
         var generation = ++_browserUiGeneration;
-        TraceBrowserRecursiveState($"2: workspace restore target known RootId={saved.RootId} RelativeFolder='{saved.RelativeFolder}'");
         // Already showing from ShowBrowserRestoringState (called before Loaded even fires); re-asserted
         // here so this method stays correct regardless of what state the canvas was left in beforehand.
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
@@ -460,7 +458,6 @@ public partial class MainWindow : Window
                 }
                 else ShowDefaultBrowserEmptyState();
             }
-            TraceBrowserRecursiveState("5: after startup navigation completes");
         }
         catch (OperationCanceledException)
         {
@@ -529,13 +526,11 @@ public partial class MainWindow : Window
     {
         if (_synchronizingBrowserTree || e.NewValue is not BrowserTreeNode { IsPlaceholder: false } node) return;
         if (ReferenceEquals(node, _browserTreeRevealedNode)) { _browserTreeRevealedNode = null; return; }
-        TraceBrowserRecursiveState($"6: immediately before selecting another folder ('{node.DisplayName}')");
         RequestBrowserTreeSelection(node);
         if (node.Storage is { Kind: BrowserStorageKind.ManagedRoot, RootId: { } rootId })
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(rootId));
         else if (!string.IsNullOrWhiteSpace(node.AbsolutePath))
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(node.AbsolutePath));
-        TraceBrowserRecursiveState($"7: immediately after SelectedItemChanged navigation completed ('{node.DisplayName}')");
     }
 
     /// <summary>
@@ -690,7 +685,6 @@ public partial class MainWindow : Window
                 Math.Min(verticalOffset, BrowserFolderScrollViewer.ScrollableHeight));
             BrowserFolderScrollViewer.ScrollToHorizontalOffset(
                 Math.Min(horizontalOffset, BrowserFolderScrollViewer.ScrollableWidth));
-            TraceBrowserRecursiveState($"9: after WPF layout/Dispatcher Loaded pass for '{node.DisplayName}'");
         });
     }
 
@@ -753,7 +747,6 @@ public partial class MainWindow : Window
 
         if (generation == _browserUiGeneration && _browserTree.SelectedNode is { } selected)
             BringBrowserTreeNodeIntoView(selected);
-        TraceBrowserRecursiveState($"3: after startup tree path materialization (generation={generation}, current={_browserUiGeneration})");
     }
 
     /// <summary>
@@ -769,7 +762,6 @@ public partial class MainWindow : Window
     private void SyncBrowserTreeRecursiveIcons()
     {
         foreach (var root in _browserTree.Roots) SyncBrowserTreeRecursiveIcon(root);
-        TraceBrowserRecursiveState("8: after SyncBrowserTreeRecursiveIcons");
     }
 
     private void SyncBrowserTreeRecursiveIcon(BrowserTreeNode node)
@@ -779,77 +771,6 @@ public partial class MainWindow : Window
         foreach (var child in node.Children) SyncBrowserTreeRecursiveIcon(child);
     }
 
-    // #124 TEMPORARY DIAGNOSTIC: investigating a live-packaged-app-only report (reproducible neither in
-    // isolated service/model tests nor in live-WPF tests driving a real MainWindow) that a startup-restored
-    // recursive subtree's icons can lose their filled state once another folder in the same subtree is
-    // selected. Every line is prefixed "BROWSER-RECURSIVE-TRACE " for easy isolation in activity.log. Remove
-    // once the failing layer (model state vs. visual binding vs. duplicate node identity) is identified.
-    private void TraceBrowserRecursiveState(string checkpoint)
-    {
-        try
-        {
-            var log = new StringBuilder();
-            log.AppendLine($"BROWSER-RECURSIVE-TRACE ==== checkpoint: {checkpoint} ====");
-            log.AppendLine("BROWSER-RECURSIVE-TRACE Catalog recursive roots: " +
-                (_browserRecursiveRoots.Count == 0 ? "(none)" : string.Join(" | ",
-                    _browserRecursiveRoots.Select(root => $"RootId={root.RootId} RelativeFolder='{root.RelativeFolder}'"))));
-
-            var nodes = DescendantBrowserTreeNodes(_browserTree.Roots)
-                .Where(node => !node.IsPlaceholder && node.RootId is not null).ToList();
-            var duplicates = nodes.GroupBy(node => (node.RootId, RelativeFolder: node.RelativeFolder ?? ""))
-                .Where(group => group.Count() > 1).ToList();
-            if (duplicates.Count > 0)
-            {
-                foreach (var duplicate in duplicates)
-                    log.AppendLine("BROWSER-RECURSIVE-TRACE *** DUPLICATE NODE IDENTITY *** " +
-                        $"RootId={duplicate.Key.RootId} RelativeFolder='{duplicate.Key.RelativeFolder}' " +
-                        $"count={duplicate.Count()} hashes=[{string.Join(",", duplicate.Select(node => node.GetHashCode()))}]");
-            }
-            else
-            {
-                log.AppendLine("BROWSER-RECURSIVE-TRACE no duplicate (RootId, RelativeFolder) node identities found");
-            }
-
-            foreach (var node in nodes)
-            {
-                var governing = BrowserRecursiveRootLogic.GoverningRoots(_browserRecursiveRoots, node.RootId!.Value, node.RelativeFolder ?? "");
-                var container = FindBrowserTreeItem(BrowserFolderTree, node);
-                string visualState;
-                if (container is null)
-                {
-                    visualState = "container=<not realized>";
-                }
-                else
-                {
-                    var outline = FindDescendantByName(container, "FolderIcon") as UIElement;
-                    var filled = FindDescendantByName(container, "FolderIconFilled") as UIElement;
-                    visualState = $"container=<realized> outlineVisibility={outline?.Visibility.ToString() ?? "<not found>"} " +
-                        $"filledVisibility={filled?.Visibility.ToString() ?? "<not found>"} " +
-                        $"containerIsSelected={container.IsSelected} containerDataContextSameAsNode={ReferenceEquals(container.DataContext, node)}";
-                }
-                log.AppendLine($"BROWSER-RECURSIVE-TRACE node hash={node.GetHashCode()} name='{node.DisplayName}' " +
-                    $"RootId={node.RootId} RelativeFolder='{node.RelativeFolder}' IsSelected={node.IsSelected} " +
-                    $"IsRecursiveScope={node.IsRecursiveScope} IsFilledFolderIcon={node.IsFilledFolderIcon} " +
-                    $"governingRootCount={governing.Count} {visualState}");
-            }
-            _activityLogFile.TryAppend(log.ToString());
-        }
-        catch (Exception exception)
-        {
-            // Diagnostics must never destabilize the app it is trying to observe.
-            try { _activityLogFile.TryAppend($"BROWSER-RECURSIVE-TRACE trace itself threw at checkpoint '{checkpoint}': {exception}"); }
-            catch { /* truly best-effort */ }
-        }
-    }
-
-    private static IEnumerable<BrowserTreeNode> DescendantBrowserTreeNodes(IEnumerable<BrowserTreeNode> nodes)
-    {
-        foreach (var node in nodes)
-        {
-            yield return node;
-            foreach (var descendant in DescendantBrowserTreeNodes(node.Children)) yield return descendant;
-        }
-    }
 
     private static DependencyObject? FindDescendantByName(DependencyObject parent, string name)
     {
@@ -953,9 +874,7 @@ public partial class MainWindow : Window
         if (_synchronizingBrowserScopeMode) return;
         var enabled = BrowserIncludeSubfoldersButton.IsChecked == true;
         var mode = enabled ? BrowserScopeMode.IncludeSubfolders : BrowserScopeMode.DirectFolder;
-        TraceBrowserRecursiveState($"10a: before Subfolders toggle click (enabling={enabled})");
         await RunBrowserNavigationAsync(() => _browserNavigation.SetIncludeSubfoldersAsync(enabled), mode);
-        TraceBrowserRecursiveState($"10b: after Subfolders toggle sequence (enabled={enabled})");
     }
 
     /// <summary>Applies a successful navigation result and reveals its Locations-tree ancestors. Returns false (without side effects) for a stale, null, or non-success state.</summary>
@@ -1222,7 +1141,6 @@ public partial class MainWindow : Window
             SyncBrowserScopeToggle(scope.Mode);
             RequestBrowserTreeSelection(scope.Location);
             _ = RevealBrowserTreeAncestorsAsync(scope.Location, _browserUiGeneration);
-            TraceBrowserRecursiveState("4: after EffectiveScopeDetermined handler body (ancestor reveal still in flight)");
         });
 
     private void ApplyBrowserNavigationFailure(BrowserFolderState failure)

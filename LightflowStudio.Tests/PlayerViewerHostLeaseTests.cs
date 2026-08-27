@@ -550,7 +550,7 @@ public sealed class PlayerViewerHostLeaseTests
     }
 
     [Fact]
-    public async Task S_CreatesExactlyOneSnapshotWithoutChangingRangeOrPlaybackAndTextEntryIsExcluded()
+    public async Task CrossingBoundary_ClearsOppositeWithoutMutatingSubclipAndSRejectsPartialRange()
     {
         await StaDispatcher.RunAsync(async () =>
         {
@@ -577,6 +577,32 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(positionBefore, host.PositionSlider.Value);
             Assert.Equal(pauseBefore, backend.PauseCallCount);
             Assert.Equal(0, store.SaveCount);
+
+            host.PositionSlider.Value = TimeSpan.FromSeconds(30).TotalMilliseconds;
+            await WaitUntilAsync(() => backend.SeekPositions.Contains(TimeSpan.FromSeconds(30)), "post-Out seek");
+            host.SetInButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await WaitUntilAsync(() => store.SaveCount == 1, "crossing Set In save");
+
+            Assert.Equal(TimeSpan.FromSeconds(30), store.SavedRange?.In);
+            Assert.Null(store.SavedRange?.Out);
+            Assert.Equal("Active", host.SetInButton.Tag);
+            Assert.Null(host.SetOutButton.Tag);
+            Assert.Equal(Visibility.Collapsed, host.OutTimeButton.Visibility);
+            Assert.Equal(range, subclips.Range); // The durable snapshot is independent from the working range.
+
+            Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
+            await Task.Delay(50);
+            Assert.Equal(1, subclips.CreateCount);
+            Assert.Contains("Set an Out point", host.StatusText.Text);
+
+            host.PositionSlider.Value = TimeSpan.FromSeconds(40).TotalMilliseconds;
+            await WaitUntilAsync(() => backend.SeekPositions.Contains(TimeSpan.FromSeconds(40)), "new Out seek");
+            host.SetOutButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await WaitUntilAsync(() => store.SaveCount == 2, "new Out save");
+            Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
+            await WaitUntilAsync(() => subclips.CreateCount == 2, "Subclip creation after restoring both boundaries");
+            Assert.Equal((TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(40)),
+                (subclips.Range?.In, subclips.Range?.Out));
             Assert.True(PlayerViewerHost.IsTextEntryControl(new System.Windows.Controls.TextBox()));
             Assert.True(PlayerViewerHost.IsTextEntryControl(new System.Windows.Controls.ComboBox { IsEditable = true }));
             window.Close();

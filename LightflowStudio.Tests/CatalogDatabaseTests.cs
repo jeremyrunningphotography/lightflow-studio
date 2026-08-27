@@ -80,7 +80,8 @@ public sealed class CatalogDatabaseTests : IDisposable
     [Fact]
     public async Task MediaRangeStore_PersistsPartialBoundariesAndClearsFullSourceIntent()
     {
-        var result = await CreateService().CreateNewAsync();
+        var service = CreateService();
+        var result = await service.CreateNewAsync();
         var session = result.Session!;
         var rootId = InsertRoot(session, "Archive");
         var assetId = InsertAsset(session, rootId, "clip.mp4", "clip.mp4");
@@ -90,14 +91,23 @@ public sealed class CatalogDatabaseTests : IDisposable
         await store.SaveAsync(assetId, outOnly);
         Assert.Equal(outOnly, await store.RestoreAsync(assetId));
 
-        var inOnly = new MediaRange(TimeSpan.FromSeconds(100), TimeSpan.FromSeconds(20));
+        var inOnly = ReviewRangeBoundaryPolicy.SetIn(
+            TimeSpan.FromSeconds(100), outOnly, TimeSpan.FromSeconds(80));
         await store.SaveAsync(assetId, inOnly);
         Assert.Equal(inOnly, await store.RestoreAsync(assetId));
 
-        await store.SaveAsync(assetId, null);
-        Assert.Null(await store.RestoreAsync(assetId));
-        Assert.Equal(0L, Scalar(session, "SELECT count(*) FROM MediaAssetRanges;"));
+        Assert.Equal(0L, Scalar(session,
+            "SELECT count(*) FROM MediaAssetRanges WHERE InTicks IS NOT NULL AND OutTicks IS NOT NULL AND InTicks >= OutTicks;"));
         await session.DisposeAsync();
+
+        var reopened = await service.OpenExistingAsync();
+        Assert.Equal(inOnly, await new CatalogMediaRangeStore(() => reopened.Session).RestoreAsync(assetId));
+
+        var reopenedStore = new CatalogMediaRangeStore(() => reopened.Session);
+        await reopenedStore.SaveAsync(assetId, null);
+        Assert.Null(await reopenedStore.RestoreAsync(assetId));
+        Assert.Equal(0L, Scalar(reopened.Session!, "SELECT count(*) FROM MediaAssetRanges;"));
+        await reopened.Session!.DisposeAsync();
     }
 
     [Fact]

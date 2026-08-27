@@ -53,6 +53,40 @@ public sealed class BrowserPlayerViewerTests
         Assert.False(ReviewRangePlaybackPolicy.ShouldArmOutBoundary(null, TimeSpan.Zero));
     }
 
+    [Theory]
+    [InlineData(10d, 20d, 5d, 5d, 20d)]
+    [InlineData(10d, 20d, 20d, 20d, null)]
+    [InlineData(10d, 20d, 30d, 30d, null)]
+    public void SetIn_NewBoundaryWinsAndOnlyClearsConflictingOut(
+        double currentIn, double currentOut, double requestedIn, double expectedIn, double? expectedOut)
+    {
+        var duration = TimeSpan.FromSeconds(60);
+        var current = new MediaRange(duration, TimeSpan.FromSeconds(currentIn), TimeSpan.FromSeconds(currentOut));
+
+        var result = ReviewRangeBoundaryPolicy.SetIn(duration, current, TimeSpan.FromSeconds(requestedIn));
+
+        Assert.Equal(TimeSpan.FromSeconds(expectedIn), result.In);
+        Assert.Equal(expectedOut is null ? null : TimeSpan.FromSeconds(expectedOut.Value), result.Out);
+        Assert.Empty(result.Validate());
+    }
+
+    [Theory]
+    [InlineData(10d, 20d, 30d, 10d, 30d)]
+    [InlineData(10d, 20d, 10d, null, 10d)]
+    [InlineData(10d, 20d, 5d, null, 5d)]
+    public void SetOut_NewBoundaryWinsAndOnlyClearsConflictingIn(
+        double currentIn, double currentOut, double requestedOut, double? expectedIn, double expectedOut)
+    {
+        var duration = TimeSpan.FromSeconds(60);
+        var current = new MediaRange(duration, TimeSpan.FromSeconds(currentIn), TimeSpan.FromSeconds(currentOut));
+
+        var result = ReviewRangeBoundaryPolicy.SetOut(duration, current, TimeSpan.FromSeconds(requestedOut));
+
+        Assert.Equal(expectedIn is null ? null : TimeSpan.FromSeconds(expectedIn.Value), result.In);
+        Assert.Equal(TimeSpan.FromSeconds(expectedOut), result.Out);
+        Assert.Empty(result.Validate());
+    }
+
     [Fact]
     public void TimelineWithNoBoundaries_SelectsFullSourceWithoutMarkers()
     {

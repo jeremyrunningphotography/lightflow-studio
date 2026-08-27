@@ -241,11 +241,20 @@ public sealed class JobsWorkspaceLiveInteractionTests
             Assert.Equal(2, Grid.GetRow(window.BrowserSelectionActionToolbar));
             Assert.Equal(0, Grid.GetColumn(window.BrowserQueryToolbar));
             Assert.Equal(1, Grid.GetColumn(window.BrowserSelectionActionToolbar));
+            Assert.Equal(2, Grid.GetColumnSpan(window.BrowserNavigationToolbar));
+            var navigationBounds = window.BrowserNavigationToolbar.TransformToAncestor(window.BrowserBrowseToolbar)
+                .TransformBounds(new Rect(new Point(), window.BrowserNavigationToolbar.RenderSize));
+            Assert.Equal(window.BrowserBrowseToolbar.ActualWidth, navigationBounds.Right, 1);
+            Assert.True(window.BrowserNavigationToolbar.ActualWidth > window.BrowserQueryToolbar.ActualWidth);
+            Assert.True(window.BrowserCurrentPath.ActualWidth > 300);
 
             RaiseClick(window.JobsDrawerPullButton);
             await RealizeJobsWorkspaceAsync(window);
             Assert.Equal(2, Grid.GetRow(window.BrowserQueryToolbar));
             Assert.Equal(4, Grid.GetRow(window.BrowserSelectionActionToolbar));
+            navigationBounds = window.BrowserNavigationToolbar.TransformToAncestor(window.BrowserBrowseToolbar)
+                .TransformBounds(new Rect(new Point(), window.BrowserNavigationToolbar.RenderSize));
+            Assert.Equal(window.BrowserBrowseToolbar.ActualWidth, navigationBounds.Right, 1);
             Assert.Equal(0, Grid.GetColumn(window.BrowserSelectionActionToolbar));
             Assert.Equal(2, Grid.GetColumnSpan(window.BrowserSelectionActionToolbar));
             AssertContained(window.BrowserQueryToolbar, window.BrowserBrowseToolbar);

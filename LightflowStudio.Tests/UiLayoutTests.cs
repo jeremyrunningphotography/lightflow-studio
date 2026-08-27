@@ -268,6 +268,7 @@ public class UiLayoutTests
         var browseColumns = browseToolbar.Element(ns + "Grid.ColumnDefinitions")!.Elements(ns + "ColumnDefinition").ToList();
         Assert.Equal(["*", "Auto"], browseColumns.Select(column => (string?)column.Attribute("Width")));
         Assert.Equal("0", (string?)navigationToolbar.Attribute("Grid.Row"));
+        Assert.Equal("2", (string?)navigationToolbar.Attribute("Grid.ColumnSpan"));
         Assert.Equal("2", (string?)queryToolbar.Attribute("Grid.Row"));
         Assert.Contains(toggle.Ancestors(), ancestor => ancestor == navigationToolbar);
         Assert.DoesNotContain(toggle.Ancestors(), ancestor => ancestor == queryToolbar);

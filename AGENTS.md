@@ -9,6 +9,17 @@
 - Materially separate issues normally begin in a clean agent conversation after the prior issue is merged.
 - Follow the branch → implementation → validation → Draft PR → review → explicit acceptance → merge/cleanup rhythm.
 
+## GitHub project and roadmap hygiene
+
+- The GitHub Project/roadmap is durable project state and must remain continuously synchronized with issues, Epics, PRs, and implementation status.
+- Whenever an issue is created or materially updated, reconcile its Project membership, Status, Area, Priority, native parent Epic, dependencies, and any directly affected Epic status or Definition of Done. Add new issues to the Project when they belong there.
+- Move an issue to the Project's established active-work status only when implementation actually begins; discussed or planned work is not In Progress.
+- When a Draft PR is opened or materially updated, verify that its issue, parent Epic, and Project item still reflect the implemented scope. Make product or architecture decisions discovered during implementation durable in the issue before treating the PR description as authoritative.
+- After every merge/cleanup, mark completed Project work Done, verify issue closure, update the parent Epic's completed and remaining work and Definition of Done, and verify remaining child relationships and statuses. Do not close an Epic until all required child work and Definition-of-Done items are complete.
+- Keep unrelated follow-up work outside an Epic even when discovered during that Epic. Preserve historical closed issue specifications; record later superseding decisions in current Epic/status summaries or authoritative comments.
+- Use the Project's existing field values and conventions. Never invent parentage, priority, Area, Status, or product scope merely to tidy the roadmap; surface genuine ambiguity for product input.
+- Project reconciliation is part of completing issue-management, PR-handoff, and merge/cleanup work. Normally inspect directly affected items, not the entire Project. Correct broader mechanical drift when authoritative repository state resolves it, and report non-mechanical ambiguity instead of guessing.
+
 ## PR preparation and functional-test artifact
 
 - Jeremy functionally tests every change by running `artifacts\release\LightflowStudio\LightflowStudio.exe`.

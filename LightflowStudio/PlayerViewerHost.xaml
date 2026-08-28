@@ -226,18 +226,28 @@
         </Border>
         <Grid Grid.Column="1" Margin="8,0,0,0">
          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-         <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
-          <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding IsEditing}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
-         </TextBlock>
-         <TextBox Text="{Binding Name, Mode=OneTime}" Foreground="{StaticResource TextBrush}" Visibility="{Binding IsEditing, Converter={StaticResource BooleanToVisibility}}"
-          LostKeyboardFocus="SubclipName_LostKeyboardFocus" KeyDown="SubclipName_KeyDown" AutomationProperties.Name="Subclip name"/>
+         <Grid x:Name="SubclipNameRow">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="0"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <TextBlock x:Name="SubclipNameText" Text="{Binding Name}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold"
+           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Focusable="True" ToolTip="{Binding Name}"
+           AutomationProperties.Name="{Binding Name}" AutomationProperties.HelpText="{Binding Name}">
+           <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding IsEditing}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+          </TextBlock>
+          <TextBox x:Name="SubclipNameEditor" Grid.Column="0" Text="{Binding Name, Mode=OneTime}" Foreground="{StaticResource TextBrush}"
+           Visibility="{Binding IsEditing, Converter={StaticResource BooleanToVisibility}}" LostKeyboardFocus="SubclipName_LostKeyboardFocus"
+           KeyDown="SubclipName_KeyDown" AutomationProperties.Name="Subclip name editor" AutomationProperties.HelpText="Edit the durable Subclip name"/>
+          <Button x:Name="RenameSubclipButton" Grid.Column="1" Tag="{Binding}" Margin="4,0,0,0"
+           Click="RenameSubclip_Click" ToolTip="Rename" AutomationProperties.Name="Rename Subclip">
+           <Path Width="12" Height="12" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5"
+            StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" SnapsToDevicePixels="True"
+            Data="{StaticResource SemanticEditIconGeometry}"/>
+           <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SubclipActionButton}"><Style.Triggers><DataTrigger Binding="{Binding IsEditing}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Button.Style>
+          </Button>
+         </Grid>
          <TextBlock Grid.Row="1" Margin="0,3,0,0" Text="{Binding RangeSummary}" FontSize="10" Foreground="{StaticResource MutedTextBrush}"/>
          <DockPanel Grid.Row="2" Margin="0,5,0,0">
           <TextBlock DockPanel.Dock="Left" Text="{Binding DurationSummary}" FontSize="10" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center"/>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
-           <Button Style="{StaticResource SubclipActionButton}" Content="&#xE70F;" Tag="{Binding}" Click="RenameSubclip_Click" ToolTip="Rename" AutomationProperties.Name="Rename Subclip"/>
-           <Button Style="{StaticResource SubclipActionButton}" Tag="{Binding}" IsEnabled="{Binding CanMoveUp}" Click="MoveSubclipUp_Click" ToolTip="Move up" AutomationProperties.Name="Move Subclip up"><Path Width="12" Height="14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" SnapsToDevicePixels="True" Data="{StaticResource SemanticMoveUpIconGeometry}"/></Button>
-           <Button Style="{StaticResource SubclipActionButton}" Tag="{Binding}" IsEnabled="{Binding CanMoveDown}" Click="MoveSubclipDown_Click" ToolTip="Move down" AutomationProperties.Name="Move Subclip down"><Path Width="12" Height="14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" SnapsToDevicePixels="True" Data="{StaticResource SemanticMoveDownIconGeometry}"/></Button>
            <Button Style="{StaticResource SubclipActionButton}" Content="&#xE74D;" Tag="{Binding}" Click="DeleteSubclip_Click" ToolTip="Delete" AutomationProperties.Name="Delete Subclip"/>
           </StackPanel>
          </DockPanel>

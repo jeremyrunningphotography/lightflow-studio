@@ -15,6 +15,18 @@ internal sealed record Subclip(
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc);
 
+internal static class SubclipCurrentOrder
+{
+    public static IOrderedEnumerable<Subclip> Apply(IEnumerable<Subclip> subclips) =>
+        subclips.OrderBy(item => item.In).ThenBy(item => item.SubclipId);
+
+    public static int Compare(Subclip left, Subclip right)
+    {
+        var byIn = left.In.CompareTo(right.In);
+        return byIn != 0 ? byIn : left.SubclipId.CompareTo(right.SubclipId);
+    }
+}
+
 internal sealed record SubclipOrder(Guid SubclipId, long ExpectedRevision);
 internal sealed record SubclipCreateResult(Subclip Subclip, bool Created);
 

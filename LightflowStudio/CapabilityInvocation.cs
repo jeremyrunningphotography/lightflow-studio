@@ -57,7 +57,8 @@ internal sealed class SubclipExportCapabilityHandoff(
             var missing = selected.Where(id => current.All(item => item.SubclipId != id)).ToArray();
             if (missing.Length != 0)
                 return new([], ["One or more selected Subclips no longer exist for the current source. Review the selection and try again."]);
-            foreach (var subclip in current.Where(item => selected.Contains(item.SubclipId)))
+            foreach (var subclip in SubclipCurrentOrder.Apply(current)
+                         .Where(item => selected.Contains(item.SubclipId)))
                 output.Add(ForSubclip(source, subclip));
         }
         else
@@ -67,7 +68,7 @@ internal sealed class SubclipExportCapabilityHandoff(
                 var current = await subclips.ListAsync(source.AssetId, cancellationToken).ConfigureAwait(false);
                 if (current.Count != 0)
                 {
-                    foreach (var subclip in current) output.Add(ForSubclip(source, subclip));
+                    foreach (var subclip in SubclipCurrentOrder.Apply(current)) output.Add(ForSubclip(source, subclip));
                 }
                 else if (invocation.IncludeNoSubclipSources)
                 {

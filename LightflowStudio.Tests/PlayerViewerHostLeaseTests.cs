@@ -560,10 +560,10 @@ public sealed class PlayerViewerHostLeaseTests
             var assetId = Guid.NewGuid();
             var now = DateTimeOffset.UtcNow;
             var subclips = new FakeSubclipService();
-            subclips.Items.Add(new(Guid.NewGuid(), assetId, "Second take", 0, TimeSpan.FromSeconds(10),
-                TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(60), 1, now, now));
-            subclips.Items.Add(new(Guid.NewGuid(), assetId, "Close-up", 1, TimeSpan.FromSeconds(30),
+            subclips.Items.Add(new(Guid.NewGuid(), assetId, "Later take", 0, TimeSpan.FromSeconds(30),
                 TimeSpan.FromSeconds(35), TimeSpan.FromSeconds(60), 1, now, now));
+            subclips.Items.Add(new(Guid.NewGuid(), assetId, "Earlier take", 1, TimeSpan.FromSeconds(10),
+                TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(60), 1, now, now));
             var range = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(50));
             var store = new FakeRangeStore(range);
             var host = new PlayerViewerHost(coordinator, store, subclips);
@@ -574,7 +574,7 @@ public sealed class PlayerViewerHostLeaseTests
                 new(Guid.NewGuid(), "clip.mp4", "clip.mp4", Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
 
             Assert.Equal(2, host.SubclipsList.Items.Count);
-            Assert.Equal("Second take", ((SubclipPanelItem)host.SubclipsList.Items[0]).Name);
+            Assert.Equal("Earlier take", ((SubclipPanelItem)host.SubclipsList.Items[0]).Name);
             Assert.Equal(Visibility.Visible, host.SubclipsPanel.Visibility);
             host.SetSubclipsDrawerOpen(false);
             Assert.Equal(Visibility.Collapsed, host.SubclipsPanel.Visibility);
@@ -585,7 +585,7 @@ public sealed class PlayerViewerHostLeaseTests
             await WaitUntilAsync(() => backend.SeekPositions.Contains(TimeSpan.FromSeconds(30)), "Subclip In seek");
             Assert.Equal(0, store.SaveCount);
             Assert.Equal(2, host.SelectedSubclipIds.Count);
-            Assert.Equal(subclips.Items[1].SubclipId, host.ActiveSubclipId);
+            Assert.Equal(subclips.Items[0].SubclipId, host.ActiveSubclipId);
             Assert.True(host.DeleteSelectedSubclipsButton.IsEnabled);
             Assert.True(host.ExportSelectedSubclipsMenuItem.IsEnabled);
             Assert.True(host.ExportAllSubclipsMenuItem.IsEnabled);
@@ -595,11 +595,11 @@ public sealed class PlayerViewerHostLeaseTests
             host.SubclipsList.SelectedItems.Remove(host.SubclipsList.Items[0]);
             host.ExportSelectedSubclipsMenuItem.RaiseEvent(
                 new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
-            Assert.Equal([subclips.Items[1].SubclipId], exports.Single());
+            Assert.Equal([subclips.Items[0].SubclipId], exports.Single());
             host.SetSelectedSubclipExportEnabled(true);
             host.ExportAllSubclipsMenuItem.RaiseEvent(
                 new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
-            Assert.Equal(subclips.Items.Select(item => item.SubclipId), exports[1]);
+            Assert.Equal([subclips.Items[1].SubclipId, subclips.Items[0].SubclipId], exports[1]);
             host.SetSelectedSubclipExportEnabled(true);
 
             var seekCount = backend.SeekPositions.Count;
@@ -614,10 +614,6 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(seekCount, backend.SeekPositions.Count);
             Assert.Equal(0, store.SaveCount);
             Assert.Equal(2, subclips.Items.Count);
-            Assert.False(((SubclipPanelItem)host.SubclipsList.Items[0]).CanMoveUp);
-            Assert.True(((SubclipPanelItem)host.SubclipsList.Items[0]).CanMoveDown);
-            Assert.True(((SubclipPanelItem)host.SubclipsList.Items[1]).CanMoveUp);
-            Assert.False(((SubclipPanelItem)host.SubclipsList.Items[1]).CanMoveDown);
             window.Close();
         });
     }

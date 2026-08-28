@@ -202,12 +202,12 @@ public sealed class EncodingCapabilityHandoffTests
     }
 
     [Fact]
-    public async Task Subclip_export_materializes_browser_order_subclip_order_and_truthful_fallbacks()
+    public async Task Subclip_export_materializes_browser_order_in_time_order_and_truthful_fallbacks()
     {
         var first = Guid.NewGuid();
         var second = Guid.NewGuid();
-        var a = Clip(first, "Opening", 0, 1, 4);
-        var b = Clip(first, "Reaction", 1, 6, 9);
+        var a = Clip(first, "Opening", 9, 1, 4);
+        var b = Clip(first, "Reaction", 0, 6, 9);
         var source = new EncodingCapabilityHandoff(new FakeAssets(
             Resolution(first, "C:\\media\\CAM001.mov"), Resolution(second, "C:\\media\\CAM002.mov")),
             new FakeRoots(), new FakeRanges(new Dictionary<Guid, MediaRange?>
@@ -230,12 +230,12 @@ public sealed class EncodingCapabilityHandoffTests
     }
 
     [Fact]
-    public async Task Player_subclip_export_uses_only_selected_ids_in_durable_order_and_rejects_stale_ids()
+    public async Task Player_subclip_export_uses_only_selected_ids_in_in_time_order_and_rejects_stale_ids()
     {
         var asset = Guid.NewGuid();
-        var first = Clip(asset, "First", 0, 1, 3);
+        var first = Clip(asset, "First", 2, 1, 3);
         var middle = Clip(asset, "Middle", 1, 4, 7);
-        var last = Clip(asset, "Last", 2, 8, 12);
+        var last = Clip(asset, "Last", 0, 8, 12);
         var handoff = new SubclipExportCapabilityHandoff(
             new EncodingCapabilityHandoff(new FakeAssets(Resolution(asset, "C:\\media\\source.mov")),
                 new FakeRoots(), new FakeRanges()),
@@ -251,6 +251,24 @@ public sealed class EncodingCapabilityHandoffTests
         Assert.DoesNotContain(selected.Inputs, item => item.ExportProvenance!.SubclipId == middle.SubclipId);
         Assert.False(stale.Succeeded);
         Assert.Contains("no longer exist", stale.Errors.Single(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Current_order_uses_subclip_id_as_stable_tie_breaker()
+    {
+        var asset = Guid.NewGuid();
+        var laterId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        var earlierId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var sameIn = TimeSpan.FromSeconds(4);
+        var values = new[]
+        {
+            new Subclip(laterId, asset, "Later ID", 0, sameIn, TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(20), 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+            new Subclip(earlierId, asset, "Earlier ID", 1, sameIn, TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(20), 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
+        };
+
+        Assert.Equal([earlierId, laterId], SubclipCurrentOrder.Apply(values).Select(item => item.SubclipId));
+        var renamed = values[1] with { Name = "Renamed without reordering", Revision = 2 };
+        Assert.Equal([earlierId, laterId], SubclipCurrentOrder.Apply([values[0], renamed]).Select(item => item.SubclipId));
     }
 
     private static Subclip Clip(Guid assetId, string name, int ordinal, double start, double end) =>

@@ -50,7 +50,6 @@ public partial class PlayerViewerHost : UserControl
     private readonly ObservableCollection<SubclipPanelItem> _subclipItems = [];
     private CancellationTokenSource? _subclipWorkCts;
     private bool _subclipsDrawerOpen;
-    private bool _publishingSubclips;
     private bool _stopAtOutDuringPlayback;
     private bool _stoppingAtOut;
     private MediaDecodedFrame? _retainedSteppedFrame;
@@ -884,9 +883,11 @@ public partial class PlayerViewerHost : UserControl
                 if (item is null)
                 {
                     item = new SubclipPanelItem(subclip);
-                    _subclipItems.Add(item);
+                    var insertAt = 0;
+                    while (insertAt < _subclipItems.Count &&
+                           SubclipCurrentOrder.Compare(_subclipItems[insertAt].Subclip, subclip) < 0) insertAt++;
+                    _subclipItems.Insert(insertAt, item);
                 }
-                RefreshMoveBoundaries();
                 UpdateSubclipEmptyState();
                 if (result.Created && _subclipWorkCts is { } work) _ = LoadPosterAsync(item, _generation, work.Token);
                 SubclipsList.SelectedItems.Clear();
@@ -1016,13 +1017,12 @@ public partial class PlayerViewerHost : UserControl
             var subclips = await _subclips.ListAsync(assetId, token).ConfigureAwait(true);
             if (generation != _generation || _currentAsset?.AssetId != assetId || token.IsCancellationRequested) return;
             _subclipItems.Clear();
-            foreach (var subclip in subclips)
+            foreach (var subclip in SubclipCurrentOrder.Apply(subclips))
             {
                 var item = new SubclipPanelItem(subclip);
                 _subclipItems.Add(item);
                 _ = LoadPosterAsync(item, generation, token);
             }
-            RefreshMoveBoundaries();
             UpdateSubclipEmptyState();
             if (subclips.Count > 0) RequestSubclipsDrawer(open: true);
         }
@@ -1116,7 +1116,6 @@ public partial class PlayerViewerHost : UserControl
         foreach (var item in _subclipItems) item.IsSelected = SubclipsList.SelectedItems.Contains(item);
         DeleteSelectedSubclipsButton.IsEnabled = SubclipsList.SelectedItems.Count > 0;
         ExportSelectedSubclipsMenuItem.IsEnabled = SubclipsList.SelectedItems.Count > 0;
-        if (_publishingSubclips) return;
         var selected = e.AddedItems.Cast<SubclipPanelItem>().LastOrDefault()
             ?? SubclipsList.SelectedItems.Cast<SubclipPanelItem>().FirstOrDefault(item => item.SubclipId == _selectedSubclipId)
             ?? SubclipsList.SelectedItems.Cast<SubclipPanelItem>().LastOrDefault();
@@ -1140,6 +1139,9 @@ public partial class PlayerViewerHost : UserControl
 
     private async void SubclipsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (FindVisualAncestor<System.Windows.Controls.Primitives.ButtonBase>(e.OriginalSource as DependencyObject) is not null ||
+            FindVisualAncestor<System.Windows.Controls.Primitives.TextBoxBase>(e.OriginalSource as DependencyObject) is not null)
+            return;
         var item = (e.OriginalSource as FrameworkElement)?.DataContext as SubclipPanelItem
             ?? (e.Source as FrameworkElement)?.DataContext as SubclipPanelItem
             ?? FindVisualAncestor<System.Windows.Controls.ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as SubclipPanelItem;
@@ -1217,7 +1219,6 @@ public partial class PlayerViewerHost : UserControl
                 _selectedSubclipRange = null;
             }
             _subclipItems.Remove(item);
-            RefreshMoveBoundaries();
             UpdateSubclipEmptyState();
         }
         catch (SubclipConcurrencyException exception)
@@ -1248,7 +1249,6 @@ public partial class PlayerViewerHost : UserControl
             var settleIndex = Math.Min(selected.Min(item => _subclipItems.IndexOf(item)),
                 Math.Max(0, _subclipItems.Count - selected.Length - 1));
             foreach (var item in selected) _subclipItems.Remove(item);
-            RefreshMoveBoundaries();
             UpdateSubclipEmptyState();
             if (_subclipItems.Count > 0) SubclipsList.SelectedItem = _subclipItems[settleIndex];
         }
@@ -1258,61 +1258,6 @@ public partial class PlayerViewerHost : UserControl
             await ReloadCurrentSubclipsAsync().ConfigureAwait(true);
         }
         catch (Exception exception) { SetStatus($"Delete failed: {exception.Message}"); }
-    }
-
-    private void MoveSubclipUp_Click(object sender, RoutedEventArgs e) => _ = MoveSubclipAsync((sender as FrameworkElement)?.Tag as SubclipPanelItem, -1);
-    private void MoveSubclipDown_Click(object sender, RoutedEventArgs e) => _ = MoveSubclipAsync((sender as FrameworkElement)?.Tag as SubclipPanelItem, 1);
-
-    private async Task MoveSubclipAsync(SubclipPanelItem? item, int offset)
-    {
-        if (_subclips is null || item is null || _currentAsset?.AssetId is not Guid assetId) return;
-        if (SubclipsList.SelectedItems.Count > 1)
-        {
-            SetStatus("Select one active Subclip to change its order.");
-            return;
-        }
-        var index = _subclipItems.IndexOf(item);
-        var target = index + offset;
-        if (index < 0 || target < 0 || target >= _subclipItems.Count) return;
-        var order = _subclipItems.ToList();
-        (order[index], order[target]) = (order[target], order[index]);
-        try
-        {
-            var reordered = await _subclips.ReorderAsync(assetId,
-                order.Select(candidate => new SubclipOrder(candidate.SubclipId, candidate.Subclip.Revision)).ToArray()).ConfigureAwait(true);
-            PublishSubclipOrder(reordered);
-            SubclipsList.SelectedItem = _subclipItems.FirstOrDefault(candidate => candidate.SubclipId == item.SubclipId);
-        }
-        catch (SubclipConcurrencyException exception)
-        {
-            SetStatus(exception.Message);
-            await ReloadCurrentSubclipsAsync().ConfigureAwait(true);
-        }
-        catch (Exception exception) { SetStatus($"Reorder failed: {exception.Message}"); }
-    }
-
-    private void PublishSubclipOrder(IReadOnlyList<Subclip> reordered)
-    {
-        var existing = _subclipItems.ToDictionary(item => item.SubclipId);
-        var selectedIds = SelectedSubclipIds;
-        _publishingSubclips = true;
-        _subclipItems.Clear();
-        foreach (var subclip in reordered)
-        {
-            var item = existing[subclip.SubclipId];
-            item.Replace(subclip);
-            _subclipItems.Add(item);
-        }
-        foreach (var item in _subclipItems.Where(item => selectedIds.Contains(item.SubclipId)))
-            SubclipsList.SelectedItems.Add(item);
-        _publishingSubclips = false;
-        RefreshMoveBoundaries();
-    }
-
-    private void RefreshMoveBoundaries()
-    {
-        for (var index = 0; index < _subclipItems.Count; index++)
-            _subclipItems[index].SetMoveBoundaries(index > 0, index < _subclipItems.Count - 1);
     }
 
     private async Task ReloadCurrentSubclipsAsync()

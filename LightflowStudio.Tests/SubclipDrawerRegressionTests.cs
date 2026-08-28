@@ -87,6 +87,23 @@ public sealed class SubclipDrawerRegressionTests
     }
 
     [Fact]
+    public void RenamedPanelItemPublishesTheNewDurableNameForTextTooltipAndAutomationBindings()
+    {
+        var original = new Subclip(Guid.NewGuid(), Guid.NewGuid(), "Original", 7, TimeSpan.FromSeconds(2),
+            TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(20), 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        var item = new SubclipPanelItem(original);
+        var changed = new List<string?>();
+        item.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        item.Replace(original with { Name = "A much longer durable renamed Subclip", Revision = 2 });
+
+        Assert.Equal("A much longer durable renamed Subclip", item.Name);
+        Assert.Contains(nameof(SubclipPanelItem.Name), changed);
+        Assert.Equal(original.SubclipId, item.SubclipId);
+        Assert.Equal((original.In, original.Out), (item.Subclip.In, item.Subclip.Out));
+    }
+
+    [Fact]
     public void ShellCoordinator_IsSingleAuthorityForJobsAndSubclipsMutualExclusion()
     {
         var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
@@ -127,21 +144,43 @@ public sealed class SubclipDrawerRegressionTests
     }
 
     [Fact]
-    public void BulkDeleteIsDestructiveAndReorderUsesDistinctVectorGeometry()
+    public void BulkDeleteIsDestructiveAndNameRowUsesPersistentVectorRenameAffordance()
     {
         var player = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml"));
         var delete = Named(player, "DeleteSelectedSubclipsButton");
-        var reorder = player.Descendants().Where(element => element.Name.LocalName == "Button" &&
-            ((string?)element.Attribute("AutomationProperties.Name"))?.StartsWith("Move Subclip", StringComparison.Ordinal) == true).ToArray();
+        var nameRow = Named(player, "SubclipNameRow");
+        var name = Named(player, "SubclipNameText");
+        var editor = Named(player, "SubclipNameEditor");
+        var rename = Named(player, "RenameSubclipButton");
 
         Assert.Equal("{StaticResource DangerButton}", (string?)delete.Attribute("Style"));
-        Assert.Equal(2, reorder.Length);
-        var paths = reorder.Select(button => button.Elements().Single(element => element.Name.LocalName == "Path")).ToArray();
-        Assert.Equal("{StaticResource SemanticMoveUpIconGeometry}", (string?)paths[0].Attribute("Data"));
-        Assert.Equal("{StaticResource SemanticMoveDownIconGeometry}", (string?)paths[1].Attribute("Data"));
-        Assert.NotEqual((string?)paths[0].Attribute("Data"), (string?)paths[1].Attribute("Data"));
-        Assert.Equal("{Binding CanMoveUp}", (string?)reorder[0].Attribute("IsEnabled"));
-        Assert.Equal("{Binding CanMoveDown}", (string?)reorder[1].Attribute("IsEnabled"));
+        Assert.Same(nameRow, name.Parent);
+        Assert.Same(nameRow, editor.Parent);
+        Assert.Same(nameRow, rename.Parent);
+        Assert.Equal("*", (string?)nameRow.Descendants().First(element => element.Name.LocalName == "ColumnDefinition").Attribute("Width"));
+        Assert.Equal("NoWrap", (string?)name.Attribute("TextWrapping"));
+        Assert.Equal("CharacterEllipsis", (string?)name.Attribute("TextTrimming"));
+        Assert.Equal("{Binding Name}", (string?)name.Attribute("ToolTip"));
+        Assert.Equal("{Binding Name}", (string?)name.Attribute("AutomationProperties.HelpText"));
+        Assert.Equal("0", (string?)editor.Attribute("Grid.Column"));
+        Assert.Equal("Rename", (string?)rename.Attribute("ToolTip"));
+        Assert.Equal("Rename Subclip", (string?)rename.Attribute("AutomationProperties.Name"));
+        Assert.Equal("{StaticResource SemanticEditIconGeometry}", (string?)rename.Descendants()
+            .Single(element => element.Name.LocalName == "Path").Attribute("Data"));
+        Assert.DoesNotContain(player.Descendants(), element =>
+            ((string?)element.Attribute("AutomationProperties.Name"))?.StartsWith("Move Subclip", StringComparison.Ordinal) == true);
+
+        var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
+        var begin = Body(source, "private void RenameSubclip_Click");
+        var key = Body(source, "private async void SubclipName_KeyDown");
+        var commit = Body(source, "private async Task CommitRenameAsync");
+        Assert.Contains("editor.Focus(); editor.SelectAll();", begin);
+        Assert.Contains("e.Key == Key.Escape", key);
+        Assert.Contains("e.Key != Key.Enter", key);
+        Assert.Contains("await CommitRenameAsync", key);
+        Assert.Contains("await _subclips.RenameAsync(item.SubclipId, item.Subclip.Revision, name)", commit);
+        Assert.True(commit.IndexOf("item.Replace(updated)", StringComparison.Ordinal) >
+                    commit.IndexOf("await _subclips.RenameAsync", StringComparison.Ordinal));
     }
 
     private static XElement Named(XDocument document, string name) => document.Descendants().Single(element =>

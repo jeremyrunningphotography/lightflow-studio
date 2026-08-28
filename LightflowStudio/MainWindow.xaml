@@ -5,7 +5,7 @@
  xmlns:sys="clr-namespace:System;assembly=System.Runtime"
  Title="Lightflow Studio" Icon="Assets/Branding/LightflowStudio.ico"
  Height="900" Width="1440" MinHeight="720" MinWidth="1120" WindowStartupLocation="CenterScreen"
- Closing="Window_Closing" PreviewKeyDown="MainWindow_PreviewKeyDown">
+ Closing="Window_Closing" PreviewKeyDown="MainWindow_PreviewKeyDown" PreviewKeyUp="MainWindow_PreviewKeyUp">
  <Window.Resources>
   <sys:Double x:Key="BrowserRow2ControlHeight">34</sys:Double>
   <sys:Double x:Key="JobsToolbarControlHeight">34</sys:Double>

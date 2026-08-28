@@ -117,7 +117,7 @@ public sealed class CatalogDatabaseTests : IDisposable
     {
         var duration = TimeSpan.FromTicks(987_654_321);
         var boundary = TimeSpan.FromTicks(123_456_789);
-        var materialized = SubclipCreationRange.Materialize(new(duration,
+        var materialized = SubclipCreationEligibility.Materialize(new(duration,
             inOnly ? boundary : null, inOnly ? null : boundary));
 
         Assert.Equal(inOnly ? boundary : TimeSpan.Zero, materialized.In);
@@ -128,9 +128,9 @@ public sealed class CatalogDatabaseTests : IDisposable
     [Fact]
     public void SubclipCreationRange_RejectsUnsetAndInvalidSourceDurationWithoutInventingRange()
     {
-        Assert.Throws<ArgumentException>(() => SubclipCreationRange.Materialize(
+        Assert.Throws<ArgumentException>(() => SubclipCreationEligibility.Materialize(
             new(TimeSpan.FromSeconds(10))));
-        Assert.Throws<ArgumentException>(() => SubclipCreationRange.Materialize(
+        Assert.Throws<ArgumentException>(() => SubclipCreationEligibility.Materialize(
             new(TimeSpan.Zero, In: TimeSpan.Zero)));
     }
 

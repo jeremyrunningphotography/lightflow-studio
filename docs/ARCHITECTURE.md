@@ -806,6 +806,12 @@ relative-path filename stem plus exact In/Out timestamps rendered at determinist
 durable snapshots; Player reopen, working-range edits, root remapping, and Export never regenerate them.
 At Catalog creation, a partial working range is materialized once to exact durable bounds using source start for a
 missing In or authoritative source duration for a missing Out. A completely unset or invalid-duration range is rejected.
+The same typed eligibility result supplies Player `+ Subclip` enablement and the `S` command's materialized input, so
+presentation cannot advertise a creation state that the Catalog command would immediately reject.
+
+While Player presentation is active, the shell delegates Player shortcuts to the reusable Player command owner before
+other shell handling, independent of whether focus is in Player chrome or a sibling drawer. The command owner yields
+only when the routed input owner is a genuine text-entry control; drawer focus alone never disables Player shortcuts.
 
 The owned `ExportDialog` is configuration and preflight only. It reads current LUT cache snapshots without starting discovery, edits a typed `NamePartsDefinition` and `ExportMaterializationPolicy`, evaluates the complete batch with `EncodingJobPlanner`, and submits one final immutable valid plan. Queue acceptance is synchronous; the modal closes immediately and never awaits progress or completion. Browser folder, recursive scope, query/filter state, selection, scroll position, and the reusable Player remain in memory because this path never leaves Home or rebuilds either presentation.
 

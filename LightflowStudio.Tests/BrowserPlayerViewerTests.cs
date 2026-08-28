@@ -123,4 +123,39 @@ public sealed class BrowserPlayerViewerTests
         Assert.Equal(expectedStart, presentation.StartFraction, 6);
         Assert.Equal(expectedWidth, presentation.WidthFraction, 6);
     }
+
+    [Theory]
+    [InlineData(true, true, false, true)]
+    [InlineData(true, false, true, true)]
+    [InlineData(true, true, true, true)]
+    [InlineData(true, false, false, false)]
+    [InlineData(false, true, true, false)]
+    public void SubclipEligibility_UsesOneTypedPolicyForTargetIntentAndSourceCompletion(
+        bool catalogVideo, bool hasIn, bool hasOut, bool expected)
+    {
+        var duration = TimeSpan.FromSeconds(60);
+        var range = hasIn || hasOut
+            ? new MediaRange(duration, hasIn ? TimeSpan.FromSeconds(10) : null,
+                hasOut ? TimeSpan.FromSeconds(20) : null)
+            : null;
+
+        var result = SubclipCreationEligibility.Evaluate(catalogVideo, range, duration);
+
+        Assert.Equal(expected, result.CanCreate);
+        Assert.Equal(expected, result.MaterializedRange is not null);
+    }
+
+    [Fact]
+    public void SubclipEligibility_RejectsUnavailableDurationAndMaterializesExactSourceBounds()
+    {
+        var inOnly = new MediaRange(TimeSpan.FromSeconds(60), In: TimeSpan.FromTicks(123456789));
+        var unavailable = SubclipCreationEligibility.Evaluate(true, inOnly, null);
+        var invalid = SubclipCreationEligibility.Evaluate(true, inOnly, TimeSpan.Zero);
+        var valid = SubclipCreationEligibility.Evaluate(true, inOnly, TimeSpan.FromTicks(987654321));
+
+        Assert.False(unavailable.CanCreate);
+        Assert.False(invalid.CanCreate);
+        Assert.Equal((inOnly.In, TimeSpan.FromTicks(987654321)),
+            (valid.MaterializedRange?.In, valid.MaterializedRange?.Out));
+    }
 }

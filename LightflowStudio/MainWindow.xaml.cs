@@ -1740,6 +1740,12 @@ public partial class MainWindow : Window
     /// <summary>Ctrl+F focuses the Browser search box, but only while the Browser workspace is showing an open, filterable location.</summary>
     private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (PlayerOwnsShortcutContext() && _playerViewerHost!.TryHandleShortcut(
+                e.Key, e.OriginalSource as DependencyObject))
+        {
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape && MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)
             && Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase
             && Keyboard.FocusedElement is not System.Windows.Controls.ComboBox)
@@ -1754,6 +1760,16 @@ public partial class MainWindow : Window
         BrowserSearchBox.SelectAll();
         e.Handled = true;
     }
+
+    private void MainWindow_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (!PlayerOwnsShortcutContext() || !_playerViewerHost!.TryHandleShortcutKeyUp(e.Key)) return;
+        e.Handled = true;
+    }
+
+    private bool PlayerOwnsShortcutContext() =>
+        MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home) &&
+        _browserPresentation == BrowserPresentationMode.PlayerViewer && _playerViewerHost is not null;
 
     /// <summary>
     /// Lightweight Browser status: visible/total item counts, selection count/size (scoped to the whole

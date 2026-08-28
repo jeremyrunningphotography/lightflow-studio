@@ -73,8 +73,10 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
     public void ArrowKeys_UseTheSharedStepPathAndPreserveSliderTextAndSelectorInteraction()
     {
         var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
-        Assert.Contains("case Key.Left when _service is not null && PositionSlider.IsEnabled:", source);
-        Assert.Contains("case Key.Right when _service is not null && PositionSlider.IsEnabled:", source);
+        Assert.Contains("case Key.Left:", source);
+        Assert.Contains("case Key.Right:", source);
+        Assert.Contains("if (_service is not null && PositionSlider.IsEnabled) RequestStep(forward: false);", source);
+        Assert.Contains("if (_service is not null && PositionSlider.IsEnabled) RequestStep(forward: true);", source);
         Assert.Contains("IsArrowKeyOwnedByFocusedControl", source);
         Assert.Contains("TextBoxBase or System.Windows.Controls.Slider", source);
         Assert.Contains("System.Windows.Controls.Primitives.Selector", source);

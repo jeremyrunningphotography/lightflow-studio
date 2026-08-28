@@ -227,7 +227,6 @@ public partial class PlayerViewerHost : UserControl
             _openMilestone?.Invoke(PlayerOpenMilestone.PresentationSurfaceCreated);
             UpdateFromSnapshot(service.Snapshot);
             SetTransportEnabled(true);
-            AddSubclipButton.IsEnabled = _subclips is not null;
             SetExportEnabled(_currentAsset?.AssetId is not null);
             SetAudioControlsEnabled(info.AudioStreams.Count > 0);
             UpdateAudioControlsFromService();
@@ -833,7 +832,13 @@ public partial class PlayerViewerHost : UserControl
         OutTimeButton.Visibility = ClearOutButton.Visibility = hasOut ? Visibility.Visible : Visibility.Collapsed;
         if (presentedRange?.In is { } rangeIn) InTimeButton.Content = FormatTimestamp(rangeIn);
         if (presentedRange?.Out is { } rangeOut) OutTimeButton.Content = FormatTimestamp(rangeOut);
+        AddSubclipButton.IsEnabled = CurrentSubclipCreationEligibility().CanCreate;
     }
+
+    private SubclipCreationEligibility CurrentSubclipCreationEligibility() =>
+        SubclipCreationEligibility.Evaluate(
+            _subclips is not null && _currentAsset is { Kind: MediaPresentationKind.Video, AssetId: not null },
+            _reviewRange, _service?.SourceInfo?.Duration);
 
     private async Task StopAtOutAsync()
     {
@@ -873,11 +878,13 @@ public partial class PlayerViewerHost : UserControl
 
     private async void CreateSubclip()
     {
+        var eligibility = CurrentSubclipCreationEligibility();
+        if (!eligibility.CanCreate || eligibility.MaterializedRange is not { } range)
+        { SetStatus(eligibility.Problem); return; }
         if (_subclips is null || _currentAsset?.AssetId is not Guid assetId) return;
-        if (_reviewRange is null) { SetStatus("Set an In or Out point before creating a Subclip."); return; }
         try
         {
-            var result = await _subclips.CreateAsync(assetId, _reviewRange);
+            var result = await _subclips.CreateAsync(assetId, range);
             var subclip = result.Subclip;
             if (_currentAsset?.AssetId == assetId)
             {
@@ -1327,54 +1334,56 @@ public partial class PlayerViewerHost : UserControl
     /// </summary>
     private void PlayerViewerHost_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (IsTextEntryControl(e.OriginalSource as DependencyObject)) return;
-        if (e.Key is Key.Left or Key.Right && IsArrowKeyOwnedByFocusedControl(e.OriginalSource as DependencyObject))
-            return;
-        switch (e.Key)
+        e.Handled = TryHandleShortcut(e.Key, e.OriginalSource as DependencyObject);
+    }
+
+    internal bool TryHandleShortcut(Key key, DependencyObject? inputOwner)
+    {
+        if (IsTextEntryControl(inputOwner)) return false;
+        if (key is Key.Left or Key.Right && IsArrowKeyOwnedByFocusedControl(inputOwner)) return false;
+        switch (key)
         {
             case Key.C when _service is not null && _colorActive && !_momentaryColorBypass:
-                e.Handled = true;
                 _momentaryColorBypass = true;
                 RestoreLiveVideoSurface();
                 _service.SetColorPipeline(_colorPipeline, true);
-                return;
+                return true;
             case Key.Escape:
-                e.Handled = true;
                 BackRequested?.Invoke(this, EventArgs.Empty);
-                return;
-            case Key.Space when _service is not null && PositionSlider.IsEnabled:
-                e.Handled = true;
-                PlayPause_Click(this, new RoutedEventArgs());
-                return;
-            case Key.I when _service is not null && PositionSlider.IsEnabled:
-                e.Handled = true;
-                SetIn_Click(this, new RoutedEventArgs());
-                return;
-            case Key.O when _service is not null && PositionSlider.IsEnabled:
-                e.Handled = true;
-                SetOut_Click(this, new RoutedEventArgs());
-                return;
-            case Key.S when _service is not null && PositionSlider.IsEnabled && _currentAsset?.AssetId is not null:
-                e.Handled = true;
+                return true;
+            case Key.Space:
+                if (_service is not null && PositionSlider.IsEnabled) PlayPause_Click(this, new RoutedEventArgs());
+                return true;
+            case Key.I:
+                if (_service is not null && PositionSlider.IsEnabled) SetIn_Click(this, new RoutedEventArgs());
+                return true;
+            case Key.O:
+                if (_service is not null && PositionSlider.IsEnabled) SetOut_Click(this, new RoutedEventArgs());
+                return true;
+            case Key.S:
                 CreateSubclip();
-                return;
-            case Key.Left when _service is not null && PositionSlider.IsEnabled:
-                e.Handled = true;
-                RequestStep(forward: false);
-                return;
-            case Key.Right when _service is not null && PositionSlider.IsEnabled:
-                e.Handled = true;
-                RequestStep(forward: true);
-                return;
+                return true;
+            case Key.Left:
+                if (_service is not null && PositionSlider.IsEnabled) RequestStep(forward: false);
+                return true;
+            case Key.Right:
+                if (_service is not null && PositionSlider.IsEnabled) RequestStep(forward: true);
+                return true;
         }
+        return false;
     }
 
     private void PlayerViewerHost_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key != Key.C || !_momentaryColorBypass) return;
-        e.Handled = true;
+        e.Handled = TryHandleShortcutKeyUp(e.Key);
+    }
+
+    internal bool TryHandleShortcutKeyUp(Key key)
+    {
+        if (key != Key.C || !_momentaryColorBypass) return false;
         _momentaryColorBypass = false;
         _service?.SetColorPipeline(_colorPipeline, !_colorActive);
+        return true;
     }
 
     private void PlayerViewerHost_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)

@@ -586,6 +586,9 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(0, store.SaveCount);
             Assert.Equal(2, host.SelectedSubclipIds.Count);
             Assert.Equal(subclips.Items[0].SubclipId, host.ActiveSubclipId);
+            Assert.Equal("00:00:30.000", host.InTimeButton.Content);
+            Assert.Equal("00:00:35.000", host.OutTimeButton.Content);
+            Assert.True(host.ReviewRangeIndicator.HasActiveTrim);
             Assert.True(host.DeleteSelectedSubclipsButton.IsEnabled);
             Assert.True(host.ExportSelectedSubclipsMenuItem.IsEnabled);
             Assert.True(host.ExportAllSubclipsMenuItem.IsEnabled);
@@ -613,6 +616,19 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.True(host.ExportAllSubclipsMenuItem.IsEnabled);
             Assert.Equal(seekCount, backend.SeekPositions.Count);
             Assert.Equal(0, store.SaveCount);
+            Assert.Equal(2, subclips.Items.Count);
+            Assert.Equal("00:00:02.000", host.InTimeButton.Content);
+            Assert.Equal("00:00:50.000", host.OutTimeButton.Content);
+
+            host.SubclipsList.SelectedItem = host.SubclipsList.Items[0];
+            await WaitUntilAsync(() => backend.SeekPositions.LastOrDefault() == TimeSpan.FromSeconds(10),
+                "earlier Subclip seek before working-range edit");
+            host.SetInButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await WaitUntilAsync(() => store.SaveCount == 1, "working-range edit after leaving Subclip review");
+            Assert.Empty(host.SelectedSubclipIds);
+            Assert.Null(host.ActiveSubclipId);
+            Assert.Equal(TimeSpan.FromSeconds(10), store.SavedRange?.In);
+            Assert.Equal(TimeSpan.FromSeconds(50), store.SavedRange?.Out);
             Assert.Equal(2, subclips.Items.Count);
             window.Close();
         });
@@ -678,6 +694,8 @@ public sealed class PlayerViewerHostLeaseTests
             await WaitUntilAsync(() => backend.PlayCallCount == 1, "Subclip double-click playback");
             Assert.Contains(TimeSpan.FromSeconds(10), backend.SeekPositions);
             Assert.Equal(saved.SubclipId, host.ActiveSubclipId);
+            Assert.Equal("00:00:10.000", host.InTimeButton.Content);
+            Assert.Equal("00:00:20.000", host.OutTimeButton.Content);
             Assert.Equal(0, store.SaveCount);
             Assert.Equal(saved, subclips.Items.Single());
             window.Close();

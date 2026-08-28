@@ -816,22 +816,23 @@ public partial class PlayerViewerHost : UserControl
     private void UpdateRangePresentation()
     {
         var duration = _service?.SourceInfo?.Duration;
-        var presentation = PlayerRangeTimelinePresentation.For(_reviewRange, duration);
+        var presentedRange = PresentedRange;
+        var presentation = PlayerRangeTimelinePresentation.For(presentedRange, duration);
         ReviewRangeIndicator.HasActiveTrim = presentation.HasSelectedSpan;
         ReviewRangeIndicator.HasProportions = presentation.HasProportions;
         ReviewRangeIndicator.ShowBoundaries = presentation.ShowBoundaries;
         ReviewRangeIndicator.StartFraction = presentation.StartFraction;
         ReviewRangeIndicator.WidthFraction = presentation.WidthFraction;
-        var hasIn = _reviewRange?.In is not null;
-        var hasOut = _reviewRange?.Out is not null;
+        var hasIn = presentedRange?.In is not null;
+        var hasOut = presentedRange?.Out is not null;
         SetInButton.Tag = hasIn ? "Active" : null;
         SetOutButton.Tag = hasOut ? "Active" : null;
         System.Windows.Automation.AutomationProperties.SetItemStatus(SetInButton, hasIn ? "Active" : "");
         System.Windows.Automation.AutomationProperties.SetItemStatus(SetOutButton, hasOut ? "Active" : "");
         InTimeButton.Visibility = ClearInButton.Visibility = hasIn ? Visibility.Visible : Visibility.Collapsed;
         OutTimeButton.Visibility = ClearOutButton.Visibility = hasOut ? Visibility.Visible : Visibility.Collapsed;
-        if (_reviewRange?.In is { } rangeIn) InTimeButton.Content = FormatTimestamp(rangeIn);
-        if (_reviewRange?.Out is { } rangeOut) OutTimeButton.Content = FormatTimestamp(rangeOut);
+        if (presentedRange?.In is { } rangeIn) InTimeButton.Content = FormatTimestamp(rangeIn);
+        if (presentedRange?.Out is { } rangeOut) OutTimeButton.Content = FormatTimestamp(rangeOut);
     }
 
     private async Task StopAtOutAsync()
@@ -853,6 +854,7 @@ public partial class PlayerViewerHost : UserControl
     private async void SetIn_Click(object sender, RoutedEventArgs e)
     {
         if (_service?.SourceInfo is not { } info || _service.Snapshot.DisplayedTimestamp is not { } timestamp) return;
+        ExitSubclipReviewForWorkingRangeEdit();
         var candidate = ReviewRangeBoundaryPolicy.SetIn(info.Duration, _reviewRange, timestamp.Position);
         if (candidate.Validate().Count != 0) { SetStatus("In must be before the end of the source."); return; }
         try { await SaveRangeAsync(candidate); SetStatus(null); }
@@ -862,6 +864,7 @@ public partial class PlayerViewerHost : UserControl
     private async void SetOut_Click(object sender, RoutedEventArgs e)
     {
         if (_service?.SourceInfo is not { } info || _service.Snapshot.DisplayedTimestamp is not { } timestamp) return;
+        ExitSubclipReviewForWorkingRangeEdit();
         var candidate = ReviewRangeBoundaryPolicy.SetOut(info.Duration, _reviewRange, timestamp.Position);
         if (candidate.Validate().Count != 0) { SetStatus("Out must be after the start of the source."); return; }
         try { await SaveRangeAsync(candidate); SetStatus(null); }
@@ -905,14 +908,24 @@ public partial class PlayerViewerHost : UserControl
 
     private async Task ClearBoundaryAsync(bool clearIn)
     {
+        ExitSubclipReviewForWorkingRangeEdit();
         if (_service?.SourceInfo is not { } info || _reviewRange is null) return;
         var range = new MediaRange(info.Duration, clearIn ? null : _reviewRange.In, clearIn ? _reviewRange.Out : null);
         try { await SaveRangeAsync(range.IsFullSource ? null : range); SetStatus(null); }
         catch (Exception exception) { SetStatus($"The range could not be saved. {exception.Message}"); }
     }
 
-    private async void InTime_Click(object sender, RoutedEventArgs e) => await SeekToBoundaryAsync(_reviewRange?.In);
-    private async void OutTime_Click(object sender, RoutedEventArgs e) => await SeekToBoundaryAsync(_reviewRange?.Out);
+    private async void InTime_Click(object sender, RoutedEventArgs e) => await SeekToBoundaryAsync(PresentedRange?.In);
+    private async void OutTime_Click(object sender, RoutedEventArgs e) => await SeekToBoundaryAsync(PresentedRange?.Out);
+
+    private void ExitSubclipReviewForWorkingRangeEdit()
+    {
+        if (_selectedSubclipId is null && _selectedSubclipRange is null) return;
+        SubclipsList.UnselectAll();
+        _selectedSubclipId = null;
+        _selectedSubclipRange = null;
+        UpdateRangePresentation();
+    }
 
     private async Task SeekToBoundaryAsync(TimeSpan? position)
     {
@@ -996,7 +1009,8 @@ public partial class PlayerViewerHost : UserControl
         _retainedSteppedFrame = null;
     }
 
-    private MediaRange? ActivePlaybackRange => _selectedSubclipRange ?? _reviewRange;
+    private MediaRange? PresentedRange => _selectedSubclipRange ?? _reviewRange;
+    private MediaRange? ActivePlaybackRange => PresentedRange;
 
     private void ResetSubclipWork()
     {
@@ -1006,6 +1020,7 @@ public partial class PlayerViewerHost : UserControl
         _selectedSubclipId = null;
         _selectedSubclipRange = null;
         _subclipItems.Clear();
+        UpdateRangePresentation();
         UpdateSubclipEmptyState();
     }
 
@@ -1123,11 +1138,11 @@ public partial class PlayerViewerHost : UserControl
         {
             _selectedSubclipId = null;
             _selectedSubclipRange = null;
+            UpdateRangePresentation();
             return;
         }
         if (_service is null) return;
-        _selectedSubclipId = selected.SubclipId;
-        _selectedSubclipRange = new(selected.Subclip.SourceDuration, selected.Subclip.In, selected.Subclip.Out);
+        SetActiveSubclipReview(selected);
         RestoreLiveVideoSurface();
         try
         {
@@ -1146,8 +1161,7 @@ public partial class PlayerViewerHost : UserControl
             ?? (e.Source as FrameworkElement)?.DataContext as SubclipPanelItem
             ?? FindVisualAncestor<System.Windows.Controls.ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as SubclipPanelItem;
         if (_service is null || item is null) return;
-        _selectedSubclipId = item.SubclipId;
-        _selectedSubclipRange = new(item.Subclip.SourceDuration, item.Subclip.In, item.Subclip.Out);
+        SetActiveSubclipReview(item);
         if (!SubclipsList.SelectedItems.Contains(item)) SubclipsList.SelectedItems.Add(item);
         RestoreLiveVideoSurface();
         try
@@ -1158,6 +1172,13 @@ public partial class PlayerViewerHost : UserControl
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) { SetStatus(exception.Message); }
+    }
+
+    private void SetActiveSubclipReview(SubclipPanelItem item)
+    {
+        _selectedSubclipId = item.SubclipId;
+        _selectedSubclipRange = new(item.Subclip.SourceDuration, item.Subclip.In, item.Subclip.Out);
+        UpdateRangePresentation();
     }
 
     private void RenameSubclip_Click(object sender, RoutedEventArgs e)
@@ -1217,6 +1238,7 @@ public partial class PlayerViewerHost : UserControl
             {
                 _selectedSubclipId = null;
                 _selectedSubclipRange = null;
+                UpdateRangePresentation();
             }
             _subclipItems.Remove(item);
             UpdateSubclipEmptyState();
@@ -1245,7 +1267,7 @@ public partial class PlayerViewerHost : UserControl
                 selected.Select(item => new SubclipOrder(item.SubclipId, item.Subclip.Revision)).ToArray()).ConfigureAwait(true);
             foreach (var item in selected) _subclipPosters?.Remove(item.Subclip.AssetId, item.SubclipId);
             if (_selectedSubclipId is Guid active && selected.Any(item => item.SubclipId == active))
-            { _selectedSubclipId = null; _selectedSubclipRange = null; }
+            { _selectedSubclipId = null; _selectedSubclipRange = null; UpdateRangePresentation(); }
             var settleIndex = Math.Min(selected.Min(item => _subclipItems.IndexOf(item)),
                 Math.Max(0, _subclipItems.Count - selected.Length - 1));
             foreach (var item in selected) _subclipItems.Remove(item);

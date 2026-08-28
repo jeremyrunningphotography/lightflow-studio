@@ -345,14 +345,20 @@ internal static class CatalogMigrations
                        OR (keeper.Ordinal = duplicate.Ordinal AND keeper.SubclipId < duplicate.SubclipId))
             );
 
+            CREATE TEMP TABLE SubclipOrdinalMigrationV8 (
+                SubclipId TEXT NOT NULL PRIMARY KEY,
+                NewOrdinal INTEGER NOT NULL
+            );
+            INSERT INTO SubclipOrdinalMigrationV8 (SubclipId, NewOrdinal)
+            SELECT SubclipId,
+                   ROW_NUMBER() OVER (PARTITION BY AssetId ORDER BY Ordinal, SubclipId) - 1
+            FROM Subclips;
+
             UPDATE Subclips SET Ordinal = Ordinal + 1000000000;
-            WITH Ranked AS (
-                SELECT SubclipId,
-                       ROW_NUMBER() OVER (PARTITION BY AssetId ORDER BY Ordinal, SubclipId) - 1 AS NewOrdinal
-                FROM Subclips
-            )
             UPDATE Subclips
-            SET Ordinal = (SELECT NewOrdinal FROM Ranked WHERE Ranked.SubclipId = Subclips.SubclipId);
+            SET Ordinal = (SELECT NewOrdinal FROM SubclipOrdinalMigrationV8 AS mapped
+                           WHERE mapped.SubclipId = Subclips.SubclipId);
+            DROP TABLE SubclipOrdinalMigrationV8;
 
             CREATE UNIQUE INDEX UX_Subclips_AssetId_ExactRange
                 ON Subclips (AssetId, InTicks, OutTicks);

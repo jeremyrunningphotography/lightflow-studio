@@ -286,33 +286,116 @@ public sealed class CatalogDatabaseTests : IDisposable
     }
 
     [Fact]
-    public async Task VersionSevenDuplicateExactRanges_MigrateDeterministicallyToEarliestOrderAndUniqueIndex()
+    public async Task RealisticMultiAssetVersionSevenCatalog_MigratesSafelyAndReopensRepeatedly()
     {
         var locations = CreateLocations();
         var versionSeven = await new CatalogDatabaseService(locations, null, CatalogMigrations.All.Take(7).ToArray())
             .CreateNewAsync();
         var rootId = InsertRoot(versionSeven.Session!, "Media");
-        var assetId = InsertAsset(versionSeven.Session!, rootId, "clip.mp4", "CLIP.MP4");
+        var emptyAssetId = InsertAsset(versionSeven.Session!, rootId, "empty.mp4", "EMPTY.MP4");
+        var singleAssetId = InsertAsset(versionSeven.Session!, rootId, "single.mp4", "SINGLE.MP4");
+        var manyAssetId = InsertAsset(versionSeven.Session!, rootId, "many.mp4", "MANY.MP4");
+        var otherAssetId = InsertAsset(versionSeven.Session!, rootId, "other.mp4", "OTHER.MP4");
+        var contiguousAssetId = InsertAsset(versionSeven.Session!, rootId, "contiguous.mp4", "CONTIGUOUS.MP4");
+        var singleId = Guid.NewGuid();
         var keepId = Guid.NewGuid();
         var discardId = Guid.NewGuid();
-        var distinctId = Guid.NewGuid();
+        var overlapId = Guid.NewGuid();
+        var renamedId = Guid.NewGuid();
+        var otherId = Guid.NewGuid();
+        // This identity/order permutation is copied from the real failing v7 Catalog. The original
+        // self-referential CTE was query-plan/order sensitive and did not fail for every random GUID set.
+        var contiguousIds = new[]
+        {
+            Guid.Parse("f273dd38-0061-498b-b4b7-db7bb8953c93"),
+            Guid.Parse("3a0bc7b1-976d-4d98-8845-bbc3545631d5"),
+            Guid.Parse("81db0d5c-9cc1-40ea-aa13-7955e219525f")
+        };
         var now = DateTime.UtcNow.ToString("O");
         Execute(versionSeven.Session!, """
-            INSERT INTO Subclips VALUES ($keep,$asset,'Keep',0,10,20,100,1,$now,$now);
-            INSERT INTO Subclips VALUES ($discard,$asset,'Discard',1,10,20,100,1,$now,$now);
-            INSERT INTO Subclips VALUES ($distinct,$asset,'Distinct',2,10,21,100,1,$now,$now);
-            """, ("$keep", keepId.ToString("D")), ("$discard", discardId.ToString("D")),
-            ("$distinct", distinctId.ToString("D")), ("$asset", assetId.ToString("D")), ("$now", now));
+            INSERT INTO Subclips VALUES ($single,$singleAsset,'Only',0,1,9,100,1,$now,$now);
+            INSERT INTO Subclips VALUES ($keep,$manyAsset,'Keep earliest',0,10,20,100,1,$now,$now);
+            INSERT INTO Subclips VALUES ($overlap,$manyAsset,'Overlap',2,10,21,100,1,$now,$now);
+            INSERT INTO Subclips VALUES ($discard,$manyAsset,'Redundant later',5,10,20,100,1,$now,$now);
+            INSERT INTO Subclips VALUES ($renamed,$manyAsset,'User renamed take',9,11,20,100,4,$now,$now);
+            INSERT INTO Subclips VALUES ($other,$otherAsset,'Other asset',0,10,20,100,1,$now,$now);
+            INSERT INTO Subclips VALUES ($contiguous0,$contiguousAsset,'First',0,30,40,100,1,$now,$now);
+            INSERT INTO Subclips VALUES ($contiguous2,$contiguousAsset,'Third',2,50,60,100,1,$now,$now);
+            INSERT INTO Subclips VALUES ($contiguous1,$contiguousAsset,'Second',1,40,50,100,1,$now,$now);
+            """, ("$single", singleId.ToString("D")), ("$singleAsset", singleAssetId.ToString("D")),
+            ("$keep", keepId.ToString("D")), ("$discard", discardId.ToString("D")),
+            ("$overlap", overlapId.ToString("D")), ("$renamed", renamedId.ToString("D")),
+            ("$manyAsset", manyAssetId.ToString("D")), ("$other", otherId.ToString("D")),
+            ("$otherAsset", otherAssetId.ToString("D")),
+            ("$contiguous0", contiguousIds[0].ToString("D")),
+            ("$contiguous1", contiguousIds[1].ToString("D")),
+            ("$contiguous2", contiguousIds[2].ToString("D")),
+            ("$contiguousAsset", contiguousAssetId.ToString("D")), ("$now", now));
         await versionSeven.Session!.DisposeAsync();
 
-        var migrated = await new CatalogDatabaseService(locations, new RecordingBackup()).OpenExistingAsync();
-        var surviving = await new CatalogSubclipService(() => migrated.Session).ListAsync(assetId);
+        var unsafeVersionEight = CatalogMigrations.All.Take(7).Concat(
+        [
+            new CatalogMigration(8, "Original unsafe exact-range migration", (connection, transaction, _) =>
+            {
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = """
+                    DELETE FROM Subclips AS duplicate
+                    WHERE EXISTS (
+                        SELECT 1 FROM Subclips AS keeper
+                        WHERE keeper.AssetId=duplicate.AssetId
+                          AND keeper.InTicks=duplicate.InTicks AND keeper.OutTicks=duplicate.OutTicks
+                          AND keeper.Ordinal < duplicate.Ordinal);
+                    UPDATE Subclips SET Ordinal=Ordinal+1000000000;
+                    WITH Ranked AS (
+                        SELECT SubclipId, ROW_NUMBER() OVER
+                            (PARTITION BY AssetId ORDER BY Ordinal,SubclipId)-1 AS NewOrdinal
+                        FROM Subclips)
+                    UPDATE Subclips SET Ordinal=(SELECT NewOrdinal FROM Ranked
+                        WHERE Ranked.SubclipId=Subclips.SubclipId);
+                    """;
+                command.ExecuteNonQuery();
+            })
+        ]).ToArray();
+        var failed = await new CatalogDatabaseService(locations, new RecordingBackup(), unsafeVersionEight)
+            .OpenExistingAsync();
+        Assert.Equal(CatalogOpenStatus.MigrationFailed, failed.Status);
+        Assert.Contains("UNIQUE constraint failed: Subclips.AssetId, Subclips.Ordinal", failed.Diagnostic);
+        Assert.Equal(7, ReadUserVersion(locations.CatalogDatabasePath));
 
-        Assert.Equal([keepId, distinctId], surviving.Select(item => item.SubclipId));
-        Assert.Equal([0, 1], surviving.Select(item => item.Ordinal));
+        var rolledBack = await new CatalogDatabaseService(locations, null, CatalogMigrations.All.Take(7).ToArray())
+            .OpenExistingAsync();
+        Assert.Equal(9L, Convert.ToInt64(Scalar(rolledBack.Session!, "SELECT count(*) FROM Subclips;")));
+        Assert.Equal([keepId, overlapId, discardId, renamedId],
+            (await new CatalogSubclipService(() => rolledBack.Session).ListAsync(manyAssetId))
+                .Select(item => item.SubclipId));
+        await rolledBack.Session!.DisposeAsync();
+
+        var backup = new RecordingBackup();
+        var migrated = await new CatalogDatabaseService(locations, backup).OpenExistingAsync();
+        var service = new CatalogSubclipService(() => migrated.Session);
+        var surviving = await service.ListAsync(manyAssetId);
+
+        Assert.Equal(CatalogOpenStatus.Ready, migrated.Status);
+        Assert.Equal([(7, 8)], backup.Requests);
+        Assert.Empty(await service.ListAsync(emptyAssetId));
+        Assert.Equal([singleId], (await service.ListAsync(singleAssetId)).Select(item => item.SubclipId));
+        Assert.Equal([keepId, overlapId, renamedId], surviving.Select(item => item.SubclipId));
+        Assert.Equal([0, 1, 2], surviving.Select(item => item.Ordinal));
+        Assert.Equal("User renamed take", surviving[2].Name);
+        Assert.Equal(4, surviving[2].Revision);
+        Assert.Equal((TimeSpan.FromTicks(11), TimeSpan.FromTicks(20)), (surviving[2].In, surviving[2].Out));
+        Assert.Equal([otherId], (await service.ListAsync(otherAssetId)).Select(item => item.SubclipId));
+        Assert.Equal(contiguousIds, (await service.ListAsync(contiguousAssetId)).Select(item => item.SubclipId));
         Assert.Equal(1L, Convert.ToInt64(Scalar(migrated.Session!,
             "SELECT count(*) FROM pragma_index_list('Subclips') WHERE name='UX_Subclips_AssetId_ExactRange' AND [unique]=1;")));
         await migrated.Session!.DisposeAsync();
+
+        var reopened = await new CatalogDatabaseService(locations, new RecordingBackup()).OpenExistingAsync();
+        Assert.Equal(CatalogOpenStatus.Ready, reopened.Status);
+        Assert.Equal(8, reopened.SchemaVersion);
+        Assert.Equal(8L, Convert.ToInt64(Scalar(reopened.Session!, "SELECT count(*) FROM Subclips;")));
+        await reopened.Session!.DisposeAsync();
     }
 
     [Fact]

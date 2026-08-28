@@ -798,6 +798,11 @@ Index Number extraction continues to use the physical source stem. Final accepta
 and revalidates the exact ordered Subclip/fallback set before the existing complete-submission collision plan and
 atomic global reservation/admission. Accepted Jobs and History therefore never live-link to later Catalog changes.
 
+New Subclip names are generated once inside the Catalog creation transaction from the authoritative Media Asset
+relative-path filename stem plus exact In/Out timestamps rendered at deterministic millisecond precision as
+`HH-MM-SS.fff` with unbounded hours. The exact range ticks remain unchanged. Existing names and later user renames are
+durable snapshots; Player reopen, working-range edits, root remapping, and Export never regenerate them.
+
 The owned `ExportDialog` is configuration and preflight only. It reads current LUT cache snapshots without starting discovery, edits a typed `NamePartsDefinition` and `ExportMaterializationPolicy`, evaluates the complete batch with `EncodingJobPlanner`, and submits one final immutable valid plan. Queue acceptance is synchronous; the modal closes immediately and never awaits progress or completion. Browser folder, recursive scope, query/filter state, selection, scroll position, and the reusable Player remain in memory because this path never leaves Home or rebuilds either presentation.
 
 `ExportJobCoordinator` is an application-lifetime execution boundary. It retains one transient executor lease per accepted plan, queues every plan through the single shared `ApplicationJobsRuntime`, observes terminal completion independently of WPF, records one durable History record, and releases only transient executor ownership. Multiple modal jobs may run concurrently, and #170 can consume the existing runtime collection without another execution refactor. Shutdown terminates every retained FFmpeg executor and disposes the shared runtime safely.

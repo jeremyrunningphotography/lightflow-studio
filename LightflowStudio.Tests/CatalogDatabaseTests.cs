@@ -110,6 +110,30 @@ public sealed class CatalogDatabaseTests : IDisposable
         await reopened.Session!.DisposeAsync();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SubclipCreationRange_MaterializesPartialIntentAtAuthoritativeSourceBoundaries(bool inOnly)
+    {
+        var duration = TimeSpan.FromTicks(987_654_321);
+        var boundary = TimeSpan.FromTicks(123_456_789);
+        var materialized = SubclipCreationRange.Materialize(new(duration,
+            inOnly ? boundary : null, inOnly ? null : boundary));
+
+        Assert.Equal(inOnly ? boundary : TimeSpan.Zero, materialized.In);
+        Assert.Equal(inOnly ? duration : boundary, materialized.Out);
+        Assert.Equal(duration, materialized.SourceDuration);
+    }
+
+    [Fact]
+    public void SubclipCreationRange_RejectsUnsetAndInvalidSourceDurationWithoutInventingRange()
+    {
+        Assert.Throws<ArgumentException>(() => SubclipCreationRange.Materialize(
+            new(TimeSpan.FromSeconds(10))));
+        Assert.Throws<ArgumentException>(() => SubclipCreationRange.Materialize(
+            new(TimeSpan.Zero, In: TimeSpan.Zero)));
+    }
+
     [Fact]
     public async Task Subclips_PersistIndependentPreciseSnapshotsWithStableIdentityNameAndOrder()
     {
@@ -159,9 +183,15 @@ public sealed class CatalogDatabaseTests : IDisposable
         var subclips = new CatalogSubclipService(() => session);
         var valid = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(20));
 
-        await Assert.ThrowsAsync<ArgumentException>(() => subclips.CreateAsync(assetId, new(valid.SourceDuration, Out: valid.Out)));
-        await Assert.ThrowsAsync<ArgumentException>(() => subclips.CreateAsync(assetId, new(valid.SourceDuration, valid.In)));
-        Assert.Equal(0L, Scalar(session, "SELECT count(*) FROM Subclips;"));
+        var outOnly = (await subclips.CreateAsync(assetId, new(valid.SourceDuration, Out: valid.Out))).Subclip;
+        var inOnly = (await subclips.CreateAsync(assetId, new(valid.SourceDuration, valid.In))).Subclip;
+        Assert.Equal((TimeSpan.Zero, valid.Out), (outOnly.In, outOnly.Out));
+        Assert.Equal((valid.In, valid.SourceDuration), (inOnly.In, inOnly.Out));
+        await Assert.ThrowsAsync<ArgumentException>(() => subclips.CreateAsync(assetId, new(valid.SourceDuration)));
+        Assert.Equal(2L, Scalar(session, "SELECT count(*) FROM Subclips;"));
+        await subclips.DeleteAsync(outOnly.SubclipId, outOnly.Revision);
+        var refreshedInOnly = (await subclips.ListAsync(assetId)).Single();
+        await subclips.DeleteAsync(refreshedInOnly.SubclipId, refreshedInOnly.Revision);
 
         var first = (await subclips.CreateAsync(assetId, valid)).Subclip;
         var second = (await subclips.CreateAsync(assetId, new(valid.SourceDuration, valid.In, valid.Out!.Value + TimeSpan.FromSeconds(1)))).Subclip;

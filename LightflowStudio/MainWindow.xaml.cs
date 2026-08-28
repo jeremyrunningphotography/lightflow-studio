@@ -2150,7 +2150,7 @@ public partial class MainWindow : Window
                     {
                         IncludeNoSubclipSources = invocation.EntryKind == SubclipExportEntryKind.BrowserSources &&
                             includeNoSubclipSources
-                    }, token));
+                    }, token), namingDefault: ExportNamingDefault.Subclip);
             new ExportDialog(model, _exportCoordinator, _ffprobe) { Owner = this }.ShowDialog();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)

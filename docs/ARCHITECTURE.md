@@ -791,6 +791,8 @@ the source has zero Subclips and the fallback option is enabled. Player intent e
 Subclip IDs, sorted by current durable presentation order. Both retain stable per-item identity even when many rows
 share one `AssetId`, source path, and source filename. A Subclip item's saved range is fixed submission intent; a
 fallback is always full source, so neither participates in ordinary Export's optional working-range controls.
+The shared Subclip Export entry supplies an `OriginalName`-only Name Parts default; ordinary Export keeps
+`OriginalName + Sequence001`. An explicitly restored `NamePartsDefinition` overrides either workflow default.
 
 `ExportItemProvenance` snapshots the source `AssetId` plus Subclip identity, semantic name, revision, and fixed range
 where applicable on the immutable planned item. Name Parts receives the Subclip semantic name as `OriginalName` while
@@ -802,6 +804,8 @@ New Subclip names are generated once inside the Catalog creation transaction fro
 relative-path filename stem plus exact In/Out timestamps rendered at deterministic millisecond precision as
 `HH-MM-SS.fff` with unbounded hours. The exact range ticks remain unchanged. Existing names and later user renames are
 durable snapshots; Player reopen, working-range edits, root remapping, and Export never regenerate them.
+At Catalog creation, a partial working range is materialized once to exact durable bounds using source start for a
+missing In or authoritative source duration for a missing Out. A completely unset or invalid-duration range is rejected.
 
 The owned `ExportDialog` is configuration and preflight only. It reads current LUT cache snapshots without starting discovery, edits a typed `NamePartsDefinition` and `ExportMaterializationPolicy`, evaluates the complete batch with `EncodingJobPlanner`, and submits one final immutable valid plan. Queue acceptance is synchronous; the modal closes immediately and never awaits progress or completion. Browser folder, recursive scope, query/filter state, selection, scroll position, and the reusable Player remain in memory because this path never leaves Home or rebuilds either presentation.
 

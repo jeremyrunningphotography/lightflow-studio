@@ -21,6 +21,23 @@ public sealed class ExportDialogModelTests : IDisposable
     }
 
     [Fact]
+    public void SubclipDefaultUsesOnlyOriginalNameWhileOrdinaryAndExplicitRestoredRecipesRemainAuthoritative()
+    {
+        var handoff = Handoff("clip.mp4");
+        var ordinary = Model(handoff);
+        var subclip = Model(handoff, namingDefault: ExportNamingDefault.Subclip);
+        var restored = new NamePartsDefinition(
+            [new(NamePartKind.CustomText, "kept"), new(NamePartKind.Sequence01)], NamePartSeparator.Underscore);
+        var explicitRecipe = Model(handoff, namingDefault: ExportNamingDefault.Subclip, restoredNaming: restored);
+
+        Assert.Equal([NamePartKind.OriginalName, NamePartKind.Sequence001], ordinary.NameParts.Select(x => x.Kind));
+        Assert.Equal([NamePartKind.OriginalName], subclip.NameParts.Select(x => x.Kind));
+        Assert.Contains(ExportPresentation.NameParts, choice => choice.Value == NamePartKind.Sequence001);
+        Assert.Equal(restored.Parts, explicitRecipe.NameParts);
+        Assert.Equal(NamePartSeparator.Underscore, explicitRecipe.Separator);
+    }
+
+    [Fact]
     public void NamingPreview_ReorderSeparatorCustomAndFailuresUseSharedRenderer()
     {
         var model = CreateModel("clip42.mp4");
@@ -587,6 +604,17 @@ public sealed class ExportDialogModelTests : IDisposable
         }).ToArray();
         return new(new(inputs, [], _root), new EncodingOptions(), [], [], new FakeResources(), inspect ?? (_ => new(false, 0)));
     }
+
+    private EncodingHandoffResult Handoff(string name)
+    {
+        var path = Path.Combine(_root, name); File.WriteAllText(path, "source");
+        return new([new(Guid.NewGuid(), Guid.NewGuid(), path, name, 6, null)], [], _root);
+    }
+
+    private static ExportDialogModel Model(EncodingHandoffResult handoff,
+        ExportNamingDefault namingDefault = ExportNamingDefault.Ordinary, NamePartsDefinition? restoredNaming = null) =>
+        new(handoff, new EncodingOptions(), [], [], new FakeResources(), _ => new(false, 0),
+            namingDefault: namingDefault, restoredNaming: restoredNaming);
 
     private ExportDialogModel CreateModelWithRanges(params (string Name, MediaRange? Range)[] definitions)
     {

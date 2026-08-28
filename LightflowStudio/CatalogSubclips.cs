@@ -31,6 +31,20 @@ internal static class SubclipCurrentOrder
 internal sealed record SubclipOrder(Guid SubclipId, long ExpectedRevision);
 internal sealed record SubclipCreateResult(Subclip Subclip, bool Created);
 
+internal static class SubclipCreationRange
+{
+    public static MediaRange Materialize(MediaRange workingRange)
+    {
+        ArgumentNullException.ThrowIfNull(workingRange);
+        if (workingRange.IsFullSource)
+            throw new ArgumentException("Set an In or Out point before creating a Subclip.", nameof(workingRange));
+        var issues = workingRange.Validate();
+        if (issues.Count != 0)
+            throw new ArgumentException(string.Join(" ", issues.Select(issue => issue.Message)), nameof(workingRange));
+        return new MediaRange(workingRange.SourceDuration, workingRange.EffectiveIn, workingRange.EffectiveOut);
+    }
+}
+
 internal static class SubclipDefaultName
 {
     public static string Create(string sourceRelativePath, TimeSpan @in, TimeSpan @out)
@@ -81,7 +95,7 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
 
     public async Task<SubclipCreateResult> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(workingRange);
+        workingRange = SubclipCreationRange.Materialize(workingRange);
         ValidateExplicitRange(workingRange);
         await _mutations.WaitAsync(cancellationToken).ConfigureAwait(false);
         try

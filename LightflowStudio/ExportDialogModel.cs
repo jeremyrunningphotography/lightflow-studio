@@ -7,6 +7,7 @@ namespace LightflowStudio;
 
 internal enum ExportContainerChoice { SameAsSource, Mp4, Mov, Mkv }
 internal enum ExportCodecChoice { SameAsSource, H264, Hevc }
+internal enum ExportNamingDefault { Ordinary, Subclip }
 
 internal sealed record ExportLutChoice(string Label, ColorStagePolicyMode Mode,
     ManagedLutResource? Resource = null);
@@ -78,7 +79,9 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public ExportDialogModel(EncodingHandoffResult handoff, EncodingOptions defaults,
         IReadOnlyList<ManagedLutResource> cameraLuts, IReadOnlyList<ManagedLutResource> creativeLuts,
         IEncodingLutResourceStore resourceStore, Func<string, OutputFileSnapshot>? inspectOutput = null,
-        Func<bool, CancellationToken, Task<EncodingHandoffResult>>? revalidate = null)
+        Func<bool, CancellationToken, Task<EncodingHandoffResult>>? revalidate = null,
+        ExportNamingDefault namingDefault = ExportNamingDefault.Ordinary,
+        NamePartsDefinition? restoredNaming = null)
     {
         _handoff = handoff;
         _destination = handoff.InputFolder ?? "";
@@ -93,7 +96,11 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         CreativeChoices = BuildLutChoices(creativeLuts);
         _camera = CameraChoices[0];
         _creative = CreativeChoices[0];
-        NameParts = new ObservableCollection<NamePart>([new(NamePartKind.OriginalName), new(NamePartKind.Sequence001)]);
+        var naming = restoredNaming ?? (namingDefault == ExportNamingDefault.Subclip
+            ? new NamePartsDefinition([new(NamePartKind.OriginalName)], NamePartSeparator.Hyphen)
+            : new NamePartsDefinition([new(NamePartKind.OriginalName), new(NamePartKind.Sequence001)], NamePartSeparator.Hyphen));
+        _separator = naming.Separator;
+        NameParts = new ObservableCollection<NamePart>(naming.Parts);
         NameParts.CollectionChanged += (_, _) => Refresh();
         Refresh();
     }

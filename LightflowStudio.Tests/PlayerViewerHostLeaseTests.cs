@@ -703,7 +703,7 @@ public sealed class PlayerViewerHostLeaseTests
     }
 
     [Fact]
-    public async Task CrossingBoundary_ClearsOppositeWithoutMutatingSubclipAndSRejectsPartialRange()
+    public async Task CrossingBoundary_ClearsOppositeWithoutMutatingSubclipAndSMaterializesPartialRange()
     {
         await StaDispatcher.RunAsync(async () =>
         {
@@ -744,16 +744,16 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(range, subclips.Range); // The durable snapshot is independent from the working range.
 
             Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
-            await Task.Delay(50);
-            Assert.Equal(1, subclips.CreateCount);
-            Assert.Contains("Set an Out point", host.StatusText.Text);
+            await WaitUntilAsync(() => subclips.CreateCount == 2, "In-only Subclip creation");
+            Assert.Equal((TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)),
+                (subclips.Range?.In, subclips.Range?.Out));
 
             host.PositionSlider.Value = TimeSpan.FromSeconds(40).TotalMilliseconds;
             await WaitUntilAsync(() => backend.SeekPositions.Contains(TimeSpan.FromSeconds(40)), "new Out seek");
             host.SetOutButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             await WaitUntilAsync(() => store.SaveCount == 2, "new Out save");
             Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
-            await WaitUntilAsync(() => subclips.CreateCount == 2, "Subclip creation after restoring both boundaries");
+            await WaitUntilAsync(() => subclips.CreateCount == 3, "Subclip creation after restoring both boundaries");
             Assert.Equal((TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(40)),
                 (subclips.Range?.In, subclips.Range?.Out));
             Assert.True(PlayerViewerHost.IsTextEntryControl(new System.Windows.Controls.TextBox()));
@@ -1004,7 +1004,7 @@ public sealed class PlayerViewerHostLeaseTests
         {
             CreateCount++;
             AssetId = assetId;
-            Range = workingRange;
+            Range = workingRange = SubclipCreationRange.Materialize(workingRange);
             var existing = Items.FirstOrDefault(item => item.AssetId == assetId && item.In == workingRange.In && item.Out == workingRange.Out);
             if (existing is not null) return Task.FromResult(new SubclipCreateResult(existing, Created: false));
             var created = new Subclip(Guid.NewGuid(), assetId, $"Subclip {Items.Count + 1}", Items.Count, workingRange.In!.Value,

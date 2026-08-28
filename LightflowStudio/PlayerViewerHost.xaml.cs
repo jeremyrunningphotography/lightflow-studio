@@ -874,8 +874,7 @@ public partial class PlayerViewerHost : UserControl
     private async void CreateSubclip()
     {
         if (_subclips is null || _currentAsset?.AssetId is not Guid assetId) return;
-        if (_reviewRange?.In is null) { SetStatus("Set an In point before creating a Subclip."); return; }
-        if (_reviewRange.Out is null) { SetStatus("Set an Out point before creating a Subclip."); return; }
+        if (_reviewRange is null) { SetStatus("Set an In or Out point before creating a Subclip."); return; }
         try
         {
             var result = await _subclips.CreateAsync(assetId, _reviewRange);
@@ -1188,7 +1187,7 @@ public partial class PlayerViewerHost : UserControl
         Dispatcher.BeginInvoke(() =>
         {
             if (FindVisualChild<System.Windows.Controls.TextBox>(SubclipsList.ItemContainerGenerator.ContainerFromItem(item)) is { } editor)
-            { editor.Focus(); editor.SelectAll(); }
+            { editor.Text = item.Name; editor.Focus(); editor.SelectAll(); }
         }, System.Windows.Threading.DispatcherPriority.Input);
     }
 
@@ -1201,7 +1200,7 @@ public partial class PlayerViewerHost : UserControl
     private async void SubclipName_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (sender is not System.Windows.Controls.TextBox { DataContext: SubclipPanelItem item } editor) return;
-        if (e.Key == Key.Escape) { e.Handled = true; item.IsEditing = false; Focus(); return; }
+        if (e.Key == Key.Escape) { e.Handled = true; editor.Text = item.Name; item.IsEditing = false; Focus(); return; }
         if (e.Key != Key.Enter) return;
         e.Handled = true;
         await CommitRenameAsync(item, editor.Text).ConfigureAwait(true);
@@ -1211,6 +1210,7 @@ public partial class PlayerViewerHost : UserControl
     private async Task CommitRenameAsync(SubclipPanelItem item, string name)
     {
         if (_subclips is null || !item.IsEditing) return;
+        if (string.IsNullOrWhiteSpace(name)) { item.IsEditing = false; return; }
         if (string.Equals(name.Trim(), item.Name, StringComparison.Ordinal)) { item.IsEditing = false; return; }
         try
         {
@@ -1327,7 +1327,7 @@ public partial class PlayerViewerHost : UserControl
     /// </summary>
     private void PlayerViewerHost_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == Key.S && IsTextEntryControl(e.OriginalSource as DependencyObject)) return;
+        if (IsTextEntryControl(e.OriginalSource as DependencyObject)) return;
         if (e.Key is Key.Left or Key.Right && IsArrowKeyOwnedByFocusedControl(e.OriginalSource as DependencyObject))
             return;
         switch (e.Key)

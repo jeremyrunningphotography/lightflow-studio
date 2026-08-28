@@ -8,12 +8,95 @@ internal sealed record CapabilityInvocation(string Capability, IReadOnlyList<Gui
     CapabilitySourceContext? SourceContext = null);
 
 internal sealed record EncodingHandoffInput(Guid AssetId, Guid RootId, string SourcePath, string DisplayName,
-    long FileSizeBytes, MediaRange? InitialTrim, MaterializedColorPipeline? AssignedColor = null);
+    long FileSizeBytes, MediaRange? InitialTrim, MaterializedColorPipeline? AssignedColor = null,
+    ExportItemProvenance? ExportProvenance = null,
+    string? NamingOriginalName = null,
+    string? NamingIndexNumberBasis = null,
+    bool RangeIsFixed = false);
 
 internal sealed record EncodingHandoffResult(IReadOnlyList<EncodingHandoffInput> Inputs,
     IReadOnlyList<string> Errors, string? InputFolder = null, bool IncludeSubfolders = false)
 {
     public bool Succeeded => Errors.Count == 0 && Inputs.Count > 0;
+}
+
+internal enum SubclipExportEntryKind { BrowserSources, PlayerSelection }
+
+internal sealed record SubclipExportInvocation(
+    SubclipExportEntryKind EntryKind,
+    IReadOnlyList<Guid> AssetIds,
+    IReadOnlyList<Guid>? SelectedSubclipIds = null,
+    CapabilitySourceContext? SourceContext = null,
+    bool IncludeNoSubclipSources = false);
+
+/// <summary>Builds typed prospective Subclip/fallback items while reusing the ordinary Catalog source/Color handoff.</summary>
+internal sealed class SubclipExportCapabilityHandoff(
+    EncodingCapabilityHandoff sources,
+    ISubclipService subclips)
+{
+    public async Task<EncodingHandoffResult> MaterializeAsync(SubclipExportInvocation invocation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(invocation);
+        if (invocation.AssetIds.Count == 0)
+            return new([], ["Select at least one Catalog video to Export Subclips."]);
+
+        var ordinary = await sources.MaterializeAsync(new CapabilityInvocation("video.encode", invocation.AssetIds,
+            invocation.SourceContext), cancellationToken).ConfigureAwait(false);
+        if (!ordinary.Succeeded) return ordinary;
+
+        var output = new List<EncodingHandoffInput>();
+        if (invocation.EntryKind == SubclipExportEntryKind.PlayerSelection)
+        {
+            if (ordinary.Inputs.Count != 1)
+                return new([], ["Player Export selected requires exactly one current source."]);
+            var selected = invocation.SelectedSubclipIds?.ToHashSet() ?? [];
+            if (selected.Count == 0) return new([], ["Select at least one Subclip to export."]);
+            var source = ordinary.Inputs[0];
+            var current = await subclips.ListAsync(source.AssetId, cancellationToken).ConfigureAwait(false);
+            var missing = selected.Where(id => current.All(item => item.SubclipId != id)).ToArray();
+            if (missing.Length != 0)
+                return new([], ["One or more selected Subclips no longer exist for the current source. Review the selection and try again."]);
+            foreach (var subclip in SubclipCurrentOrder.Apply(current)
+                         .Where(item => selected.Contains(item.SubclipId)))
+                output.Add(ForSubclip(source, subclip));
+        }
+        else
+        {
+            foreach (var source in ordinary.Inputs)
+            {
+                var current = await subclips.ListAsync(source.AssetId, cancellationToken).ConfigureAwait(false);
+                if (current.Count != 0)
+                {
+                    foreach (var subclip in SubclipCurrentOrder.Apply(current)) output.Add(ForSubclip(source, subclip));
+                }
+                else if (invocation.IncludeNoSubclipSources)
+                {
+                    output.Add(source with
+                    {
+                        InitialTrim = null,
+                        RangeIsFixed = true,
+                        ExportProvenance = new(ExportItemKind.NoSubclipFullSourceFallback, source.AssetId),
+                        NamingOriginalName = Path.GetFileNameWithoutExtension(source.SourcePath),
+                        NamingIndexNumberBasis = Path.GetFileNameWithoutExtension(source.SourcePath)
+                    });
+                }
+            }
+        }
+
+        if (output.Count == 0)
+            return new([], ["The selected videos do not currently contain any Subclips. Enable the full-source fallback to include videos with no Subclips."], ordinary.InputFolder, ordinary.IncludeSubfolders);
+        return new(output, [], ordinary.InputFolder, ordinary.IncludeSubfolders);
+    }
+
+    private static EncodingHandoffInput ForSubclip(EncodingHandoffInput source, Subclip subclip) => source with
+    {
+        InitialTrim = new(subclip.SourceDuration, subclip.In, subclip.Out),
+        RangeIsFixed = true,
+        ExportProvenance = new(ExportItemKind.Subclip, source.AssetId, subclip.SubclipId, subclip.Name, subclip.Revision),
+        NamingOriginalName = subclip.Name,
+        NamingIndexNumberBasis = Path.GetFileNameWithoutExtension(source.SourcePath)
+    };
 }
 
 /// <summary>Catalog-to-capability boundary. Asset identity stays durable until this materialization point.</summary>
@@ -77,7 +160,8 @@ internal sealed class EncodingCapabilityHandoff
             var range = await _ranges.RestoreAsync(assetId, cancellationToken).ConfigureAwait(false);
             var color = await MaterializeColorAsync(assetId, cancellationToken).ConfigureAwait(false);
             inputs.Add(new(assetId, resolved.Asset.RootId, resolved.PhysicalPath, name,
-                resolved.Asset.FileSizeBytes, Snapshot(range), color));
+                resolved.Asset.FileSizeBytes, Snapshot(range), color,
+                new(ExportItemKind.OrdinarySource, assetId)));
         }
 
         if (errors.Count != 0) return new([], errors);

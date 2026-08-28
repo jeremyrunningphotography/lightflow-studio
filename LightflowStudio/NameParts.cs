@@ -26,7 +26,8 @@ internal sealed record NamePartsDefinition(
     IReadOnlyList<NamePart> Parts,
     NamePartSeparator Separator = NamePartSeparator.Underscore);
 
-internal sealed record NamingInput(string OriginalName, int Sequence, DateTimeOffset? Timestamp = null);
+internal sealed record NamingInput(string OriginalName, int Sequence, DateTimeOffset? Timestamp = null,
+    string? IndexNumberBasis = null);
 
 internal sealed record MaterializedName(
     string? Stem,
@@ -41,7 +42,7 @@ internal static partial class NamePartsRenderer
     {
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(input);
-        var indexNumber = TrailingDecimalRun().Match(input.OriginalName) is { Success: true } match
+        var indexNumber = TrailingDecimalRun().Match(input.IndexNumberBasis ?? input.OriginalName) is { Success: true } match
             ? match.Value
             : null;
         var values = new List<string>(definition.Parts.Count);

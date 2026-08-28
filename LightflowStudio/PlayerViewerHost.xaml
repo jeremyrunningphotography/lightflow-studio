@@ -120,7 +120,7 @@
       <ComboBox x:Name="CameraLutCombo" Grid.Column="2" Height="26" SelectionChanged="CameraLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Camera / technical LUT; hold C for momentary Original" AutomationProperties.Name="Camera LUT"/>
       <TextBlock Grid.Column="3" Text="Creative" Margin="12,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
       <ComboBox x:Name="CreativeLutCombo" Grid.Column="4" Height="26" SelectionChanged="CreativeLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Creative LUT; hold C for momentary Original" AutomationProperties.Name="Creative LUT"/>
-      <Button x:Name="ExportButton" Grid.Column="6" Margin="6,0,0,0" Padding="5,2" Content="Export…" IsEnabled="False"
+      <Button x:Name="ExportButton" Grid.Column="6" Margin="6,0,0,0" Padding="5,2" Style="{StaticResource ExportLaunchButton}" Content="Export…" IsEnabled="False"
        Click="ExportButton_Click" ToolTip="Export this asset with its saved range and assigned Color" AutomationProperties.Name="Export current asset"/>
      </Grid>
      <Grid Grid.Row="1" Height="22">
@@ -185,16 +185,14 @@
    </Border>
 
    <Border x:Name="SubclipsPanel" Style="{StaticResource DrawerBody}" Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" Width="286" MinWidth="250"
-    Margin="0,6,6,6" Visibility="Collapsed">
+    Margin="0,6,6,6" Visibility="Collapsed" PreviewMouseLeftButtonDown="SubclipsPanel_PreviewMouseLeftButtonDown">
     <Grid>
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <DockPanel LastChildFill="False">
       <TextBlock DockPanel.Dock="Left" Style="{StaticResource DrawerHeaderText}" Text="SUBCLIPS"
        ToolTip="Saved ranges for this source" AutomationProperties.HelpText="Saved ranges for this source"/>
       <Button x:Name="AddSubclipButton" DockPanel.Dock="Right" Content="+ Subclip" Padding="8,4"
        Click="AddSubclip_Click" ToolTip="Create from the saved In and Out points (S)" AutomationProperties.Name="Create Subclip"/>
-      <Button x:Name="DeleteSelectedSubclipsButton" Style="{StaticResource DangerButton}" DockPanel.Dock="Right" Margin="0,0,4,0" Padding="7,4"
-       Content="Delete" IsEnabled="False" Click="DeleteSelectedSubclips_Click" ToolTip="Delete selected Subclips" AutomationProperties.Name="Delete selected Subclips"/>
      </DockPanel>
      <ListBox x:Name="SubclipsList" Grid.Row="1" Margin="0,9,0,0" Background="Transparent" BorderThickness="0" Padding="0"
       ItemsSource="{Binding}" SelectionChanged="SubclipsList_SelectionChanged" MouseDoubleClick="SubclipsList_MouseDoubleClick"
@@ -228,18 +226,28 @@
         </Border>
         <Grid Grid.Column="1" Margin="8,0,0,0">
          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-         <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
-          <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding IsEditing}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
-         </TextBlock>
-         <TextBox Text="{Binding Name, Mode=OneTime}" Foreground="{StaticResource TextBrush}" Visibility="{Binding IsEditing, Converter={StaticResource BooleanToVisibility}}"
-          LostKeyboardFocus="SubclipName_LostKeyboardFocus" KeyDown="SubclipName_KeyDown" AutomationProperties.Name="Subclip name"/>
+         <Grid x:Name="SubclipNameRow">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="0"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <TextBlock x:Name="SubclipNameText" Text="{Binding Name}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold"
+           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Focusable="True" ToolTip="{Binding Name}"
+           AutomationProperties.Name="{Binding Name}" AutomationProperties.HelpText="{Binding Name}">
+           <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding IsEditing}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+          </TextBlock>
+          <TextBox x:Name="SubclipNameEditor" Grid.Column="0" Text="{Binding Name, Mode=OneTime}" Foreground="{StaticResource TextBrush}"
+           Visibility="{Binding IsEditing, Converter={StaticResource BooleanToVisibility}}" LostKeyboardFocus="SubclipName_LostKeyboardFocus"
+           KeyDown="SubclipName_KeyDown" AutomationProperties.Name="Subclip name editor" AutomationProperties.HelpText="Edit the durable Subclip name"/>
+          <Button x:Name="RenameSubclipButton" Grid.Column="1" Tag="{Binding}" Margin="4,0,0,0"
+           Click="RenameSubclip_Click" ToolTip="Rename" AutomationProperties.Name="Rename Subclip">
+           <Path Width="12" Height="12" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5"
+            StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" SnapsToDevicePixels="True"
+            Data="{StaticResource SemanticEditIconGeometry}"/>
+           <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SubclipActionButton}"><Style.Triggers><DataTrigger Binding="{Binding IsEditing}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Button.Style>
+          </Button>
+         </Grid>
          <TextBlock Grid.Row="1" Margin="0,3,0,0" Text="{Binding RangeSummary}" FontSize="10" Foreground="{StaticResource MutedTextBrush}"/>
          <DockPanel Grid.Row="2" Margin="0,5,0,0">
           <TextBlock DockPanel.Dock="Left" Text="{Binding DurationSummary}" FontSize="10" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center"/>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
-           <Button Style="{StaticResource SubclipActionButton}" Content="&#xE70F;" Tag="{Binding}" Click="RenameSubclip_Click" ToolTip="Rename" AutomationProperties.Name="Rename Subclip"/>
-           <Button Style="{StaticResource SubclipActionButton}" Tag="{Binding}" IsEnabled="{Binding CanMoveUp}" Click="MoveSubclipUp_Click" ToolTip="Move up" AutomationProperties.Name="Move Subclip up"><Path Width="12" Height="14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" SnapsToDevicePixels="True" Data="{StaticResource SemanticMoveUpIconGeometry}"/></Button>
-           <Button Style="{StaticResource SubclipActionButton}" Tag="{Binding}" IsEnabled="{Binding CanMoveDown}" Click="MoveSubclipDown_Click" ToolTip="Move down" AutomationProperties.Name="Move Subclip down"><Path Width="12" Height="14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" SnapsToDevicePixels="True" Data="{StaticResource SemanticMoveDownIconGeometry}"/></Button>
            <Button Style="{StaticResource SubclipActionButton}" Content="&#xE74D;" Tag="{Binding}" Click="DeleteSubclip_Click" ToolTip="Delete" AutomationProperties.Name="Delete Subclip"/>
           </StackPanel>
          </DockPanel>
@@ -250,6 +258,22 @@
      <TextBlock x:Name="SubclipsEmptyText" Grid.Row="1" Text="Set In and Out, then press S to save a Subclip."
       TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center" Margin="18"
       Foreground="{StaticResource MutedTextBrush}"/>
+     <Grid x:Name="SubclipsActionBar" Grid.Row="2" Margin="0,8,0,0">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <Button x:Name="DeleteSelectedSubclipsButton" Style="{StaticResource DangerButton}" HorizontalAlignment="Left" Padding="9,4"
+       Content="Delete" IsEnabled="False" Click="DeleteSelectedSubclips_Click" ToolTip="Delete selected Subclips" AutomationProperties.Name="Delete selected Subclips"/>
+      <Button x:Name="ExportSubclipsButton" Grid.Column="1" Style="{StaticResource ExportLaunchButton}" HorizontalAlignment="Right" Padding="9,4"
+       Content="Export Subclips…" Click="ExportSubclips_Click" ToolTip="Export selected or all saved Subclips" AutomationProperties.Name="Export saved Subclips">
+       <Button.ContextMenu>
+        <ContextMenu x:Name="ExportSubclipsMenu" Placement="Bottom" Style="{StaticResource LightflowContextMenuStyle}">
+         <MenuItem x:Name="ExportSelectedSubclipsMenuItem" Style="{StaticResource LightflowMenuItemStyle}" Header="Export selected" IsEnabled="False"
+          Click="ExportSelectedSubclips_Click" AutomationProperties.Name="Export selected Subclips"/>
+         <MenuItem x:Name="ExportAllSubclipsMenuItem" Style="{StaticResource LightflowMenuItemStyle}" Header="Export all" IsEnabled="False"
+          Click="ExportAllSubclips_Click" AutomationProperties.Name="Export all Subclips"/>
+        </ContextMenu>
+       </Button.ContextMenu>
+      </Button>
+     </Grid>
     </Grid>
    </Border>
   </Grid>

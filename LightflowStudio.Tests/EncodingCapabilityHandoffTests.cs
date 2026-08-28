@@ -201,6 +201,80 @@ public sealed class EncodingCapabilityHandoffTests
         Assert.All(colors.ReadCounts.Values, count => Assert.Equal(1, count));
     }
 
+    [Fact]
+    public async Task Subclip_export_materializes_browser_order_in_time_order_and_truthful_fallbacks()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var a = Clip(first, "Opening", 9, 1, 4);
+        var b = Clip(first, "Reaction", 0, 6, 9);
+        var source = new EncodingCapabilityHandoff(new FakeAssets(
+            Resolution(first, "C:\\media\\CAM001.mov"), Resolution(second, "C:\\media\\CAM002.mov")),
+            new FakeRoots(), new FakeRanges(new Dictionary<Guid, MediaRange?>
+            {
+                [second] = new(TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(8))
+            }));
+        var handoff = new SubclipExportCapabilityHandoff(source,
+            new FakeSubclips(new Dictionary<Guid, IReadOnlyList<Subclip>> { [first] = [a, b] }));
+
+        var result = await handoff.MaterializeAsync(new(SubclipExportEntryKind.BrowserSources,
+            [second, first], IncludeNoSubclipSources: true));
+
+        Assert.True(result.Succeeded);
+        Assert.Equal([second, first, first], result.Inputs.Select(item => item.AssetId));
+        Assert.Equal([ExportItemKind.NoSubclipFullSourceFallback, ExportItemKind.Subclip, ExportItemKind.Subclip],
+            result.Inputs.Select(item => item.ExportProvenance!.Kind));
+        Assert.Null(result.Inputs[0].InitialTrim);
+        Assert.Equal(["Opening", "Reaction"], result.Inputs.Skip(1).Select(item => item.NamingOriginalName));
+        Assert.All(result.Inputs, item => Assert.True(item.RangeIsFixed));
+    }
+
+    [Fact]
+    public async Task Player_subclip_export_uses_only_selected_ids_in_in_time_order_and_rejects_stale_ids()
+    {
+        var asset = Guid.NewGuid();
+        var first = Clip(asset, "First", 2, 1, 3);
+        var middle = Clip(asset, "Middle", 1, 4, 7);
+        var last = Clip(asset, "Last", 0, 8, 12);
+        var handoff = new SubclipExportCapabilityHandoff(
+            new EncodingCapabilityHandoff(new FakeAssets(Resolution(asset, "C:\\media\\source.mov")),
+                new FakeRoots(), new FakeRanges()),
+            new FakeSubclips(new Dictionary<Guid, IReadOnlyList<Subclip>> { [asset] = [first, middle, last] }));
+
+        var selected = await handoff.MaterializeAsync(new(SubclipExportEntryKind.PlayerSelection,
+            [asset], [last.SubclipId, first.SubclipId]));
+        var stale = await handoff.MaterializeAsync(new(SubclipExportEntryKind.PlayerSelection,
+            [asset], [Guid.NewGuid()]));
+
+        Assert.Equal([first.SubclipId, last.SubclipId],
+            selected.Inputs.Select(item => item.ExportProvenance!.SubclipId));
+        Assert.DoesNotContain(selected.Inputs, item => item.ExportProvenance!.SubclipId == middle.SubclipId);
+        Assert.False(stale.Succeeded);
+        Assert.Contains("no longer exist", stale.Errors.Single(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Current_order_uses_subclip_id_as_stable_tie_breaker()
+    {
+        var asset = Guid.NewGuid();
+        var laterId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        var earlierId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var sameIn = TimeSpan.FromSeconds(4);
+        var values = new[]
+        {
+            new Subclip(laterId, asset, "Later ID", 0, sameIn, TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(20), 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+            new Subclip(earlierId, asset, "Earlier ID", 1, sameIn, TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(20), 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
+        };
+
+        Assert.Equal([earlierId, laterId], SubclipCurrentOrder.Apply(values).Select(item => item.SubclipId));
+        var renamed = values[1] with { Name = "Renamed without reordering", Revision = 2 };
+        Assert.Equal([earlierId, laterId], SubclipCurrentOrder.Apply([values[0], renamed]).Select(item => item.SubclipId));
+    }
+
+    private static Subclip Clip(Guid assetId, string name, int ordinal, double start, double end) =>
+        new(Guid.NewGuid(), assetId, name, ordinal, TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(end),
+            TimeSpan.FromSeconds(20), ordinal + 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+
     private static ManagedLutResource Resource(ColorLutStage stage, char value, string name)
     {
         var hash = new string(value, 64);
@@ -312,5 +386,16 @@ public sealed class EncodingCapabilityHandoffTests
         { Count++; return Task.FromResult(new MaterializedLutResource(resource.LutId, stage, resource.DisplayName,
             resource.ContentSha256, $"{resource.ContentSha256[..2]}/{resource.ContentSha256}.cube")); }
         public string Resolve(MaterializedLutResource resource) => resource.ResourceKey;
+    }
+
+    private sealed class FakeSubclips(Dictionary<Guid, IReadOnlyList<Subclip>> values) : ISubclipService
+    {
+        public Task<IReadOnlyList<Subclip>> ListAsync(Guid assetId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(values.GetValueOrDefault(assetId) ?? []);
+        public Task<SubclipCreateResult> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Subclip> RenameAsync(Guid subclipId, long expectedRevision, string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteAsync(Guid subclipId, long expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteAsync(Guid assetId, IReadOnlyList<SubclipOrder> subclips, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<Subclip>> ReorderAsync(Guid assetId, IReadOnlyList<SubclipOrder> order, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

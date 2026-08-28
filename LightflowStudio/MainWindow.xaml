@@ -642,7 +642,10 @@
                 ToolTip="{Binding Name}" AutomationProperties.Name="{Binding AutomationLabel}">
                 <Border.ContextMenu>
                  <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
-                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export / Export Subclips…" Click="BrowserContextExport_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export…" Click="BrowserContextExport_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export Subclips…" Click="BrowserContextExportSubclips_Click"/>
+                  </MenuItem>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Regenerate Previews" Click="BrowserContextRegenerateThumbnails_Click"/>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename" IsEnabled="False" ToolTip="Media rename is not available yet"/>
                   <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>

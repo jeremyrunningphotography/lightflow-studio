@@ -40,6 +40,7 @@
   </GeometryGroup>
   <StreamGeometry x:Key="SemanticMoveUpIconGeometry">M 2,7 L 8,1 14,7 M 8,1 L 8,15</StreamGeometry>
   <StreamGeometry x:Key="SemanticMoveDownIconGeometry">M 2,9 L 8,15 14,9 M 8,1 L 8,15</StreamGeometry>
+  <StreamGeometry x:Key="SemanticEditIconGeometry">M 2,12 L 3,8 10,1 14,5 7,12 Z M 9,2 L 13,6</StreamGeometry>
   <Thickness x:Key="CompactControlPadding">7,4</Thickness>
   <Thickness x:Key="CompactControlMargin">2</Thickness>
   <Thickness x:Key="CompactPrimaryPadding">9,5</Thickness>
@@ -193,6 +194,12 @@
   <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
    <Setter Property="Background" Value="#3A1E25"/>
    <Setter Property="BorderBrush" Value="#7A3444"/>
+  </Style>
+  <Style x:Key="ExportLaunchButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+   <Setter Property="Background" Value="{StaticResource ShellSurfaceBrush}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource OrangeBrush}"/>
+   <Setter Property="BorderThickness" Value="1"/>
   </Style>
 
   <Style TargetType="TextBox">

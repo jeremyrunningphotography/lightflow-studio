@@ -54,10 +54,12 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private readonly EncodingHandoffResult _handoff;
     private readonly Func<string, OutputFileSnapshot> _inspectOutput;
     private readonly IEncodingLutResourceStore _resourceStore;
+    private readonly Func<bool, CancellationToken, Task<EncodingHandoffResult>>? _revalidate;
     private IReadOnlyList<MediaMetadata?> _metadata;
     private IReadOnlyList<ResolvedMediaRange?> _resolvedRanges;
     private readonly bool[] _useRanges;
     private bool _rangesGloballyEnabled = true;
+    private bool _includeNoSubclipSources;
     private JobPlan<EncodingJobOptions>? _plan;
     private string _destination;
     private bool _createSubfolder = true;
@@ -75,7 +77,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
 
     public ExportDialogModel(EncodingHandoffResult handoff, EncodingOptions defaults,
         IReadOnlyList<ManagedLutResource> cameraLuts, IReadOnlyList<ManagedLutResource> creativeLuts,
-        IEncodingLutResourceStore resourceStore, Func<string, OutputFileSnapshot>? inspectOutput = null)
+        IEncodingLutResourceStore resourceStore, Func<string, OutputFileSnapshot>? inspectOutput = null,
+        Func<bool, CancellationToken, Task<EncodingHandoffResult>>? revalidate = null)
     {
         _handoff = handoff;
         _destination = handoff.InputFolder ?? "";
@@ -84,6 +87,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         _resolvedRanges = Enumerable.Repeat<ResolvedMediaRange?>(null, handoff.Inputs.Count).ToArray();
         _useRanges = handoff.Inputs.Select(input => input.InitialTrim is { IsFullSource: false }).ToArray();
         _resourceStore = resourceStore;
+        _revalidate = revalidate;
         _inspectOutput = inspectOutput ?? OutputFileSnapshot.Read;
         CameraChoices = BuildLutChoices(cameraLuts);
         CreativeChoices = BuildLutChoices(creativeLuts);
@@ -114,16 +118,22 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         }
     }
     public JobPlan<EncodingJobOptions>? CurrentPlan => _plan;
-    public IReadOnlyList<EncodingHandoffInput> Inputs => _handoff.Inputs;
-    public string Title => $"Export {_handoff.Inputs.Count} {(_handoff.Inputs.Count == 1 ? "video" : "videos")}";
-    public string FilesAutomationName => $"Files to Export, {_handoff.Inputs.Count} {(_handoff.Inputs.Count == 1 ? "file" : "files")}";
+    public IReadOnlyList<EncodingHandoffInput> Inputs => ActiveInputs().Select(value => value.input).ToArray();
+    public IReadOnlyList<EncodingHandoffInput> PreflightInputs => _handoff.Inputs;
+    public bool IsSubclipExport => _handoff.Inputs.Any(input => input.ExportProvenance?.Kind is ExportItemKind.Subclip or ExportItemKind.NoSubclipFullSourceFallback);
+    public bool HasNoSubclipFallbackCandidates => _handoff.Inputs.Any(input => input.ExportProvenance?.Kind == ExportItemKind.NoSubclipFullSourceFallback);
+    public bool IncludeNoSubclipSources { get => _includeNoSubclipSources; set => Set(ref _includeNoSubclipSources, value); }
+    public bool ShowGlobalRangeControl => !IsSubclipExport;
+    public string Title => IsSubclipExport ? "Export Subclips" : $"Export {_handoff.Inputs.Count} {(_handoff.Inputs.Count == 1 ? "video" : "videos")}";
+    public string FilesAutomationName => $"Files to Export, {Inputs.Count} {(Inputs.Count == 1 ? "file" : "files")}";
     public IReadOnlyList<ExportSubmissionItem> SubmissionItems => BuildSubmissionItems();
     public bool? GlobalUseRangeState
     {
         get
         {
-            var applicable = _handoff.Inputs.Select((input, index) => (input, index))
-                .Where(value => value.input.InitialTrim is { IsFullSource: false })
+            if (IsSubclipExport) return _includeNoSubclipSources;
+            var applicable = ActiveInputs()
+                .Where(value => !value.input.RangeIsFixed && value.input.InitialTrim is { IsFullSource: false })
                 .Select(value => _useRanges[value.index]).ToArray();
             if (!_rangesGloballyEnabled) return false;
             if (applicable.Length == 0 || applicable.All(value => value)) return true;
@@ -167,6 +177,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public void SetUseRange(int index, bool use)
     {
         if (!_rangesGloballyEnabled || index < 0 || index >= _useRanges.Length
+            || _handoff.Inputs[index].RangeIsFixed
             || _handoff.Inputs[index].InitialTrim is not { IsFullSource: false }) return;
         if (_useRanges[index] == use) return;
         _useRanges[index] = use;
@@ -193,6 +204,18 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
 
     public async Task<JobPlan<EncodingJobOptions>> MaterializeAcceptedPlanAsync(CancellationToken token = default)
     {
+        if (_revalidate is not null)
+        {
+            var current = await _revalidate(_includeNoSubclipSources, token).ConfigureAwait(false);
+            if (!current.Succeeded)
+                throw new InvalidOperationException(string.Join(Environment.NewLine, current.Errors));
+            var expected = Inputs;
+            var actual = current.Inputs.Where(input =>
+                input.ExportProvenance?.Kind != ExportItemKind.NoSubclipFullSourceFallback ||
+                _includeNoSubclipSources).ToArray();
+            if (!ProspectiveStateMatches(expected, actual))
+                throw new InvalidOperationException("The source or Subclip state changed while Export was open. Review the current Subclips and try again.");
+        }
         var camera = await SnapshotPolicyAsync(ColorLutStage.Camera, Camera, token).ConfigureAwait(false);
         var creative = await SnapshotPolicyAsync(ColorLutStage.Creative, Creative, token).ConfigureAwait(false);
         return BuildPlan(camera, creative);
@@ -212,17 +235,22 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
                 Container == ExportContainerChoice.SameAsSource ? OutputContainerPolicy.SameAsSource : OutputContainerPolicy.Explicit,
                 EncodingQualityPolicy.Automatic, camera ?? PreviewPolicy(Camera), creative ?? PreviewPolicy(Creative),
                 new(_encoding.AudioBitrateKbps, _encoding.AudioSampleRate, _encoding.AudioChannels)), naming);
-        var sources = _handoff.Inputs.Select((input, index) =>
+        var sources = ActiveInputs().Select(value =>
         {
+            var (input, index) = value;
             var metadata = _metadata.ElementAtOrDefault(index);
-            var useRange = _useRanges[index] && input.InitialTrim is { IsFullSource: false };
+            var useRange = input.ExportProvenance?.Kind == ExportItemKind.Subclip ||
+                !input.RangeIsFixed && _useRanges[index] && input.InitialTrim is { IsFullSource: false };
             return new EncodingSource(input.SourcePath, input.FileSizeBytes,
                 metadata is null ? input.InitialTrim?.SourceDuration : TimeSpan.FromSeconds(metadata.DurationSeconds),
                 useRange ? input.InitialTrim : null, useRange ? _resolvedRanges.ElementAtOrDefault(index) : null, LastWriteUtcTicks: TrimSourceIdentity.Read(input.SourcePath)?.LastWriteUtcTicks,
                 HasAudio: metadata?.HasAudio, CapabilityOrder: index, AssignedColor: input.AssignedColor,
                 MediaTraits: metadata is null ? null : new(metadata.VideoCodec, metadata.Width, metadata.Height,
                     metadata.FrameRate, metadata.Container, metadata.AudioCodec, metadata.AudioSampleRate,
-                    metadata.AudioChannels, metadata.AudioChannelLayout));
+                    metadata.AudioChannels, metadata.AudioChannelLayout),
+                NamingOriginalName: input.NamingOriginalName,
+                NamingIndexNumberBasis: input.NamingIndexNumberBasis,
+                ExportProvenance: input.ExportProvenance);
         });
         var definition = EncodingJobPlanner.Define(options, sources);
         var plan = EncodingJobPlanner.Plan(definition, _inspectOutput, colorResources: _resourceStore);
@@ -237,12 +265,18 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         if (_encoder is not null && !_encoder.IsUsable) extra.Add(new("export.encoder-unavailable",
             "NVIDIA NVENC could not be initialized. Check the hardware acceleration details.", JobIssueSeverity.Error));
         if (!_metadata.Any(value => value is null))
-            for (var index = 0; index < _useRanges.Length; index++)
-                if (_useRanges[index] && _handoff.Inputs[index].InitialTrim is { IsFullSource: false }
+            foreach (var (value, planIndex) in ActiveInputs().Select((value, planIndex) => (value, planIndex)))
+            {
+                var (input, index) = value;
+                if ((input.ExportProvenance?.Kind == ExportItemKind.Subclip || _useRanges[index])
+                    && input.InitialTrim is { IsFullSource: false }
                     && _resolvedRanges.ElementAtOrDefault(index) is null)
-                    itemIssues[index] = [new("export.range-unresolved",
-                        $"The saved In/Out range for '{Path.GetFileName(_handoff.Inputs[index].SourcePath)}' could not be validated. Ignore its In/Out range to export the full video.",
+                    itemIssues[planIndex] = [new("export.range-unresolved",
+                        input.RangeIsFixed
+                            ? $"The fixed Subclip range for '{input.ExportProvenance?.SubclipName}' could not be validated."
+                            : $"The saved In/Out range for '{Path.GetFileName(input.SourcePath)}' could not be validated. Ignore its In/Out range to export the full video.",
                         JobIssueSeverity.Error)];
+            }
         if (itemIssues.Count > 0)
             plan = plan with
             {
@@ -271,7 +305,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         var changed = false;
         for (var index = 0; index < _useRanges.Length; index++)
         {
-            if (_handoff.Inputs[index].InitialTrim is not { IsFullSource: false } || _useRanges[index] == use) continue;
+            if (_handoff.Inputs[index].RangeIsFixed ||
+                _handoff.Inputs[index].InitialTrim is not { IsFullSource: false } || _useRanges[index] == use) continue;
             _useRanges[index] = use;
             changed = true;
         }
@@ -282,13 +317,15 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     {
         const double timelineWidth = 240;
         var planned = _plan?.Items;
-        return _handoff.Inputs.Select((input, index) =>
+        return ActiveInputs().Select((value, planIndex) =>
         {
+            var (input, index) = value;
             var sourceName = Path.GetFileName(input.SourcePath);
             var hasRange = input.InitialTrim is { IsFullSource: false };
-            var useRange = hasRange && _useRanges[index];
+            var useRange = input.ExportProvenance?.Kind == ExportItemKind.Subclip ||
+                hasRange && !input.RangeIsFixed && _useRanges[index];
             var outputText = "Output name unresolved";
-            var item = planned?.ElementAtOrDefault(index);
+            var item = planned?.ElementAtOrDefault(planIndex);
             if (item is not null)
                 outputText = item.Definition.MaterializedName?.Problem is null && item.OutputPaths.FirstOrDefault() is { } path
                     ? "→ " + Path.GetFileName(path)
@@ -313,11 +350,29 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             var rangeAutomationName = hasRange
                 ? $"Use In/Out for {sourceName}"
                 : $"Use In/Out for {sourceName}, unavailable because no In/Out is defined";
-            return new ExportSubmissionItem(index, item?.Definition.Id ?? Guid.Empty, sourceName, outputText, $"Output for {sourceName}: {outputText.TrimStart('→', ' ')}",
-                hasRange, useRange, hasRange && _rangesGloballyEnabled, rangeAutomationName, left, width,
+            var displayName = input.ExportProvenance?.SubclipName ?? sourceName;
+            return new ExportSubmissionItem(index, item?.Definition.Id ?? Guid.Empty, displayName, outputText, $"Output for {displayName}: {outputText.TrimStart('→', ' ')}",
+                !input.RangeIsFixed && hasRange, useRange,
+                !input.RangeIsFixed && hasRange && _rangesGloballyEnabled, rangeAutomationName, left, width,
                 rangeToolTip, timelineAutomationName, item?.Issues ?? []);
         }).ToArray();
     }
+
+    private static bool ProspectiveStateMatches(IReadOnlyList<EncodingHandoffInput> expected,
+        IReadOnlyList<EncodingHandoffInput> actual) => expected.Count == actual.Count &&
+        expected.Zip(actual).All(pair =>
+            pair.First.AssetId == pair.Second.AssetId &&
+            pair.First.SourcePath == pair.Second.SourcePath &&
+            pair.First.FileSizeBytes == pair.Second.FileSizeBytes &&
+            pair.First.InitialTrim == pair.Second.InitialTrim &&
+            pair.First.AssignedColor == pair.Second.AssignedColor &&
+            pair.First.ExportProvenance == pair.Second.ExportProvenance);
+
+    private IReadOnlyList<(EncodingHandoffInput input, int index)> ActiveInputs() => _handoff.Inputs
+        .Select((input, index) => (input, index))
+        .Where(value => value.input.ExportProvenance?.Kind != ExportItemKind.NoSubclipFullSourceFallback ||
+            _includeNoSubclipSources)
+        .ToArray();
 
     private static string FormatTime(TimeSpan value) => value.TotalHours >= 1
         ? value.ToString(@"h\:mm\:ss\.f")
@@ -365,9 +420,10 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             : new(choice.Mode);
     private string Preview(string extension)
     {
-        if (_handoff.Inputs.Count == 0) return "Preview unavailable";
+        if (ActiveInputs().FirstOrDefault().input is not { } input) return "Preview unavailable";
         var stem = NamePartsRenderer.Materialize(new(NameParts.ToArray(), Separator),
-            new(Path.GetFileNameWithoutExtension(_handoff.Inputs[0].SourcePath), 1));
+            new(input.NamingOriginalName ?? Path.GetFileNameWithoutExtension(input.SourcePath), 1,
+                IndexNumberBasis: input.NamingIndexNumberBasis ?? Path.GetFileNameWithoutExtension(input.SourcePath)));
         return stem.Problem ?? (stem.Stem + extension);
     }
     private string PreviewExtension()

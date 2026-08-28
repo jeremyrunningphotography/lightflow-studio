@@ -38,6 +38,14 @@ public partial class ExportDialog : Window
         CameraCombo.ItemsSource = model.CameraChoices; CameraCombo.SelectedIndex = 0;
         CreativeCombo.ItemsSource = model.CreativeChoices; CreativeCombo.SelectedIndex = 0;
         OverwriteExistingCheck.IsChecked = model.OverwriteExisting;
+        if (model.IsSubclipExport)
+        {
+            GlobalUseRangesCheck.Content = "Include selected videos with no Subclips";
+            System.Windows.Automation.AutomationProperties.SetName(GlobalUseRangesCheck,
+                "Include selected videos with no Subclips");
+            GlobalUseRangesCheck.Visibility = model.HasNoSubclipFallbackCandidates
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
         TuneCombo.ItemsSource = ExportPresentation.Tunes; Select(TuneCombo, ExportPresentation.Tunes, model.Encoding.Tune);
         MultipassCombo.ItemsSource = ExportPresentation.MultipassModes; Select(MultipassCombo, ExportPresentation.MultipassModes, model.Encoding.Multipass);
         PixelFormatCombo.ItemsSource = ExportPresentation.PixelFormats; Select(PixelFormatCombo, ExportPresentation.PixelFormats, model.Encoding.PixelFormat);
@@ -83,11 +91,11 @@ public partial class ExportDialog : Window
         EncoderDiagnostic.ToolTip = hardware.Diagnostic;
         _model.ApplyEncoderCapability(nvenc);
         var metadata = new List<MediaMetadata?>();
-        foreach (var input in _model.Inputs) metadata.Add(await ProbeAsync(input.SourcePath));
+        foreach (var input in _model.PreflightInputs) metadata.Add(await ProbeAsync(input.SourcePath));
         _model.ApplyMetadata(metadata);
         var ranges = new List<ResolvedMediaRange?>();
-        for (var index = 0; index < _model.Inputs.Count; index++)
-            ranges.Add(await ResolveRangeAsync(_model.Inputs[index], metadata[index]));
+        for (var index = 0; index < _model.PreflightInputs.Count; index++)
+            ranges.Add(await ResolveRangeAsync(_model.PreflightInputs[index], metadata[index]));
         _model.ApplyResolvedRanges(ranges); Sync();
     }
 
@@ -189,7 +197,14 @@ public partial class ExportDialog : Window
     private void GlobalUseRanges_Changed(object sender, RoutedEventArgs e)
     {
         if (_initializing || GlobalUseRangesCheck.IsChecked is not { } use) return;
-        _model.SetGlobalUseRanges(use);
+        if (_model.IsSubclipExport)
+        {
+            _model.IncludeNoSubclipSources = use;
+            FilesToExportHeading.Text = $"Files to Export · {_model.Inputs.Count}";
+            System.Windows.Automation.AutomationProperties.SetName(FilesToExportScroll,
+                _model.FilesAutomationName);
+        }
+        else _model.SetGlobalUseRanges(use);
         Sync();
     }
     private void Browse_Click(object sender, RoutedEventArgs e)

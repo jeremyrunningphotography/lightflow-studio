@@ -67,10 +67,13 @@ public sealed class JobHistoryStoreTests : IDisposable
         var source = Path.Combine(_root, "DJI_0042.MP4");
         File.WriteAllText(source, "source");
         var name = new MaterializedName("DJI_0042-0042", 1, "0042", null);
+        var provenance = new ExportItemProvenance(ExportItemKind.Subclip, Guid.NewGuid(), Guid.NewGuid(),
+            "Interview answer", 4);
         var definition = new NamePartsDefinition([
             new(NamePartKind.OriginalName), new(NamePartKind.IndexNumber)
         ], NamePartSeparator.Hyphen);
-        var record = Record(JobState.Completed, DateTimeOffset.UtcNow, [Item(source) with { MaterializedName = name }]);
+        var record = Record(JobState.Completed, DateTimeOffset.UtcNow,
+            [Item(source) with { MaterializedName = name, ExportProvenance = provenance }]);
         var options = record.Definition.Options with { Naming = definition };
         var jobDefinition = record.Definition with { Options = options };
         record = record with
@@ -83,9 +86,12 @@ public sealed class JobHistoryStoreTests : IDisposable
         var loaded = Assert.Single(new JobHistoryStore(StorePath).Load());
         Assert.Equal(NamePartSeparator.Hyphen, loaded.Definition.Options.Naming!.Separator);
         Assert.Equal(name, loaded.Definition.Items.Single().MaterializedName);
+        Assert.Equal(provenance, loaded.Definition.Items.Single().ExportProvenance);
         var rerun = EncodingHistoryRerun.Prepare(loaded);
         Assert.Equal(NamePartKind.IndexNumber, rerun.Options.Naming!.Parts[1].Kind);
-        Assert.Equal(name, EncodingHistoryRerun.Materialize(rerun).Restored.Single().RestoredName);
+        var restored = EncodingHistoryRerun.Materialize(rerun).Restored.Single();
+        Assert.Equal(name, restored.RestoredName);
+        Assert.Equal(provenance, restored.ExportProvenance);
     }
 
     [Fact]

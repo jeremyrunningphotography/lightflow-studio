@@ -50,7 +50,6 @@ public partial class PlayerViewerHost : UserControl
     private readonly ObservableCollection<SubclipPanelItem> _subclipItems = [];
     private CancellationTokenSource? _subclipWorkCts;
     private bool _subclipsDrawerOpen;
-    private bool _publishingSubclips;
     private bool _stopAtOutDuringPlayback;
     private bool _stoppingAtOut;
     private MediaDecodedFrame? _retainedSteppedFrame;
@@ -100,6 +99,7 @@ public partial class PlayerViewerHost : UserControl
     internal event EventHandler<MediaRangeStateChangedEventArgs>? RangeStateChanged;
     internal event EventHandler<AssetColorStateChangedEventArgs>? ColorStateChanged;
     internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
+    internal event EventHandler<PlayerViewerSubclipsExportRequestedEventArgs>? ExportSelectedSubclipsRequested;
     internal event EventHandler<SubclipsDrawerStateRequestedEventArgs>? SubclipsDrawerStateRequested;
     internal PlayerViewerAsset? CurrentAsset => _currentAsset;
     internal IReadOnlySet<Guid> SelectedSubclipIds =>
@@ -350,6 +350,11 @@ public partial class PlayerViewerHost : UserControl
     }
 
     internal void SetExportEnabled(bool enabled) => ExportButton.IsEnabled = enabled;
+    internal void SetSelectedSubclipExportEnabled(bool enabled)
+    {
+        ExportSelectedSubclipsMenuItem.IsEnabled = enabled;
+        ExportAllSubclipsMenuItem.IsEnabled = _subclipItems.Count > 0;
+    }
 
     private void ExportButton_Click(object sender, RoutedEventArgs e)
     {
@@ -811,22 +816,23 @@ public partial class PlayerViewerHost : UserControl
     private void UpdateRangePresentation()
     {
         var duration = _service?.SourceInfo?.Duration;
-        var presentation = PlayerRangeTimelinePresentation.For(_reviewRange, duration);
+        var presentedRange = PresentedRange;
+        var presentation = PlayerRangeTimelinePresentation.For(presentedRange, duration);
         ReviewRangeIndicator.HasActiveTrim = presentation.HasSelectedSpan;
         ReviewRangeIndicator.HasProportions = presentation.HasProportions;
         ReviewRangeIndicator.ShowBoundaries = presentation.ShowBoundaries;
         ReviewRangeIndicator.StartFraction = presentation.StartFraction;
         ReviewRangeIndicator.WidthFraction = presentation.WidthFraction;
-        var hasIn = _reviewRange?.In is not null;
-        var hasOut = _reviewRange?.Out is not null;
+        var hasIn = presentedRange?.In is not null;
+        var hasOut = presentedRange?.Out is not null;
         SetInButton.Tag = hasIn ? "Active" : null;
         SetOutButton.Tag = hasOut ? "Active" : null;
         System.Windows.Automation.AutomationProperties.SetItemStatus(SetInButton, hasIn ? "Active" : "");
         System.Windows.Automation.AutomationProperties.SetItemStatus(SetOutButton, hasOut ? "Active" : "");
         InTimeButton.Visibility = ClearInButton.Visibility = hasIn ? Visibility.Visible : Visibility.Collapsed;
         OutTimeButton.Visibility = ClearOutButton.Visibility = hasOut ? Visibility.Visible : Visibility.Collapsed;
-        if (_reviewRange?.In is { } rangeIn) InTimeButton.Content = FormatTimestamp(rangeIn);
-        if (_reviewRange?.Out is { } rangeOut) OutTimeButton.Content = FormatTimestamp(rangeOut);
+        if (presentedRange?.In is { } rangeIn) InTimeButton.Content = FormatTimestamp(rangeIn);
+        if (presentedRange?.Out is { } rangeOut) OutTimeButton.Content = FormatTimestamp(rangeOut);
     }
 
     private async Task StopAtOutAsync()
@@ -848,6 +854,7 @@ public partial class PlayerViewerHost : UserControl
     private async void SetIn_Click(object sender, RoutedEventArgs e)
     {
         if (_service?.SourceInfo is not { } info || _service.Snapshot.DisplayedTimestamp is not { } timestamp) return;
+        ExitSubclipReviewForWorkingRangeEdit();
         var candidate = ReviewRangeBoundaryPolicy.SetIn(info.Duration, _reviewRange, timestamp.Position);
         if (candidate.Validate().Count != 0) { SetStatus("In must be before the end of the source."); return; }
         try { await SaveRangeAsync(candidate); SetStatus(null); }
@@ -857,6 +864,7 @@ public partial class PlayerViewerHost : UserControl
     private async void SetOut_Click(object sender, RoutedEventArgs e)
     {
         if (_service?.SourceInfo is not { } info || _service.Snapshot.DisplayedTimestamp is not { } timestamp) return;
+        ExitSubclipReviewForWorkingRangeEdit();
         var candidate = ReviewRangeBoundaryPolicy.SetOut(info.Duration, _reviewRange, timestamp.Position);
         if (candidate.Validate().Count != 0) { SetStatus("Out must be after the start of the source."); return; }
         try { await SaveRangeAsync(candidate); SetStatus(null); }
@@ -878,9 +886,11 @@ public partial class PlayerViewerHost : UserControl
                 if (item is null)
                 {
                     item = new SubclipPanelItem(subclip);
-                    _subclipItems.Add(item);
+                    var insertAt = 0;
+                    while (insertAt < _subclipItems.Count &&
+                           SubclipCurrentOrder.Compare(_subclipItems[insertAt].Subclip, subclip) < 0) insertAt++;
+                    _subclipItems.Insert(insertAt, item);
                 }
-                RefreshMoveBoundaries();
                 UpdateSubclipEmptyState();
                 if (result.Created && _subclipWorkCts is { } work) _ = LoadPosterAsync(item, _generation, work.Token);
                 SubclipsList.SelectedItems.Clear();
@@ -898,14 +908,24 @@ public partial class PlayerViewerHost : UserControl
 
     private async Task ClearBoundaryAsync(bool clearIn)
     {
+        ExitSubclipReviewForWorkingRangeEdit();
         if (_service?.SourceInfo is not { } info || _reviewRange is null) return;
         var range = new MediaRange(info.Duration, clearIn ? null : _reviewRange.In, clearIn ? _reviewRange.Out : null);
         try { await SaveRangeAsync(range.IsFullSource ? null : range); SetStatus(null); }
         catch (Exception exception) { SetStatus($"The range could not be saved. {exception.Message}"); }
     }
 
-    private async void InTime_Click(object sender, RoutedEventArgs e) => await SeekToBoundaryAsync(_reviewRange?.In);
-    private async void OutTime_Click(object sender, RoutedEventArgs e) => await SeekToBoundaryAsync(_reviewRange?.Out);
+    private async void InTime_Click(object sender, RoutedEventArgs e) => await SeekToBoundaryAsync(PresentedRange?.In);
+    private async void OutTime_Click(object sender, RoutedEventArgs e) => await SeekToBoundaryAsync(PresentedRange?.Out);
+
+    private void ExitSubclipReviewForWorkingRangeEdit()
+    {
+        if (_selectedSubclipId is null && _selectedSubclipRange is null) return;
+        SubclipsList.UnselectAll();
+        _selectedSubclipId = null;
+        _selectedSubclipRange = null;
+        UpdateRangePresentation();
+    }
 
     private async Task SeekToBoundaryAsync(TimeSpan? position)
     {
@@ -989,7 +1009,8 @@ public partial class PlayerViewerHost : UserControl
         _retainedSteppedFrame = null;
     }
 
-    private MediaRange? ActivePlaybackRange => _selectedSubclipRange ?? _reviewRange;
+    private MediaRange? PresentedRange => _selectedSubclipRange ?? _reviewRange;
+    private MediaRange? ActivePlaybackRange => PresentedRange;
 
     private void ResetSubclipWork()
     {
@@ -999,6 +1020,7 @@ public partial class PlayerViewerHost : UserControl
         _selectedSubclipId = null;
         _selectedSubclipRange = null;
         _subclipItems.Clear();
+        UpdateRangePresentation();
         UpdateSubclipEmptyState();
     }
 
@@ -1010,13 +1032,12 @@ public partial class PlayerViewerHost : UserControl
             var subclips = await _subclips.ListAsync(assetId, token).ConfigureAwait(true);
             if (generation != _generation || _currentAsset?.AssetId != assetId || token.IsCancellationRequested) return;
             _subclipItems.Clear();
-            foreach (var subclip in subclips)
+            foreach (var subclip in SubclipCurrentOrder.Apply(subclips))
             {
                 var item = new SubclipPanelItem(subclip);
                 _subclipItems.Add(item);
                 _ = LoadPosterAsync(item, generation, token);
             }
-            RefreshMoveBoundaries();
             UpdateSubclipEmptyState();
             if (subclips.Count > 0) RequestSubclipsDrawer(open: true);
         }
@@ -1047,8 +1068,13 @@ public partial class PlayerViewerHost : UserControl
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or FileFormatException) { }
     }
 
-    private void UpdateSubclipEmptyState() =>
-        SubclipsEmptyText.Visibility = _subclipItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    private void UpdateSubclipEmptyState()
+    {
+        var hasSubclips = _subclipItems.Count > 0;
+        SubclipsEmptyText.Visibility = hasSubclips ? Visibility.Collapsed : Visibility.Visible;
+        ExportSubclipsButton.IsEnabled = hasSubclips;
+        ExportAllSubclipsMenuItem.IsEnabled = hasSubclips;
+    }
 
     internal void SetSubclipsDrawerOpen(bool open)
     {
@@ -1064,11 +1090,47 @@ public partial class PlayerViewerHost : UserControl
 
     private void AddSubclip_Click(object sender, RoutedEventArgs e) => CreateSubclip();
 
+    private void ExportSubclips_Click(object sender, RoutedEventArgs e)
+    {
+        ExportSubclipsMenu.PlacementTarget = ExportSubclipsButton;
+        ExportSubclipsMenu.IsOpen = true;
+    }
+
+    private void ExportSelectedSubclips_Click(object sender, RoutedEventArgs e) =>
+        RequestSubclipExport(selectedOnly: true);
+
+    private void ExportAllSubclips_Click(object sender, RoutedEventArgs e) =>
+        RequestSubclipExport(selectedOnly: false);
+
+    private void RequestSubclipExport(bool selectedOnly)
+    {
+        if (_currentAsset?.AssetId is not Guid assetId) return;
+        var selectedIds = SelectedSubclipIds;
+        var selected = _subclipItems.Where(item => !selectedOnly || selectedIds.Contains(item.SubclipId))
+            .Select(item => item.SubclipId).ToArray();
+        if (selected.Length == 0) return;
+        if (selectedOnly) ExportSelectedSubclipsMenuItem.IsEnabled = false;
+        else ExportAllSubclipsMenuItem.IsEnabled = false;
+        ExportSelectedSubclipsRequested?.Invoke(this,
+            new PlayerViewerSubclipsExportRequestedEventArgs(assetId, selected));
+    }
+
+    private void SubclipsPanel_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var source = e.OriginalSource as DependencyObject;
+        if (FindVisualAncestor<System.Windows.Controls.ListBoxItem>(source) is not null ||
+            FindVisualAncestor<System.Windows.Controls.Primitives.ScrollBar>(source) is not null ||
+            FindVisualAncestor<System.Windows.Controls.Primitives.ButtonBase>(source) is not null ||
+            FindVisualAncestor<System.Windows.Controls.Primitives.TextBoxBase>(source) is not null)
+            return;
+        SubclipsList.UnselectAll();
+    }
+
     private async void SubclipsList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         foreach (var item in _subclipItems) item.IsSelected = SubclipsList.SelectedItems.Contains(item);
         DeleteSelectedSubclipsButton.IsEnabled = SubclipsList.SelectedItems.Count > 0;
-        if (_publishingSubclips) return;
+        ExportSelectedSubclipsMenuItem.IsEnabled = SubclipsList.SelectedItems.Count > 0;
         var selected = e.AddedItems.Cast<SubclipPanelItem>().LastOrDefault()
             ?? SubclipsList.SelectedItems.Cast<SubclipPanelItem>().FirstOrDefault(item => item.SubclipId == _selectedSubclipId)
             ?? SubclipsList.SelectedItems.Cast<SubclipPanelItem>().LastOrDefault();
@@ -1076,11 +1138,11 @@ public partial class PlayerViewerHost : UserControl
         {
             _selectedSubclipId = null;
             _selectedSubclipRange = null;
+            UpdateRangePresentation();
             return;
         }
         if (_service is null) return;
-        _selectedSubclipId = selected.SubclipId;
-        _selectedSubclipRange = new(selected.Subclip.SourceDuration, selected.Subclip.In, selected.Subclip.Out);
+        SetActiveSubclipReview(selected);
         RestoreLiveVideoSurface();
         try
         {
@@ -1092,12 +1154,14 @@ public partial class PlayerViewerHost : UserControl
 
     private async void SubclipsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (FindVisualAncestor<System.Windows.Controls.Primitives.ButtonBase>(e.OriginalSource as DependencyObject) is not null ||
+            FindVisualAncestor<System.Windows.Controls.Primitives.TextBoxBase>(e.OriginalSource as DependencyObject) is not null)
+            return;
         var item = (e.OriginalSource as FrameworkElement)?.DataContext as SubclipPanelItem
             ?? (e.Source as FrameworkElement)?.DataContext as SubclipPanelItem
             ?? FindVisualAncestor<System.Windows.Controls.ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as SubclipPanelItem;
         if (_service is null || item is null) return;
-        _selectedSubclipId = item.SubclipId;
-        _selectedSubclipRange = new(item.Subclip.SourceDuration, item.Subclip.In, item.Subclip.Out);
+        SetActiveSubclipReview(item);
         if (!SubclipsList.SelectedItems.Contains(item)) SubclipsList.SelectedItems.Add(item);
         RestoreLiveVideoSurface();
         try
@@ -1108,6 +1172,13 @@ public partial class PlayerViewerHost : UserControl
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) { SetStatus(exception.Message); }
+    }
+
+    private void SetActiveSubclipReview(SubclipPanelItem item)
+    {
+        _selectedSubclipId = item.SubclipId;
+        _selectedSubclipRange = new(item.Subclip.SourceDuration, item.Subclip.In, item.Subclip.Out);
+        UpdateRangePresentation();
     }
 
     private void RenameSubclip_Click(object sender, RoutedEventArgs e)
@@ -1167,9 +1238,9 @@ public partial class PlayerViewerHost : UserControl
             {
                 _selectedSubclipId = null;
                 _selectedSubclipRange = null;
+                UpdateRangePresentation();
             }
             _subclipItems.Remove(item);
-            RefreshMoveBoundaries();
             UpdateSubclipEmptyState();
         }
         catch (SubclipConcurrencyException exception)
@@ -1196,11 +1267,10 @@ public partial class PlayerViewerHost : UserControl
                 selected.Select(item => new SubclipOrder(item.SubclipId, item.Subclip.Revision)).ToArray()).ConfigureAwait(true);
             foreach (var item in selected) _subclipPosters?.Remove(item.Subclip.AssetId, item.SubclipId);
             if (_selectedSubclipId is Guid active && selected.Any(item => item.SubclipId == active))
-            { _selectedSubclipId = null; _selectedSubclipRange = null; }
+            { _selectedSubclipId = null; _selectedSubclipRange = null; UpdateRangePresentation(); }
             var settleIndex = Math.Min(selected.Min(item => _subclipItems.IndexOf(item)),
                 Math.Max(0, _subclipItems.Count - selected.Length - 1));
             foreach (var item in selected) _subclipItems.Remove(item);
-            RefreshMoveBoundaries();
             UpdateSubclipEmptyState();
             if (_subclipItems.Count > 0) SubclipsList.SelectedItem = _subclipItems[settleIndex];
         }
@@ -1210,61 +1280,6 @@ public partial class PlayerViewerHost : UserControl
             await ReloadCurrentSubclipsAsync().ConfigureAwait(true);
         }
         catch (Exception exception) { SetStatus($"Delete failed: {exception.Message}"); }
-    }
-
-    private void MoveSubclipUp_Click(object sender, RoutedEventArgs e) => _ = MoveSubclipAsync((sender as FrameworkElement)?.Tag as SubclipPanelItem, -1);
-    private void MoveSubclipDown_Click(object sender, RoutedEventArgs e) => _ = MoveSubclipAsync((sender as FrameworkElement)?.Tag as SubclipPanelItem, 1);
-
-    private async Task MoveSubclipAsync(SubclipPanelItem? item, int offset)
-    {
-        if (_subclips is null || item is null || _currentAsset?.AssetId is not Guid assetId) return;
-        if (SubclipsList.SelectedItems.Count > 1)
-        {
-            SetStatus("Select one active Subclip to change its order.");
-            return;
-        }
-        var index = _subclipItems.IndexOf(item);
-        var target = index + offset;
-        if (index < 0 || target < 0 || target >= _subclipItems.Count) return;
-        var order = _subclipItems.ToList();
-        (order[index], order[target]) = (order[target], order[index]);
-        try
-        {
-            var reordered = await _subclips.ReorderAsync(assetId,
-                order.Select(candidate => new SubclipOrder(candidate.SubclipId, candidate.Subclip.Revision)).ToArray()).ConfigureAwait(true);
-            PublishSubclipOrder(reordered);
-            SubclipsList.SelectedItem = _subclipItems.FirstOrDefault(candidate => candidate.SubclipId == item.SubclipId);
-        }
-        catch (SubclipConcurrencyException exception)
-        {
-            SetStatus(exception.Message);
-            await ReloadCurrentSubclipsAsync().ConfigureAwait(true);
-        }
-        catch (Exception exception) { SetStatus($"Reorder failed: {exception.Message}"); }
-    }
-
-    private void PublishSubclipOrder(IReadOnlyList<Subclip> reordered)
-    {
-        var existing = _subclipItems.ToDictionary(item => item.SubclipId);
-        var selectedIds = SelectedSubclipIds;
-        _publishingSubclips = true;
-        _subclipItems.Clear();
-        foreach (var subclip in reordered)
-        {
-            var item = existing[subclip.SubclipId];
-            item.Replace(subclip);
-            _subclipItems.Add(item);
-        }
-        foreach (var item in _subclipItems.Where(item => selectedIds.Contains(item.SubclipId)))
-            SubclipsList.SelectedItems.Add(item);
-        _publishingSubclips = false;
-        RefreshMoveBoundaries();
-    }
-
-    private void RefreshMoveBoundaries()
-    {
-        for (var index = 0; index < _subclipItems.Count; index++)
-            _subclipItems[index].SetMoveBoundaries(index > 0, index < _subclipItems.Count - 1);
     }
 
     private async Task ReloadCurrentSubclipsAsync()

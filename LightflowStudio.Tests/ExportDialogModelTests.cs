@@ -347,6 +347,124 @@ public sealed class ExportDialogModelTests : IDisposable
     }
 
     [Fact]
+    public void Subclip_mode_keeps_fixed_ranges_hides_working_range_controls_and_uses_semantic_names()
+    {
+        var source = Path.Combine(_root, "CAM042.mov");
+        File.WriteAllText(source, "source");
+        var assetId = Guid.NewGuid();
+        var subclipId = Guid.NewGuid();
+        var range = new MediaRange(TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(8));
+        var subclip = new EncodingHandoffInput(assetId, Guid.NewGuid(), source, "CAM042.mov", 6, range,
+            ExportProvenance: new(ExportItemKind.Subclip, assetId, subclipId, "Best Take", 7),
+            NamingOriginalName: "Best Take", NamingIndexNumberBasis: "CAM042", RangeIsFixed: true);
+        var fallback = new EncodingHandoffInput(Guid.NewGuid(), Guid.NewGuid(), Path.Combine(_root, "empty.mov"),
+            "empty.mov", 6, null, ExportProvenance: new(ExportItemKind.NoSubclipFullSourceFallback, Guid.NewGuid()),
+            NamingOriginalName: "empty", NamingIndexNumberBasis: "empty", RangeIsFixed: true);
+        File.WriteAllText(fallback.SourcePath, "source");
+        var model = new ExportDialogModel(new([subclip, fallback], [], _root), new EncodingOptions(), [], [],
+            new FakeResources(), _ => new(false, 0));
+        Ready(model, Metadata("h264", "mov"), Metadata("h264", "mov"));
+        model.ApplyResolvedRanges([new(range, TimeSpan.Zero, TimeSpan.FromSeconds(3),
+            TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(5)), null]);
+
+        Assert.Equal("Export Subclips", model.Title);
+        Assert.False(model.ShowGlobalRangeControl);
+        Assert.Single(model.SubmissionItems);
+        Assert.Equal("Best Take", model.SubmissionItems[0].SourceFileName);
+        Assert.False(model.SubmissionItems[0].HasRange);
+        Assert.True(model.SubmissionItems[0].UseRange);
+        Assert.False(model.SubmissionItems[0].RangeControlEnabled);
+        Assert.Equal("→ Best Take-001.mov", model.SubmissionItems[0].OutputText);
+        model.SetUseRange(0, false);
+        model.SetGlobalUseRanges(false);
+        Assert.Equal(range, model.CurrentPlan!.Items.Single().Definition.MediaRange);
+        Assert.Equal(subclipId, model.CurrentPlan.Items.Single().Definition.ExportProvenance!.SubclipId);
+
+        model.NameParts.Clear();
+        model.AddPart(NamePartKind.IndexNumber);
+        Assert.Equal("→ 042.mov", model.SubmissionItems.Single().OutputText);
+    }
+
+    [Fact]
+    public void Subclip_fallback_is_explicit_full_source_and_never_uses_saved_working_range()
+    {
+        var path = Path.Combine(_root, "fallback.mp4");
+        File.WriteAllText(path, "source");
+        var assetId = Guid.NewGuid();
+        var fallback = new EncodingHandoffInput(assetId, Guid.NewGuid(), path, "fallback.mp4", 6,
+            new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(6)),
+            ExportProvenance: new(ExportItemKind.NoSubclipFullSourceFallback, assetId),
+            NamingOriginalName: "fallback", NamingIndexNumberBasis: "fallback", RangeIsFixed: true) with
+        { InitialTrim = null };
+        var model = new ExportDialogModel(new([fallback], [], _root), new EncodingOptions(), [], [],
+            new FakeResources(), _ => new(false, 0));
+        Ready(model, Metadata("h264", "mp4"));
+
+        Assert.Empty(model.SubmissionItems);
+        model.IncludeNoSubclipSources = true;
+        var row = Assert.Single(model.SubmissionItems);
+        Assert.False(row.HasRange);
+        Assert.False(row.UseRange);
+        Assert.Null(model.CurrentPlan!.Items.Single().Definition.MediaRange!.In);
+        Assert.Null(model.CurrentPlan.Items.Single().Definition.ExportProvenance!.SubclipId);
+        Assert.Equal(ExportItemKind.NoSubclipFullSourceFallback,
+            model.CurrentPlan.Items.Single().Definition.ExportProvenance!.Kind);
+    }
+
+    [Fact]
+    public async Task Accepted_subclip_plan_revalidates_current_revision_and_never_substitutes_full_source()
+    {
+        var path = Path.Combine(_root, "race.mov");
+        File.WriteAllText(path, "source");
+        var assetId = Guid.NewGuid();
+        var range = new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(4));
+        var input = new EncodingHandoffInput(assetId, Guid.NewGuid(), path, "race.mov", 6, range,
+            ExportProvenance: new(ExportItemKind.Subclip, assetId, Guid.NewGuid(), "Race", 1),
+            NamingOriginalName: "Race", NamingIndexNumberBasis: "race", RangeIsFixed: true);
+        var current = new EncodingHandoffResult([input], [], _root);
+        var model = new ExportDialogModel(current, new EncodingOptions(), [], [], new FakeResources(),
+            _ => new(false, 0), (_, _) => Task.FromResult(current));
+        Ready(model, Metadata("h264", "mov"));
+        model.ApplyResolvedRanges([new(range, TimeSpan.Zero, TimeSpan.FromSeconds(1),
+            TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(3))]);
+
+        current = current with { Inputs = [input with
+        {
+            ExportProvenance = input.ExportProvenance! with { SubclipRevision = 2 }
+        }] };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => model.MaterializeAcceptedPlanAsync());
+        Assert.Contains("changed while Export was open", error.Message);
+        Assert.Equal(ExportItemKind.Subclip, model.CurrentPlan!.Items.Single().Definition.ExportProvenance!.Kind);
+    }
+
+    [Fact]
+    public void Same_source_subclip_name_collision_is_rejected_before_atomic_admission()
+    {
+        var path = Path.Combine(_root, "same.mov");
+        File.WriteAllText(path, "source");
+        var assetId = Guid.NewGuid();
+        EncodingHandoffInput Input(double start, double end) => new(assetId, Guid.NewGuid(), path, "same.mov", 6,
+            new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(end)),
+            ExportProvenance: new(ExportItemKind.Subclip, assetId, Guid.NewGuid(), "Duplicate", 1),
+            NamingOriginalName: "Duplicate", NamingIndexNumberBasis: "same", RangeIsFixed: true);
+        var first = Input(1, 3);
+        var second = Input(5, 8);
+        var model = new ExportDialogModel(new([first, second], [], _root), new EncodingOptions(), [], [],
+            new FakeResources(), _ => new(false, 0));
+        Ready(model, Metadata("h264", "mov"), Metadata("h264", "mov"));
+        model.ApplyResolvedRanges([
+            new(first.InitialTrim!, TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(2)),
+            new(second.InitialTrim!, TimeSpan.Zero, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(3))]);
+        model.NameParts.Clear();
+        model.AddPart(NamePartKind.OriginalName);
+
+        Assert.False(model.CurrentPlan!.IsValid);
+        Assert.Contains(model.Errors, issue => issue.Code == "encoding.output-collision");
+        Assert.Equal(2, model.SubmissionItems.Select(item => item.PlannedItemId).Distinct().Count());
+    }
+
+    [Fact]
     public void PresentationMappingsUseFriendlyProductLabels()
     {
         Assert.Equal("Original name", ExportPresentation.NamePartLabel(NamePartKind.OriginalName));

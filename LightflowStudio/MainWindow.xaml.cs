@@ -1272,6 +1272,8 @@ public partial class MainWindow : Window
 
     private async void BrowserExport_Click(object sender, RoutedEventArgs e) => await ExportBrowserSelectionAsync();
     private async void BrowserContextExport_Click(object sender, RoutedEventArgs e) => await ExportBrowserSelectionAsync();
+    private async void BrowserContextExportSubclips_Click(object sender, RoutedEventArgs e) =>
+        await ExportBrowserSubclipsAsync();
 
     private async Task ExportBrowserSelectionAsync()
     {
@@ -1291,6 +1293,16 @@ public partial class MainWindow : Window
         }
         await ApplyEncodingHandoffAsync(new CapabilityInvocation("video.encode", assetIds,
             new CapabilitySourceContext(location.RootId, location.RelativeFolder)));
+    }
+
+    private async Task ExportBrowserSubclipsAsync()
+    {
+        var state = CurrentBrowserSelectionActions();
+        if (!state.CanExport || _lastLoadedBrowserState?.Location is not { } location) return;
+        await ApplySubclipExportHandoffAsync(new(SubclipExportEntryKind.BrowserSources,
+            _browserGrid.SelectedAssetIdsInBrowserOrder, SourceContext:
+                new CapabilitySourceContext(location.RootId, location.RelativeFolder),
+            IncludeNoSubclipSources: true));
     }
 
     private async void BrowserRegenerateThumbnails_Click(object sender, RoutedEventArgs e) =>
@@ -1483,6 +1495,7 @@ public partial class MainWindow : Window
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         _playerViewerHost.ExportRequested += PlayerViewerHost_ExportRequested;
+        _playerViewerHost.ExportSelectedSubclipsRequested += PlayerViewerHost_ExportSelectedSubclipsRequested;
         _playerViewerHost.SubclipsDrawerStateRequested += (_, request) =>
             SetRightDrawer(request.Open ? RightDrawerKind.Subclips : RightDrawerKind.None);
         _playerViewerHost.RangeStateChanged += (_, change) =>
@@ -1765,6 +1778,22 @@ public partial class MainWindow : Window
         {
             if (_playerViewerHost?.CurrentAsset?.AssetId == e.AssetId)
                 _playerViewerHost.SetExportEnabled(true);
+        }
+    }
+
+    private async void PlayerViewerHost_ExportSelectedSubclipsRequested(object? sender,
+        PlayerViewerSubclipsExportRequestedEventArgs e)
+    {
+        try
+        {
+            await ApplySubclipExportHandoffAsync(new(SubclipExportEntryKind.PlayerSelection, [e.AssetId],
+                e.SelectedSubclipIds));
+        }
+        finally
+        {
+            if (_playerViewerHost?.CurrentAsset?.AssetId == e.AssetId)
+                _playerViewerHost.SetSelectedSubclipExportEnabled(
+                    _playerViewerHost.SelectedSubclipIds.Count > 0);
         }
     }
 
@@ -2076,6 +2105,58 @@ public partial class MainWindow : Window
         {
             MessageBox.Show($"The Browser selection could not be prepared: {exception.Message}",
                 "Cannot export selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            if (ReferenceEquals(_browserEncodingHandoffCts, cancellation))
+            {
+                _browserEncodingHandoffCts = null;
+                UpdateBrowserSelectionActions();
+            }
+            cancellation.Dispose();
+        }
+    }
+
+    private async Task ApplySubclipExportHandoffAsync(SubclipExportInvocation invocation)
+    {
+        _browserEncodingHandoffCts?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        _browserEncodingHandoffCts = cancellation;
+        BrowserExportButton.IsEnabled = false;
+        try
+        {
+            var sourceHandoff = new EncodingCapabilityHandoff(_storage.MediaAssets, _storage.MediaRoots,
+                _storage.MediaRanges, _storage.AssetColors, _storage.LutCache,
+                new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory));
+            var result = await new SubclipExportCapabilityHandoff(sourceHandoff, _storage.Subclips)
+                .MaterializeAsync(invocation, cancellation.Token).ConfigureAwait(true);
+            if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return;
+            if (!result.Succeeded)
+            {
+                MessageBox.Show("The Subclip selection was not sent to Export:\n\n" +
+                    string.Join("\n", result.Errors), "Cannot export Subclips",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var resourceStore = new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory);
+            var model = new ExportDialogModel(result, _settings.Encoding,
+                _storage.LutCache.Snapshot(ColorLutStage.Camera).Resources,
+                _storage.LutCache.Snapshot(ColorLutStage.Creative).Resources, resourceStore,
+                revalidate: async (includeNoSubclipSources, token) => await new SubclipExportCapabilityHandoff(
+                    new EncodingCapabilityHandoff(_storage.MediaAssets, _storage.MediaRoots,
+                        _storage.MediaRanges, _storage.AssetColors, _storage.LutCache, resourceStore),
+                    _storage.Subclips).MaterializeAsync(invocation with
+                    {
+                        IncludeNoSubclipSources = invocation.EntryKind == SubclipExportEntryKind.BrowserSources &&
+                            includeNoSubclipSources
+                    }, token));
+            new ExportDialog(model, _exportCoordinator, _ffprobe) { Owner = this }.ShowDialog();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)
+        {
+            MessageBox.Show($"The Subclip selection could not be prepared: {exception.Message}",
+                "Cannot export Subclips", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch (OperationCanceledException) { }
         finally
@@ -3786,7 +3867,8 @@ public partial class MainWindow : Window
                     metadata.VideoCodec, metadata.Width, metadata.Height, metadata.FrameRate, metadata.Container,
                     metadata.AudioCodec, metadata.AudioSampleRate, metadata.AudioChannels, metadata.AudioChannelLayout) : null,
                 file.RestoredExport,
-                RestoredName: file.RestoredName);
+                RestoredName: file.RestoredName,
+                ExportProvenance: file.ExportProvenance);
         });
         return EncodingJobPlanner.Plan(EncodingJobPlanner.Define(options, sources));
     }

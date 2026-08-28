@@ -19,15 +19,6 @@ internal sealed class SubclipPanelItem(Subclip subclip) : INotifyPropertyChanged
     public ImageSource? Poster { get => _poster; set => Set(ref _poster, value); }
     public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
     public bool IsEditing { get => _isEditing; set => Set(ref _isEditing, value); }
-    public bool CanMoveUp { get; private set; }
-    public bool CanMoveDown { get; private set; }
-
-    public void SetMoveBoundaries(bool canMoveUp, bool canMoveDown)
-    {
-        if (CanMoveUp != canMoveUp) { CanMoveUp = canMoveUp; Changed(nameof(CanMoveUp)); }
-        if (CanMoveDown != canMoveDown) { CanMoveDown = canMoveDown; Changed(nameof(CanMoveDown)); }
-    }
-
     public void Replace(Subclip subclip)
     {
         _subclip = subclip;

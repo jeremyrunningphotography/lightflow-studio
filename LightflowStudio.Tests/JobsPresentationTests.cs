@@ -72,7 +72,7 @@ public sealed class JobsPresentationTests
         var drawer = Named(document, "JobsDrawer");
         var list = Named(document, "JobsDrawerList");
         var template = list.Descendants().Single(element => element.Name.LocalName == "DataTemplate");
-        var row = template.Elements().Single(element => element.Name.LocalName == "Grid");
+        var card = template.Elements().Single(element => element.Name.LocalName == "Border");
         var reorder = template.Descendants().Where(element => element.Name.LocalName == "Button" &&
             ((string?)element.Attribute("AutomationProperties.Name"))?.StartsWith("Move waiting Job", StringComparison.Ordinal) == true).ToList();
 
@@ -80,7 +80,8 @@ public sealed class JobsPresentationTests
         Assert.Equal(WorkspaceState.MinJobsDrawerWidth.ToString(), (string?)drawer.Attribute("MinWidth"));
         Assert.Equal("620", (string?)drawer.Attribute("MaxWidth"));
         Assert.Equal("0,0,16,0", (string?)list.Attribute("Padding"));
-        Assert.Equal("0,0,0,4", (string?)row.Attribute("Margin"));
+        Assert.Equal("{StaticResource DrawerCard}", (string?)card.Attribute("Style"));
+        Assert.Equal("0,0,0,7", (string?)card.Attribute("Margin"));
         Assert.Equal(2, reorder.Count);
         Assert.All(reorder, button => { Assert.Equal("22", (string?)button.Attribute("Width")); Assert.Equal("22", (string?)button.Attribute("Height")); });
         Assert.All(reorder, button => Assert.NotNull(button.Attribute("ToolTip")));
@@ -402,13 +403,16 @@ public sealed class JobsPresentationTests
     {
         var document = DrawerDocument();
         var pull = Named(document, "JobsDrawerPullButton");
+        var switcher = Named(document, "RightDrawerPullSwitcher");
         var main = Named(document, "MainTabs");
         var drawer = Named(document, "JobsDrawer");
         var splitter = Named(document, "JobsDrawerSplitter");
         var source = MainWindowSource();
 
         Assert.Equal("JobsDrawerPull_Click", (string?)pull.Attribute("Click"));
-        Assert.Equal("Right", (string?)pull.Attribute("HorizontalAlignment"));
+        Assert.Equal(switcher, pull.Parent);
+        Assert.Equal("Right", (string?)switcher.Attribute("HorizontalAlignment"));
+        Assert.Equal("Center", (string?)switcher.Attribute("VerticalAlignment"));
         Assert.Equal("0,0,14,0", (string?)main.Attribute("Margin"));
         Assert.Equal("2", (string?)drawer.Attribute("Grid.Column"));
         Assert.Equal("1", (string?)splitter.Attribute("Grid.Column"));
@@ -433,10 +437,11 @@ public sealed class JobsPresentationTests
         var rotation = label.Descendants().Single(element => element.Name.LocalName == "RotateTransform");
 
         Assert.Equal("90", (string?)rotation.Attribute("Angle"));
-        Assert.Equal("JobsDrawerPullButtonStyle", ((string?)pull.Attribute("Style"))?.Split(' ').Last().TrimEnd('}'));
+        Assert.Equal("DrawerPullButton", ((string?)pull.Attribute("Style"))?.Split(' ').Last().TrimEnd('}'));
         Assert.Equal("JobsDrawerPull_Click", (string?)pull.Attribute("Click"));
-        var style = document.Descendants().Single(element =>
-            (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "JobsDrawerPullButtonStyle");
+        var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
+        var style = app.Descendants().Single(element =>
+            (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "DrawerPullButton");
         Assert.Contains(style.Descendants(), element => (string?)element.Attribute("Property") == "Width" && (string?)element.Attribute("Value") == "28");
         Assert.Contains(style.Descendants(), element => (string?)element.Attribute("Property") == "Height" && (string?)element.Attribute("Value") == "96");
     }

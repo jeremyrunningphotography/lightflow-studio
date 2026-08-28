@@ -45,6 +45,47 @@ public sealed class SubclipDrawerRegressionTests
         Assert.Contains("SubclipsDrawerPull_Click", source);
     }
 
+    [Fact]
+    public void DrawerPullsShareOneDpiSafeSwitcherAndDrawerVocabulary()
+    {
+        var shell = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
+        var player = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml"));
+        var app = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "App.xaml"));
+        var switcher = Named(shell, "RightDrawerPullSwitcher");
+        var jobsPull = Named(shell, "JobsDrawerPullButton");
+        var subclipsPull = Named(shell, "SubclipsDrawerPullButton");
+
+        Assert.Equal(switcher, jobsPull.Parent);
+        Assert.Equal(switcher, subclipsPull.Parent);
+        Assert.Equal("{StaticResource DrawerPullButton}", (string?)jobsPull.Attribute("Style"));
+        Assert.Equal("{StaticResource DrawerPullButton}", (string?)subclipsPull.Attribute("Style"));
+        Assert.Equal("0,8,0,0", (string?)subclipsPull.Attribute("Margin"));
+        Assert.Null(jobsPull.Attribute("VerticalAlignment"));
+        Assert.Null(subclipsPull.Attribute("VerticalAlignment"));
+        Assert.Equal("{StaticResource DrawerBody}", (string?)Named(shell, "JobsDrawer").Attribute("Style"));
+        Assert.Equal("{StaticResource DrawerBody}", (string?)Named(player, "SubclipsPanel").Attribute("Style"));
+        Assert.Contains(app.Descendants(), element =>
+            (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "DrawerCard");
+    }
+
+    [Fact]
+    public void BulkDeleteIsDestructiveAndReorderUsesDistinctVectorGeometry()
+    {
+        var player = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml"));
+        var delete = Named(player, "DeleteSelectedSubclipsButton");
+        var reorder = player.Descendants().Where(element => element.Name.LocalName == "Button" &&
+            ((string?)element.Attribute("AutomationProperties.Name"))?.StartsWith("Move Subclip", StringComparison.Ordinal) == true).ToArray();
+
+        Assert.Equal("{StaticResource DangerButton}", (string?)delete.Attribute("Style"));
+        Assert.Equal(2, reorder.Length);
+        var paths = reorder.Select(button => button.Elements().Single(element => element.Name.LocalName == "Path")).ToArray();
+        Assert.Equal("{StaticResource SemanticMoveUpIconGeometry}", (string?)paths[0].Attribute("Data"));
+        Assert.Equal("{StaticResource SemanticMoveDownIconGeometry}", (string?)paths[1].Attribute("Data"));
+        Assert.NotEqual((string?)paths[0].Attribute("Data"), (string?)paths[1].Attribute("Data"));
+        Assert.Equal("{Binding CanMoveUp}", (string?)reorder[0].Attribute("IsEnabled"));
+        Assert.Equal("{Binding CanMoveDown}", (string?)reorder[1].Attribute("IsEnabled"));
+    }
+
     private static XElement Named(XDocument document, string name) => document.Descendants().Single(element =>
         (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == name);
 

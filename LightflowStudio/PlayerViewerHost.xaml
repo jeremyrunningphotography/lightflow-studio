@@ -184,17 +184,16 @@
    </Grid>
    </Border>
 
-   <Border x:Name="SubclipsPanel" Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" Width="286" MinWidth="250"
-    Margin="0,6,6,6" Padding="10" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}"
-    BorderThickness="1" CornerRadius="9" Visibility="Collapsed">
+   <Border x:Name="SubclipsPanel" Style="{StaticResource DrawerBody}" Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" Width="286" MinWidth="250"
+    Margin="0,6,6,6" Visibility="Collapsed">
     <Grid>
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
      <DockPanel LastChildFill="False">
-      <TextBlock DockPanel.Dock="Left" Text="SUBCLIPS" VerticalAlignment="Center" Foreground="{StaticResource ShellNavigationTextBrush}"
-       FontSize="10" FontWeight="SemiBold" ToolTip="Saved ranges for this source" AutomationProperties.HelpText="Saved ranges for this source"/>
+      <TextBlock DockPanel.Dock="Left" Style="{StaticResource DrawerHeaderText}" Text="SUBCLIPS"
+       ToolTip="Saved ranges for this source" AutomationProperties.HelpText="Saved ranges for this source"/>
       <Button x:Name="AddSubclipButton" DockPanel.Dock="Right" Content="+ Subclip" Padding="8,4"
        Click="AddSubclip_Click" ToolTip="Create from the saved In and Out points (S)" AutomationProperties.Name="Create Subclip"/>
-      <Button x:Name="DeleteSelectedSubclipsButton" DockPanel.Dock="Right" Margin="0,0,4,0" Padding="7,4"
+      <Button x:Name="DeleteSelectedSubclipsButton" Style="{StaticResource DangerButton}" DockPanel.Dock="Right" Margin="0,0,4,0" Padding="7,4"
        Content="Delete" IsEnabled="False" Click="DeleteSelectedSubclips_Click" ToolTip="Delete selected Subclips" AutomationProperties.Name="Delete selected Subclips"/>
      </DockPanel>
      <ListBox x:Name="SubclipsList" Grid.Row="1" Margin="0,9,0,0" Background="Transparent" BorderThickness="0" Padding="0"
@@ -239,8 +238,8 @@
           <TextBlock DockPanel.Dock="Left" Text="{Binding DurationSummary}" FontSize="10" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center"/>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
            <Button Style="{StaticResource SubclipActionButton}" Content="&#xE70F;" Tag="{Binding}" Click="RenameSubclip_Click" ToolTip="Rename" AutomationProperties.Name="Rename Subclip"/>
-           <Button Style="{StaticResource SubclipActionButton}" Content="&#xE74A;" Tag="{Binding}" IsEnabled="{Binding CanMoveUp}" Click="MoveSubclipUp_Click" ToolTip="Move up" AutomationProperties.Name="Move Subclip up"/>
-           <Button Style="{StaticResource SubclipActionButton}" Content="&#xE74B;" Tag="{Binding}" IsEnabled="{Binding CanMoveDown}" Click="MoveSubclipDown_Click" ToolTip="Move down" AutomationProperties.Name="Move Subclip down"/>
+           <Button Style="{StaticResource SubclipActionButton}" Tag="{Binding}" IsEnabled="{Binding CanMoveUp}" Click="MoveSubclipUp_Click" ToolTip="Move up" AutomationProperties.Name="Move Subclip up"><Path Width="12" Height="14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" SnapsToDevicePixels="True" Data="{StaticResource SemanticMoveUpIconGeometry}"/></Button>
+           <Button Style="{StaticResource SubclipActionButton}" Tag="{Binding}" IsEnabled="{Binding CanMoveDown}" Click="MoveSubclipDown_Click" ToolTip="Move down" AutomationProperties.Name="Move Subclip down"><Path Width="12" Height="14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" SnapsToDevicePixels="True" Data="{StaticResource SemanticMoveDownIconGeometry}"/></Button>
            <Button Style="{StaticResource SubclipActionButton}" Content="&#xE74D;" Tag="{Binding}" Click="DeleteSubclip_Click" ToolTip="Delete" AutomationProperties.Name="Delete Subclip"/>
           </StackPanel>
          </DockPanel>

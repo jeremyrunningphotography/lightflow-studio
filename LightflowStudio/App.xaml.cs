@@ -13,6 +13,16 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        var migrationCopySwitch = Array.IndexOf(e.Args, CatalogPackageRuntimeVerifier.MigrationCopyCommandLineSwitch);
+        if (migrationCopySwitch >= 0)
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            base.OnStartup(e);
+            var databasePath = migrationCopySwitch + 1 < e.Args.Length ? e.Args[migrationCopySwitch + 1] : "";
+            var verified = CatalogPackageRuntimeVerifier.VerifyMigrationCopyAsync(databasePath).GetAwaiter().GetResult();
+            Shutdown(verified ? 0 : 1);
+            return;
+        }
         if (e.Args.Contains(CatalogPackageRuntimeVerifier.CommandLineSwitch, StringComparer.Ordinal))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

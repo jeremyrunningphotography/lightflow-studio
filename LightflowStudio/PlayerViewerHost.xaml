@@ -4,6 +4,7 @@
  xmlns:local="clr-namespace:LightflowStudio"
  Focusable="True" FocusVisualStyle="{x:Null}" PreviewKeyDown="PlayerViewerHost_PreviewKeyDown" PreviewKeyUp="PlayerViewerHost_PreviewKeyUp" LostKeyboardFocus="PlayerViewerHost_LostKeyboardFocus">
  <UserControl.Resources>
+  <BooleanToVisibilityConverter x:Key="BooleanToVisibility"/>
   <!-- Copied from TrimEditorWindow.xaml rather than extracted into the shared shell dictionary — the same
        small-scale local-duplication precedent #125 already established for an analogous slider hit-area
        (see MainWindow.xaml's BrowserThumbnailSizeSliderHitArea). Keeping this control's resources local also
@@ -70,12 +71,17 @@
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
+  <Style x:Key="SubclipActionButton" TargetType="Button" BasedOn="{StaticResource RangeClearButton}">
+   <Setter Property="Width" Value="24"/><Setter Property="Height" Value="24"/><Setter Property="Margin" Value="2,0,0,0"/>
+   <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/><Setter Property="FontSize" Value="12"/>
+  </Style>
  </UserControl.Resources>
  <Border Style="{StaticResource ShellPanel}" Background="#07090D" Padding="0" ClipToBounds="True">
   <Grid>
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="420"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
 
-   <DockPanel Grid.Row="0" Margin="6,5,6,4">
+   <DockPanel Grid.Row="0" Grid.Column="0" Margin="6,5,6,4">
     <Button x:Name="BackButton" DockPanel.Dock="Left" Padding="10,6" Click="BackButton_Click"
      ToolTip="Back to Browser (Esc)" AutomationProperties.Name="Back to Browser">
      <!-- A horizontal StackPanel top-aligns its children by default rather than stretching them, and the
@@ -95,7 +101,7 @@
 
    <!-- The one authoritative background for the media surface, matching BrowserGridHost's own single-source-of-
         background convention so no seam can appear between this and the surrounding chrome. -->
-   <Grid Grid.Row="1" x:Name="MediaSurfaceHost" Background="Black">
+   <Grid Grid.Row="1" Grid.Column="0" x:Name="MediaSurfaceHost" Background="Black">
     <Grid x:Name="VideoHost"/>
     <Image x:Name="SteppedFrameSurface" Stretch="Uniform" IsHitTestVisible="False" Visibility="Collapsed"/>
     <Image x:Name="ImageSurface" Stretch="Uniform" Visibility="Collapsed"/>
@@ -103,7 +109,7 @@
      TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Visibility="Collapsed"/>
    </Grid>
 
-   <Border Grid.Row="2" x:Name="TransportBar" Margin="6,0,6,6" Padding="7,5,7,5" Visibility="Collapsed"
+   <Border Grid.Row="2" Grid.Column="0" x:Name="TransportBar" Margin="6,0,6,6" Padding="7,5,7,5" Visibility="Collapsed"
     Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
     <Grid>
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -175,6 +181,75 @@
         IsEnabled="False" ToolTip="Click anywhere to set the volume, or drag the thumb" AutomationProperties.Name="Volume"/>
       </StackPanel>
      </Grid>
+   </Grid>
+   </Border>
+
+   <Border x:Name="SubclipsPanel" Style="{StaticResource DrawerBody}" Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" Width="286" MinWidth="250"
+    Margin="0,6,6,6" Visibility="Collapsed">
+    <Grid>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+     <DockPanel LastChildFill="False">
+      <TextBlock DockPanel.Dock="Left" Style="{StaticResource DrawerHeaderText}" Text="SUBCLIPS"
+       ToolTip="Saved ranges for this source" AutomationProperties.HelpText="Saved ranges for this source"/>
+      <Button x:Name="AddSubclipButton" DockPanel.Dock="Right" Content="+ Subclip" Padding="8,4"
+       Click="AddSubclip_Click" ToolTip="Create from the saved In and Out points (S)" AutomationProperties.Name="Create Subclip"/>
+      <Button x:Name="DeleteSelectedSubclipsButton" Style="{StaticResource DangerButton}" DockPanel.Dock="Right" Margin="0,0,4,0" Padding="7,4"
+       Content="Delete" IsEnabled="False" Click="DeleteSelectedSubclips_Click" ToolTip="Delete selected Subclips" AutomationProperties.Name="Delete selected Subclips"/>
+     </DockPanel>
+     <ListBox x:Name="SubclipsList" Grid.Row="1" Margin="0,9,0,0" Background="Transparent" BorderThickness="0" Padding="0"
+      ItemsSource="{Binding}" SelectionChanged="SubclipsList_SelectionChanged" MouseDoubleClick="SubclipsList_MouseDoubleClick"
+      SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved Subclips">
+      <ListBox.ItemContainerStyle>
+       <Style TargetType="ListBoxItem">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="0,0,0,7"/><Setter Property="Background" Value="Transparent"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+         <Border x:Name="Card" Padding="7" Background="#15181E" BorderBrush="#292E37" BorderThickness="1" CornerRadius="6">
+          <ContentPresenter/>
+         </Border>
+         <ControlTemplate.Triggers>
+          <Trigger Property="IsSelected" Value="True"><Setter TargetName="Card" Property="Background" Value="#2B181D"/><Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/></Trigger>
+          <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/></Trigger>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="Background" Value="#20242C"/></Trigger>
+         </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
+       </Style>
+      </ListBox.ItemContainerStyle>
+      <ListBox.ItemTemplate><DataTemplate DataType="{x:Type local:SubclipPanelItem}">
+       <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="92"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <Border Height="58" Background="#090B0F" CornerRadius="4" ClipToBounds="True">
+         <Grid>
+          <TextBlock Text="&#xE714;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="20"
+           Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          <Image Source="{Binding Poster}" Stretch="UniformToFill"/>
+         </Grid>
+        </Border>
+        <Grid Grid.Column="1" Margin="8,0,0,0">
+         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+         <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+          <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding IsEditing}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+         </TextBlock>
+         <TextBox Text="{Binding Name, Mode=OneTime}" Foreground="{StaticResource TextBrush}" Visibility="{Binding IsEditing, Converter={StaticResource BooleanToVisibility}}"
+          LostKeyboardFocus="SubclipName_LostKeyboardFocus" KeyDown="SubclipName_KeyDown" AutomationProperties.Name="Subclip name"/>
+         <TextBlock Grid.Row="1" Margin="0,3,0,0" Text="{Binding RangeSummary}" FontSize="10" Foreground="{StaticResource MutedTextBrush}"/>
+         <DockPanel Grid.Row="2" Margin="0,5,0,0">
+          <TextBlock DockPanel.Dock="Left" Text="{Binding DurationSummary}" FontSize="10" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center"/>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+           <Button Style="{StaticResource SubclipActionButton}" Content="&#xE70F;" Tag="{Binding}" Click="RenameSubclip_Click" ToolTip="Rename" AutomationProperties.Name="Rename Subclip"/>
+           <Button Style="{StaticResource SubclipActionButton}" Tag="{Binding}" IsEnabled="{Binding CanMoveUp}" Click="MoveSubclipUp_Click" ToolTip="Move up" AutomationProperties.Name="Move Subclip up"><Path Width="12" Height="14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" SnapsToDevicePixels="True" Data="{StaticResource SemanticMoveUpIconGeometry}"/></Button>
+           <Button Style="{StaticResource SubclipActionButton}" Tag="{Binding}" IsEnabled="{Binding CanMoveDown}" Click="MoveSubclipDown_Click" ToolTip="Move down" AutomationProperties.Name="Move Subclip down"><Path Width="12" Height="14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" SnapsToDevicePixels="True" Data="{StaticResource SemanticMoveDownIconGeometry}"/></Button>
+           <Button Style="{StaticResource SubclipActionButton}" Content="&#xE74D;" Tag="{Binding}" Click="DeleteSubclip_Click" ToolTip="Delete" AutomationProperties.Name="Delete Subclip"/>
+          </StackPanel>
+         </DockPanel>
+        </Grid>
+       </Grid>
+      </DataTemplate></ListBox.ItemTemplate>
+     </ListBox>
+     <TextBlock x:Name="SubclipsEmptyText" Grid.Row="1" Text="Set In and Out, then press S to save a Subclip."
+      TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center" Margin="18"
+      Foreground="{StaticResource MutedTextBrush}"/>
     </Grid>
    </Border>
   </Grid>

@@ -541,6 +541,9 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         }, progress, cancellationToken).ConfigureAwait(false);
     }
 
+    internal ISubclipPosterService CreateSubclipPosterService() =>
+        SubclipPosterFactory.Create(MediaAssets, () => Locations, Settings, operations: _previewOperations);
+
     private IPreviewMaintenanceService? CreatePreviewMaintenance()
     {
         if (Previews is null) return null;

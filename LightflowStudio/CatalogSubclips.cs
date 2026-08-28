@@ -16,13 +16,15 @@ internal sealed record Subclip(
     DateTimeOffset UpdatedUtc);
 
 internal sealed record SubclipOrder(Guid SubclipId, long ExpectedRevision);
+internal sealed record SubclipCreateResult(Subclip Subclip, bool Created);
 
 internal interface ISubclipService
 {
-    Task<Subclip> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default);
+    Task<SubclipCreateResult> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Subclip>> ListAsync(Guid assetId, CancellationToken cancellationToken = default);
     Task<Subclip> RenameAsync(Guid subclipId, long expectedRevision, string name, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid subclipId, long expectedRevision, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid assetId, IReadOnlyList<SubclipOrder> subclips, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Subclip>> ReorderAsync(Guid assetId, IReadOnlyList<SubclipOrder> order,
         CancellationToken cancellationToken = default);
 }
@@ -43,7 +45,7 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
             return ReadAsset(connection, null, assetId);
         }, cancellationToken);
 
-    public async Task<Subclip> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
+    public async Task<SubclipCreateResult> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(workingRange);
         ValidateExplicitRange(workingRange);
@@ -55,6 +57,13 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
                 using var connection = RequireSession().OpenConnection();
                 using var transaction = connection.BeginTransaction(deferred: false);
                 var existing = ReadAsset(connection, transaction, assetId);
+                var matching = existing.FirstOrDefault(item =>
+                    item.In == workingRange.In!.Value && item.Out == workingRange.Out!.Value);
+                if (matching is not null)
+                {
+                    transaction.Commit();
+                    return new SubclipCreateResult(matching, Created: false);
+                }
                 var usedNames = existing.Select(item => item.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var number = 1;
                 while (usedNames.Contains($"Subclip {number}")) number++;
@@ -78,7 +87,7 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
                 command.Parameters.AddWithValue("$now", now);
                 command.ExecuteNonQuery();
                 transaction.Commit();
-                return created;
+                return new SubclipCreateResult(created, Created: true);
             }, cancellationToken).ConfigureAwait(false);
         }
         finally { _mutations.Release(); }
@@ -134,6 +143,43 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
                 delete.Parameters.AddWithValue("$revision", expectedRevision);
                 if (delete.ExecuteNonQuery() != 1) throw new SubclipConcurrencyException("The Subclip changed before deletion.");
                 NormalizeOrdinals(connection, transaction, existing.AssetId, FormatUtc(_utcNow()));
+                transaction.Commit();
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        finally { _mutations.Release(); }
+    }
+
+    public async Task DeleteAsync(Guid assetId, IReadOnlyList<SubclipOrder> subclips,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subclips);
+        if (subclips.Count == 0) return;
+        if (subclips.Select(item => item.SubclipId).Distinct().Count() != subclips.Count)
+            throw new ArgumentException("Subclips to delete cannot contain duplicate identities.", nameof(subclips));
+        await _mutations.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await Task.Run(() =>
+            {
+                using var connection = RequireSession().OpenConnection();
+                using var transaction = connection.BeginTransaction(deferred: false);
+                var current = ReadAsset(connection, transaction, assetId);
+                var expected = subclips.ToDictionary(item => item.SubclipId, item => item.ExpectedRevision);
+                if (expected.Any(item => current.All(existing =>
+                        existing.SubclipId != item.Key || existing.Revision != item.Value)))
+                    throw new SubclipConcurrencyException("One or more Subclips changed before deletion.");
+                foreach (var item in subclips)
+                {
+                    using var delete = connection.CreateCommand();
+                    delete.Transaction = transaction;
+                    delete.CommandText = "DELETE FROM Subclips WHERE SubclipId=$id AND AssetId=$asset AND Revision=$revision;";
+                    delete.Parameters.AddWithValue("$id", item.SubclipId.ToString("D"));
+                    delete.Parameters.AddWithValue("$asset", assetId.ToString("D"));
+                    delete.Parameters.AddWithValue("$revision", item.ExpectedRevision);
+                    if (delete.ExecuteNonQuery() != 1)
+                        throw new SubclipConcurrencyException("The Subclip collection changed during deletion.");
+                }
+                NormalizeOrdinals(connection, transaction, assetId, FormatUtc(_utcNow()));
                 transaction.Commit();
             }, cancellationToken).ConfigureAwait(false);
         }

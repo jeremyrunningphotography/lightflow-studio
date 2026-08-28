@@ -18,6 +18,8 @@ using MessageBox = System.Windows.MessageBox;
 
 namespace LightflowStudio;
 
+internal enum RightDrawerKind { None, Jobs, Subclips }
+
 public partial class MainWindow : Window
 {
     private static bool JobsRuntimeEnabled => true;
@@ -50,6 +52,8 @@ public partial class MainWindow : Window
     private readonly HashSet<Guid> _deletedFullJobsTerminalJobIds = [];
     private int _jobsPresentationPending;
     private double _jobsDrawerWidth = 380;
+    private RightDrawerKind _openRightDrawer;
+    private bool _subclipsContextAvailable;
     private double _browserLocationsPreferredWidth = 280;
     private bool _applyingBrowserResponsiveLayout;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
@@ -1464,6 +1468,7 @@ public partial class MainWindow : Window
         CaptureBrowserGridScrollOffset();
         EnsurePlayerViewerHost();
         SetBrowserPresentationMode(BrowserPresentationMode.PlayerViewer);
+        SetSubclipsContextAvailable(asset.Kind == MediaPresentationKind.Video && asset.AssetId is not null);
         await _playerViewerHost!.OpenAsync(asset, resolution).ConfigureAwait(true);
     }
 
@@ -1471,11 +1476,15 @@ public partial class MainWindow : Window
     {
         if (_playerViewerHost is not null) return;
         _playerViewerHost = new PlayerViewerHost(App.Playback, _storage.MediaRanges, _storage.Subclips,
-            new FrameScreengrabService(() => _storage.Settings.ScreengrabDirectory), lutCache: _storage.LutCache,
+            new FrameScreengrabService(() => _storage.Settings.ScreengrabDirectory),
+            subclipPosters: _storage.CreateSubclipPosterService(),
+            lutCache: _storage.LutCache,
             assetColors: _storage.AssetColors, cameraLutFolder: () => _storage.Settings.CameraLutFolder,
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         _playerViewerHost.ExportRequested += PlayerViewerHost_ExportRequested;
+        _playerViewerHost.SubclipsDrawerStateRequested += (_, request) =>
+            SetRightDrawer(request.Open ? RightDrawerKind.Subclips : RightDrawerKind.None);
         _playerViewerHost.RangeStateChanged += (_, change) =>
         {
             _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
@@ -1531,6 +1540,8 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task ReturnToBrowserGridAsync(bool restoreScrollOffset = true, bool focusGrid = true)
     {
+        if (_openRightDrawer == RightDrawerKind.Subclips) SetRightDrawer(RightDrawerKind.None);
+        SetSubclipsContextAvailable(false);
         if (_browserPresentation != BrowserPresentationMode.PlayerViewer) return;
         var playerViewerHost = _playerViewerHost;
         SetBrowserPresentationMode(BrowserPresentationMode.Grid);
@@ -1909,12 +1920,16 @@ public partial class MainWindow : Window
     {
         if (!ReferenceEquals(e.Source, MainTabs)) return;
         SyncBrowserStatusBarVisibility();
+        UpdateSubclipsPullVisibility();
         // #110: switching to another workspace while a video is open in the Player/Viewer must not leave it
         // silently playing audio in a hidden tab. This pauses rather than returning to Grid — switching tabs
         // is not "leaving" the Browser, so the open asset and its position stay exactly as the user left them.
         if (MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Home) &&
             _browserPresentation == BrowserPresentationMode.PlayerViewer && _playerViewerHost is not null)
+        {
+            if (_openRightDrawer == RightDrawerKind.Subclips) SetRightDrawer(RightDrawerKind.None);
             _ = _playerViewerHost.PauseIfPlayingAsync();
+        }
     }
 
     private void ApplicationMenu_Click(object sender, RoutedEventArgs e)
@@ -4013,7 +4028,24 @@ public partial class MainWindow : Window
 
     private void OpenJobsDrawer()
     {
+        SetRightDrawer(RightDrawerKind.Jobs);
+    }
+
+    private void SetRightDrawer(RightDrawerKind drawer)
+    {
         if (JobsDrawer is null) return;
+        if (drawer == RightDrawerKind.Subclips && !_subclipsContextAvailable) drawer = RightDrawerKind.None;
+        _openRightDrawer = drawer;
+        _playerViewerHost?.SetSubclipsDrawerOpen(drawer == RightDrawerKind.Subclips);
+        SubclipsDrawerPullChevron.Text = drawer == RightDrawerKind.Subclips ? "›" : "‹";
+        SubclipsDrawerPullButton.ToolTip = drawer == RightDrawerKind.Subclips ? "Close Subclips drawer" : "Open Subclips drawer";
+        AutomationProperties.SetName(SubclipsDrawerPullButton,
+            drawer == RightDrawerKind.Subclips ? "Close Subclips drawer" : "Open Subclips drawer");
+        if (drawer != RightDrawerKind.Jobs)
+        {
+            ApplyJobsDrawerClosed();
+            return;
+        }
         JobsDrawerColumn.MinWidth = WorkspaceState.MinJobsDrawerWidth;
         JobsDrawerColumn.Width = new GridLength(_jobsDrawerWidth);
         JobsDrawerSplitterColumn.Width = new GridLength(8);
@@ -4025,6 +4057,12 @@ public partial class MainWindow : Window
     }
 
     private void CloseJobsDrawer(bool manual)
+    {
+        if (_openRightDrawer == RightDrawerKind.Jobs) _openRightDrawer = RightDrawerKind.None;
+        ApplyJobsDrawerClosed();
+    }
+
+    private void ApplyJobsDrawerClosed()
     {
         if (JobsDrawer.Visibility == Visibility.Visible) _jobsDrawerWidth = JobsDrawerColumn.ActualWidth;
         JobsDrawer.Visibility = Visibility.Collapsed;
@@ -4040,6 +4078,24 @@ public partial class MainWindow : Window
     private void JobsDrawerPull_Click(object sender, RoutedEventArgs e)
     {
         if (JobsDrawer.Visibility == Visibility.Visible) CloseJobsDrawer(true); else OpenJobsDrawer();
+    }
+
+    private void SubclipsDrawerPull_Click(object sender, RoutedEventArgs e) =>
+        SetRightDrawer(_openRightDrawer == RightDrawerKind.Subclips ? RightDrawerKind.None : RightDrawerKind.Subclips);
+
+    private void SetSubclipsContextAvailable(bool available)
+    {
+        _subclipsContextAvailable = available;
+        if (!available && _openRightDrawer == RightDrawerKind.Subclips) SetRightDrawer(RightDrawerKind.None);
+        UpdateSubclipsPullVisibility();
+    }
+
+    private void UpdateSubclipsPullVisibility()
+    {
+        if (SubclipsDrawerPullButton is null) return;
+        var homeActive = MainTabs?.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home);
+        SubclipsDrawerPullButton.Visibility = _subclipsContextAvailable && homeActive &&
+            _browserPresentation == BrowserPresentationMode.PlayerViewer ? Visibility.Visible : Visibility.Collapsed;
     }
     private void JobExpansionToggle_Click(object sender, RoutedEventArgs e)
     {

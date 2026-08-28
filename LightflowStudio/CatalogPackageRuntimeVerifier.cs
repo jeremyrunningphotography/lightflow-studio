@@ -5,6 +5,7 @@ namespace LightflowStudio;
 internal static class CatalogPackageRuntimeVerifier
 {
     internal const string CommandLineSwitch = "--verify-catalog-runtime";
+    internal const string MigrationCopyCommandLineSwitch = "--verify-catalog-migration-copy";
 
     public static async Task<bool> VerifyAsync()
     {
@@ -29,6 +30,32 @@ internal static class CatalogPackageRuntimeVerifier
             await previews.ObserveSourceAsync(assetId,
                 new PreviewSourceIdentity(1, 1, 1, "0123456789abcdef")).ConfigureAwait(false);
             return (await previews.GetAsync(assetId).ConfigureAwait(false))?.AssetId == assetId;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    public static async Task<bool> VerifyMigrationCopyAsync(string databasePath)
+    {
+        if (string.IsNullOrWhiteSpace(databasePath) || !File.Exists(databasePath)) return false;
+        var root = Path.Combine(Path.GetTempPath(), $"lightflow-catalog-migration-check-{Guid.NewGuid():N}");
+        try
+        {
+            var catalogDirectory = Path.GetDirectoryName(Path.GetFullPath(databasePath))!;
+            var locations = LightflowStorageLocations.Create(root, new(CatalogDirectory: catalogDirectory));
+            var recovery = new SqliteCatalogRecoveryService(locations);
+            var opened = await new CatalogDatabaseService(locations, recovery).OpenExistingAsync().ConfigureAwait(false);
+            if (!opened.IsSuccess || opened.Session is null) return false;
+            await opened.Session.DisposeAsync().ConfigureAwait(false);
+            return recovery.ListBackups().Any(backup => backup.SchemaVersion == 7 && backup.Kind == CatalogBackupKind.Migration);
         }
         catch
         {

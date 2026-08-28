@@ -185,7 +185,7 @@
    </Border>
 
    <Button x:Name="SubclipsDrawerPullButton" Grid.Row="0" Grid.RowSpan="3" Grid.Column="0" Width="28" Height="104"
-    HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="Collapsed" Click="SubclipsDrawerPull_Click"
+    Margin="0,132,0,0" HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="Collapsed" Click="SubclipsDrawerPull_Click"
     ToolTip="Open Subclips drawer" AutomationProperties.Name="Open Subclips drawer">
     <StackPanel><TextBlock x:Name="SubclipsDrawerPullChevron" HorizontalAlignment="Center" FontSize="15" Text="&#x2039;"/>
      <TextBlock Margin="0,4,0,0" HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="10" Text="Subclips"><TextBlock.LayoutTransform><RotateTransform Angle="90"/></TextBlock.LayoutTransform></TextBlock>

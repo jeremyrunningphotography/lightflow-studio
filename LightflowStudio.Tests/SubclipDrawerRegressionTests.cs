@@ -70,6 +70,18 @@ public sealed class SubclipDrawerRegressionTests
     }
 
     [Fact]
+    public void SharedSubclipExportEntrySuppliesTypedNamingDefaultWithoutChangingOrdinaryExportEntry()
+    {
+        var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+        var ordinary = Body(source, "private async Task ApplyEncodingHandoffAsync");
+        var subclips = Body(source, "private async Task ApplySubclipExportHandoffAsync");
+
+        Assert.DoesNotContain("ExportNamingDefault.Subclip", ordinary);
+        Assert.Contains("namingDefault: ExportNamingDefault.Subclip", subclips);
+        Assert.Equal(1, source.Split("namingDefault: ExportNamingDefault.Subclip").Length - 1);
+    }
+
+    [Fact]
     public void TimelineAndPlaybackSharePresentedRangeWhileWorkingRangeCommandsExitTransientReview()
     {
         var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
@@ -192,13 +204,40 @@ public sealed class SubclipDrawerRegressionTests
         var begin = Body(source, "private void RenameSubclip_Click");
         var key = Body(source, "private async void SubclipName_KeyDown");
         var commit = Body(source, "private async Task CommitRenameAsync");
-        Assert.Contains("editor.Focus(); editor.SelectAll();", begin);
+        var shortcuts = Body(source, "private void PlayerViewerHost_PreviewKeyDown");
+        var shortcutPolicy = Body(source, "internal bool TryHandleShortcut");
+        Assert.Contains("editor.Text = item.Name; editor.Focus(); editor.SelectAll();", begin);
         Assert.Contains("e.Key == Key.Escape", key);
+        Assert.Contains("editor.Text = item.Name", key);
         Assert.Contains("e.Key != Key.Enter", key);
         Assert.Contains("await CommitRenameAsync", key);
         Assert.Contains("await _subclips.RenameAsync(item.SubclipId, item.Subclip.Revision, name)", commit);
+        Assert.Contains("string.IsNullOrWhiteSpace(name)", commit);
+        Assert.True(commit.IndexOf("string.IsNullOrWhiteSpace(name)", StringComparison.Ordinal) <
+                    commit.IndexOf("_subclips.RenameAsync", StringComparison.Ordinal));
+        Assert.StartsWith("private void PlayerViewerHost_PreviewKeyDown", shortcuts);
+        Assert.Contains("TryHandleShortcut(e.Key, e.OriginalSource as DependencyObject)", shortcuts);
+        Assert.Contains("if (IsTextEntryControl(inputOwner)) return false;", shortcutPolicy);
+        Assert.DoesNotContain("e.Key == Key.S && IsTextEntryControl", shortcutPolicy);
         Assert.True(commit.IndexOf("item.Replace(updated)", StringComparison.Ordinal) >
                     commit.IndexOf("await _subclips.RenameAsync", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ShellDelegatesActivePlayerKeysBeforeOtherCommandsWithoutTreatingDrawersAsTextEntry()
+    {
+        var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+        var preview = Body(source, "private void MainWindow_PreviewKeyDown");
+        var ownership = Body(source, "private bool PlayerOwnsShortcutContext");
+        var playerDispatch = preview.IndexOf("TryHandleShortcut", StringComparison.Ordinal);
+        var shellDispatch = preview.IndexOf("e.Key == Key.Escape", StringComparison.Ordinal);
+
+        Assert.True(playerDispatch >= 0 && shellDispatch > playerDispatch);
+        Assert.Contains("e.Handled = true", preview);
+        Assert.Contains("ShellDestination.Home", ownership);
+        Assert.Contains("BrowserPresentationMode.PlayerViewer", ownership);
+        Assert.DoesNotContain("RightDrawerKind", ownership);
+        Assert.DoesNotContain("IsKeyboardFocusWithin", ownership);
     }
 
     private static XElement Named(XDocument document, string name) => document.Descendants().Single(element =>

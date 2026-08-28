@@ -651,6 +651,7 @@ public sealed class PlayerViewerHostLeaseTests
             await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, assetId),
                 new(Guid.NewGuid(), "clip.mp4", "clip.mp4", Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
 
+            Assert.True(host.AddSubclipButton.IsEnabled);
             Assert.Equal(Visibility.Collapsed, host.SubclipsPanel.Visibility);
             Assert.Equal(0, host.SubclipsPanel.ActualWidth);
             Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
@@ -662,6 +663,69 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Single(host.SubclipsList.Items);
             Assert.Equal(existingId, host.ActiveSubclipId);
             Assert.Equal(existingId, ((SubclipPanelItem)host.SubclipsList.SelectedItem).SubclipId);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public async Task PlayerShortcutPolicy_SurvivesNonTextDrawerAndTimelineOwnersButYieldsCompletelyToRenameText()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var store = new FakeRangeStore(null);
+            var subclips = new FakeSubclipService();
+            var host = new PlayerViewerHost(coordinator, store, subclips);
+            var window = new Window { Content = host };
+            window.Show();
+            await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, Guid.NewGuid()),
+                new(Guid.NewGuid(), "clip.mp4", "clip.mp4", Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
+
+            Assert.False(host.AddSubclipButton.IsEnabled);
+            Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.Space, host));
+            Assert.Equal(1, backend.PlayCallCount);
+
+            host.PositionSlider.Value = TimeSpan.FromSeconds(10).TotalMilliseconds;
+            await WaitUntilAsync(() => backend.SeekPositions.Contains(TimeSpan.FromSeconds(10)), "timeline seek before In");
+            Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.I, host.PositionSlider));
+            await WaitUntilAsync(() => store.SaveCount == 1, "shortcut Set In");
+            Assert.Equal(TimeSpan.FromSeconds(10), store.SavedRange?.In);
+            Assert.True(host.AddSubclipButton.IsEnabled);
+
+            host.SetSubclipsDrawerOpen(true);
+            host.SetSubclipsDrawerOpen(false);
+            host.SetSubclipsDrawerOpen(true);
+            var drawerChrome = new System.Windows.Controls.Button();
+            var playCallsBeforeDrawer = backend.PlayCallCount;
+            var pauseCallsBeforeDrawer = backend.PauseCallCount;
+            Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.Space, drawerChrome));
+            Assert.Equal(1, (backend.PlayCallCount - playCallsBeforeDrawer) +
+                (backend.PauseCallCount - pauseCallsBeforeDrawer));
+
+            host.PositionSlider.Value = TimeSpan.FromSeconds(20).TotalMilliseconds;
+            await WaitUntilAsync(() => backend.SeekPositions.Contains(TimeSpan.FromSeconds(20)), "timeline seek before Out");
+            Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.O, drawerChrome));
+            await WaitUntilAsync(() => store.SaveCount == 2, "shortcut Set Out from drawer context");
+            Assert.Equal(TimeSpan.FromSeconds(20), store.SavedRange?.Out);
+
+            var renameEditor = new System.Windows.Controls.TextBox();
+            var savesBeforeText = store.SaveCount;
+            var playsBeforeText = backend.PlayCallCount;
+            var pausesBeforeText = backend.PauseCallCount;
+            foreach (var key in new[] { System.Windows.Input.Key.I, System.Windows.Input.Key.O,
+                         System.Windows.Input.Key.S, System.Windows.Input.Key.Space })
+                Assert.False(host.TryHandleShortcut(key, renameEditor));
+            Assert.Equal(savesBeforeText, store.SaveCount);
+            Assert.Equal(playsBeforeText, backend.PlayCallCount);
+            Assert.Equal(pausesBeforeText, backend.PauseCallCount);
+
+            Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.O, drawerChrome));
+            Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.I, drawerChrome));
+            Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.Space, drawerChrome));
+            Assert.Equal(1, (backend.PlayCallCount - playsBeforeText) +
+                (backend.PauseCallCount - pausesBeforeText));
             window.Close();
         });
     }
@@ -703,7 +767,7 @@ public sealed class PlayerViewerHostLeaseTests
     }
 
     [Fact]
-    public async Task CrossingBoundary_ClearsOppositeWithoutMutatingSubclipAndSRejectsPartialRange()
+    public async Task CrossingBoundary_ClearsOppositeWithoutMutatingSubclipAndSMaterializesPartialRange()
     {
         await StaDispatcher.RunAsync(async () =>
         {
@@ -744,16 +808,16 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(range, subclips.Range); // The durable snapshot is independent from the working range.
 
             Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
-            await Task.Delay(50);
-            Assert.Equal(1, subclips.CreateCount);
-            Assert.Contains("Set an Out point", host.StatusText.Text);
+            await WaitUntilAsync(() => subclips.CreateCount == 2, "In-only Subclip creation");
+            Assert.Equal((TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)),
+                (subclips.Range?.In, subclips.Range?.Out));
 
             host.PositionSlider.Value = TimeSpan.FromSeconds(40).TotalMilliseconds;
             await WaitUntilAsync(() => backend.SeekPositions.Contains(TimeSpan.FromSeconds(40)), "new Out seek");
             host.SetOutButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             await WaitUntilAsync(() => store.SaveCount == 2, "new Out save");
             Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
-            await WaitUntilAsync(() => subclips.CreateCount == 2, "Subclip creation after restoring both boundaries");
+            await WaitUntilAsync(() => subclips.CreateCount == 3, "Subclip creation after restoring both boundaries");
             Assert.Equal((TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(40)),
                 (subclips.Range?.In, subclips.Range?.Out));
             Assert.True(PlayerViewerHost.IsTextEntryControl(new System.Windows.Controls.TextBox()));
@@ -1004,7 +1068,7 @@ public sealed class PlayerViewerHostLeaseTests
         {
             CreateCount++;
             AssetId = assetId;
-            Range = workingRange;
+            Range = workingRange = SubclipCreationEligibility.Materialize(workingRange);
             var existing = Items.FirstOrDefault(item => item.AssetId == assetId && item.In == workingRange.In && item.Out == workingRange.Out);
             if (existing is not null) return Task.FromResult(new SubclipCreateResult(existing, Created: false));
             var created = new Subclip(Guid.NewGuid(), assetId, $"Subclip {Items.Count + 1}", Items.Count, workingRange.In!.Value,

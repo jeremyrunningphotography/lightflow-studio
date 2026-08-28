@@ -31,6 +31,32 @@ internal static class SubclipCurrentOrder
 internal sealed record SubclipOrder(Guid SubclipId, long ExpectedRevision);
 internal sealed record SubclipCreateResult(Subclip Subclip, bool Created);
 
+internal sealed record SubclipCreationEligibility(bool CanCreate, MediaRange? MaterializedRange, string? Problem)
+{
+    public static SubclipCreationEligibility Evaluate(bool hasCatalogVideoTarget, MediaRange? workingRange,
+        TimeSpan? authoritativeSourceDuration)
+    {
+        if (!hasCatalogVideoTarget)
+            return new(false, null, "A Catalog-backed video is required to create a Subclip.");
+        if (workingRange is null || workingRange.IsFullSource)
+            return new(false, null, "Set an In or Out point before creating a Subclip.");
+        if (authoritativeSourceDuration is not { } duration || duration <= TimeSpan.Zero)
+            return new(false, null, "The authoritative source duration is unavailable.");
+        var materialized = new MediaRange(duration, workingRange.In, workingRange.Out);
+        var issues = materialized.Validate();
+        if (issues.Count != 0)
+            return new(false, null, string.Join(" ", issues.Select(issue => issue.Message)));
+        return new(true, new(duration, materialized.EffectiveIn, materialized.EffectiveOut), null);
+    }
+
+    public static MediaRange Materialize(MediaRange workingRange)
+    {
+        ArgumentNullException.ThrowIfNull(workingRange);
+        var eligibility = Evaluate(true, workingRange, workingRange.SourceDuration);
+        return eligibility.MaterializedRange ?? throw new ArgumentException(eligibility.Problem, nameof(workingRange));
+    }
+}
+
 internal static class SubclipDefaultName
 {
     public static string Create(string sourceRelativePath, TimeSpan @in, TimeSpan @out)
@@ -81,7 +107,7 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
 
     public async Task<SubclipCreateResult> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(workingRange);
+        workingRange = SubclipCreationEligibility.Materialize(workingRange);
         ValidateExplicitRange(workingRange);
         await _mutations.WaitAsync(cancellationToken).ConfigureAwait(false);
         try

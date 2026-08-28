@@ -184,21 +184,29 @@
    </Grid>
    </Border>
 
+   <Button x:Name="SubclipsDrawerPullButton" Grid.Row="0" Grid.RowSpan="3" Grid.Column="0" Width="28" Height="104"
+    HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="Collapsed" Click="SubclipsDrawerPull_Click"
+    ToolTip="Open Subclips drawer" AutomationProperties.Name="Open Subclips drawer">
+    <StackPanel><TextBlock x:Name="SubclipsDrawerPullChevron" HorizontalAlignment="Center" FontSize="15" Text="&#x2039;"/>
+     <TextBlock Margin="0,4,0,0" HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="10" Text="Subclips"><TextBlock.LayoutTransform><RotateTransform Angle="90"/></TextBlock.LayoutTransform></TextBlock>
+    </StackPanel>
+   </Button>
    <Border x:Name="SubclipsPanel" Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" Width="286" MinWidth="250"
     Margin="0,6,6,6" Padding="10" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}"
     BorderThickness="1" CornerRadius="9" Visibility="Collapsed">
     <Grid>
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <DockPanel>
-      <TextBlock Text="SUBCLIPS" VerticalAlignment="Center" Foreground="{StaticResource ShellNavigationTextBrush}"
-       FontSize="10" FontWeight="SemiBold"/>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <DockPanel LastChildFill="False">
+      <TextBlock DockPanel.Dock="Left" Text="SUBCLIPS" VerticalAlignment="Center" Foreground="{StaticResource ShellNavigationTextBrush}"
+       FontSize="10" FontWeight="SemiBold" ToolTip="Saved ranges for this source" AutomationProperties.HelpText="Saved ranges for this source"/>
       <Button x:Name="AddSubclipButton" DockPanel.Dock="Right" Content="+ Subclip" Padding="8,4"
        Click="AddSubclip_Click" ToolTip="Create from the saved In and Out points (S)" AutomationProperties.Name="Create Subclip"/>
+      <Button x:Name="DeleteSelectedSubclipsButton" DockPanel.Dock="Right" Margin="0,0,4,0" Padding="7,4"
+       Content="Delete" IsEnabled="False" Click="DeleteSelectedSubclips_Click" ToolTip="Delete selected Subclips" AutomationProperties.Name="Delete selected Subclips"/>
      </DockPanel>
-     <TextBlock Grid.Row="1" Margin="0,7,0,9" Text="Saved ranges for this source" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
-     <ListBox x:Name="SubclipsList" Grid.Row="2" Background="Transparent" BorderThickness="0" Padding="0"
+     <ListBox x:Name="SubclipsList" Grid.Row="1" Margin="0,9,0,0" Background="Transparent" BorderThickness="0" Padding="0"
       ItemsSource="{Binding}" SelectionChanged="SubclipsList_SelectionChanged"
-      ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved Subclips">
+      SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved Subclips">
       <ListBox.ItemContainerStyle>
        <Style TargetType="ListBoxItem">
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/>
@@ -228,18 +236,18 @@
         </Border>
         <Grid Grid.Column="1" Margin="8,0,0,0">
          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+         <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
           <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding IsEditing}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
          </TextBlock>
-         <TextBox Text="{Binding Name, Mode=OneTime}" Visibility="{Binding IsEditing, Converter={StaticResource BooleanToVisibility}}"
+         <TextBox Text="{Binding Name, Mode=OneTime}" Foreground="{StaticResource TextBrush}" Visibility="{Binding IsEditing, Converter={StaticResource BooleanToVisibility}}"
           LostKeyboardFocus="SubclipName_LostKeyboardFocus" KeyDown="SubclipName_KeyDown" AutomationProperties.Name="Subclip name"/>
          <TextBlock Grid.Row="1" Margin="0,3,0,0" Text="{Binding RangeSummary}" FontSize="10" Foreground="{StaticResource MutedTextBrush}"/>
          <DockPanel Grid.Row="2" Margin="0,5,0,0">
           <TextBlock DockPanel.Dock="Left" Text="{Binding DurationSummary}" FontSize="10" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center"/>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
            <Button Style="{StaticResource SubclipActionButton}" Content="&#xE70F;" Tag="{Binding}" Click="RenameSubclip_Click" ToolTip="Rename" AutomationProperties.Name="Rename Subclip"/>
-           <Button Style="{StaticResource SubclipActionButton}" Content="&#xE74A;" Tag="{Binding}" Click="MoveSubclipUp_Click" ToolTip="Move up" AutomationProperties.Name="Move Subclip up"/>
-           <Button Style="{StaticResource SubclipActionButton}" Content="&#xE74B;" Tag="{Binding}" Click="MoveSubclipDown_Click" ToolTip="Move down" AutomationProperties.Name="Move Subclip down"/>
+           <Button Style="{StaticResource SubclipActionButton}" Content="&#xE74A;" Tag="{Binding}" IsEnabled="{Binding CanMoveUp}" Click="MoveSubclipUp_Click" ToolTip="Move up" AutomationProperties.Name="Move Subclip up"/>
+           <Button Style="{StaticResource SubclipActionButton}" Content="&#xE74B;" Tag="{Binding}" IsEnabled="{Binding CanMoveDown}" Click="MoveSubclipDown_Click" ToolTip="Move down" AutomationProperties.Name="Move Subclip down"/>
            <Button Style="{StaticResource SubclipActionButton}" Content="&#xE74D;" Tag="{Binding}" Click="DeleteSubclip_Click" ToolTip="Delete" AutomationProperties.Name="Delete Subclip"/>
           </StackPanel>
          </DockPanel>
@@ -247,10 +255,10 @@
        </Grid>
       </DataTemplate></ListBox.ItemTemplate>
      </ListBox>
-     <TextBlock x:Name="SubclipsEmptyText" Grid.Row="2" Text="Set In and Out, then press S to save a Subclip."
+     <TextBlock x:Name="SubclipsEmptyText" Grid.Row="1" Text="Set In and Out, then press S to save a Subclip."
       TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center" Margin="18"
       Foreground="{StaticResource MutedTextBrush}"/>
-     <TextBlock x:Name="SubclipsStatusText" Grid.Row="3" Margin="0,7,0,0" TextWrapping="Wrap"
+     <TextBlock x:Name="SubclipsStatusText" Grid.Row="2" Margin="0,7,0,0" TextWrapping="Wrap"
       Foreground="{StaticResource MutedTextBrush}" FontSize="10" AutomationProperties.LiveSetting="Polite"/>
     </Grid>
    </Border>

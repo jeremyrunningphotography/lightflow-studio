@@ -198,6 +198,30 @@ public sealed class CatalogDatabaseTests : IDisposable
     }
 
     [Fact]
+    public async Task Subclips_BatchDeleteIsAtomicRevisionCheckedAndLeavesUnselectedSiblingsOrdered()
+    {
+        var result = await CreateService().CreateNewAsync();
+        var session = result.Session!;
+        var rootId = InsertRoot(session, "Archive");
+        var assetId = InsertAsset(session, rootId, "clip.mp4", "clip.mp4");
+        var service = new CatalogSubclipService(() => session);
+        var range = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+        var items = new[] { await service.CreateAsync(assetId, range), await service.CreateAsync(assetId, range),
+            await service.CreateAsync(assetId, range), await service.CreateAsync(assetId, range) };
+
+        await Assert.ThrowsAsync<SubclipConcurrencyException>(() => service.DeleteAsync(assetId,
+            [new(items[0].SubclipId, items[0].Revision), new(items[2].SubclipId, items[2].Revision + 1)]));
+        Assert.Equal(4, (await service.ListAsync(assetId)).Count);
+
+        await service.DeleteAsync(assetId,
+            [new(items[0].SubclipId, items[0].Revision), new(items[2].SubclipId, items[2].Revision)]);
+        var remaining = await service.ListAsync(assetId);
+        Assert.Equal([items[1].SubclipId, items[3].SubclipId], remaining.Select(item => item.SubclipId));
+        Assert.Equal([0, 1], remaining.Select(item => item.Ordinal));
+        await session.DisposeAsync();
+    }
+
+    [Fact]
     public async Task BrowserAssetStateStore_ProjectsSavedRangesForRequestedAssetsAndClearsThem()
     {
         var result = await CreateService().CreateNewAsync();

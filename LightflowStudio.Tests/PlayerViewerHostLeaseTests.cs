@@ -575,10 +575,49 @@ public sealed class PlayerViewerHostLeaseTests
 
             Assert.Equal(2, host.SubclipsList.Items.Count);
             Assert.Equal("Second take", ((SubclipPanelItem)host.SubclipsList.Items[0]).Name);
-            host.SubclipsList.SelectedIndex = 1;
+            Assert.Equal(Visibility.Visible, host.SubclipsPanel.Visibility);
+            Assert.Equal(Visibility.Visible, host.SubclipsDrawerPullButton.Visibility);
+            host.SubclipsDrawerPullButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Assert.Equal(Visibility.Collapsed, host.SubclipsPanel.Visibility);
+            host.SubclipsDrawerPullButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Assert.Equal(Visibility.Visible, host.SubclipsPanel.Visibility);
+            host.SubclipsList.SelectedItems.Add(host.SubclipsList.Items[0]);
+            host.SubclipsList.SelectedItems.Add(host.SubclipsList.Items[1]);
             await WaitUntilAsync(() => backend.SeekPositions.Contains(TimeSpan.FromSeconds(30)), "Subclip In seek");
             Assert.Equal(0, store.SaveCount);
+            Assert.Equal(2, host.SelectedSubclipIds.Count);
+            Assert.Equal(subclips.Items[1].SubclipId, host.ActiveSubclipId);
+            Assert.False(((SubclipPanelItem)host.SubclipsList.Items[0]).CanMoveUp);
+            Assert.True(((SubclipPanelItem)host.SubclipsList.Items[0]).CanMoveDown);
+            Assert.True(((SubclipPanelItem)host.SubclipsList.Items[1]).CanMoveUp);
+            Assert.False(((SubclipPanelItem)host.SubclipsList.Items[1]).CanMoveDown);
             Assert.Contains("Reviewing Close-up", host.SubclipsStatusText.Text);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public async Task VideoWithoutSubclips_ShowsPullWithoutReservingDrawerWidthUntilCreateOpensIt()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var assetId = Guid.NewGuid();
+            var host = new PlayerViewerHost(coordinator, new FakeRangeStore(new(TimeSpan.FromSeconds(60),
+                TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2))), new FakeSubclipService());
+            var window = new Window { Content = host };
+            window.Show();
+            await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, assetId),
+                new(Guid.NewGuid(), "clip.mp4", "clip.mp4", Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
+
+            Assert.Equal(Visibility.Visible, host.SubclipsDrawerPullButton.Visibility);
+            Assert.Equal(Visibility.Collapsed, host.SubclipsPanel.Visibility);
+            Assert.Equal(0, host.SubclipsPanel.ActualWidth);
+            Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
+            await WaitUntilAsync(() => host.SubclipsList.Items.Count == 1, "created Subclip");
+            Assert.Equal(Visibility.Visible, host.SubclipsPanel.Visibility);
             window.Close();
         });
     }
@@ -893,9 +932,31 @@ public sealed class PlayerViewerHostLeaseTests
         }
         public Task<IReadOnlyList<Subclip>> ListAsync(Guid assetId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Subclip>>(Items.Where(item => item.AssetId == assetId).OrderBy(item => item.Ordinal).ToArray());
-        public Task<Subclip> RenameAsync(Guid subclipId, long expectedRevision, string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task DeleteAsync(Guid subclipId, long expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<Subclip>> ReorderAsync(Guid assetId, IReadOnlyList<SubclipOrder> order, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Subclip> RenameAsync(Guid subclipId, long expectedRevision, string name, CancellationToken cancellationToken = default)
+        {
+            var index = Items.FindIndex(item => item.SubclipId == subclipId && item.Revision == expectedRevision);
+            if (index < 0) throw new SubclipConcurrencyException("stale");
+            Items[index] = Items[index] with { Name = name.Trim(), Revision = expectedRevision + 1 };
+            return Task.FromResult(Items[index]);
+        }
+        public Task DeleteAsync(Guid subclipId, long expectedRevision, CancellationToken cancellationToken = default)
+        {
+            Items.RemoveAll(item => item.SubclipId == subclipId && item.Revision == expectedRevision);
+            return Task.CompletedTask;
+        }
+        public Task DeleteAsync(Guid assetId, IReadOnlyList<SubclipOrder> subclips, CancellationToken cancellationToken = default)
+        {
+            var ids = subclips.Select(item => item.SubclipId).ToHashSet();
+            Items.RemoveAll(item => item.AssetId == assetId && ids.Contains(item.SubclipId));
+            return Task.CompletedTask;
+        }
+        public Task<IReadOnlyList<Subclip>> ReorderAsync(Guid assetId, IReadOnlyList<SubclipOrder> order, CancellationToken cancellationToken = default)
+        {
+            var byId = Items.ToDictionary(item => item.SubclipId);
+            Items.Clear();
+            Items.AddRange(order.Select((item, index) => byId[item.SubclipId] with { Ordinal = index, Revision = byId[item.SubclipId].Revision + 1 }));
+            return Task.FromResult<IReadOnlyList<Subclip>>(Items.ToArray());
+        }
     }
 
     private sealed class FakeScreengrabService : IFrameScreengrabService

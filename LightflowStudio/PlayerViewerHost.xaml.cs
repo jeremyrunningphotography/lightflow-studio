@@ -49,6 +49,8 @@ public partial class PlayerViewerHost : UserControl
     private Guid? _selectedSubclipId;
     private readonly ObservableCollection<SubclipPanelItem> _subclipItems = [];
     private CancellationTokenSource? _subclipWorkCts;
+    private bool _subclipsDrawerOpen;
+    private bool _publishingSubclips;
     private bool _stopAtOutDuringPlayback;
     private bool _stoppingAtOut;
     private MediaDecodedFrame? _retainedSteppedFrame;
@@ -98,7 +100,11 @@ public partial class PlayerViewerHost : UserControl
     internal event EventHandler<MediaRangeStateChangedEventArgs>? RangeStateChanged;
     internal event EventHandler<AssetColorStateChangedEventArgs>? ColorStateChanged;
     internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
+    internal event EventHandler<SubclipsDrawerStateRequestedEventArgs>? SubclipsDrawerStateRequested;
     internal PlayerViewerAsset? CurrentAsset => _currentAsset;
+    internal IReadOnlySet<Guid> SelectedSubclipIds =>
+        SubclipsList.SelectedItems.Cast<SubclipPanelItem>().Select(item => item.SubclipId).ToHashSet();
+    internal Guid? ActiveSubclipId => _selectedSubclipId;
 
     /// <summary>
     /// Opens one asset, releasing whatever was previously open first. Safe to call repeatedly for rapid
@@ -110,6 +116,7 @@ public partial class PlayerViewerHost : UserControl
     {
         ArgumentNullException.ThrowIfNull(asset);
         var generation = ++_generation;
+        if (_subclipsDrawerOpen) RequestSubclipsDrawer(open: false);
         _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseStarted);
         try { await ReleaseCurrentAsync().ConfigureAwait(true); }
         catch (Exception exception)
@@ -127,7 +134,8 @@ public partial class PlayerViewerHost : UserControl
 
         _currentAsset = asset;
         ResetSubclipWork();
-        SubclipsPanel.Visibility = asset.Kind == MediaPresentationKind.Video && asset.AssetId is not null
+        SubclipsPanel.Visibility = Visibility.Collapsed;
+        SubclipsDrawerPullButton.Visibility = asset.Kind == MediaPresentationKind.Video && asset.AssetId is not null
             ? Visibility.Visible : Visibility.Collapsed;
         AddSubclipButton.IsEnabled = false;
         if (asset.Kind == MediaPresentationKind.Video && asset.AssetId is Guid subclipAssetId)
@@ -304,6 +312,8 @@ public partial class PlayerViewerHost : UserControl
         _subclipWorkCts = null;
         _subclipItems.Clear();
         SubclipsPanel.Visibility = Visibility.Collapsed;
+        SubclipsDrawerPullButton.Visibility = Visibility.Collapsed;
+        _subclipsDrawerOpen = false;
         SubclipsStatusText.Text = "";
         _stopAtOutDuringPlayback = false;
         _stoppingAtOut = false;
@@ -869,9 +879,11 @@ public partial class PlayerViewerHost : UserControl
             {
                 var item = new SubclipPanelItem(subclip);
                 _subclipItems.Add(item);
+                RefreshMoveBoundaries();
                 UpdateSubclipEmptyState();
                 if (_subclipWorkCts is { } work) _ = LoadPosterAsync(item, _generation, work.Token);
             }
+            RequestSubclipsDrawer(open: true);
             SetStatus($"{subclip.Name} created.");
         }
         catch (Exception exception) { SetStatus($"The Subclip could not be created. {exception.Message}"); }
@@ -1001,7 +1013,9 @@ public partial class PlayerViewerHost : UserControl
                 _subclipItems.Add(item);
                 _ = LoadPosterAsync(item, generation, token);
             }
+            RefreshMoveBoundaries();
             UpdateSubclipEmptyState();
+            if (subclips.Count > 0) RequestSubclipsDrawer(open: true);
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)
@@ -1033,12 +1047,41 @@ public partial class PlayerViewerHost : UserControl
     private void UpdateSubclipEmptyState() =>
         SubclipsEmptyText.Visibility = _subclipItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
+    internal void SetSubclipsDrawerOpen(bool open)
+    {
+        _subclipsDrawerOpen = open && SubclipsDrawerPullButton.Visibility == Visibility.Visible;
+        SubclipsPanel.Visibility = _subclipsDrawerOpen ? Visibility.Visible : Visibility.Collapsed;
+        SubclipsDrawerPullChevron.Text = _subclipsDrawerOpen ? "›" : "‹";
+        SubclipsDrawerPullButton.ToolTip = _subclipsDrawerOpen ? "Close Subclips drawer" : "Open Subclips drawer";
+        System.Windows.Automation.AutomationProperties.SetName(SubclipsDrawerPullButton,
+            _subclipsDrawerOpen ? "Close Subclips drawer" : "Open Subclips drawer");
+    }
+
+    private void RequestSubclipsDrawer(bool open)
+    {
+        if (SubclipsDrawerStateRequested is null) SetSubclipsDrawerOpen(open);
+        else SubclipsDrawerStateRequested.Invoke(this, new(open));
+    }
+
+    private void SubclipsDrawerPull_Click(object sender, RoutedEventArgs e) => RequestSubclipsDrawer(!_subclipsDrawerOpen);
+
     private void AddSubclip_Click(object sender, RoutedEventArgs e) => CreateSubclip();
 
     private async void SubclipsList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        foreach (var item in _subclipItems) item.IsSelected = ReferenceEquals(item, SubclipsList.SelectedItem);
-        if (SubclipsList.SelectedItem is not SubclipPanelItem selected || _service is null) return;
+        foreach (var item in _subclipItems) item.IsSelected = SubclipsList.SelectedItems.Contains(item);
+        DeleteSelectedSubclipsButton.IsEnabled = SubclipsList.SelectedItems.Count > 0;
+        if (_publishingSubclips) return;
+        var selected = e.AddedItems.Cast<SubclipPanelItem>().LastOrDefault()
+            ?? SubclipsList.SelectedItems.Cast<SubclipPanelItem>().FirstOrDefault(item => item.SubclipId == _selectedSubclipId)
+            ?? SubclipsList.SelectedItems.Cast<SubclipPanelItem>().LastOrDefault();
+        if (selected is null)
+        {
+            _selectedSubclipId = null;
+            _selectedSubclipRange = null;
+            return;
+        }
+        if (_service is null) return;
         _selectedSubclipId = selected.SubclipId;
         _selectedSubclipRange = new(selected.Subclip.SourceDuration, selected.Subclip.In, selected.Subclip.Out);
         RestoreLiveVideoSurface();
@@ -1111,8 +1154,42 @@ public partial class PlayerViewerHost : UserControl
                 _selectedSubclipRange = null;
             }
             _subclipItems.Remove(item);
+            RefreshMoveBoundaries();
             UpdateSubclipEmptyState();
             SubclipsStatusText.Text = $"Deleted {item.Name}.";
+        }
+        catch (SubclipConcurrencyException exception)
+        {
+            SubclipsStatusText.Text = exception.Message;
+            await ReloadCurrentSubclipsAsync().ConfigureAwait(true);
+        }
+        catch (Exception exception) { SubclipsStatusText.Text = $"Delete failed: {exception.Message}"; }
+    }
+
+    private async void DeleteSelectedSubclips_Click(object sender, RoutedEventArgs e)
+    {
+        if (_subclips is null || _currentAsset?.AssetId is not Guid assetId) return;
+        var selected = SubclipsList.SelectedItems.Cast<SubclipPanelItem>().ToArray();
+        if (selected.Length == 0) return;
+        if (selected.Length > 1 && Window.GetWindow(this) is { } owner && !ConfirmationDialog.Confirm(owner,
+                "Delete Subclips", $"Delete {selected.Length} selected Subclips?",
+                "This removes only the saved Subclip definitions.",
+                "Source media, the working range, Jobs, and unselected Subclips are not changed.", "Delete Subclips"))
+            return;
+        try
+        {
+            await _subclips.DeleteAsync(assetId,
+                selected.Select(item => new SubclipOrder(item.SubclipId, item.Subclip.Revision)).ToArray()).ConfigureAwait(true);
+            foreach (var item in selected) _subclipPosters?.Remove(item.Subclip.AssetId, item.SubclipId);
+            if (_selectedSubclipId is Guid active && selected.Any(item => item.SubclipId == active))
+            { _selectedSubclipId = null; _selectedSubclipRange = null; }
+            var settleIndex = Math.Min(selected.Min(item => _subclipItems.IndexOf(item)),
+                Math.Max(0, _subclipItems.Count - selected.Length - 1));
+            foreach (var item in selected) _subclipItems.Remove(item);
+            RefreshMoveBoundaries();
+            UpdateSubclipEmptyState();
+            if (_subclipItems.Count > 0) SubclipsList.SelectedItem = _subclipItems[settleIndex];
+            SubclipsStatusText.Text = selected.Length == 1 ? $"Deleted {selected[0].Name}." : $"Deleted {selected.Length} Subclips.";
         }
         catch (SubclipConcurrencyException exception)
         {
@@ -1128,6 +1205,11 @@ public partial class PlayerViewerHost : UserControl
     private async Task MoveSubclipAsync(SubclipPanelItem? item, int offset)
     {
         if (_subclips is null || item is null || _currentAsset?.AssetId is not Guid assetId) return;
+        if (SubclipsList.SelectedItems.Count > 1)
+        {
+            SubclipsStatusText.Text = "Select one active Subclip to change its order.";
+            return;
+        }
         var index = _subclipItems.IndexOf(item);
         var target = index + offset;
         if (index < 0 || target < 0 || target >= _subclipItems.Count) return;
@@ -1152,6 +1234,8 @@ public partial class PlayerViewerHost : UserControl
     private void PublishSubclipOrder(IReadOnlyList<Subclip> reordered)
     {
         var existing = _subclipItems.ToDictionary(item => item.SubclipId);
+        var selectedIds = SelectedSubclipIds;
+        _publishingSubclips = true;
         _subclipItems.Clear();
         foreach (var subclip in reordered)
         {
@@ -1159,6 +1243,16 @@ public partial class PlayerViewerHost : UserControl
             item.Replace(subclip);
             _subclipItems.Add(item);
         }
+        foreach (var item in _subclipItems.Where(item => selectedIds.Contains(item.SubclipId)))
+            SubclipsList.SelectedItems.Add(item);
+        _publishingSubclips = false;
+        RefreshMoveBoundaries();
+    }
+
+    private void RefreshMoveBoundaries()
+    {
+        for (var index = 0; index < _subclipItems.Count; index++)
+            _subclipItems[index].SetMoveBoundaries(index > 0, index < _subclipItems.Count - 1);
     }
 
     private async Task ReloadCurrentSubclipsAsync()
@@ -1309,4 +1403,9 @@ internal sealed class AssetColorStateChangedEventArgs(Guid assetId, bool hasColo
 {
     public Guid AssetId { get; } = assetId;
     public bool HasColor { get; } = hasColor;
+}
+
+internal sealed class SubclipsDrawerStateRequestedEventArgs(bool open) : EventArgs
+{
+    public bool Open { get; } = open;
 }

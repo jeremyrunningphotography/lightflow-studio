@@ -18,6 +18,8 @@ using MessageBox = System.Windows.MessageBox;
 
 namespace LightflowStudio;
 
+internal enum RightDrawerKind { None, Jobs, Subclips }
+
 public partial class MainWindow : Window
 {
     private static bool JobsRuntimeEnabled => true;
@@ -50,6 +52,7 @@ public partial class MainWindow : Window
     private readonly HashSet<Guid> _deletedFullJobsTerminalJobIds = [];
     private int _jobsPresentationPending;
     private double _jobsDrawerWidth = 380;
+    private RightDrawerKind _openRightDrawer;
     private double _browserLocationsPreferredWidth = 280;
     private bool _applyingBrowserResponsiveLayout;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
@@ -1478,6 +1481,8 @@ public partial class MainWindow : Window
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         _playerViewerHost.ExportRequested += PlayerViewerHost_ExportRequested;
+        _playerViewerHost.SubclipsDrawerStateRequested += (_, request) =>
+            SetRightDrawer(request.Open ? RightDrawerKind.Subclips : RightDrawerKind.None);
         _playerViewerHost.RangeStateChanged += (_, change) =>
         {
             _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
@@ -1533,6 +1538,7 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task ReturnToBrowserGridAsync(bool restoreScrollOffset = true, bool focusGrid = true)
     {
+        if (_openRightDrawer == RightDrawerKind.Subclips) SetRightDrawer(RightDrawerKind.None);
         if (_browserPresentation != BrowserPresentationMode.PlayerViewer) return;
         var playerViewerHost = _playerViewerHost;
         SetBrowserPresentationMode(BrowserPresentationMode.Grid);
@@ -1916,7 +1922,10 @@ public partial class MainWindow : Window
         // is not "leaving" the Browser, so the open asset and its position stay exactly as the user left them.
         if (MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Home) &&
             _browserPresentation == BrowserPresentationMode.PlayerViewer && _playerViewerHost is not null)
+        {
+            if (_openRightDrawer == RightDrawerKind.Subclips) SetRightDrawer(RightDrawerKind.None);
             _ = _playerViewerHost.PauseIfPlayingAsync();
+        }
     }
 
     private void ApplicationMenu_Click(object sender, RoutedEventArgs e)
@@ -4015,7 +4024,19 @@ public partial class MainWindow : Window
 
     private void OpenJobsDrawer()
     {
+        SetRightDrawer(RightDrawerKind.Jobs);
+    }
+
+    private void SetRightDrawer(RightDrawerKind drawer)
+    {
         if (JobsDrawer is null) return;
+        _openRightDrawer = drawer;
+        _playerViewerHost?.SetSubclipsDrawerOpen(drawer == RightDrawerKind.Subclips);
+        if (drawer != RightDrawerKind.Jobs)
+        {
+            ApplyJobsDrawerClosed();
+            return;
+        }
         JobsDrawerColumn.MinWidth = WorkspaceState.MinJobsDrawerWidth;
         JobsDrawerColumn.Width = new GridLength(_jobsDrawerWidth);
         JobsDrawerSplitterColumn.Width = new GridLength(8);
@@ -4027,6 +4048,12 @@ public partial class MainWindow : Window
     }
 
     private void CloseJobsDrawer(bool manual)
+    {
+        if (_openRightDrawer == RightDrawerKind.Jobs) _openRightDrawer = RightDrawerKind.None;
+        ApplyJobsDrawerClosed();
+    }
+
+    private void ApplyJobsDrawerClosed()
     {
         if (JobsDrawer.Visibility == Visibility.Visible) _jobsDrawerWidth = JobsDrawerColumn.ActualWidth;
         JobsDrawer.Visibility = Visibility.Collapsed;

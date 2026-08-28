@@ -586,6 +586,34 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(0, store.SaveCount);
             Assert.Equal(2, host.SelectedSubclipIds.Count);
             Assert.Equal(subclips.Items[1].SubclipId, host.ActiveSubclipId);
+            Assert.True(host.DeleteSelectedSubclipsButton.IsEnabled);
+            Assert.True(host.ExportSelectedSubclipsMenuItem.IsEnabled);
+            Assert.True(host.ExportAllSubclipsMenuItem.IsEnabled);
+
+            var exports = new List<IReadOnlyList<Guid>>();
+            host.ExportSelectedSubclipsRequested += (_, request) => exports.Add(request.SelectedSubclipIds);
+            host.SubclipsList.SelectedItems.Remove(host.SubclipsList.Items[0]);
+            host.ExportSelectedSubclipsMenuItem.RaiseEvent(
+                new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
+            Assert.Equal([subclips.Items[1].SubclipId], exports.Single());
+            host.SetSelectedSubclipExportEnabled(true);
+            host.ExportAllSubclipsMenuItem.RaiseEvent(
+                new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
+            Assert.Equal(subclips.Items.Select(item => item.SubclipId), exports[1]);
+            host.SetSelectedSubclipExportEnabled(true);
+
+            var seekCount = backend.SeekPositions.Count;
+            host.SubclipsPanel.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+                { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent, Source = host.SubclipsPanel });
+            Assert.Empty(host.SelectedSubclipIds);
+            Assert.Null(host.ActiveSubclipId);
+            Assert.False(host.DeleteSelectedSubclipsButton.IsEnabled);
+            Assert.False(host.ExportSelectedSubclipsMenuItem.IsEnabled);
+            Assert.True(host.ExportAllSubclipsMenuItem.IsEnabled);
+            Assert.Equal(seekCount, backend.SeekPositions.Count);
+            Assert.Equal(0, store.SaveCount);
+            Assert.Equal(2, subclips.Items.Count);
             Assert.False(((SubclipPanelItem)host.SubclipsList.Items[0]).CanMoveUp);
             Assert.True(((SubclipPanelItem)host.SubclipsList.Items[0]).CanMoveDown);
             Assert.True(((SubclipPanelItem)host.SubclipsList.Items[1]).CanMoveUp);

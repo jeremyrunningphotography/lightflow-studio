@@ -351,8 +351,11 @@ public partial class PlayerViewerHost : UserControl
     }
 
     internal void SetExportEnabled(bool enabled) => ExportButton.IsEnabled = enabled;
-    internal void SetSelectedSubclipExportEnabled(bool enabled) =>
-        ExportSelectedSubclipsButton.IsEnabled = enabled;
+    internal void SetSelectedSubclipExportEnabled(bool enabled)
+    {
+        ExportSelectedSubclipsMenuItem.IsEnabled = enabled;
+        ExportAllSubclipsMenuItem.IsEnabled = _subclipItems.Count > 0;
+    }
 
     private void ExportButton_Click(object sender, RoutedEventArgs e)
     {
@@ -1050,8 +1053,13 @@ public partial class PlayerViewerHost : UserControl
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or FileFormatException) { }
     }
 
-    private void UpdateSubclipEmptyState() =>
-        SubclipsEmptyText.Visibility = _subclipItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    private void UpdateSubclipEmptyState()
+    {
+        var hasSubclips = _subclipItems.Count > 0;
+        SubclipsEmptyText.Visibility = hasSubclips ? Visibility.Collapsed : Visibility.Visible;
+        ExportSubclipsButton.IsEnabled = hasSubclips;
+        ExportAllSubclipsMenuItem.IsEnabled = hasSubclips;
+    }
 
     internal void SetSubclipsDrawerOpen(bool open)
     {
@@ -1067,22 +1075,47 @@ public partial class PlayerViewerHost : UserControl
 
     private void AddSubclip_Click(object sender, RoutedEventArgs e) => CreateSubclip();
 
-    private void ExportSelectedSubclips_Click(object sender, RoutedEventArgs e)
+    private void ExportSubclips_Click(object sender, RoutedEventArgs e)
+    {
+        ExportSubclipsMenu.PlacementTarget = ExportSubclipsButton;
+        ExportSubclipsMenu.IsOpen = true;
+    }
+
+    private void ExportSelectedSubclips_Click(object sender, RoutedEventArgs e) =>
+        RequestSubclipExport(selectedOnly: true);
+
+    private void ExportAllSubclips_Click(object sender, RoutedEventArgs e) =>
+        RequestSubclipExport(selectedOnly: false);
+
+    private void RequestSubclipExport(bool selectedOnly)
     {
         if (_currentAsset?.AssetId is not Guid assetId) return;
-        var selected = _subclipItems.Where(item => SelectedSubclipIds.Contains(item.SubclipId))
+        var selectedIds = SelectedSubclipIds;
+        var selected = _subclipItems.Where(item => !selectedOnly || selectedIds.Contains(item.SubclipId))
             .Select(item => item.SubclipId).ToArray();
         if (selected.Length == 0) return;
-        ExportSelectedSubclipsButton.IsEnabled = false;
+        if (selectedOnly) ExportSelectedSubclipsMenuItem.IsEnabled = false;
+        else ExportAllSubclipsMenuItem.IsEnabled = false;
         ExportSelectedSubclipsRequested?.Invoke(this,
             new PlayerViewerSubclipsExportRequestedEventArgs(assetId, selected));
+    }
+
+    private void SubclipsPanel_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var source = e.OriginalSource as DependencyObject;
+        if (FindVisualAncestor<System.Windows.Controls.ListBoxItem>(source) is not null ||
+            FindVisualAncestor<System.Windows.Controls.Primitives.ScrollBar>(source) is not null ||
+            FindVisualAncestor<System.Windows.Controls.Primitives.ButtonBase>(source) is not null ||
+            FindVisualAncestor<System.Windows.Controls.Primitives.TextBoxBase>(source) is not null)
+            return;
+        SubclipsList.UnselectAll();
     }
 
     private async void SubclipsList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         foreach (var item in _subclipItems) item.IsSelected = SubclipsList.SelectedItems.Contains(item);
         DeleteSelectedSubclipsButton.IsEnabled = SubclipsList.SelectedItems.Count > 0;
-        ExportSelectedSubclipsButton.IsEnabled = SubclipsList.SelectedItems.Count > 0;
+        ExportSelectedSubclipsMenuItem.IsEnabled = SubclipsList.SelectedItems.Count > 0;
         if (_publishingSubclips) return;
         var selected = e.AddedItems.Cast<SubclipPanelItem>().LastOrDefault()
             ?? SubclipsList.SelectedItems.Cast<SubclipPanelItem>().FirstOrDefault(item => item.SubclipId == _selectedSubclipId)

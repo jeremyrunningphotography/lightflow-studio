@@ -6,14 +6,18 @@ namespace LightflowStudio.Tests;
 public sealed class SubclipDrawerRegressionTests
 {
     [Fact]
-    public void DrawerPresentation_HasShellPullReadableNamesExtendedSelectionAndNoFooterOrSubtitleRow()
+    public void DrawerPresentation_HasFocusedHeaderCompactFooterAndExtendedSelection()
     {
         var document = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml"));
         var shell = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
         var pull = Named(shell, "SubclipsDrawerPullButton");
         var panel = Named(document, "SubclipsPanel");
         var list = Named(document, "SubclipsList");
-        var exportSelected = Named(document, "ExportSelectedSubclipsButton");
+        var exportButton = Named(document, "ExportSubclipsButton");
+        var exportSelected = Named(document, "ExportSelectedSubclipsMenuItem");
+        var exportAll = Named(document, "ExportAllSubclipsMenuItem");
+        var delete = Named(document, "DeleteSelectedSubclipsButton");
+        var actionBar = Named(document, "SubclipsActionBar");
         var title = document.Descendants().Single(element => (string?)element.Attribute("Text") == "SUBCLIPS");
         var names = document.Descendants().Where(element => (string?)element.Attribute("Text") == "{Binding Name}").ToArray();
 
@@ -22,13 +26,64 @@ public sealed class SubclipDrawerRegressionTests
         Assert.Equal("Extended", (string?)list.Attribute("SelectionMode"));
         Assert.Equal("False", (string?)exportSelected.Attribute("IsEnabled"));
         Assert.Equal("Export selected Subclips", (string?)exportSelected.Attribute("AutomationProperties.Name"));
+        Assert.Equal("False", (string?)exportAll.Attribute("IsEnabled"));
+        Assert.Equal("Export Subclips…", (string?)exportButton.Attribute("Content"));
+        Assert.Equal("{StaticResource ExportLaunchButton}", (string?)exportButton.Attribute("Style"));
+        Assert.Equal("{StaticResource DangerButton}", (string?)delete.Attribute("Style"));
+        Assert.Equal("2", (string?)actionBar.Attribute("Grid.Row"));
+        Assert.Equal("0,8,0,0", (string?)actionBar.Attribute("Margin"));
+        Assert.Equal("SubclipsPanel_PreviewMouseLeftButtonDown", (string?)panel.Attribute("PreviewMouseLeftButtonDown"));
         Assert.Equal("Saved ranges for this source", (string?)title.Attribute("ToolTip"));
+        var header = title.Parent!;
+        Assert.Equal(["SUBCLIPS"], header.Elements().Where(element => element.Name.LocalName == "TextBlock")
+            .Select(element => (string?)element.Attribute("Text")));
+        Assert.Equal(["+ Subclip"], header.Elements().Where(element => element.Name.LocalName == "Button")
+            .Select(element => (string?)element.Attribute("Content")));
         Assert.DoesNotContain(document.Descendants(), element =>
             (string?)element.Attribute("Text") == "Saved ranges for this source" && !ReferenceEquals(element, title));
         Assert.Contains(names, element => ((string?)element.Attribute("Foreground"))?.Contains("TextBrush") == true);
         Assert.All(names, element => Assert.NotEqual("Black", (string?)element.Attribute("Foreground")));
         Assert.DoesNotContain(document.Descendants(), element =>
             (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "SubclipsStatusText");
+    }
+
+    [Fact]
+    public void SubclipActions_UseOneOrderedTypedExportPathAndGuardBackgroundClearing()
+    {
+        var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
+        var request = Body(source, "private void RequestSubclipExport");
+        var background = Body(source, "private void SubclipsPanel_PreviewMouseLeftButtonDown");
+        var delete = Body(source, "private async void DeleteSelectedSubclips_Click");
+
+        Assert.Contains("!selectedOnly || selectedIds.Contains(item.SubclipId)", request);
+        Assert.Contains("_subclipItems.Where", request);
+        Assert.Contains("PlayerViewerSubclipsExportRequestedEventArgs(assetId, selected)", request);
+        Assert.DoesNotContain("ExportBrowserAssetsAsync", request);
+        Assert.Contains("ListBoxItem", background);
+        Assert.Contains("ScrollBar", background);
+        Assert.Contains("ButtonBase", background);
+        Assert.Contains("TextBoxBase", background);
+        Assert.Contains("SubclipsList.UnselectAll()", background);
+        Assert.Contains("selected.Length > 1", delete);
+        Assert.Contains("_subclips.DeleteAsync(assetId", delete);
+        Assert.Contains("item.Subclip.Revision", delete);
+    }
+
+    [Fact]
+    public void PlayerExportLaunchersShareOrangeOutlineStyleWithoutStylingUnrelatedControls()
+    {
+        var player = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml"));
+        var app = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "App.xaml"));
+        var style = app.Descendants().Single(element =>
+            (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "ExportLaunchButton");
+
+        Assert.Equal("{StaticResource ExportLaunchButton}", (string?)Named(player, "ExportButton").Attribute("Style"));
+        Assert.Equal("{StaticResource ExportLaunchButton}", (string?)Named(player, "ExportSubclipsButton").Attribute("Style"));
+        Assert.Contains(style.Elements(), setter => (string?)setter.Attribute("Property") == "BorderBrush" &&
+            (string?)setter.Attribute("Value") == "{StaticResource OrangeBrush}");
+        Assert.All(player.Descendants().Where(element => element.Name.LocalName == "Button" &&
+            (string?)element.Attribute("Style") == "{StaticResource ExportLaunchButton}"), element =>
+            Assert.Contains((string?)element.Attribute("Content"), (IEnumerable<string?>)["Export…", "Export Subclips…"]));
     }
 
     [Fact]

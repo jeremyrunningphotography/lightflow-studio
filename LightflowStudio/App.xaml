@@ -194,6 +194,12 @@
    <Setter Property="Background" Value="#3A1E25"/>
    <Setter Property="BorderBrush" Value="#7A3444"/>
   </Style>
+  <Style x:Key="ExportLaunchButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+   <Setter Property="Background" Value="{StaticResource ShellSurfaceBrush}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource OrangeBrush}"/>
+   <Setter Property="BorderThickness" Value="1"/>
+  </Style>
 
   <Style TargetType="TextBox">
    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>

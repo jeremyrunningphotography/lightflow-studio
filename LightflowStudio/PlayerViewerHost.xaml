@@ -193,6 +193,8 @@
        ToolTip="Saved ranges for this source" AutomationProperties.HelpText="Saved ranges for this source"/>
       <Button x:Name="AddSubclipButton" DockPanel.Dock="Right" Content="+ Subclip" Padding="8,4"
        Click="AddSubclip_Click" ToolTip="Create from the saved In and Out points (S)" AutomationProperties.Name="Create Subclip"/>
+      <Button x:Name="ExportSelectedSubclipsButton" DockPanel.Dock="Right" Margin="0,0,4,0" Content="Export selected" Padding="8,4"
+       IsEnabled="False" Click="ExportSelectedSubclips_Click" ToolTip="Export the explicitly selected Subclips" AutomationProperties.Name="Export selected Subclips"/>
       <Button x:Name="DeleteSelectedSubclipsButton" Style="{StaticResource DangerButton}" DockPanel.Dock="Right" Margin="0,0,4,0" Padding="7,4"
        Content="Delete" IsEnabled="False" Click="DeleteSelectedSubclips_Click" ToolTip="Delete selected Subclips" AutomationProperties.Name="Delete selected Subclips"/>
      </DockPanel>

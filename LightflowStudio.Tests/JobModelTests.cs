@@ -60,4 +60,19 @@ public sealed class JobModelTests
         Assert.False(indeterminate.IsDeterminate);
         Assert.Equal(JobWorkUnit.Bytes, indeterminate.Unit);
     }
+
+    [Fact]
+    public void Export_item_provenance_snapshots_subclip_identity_without_changing_source_identity()
+    {
+        var assetId = Guid.NewGuid();
+        var subclipId = Guid.NewGuid();
+        var provenance = new ExportItemProvenance(ExportItemKind.Subclip, assetId, subclipId, "Interview answer", 9);
+        var item = new JobItemDefinition(Guid.NewGuid(), "C:\\media\\CAM123.mov", ExportProvenance: provenance,
+            MediaRange: new(TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(7)));
+
+        Assert.Equal("C:\\media\\CAM123.mov", item.SourceIdentity);
+        Assert.Equal((assetId, subclipId, "Interview answer", 9L),
+            (item.ExportProvenance!.AssetId, item.ExportProvenance.SubclipId,
+                item.ExportProvenance.SubclipName, item.ExportProvenance.SubclipRevision));
+    }
 }

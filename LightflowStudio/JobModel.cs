@@ -90,6 +90,20 @@ internal sealed record ResolvedMediaRange(
     }
 }
 
+internal enum ExportItemKind
+{
+    OrdinarySource,
+    Subclip,
+    NoSubclipFullSourceFallback
+}
+
+internal sealed record ExportItemProvenance(
+    ExportItemKind Kind,
+    Guid AssetId,
+    Guid? SubclipId = null,
+    string? SubclipName = null,
+    long? SubclipRevision = null);
+
 internal sealed record JobItemDefinition(
     Guid Id,
     string SourceIdentity,
@@ -100,7 +114,8 @@ internal sealed record JobItemDefinition(
     bool? SourceHasAudio = null,
     MaterializedColorPipeline? AssignedColor = null,
     MaterializedExportSettings? MaterializedExport = null,
-    MaterializedName? MaterializedName = null);
+    MaterializedName? MaterializedName = null,
+    ExportItemProvenance? ExportProvenance = null);
 
 internal sealed record JobDefinition<TOptions>(
     Guid Id,

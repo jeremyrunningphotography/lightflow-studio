@@ -100,6 +100,7 @@ public partial class PlayerViewerHost : UserControl
     internal event EventHandler<MediaRangeStateChangedEventArgs>? RangeStateChanged;
     internal event EventHandler<AssetColorStateChangedEventArgs>? ColorStateChanged;
     internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
+    internal event EventHandler<PlayerViewerSubclipsExportRequestedEventArgs>? ExportSelectedSubclipsRequested;
     internal event EventHandler<SubclipsDrawerStateRequestedEventArgs>? SubclipsDrawerStateRequested;
     internal PlayerViewerAsset? CurrentAsset => _currentAsset;
     internal IReadOnlySet<Guid> SelectedSubclipIds =>
@@ -350,6 +351,8 @@ public partial class PlayerViewerHost : UserControl
     }
 
     internal void SetExportEnabled(bool enabled) => ExportButton.IsEnabled = enabled;
+    internal void SetSelectedSubclipExportEnabled(bool enabled) =>
+        ExportSelectedSubclipsButton.IsEnabled = enabled;
 
     private void ExportButton_Click(object sender, RoutedEventArgs e)
     {
@@ -1064,10 +1067,22 @@ public partial class PlayerViewerHost : UserControl
 
     private void AddSubclip_Click(object sender, RoutedEventArgs e) => CreateSubclip();
 
+    private void ExportSelectedSubclips_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentAsset?.AssetId is not Guid assetId) return;
+        var selected = _subclipItems.Where(item => SelectedSubclipIds.Contains(item.SubclipId))
+            .Select(item => item.SubclipId).ToArray();
+        if (selected.Length == 0) return;
+        ExportSelectedSubclipsButton.IsEnabled = false;
+        ExportSelectedSubclipsRequested?.Invoke(this,
+            new PlayerViewerSubclipsExportRequestedEventArgs(assetId, selected));
+    }
+
     private async void SubclipsList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         foreach (var item in _subclipItems) item.IsSelected = SubclipsList.SelectedItems.Contains(item);
         DeleteSelectedSubclipsButton.IsEnabled = SubclipsList.SelectedItems.Count > 0;
+        ExportSelectedSubclipsButton.IsEnabled = SubclipsList.SelectedItems.Count > 0;
         if (_publishingSubclips) return;
         var selected = e.AddedItems.Cast<SubclipPanelItem>().LastOrDefault()
             ?? SubclipsList.SelectedItems.Cast<SubclipPanelItem>().FirstOrDefault(item => item.SubclipId == _selectedSubclipId)

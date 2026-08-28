@@ -125,6 +125,12 @@ internal static class JobHistoryPresentation
         {
             var result = record.Result.Items.FirstOrDefault(value => value.ItemId == item.Definition.Id);
             lines.Add($"• {item.Definition.SourceIdentity}");
+            if (item.Definition.ExportProvenance is { Kind: not ExportItemKind.OrdinarySource } provenance)
+            {
+                lines.Add($"  Export item: {provenance.Kind}");
+                lines.Add($"  Asset: {provenance.AssetId:D}");
+                if (provenance.SubclipId is { } subclipId) lines.Add($"  Subclip: {provenance.SubclipName} ({subclipId:D})");
+            }
             lines.Add($"  State: {result?.State.ToString() ?? "Unknown"}");
             if (item.Definition.MediaRange is { } range && !range.IsFullSource)
                 lines.Add($"  Range: {range.EffectiveIn:c} – {range.EffectiveOut:c} ({range.EffectiveDuration:c})");
@@ -206,7 +212,8 @@ internal static class EncodingHistoryRerun
                 var option = new BatchFileOption(source.Item.SourceIdentity,
                     Path.GetRelativePath(preparation.Options.InputFolder, source.Item.SourceIdentity), info.Length,
                     assignedColor: source.Item.AssignedColor, restoredExport: source.Item.MaterializedExport,
-                    restoredName: source.Item.MaterializedName);
+                    restoredName: source.Item.MaterializedName,
+                    exportProvenance: source.Item.ExportProvenance);
                 if (source.Item.MediaRange is { } range && !range.IsFullSource) option.ApplyTrim(range);
                 option.IsSelected = true;
                 restored.Add(option);

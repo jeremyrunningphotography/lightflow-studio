@@ -47,7 +47,10 @@ internal sealed record EncodingSource(
     SourceMediaTraits? MediaTraits = null,
     MaterializedExportSettings? RestoredExport = null,
     DateTimeOffset? NamingTimestamp = null,
-    MaterializedName? RestoredName = null);
+    MaterializedName? RestoredName = null,
+    string? NamingOriginalName = null,
+    string? NamingIndexNumberBasis = null,
+    ExportItemProvenance? ExportProvenance = null);
 
 internal sealed record EncodingItemResult(
     int ExitCode,
@@ -96,8 +99,11 @@ internal static class EncodingJobPlanner
                 ExportSettingsMaterializer.Materialize(options, source),
                 source.RestoredName ?? (options.Naming is { } naming
                     ? NamePartsRenderer.Materialize(naming,
-                        new(Path.GetFileNameWithoutExtension(source.Path), index + 1, source.NamingTimestamp))
-                    : null)))
+                        new(source.NamingOriginalName ?? Path.GetFileNameWithoutExtension(source.Path), index + 1,
+                            source.NamingTimestamp,
+                            source.NamingIndexNumberBasis ?? Path.GetFileNameWithoutExtension(source.Path)))
+                    : null),
+                source.ExportProvenance))
             .ToList();
         return new(jobId ?? Guid.NewGuid(), "video.encode", createdAt ?? DateTimeOffset.Now, options, items);
     }

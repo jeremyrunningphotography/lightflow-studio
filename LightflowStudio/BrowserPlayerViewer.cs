@@ -42,6 +42,13 @@ internal sealed class PlayerViewerExportRequestedEventArgs(Guid assetId) : Event
     internal Guid AssetId { get; } = assetId;
 }
 
+internal sealed class PlayerViewerSubclipsExportRequestedEventArgs(Guid assetId,
+    IReadOnlyList<Guid> selectedSubclipIds) : EventArgs
+{
+    internal Guid AssetId { get; } = assetId;
+    internal IReadOnlyList<Guid> SelectedSubclipIds { get; } = selectedSubclipIds;
+}
+
 internal static class ReviewRangePlaybackPolicy
 {
     public static bool ShouldArmOutBoundary(MediaRange? range, TimeSpan playhead) =>

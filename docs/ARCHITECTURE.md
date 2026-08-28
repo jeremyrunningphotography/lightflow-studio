@@ -785,6 +785,19 @@ Issue #169 establishes the application flow as:
 
 `Browser/Player Export invocation → focused configuration modal → immutable materialization/preflight → ExportJobCoordinator → shared ApplicationJobsRuntime → EncodingJobExecutor → History`
 
+Subclip Export is a typed prospective-item mode of this same path. Browser intent expands each selected Catalog video
+in Browser order to all current durable Subclips in durable order, or to one explicit full-source fallback only when
+the source has zero Subclips and the fallback option is enabled. Player intent expands only the explicitly selected
+Subclip IDs, sorted by current durable presentation order. Both retain stable per-item identity even when many rows
+share one `AssetId`, source path, and source filename. A Subclip item's saved range is fixed submission intent; a
+fallback is always full source, so neither participates in ordinary Export's optional working-range controls.
+
+`ExportItemProvenance` snapshots the source `AssetId` plus Subclip identity, semantic name, revision, and fixed range
+where applicable on the immutable planned item. Name Parts receives the Subclip semantic name as `OriginalName` while
+Index Number extraction continues to use the physical source stem. Final acceptance re-resolves source/Color state
+and revalidates the exact ordered Subclip/fallback set before the existing complete-submission collision plan and
+atomic global reservation/admission. Accepted Jobs and History therefore never live-link to later Catalog changes.
+
 The owned `ExportDialog` is configuration and preflight only. It reads current LUT cache snapshots without starting discovery, edits a typed `NamePartsDefinition` and `ExportMaterializationPolicy`, evaluates the complete batch with `EncodingJobPlanner`, and submits one final immutable valid plan. Queue acceptance is synchronous; the modal closes immediately and never awaits progress or completion. Browser folder, recursive scope, query/filter state, selection, scroll position, and the reusable Player remain in memory because this path never leaves Home or rebuilds either presentation.
 
 `ExportJobCoordinator` is an application-lifetime execution boundary. It retains one transient executor lease per accepted plan, queues every plan through the single shared `ApplicationJobsRuntime`, observes terminal completion independently of WPF, records one durable History record, and releases only transient executor ownership. Multiple modal jobs may run concurrently, and #170 can consume the existing runtime collection without another execution refactor. Shutdown terminates every retained FFmpeg executor and disposes the shared runtime safely.

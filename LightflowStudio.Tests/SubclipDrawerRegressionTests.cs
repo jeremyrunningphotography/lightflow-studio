@@ -13,12 +13,15 @@ public sealed class SubclipDrawerRegressionTests
         var pull = Named(shell, "SubclipsDrawerPullButton");
         var panel = Named(document, "SubclipsPanel");
         var list = Named(document, "SubclipsList");
+        var exportSelected = Named(document, "ExportSelectedSubclipsButton");
         var title = document.Descendants().Single(element => (string?)element.Attribute("Text") == "SUBCLIPS");
         var names = document.Descendants().Where(element => (string?)element.Attribute("Text") == "{Binding Name}").ToArray();
 
         Assert.Equal("Collapsed", (string?)pull.Attribute("Visibility"));
         Assert.Equal("Collapsed", (string?)panel.Attribute("Visibility"));
         Assert.Equal("Extended", (string?)list.Attribute("SelectionMode"));
+        Assert.Equal("False", (string?)exportSelected.Attribute("IsEnabled"));
+        Assert.Equal("Export selected Subclips", (string?)exportSelected.Attribute("AutomationProperties.Name"));
         Assert.Equal("Saved ranges for this source", (string?)title.Attribute("ToolTip"));
         Assert.DoesNotContain(document.Descendants(), element =>
             (string?)element.Attribute("Text") == "Saved ranges for this source" && !ReferenceEquals(element, title));

@@ -6,10 +6,11 @@ namespace LightflowStudio.Tests;
 public sealed class SubclipDrawerRegressionTests
 {
     [Fact]
-    public void DrawerPresentation_HasPlayerPullReadableNamesExtendedSelectionAndNoSubtitleRow()
+    public void DrawerPresentation_HasShellPullReadableNamesExtendedSelectionAndNoFooterOrSubtitleRow()
     {
         var document = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml"));
-        var pull = Named(document, "SubclipsDrawerPullButton");
+        var shell = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
+        var pull = Named(shell, "SubclipsDrawerPullButton");
         var panel = Named(document, "SubclipsPanel");
         var list = Named(document, "SubclipsList");
         var title = document.Descendants().Single(element => (string?)element.Attribute("Text") == "SUBCLIPS");
@@ -23,6 +24,8 @@ public sealed class SubclipDrawerRegressionTests
             (string?)element.Attribute("Text") == "Saved ranges for this source" && !ReferenceEquals(element, title));
         Assert.Contains(names, element => ((string?)element.Attribute("Foreground"))?.Contains("TextBrush") == true);
         Assert.All(names, element => Assert.NotEqual("Black", (string?)element.Attribute("Foreground")));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "SubclipsStatusText");
     }
 
     [Fact]
@@ -37,6 +40,9 @@ public sealed class SubclipDrawerRegressionTests
         Assert.Contains("drawer != RightDrawerKind.Jobs", coordinator);
         Assert.Contains("SetRightDrawer(RightDrawerKind.Jobs)", jobsOpen);
         Assert.Contains("SetRightDrawer(request.Open ? RightDrawerKind.Subclips : RightDrawerKind.None)", source);
+        Assert.Contains("SetSubclipsContextAvailable", source);
+        Assert.Contains("_subclipsContextAvailable && homeActive", source);
+        Assert.Contains("SubclipsDrawerPull_Click", source);
     }
 
     private static XElement Named(XDocument document, string name) => document.Descendants().Single(element =>

@@ -53,6 +53,7 @@ public partial class MainWindow : Window
     private int _jobsPresentationPending;
     private double _jobsDrawerWidth = 380;
     private RightDrawerKind _openRightDrawer;
+    private bool _subclipsContextAvailable;
     private double _browserLocationsPreferredWidth = 280;
     private bool _applyingBrowserResponsiveLayout;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
@@ -1467,6 +1468,7 @@ public partial class MainWindow : Window
         CaptureBrowserGridScrollOffset();
         EnsurePlayerViewerHost();
         SetBrowserPresentationMode(BrowserPresentationMode.PlayerViewer);
+        SetSubclipsContextAvailable(asset.Kind == MediaPresentationKind.Video && asset.AssetId is not null);
         await _playerViewerHost!.OpenAsync(asset, resolution).ConfigureAwait(true);
     }
 
@@ -1539,6 +1541,7 @@ public partial class MainWindow : Window
     private async Task ReturnToBrowserGridAsync(bool restoreScrollOffset = true, bool focusGrid = true)
     {
         if (_openRightDrawer == RightDrawerKind.Subclips) SetRightDrawer(RightDrawerKind.None);
+        SetSubclipsContextAvailable(false);
         if (_browserPresentation != BrowserPresentationMode.PlayerViewer) return;
         var playerViewerHost = _playerViewerHost;
         SetBrowserPresentationMode(BrowserPresentationMode.Grid);
@@ -1917,6 +1920,7 @@ public partial class MainWindow : Window
     {
         if (!ReferenceEquals(e.Source, MainTabs)) return;
         SyncBrowserStatusBarVisibility();
+        UpdateSubclipsPullVisibility();
         // #110: switching to another workspace while a video is open in the Player/Viewer must not leave it
         // silently playing audio in a hidden tab. This pauses rather than returning to Grid — switching tabs
         // is not "leaving" the Browser, so the open asset and its position stay exactly as the user left them.
@@ -4030,8 +4034,13 @@ public partial class MainWindow : Window
     private void SetRightDrawer(RightDrawerKind drawer)
     {
         if (JobsDrawer is null) return;
+        if (drawer == RightDrawerKind.Subclips && !_subclipsContextAvailable) drawer = RightDrawerKind.None;
         _openRightDrawer = drawer;
         _playerViewerHost?.SetSubclipsDrawerOpen(drawer == RightDrawerKind.Subclips);
+        SubclipsDrawerPullChevron.Text = drawer == RightDrawerKind.Subclips ? "›" : "‹";
+        SubclipsDrawerPullButton.ToolTip = drawer == RightDrawerKind.Subclips ? "Close Subclips drawer" : "Open Subclips drawer";
+        AutomationProperties.SetName(SubclipsDrawerPullButton,
+            drawer == RightDrawerKind.Subclips ? "Close Subclips drawer" : "Open Subclips drawer");
         if (drawer != RightDrawerKind.Jobs)
         {
             ApplyJobsDrawerClosed();
@@ -4069,6 +4078,24 @@ public partial class MainWindow : Window
     private void JobsDrawerPull_Click(object sender, RoutedEventArgs e)
     {
         if (JobsDrawer.Visibility == Visibility.Visible) CloseJobsDrawer(true); else OpenJobsDrawer();
+    }
+
+    private void SubclipsDrawerPull_Click(object sender, RoutedEventArgs e) =>
+        SetRightDrawer(_openRightDrawer == RightDrawerKind.Subclips ? RightDrawerKind.None : RightDrawerKind.Subclips);
+
+    private void SetSubclipsContextAvailable(bool available)
+    {
+        _subclipsContextAvailable = available;
+        if (!available && _openRightDrawer == RightDrawerKind.Subclips) SetRightDrawer(RightDrawerKind.None);
+        UpdateSubclipsPullVisibility();
+    }
+
+    private void UpdateSubclipsPullVisibility()
+    {
+        if (SubclipsDrawerPullButton is null) return;
+        var homeActive = MainTabs?.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home);
+        SubclipsDrawerPullButton.Visibility = _subclipsContextAvailable && homeActive &&
+            _browserPresentation == BrowserPresentationMode.PlayerViewer ? Visibility.Visible : Visibility.Collapsed;
     }
     private void JobExpansionToggle_Click(object sender, RoutedEventArgs e)
     {

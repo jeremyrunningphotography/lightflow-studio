@@ -135,8 +135,6 @@ public partial class PlayerViewerHost : UserControl
         _currentAsset = asset;
         ResetSubclipWork();
         SubclipsPanel.Visibility = Visibility.Collapsed;
-        SubclipsDrawerPullButton.Visibility = asset.Kind == MediaPresentationKind.Video && asset.AssetId is not null
-            ? Visibility.Visible : Visibility.Collapsed;
         AddSubclipButton.IsEnabled = false;
         if (asset.Kind == MediaPresentationKind.Video && asset.AssetId is Guid subclipAssetId)
             await LoadSubclipsAsync(subclipAssetId, generation, _subclipWorkCts!.Token).ConfigureAwait(true);
@@ -312,9 +310,7 @@ public partial class PlayerViewerHost : UserControl
         _subclipWorkCts = null;
         _subclipItems.Clear();
         SubclipsPanel.Visibility = Visibility.Collapsed;
-        SubclipsDrawerPullButton.Visibility = Visibility.Collapsed;
         _subclipsDrawerOpen = false;
-        SubclipsStatusText.Text = "";
         _stopAtOutDuringPlayback = false;
         _stoppingAtOut = false;
         _retainedSteppedFrame = null;
@@ -874,17 +870,25 @@ public partial class PlayerViewerHost : UserControl
         if (_reviewRange.Out is null) { SetStatus("Set an Out point before creating a Subclip."); return; }
         try
         {
-            var subclip = await _subclips.CreateAsync(assetId, _reviewRange);
+            var result = await _subclips.CreateAsync(assetId, _reviewRange);
+            var subclip = result.Subclip;
             if (_currentAsset?.AssetId == assetId)
             {
-                var item = new SubclipPanelItem(subclip);
-                _subclipItems.Add(item);
+                var item = _subclipItems.FirstOrDefault(candidate => candidate.SubclipId == subclip.SubclipId);
+                if (item is null)
+                {
+                    item = new SubclipPanelItem(subclip);
+                    _subclipItems.Add(item);
+                }
                 RefreshMoveBoundaries();
                 UpdateSubclipEmptyState();
-                if (_subclipWorkCts is { } work) _ = LoadPosterAsync(item, _generation, work.Token);
+                if (result.Created && _subclipWorkCts is { } work) _ = LoadPosterAsync(item, _generation, work.Token);
+                SubclipsList.SelectedItems.Clear();
+                SubclipsList.SelectedItem = item;
+                SubclipsList.ScrollIntoView(item);
             }
             RequestSubclipsDrawer(open: true);
-            SetStatus($"{subclip.Name} created.");
+            SetStatus(result.Created ? $"{subclip.Name} created." : null);
         }
         catch (Exception exception) { SetStatus($"The Subclip could not be created. {exception.Message}"); }
     }
@@ -995,7 +999,6 @@ public partial class PlayerViewerHost : UserControl
         _selectedSubclipId = null;
         _selectedSubclipRange = null;
         _subclipItems.Clear();
-        SubclipsStatusText.Text = "";
         UpdateSubclipEmptyState();
     }
 
@@ -1020,7 +1023,7 @@ public partial class PlayerViewerHost : UserControl
         catch (OperationCanceledException) { }
         catch (Exception exception)
         {
-            if (generation == _generation) SubclipsStatusText.Text = $"Subclips unavailable: {exception.Message}";
+            if (generation == _generation) SetStatus($"Subclips unavailable: {exception.Message}");
         }
     }
 
@@ -1049,12 +1052,8 @@ public partial class PlayerViewerHost : UserControl
 
     internal void SetSubclipsDrawerOpen(bool open)
     {
-        _subclipsDrawerOpen = open && SubclipsDrawerPullButton.Visibility == Visibility.Visible;
+        _subclipsDrawerOpen = open && _currentAsset is { Kind: MediaPresentationKind.Video, AssetId: not null };
         SubclipsPanel.Visibility = _subclipsDrawerOpen ? Visibility.Visible : Visibility.Collapsed;
-        SubclipsDrawerPullChevron.Text = _subclipsDrawerOpen ? "›" : "‹";
-        SubclipsDrawerPullButton.ToolTip = _subclipsDrawerOpen ? "Close Subclips drawer" : "Open Subclips drawer";
-        System.Windows.Automation.AutomationProperties.SetName(SubclipsDrawerPullButton,
-            _subclipsDrawerOpen ? "Close Subclips drawer" : "Open Subclips drawer");
     }
 
     private void RequestSubclipsDrawer(bool open)
@@ -1062,8 +1061,6 @@ public partial class PlayerViewerHost : UserControl
         if (SubclipsDrawerStateRequested is null) SetSubclipsDrawerOpen(open);
         else SubclipsDrawerStateRequested.Invoke(this, new(open));
     }
-
-    private void SubclipsDrawerPull_Click(object sender, RoutedEventArgs e) => RequestSubclipsDrawer(!_subclipsDrawerOpen);
 
     private void AddSubclip_Click(object sender, RoutedEventArgs e) => CreateSubclip();
 
@@ -1088,7 +1085,26 @@ public partial class PlayerViewerHost : UserControl
         try
         {
             await _service.SeekAsync(selected.Subclip.In).ConfigureAwait(true);
-            SubclipsStatusText.Text = $"Reviewing {selected.Name}.";
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) { SetStatus(exception.Message); }
+    }
+
+    private async void SubclipsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        var item = (e.OriginalSource as FrameworkElement)?.DataContext as SubclipPanelItem
+            ?? (e.Source as FrameworkElement)?.DataContext as SubclipPanelItem
+            ?? FindVisualAncestor<System.Windows.Controls.ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as SubclipPanelItem;
+        if (_service is null || item is null) return;
+        _selectedSubclipId = item.SubclipId;
+        _selectedSubclipRange = new(item.Subclip.SourceDuration, item.Subclip.In, item.Subclip.Out);
+        if (!SubclipsList.SelectedItems.Contains(item)) SubclipsList.SelectedItems.Add(item);
+        RestoreLiveVideoSurface();
+        try
+        {
+            await _service.SeekAsync(item.Subclip.In).ConfigureAwait(true);
+            _stopAtOutDuringPlayback = true;
+            await _service.PlayAsync().ConfigureAwait(true);
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) { SetStatus(exception.Message); }
@@ -1130,15 +1146,14 @@ public partial class PlayerViewerHost : UserControl
             var updated = await _subclips.RenameAsync(item.SubclipId, item.Subclip.Revision, name).ConfigureAwait(true);
             item.Replace(updated);
             item.IsEditing = false;
-            SubclipsStatusText.Text = $"Renamed to {updated.Name}.";
         }
         catch (SubclipConcurrencyException exception)
         {
             item.IsEditing = false;
-            SubclipsStatusText.Text = exception.Message;
+            SetStatus(exception.Message);
             await ReloadCurrentSubclipsAsync().ConfigureAwait(true);
         }
-        catch (Exception exception) { SubclipsStatusText.Text = $"Rename failed: {exception.Message}"; }
+        catch (Exception exception) { SetStatus($"Rename failed: {exception.Message}"); }
     }
 
     private async void DeleteSubclip_Click(object sender, RoutedEventArgs e)
@@ -1156,14 +1171,13 @@ public partial class PlayerViewerHost : UserControl
             _subclipItems.Remove(item);
             RefreshMoveBoundaries();
             UpdateSubclipEmptyState();
-            SubclipsStatusText.Text = $"Deleted {item.Name}.";
         }
         catch (SubclipConcurrencyException exception)
         {
-            SubclipsStatusText.Text = exception.Message;
+            SetStatus(exception.Message);
             await ReloadCurrentSubclipsAsync().ConfigureAwait(true);
         }
-        catch (Exception exception) { SubclipsStatusText.Text = $"Delete failed: {exception.Message}"; }
+        catch (Exception exception) { SetStatus($"Delete failed: {exception.Message}"); }
     }
 
     private async void DeleteSelectedSubclips_Click(object sender, RoutedEventArgs e)
@@ -1189,14 +1203,13 @@ public partial class PlayerViewerHost : UserControl
             RefreshMoveBoundaries();
             UpdateSubclipEmptyState();
             if (_subclipItems.Count > 0) SubclipsList.SelectedItem = _subclipItems[settleIndex];
-            SubclipsStatusText.Text = selected.Length == 1 ? $"Deleted {selected[0].Name}." : $"Deleted {selected.Length} Subclips.";
         }
         catch (SubclipConcurrencyException exception)
         {
-            SubclipsStatusText.Text = exception.Message;
+            SetStatus(exception.Message);
             await ReloadCurrentSubclipsAsync().ConfigureAwait(true);
         }
-        catch (Exception exception) { SubclipsStatusText.Text = $"Delete failed: {exception.Message}"; }
+        catch (Exception exception) { SetStatus($"Delete failed: {exception.Message}"); }
     }
 
     private void MoveSubclipUp_Click(object sender, RoutedEventArgs e) => _ = MoveSubclipAsync((sender as FrameworkElement)?.Tag as SubclipPanelItem, -1);
@@ -1207,7 +1220,7 @@ public partial class PlayerViewerHost : UserControl
         if (_subclips is null || item is null || _currentAsset?.AssetId is not Guid assetId) return;
         if (SubclipsList.SelectedItems.Count > 1)
         {
-            SubclipsStatusText.Text = "Select one active Subclip to change its order.";
+            SetStatus("Select one active Subclip to change its order.");
             return;
         }
         var index = _subclipItems.IndexOf(item);
@@ -1221,14 +1234,13 @@ public partial class PlayerViewerHost : UserControl
                 order.Select(candidate => new SubclipOrder(candidate.SubclipId, candidate.Subclip.Revision)).ToArray()).ConfigureAwait(true);
             PublishSubclipOrder(reordered);
             SubclipsList.SelectedItem = _subclipItems.FirstOrDefault(candidate => candidate.SubclipId == item.SubclipId);
-            SubclipsStatusText.Text = $"Moved {item.Name}.";
         }
         catch (SubclipConcurrencyException exception)
         {
-            SubclipsStatusText.Text = exception.Message;
+            SetStatus(exception.Message);
             await ReloadCurrentSubclipsAsync().ConfigureAwait(true);
         }
-        catch (Exception exception) { SubclipsStatusText.Text = $"Reorder failed: {exception.Message}"; }
+        catch (Exception exception) { SetStatus($"Reorder failed: {exception.Message}"); }
     }
 
     private void PublishSubclipOrder(IReadOnlyList<Subclip> reordered)
@@ -1269,6 +1281,16 @@ public partial class PlayerViewerHost : UserControl
             var child = VisualTreeHelper.GetChild(parent, index);
             if (child is T match) return match;
             if (FindVisualChild<T>(child) is { } descendant) return descendant;
+        }
+        return null;
+    }
+
+    private static T? FindVisualAncestor<T>(DependencyObject? child) where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            if (child is T match) return match;
+            child = VisualTreeHelper.GetParent(child);
         }
         return null;
     }

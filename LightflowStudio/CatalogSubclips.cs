@@ -16,10 +16,11 @@ internal sealed record Subclip(
     DateTimeOffset UpdatedUtc);
 
 internal sealed record SubclipOrder(Guid SubclipId, long ExpectedRevision);
+internal sealed record SubclipCreateResult(Subclip Subclip, bool Created);
 
 internal interface ISubclipService
 {
-    Task<Subclip> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default);
+    Task<SubclipCreateResult> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Subclip>> ListAsync(Guid assetId, CancellationToken cancellationToken = default);
     Task<Subclip> RenameAsync(Guid subclipId, long expectedRevision, string name, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid subclipId, long expectedRevision, CancellationToken cancellationToken = default);
@@ -44,7 +45,7 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
             return ReadAsset(connection, null, assetId);
         }, cancellationToken);
 
-    public async Task<Subclip> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
+    public async Task<SubclipCreateResult> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(workingRange);
         ValidateExplicitRange(workingRange);
@@ -56,6 +57,13 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
                 using var connection = RequireSession().OpenConnection();
                 using var transaction = connection.BeginTransaction(deferred: false);
                 var existing = ReadAsset(connection, transaction, assetId);
+                var matching = existing.FirstOrDefault(item =>
+                    item.In == workingRange.In!.Value && item.Out == workingRange.Out!.Value);
+                if (matching is not null)
+                {
+                    transaction.Commit();
+                    return new SubclipCreateResult(matching, Created: false);
+                }
                 var usedNames = existing.Select(item => item.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var number = 1;
                 while (usedNames.Contains($"Subclip {number}")) number++;
@@ -79,7 +87,7 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
                 command.Parameters.AddWithValue("$now", now);
                 command.ExecuteNonQuery();
                 transaction.Commit();
-                return created;
+                return new SubclipCreateResult(created, Created: true);
             }, cancellationToken).ConfigureAwait(false);
         }
         finally { _mutations.Release(); }

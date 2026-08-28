@@ -19,7 +19,8 @@ internal static class CatalogMigrations
         new(4, "Managed LUT resources and durable asset Color intent", ApplyVersion4),
         new(5, "Folder-backed LUT resource identity", ApplyVersion5),
         new(6, "Per-asset Color processing enabled state", ApplyVersion6),
-        new(7, "Durable named and ordered asset Subclips", ApplyVersion7)
+        new(7, "Durable named and ordered asset Subclips", ApplyVersion7),
+        new(8, "Unique exact Subclip ranges", ApplyVersion8)
     ];
 
     private static void ApplyVersion1(
@@ -323,6 +324,38 @@ internal static class CatalogMigrations
             );
 
             CREATE INDEX IX_Subclips_AssetId_Ordinal ON Subclips (AssetId, Ordinal);
+            """);
+    }
+
+    private static void ApplyVersion8(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CatalogMigrationContext context)
+    {
+        // Earlier development builds allowed exact duplicates. Keep the earliest durable-order identity
+        // deterministically, then compact surviving ordinals before installing the database invariant.
+        Execute(connection, transaction, """
+            DELETE FROM Subclips AS duplicate
+            WHERE EXISTS (
+                SELECT 1 FROM Subclips AS keeper
+                WHERE keeper.AssetId = duplicate.AssetId
+                  AND keeper.InTicks = duplicate.InTicks
+                  AND keeper.OutTicks = duplicate.OutTicks
+                  AND (keeper.Ordinal < duplicate.Ordinal
+                       OR (keeper.Ordinal = duplicate.Ordinal AND keeper.SubclipId < duplicate.SubclipId))
+            );
+
+            UPDATE Subclips SET Ordinal = Ordinal + 1000000000;
+            WITH Ranked AS (
+                SELECT SubclipId,
+                       ROW_NUMBER() OVER (PARTITION BY AssetId ORDER BY Ordinal, SubclipId) - 1 AS NewOrdinal
+                FROM Subclips
+            )
+            UPDATE Subclips
+            SET Ordinal = (SELECT NewOrdinal FROM Ranked WHERE Ranked.SubclipId = Subclips.SubclipId);
+
+            CREATE UNIQUE INDEX UX_Subclips_AssetId_ExactRange
+                ON Subclips (AssetId, InTicks, OutTicks);
             """);
     }
 

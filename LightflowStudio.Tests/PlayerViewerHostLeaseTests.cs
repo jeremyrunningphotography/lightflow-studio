@@ -576,10 +576,9 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(2, host.SubclipsList.Items.Count);
             Assert.Equal("Second take", ((SubclipPanelItem)host.SubclipsList.Items[0]).Name);
             Assert.Equal(Visibility.Visible, host.SubclipsPanel.Visibility);
-            Assert.Equal(Visibility.Visible, host.SubclipsDrawerPullButton.Visibility);
-            host.SubclipsDrawerPullButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            host.SetSubclipsDrawerOpen(false);
             Assert.Equal(Visibility.Collapsed, host.SubclipsPanel.Visibility);
-            host.SubclipsDrawerPullButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            host.SetSubclipsDrawerOpen(true);
             Assert.Equal(Visibility.Visible, host.SubclipsPanel.Visibility);
             host.SubclipsList.SelectedItems.Add(host.SubclipsList.Items[0]);
             host.SubclipsList.SelectedItems.Add(host.SubclipsList.Items[1]);
@@ -591,7 +590,6 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.True(((SubclipPanelItem)host.SubclipsList.Items[0]).CanMoveDown);
             Assert.True(((SubclipPanelItem)host.SubclipsList.Items[1]).CanMoveUp);
             Assert.False(((SubclipPanelItem)host.SubclipsList.Items[1]).CanMoveDown);
-            Assert.Contains("Reviewing Close-up", host.SubclipsStatusText.Text);
             window.Close();
         });
     }
@@ -605,19 +603,59 @@ public sealed class PlayerViewerHostLeaseTests
             var backend = new FakeBackend();
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
             var assetId = Guid.NewGuid();
+            var subclips = new FakeSubclipService();
             var host = new PlayerViewerHost(coordinator, new FakeRangeStore(new(TimeSpan.FromSeconds(60),
-                TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2))), new FakeSubclipService());
+                TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2))), subclips);
             var window = new Window { Content = host };
             window.Show();
             await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, assetId),
                 new(Guid.NewGuid(), "clip.mp4", "clip.mp4", Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
 
-            Assert.Equal(Visibility.Visible, host.SubclipsDrawerPullButton.Visibility);
             Assert.Equal(Visibility.Collapsed, host.SubclipsPanel.Visibility);
             Assert.Equal(0, host.SubclipsPanel.ActualWidth);
             Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
             await WaitUntilAsync(() => host.SubclipsList.Items.Count == 1, "created Subclip");
             Assert.Equal(Visibility.Visible, host.SubclipsPanel.Visibility);
+            var existingId = ((SubclipPanelItem)host.SubclipsList.Items[0]).SubclipId;
+            Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
+            await WaitUntilAsync(() => subclips.CreateCount == 2, "duplicate Subclip result");
+            Assert.Single(host.SubclipsList.Items);
+            Assert.Equal(existingId, host.ActiveSubclipId);
+            Assert.Equal(existingId, ((SubclipPanelItem)host.SubclipsList.SelectedItem).SubclipId);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public async Task SubclipDoubleClick_SeeksPlaysAndPreservesWorkingRangeAndDurableState()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var assetId = Guid.NewGuid();
+            var saved = new Subclip(Guid.NewGuid(), assetId, "Review", 0, TimeSpan.FromSeconds(10),
+                TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(60), 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            var subclips = new FakeSubclipService();
+            subclips.Items.Add(saved);
+            var store = new FakeRangeStore(new(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(50)));
+            var host = new PlayerViewerHost(coordinator, store, subclips);
+            var window = new Window { Content = host };
+            window.Show();
+            await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, assetId),
+                new(Guid.NewGuid(), "clip.mp4", "clip.mp4", Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
+            host.UpdateLayout();
+            var container = (System.Windows.Controls.ListBoxItem)host.SubclipsList.ItemContainerGenerator.ContainerFromIndex(0);
+            host.SubclipsList.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+                { RoutedEvent = System.Windows.Controls.Control.MouseDoubleClickEvent, Source = container });
+
+            await WaitUntilAsync(() => backend.PlayCallCount == 1, "Subclip double-click playback");
+            Assert.Contains(TimeSpan.FromSeconds(10), backend.SeekPositions);
+            Assert.Equal(saved.SubclipId, host.ActiveSubclipId);
+            Assert.Equal(0, store.SaveCount);
+            Assert.Equal(saved, subclips.Items.Single());
             window.Close();
         });
     }
@@ -920,15 +958,17 @@ public sealed class PlayerViewerHostLeaseTests
         public int CreateCount { get; private set; }
         public Guid AssetId { get; private set; }
         public MediaRange? Range { get; private set; }
-        public Task<Subclip> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
+        public Task<SubclipCreateResult> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
         {
             CreateCount++;
             AssetId = assetId;
             Range = workingRange;
+            var existing = Items.FirstOrDefault(item => item.AssetId == assetId && item.In == workingRange.In && item.Out == workingRange.Out);
+            if (existing is not null) return Task.FromResult(new SubclipCreateResult(existing, Created: false));
             var created = new Subclip(Guid.NewGuid(), assetId, $"Subclip {Items.Count + 1}", Items.Count, workingRange.In!.Value,
                 workingRange.Out!.Value, workingRange.SourceDuration, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
             Items.Add(created);
-            return Task.FromResult(created);
+            return Task.FromResult(new SubclipCreateResult(created, Created: true));
         }
         public Task<IReadOnlyList<Subclip>> ListAsync(Guid assetId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Subclip>>(Items.Where(item => item.AssetId == assetId).OrderBy(item => item.Ordinal).ToArray());

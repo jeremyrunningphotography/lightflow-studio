@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using Microsoft.Data.Sqlite;
 
 namespace LightflowStudio;
@@ -29,6 +30,27 @@ internal static class SubclipCurrentOrder
 
 internal sealed record SubclipOrder(Guid SubclipId, long ExpectedRevision);
 internal sealed record SubclipCreateResult(Subclip Subclip, bool Created);
+
+internal static class SubclipDefaultName
+{
+    public static string Create(string sourceRelativePath, TimeSpan @in, TimeSpan @out)
+    {
+        var sourceBaseName = Path.GetFileNameWithoutExtension(sourceRelativePath?.Trim() ?? "");
+        if (string.IsNullOrWhiteSpace(sourceBaseName))
+            throw new ArgumentException("The source filename could not be resolved for the Subclip.", nameof(sourceRelativePath));
+        return $"{sourceBaseName}_{FormatTimestamp(@in)}_{FormatTimestamp(@out)}";
+    }
+
+    public static string FormatTimestamp(TimeSpan timestamp)
+    {
+        if (timestamp < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timestamp));
+        var totalHours = timestamp.Ticks / TimeSpan.TicksPerHour;
+        var minutes = timestamp.Minutes;
+        var seconds = timestamp.Seconds;
+        var milliseconds = timestamp.Ticks % TimeSpan.TicksPerSecond / TimeSpan.TicksPerMillisecond;
+        return FormattableString.Invariant($"{totalHours:00}-{minutes:00}-{seconds:00}.{milliseconds:000}");
+    }
+}
 
 internal interface ISubclipService
 {
@@ -76,11 +98,10 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
                     transaction.Commit();
                     return new SubclipCreateResult(matching, Created: false);
                 }
-                var usedNames = existing.Select(item => item.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                var number = 1;
-                while (usedNames.Contains($"Subclip {number}")) number++;
+                var name = SubclipDefaultName.Create(ReadSourceRelativePath(connection, transaction, assetId),
+                    workingRange.In!.Value, workingRange.Out!.Value);
                 var now = FormatUtc(_utcNow());
-                var created = new Subclip(Guid.NewGuid(), assetId, $"Subclip {number}", existing.Count,
+                var created = new Subclip(Guid.NewGuid(), assetId, name, existing.Count,
                     workingRange.In!.Value, workingRange.Out!.Value, workingRange.SourceDuration, 1,
                     DateTimeOffset.Parse(now, CultureInfo.InvariantCulture), DateTimeOffset.Parse(now, CultureInfo.InvariantCulture));
                 using var command = connection.CreateCommand();
@@ -260,6 +281,16 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
         command.CommandText = "SELECT SubclipId,AssetId,Name,Ordinal,InTicks,OutTicks,SourceDurationTicks,Revision,CreatedUtc,UpdatedUtc FROM Subclips WHERE SubclipId=$id;";
         command.Parameters.AddWithValue("$id", subclipId.ToString("D"));
         return Read(command).SingleOrDefault();
+    }
+
+    private static string ReadSourceRelativePath(SqliteConnection connection, SqliteTransaction transaction, Guid assetId)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT RelativePath FROM MediaAssets WHERE AssetId=$asset;";
+        command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
+        return command.ExecuteScalar() as string ??
+            throw new ArgumentException("The source filename could not be resolved for the Subclip.", nameof(assetId));
     }
 
     private static List<Subclip> Read(SqliteCommand command)

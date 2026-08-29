@@ -1310,6 +1310,19 @@ public class UiLayoutTests
         Assert.NotNull(Named(document, "BrowserInfoUpperFrame"));
         Assert.NotNull(Named(document, "BrowserInfoLowerFrame"));
         Assert.NotNull(Named(document, "BrowserHybridStateOverlay"));
+        foreach (var frameName in new[] { "BrowserInfoUpperFrame", "BrowserInfoLowerFrame" })
+        {
+            var frameStyle = Named(document, frameName).Descendants(ns + "Style").Single();
+            Assert.Contains(frameStyle.Elements(ns + "Setter"), setter =>
+                (string?)setter.Attribute("Property") == "Visibility" && (string?)setter.Attribute("Value") == "Collapsed");
+            Assert.All(frameStyle.Descendants(ns + "DataTrigger"), trigger =>
+                Assert.Equal("{x:Static local:BrowserViewMode.Info}", (string?)trigger.Attribute("Value")));
+        }
+        var hybridStyle = Named(document, "BrowserHybridStateOverlay").Descendants(ns + "Style").Single();
+        Assert.Contains(hybridStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Visibility" && (string?)setter.Attribute("Value") == "Collapsed");
+        Assert.Contains(hybridStyle.Descendants(ns + "Condition"), condition =>
+            (string?)condition.Attribute("Value") == "{x:Static local:BrowserViewMode.Hybrid}");
         Assert.Equal(3, new[] { "BrowserPreviewViewButton", "BrowserInfoViewButton", "BrowserHybridViewButton" }
             .Count(name => Named(document, name).Name == ns + "ToggleButton"));
         foreach (var key in new[] { "BrowserReviewRangeIcon", "BrowserSubclipsIcon", "BrowserColorIcon" })
@@ -1324,6 +1337,24 @@ public class UiLayoutTests
             presenter => presenter.Attribute("Margin") is not null);
         Assert.DoesNotContain(Named(document, "BrowserInfoLowerFrame").Descendants(ns + "ContentPresenter"),
             presenter => presenter.Attribute("Margin") is not null);
+
+        var filenameRow = Named(document, "BrowserFilenameRow");
+        var filenameStyle = filenameRow.Descendants(ns + "Style").Single();
+        Assert.Contains(filenameStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Visibility" && (string?)setter.Attribute("Value") == "Visible");
+        var previewCollapse = filenameStyle.Descendants(ns + "DataTrigger").Single();
+        Assert.Equal("{Binding ViewMode}", (string?)previewCollapse.Attribute("Binding"));
+        Assert.Equal("{x:Static local:BrowserViewMode.Preview}", (string?)previewCollapse.Attribute("Value"));
+        Assert.Contains(previewCollapse.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Visibility" && (string?)setter.Attribute("Value") == "Collapsed");
+
+        var tileTemplate = document.Descendants(ns + "DataTemplate")
+            .Single(template => (string?)template.Attribute("DataType") == "{x:Type local:BrowserGridTile}");
+        var tileBorder = tileTemplate.Elements(ns + "Border").Single();
+        Assert.Equal("{Binding Name}", (string?)tileBorder.Attribute("ToolTip"));
+        Assert.Equal("{Binding AutomationLabel}", (string?)tileBorder.Attribute("AutomationProperties.Name"));
+        Assert.DoesNotContain(filenameStyle.Descendants(ns + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Value") is "{x:Static local:BrowserViewMode.Info}" or "{x:Static local:BrowserViewMode.Hybrid}");
     }
 
     [Fact]

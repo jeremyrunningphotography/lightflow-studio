@@ -752,7 +752,8 @@
                    <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserColorIcon}" Visibility="{Binding HasColorState, Converter={StaticResource BoolToVisibility}}"/>
                   </StackPanel>
                  </Border>
-                 <StackPanel Grid.Row="3" Margin="1,7,1,0">
+                 <StackPanel x:Name="BrowserFilenameRow" Grid.Row="3" Margin="1,7,1,0">
+                  <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Preview}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
                   <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" FontSize="12"
                    TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
                  </StackPanel>

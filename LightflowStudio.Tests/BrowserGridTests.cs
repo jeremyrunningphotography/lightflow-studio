@@ -20,7 +20,16 @@ public sealed class BrowserGridTests
         model.Populate([Video(rootId, "clip.mp4"), Video(rootId, "next.mp4")]);
         Assert.All(model.Tiles, item => Assert.Equal(BrowserViewMode.Info, item.ViewMode));
         model.Populate([Video(Guid.NewGuid(), "different-folder.mp4")]);
-        Assert.Equal(BrowserViewMode.Info, Assert.Single(model.Tiles).ViewMode);
+        var navigated = Assert.Single(model.Tiles);
+        Assert.Equal(BrowserViewMode.Info, navigated.ViewMode);
+        model.SelectSingle(0);
+        foreach (var mode in new[] { BrowserViewMode.Preview, BrowserViewMode.Info, BrowserViewMode.Hybrid, BrowserViewMode.Preview })
+        {
+            model.SetViewMode(mode);
+            Assert.Equal(mode, navigated.ViewMode);
+            Assert.True(navigated.IsSelected);
+            Assert.Same(navigated, Assert.Single(model.Tiles));
+        }
     }
 
     [Fact]

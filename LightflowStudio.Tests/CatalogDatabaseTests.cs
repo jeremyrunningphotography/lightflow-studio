@@ -328,22 +328,32 @@ public sealed class CatalogDatabaseTests : IDisposable
         var ranges = new CatalogMediaRangeStore(() => session);
         var states = new CatalogBrowserAssetStateStore(() => session);
         var subclips = new CatalogSubclipService(() => session);
+        var lutId = Guid.NewGuid();
+        Execute(session, """
+            INSERT INTO LutResources (LutId,DisplayName,OriginalFileName,ContentSha256,LutKind,LutSize,CreatedUtc,UpdatedUtc)
+            VALUES ($lut,'Camera','Camera.cube',$hash,'3d',2,$now,$now);
+            INSERT INTO MediaAssetColor (AssetId,ColorEnabled,CameraLutId,CreativeLutId,CreatedUtc,UpdatedUtc)
+            VALUES ($asset,1,$lut,NULL,$now,$now);
+            """, ("$lut", lutId.ToString("D")), ("$hash", new string('c', 64)),
+            ("$asset", marked.ToString("D")), ("$now", DateTime.UtcNow.ToString("O")));
         await ranges.SaveAsync(marked, new MediaRange(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5)));
         var subclip = (await subclips.CreateAsync(marked,
             new MediaRange(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(9)))).Subclip;
 
         var projected = await states.GetAsync([marked, unmarked]);
 
-        Assert.Equal(BrowserAssetState.ReviewRange | BrowserAssetState.Subclips, projected[marked]);
+        Assert.Equal(BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips, projected[marked]);
         Assert.Equal(BrowserAssetState.None, projected[unmarked]);
 
         await ranges.SaveAsync(marked, null);
         projected = await states.GetAsync([marked]);
-        Assert.Equal(BrowserAssetState.Subclips, projected[marked]);
+        Assert.Equal(BrowserAssetState.Color | BrowserAssetState.Subclips, projected[marked]);
         await subclips.RenameAsync(subclip.SubclipId, subclip.Revision, "Renamed");
-        Assert.Equal(BrowserAssetState.Subclips, (await states.GetAsync([marked]))[marked]);
+        Assert.Equal(BrowserAssetState.Color | BrowserAssetState.Subclips, (await states.GetAsync([marked]))[marked]);
         var renamed = Assert.Single(await subclips.ListAsync(marked));
         await subclips.DeleteAsync(renamed.SubclipId, renamed.Revision);
+        Assert.Equal(BrowserAssetState.Color, (await states.GetAsync([marked]))[marked]);
+        Execute(session, "DELETE FROM MediaAssetColor WHERE AssetId=$asset;", ("$asset", marked.ToString("D")));
         Assert.Equal(BrowserAssetState.None, (await states.GetAsync([marked]))[marked]);
         await session.DisposeAsync();
     }

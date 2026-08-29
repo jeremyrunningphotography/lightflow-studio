@@ -183,6 +183,8 @@ public sealed class PlayerViewerHostLeaseTests
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
             var host = new PlayerViewerHost(coordinator, lutCache: cache, assetColors: colors,
                 cameraLutFolder: () => folder.FullName, creativeLutFolder: () => folder.FullName);
+            var publishedColorStates = new List<bool>();
+            host.ColorStateChanged += (_, change) => publishedColorStates.Add(change.HasColor);
             var window = new Window { Content = host, Width = 600, Height = 400, ShowInTaskbar = false };
             window.Show();
             try
@@ -210,6 +212,7 @@ public sealed class PlayerViewerHostLeaseTests
                 await WaitUntilAsync(() => colors.SetCount == 1 && !backend.ColorCalls[^1].Bypass,
                     "Camera assignment persistence and derived active presentation");
                 Assert.True((await colors.GetAsync(assetId)).ColorEnabled);
+                Assert.Equal([true], publishedColorStates);
 
                 Key(host, window, System.Windows.Input.Key.C, UIElement.PreviewKeyDownEvent);
                 Assert.True(backend.ColorCalls[^1].Bypass);
@@ -224,6 +227,7 @@ public sealed class PlayerViewerHostLeaseTests
                 await WaitUntilAsync(() => colors.SetCount == 2 && backend.ColorCalls[^1].Bypass,
                     "both-No-LUT Original presentation");
                 Assert.False((await colors.GetAsync(assetId)).ColorEnabled);
+                Assert.Equal([true, false], publishedColorStates);
                 Assert.Equal(0, cache.RefreshCount);
             }
             finally { window.Close(); folder.Delete(true); }

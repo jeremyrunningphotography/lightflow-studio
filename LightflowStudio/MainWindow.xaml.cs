@@ -1398,10 +1398,7 @@ public partial class MainWindow : Window
             await _storage.AssetColors.SetStageAsync(ids, stage, lutId);
             var committed = await _storage.AssetColors.GetAsync(ids);
             foreach (var id in ids)
-            {
-                _browserAssetStateRevisions[id] = ++_browserAssetStateRevision;
-                _browserGrid.ApplyAssetStateFlag(id, BrowserAssetState.Color, committed[id].HasColor);
-            }
+                ApplyCommittedBrowserAssetStateFlag(id, BrowserAssetState.Color, committed[id].HasColor);
             await RefreshBrowserColorSelectorsAsync();
             _ = RegenerateColorThumbnailsAsync(ids);
         }
@@ -1502,23 +1499,26 @@ public partial class MainWindow : Window
         _playerViewerHost.SubclipsDrawerStateRequested += (_, request) =>
             SetRightDrawer(request.Open ? RightDrawerKind.Subclips : RightDrawerKind.None);
         _playerViewerHost.RangeStateChanged += (_, change) =>
-        {
-            _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
-            _browserGrid.ApplyAssetState(change.AssetId, change.HasSavedRange
-                ? BrowserAssetState.ReviewRange : BrowserAssetState.None);
-        };
+            ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.ReviewRange, change.HasSavedRange);
         _playerViewerHost.ColorStateChanged += (_, change) =>
         {
-            _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
-            _browserGrid.ApplyAssetStateFlag(change.AssetId, BrowserAssetState.Color, change.HasColor);
+            ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Color, change.HasColor);
             _ = RegenerateColorThumbnailsAsync([change.AssetId]);
         };
         _playerViewerHost.SubclipStateChanged += (_, change) =>
-        {
-            _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
-            _browserGrid.ApplyAssetStateFlag(change.AssetId, BrowserAssetState.Subclips, change.HasSubclips);
-        };
+            ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Subclips, change.HasSubclips);
         BrowserPlayerHost.Content = _playerViewerHost;
+    }
+
+    /// <summary>
+    /// Publishes one already-committed durable property without replacing unrelated Browser state. Advancing
+    /// the per-asset revision before applying the flag also prevents any older in-flight full projection
+    /// from overwriting this newer truth when it completes.
+    /// </summary>
+    private void ApplyCommittedBrowserAssetStateFlag(Guid assetId, BrowserAssetState flag, bool enabled)
+    {
+        _browserAssetStateRevisions[assetId] = ++_browserAssetStateRevision;
+        _browserGrid.ApplyAssetStateFlag(assetId, flag, enabled);
     }
 
     private void BrowserViewMode_Click(object sender, RoutedEventArgs e)

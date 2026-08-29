@@ -1358,6 +1358,28 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserLiveDurableStateHandlers_PublishOnlyTheirCommittedFlag()
+    {
+        var behavior = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
+        var handlersStart = behavior.IndexOf("private void EnsurePlayerViewerHost()", StringComparison.Ordinal);
+        var handlersEnd = behavior.IndexOf("private void BrowserViewMode_Click", handlersStart, StringComparison.Ordinal);
+        Assert.True(handlersStart >= 0 && handlersEnd > handlersStart);
+        var handlers = behavior[handlersStart..handlersEnd];
+
+        Assert.DoesNotContain("_browserGrid.ApplyAssetState(", handlers, StringComparison.Ordinal);
+        Assert.Contains("ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.ReviewRange", handlers,
+            StringComparison.Ordinal);
+        Assert.Contains("ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Color", handlers,
+            StringComparison.Ordinal);
+        Assert.Contains("ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Subclips", handlers,
+            StringComparison.Ordinal);
+        Assert.Contains("_browserGrid.ApplyAssetStateFlag(assetId, flag, enabled);", handlers, StringComparison.Ordinal);
+        Assert.Contains("ApplyCommittedBrowserAssetStateFlag(id, BrowserAssetState.Color, committed[id].HasColor);",
+            behavior, StringComparison.Ordinal);
+        Assert.Equal(1, behavior.Split("_browserGrid.ApplyAssetState(", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
     public void GlobalStatusText_HasNoXamlVisibilityToggleAndAlwaysOccupiesTheFillArea()
     {
         // App health must never disappear just because the Browser tab isn't active — only the Browser

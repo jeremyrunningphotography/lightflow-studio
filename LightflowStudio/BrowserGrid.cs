@@ -572,6 +572,9 @@ internal sealed class BrowserGridModel
 
     public void ApplyAssetStateFlag(Guid assetId, BrowserAssetState flag, bool enabled)
     {
+        var flagValue = (int)flag;
+        if (flagValue == 0 || (flagValue & (flagValue - 1)) != 0)
+            throw new ArgumentOutOfRangeException(nameof(flag), "A live Browser state update must target exactly one flag.");
         if (!_tilesByAsset.TryGetValue(assetId, out var tile)) return;
         tile.SetAssetState(enabled ? tile.AssetState | flag : tile.AssetState & ~flag);
     }

@@ -52,6 +52,58 @@ public sealed class BrowserGridTests
     }
 
     [Fact]
+    public void LiveDurableStateTransitions_ChangeOnlyTheirOwnFlagInMixedOrders()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entry = Video(rootId, "clip.mp4");
+        var assetId = Guid.NewGuid();
+        model.Populate([entry]);
+        model.ApplyAssetIdentities([new(assetId, entry.RelativePath, CatalogReconciliationItemStatus.New)]);
+        model.ApplyAssetState(assetId, BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips);
+
+        AssertTransition(BrowserAssetState.ReviewRange, false, BrowserAssetState.Color | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.ReviewRange, true, BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.Subclips, false, BrowserAssetState.ReviewRange | BrowserAssetState.Color);
+        AssertTransition(BrowserAssetState.Subclips, true, BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.Color, false, BrowserAssetState.ReviewRange | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.Color, true, BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips);
+
+        model.ApplyAssetState(assetId, BrowserAssetState.None);
+        AssertTransition(BrowserAssetState.Color, true, BrowserAssetState.Color);
+        AssertTransition(BrowserAssetState.Subclips, true, BrowserAssetState.Color | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.ReviewRange, true, BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.Color, false, BrowserAssetState.ReviewRange | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.ReviewRange, false, BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.Subclips, false, BrowserAssetState.None);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => model.ApplyAssetStateFlag(assetId,
+            BrowserAssetState.Color | BrowserAssetState.Subclips, true));
+
+        void AssertTransition(BrowserAssetState flag, bool enabled, BrowserAssetState expected)
+        {
+            model.ApplyAssetStateFlag(assetId, flag, enabled);
+            Assert.Equal(expected, Assert.Single(model.Tiles).AssetState);
+        }
+    }
+
+    [Theory]
+    [InlineData((int)BrowserAssetState.ReviewRange)]
+    [InlineData((int)BrowserAssetState.Color)]
+    [InlineData((int)BrowserAssetState.Subclips)]
+    public void StaleFullProjection_CannotOverwriteAnyNewerCommittedFlag(int changedFlagValue)
+    {
+        const long readRevision = 20;
+        const long committedRevision = 21;
+        var changedFlag = (BrowserAssetState)changedFlagValue;
+        var current = BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips;
+        var stale = current & ~changedFlag;
+
+        Assert.False(BrowserAssetStateRevisionPolicy.CanApply(readRevision, committedRevision));
+        Assert.NotEqual(current, stale);
+    }
+
+    [Fact]
     public void TileColorAndWorkingState_AreIndependentAndPreserveThumbnail()
     {
         var model = new BrowserGridModel();

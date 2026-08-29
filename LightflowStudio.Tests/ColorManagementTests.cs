@@ -361,8 +361,10 @@ public sealed class ColorManagementTests : IAsyncLifetime
         var camera = resources.Single(resource => resource.DisplayName == "Camera");
         var creative = resources.Single(resource => resource.DisplayName == "Creative");
         Assert.False((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
+        await AssertProjectedColorAsync(false);
         await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Camera, camera.LutId);
         Assert.True((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
+        await AssertProjectedColorAsync(true);
         Assert.Equal(1L, Convert.ToInt64(Scalar($"SELECT ColorEnabled FROM MediaAssetColor WHERE AssetId='{_assetId:D}';")));
 
         Execute("UPDATE MediaAssetColor SET ColorEnabled=0 WHERE AssetId=$id;", ("$id", _assetId.ToString("D")));
@@ -371,16 +373,28 @@ public sealed class ColorManagementTests : IAsyncLifetime
         Assert.False(legacyOffWithIntent.LegacyColorEnabled);
 
         await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Creative, creative.LutId);
+        await AssertProjectedColorAsync(true);
+        await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Creative, null);
+        Assert.True((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
+        await AssertProjectedColorAsync(true);
+        await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Creative, creative.LutId);
         await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Camera, null);
         Assert.True((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
+        await AssertProjectedColorAsync(true);
 
         await RestartAsync();
         Assert.True((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
+        await AssertProjectedColorAsync(true);
 
         await _storage.AssetColors.SetStageAsync([_assetId], ColorLutStage.Creative, null);
         await RestartAsync();
         Assert.False((await _storage.AssetColors.GetAsync(_assetId)).ColorEnabled);
+        await AssertProjectedColorAsync(false);
         Assert.Null(Scalar($"SELECT ColorEnabled FROM MediaAssetColor WHERE AssetId='{_assetId:D}';"));
+
+        async Task AssertProjectedColorAsync(bool expected) =>
+            Assert.Equal(expected, (await _storage.BrowserAssetStates.GetAsync([_assetId]))[_assetId]
+                .HasFlag(BrowserAssetState.Color));
     }
 
     [Fact]

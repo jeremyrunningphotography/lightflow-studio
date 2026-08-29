@@ -6,6 +6,104 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserGridTests
 {
     [Fact]
+    public void ViewMode_AppliesInPlaceAndSurvivesNavigationOrScopeRepopulation()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([Video(rootId, "clip.mp4")]);
+        var tile = Assert.Single(model.Tiles);
+
+        model.SetViewMode(BrowserViewMode.Info);
+
+        Assert.Same(tile, Assert.Single(model.Tiles));
+        Assert.Equal(BrowserViewMode.Info, tile.ViewMode);
+        model.Populate([Video(rootId, "clip.mp4"), Video(rootId, "next.mp4")]);
+        Assert.All(model.Tiles, item => Assert.Equal(BrowserViewMode.Info, item.ViewMode));
+        model.Populate([Video(Guid.NewGuid(), "different-folder.mp4")]);
+        var navigated = Assert.Single(model.Tiles);
+        Assert.Equal(BrowserViewMode.Info, navigated.ViewMode);
+        model.SelectSingle(0);
+        foreach (var mode in new[] { BrowserViewMode.Preview, BrowserViewMode.Info, BrowserViewMode.Hybrid, BrowserViewMode.Preview })
+        {
+            model.SetViewMode(mode);
+            Assert.Equal(mode, navigated.ViewMode);
+            Assert.True(navigated.IsSelected);
+            Assert.Same(navigated, Assert.Single(model.Tiles));
+        }
+    }
+
+    [Fact]
+    public void DurableStateFlags_RemainIndependentAndExposeDistinctLabels()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entry = Video(rootId, "clip.mp4");
+        var assetId = Guid.NewGuid();
+        model.Populate([entry]);
+        model.ApplyAssetIdentities([new(assetId, entry.RelativePath, CatalogReconciliationItemStatus.New)]);
+
+        model.ApplyAssetState(assetId, BrowserAssetState.ReviewRange | BrowserAssetState.Subclips | BrowserAssetState.Color);
+
+        var tile = Assert.Single(model.Tiles);
+        Assert.True(tile.HasReviewRange);
+        Assert.True(tile.HasSubclips);
+        Assert.True(tile.HasColorState);
+        Assert.Equal("In/Out Range; Saved Subclips; Color Applied", tile.AssetStateLabel);
+    }
+
+    [Fact]
+    public void LiveDurableStateTransitions_ChangeOnlyTheirOwnFlagInMixedOrders()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entry = Video(rootId, "clip.mp4");
+        var assetId = Guid.NewGuid();
+        model.Populate([entry]);
+        model.ApplyAssetIdentities([new(assetId, entry.RelativePath, CatalogReconciliationItemStatus.New)]);
+        model.ApplyAssetState(assetId, BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips);
+
+        AssertTransition(BrowserAssetState.ReviewRange, false, BrowserAssetState.Color | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.ReviewRange, true, BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.Subclips, false, BrowserAssetState.ReviewRange | BrowserAssetState.Color);
+        AssertTransition(BrowserAssetState.Subclips, true, BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.Color, false, BrowserAssetState.ReviewRange | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.Color, true, BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips);
+
+        model.ApplyAssetState(assetId, BrowserAssetState.None);
+        AssertTransition(BrowserAssetState.Color, true, BrowserAssetState.Color);
+        AssertTransition(BrowserAssetState.Subclips, true, BrowserAssetState.Color | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.ReviewRange, true, BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.Color, false, BrowserAssetState.ReviewRange | BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.ReviewRange, false, BrowserAssetState.Subclips);
+        AssertTransition(BrowserAssetState.Subclips, false, BrowserAssetState.None);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => model.ApplyAssetStateFlag(assetId,
+            BrowserAssetState.Color | BrowserAssetState.Subclips, true));
+
+        void AssertTransition(BrowserAssetState flag, bool enabled, BrowserAssetState expected)
+        {
+            model.ApplyAssetStateFlag(assetId, flag, enabled);
+            Assert.Equal(expected, Assert.Single(model.Tiles).AssetState);
+        }
+    }
+
+    [Theory]
+    [InlineData((int)BrowserAssetState.ReviewRange)]
+    [InlineData((int)BrowserAssetState.Color)]
+    [InlineData((int)BrowserAssetState.Subclips)]
+    public void StaleFullProjection_CannotOverwriteAnyNewerCommittedFlag(int changedFlagValue)
+    {
+        const long readRevision = 20;
+        const long committedRevision = 21;
+        var changedFlag = (BrowserAssetState)changedFlagValue;
+        var current = BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips;
+        var stale = current & ~changedFlag;
+
+        Assert.False(BrowserAssetStateRevisionPolicy.CanApply(readRevision, committedRevision));
+        Assert.NotEqual(current, stale);
+    }
+
+    [Fact]
     public void TileColorAndWorkingState_AreIndependentAndPreserveThumbnail()
     {
         var model = new BrowserGridModel();
@@ -289,7 +387,7 @@ public sealed class BrowserGridTests
         var tileA = model.Tiles.Single(tile => tile.Name == "a.jpg");
         var tileB = model.Tiles.Single(tile => tile.Name == "b.jpg");
         Assert.True(tileA.HasUserAuthoredState);
-        Assert.Equal("Saved In/Out range", tileA.AssetStateLabel);
+        Assert.Equal("In/Out Range", tileA.AssetStateLabel);
         Assert.Equal(@"C:\previews\a.jpg", tileA.ThumbnailPath);
         Assert.False(tileB.HasUserAuthoredState);
     }

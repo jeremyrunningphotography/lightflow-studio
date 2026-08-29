@@ -98,6 +98,7 @@ public partial class PlayerViewerHost : UserControl
     /// <summary>Raised after a saved review-range change commits so any host can refresh its own presentation.</summary>
     internal event EventHandler<MediaRangeStateChangedEventArgs>? RangeStateChanged;
     internal event EventHandler<AssetColorStateChangedEventArgs>? ColorStateChanged;
+    internal event EventHandler<SubclipStateChangedEventArgs>? SubclipStateChanged;
     internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
     internal event EventHandler<PlayerViewerSubclipsExportRequestedEventArgs>? ExportSelectedSubclipsRequested;
     internal event EventHandler<SubclipsDrawerStateRequestedEventArgs>? SubclipsDrawerStateRequested;
@@ -904,6 +905,7 @@ public partial class PlayerViewerHost : UserControl
                 SubclipsList.ScrollIntoView(item);
             }
             RequestSubclipsDrawer(open: true);
+            SubclipStateChanged?.Invoke(this, new(assetId, hasSubclips: true));
             SetStatus(result.Created ? $"{subclip.Name} created." : null);
         }
         catch (Exception exception) { SetStatus($"The Subclip could not be created. {exception.Message}"); }
@@ -1249,6 +1251,7 @@ public partial class PlayerViewerHost : UserControl
             }
             _subclipItems.Remove(item);
             UpdateSubclipEmptyState();
+            SubclipStateChanged?.Invoke(this, new(item.Subclip.AssetId, _subclipItems.Count > 0));
         }
         catch (SubclipConcurrencyException exception)
         {
@@ -1279,6 +1282,7 @@ public partial class PlayerViewerHost : UserControl
                 Math.Max(0, _subclipItems.Count - selected.Length - 1));
             foreach (var item in selected) _subclipItems.Remove(item);
             UpdateSubclipEmptyState();
+            SubclipStateChanged?.Invoke(this, new(assetId, _subclipItems.Count > 0));
             if (_subclipItems.Count > 0) SubclipsList.SelectedItem = _subclipItems[settleIndex];
         }
         catch (SubclipConcurrencyException exception)
@@ -1449,6 +1453,12 @@ internal sealed class AssetColorStateChangedEventArgs(Guid assetId, bool hasColo
 {
     public Guid AssetId { get; } = assetId;
     public bool HasColor { get; } = hasColor;
+}
+
+internal sealed class SubclipStateChangedEventArgs(Guid assetId, bool hasSubclips) : EventArgs
+{
+    public Guid AssetId { get; } = assetId;
+    public bool HasSubclips { get; } = hasSubclips;
 }
 
 internal sealed class SubclipsDrawerStateRequestedEventArgs(bool open) : EventArgs

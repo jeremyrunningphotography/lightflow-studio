@@ -41,6 +41,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     private double? _durationSeconds;
     private BrowserAssetState _assetState;
     private bool _isThumbnailGenerating;
+    private BrowserViewMode _viewMode = BrowserViewMode.Preview;
 
     public BrowserGridTile(MediaFolderEntry entry, int index)
     {
@@ -136,6 +137,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
             OnPropertyChanged(nameof(HasUserAuthoredState));
             OnPropertyChanged(nameof(HasReviewRange));
             OnPropertyChanged(nameof(HasColorState));
+            OnPropertyChanged(nameof(HasSubclips));
             OnPropertyChanged(nameof(AssetStateLabel));
         }
     }
@@ -143,19 +145,24 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     public bool HasUserAuthoredState => AssetState != BrowserAssetState.None;
     public bool HasReviewRange => AssetState.HasFlag(BrowserAssetState.ReviewRange);
     public bool HasColorState => AssetState.HasFlag(BrowserAssetState.Color);
+    public bool HasSubclips => AssetState.HasFlag(BrowserAssetState.Subclips);
+    public BrowserViewMode ViewMode
+    {
+        get => _viewMode;
+        private set { if (_viewMode == value) return; _viewMode = value; OnPropertyChanged(); }
+    }
     public bool IsThumbnailGenerating
     {
         get => _isThumbnailGenerating;
         private set { if (_isThumbnailGenerating == value) return; _isThumbnailGenerating = value; OnPropertyChanged(); }
     }
 
-    public string AssetStateLabel => (HasReviewRange, HasColorState) switch
+    public string AssetStateLabel => string.Join("; ", new[]
     {
-        (true, true) => "Saved In/Out range; Color assigned",
-        (true, false) => "Saved In/Out range",
-        (false, true) => "Color assigned",
-        _ => "User-authored asset state"
-    };
+        HasReviewRange ? "In/Out Range" : null,
+        HasSubclips ? "Saved Subclips" : null,
+        HasColorState ? "Color Applied" : null
+    }.Where(label => label is not null));
 
     public void SetAssetId(Guid assetId)
     {
@@ -165,6 +172,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     }
 
     public void SetAssetState(BrowserAssetState state) => AssetState = state;
+    public void SetViewMode(BrowserViewMode mode) => ViewMode = mode;
     public void SetThumbnailGenerating(bool value) => IsThumbnailGenerating = value;
 
     /// <summary>Applies a metadata probe result in place. Returns true if either sortable value actually changed, so callers can coalesce a re-sort.</summary>
@@ -210,6 +218,9 @@ internal sealed class BrowserGridRow(IReadOnlyList<BrowserGridTile> tiles)
 /// same size.
 /// </summary>
 internal enum BrowserThumbnailSize { Small, Medium, Large, ExtraLarge, Huge, Maximum }
+
+/// <summary>Global Browser presentation intent. It changes tile composition only.</summary>
+internal enum BrowserViewMode { Preview, Info, Hybrid }
 
 /// <summary>
 /// Pure column/row arithmetic for the responsive thumbnail grid. Kept independent of WPF so reflow
@@ -458,7 +469,9 @@ internal sealed class BrowserGridModel
         foreach (var entry in entries)
         {
             if (!IsPresentable(entry)) continue;
-            desired.Add(existingByKey.TryGetValue(entry.RelativePathKey, out var prior) ? prior : new BrowserGridTile(entry, 0));
+            var tile = existingByKey.TryGetValue(entry.RelativePathKey, out var prior) ? prior : new BrowserGridTile(entry, 0);
+            tile.SetViewMode(ViewMode);
+            desired.Add(tile);
         }
 
         _allTiles = desired;
@@ -541,6 +554,15 @@ internal sealed class BrowserGridModel
         foreach (var (assetId, state) in states) ApplyAssetState(assetId, state);
     }
 
+    public BrowserViewMode ViewMode { get; private set; } = BrowserViewMode.Preview;
+
+    /// <summary>Applies presentation in place without repopulating, querying, or touching Preview identity.</summary>
+    public void SetViewMode(BrowserViewMode mode)
+    {
+        ViewMode = mode;
+        foreach (var tile in _allTiles) tile.SetViewMode(mode);
+    }
+
     /// <summary>Thumbnail-capable assets in the authoritative current folder/effective recursive scope.
     /// Deliberately reads the unfiltered candidate set so search/filter presentation cannot narrow a
     /// folder-wide maintenance action.</summary>
@@ -550,6 +572,9 @@ internal sealed class BrowserGridModel
 
     public void ApplyAssetStateFlag(Guid assetId, BrowserAssetState flag, bool enabled)
     {
+        var flagValue = (int)flag;
+        if (flagValue == 0 || (flagValue & (flagValue - 1)) != 0)
+            throw new ArgumentOutOfRangeException(nameof(flag), "A live Browser state update must target exactly one flag.");
         if (!_tilesByAsset.TryGetValue(assetId, out var tile)) return;
         tile.SetAssetState(enabled ? tile.AssetState | flag : tile.AssetState & ~flag);
     }

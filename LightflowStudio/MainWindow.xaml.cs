@@ -335,6 +335,7 @@ public partial class MainWindow : Window
             ? BrowserGridLayout.ThumbnailSizeFromLevel(level)
             : BrowserGridLayout.DefaultThumbnailSize;
         ApplyBrowserThumbnailSize(savedThumbnailSize);
+        ApplyBrowserViewMode(_workspaceState.GetBrowserViewMode(), persist: false);
     }
 
     /// <summary>
@@ -1206,6 +1207,8 @@ public partial class MainWindow : Window
         BrowserThumbnailSizeIncreaseButton.IsEnabled = (int)size < BrowserGridLayout.ThumbnailSizes.Count - 1;
         Resources["BrowserTileWidth"] = BrowserGridLayout.TileWidthFor(size);
         Resources["BrowserTileThumbnailHeight"] = BrowserGridLayout.ThumbnailAreaHeightFor(size);
+        Resources["BrowserTileInfoPreviewHeight"] = Math.Max(48, BrowserGridLayout.ThumbnailAreaHeightFor(size) - 30);
+        Resources["BrowserStateIconSpacing"] = new Thickness(0, 0, size == BrowserThumbnailSize.Small ? 3 : 7, 0);
         UpdateBrowserGridColumns();
     }
 
@@ -1395,10 +1398,7 @@ public partial class MainWindow : Window
             await _storage.AssetColors.SetStageAsync(ids, stage, lutId);
             var committed = await _storage.AssetColors.GetAsync(ids);
             foreach (var id in ids)
-            {
-                _browserAssetStateRevisions[id] = ++_browserAssetStateRevision;
-                _browserGrid.ApplyAssetStateFlag(id, BrowserAssetState.Color, committed[id].HasColor);
-            }
+                ApplyCommittedBrowserAssetStateFlag(id, BrowserAssetState.Color, committed[id].HasColor);
             await RefreshBrowserColorSelectorsAsync();
             _ = RegenerateColorThumbnailsAsync(ids);
         }
@@ -1499,18 +1499,44 @@ public partial class MainWindow : Window
         _playerViewerHost.SubclipsDrawerStateRequested += (_, request) =>
             SetRightDrawer(request.Open ? RightDrawerKind.Subclips : RightDrawerKind.None);
         _playerViewerHost.RangeStateChanged += (_, change) =>
-        {
-            _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
-            _browserGrid.ApplyAssetState(change.AssetId, change.HasSavedRange
-                ? BrowserAssetState.ReviewRange : BrowserAssetState.None);
-        };
+            ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.ReviewRange, change.HasSavedRange);
         _playerViewerHost.ColorStateChanged += (_, change) =>
         {
-            _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
-            _browserGrid.ApplyAssetStateFlag(change.AssetId, BrowserAssetState.Color, change.HasColor);
+            ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Color, change.HasColor);
             _ = RegenerateColorThumbnailsAsync([change.AssetId]);
         };
+        _playerViewerHost.SubclipStateChanged += (_, change) =>
+            ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Subclips, change.HasSubclips);
         BrowserPlayerHost.Content = _playerViewerHost;
+    }
+
+    /// <summary>
+    /// Publishes one already-committed durable property without replacing unrelated Browser state. Advancing
+    /// the per-asset revision before applying the flag also prevents any older in-flight full projection
+    /// from overwriting this newer truth when it completes.
+    /// </summary>
+    private void ApplyCommittedBrowserAssetStateFlag(Guid assetId, BrowserAssetState flag, bool enabled)
+    {
+        _browserAssetStateRevisions[assetId] = ++_browserAssetStateRevision;
+        _browserGrid.ApplyAssetStateFlag(assetId, flag, enabled);
+    }
+
+    private void BrowserViewMode_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton { Tag: string value } && Enum.TryParse<BrowserViewMode>(value, out var mode))
+            ApplyBrowserViewMode(mode, persist: true);
+    }
+
+    private void ApplyBrowserViewMode(BrowserViewMode mode, bool persist)
+    {
+        _browserGrid.SetViewMode(mode);
+        BrowserPreviewViewButton.IsChecked = mode == BrowserViewMode.Preview;
+        BrowserInfoViewButton.IsChecked = mode == BrowserViewMode.Info;
+        BrowserHybridViewButton.IsChecked = mode == BrowserViewMode.Hybrid;
+        if (!persist) return;
+        _workspaceState.SetBrowserViewMode(mode);
+        _workspaceSaveTimer.Stop();
+        _workspaceSaveTimer.Start();
     }
 
     private void SetBrowserPresentationMode(BrowserPresentationMode mode)

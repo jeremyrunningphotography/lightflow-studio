@@ -7,7 +7,8 @@ internal enum BrowserAssetState
 {
     None = 0,
     ReviewRange = 1,
-    Color = 2
+    Color = 2,
+    Subclips = 4
 }
 
 internal static class BrowserAssetStateRevisionPolicy
@@ -67,6 +68,15 @@ internal sealed class CatalogBrowserAssetStateStore(Func<CatalogDatabaseSession?
                 using var colorReader = command.ExecuteReader();
                 while (colorReader.Read() && Guid.TryParse(colorReader.GetString(0), out var colorAssetId))
                     states[colorAssetId] |= BrowserAssetState.Color;
+                colorReader.Close();
+
+                command.Parameters.Clear();
+                parameters = batch.Select((id, index) =>
+                { var name = $"$subclip{index}"; command.Parameters.AddWithValue(name, id.ToString("D")); return name; }).ToArray();
+                command.CommandText = $"SELECT DISTINCT AssetId FROM Subclips WHERE AssetId IN ({string.Join(',', parameters)});";
+                using var subclipReader = command.ExecuteReader();
+                while (subclipReader.Read() && Guid.TryParse(subclipReader.GetString(0), out var subclipAssetId))
+                    states[subclipAssetId] |= BrowserAssetState.Subclips;
             }
             return states;
         }, cancellationToken);

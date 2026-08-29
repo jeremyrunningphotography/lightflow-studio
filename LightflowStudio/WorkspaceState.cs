@@ -54,6 +54,9 @@ internal sealed record WorkspaceLayoutState
     /// "no preference saved yet"; the Browser falls back to <see cref="BrowserGridLayout.DefaultThumbnailSize"/>.
     /// </summary>
     public int? BrowserThumbnailSizeLevel { get; init; }
+
+    /// <summary>#161: one global Browser presentation preference, stored beside Preview size.</summary>
+    public int? BrowserViewMode { get; init; }
 }
 
 /// <summary>Versioned, tolerant root document for per-user/per-machine workspace UI state. Never Catalog or Preview data.</summary>
@@ -130,9 +133,11 @@ internal sealed record WorkspaceState
         var thumbnailSizeLevel = layout.BrowserThumbnailSizeLevel is { } level
             ? Math.Clamp(level, 0, BrowserGridLayout.ThumbnailSizes.Count - 1)
             : (int?)null;
+        var browserViewMode = layout.BrowserViewMode is { } mode && Enum.IsDefined((BrowserViewMode)mode)
+            ? mode : (int?)null;
         return layout with { BrowserLocationsPaneWidth = paneWidth, JobsDrawerWidth = jobsDrawerWidth,
             FullJobsListPaneWidth = fullJobsListPaneWidth,
-            BrowserThumbnailSizeLevel = thumbnailSizeLevel };
+            BrowserThumbnailSizeLevel = thumbnailSizeLevel, BrowserViewMode = browserViewMode };
     }
 }
 
@@ -227,6 +232,12 @@ internal sealed class WorkspaceStateService
 
     public void SetBrowserThumbnailSizeLevel(int level) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { BrowserThumbnailSizeLevel = level } };
+
+    public BrowserViewMode GetBrowserViewMode() => _current.Layout?.BrowserViewMode is { } mode &&
+        Enum.IsDefined((BrowserViewMode)mode) ? (BrowserViewMode)mode : BrowserViewMode.Preview;
+
+    public void SetBrowserViewMode(BrowserViewMode mode) =>
+        _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { BrowserViewMode = (int)mode } };
 
     /// <summary>Writes the current in-memory document atomically. Never throws: a failed save must not disrupt shutdown or navigation.</summary>
     public void Save()

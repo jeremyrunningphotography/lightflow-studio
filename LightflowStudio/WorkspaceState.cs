@@ -54,14 +54,9 @@ internal sealed record WorkspaceLayoutState
     /// "no preference saved yet"; the Browser falls back to <see cref="BrowserGridLayout.DefaultThumbnailSize"/>.
     /// </summary>
     public int? BrowserThumbnailSizeLevel { get; init; }
-}
 
-/// <summary>Presentation-only view choice for one stable Catalog folder identity.</summary>
-internal sealed record WorkspaceBrowserFolderViewState
-{
-    public Guid RootId { get; init; }
-    public string RelativeFolder { get; init; } = "";
-    public BrowserViewMode ViewMode { get; init; } = BrowserViewMode.Preview;
+    /// <summary>#161: one global Browser presentation preference, stored beside Preview size.</summary>
+    public int? BrowserViewMode { get; init; }
 }
 
 /// <summary>Versioned, tolerant root document for per-user/per-machine workspace UI state. Never Catalog or Preview data.</summary>
@@ -81,7 +76,6 @@ internal sealed record WorkspaceState
     public WorkspaceBrowserLocationState? Browser { get; init; }
     public WorkspaceWindowState? Window { get; init; }
     public WorkspaceLayoutState? Layout { get; init; }
-    public IReadOnlyList<WorkspaceBrowserFolderViewState> BrowserFolderViews { get; init; } = [];
 
     public static WorkspaceState Empty { get; } = new();
 
@@ -94,27 +88,8 @@ internal sealed record WorkspaceState
             Version = CurrentVersion,
             Browser = NormalizeBrowser(state.Browser),
             Window = NormalizeWindow(state.Window),
-            Layout = NormalizeLayout(state.Layout),
-            BrowserFolderViews = NormalizeBrowserFolderViews(state.BrowserFolderViews)
+            Layout = NormalizeLayout(state.Layout)
         };
-    }
-
-    private static IReadOnlyList<WorkspaceBrowserFolderViewState> NormalizeBrowserFolderViews(
-        IReadOnlyList<WorkspaceBrowserFolderViewState>? views)
-    {
-        if (views is null) return [];
-        var normalized = new Dictionary<(Guid RootId, string RelativeFolder), WorkspaceBrowserFolderViewState>();
-        foreach (var view in views)
-        {
-            if (view.RootId == Guid.Empty || !Enum.IsDefined(view.ViewMode)) continue;
-            try
-            {
-                var relative = view.RelativeFolder.Length == 0 ? "" : MediaPathSemantics.NormalizeRelativePath(view.RelativeFolder);
-                normalized[(view.RootId, relative.ToUpperInvariant())] = view with { RelativeFolder = relative };
-            }
-            catch (ArgumentException) { }
-        }
-        return normalized.Values.ToArray();
     }
 
     private static WorkspaceBrowserLocationState? NormalizeBrowser(WorkspaceBrowserLocationState? browser)
@@ -158,9 +133,11 @@ internal sealed record WorkspaceState
         var thumbnailSizeLevel = layout.BrowserThumbnailSizeLevel is { } level
             ? Math.Clamp(level, 0, BrowserGridLayout.ThumbnailSizes.Count - 1)
             : (int?)null;
+        var browserViewMode = layout.BrowserViewMode is { } mode && Enum.IsDefined((BrowserViewMode)mode)
+            ? mode : (int?)null;
         return layout with { BrowserLocationsPaneWidth = paneWidth, JobsDrawerWidth = jobsDrawerWidth,
             FullJobsListPaneWidth = fullJobsListPaneWidth,
-            BrowserThumbnailSizeLevel = thumbnailSizeLevel };
+            BrowserThumbnailSizeLevel = thumbnailSizeLevel, BrowserViewMode = browserViewMode };
     }
 }
 
@@ -256,21 +233,11 @@ internal sealed class WorkspaceStateService
     public void SetBrowserThumbnailSizeLevel(int level) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { BrowserThumbnailSizeLevel = level } };
 
-    public BrowserViewMode GetBrowserViewMode(Guid rootId, string relativeFolder)
-    {
-        var normalized = relativeFolder.Length == 0 ? "" : MediaPathSemantics.NormalizeRelativePath(relativeFolder);
-        return _current.BrowserFolderViews.FirstOrDefault(view => view.RootId == rootId &&
-            string.Equals(view.RelativeFolder, normalized, StringComparison.OrdinalIgnoreCase))?.ViewMode ?? BrowserViewMode.Preview;
-    }
+    public BrowserViewMode GetBrowserViewMode() => _current.Layout?.BrowserViewMode is { } mode &&
+        Enum.IsDefined((BrowserViewMode)mode) ? (BrowserViewMode)mode : BrowserViewMode.Preview;
 
-    public void SetBrowserViewMode(Guid rootId, string relativeFolder, BrowserViewMode mode)
-    {
-        var normalized = relativeFolder.Length == 0 ? "" : MediaPathSemantics.NormalizeRelativePath(relativeFolder);
-        var views = _current.BrowserFolderViews.Where(view => view.RootId != rootId ||
-            !string.Equals(view.RelativeFolder, normalized, StringComparison.OrdinalIgnoreCase)).ToList();
-        views.Add(new WorkspaceBrowserFolderViewState { RootId = rootId, RelativeFolder = normalized, ViewMode = mode });
-        _current = _current with { BrowserFolderViews = views };
-    }
+    public void SetBrowserViewMode(BrowserViewMode mode) =>
+        _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { BrowserViewMode = (int)mode } };
 
     /// <summary>Writes the current in-memory document atomically. Never throws: a failed save must not disrupt shutdown or navigation.</summary>
     public void Save()

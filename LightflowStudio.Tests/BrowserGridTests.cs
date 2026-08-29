@@ -6,7 +6,7 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserGridTests
 {
     [Fact]
-    public void ViewMode_AppliesInPlaceAndIsInheritedByNewOrRecycledTiles()
+    public void ViewMode_AppliesInPlaceAndSurvivesNavigationOrScopeRepopulation()
     {
         var model = new BrowserGridModel();
         var rootId = Guid.NewGuid();
@@ -19,6 +19,8 @@ public sealed class BrowserGridTests
         Assert.Equal(BrowserViewMode.Info, tile.ViewMode);
         model.Populate([Video(rootId, "clip.mp4"), Video(rootId, "next.mp4")]);
         Assert.All(model.Tiles, item => Assert.Equal(BrowserViewMode.Info, item.ViewMode));
+        model.Populate([Video(Guid.NewGuid(), "different-folder.mp4")]);
+        Assert.Equal(BrowserViewMode.Info, Assert.Single(model.Tiles).ViewMode);
     }
 
     [Fact]

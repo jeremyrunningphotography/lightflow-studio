@@ -335,6 +335,7 @@ public partial class MainWindow : Window
             ? BrowserGridLayout.ThumbnailSizeFromLevel(level)
             : BrowserGridLayout.DefaultThumbnailSize;
         ApplyBrowserThumbnailSize(savedThumbnailSize);
+        ApplyBrowserViewMode(_workspaceState.GetBrowserViewMode(), persist: false);
     }
 
     /// <summary>
@@ -970,8 +971,6 @@ public partial class MainWindow : Window
     private void ApplyBrowserState(BrowserFolderState state)
     {
         _lastLoadedBrowserState = state;
-        if (state.Location is { } viewLocation)
-            ApplyBrowserViewMode(_workspaceState.GetBrowserViewMode(viewLocation.RootId, viewLocation.RelativeFolder), persist: false);
         var scope = state.Location is { } scopeLocation ? (scopeLocation.RootId, scopeLocation.RelativeFolder) : ((Guid, string)?)null;
         // A genuinely new scope (different folder, or navigating away from/into a location entirely) starts
         // sort/filter/search over: the media-area toolbar narrows *the current* scope, not a remembered one.
@@ -1209,6 +1208,7 @@ public partial class MainWindow : Window
         Resources["BrowserTileWidth"] = BrowserGridLayout.TileWidthFor(size);
         Resources["BrowserTileThumbnailHeight"] = BrowserGridLayout.ThumbnailAreaHeightFor(size);
         Resources["BrowserTileInfoPreviewHeight"] = Math.Max(48, BrowserGridLayout.ThumbnailAreaHeightFor(size) - 30);
+        Resources["BrowserStateIconSpacing"] = new Thickness(0, 0, size == BrowserThumbnailSize.Small ? 3 : 7, 0);
         UpdateBrowserGridColumns();
     }
 
@@ -1533,8 +1533,8 @@ public partial class MainWindow : Window
         BrowserPreviewViewButton.IsChecked = mode == BrowserViewMode.Preview;
         BrowserInfoViewButton.IsChecked = mode == BrowserViewMode.Info;
         BrowserHybridViewButton.IsChecked = mode == BrowserViewMode.Hybrid;
-        if (!persist || _lastLoadedBrowserState?.Location is not { } location) return;
-        _workspaceState.SetBrowserViewMode(location.RootId, location.RelativeFolder, mode);
+        if (!persist) return;
+        _workspaceState.SetBrowserViewMode(mode);
         _workspaceSaveTimer.Stop();
         _workspaceSaveTimer.Start();
     }

@@ -1315,6 +1315,15 @@ public class UiLayoutTests
         foreach (var key in new[] { "BrowserReviewRangeIcon", "BrowserSubclipsIcon", "BrowserColorIcon" })
             Assert.Single(document.Descendants(ns + "DataTemplate"), template =>
                 (string?)template.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == key);
+        var spacingStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "BrowserStateIconItemStyle");
+        Assert.Contains(spacingStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Margin" &&
+            (string?)setter.Attribute("Value") == "{DynamicResource BrowserStateIconSpacing}");
+        Assert.DoesNotContain(Named(document, "BrowserHybridStateOverlay").Descendants(ns + "ContentPresenter"),
+            presenter => presenter.Attribute("Margin") is not null);
+        Assert.DoesNotContain(Named(document, "BrowserInfoLowerFrame").Descendants(ns + "ContentPresenter"),
+            presenter => presenter.Attribute("Margin") is not null);
     }
 
     [Fact]

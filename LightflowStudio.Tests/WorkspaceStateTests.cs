@@ -333,19 +333,17 @@ public sealed class WorkspaceStateServiceTests
     }
 
     [Fact]
-    public void BrowserViewMode_PersistsIndependentlyPerStableFolderIdentity()
+    public void BrowserViewMode_IsOneGlobalLayoutPreferenceIndependentOfBrowserLocation()
     {
         var path = Path.Combine(Path.GetTempPath(), $"LightflowStudio-workspace-{Guid.NewGuid():N}", "workspace-state.json");
         var service = new WorkspaceStateService(path, WorkspaceState.Empty);
-        var rootId = Guid.NewGuid();
-
-        service.SetBrowserViewMode(rootId, "Trips/One", BrowserViewMode.Info);
-        service.SetBrowserViewMode(rootId, "Trips/Two", BrowserViewMode.Hybrid);
-
-        Assert.Equal(BrowserViewMode.Info, service.GetBrowserViewMode(rootId, "trips\\one"));
-        Assert.Equal(BrowserViewMode.Hybrid, service.GetBrowserViewMode(rootId, "Trips/Two"));
-        Assert.Equal(BrowserViewMode.Preview, service.GetBrowserViewMode(rootId, "Trips/Three"));
-        Assert.Equal(2, service.Current.BrowserFolderViews.Count);
+        service.SetBrowserViewMode(BrowserViewMode.Info);
+        service.SetBrowserLocation(Guid.NewGuid(), "Trips/One", @"D:\Trips\One");
+        Assert.Equal(BrowserViewMode.Info, service.GetBrowserViewMode());
+        service.SetBrowserLocation(Guid.NewGuid(), "Other", @"E:\Other");
+        Assert.Equal(BrowserViewMode.Info, service.GetBrowserViewMode());
+        service.SetBrowserViewMode(BrowserViewMode.Hybrid);
+        Assert.Equal((int)BrowserViewMode.Hybrid, service.Current.Layout!.BrowserViewMode);
     }
 
     [Fact]
@@ -359,15 +357,35 @@ public sealed class WorkspaceStateServiceTests
             var service = new WorkspaceStateService(path, WorkspaceState.Empty);
             service.SetBrowserLocation(rootId, "Trips", @"D:\Trips");
             service.SetBrowserThumbnailSizeLevel((int)BrowserThumbnailSize.Large);
-            service.SetBrowserViewMode(rootId, "Trips", BrowserViewMode.Hybrid);
+            service.SetBrowserViewMode(BrowserViewMode.Hybrid);
             service.Save();
 
             var loaded = new WorkspaceStateService(path);
-            Assert.Equal(BrowserViewMode.Hybrid, loaded.GetBrowserViewMode(rootId, "Trips"));
+            Assert.Equal(BrowserViewMode.Hybrid, loaded.GetBrowserViewMode());
             Assert.Equal("Trips", loaded.Current.Browser!.RelativeFolder);
             Assert.Equal((int)BrowserThumbnailSize.Large, loaded.Current.Layout!.BrowserThumbnailSizeLevel);
         }
         finally { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(-1)]
+    [InlineData(99)]
+    public void BrowserViewMode_MissingOrInvalidPersistedValueDefaultsSafelyToPreview(int? persisted)
+    {
+        var state = WorkspaceState.Normalize(new WorkspaceState
+        {
+            Layout = new WorkspaceLayoutState
+            {
+                BrowserThumbnailSizeLevel = (int)BrowserThumbnailSize.ExtraLarge,
+                BrowserViewMode = persisted
+            }
+        });
+        var service = new WorkspaceStateService("unused.json", state);
+
+        Assert.Equal(BrowserViewMode.Preview, service.GetBrowserViewMode());
+        Assert.Equal((int)BrowserThumbnailSize.ExtraLarge, service.Current.Layout!.BrowserThumbnailSizeLevel);
     }
 
     [Fact]

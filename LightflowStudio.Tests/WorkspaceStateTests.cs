@@ -333,6 +333,44 @@ public sealed class WorkspaceStateServiceTests
     }
 
     [Fact]
+    public void BrowserViewMode_PersistsIndependentlyPerStableFolderIdentity()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"LightflowStudio-workspace-{Guid.NewGuid():N}", "workspace-state.json");
+        var service = new WorkspaceStateService(path, WorkspaceState.Empty);
+        var rootId = Guid.NewGuid();
+
+        service.SetBrowserViewMode(rootId, "Trips/One", BrowserViewMode.Info);
+        service.SetBrowserViewMode(rootId, "Trips/Two", BrowserViewMode.Hybrid);
+
+        Assert.Equal(BrowserViewMode.Info, service.GetBrowserViewMode(rootId, "trips\\one"));
+        Assert.Equal(BrowserViewMode.Hybrid, service.GetBrowserViewMode(rootId, "Trips/Two"));
+        Assert.Equal(BrowserViewMode.Preview, service.GetBrowserViewMode(rootId, "Trips/Three"));
+        Assert.Equal(2, service.Current.BrowserFolderViews.Count);
+    }
+
+    [Fact]
+    public void BrowserViewMode_SaveAndLoadRoundTripsWithoutChangingLayoutOrCurrentFolder()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"LightflowStudio-workspace-{Guid.NewGuid():N}");
+        var path = Path.Combine(folder, "workspace-state.json");
+        try
+        {
+            var rootId = Guid.NewGuid();
+            var service = new WorkspaceStateService(path, WorkspaceState.Empty);
+            service.SetBrowserLocation(rootId, "Trips", @"D:\Trips");
+            service.SetBrowserThumbnailSizeLevel((int)BrowserThumbnailSize.Large);
+            service.SetBrowserViewMode(rootId, "Trips", BrowserViewMode.Hybrid);
+            service.Save();
+
+            var loaded = new WorkspaceStateService(path);
+            Assert.Equal(BrowserViewMode.Hybrid, loaded.GetBrowserViewMode(rootId, "Trips"));
+            Assert.Equal("Trips", loaded.Current.Browser!.RelativeFolder);
+            Assert.Equal((int)BrowserThumbnailSize.Large, loaded.Current.Layout!.BrowserThumbnailSizeLevel);
+        }
+        finally { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+    }
+
+    [Fact]
     public void Save_PersistsTheCurrentInMemoryDocumentAndNeverThrowsWhenTheDirectoryIsUnwritable()
     {
         var folder = Path.Combine(Path.GetTempPath(), $"LightflowStudio-workspace-{Guid.NewGuid():N}");

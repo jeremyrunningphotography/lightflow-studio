@@ -318,7 +318,7 @@ public sealed class CatalogDatabaseTests : IDisposable
     }
 
     [Fact]
-    public async Task BrowserAssetStateStore_ProjectsSavedRangesForRequestedAssetsAndClearsThem()
+    public async Task BrowserAssetStateStore_ProjectsRangeAndSubclipPresenceAndClearsOnlyCommittedFacts()
     {
         var result = await CreateService().CreateNewAsync();
         var session = result.Session!;
@@ -327,16 +327,24 @@ public sealed class CatalogDatabaseTests : IDisposable
         var unmarked = InsertAsset(session, rootId, "unmarked.mp4", "unmarked.mp4");
         var ranges = new CatalogMediaRangeStore(() => session);
         var states = new CatalogBrowserAssetStateStore(() => session);
+        var subclips = new CatalogSubclipService(() => session);
         await ranges.SaveAsync(marked, new MediaRange(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5)));
+        var subclip = (await subclips.CreateAsync(marked,
+            new MediaRange(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(9)))).Subclip;
 
         var projected = await states.GetAsync([marked, unmarked]);
 
-        Assert.Equal(BrowserAssetState.ReviewRange, projected[marked]);
+        Assert.Equal(BrowserAssetState.ReviewRange | BrowserAssetState.Subclips, projected[marked]);
         Assert.Equal(BrowserAssetState.None, projected[unmarked]);
 
         await ranges.SaveAsync(marked, null);
         projected = await states.GetAsync([marked]);
-        Assert.Equal(BrowserAssetState.None, projected[marked]);
+        Assert.Equal(BrowserAssetState.Subclips, projected[marked]);
+        await subclips.RenameAsync(subclip.SubclipId, subclip.Revision, "Renamed");
+        Assert.Equal(BrowserAssetState.Subclips, (await states.GetAsync([marked]))[marked]);
+        var renamed = Assert.Single(await subclips.ListAsync(marked));
+        await subclips.DeleteAsync(renamed.SubclipId, renamed.Revision);
+        Assert.Equal(BrowserAssetState.None, (await states.GetAsync([marked]))[marked]);
         await session.DisposeAsync();
     }
 

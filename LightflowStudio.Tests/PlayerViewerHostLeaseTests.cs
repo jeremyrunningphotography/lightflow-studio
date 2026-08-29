@@ -646,6 +646,8 @@ public sealed class PlayerViewerHostLeaseTests
             var subclips = new FakeSubclipService();
             var host = new PlayerViewerHost(coordinator, new FakeRangeStore(new(TimeSpan.FromSeconds(60),
                 TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2))), subclips);
+            var stateChanges = new List<SubclipStateChangedEventArgs>();
+            host.SubclipStateChanged += (_, change) => stateChanges.Add(change);
             var window = new Window { Content = host };
             window.Show();
             await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, assetId),
@@ -656,6 +658,7 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(0, host.SubclipsPanel.ActualWidth);
             Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
             await WaitUntilAsync(() => host.SubclipsList.Items.Count == 1, "created Subclip");
+            Assert.Contains(stateChanges, change => change.AssetId == assetId && change.HasSubclips);
             Assert.Equal(Visibility.Visible, host.SubclipsPanel.Visibility);
             var existingId = ((SubclipPanelItem)host.SubclipsList.Items[0]).SubclipId;
             Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);

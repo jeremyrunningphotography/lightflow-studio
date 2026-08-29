@@ -6,12 +6,14 @@ namespace LightflowStudio.Tests;
 public class UiLayoutTests
 {
     [Fact]
-    public void BrowserTiles_ExposeIndependentColorAndTransientThumbnailWorkingIndicators()
+    public void BrowserTiles_ExposeIndependentDurableIconsAndTransientThumbnailWorkingIndicator()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
-        var color = Named(document, "BrowserColorStateMarker");
+        var hybrid = Named(document, "BrowserHybridStateOverlay");
         var working = Named(document, "BrowserThumbnailWorkingIndicator");
-        Assert.Contains("HasColorState", (string?)color.Attribute("Visibility"));
+        Assert.Contains(hybrid.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasReviewRange") == true);
+        Assert.Contains(hybrid.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasSubclips") == true);
+        Assert.Contains(hybrid.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasColorState") == true);
         Assert.Contains("IsThumbnailGenerating", (string?)working.Attribute("Visibility"));
         Assert.Equal("True", (string?)working.Attribute("IsIndeterminate"));
         Assert.NotNull(working.Ancestors().FirstOrDefault(element => element.Name.LocalName == "Grid")?
@@ -19,20 +21,16 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserColorIndicator_IsCompactMulticolorWheelWithSelectionBorder()
+    public void BrowserColorIcon_IsSharedMulticolorVectorVocabulary()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
-        var marker = Named(document, "BrowserColorStateMarker");
+        var marker = document.Descendants().Single(element =>
+            (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "BrowserColorIcon");
         var fills = marker.Descendants().Where(element => element.Name.LocalName == "Path")
             .Select(element => (string?)element.Attribute("Fill")).Where(value => value is not null).Distinct().ToArray();
         Assert.True(fills.Length >= 6);
         Assert.Contains(marker.Descendants(), element => element.Name.LocalName == "EllipseGeometry");
-        var selectionTrigger = marker.Descendants().Single(element => element.Name.LocalName == "DataTrigger" &&
-            ((string?)element.Attribute("Binding"))?.Contains("IsSelected", StringComparison.Ordinal) == true);
-        Assert.Equal("#FF000000", (string?)selectionTrigger.Descendants().Single(element =>
-            element.Name.LocalName == "Setter" && (string?)element.Attribute("Property") == "BorderBrush").Attribute("Value"));
-        Assert.Contains("#8FA5ABB3", marker.Descendants().Where(element => element.Name.LocalName == "Setter" &&
-            (string?)element.Attribute("Property") == "BorderBrush").Select(element => (string?)element.Attribute("Value")));
+        Assert.Contains(marker.Descendants(), element => (string?)element.Attribute("AutomationProperties.Name") == "Color Applied");
     }
     [Fact]
     public void BrowserWorkspace_ExposesFilesystemFirstNavigationAndMediaGrid()
@@ -1175,7 +1173,10 @@ public class UiLayoutTests
         var slider = Named(document, "BrowserThumbnailSizeSlider");
         var increaseButton = Named(document, "BrowserThumbnailSizeIncreaseButton");
 
-        Assert.Equal([regenerate, decreaseButton, slider, increaseButton], presentationControls.Elements());
+        var elements = presentationControls.Elements().ToList();
+        var regenerateIndex = elements.IndexOf(regenerate);
+        Assert.True(regenerateIndex >= 0);
+        Assert.Equal([regenerate, decreaseButton, slider, increaseButton], elements.Skip(regenerateIndex).Take(4));
     }
 
     [Fact]
@@ -1293,36 +1294,27 @@ public class UiLayoutTests
         var tileTemplate = document.Descendants(ns + "DataTemplate")
             .Single(template => (string?)template.Attribute("DataType") == "{x:Type local:BrowserGridTile}");
         var tileBorder = tileTemplate.Elements(ns + "Border").Single();
-        var thumbnailBorder = tileBorder.Descendants(ns + "Border").First();
+        var thumbnailBorder = Named(document, "BrowserPreviewSurface");
 
         Assert.Equal("{DynamicResource BrowserTileWidth}", (string?)tileBorder.Attribute("Width"));
-        Assert.Equal("{DynamicResource BrowserTileThumbnailHeight}", (string?)thumbnailBorder.Attribute("Height"));
+        Assert.Contains(thumbnailBorder.Descendants(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Height" &&
+            (string?)setter.Attribute("Value") == "{DynamicResource BrowserTileThumbnailHeight}");
     }
 
     [Fact]
-    public void BrowserAssetStateMarker_IsCompactVectorNeutralByDefaultAndOrangeWithTileSelection()
+    public void BrowserViewModes_UseInfoFramesHybridOverlayAndSharedDistinctVectorIcons()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
-        var marker = Named(document, "BrowserAssetStateMarker");
-
-        Assert.Equal("14", (string?)marker.Attribute("Width"));
-        Assert.Equal("14", (string?)marker.Attribute("Height"));
-        Assert.Equal("{Binding AssetStateLabel}", (string?)marker.Attribute("ToolTip"));
-        Assert.Equal("{Binding AssetStateLabel}", (string?)marker.Attribute("AutomationProperties.Name"));
-
-        var style = marker.Descendants(ns + "Style").Single();
-        Assert.Contains(style.Elements(ns + "Setter"), setter =>
-            (string?)setter.Attribute("Property") == "Background" &&
-            (string?)setter.Attribute("Value") == "{StaticResource MutedTextBrush}");
-        var selected = style.Descendants(ns + "DataTrigger").Single(trigger =>
-            (string?)trigger.Attribute("Binding") == "{Binding IsSelected}" &&
-            (string?)trigger.Attribute("Value") == "True");
-        Assert.Contains(selected.Elements(ns + "Setter"), setter =>
-            (string?)setter.Attribute("Property") == "Background" &&
-            (string?)setter.Attribute("Value") == "{StaticResource ShellFocusBrush}");
-        Assert.Single(marker.Elements(ns + "Path"));
-        Assert.Empty(marker.Elements(ns + "TextBlock"));
+        Assert.NotNull(Named(document, "BrowserInfoUpperFrame"));
+        Assert.NotNull(Named(document, "BrowserInfoLowerFrame"));
+        Assert.NotNull(Named(document, "BrowserHybridStateOverlay"));
+        Assert.Equal(3, new[] { "BrowserPreviewViewButton", "BrowserInfoViewButton", "BrowserHybridViewButton" }
+            .Count(name => Named(document, name).Name == ns + "ToggleButton"));
+        foreach (var key in new[] { "BrowserReviewRangeIcon", "BrowserSubclipsIcon", "BrowserColorIcon" })
+            Assert.Single(document.Descendants(ns + "DataTemplate"), template =>
+                (string?)template.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == key);
     }
 
     [Fact]

@@ -6,6 +6,41 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserGridTests
 {
     [Fact]
+    public void ViewMode_AppliesInPlaceAndIsInheritedByNewOrRecycledTiles()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([Video(rootId, "clip.mp4")]);
+        var tile = Assert.Single(model.Tiles);
+
+        model.SetViewMode(BrowserViewMode.Info);
+
+        Assert.Same(tile, Assert.Single(model.Tiles));
+        Assert.Equal(BrowserViewMode.Info, tile.ViewMode);
+        model.Populate([Video(rootId, "clip.mp4"), Video(rootId, "next.mp4")]);
+        Assert.All(model.Tiles, item => Assert.Equal(BrowserViewMode.Info, item.ViewMode));
+    }
+
+    [Fact]
+    public void DurableStateFlags_RemainIndependentAndExposeDistinctLabels()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        var entry = Video(rootId, "clip.mp4");
+        var assetId = Guid.NewGuid();
+        model.Populate([entry]);
+        model.ApplyAssetIdentities([new(assetId, entry.RelativePath, CatalogReconciliationItemStatus.New)]);
+
+        model.ApplyAssetState(assetId, BrowserAssetState.ReviewRange | BrowserAssetState.Subclips | BrowserAssetState.Color);
+
+        var tile = Assert.Single(model.Tiles);
+        Assert.True(tile.HasReviewRange);
+        Assert.True(tile.HasSubclips);
+        Assert.True(tile.HasColorState);
+        Assert.Equal("In/Out Range; Saved Subclips; Color Applied", tile.AssetStateLabel);
+    }
+
+    [Fact]
     public void TileColorAndWorkingState_AreIndependentAndPreserveThumbnail()
     {
         var model = new BrowserGridModel();
@@ -289,7 +324,7 @@ public sealed class BrowserGridTests
         var tileA = model.Tiles.Single(tile => tile.Name == "a.jpg");
         var tileB = model.Tiles.Single(tile => tile.Name == "b.jpg");
         Assert.True(tileA.HasUserAuthoredState);
-        Assert.Equal("Saved In/Out range", tileA.AssetStateLabel);
+        Assert.Equal("In/Out Range", tileA.AssetStateLabel);
         Assert.Equal(@"C:\previews\a.jpg", tileA.ThumbnailPath);
         Assert.False(tileB.HasUserAuthoredState);
     }

@@ -970,6 +970,8 @@ public partial class MainWindow : Window
     private void ApplyBrowserState(BrowserFolderState state)
     {
         _lastLoadedBrowserState = state;
+        if (state.Location is { } viewLocation)
+            ApplyBrowserViewMode(_workspaceState.GetBrowserViewMode(viewLocation.RootId, viewLocation.RelativeFolder), persist: false);
         var scope = state.Location is { } scopeLocation ? (scopeLocation.RootId, scopeLocation.RelativeFolder) : ((Guid, string)?)null;
         // A genuinely new scope (different folder, or navigating away from/into a location entirely) starts
         // sort/filter/search over: the media-area toolbar narrows *the current* scope, not a remembered one.
@@ -1206,6 +1208,7 @@ public partial class MainWindow : Window
         BrowserThumbnailSizeIncreaseButton.IsEnabled = (int)size < BrowserGridLayout.ThumbnailSizes.Count - 1;
         Resources["BrowserTileWidth"] = BrowserGridLayout.TileWidthFor(size);
         Resources["BrowserTileThumbnailHeight"] = BrowserGridLayout.ThumbnailAreaHeightFor(size);
+        Resources["BrowserTileInfoPreviewHeight"] = Math.Max(48, BrowserGridLayout.ThumbnailAreaHeightFor(size) - 30);
         UpdateBrowserGridColumns();
     }
 
@@ -1510,7 +1513,30 @@ public partial class MainWindow : Window
             _browserGrid.ApplyAssetStateFlag(change.AssetId, BrowserAssetState.Color, change.HasColor);
             _ = RegenerateColorThumbnailsAsync([change.AssetId]);
         };
+        _playerViewerHost.SubclipStateChanged += (_, change) =>
+        {
+            _browserAssetStateRevisions[change.AssetId] = ++_browserAssetStateRevision;
+            _browserGrid.ApplyAssetStateFlag(change.AssetId, BrowserAssetState.Subclips, change.HasSubclips);
+        };
         BrowserPlayerHost.Content = _playerViewerHost;
+    }
+
+    private void BrowserViewMode_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton { Tag: string value } && Enum.TryParse<BrowserViewMode>(value, out var mode))
+            ApplyBrowserViewMode(mode, persist: true);
+    }
+
+    private void ApplyBrowserViewMode(BrowserViewMode mode, bool persist)
+    {
+        _browserGrid.SetViewMode(mode);
+        BrowserPreviewViewButton.IsChecked = mode == BrowserViewMode.Preview;
+        BrowserInfoViewButton.IsChecked = mode == BrowserViewMode.Info;
+        BrowserHybridViewButton.IsChecked = mode == BrowserViewMode.Hybrid;
+        if (!persist || _lastLoadedBrowserState?.Location is not { } location) return;
+        _workspaceState.SetBrowserViewMode(location.RootId, location.RelativeFolder, mode);
+        _workspaceSaveTimer.Stop();
+        _workspaceSaveTimer.Start();
     }
 
     private void SetBrowserPresentationMode(BrowserPresentationMode mode)

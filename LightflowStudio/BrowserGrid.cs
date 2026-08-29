@@ -219,7 +219,7 @@ internal sealed class BrowserGridRow(IReadOnlyList<BrowserGridTile> tiles)
 /// </summary>
 internal enum BrowserThumbnailSize { Small, Medium, Large, ExtraLarge, Huge, Maximum }
 
-/// <summary>Folder-scoped Browser presentation intent. It changes tile composition only.</summary>
+/// <summary>Global Browser presentation intent. It changes tile composition only.</summary>
 internal enum BrowserViewMode { Preview, Info, Hybrid }
 
 /// <summary>

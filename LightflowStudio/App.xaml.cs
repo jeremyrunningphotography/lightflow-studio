@@ -37,7 +37,11 @@ public partial class App : System.Windows.Application
         _applicationInstance = new WindowsApplicationInstanceCoordinator();
         _applicationInstance.LaunchRequested += request => Dispatcher.Invoke(() =>
         {
-            if (MainWindow is MainWindow mainWindow) mainWindow.ActivateFromLaunch(request);
+            if (MainWindow is MainWindow mainWindow)
+            {
+                ActivityLog.TryAppend("[App] Received a secondary launch request; activating the existing window.");
+                mainWindow.ActivateFromLaunch(request);
+            }
         });
         var instance = _applicationInstance.StartOrSignal(ApplicationLaunchRequest.Current(e.Args));
         if (instance.Status != ApplicationInstanceStatus.Primary)

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -6,6 +7,7 @@ namespace LightflowStudio;
 public partial class App : System.Windows.Application
 {
     private readonly UnexpectedInterfaceErrorGate _unexpectedInterfaceErrorGate = new();
+    private IApplicationInstanceCoordinator? _applicationInstance;
     internal static ActivityLogFile ActivityLog { get; private set; } = null!;
     internal LightflowStorageCoordinator? Storage { get; private set; }
     internal static MediaPlaybackCoordinator Playback { get; } = new(() =>
@@ -29,6 +31,36 @@ public partial class App : System.Windows.Application
             base.OnStartup(e);
             var verified = CatalogPackageRuntimeVerifier.VerifyAsync().GetAwaiter().GetResult();
             Shutdown(verified ? 0 : 1);
+            return;
+        }
+
+        _applicationInstance = new WindowsApplicationInstanceCoordinator();
+        _applicationInstance.LaunchRequested += request => Dispatcher.BeginInvoke(() =>
+        {
+            if (MainWindow is MainWindow mainWindow) mainWindow.ActivateFromLaunch(request);
+        });
+        var instance = _applicationInstance.StartOrSignal(ApplicationLaunchRequest.Current(e.Args));
+        if (instance.Status != ApplicationInstanceStatus.Primary)
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            base.OnStartup(e);
+            if (instance.Status == ApplicationInstanceStatus.ExistingInstanceActivationFailed)
+            {
+                Trace.WriteLine(instance.Diagnostic);
+                var bootstrapLog = BootstrapDiagnostics.TryWrite(instance.Diagnostic!);
+                var diagnostic = bootstrapLog is null
+                    ? instance.Diagnostic
+                    : $"{instance.Diagnostic}\n\nDiagnostic details were written to:\n{bootstrapLog}";
+                System.Windows.MessageBox.Show(diagnostic, "Lightflow Studio",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                _applicationInstance.Dispose();
+                _applicationInstance = null;
+                Shutdown(1);
+                return;
+            }
+            _applicationInstance.Dispose();
+            _applicationInstance = null;
+            Shutdown(0);
             return;
         }
 
@@ -67,6 +99,17 @@ public partial class App : System.Windows.Application
         MainWindow.Show();
     }
 
+    protected override void OnExit(ExitEventArgs e)
+    {
+        try { base.OnExit(e); }
+        finally
+        {
+            // Keep ownership until every normal Exit handler has finished disposing shared application state.
+            _applicationInstance?.Dispose();
+            _applicationInstance = null;
+        }
+    }
+
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         ActivityLog.TryAppend($"[App] Unhandled UI exception: {e.Exception}");
@@ -89,6 +132,25 @@ public partial class App : System.Windows.Application
     {
         ActivityLog.TryAppend($"[App] Unobserved task exception: {e.Exception}");
         e.SetObserved();
+    }
+}
+
+internal static class BootstrapDiagnostics
+{
+    public static string? TryWrite(string diagnostic)
+    {
+        try
+        {
+            var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+                $"LightflowStudio-startup-{Environment.ProcessId}.log");
+            System.IO.File.WriteAllText(path, $"[{DateTimeOffset.Now:O}] {diagnostic}{Environment.NewLine}");
+            return path;
+        }
+        catch (Exception exception) when (exception is System.IO.IOException or UnauthorizedAccessException)
+        {
+            Trace.WriteLine($"Could not write the Lightflow bootstrap diagnostic: {exception.Message}");
+            return null;
+        }
     }
 }
 

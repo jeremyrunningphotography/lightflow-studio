@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.IO.Pipes;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using Xunit;
 
@@ -7,7 +9,7 @@ namespace LightflowStudio.Tests;
 public sealed class ApplicationInstanceTests
 {
     [Fact]
-    public async Task SecondLaunch_SignalsOwnerWithVersionedArguments_AndNeverBecomesPrimary()
+    public void SecondLaunch_SignalsOwnerWithVersionedArguments_AndNeverBecomesPrimary()
     {
         var identity = UniqueIdentity();
         using var received = new ManualResetEventSlim();
@@ -17,12 +19,23 @@ public sealed class ApplicationInstanceTests
 
         Assert.Equal(ApplicationInstanceStatus.Primary,
             owner.StartOrSignal(ApplicationLaunchRequest.Current([])).Status);
-        var result = await Task.Run(() =>
+        ApplicationInstanceResult? result = null;
+        Exception? signalingException = null;
+        var secondThread = new Thread(() =>
         {
-            using var second = new WindowsApplicationInstanceCoordinator(identity);
-            return second.StartOrSignal(ApplicationLaunchRequest.Current(["future.lightflow"]));
-        });
+            try
+            {
+                using var second = new WindowsApplicationInstanceCoordinator(identity);
+                result = second.StartOrSignal(ApplicationLaunchRequest.Current(["future.lightflow"]));
+            }
+            catch (Exception exception) { signalingException = exception; }
+        }) { IsBackground = true };
+        secondThread.Start();
 
+        Assert.True(secondThread.Join(TimeSpan.FromSeconds(10)), "The simulated second launch did not terminate.");
+        if (signalingException is not null) ExceptionDispatchInfo.Capture(signalingException).Throw();
+
+        Assert.NotNull(result);
         Assert.Equal(ApplicationInstanceStatus.ExistingInstanceActivated, result.Status);
         Assert.True(received.Wait(TimeSpan.FromSeconds(5)));
         Assert.NotNull(forwarded);
@@ -53,10 +66,10 @@ public sealed class ApplicationInstanceTests
         {
             abandoned = new Mutex(true, $"Local\\{identity}", out _);
             acquired.Set();
-        });
+        }) { IsBackground = true };
         thread.Start();
         Assert.True(acquired.Wait(TimeSpan.FromSeconds(5)));
-        thread.Join();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "The simulated abandoned owner did not terminate.");
 
         using var replacement = new WindowsApplicationInstanceCoordinator(identity);
         Assert.Equal(ApplicationInstanceStatus.Primary,
@@ -76,7 +89,7 @@ public sealed class ApplicationInstanceTests
             acquired.Set();
             release.Wait();
             mutex.ReleaseMutex();
-        });
+        }) { IsBackground = true };
         thread.Start();
         Assert.True(acquired.Wait(TimeSpan.FromSeconds(5)));
         try
@@ -89,7 +102,43 @@ public sealed class ApplicationInstanceTests
         finally
         {
             release.Set();
-            thread.Join();
+            Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "The simulated active owner did not terminate.");
+        }
+    }
+
+    [Fact]
+    public void ConnectedOwnerThatNeverAcknowledges_IsBoundedAndFailsSafely()
+    {
+        var identity = UniqueIdentity();
+        using var release = new ManualResetEventSlim();
+        using var listening = new ManualResetEventSlim();
+        var thread = new Thread(() =>
+        {
+            using var mutex = new Mutex(true, $"Local\\{identity}", out _);
+            using var pipe = new NamedPipeServerStream(identity, PipeDirection.InOut, 1,
+                PipeTransmissionMode.Byte, PipeOptions.CurrentUserOnly);
+            listening.Set();
+            pipe.WaitForConnection();
+            release.Wait();
+            mutex.ReleaseMutex();
+        }) { IsBackground = true };
+        thread.Start();
+        Assert.True(listening.Wait(TimeSpan.FromSeconds(5)));
+        try
+        {
+            using var contender = new WindowsApplicationInstanceCoordinator(identity, TimeSpan.FromMilliseconds(100));
+            var stopwatch = Stopwatch.StartNew();
+            var result = contender.StartOrSignal(ApplicationLaunchRequest.Current([]));
+            stopwatch.Stop();
+
+            Assert.Equal(ApplicationInstanceStatus.ExistingInstanceActivationFailed, result.Status);
+            Assert.Contains("did not acknowledge activation in time", result.Diagnostic);
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            release.Set();
+            Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "The unresponsive simulated owner did not terminate.");
         }
     }
 

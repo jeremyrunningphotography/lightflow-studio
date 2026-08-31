@@ -52,6 +52,8 @@ internal sealed class WindowsApplicationInstanceCoordinator : IApplicationInstan
         _mutexName = $"Local\\{identity}";
         _pipeName = identity;
         _connectionTimeout = connectionTimeout ?? TimeSpan.FromSeconds(5);
+        if (_connectionTimeout <= TimeSpan.Zero || _connectionTimeout.TotalMilliseconds > int.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(connectionTimeout));
     }
 
     public event Action<ApplicationLaunchRequest>? LaunchRequested;
@@ -128,17 +130,41 @@ internal sealed class WindowsApplicationInstanceCoordinator : IApplicationInstan
 
     private void SignalExistingInstance(ApplicationLaunchRequest request)
     {
-        using var pipe = new NamedPipeClientStream(".", _pipeName, PipeDirection.InOut,
+        using var cancellation = new CancellationTokenSource();
+        var signaling = SignalExistingInstanceAsync(request, cancellation.Token);
+        var completed = Task.WhenAny(signaling, Task.Delay(_connectionTimeout)).GetAwaiter().GetResult();
+        if (completed == signaling)
+        {
+            signaling.GetAwaiter().GetResult();
+            return;
+        }
+
+        // The asynchronous operation owns its pipe until the OS eventually completes or tears it down. Observing
+        // it in the background avoids both an unobserved fault and a synchronous Dispose that can itself hang on
+        // Windows while an acknowledgement read is pending. A losing launcher can now always exit on deadline.
+        cancellation.Cancel();
+        _ = signaling.ContinueWith(task => _ = task.Exception,
+            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        throw new TimeoutException("The active Lightflow Studio instance did not acknowledge activation in time.");
+    }
+
+    private async Task SignalExistingInstanceAsync(ApplicationLaunchRequest request, CancellationToken cancellationToken)
+    {
+        await using var pipe = new NamedPipeClientStream(".", _pipeName, PipeDirection.InOut,
             PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
-        pipe.Connect((int)_connectionTimeout.TotalMilliseconds);
+        await pipe.ConnectAsync(cancellationToken).ConfigureAwait(false);
         var payload = JsonSerializer.SerializeToUtf8Bytes(request);
         if (payload.Length > MaximumPayloadBytes) throw new InvalidDataException("The launch request is too large.");
-        Span<byte> length = stackalloc byte[sizeof(int)];
+        var length = new byte[sizeof(int)];
         BinaryPrimitives.WriteInt32LittleEndian(length, payload.Length);
-        pipe.Write(length);
-        pipe.Write(payload);
-        pipe.Flush();
-        if (pipe.ReadByte() != 1) throw new IOException("The active Lightflow Studio instance did not acknowledge activation.");
+        await pipe.WriteAsync(length, cancellationToken).ConfigureAwait(false);
+        await pipe.WriteAsync(payload, cancellationToken).ConfigureAwait(false);
+        await pipe.FlushAsync(cancellationToken).ConfigureAwait(false);
+        var acknowledgement = new byte[1];
+        var acknowledgementLength = await pipe.ReadAsync(acknowledgement, cancellationToken).ConfigureAwait(false);
+        if (acknowledgementLength != 1 || acknowledgement[0] != 1)
+            throw new IOException("The active Lightflow Studio instance did not acknowledge activation.");
     }
 
     private static async Task<ApplicationLaunchRequest> ReadRequestAsync(Stream stream, CancellationToken cancellationToken)

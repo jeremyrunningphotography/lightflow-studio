@@ -35,7 +35,7 @@ public partial class App : System.Windows.Application
         }
 
         _applicationInstance = new WindowsApplicationInstanceCoordinator();
-        _applicationInstance.LaunchRequested += request => Dispatcher.BeginInvoke(() =>
+        _applicationInstance.LaunchRequested += request => Dispatcher.Invoke(() =>
         {
             if (MainWindow is MainWindow mainWindow) mainWindow.ActivateFromLaunch(request);
         });

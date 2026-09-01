@@ -292,6 +292,69 @@ public sealed class BrowserQueryTests
         Assert.Null(duration);
     }
 
+    [Fact]
+    public void Apply_MetadataFacetsUseOnlyHydratedNormalizedPreviewValues()
+    {
+        var tiles = Tiles(("r5.mp4", 1), ("other.mp4", 2), ("pending.mp4", 3));
+        tiles[0].ApplyMetadata(new BrowserTechnicalMetadata(new DateTime(2025, 6, 10), 45,
+            "Canon", "EOS R5 Mark II", "RF28-70mm F2 L USM", 8192, 4320, 59.94));
+        tiles[1].ApplyMetadata(new BrowserTechnicalMetadata(new DateTime(2023, 1, 1), 12,
+            "Sony", "ILCE-7SM3", "FE 24-70mm F2.8 GM", 3840, 2160, 29.97));
+        var query = BrowserQuery.Default with { Filters =
+        [
+            BrowserFilterPredicate.ForText(BrowserFilterField.Camera, "Canon EOS R5 Mark II"),
+            BrowserFilterPredicate.ForText(BrowserFilterField.Lens, "RF28-70mm F2 L USM"),
+            BrowserFilterPredicate.ForDateRange(new DateTime(2025, 1, 1), new DateTime(2025, 12, 31)),
+            BrowserFilterPredicate.ForMinimum(BrowserFilterField.Duration, 30),
+            BrowserFilterPredicate.ForResolution(8192, 4320),
+            BrowserFilterPredicate.ForMinimum(BrowserFilterField.FrameRate, 59.94)
+        ] };
+
+        var result = BrowserQueryEngine.Apply(tiles, query);
+
+        Assert.Equal(["r5.mp4"], result.Select(tile => tile.Name));
+        Assert.False(tiles[2].MetadataApplied);
+    }
+
+    [Fact]
+    public void Apply_LightflowStateFacetsDistinguishHydratedFalseFromUnavailable()
+    {
+        var tiles = Tiles(("colored.mp4", 1), ("original.mp4", 2), ("pending.mp4", 3));
+        tiles[0].SetAssetState(new BrowserAssetQueryState(
+            BrowserAssetState.Color | BrowserAssetState.ReviewRange | BrowserAssetState.Subclips, true, true, 2));
+        tiles[1].SetAssetState(new BrowserAssetQueryState(BrowserAssetState.None, false, false, 0));
+
+        var colored = BrowserQueryEngine.Apply(tiles, BrowserQuery.Default with { Filters =
+        [
+            BrowserFilterPredicate.ForState(BrowserFilterField.ColorState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.CameraLutState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.CreativeLutState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.ReviewRangeState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.SubclipState, true)
+        ] });
+        var original = BrowserQueryEngine.Apply(tiles, BrowserQuery.Default with { Filters =
+        [
+            BrowserFilterPredicate.ForState(BrowserFilterField.ColorState, false),
+            BrowserFilterPredicate.ForState(BrowserFilterField.ReviewRangeState, false),
+            BrowserFilterPredicate.ForState(BrowserFilterField.SubclipState, false)
+        ] });
+
+        Assert.Equal(["colored.mp4"], colored.Select(tile => tile.Name));
+        Assert.Equal(["original.mp4"], original.Select(tile => tile.Name));
+    }
+
+    [Fact]
+    public void ExtractMetadataProjectsCameraLensResolutionAndFrameRateFromNormalizedPayload()
+    {
+        var json = """{"kind":"Video","durationSeconds":42.5,"video":{"codec":"h264","width":3840,"height":2160,"frameRate":23.976}}""";
+
+        var metadata = BrowserQueryEngine.ExtractMetadata(json);
+
+        Assert.Equal(3840, metadata.PixelWidth);
+        Assert.Equal(2160, metadata.PixelHeight);
+        Assert.Equal(23.976, metadata.FrameRate);
+    }
+
     private static IReadOnlyList<BrowserGridTile> Tiles(params (string Name, int Index)[] items)
     {
         var rootId = Guid.NewGuid();

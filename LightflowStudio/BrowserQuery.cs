@@ -10,7 +10,21 @@ internal enum BrowserSortMode { Name, CaptureDate, ModifiedDate, MediaType, File
 /// this enum exists so later predicate kinds (date, file size, duration, camera, lens, resolution, frame
 /// rate, rating, labels, flags, keywords) extend the same representation rather than requiring a redesign.
 /// </summary>
-internal enum BrowserFilterField { MediaType }
+internal enum BrowserFilterField
+{
+    MediaType,
+    Camera,
+    Lens,
+    CaptureDate,
+    Duration,
+    Resolution,
+    FrameRate,
+    ColorState,
+    CameraLutState,
+    CreativeLutState,
+    ReviewRangeState,
+    SubclipState
+}
 
 /// <summary>
 /// One stackable filter condition (e.g. "Video"). Multiple active predicates combine with AND semantics —
@@ -25,9 +39,25 @@ internal sealed record BrowserFilterPredicate
 
     /// <summary>Populated when <see cref="Field"/> is <see cref="BrowserFilterField.MediaType"/>.</summary>
     public MediaTypeCategory? MediaTypeValue { get; init; }
+    public string? TextValue { get; init; }
+    public double? NumberValue { get; init; }
+    public double? NumberValue2 { get; init; }
+    public DateTime? DateFrom { get; init; }
+    public DateTime? DateTo { get; init; }
+    public bool? BooleanValue { get; init; }
 
     public static BrowserFilterPredicate ForMediaType(MediaTypeCategory category) =>
         new() { Field = BrowserFilterField.MediaType, MediaTypeValue = category };
+    public static BrowserFilterPredicate ForText(BrowserFilterField field, string value) =>
+        new() { Field = field, TextValue = value };
+    public static BrowserFilterPredicate ForMinimum(BrowserFilterField field, double value) =>
+        new() { Field = field, NumberValue = value };
+    public static BrowserFilterPredicate ForResolution(int width, int height) =>
+        new() { Field = BrowserFilterField.Resolution, NumberValue = width, NumberValue2 = height };
+    public static BrowserFilterPredicate ForDateRange(DateTime? from, DateTime? to) =>
+        new() { Field = BrowserFilterField.CaptureDate, DateFrom = from?.Date, DateTo = to?.Date };
+    public static BrowserFilterPredicate ForState(BrowserFilterField field, bool value) =>
+        new() { Field = field, BooleanValue = value };
 
     /// <summary>Compact chip text, e.g. "Video".</summary>
     public string Label => Field switch
@@ -39,6 +69,17 @@ internal sealed record BrowserFilterPredicate
             MediaTypeCategory.Video => "Video",
             _ => "Media type"
         },
+        BrowserFilterField.Camera => $"Camera: {TextValue}",
+        BrowserFilterField.Lens => $"Lens: {TextValue}",
+        BrowserFilterField.CaptureDate => DateRangeLabel(),
+        BrowserFilterField.Duration => $"Duration ≥ {FormatDuration(NumberValue)}",
+        BrowserFilterField.Resolution => $"Resolution: {NumberValue:0}×{NumberValue2:0}",
+        BrowserFilterField.FrameRate => $"Frame rate: {NumberValue:0.###} fps",
+        BrowserFilterField.ColorState => BooleanValue == true ? "Color applied" : "Original",
+        BrowserFilterField.CameraLutState => BooleanValue == true ? "Camera LUT assigned" : "No Camera LUT",
+        BrowserFilterField.CreativeLutState => BooleanValue == true ? "Creative LUT assigned" : "No Creative LUT",
+        BrowserFilterField.ReviewRangeState => BooleanValue == true ? "Has saved range" : "No saved range",
+        BrowserFilterField.SubclipState => BooleanValue == true ? "Has Subclips" : "No Subclips",
         _ => "Filter"
     };
 
@@ -47,7 +88,43 @@ internal sealed record BrowserFilterPredicate
     public bool Matches(BrowserGridTile tile) => Field switch
     {
         BrowserFilterField.MediaType => MediaTypeValue is null || tile.Category == MediaTypeValue,
+        BrowserFilterField.Camera => tile.MetadataApplied && TextEquals(tile.CameraDisplayName, TextValue),
+        BrowserFilterField.Lens => tile.MetadataApplied && TextEquals(tile.LensModel, TextValue),
+        BrowserFilterField.CaptureDate => tile.MetadataApplied && tile.CaptureDate is { } captured &&
+            (DateFrom is null || captured.Date >= DateFrom.Value.Date) &&
+            (DateTo is null || captured.Date <= DateTo.Value.Date),
+        BrowserFilterField.Duration => tile.MetadataApplied && tile.DurationSeconds is { } duration &&
+            NumberValue is { } minimumDuration && duration >= minimumDuration,
+        BrowserFilterField.Resolution => tile.MetadataApplied && tile.PixelWidth == NumberValue && tile.PixelHeight == NumberValue2,
+        BrowserFilterField.FrameRate => tile.MetadataApplied && tile.FrameRate is { } frameRate && NumberValue is { } expected &&
+            Math.Abs(frameRate - expected) < 0.001,
+        BrowserFilterField.ColorState => MatchesState(tile, tile.HasColorState),
+        BrowserFilterField.CameraLutState => MatchesState(tile, tile.HasCameraLut),
+        BrowserFilterField.CreativeLutState => MatchesState(tile, tile.HasCreativeLut),
+        BrowserFilterField.ReviewRangeState => MatchesState(tile, tile.HasReviewRange),
+        BrowserFilterField.SubclipState => MatchesState(tile, tile.HasSubclips),
         _ => true
+    };
+
+    private bool MatchesState(BrowserGridTile tile, bool actual) =>
+        tile.AssetStateApplied && BooleanValue is { } expected && actual == expected;
+
+    private static bool TextEquals(string? actual, string? expected) =>
+        actual is not null && expected is not null && string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
+
+    private string DateRangeLabel() => (DateFrom, DateTo) switch
+    {
+        ({ } from, { } to) => $"Capture date: {from:d} – {to:d}",
+        ({ } from, null) => $"Capture date ≥ {from:d}",
+        (null, { } to) => $"Capture date ≤ {to:d}",
+        _ => "Capture date"
+    };
+
+    private static string FormatDuration(double? seconds) => seconds switch
+    {
+        >= 3600 => TimeSpan.FromSeconds(seconds.Value).ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture),
+        > 0 => TimeSpan.FromSeconds(seconds.Value).ToString(@"m\:ss", CultureInfo.InvariantCulture),
+        _ => "0:00"
     };
 }
 
@@ -128,17 +205,31 @@ internal static class BrowserQueryEngine
             : null;
 
     /// <summary>
-    /// Extracts the two Browser-sortable fields from a #91 <c>PreviewRecords.MetadataJson</c> payload:
-    /// image capture date and video duration. Malformed/unexpected JSON yields (null, null) rather than
-    /// throwing — a Browser tile can always simply lack this optional metadata.
+    /// Projects the Browser-queryable subset of a #91 <c>PreviewRecords.MetadataJson</c> payload.
+    /// Malformed/unexpected JSON yields an empty projection rather than throwing — a Browser tile can
+    /// always simply lack any optional normalized metadata field.
     /// </summary>
-    public static (DateTime? CaptureDate, double? DurationSeconds) ExtractSortableMetadata(string? metadataJson)
+    public static BrowserTechnicalMetadata ExtractMetadata(string? metadataJson)
     {
-        if (string.IsNullOrWhiteSpace(metadataJson)) return (null, null);
+        if (string.IsNullOrWhiteSpace(metadataJson)) return BrowserTechnicalMetadata.Empty;
         DerivedMediaMetadata? metadata;
         try { metadata = JsonSerializer.Deserialize<DerivedMediaMetadata>(metadataJson, DerivedMetadataJson.Options); }
-        catch (JsonException) { return (null, null); }
-        return metadata is null ? (null, null) : (ParseExifCaptureDate(metadata.Image?.CapturedAt), metadata.DurationSeconds);
+        catch (JsonException) { return BrowserTechnicalMetadata.Empty; }
+        if (metadata is null) return BrowserTechnicalMetadata.Empty;
+        var image = metadata.Image;
+        var video = metadata.Video;
+        return new BrowserTechnicalMetadata(
+            ParseExifCaptureDate(image?.CapturedAt), metadata.DurationSeconds,
+            image?.CameraMake, image?.CameraModel, image?.LensModel,
+            image?.Width > 0 ? image.Width : video?.Width > 0 ? video.Width : null,
+            image?.Height > 0 ? image.Height : video?.Height > 0 ? video.Height : null,
+            video?.FrameRate);
+    }
+
+    public static (DateTime? CaptureDate, double? DurationSeconds) ExtractSortableMetadata(string? metadataJson)
+    {
+        var metadata = ExtractMetadata(metadataJson);
+        return (metadata.CaptureDate, metadata.DurationSeconds);
     }
 
     private static IReadOnlyList<BrowserGridTile> Sort(IReadOnlyList<BrowserGridTile> tiles, BrowserSortMode mode, bool descending)
@@ -191,4 +282,22 @@ internal static class BrowserQueryEngine
         MediaTypeCategory.Video => 2,
         _ => 3
     };
+}
+
+internal sealed record BrowserTechnicalMetadata(
+    DateTime? CaptureDate,
+    double? DurationSeconds,
+    string? CameraMake,
+    string? CameraModel,
+    string? LensModel,
+    int? PixelWidth,
+    int? PixelHeight,
+    double? FrameRate)
+{
+    public static BrowserTechnicalMetadata Empty { get; } = new(null, null, null, null, null, null, null, null);
+}
+
+internal sealed record BrowserFilterOption(BrowserFilterPredicate Predicate, bool IsActive)
+{
+    public string Label => Predicate.Label;
 }

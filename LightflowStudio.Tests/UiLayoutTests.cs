@@ -121,6 +121,21 @@ public class UiLayoutTests
     }
 
     [Fact]
+    public void BrowserFilterPopup_GroupsIndexedMetadataAndDurableStateInTheExistingProgressiveSurface()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var popup = Named(document, "BrowserFilterPopup");
+        Assert.Equal("BrowserFilterPopup_Opened", (string?)popup.Attribute("Opened"));
+        foreach (var name in new[]
+        {
+            "BrowserCameraFilterOptions", "BrowserLensFilterOptions", "BrowserCaptureDateFrom", "BrowserCaptureDateTo",
+            "BrowserDurationFilterCombo", "BrowserResolutionFilterOptions", "BrowserFrameRateFilterOptions",
+            "BrowserStateFilterOptions"
+        })
+            Assert.Contains(popup.Descendants(), element => element == Named(document, name));
+    }
+
+    [Fact]
     public void BrowserFilterChips_TemplateBindsToRemovablePredicatesWithAKeyboardAccessibleRemoveControl()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
@@ -1358,7 +1373,7 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserLiveDurableStateHandlers_PublishOnlyTheirCommittedFlag()
+    public void BrowserLiveDurableStateHandlers_PublishCommittedFlagThenRefreshAuthoritativeQueryProjection()
     {
         var behavior = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
         var handlersStart = behavior.IndexOf("private void EnsurePlayerViewerHost()", StringComparison.Ordinal);
@@ -1366,7 +1381,6 @@ public class UiLayoutTests
         Assert.True(handlersStart >= 0 && handlersEnd > handlersStart);
         var handlers = behavior[handlersStart..handlersEnd];
 
-        Assert.DoesNotContain("_browserGrid.ApplyAssetState(", handlers, StringComparison.Ordinal);
         Assert.Contains("ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.ReviewRange", handlers,
             StringComparison.Ordinal);
         Assert.Contains("ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Color", handlers,
@@ -1374,9 +1388,11 @@ public class UiLayoutTests
         Assert.Contains("ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Subclips", handlers,
             StringComparison.Ordinal);
         Assert.Contains("_browserGrid.ApplyAssetStateFlag(assetId, flag, enabled);", handlers, StringComparison.Ordinal);
+        Assert.Contains("RefreshCommittedBrowserAssetQueryStateAsync(assetId, revision)", handlers, StringComparison.Ordinal);
+        Assert.Contains("BrowserAssetStates.GetQueryStatesAsync([assetId])", handlers, StringComparison.Ordinal);
+        Assert.Contains("_browserGrid.ApplyAssetState(assetId, state);", handlers, StringComparison.Ordinal);
         Assert.Contains("ApplyCommittedBrowserAssetStateFlag(id, BrowserAssetState.Color, committed[id].HasColor);",
             behavior, StringComparison.Ordinal);
-        Assert.Equal(1, behavior.Split("_browserGrid.ApplyAssetState(", StringSplitOptions.None).Length - 1);
     }
 
     [Fact]

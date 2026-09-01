@@ -68,6 +68,15 @@ internal interface IPreviewStoreService : IAsyncDisposable
 {
     Task InitializeAsync(CancellationToken cancellationToken = default);
     Task<PreviewRecord?> GetAsync(Guid assetId, CancellationToken cancellationToken = default);
+    async Task<IReadOnlyDictionary<Guid, PreviewRecord>> GetManyAsync(IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default)
+    {
+        var records = new Dictionary<Guid, PreviewRecord>();
+        foreach (var assetId in assetIds.Distinct())
+            if (await GetAsync(assetId, cancellationToken).ConfigureAwait(false) is { } record)
+                records[assetId] = record;
+        return records;
+    }
     Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default);
     Task<PreviewRecord> ObserveSourceAsync(Guid assetId, PreviewSourceIdentity source,
         CancellationToken cancellationToken = default);
@@ -112,6 +121,32 @@ internal sealed class PreviewStoreService : IPreviewStoreService
 
     public Task<PreviewRecord?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
         RunAsync(connection => Read(connection, assetId), cancellationToken);
+
+    public Task<IReadOnlyDictionary<Guid, PreviewRecord>> GetManyAsync(IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default) => RunAsync<IReadOnlyDictionary<Guid, PreviewRecord>>(connection =>
+    {
+        const int batchSize = 500;
+        var records = new Dictionary<Guid, PreviewRecord>();
+        foreach (var batch in assetIds.Where(id => id != Guid.Empty).Distinct().Chunk(batchSize))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using var command = connection.CreateCommand();
+            var parameters = batch.Select((id, index) =>
+            {
+                var name = $"$asset{index}";
+                command.Parameters.AddWithValue(name, id.ToString("D"));
+                return name;
+            }).ToArray();
+            command.CommandText = SelectSql + $" WHERE AssetId IN ({string.Join(',', parameters)});";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var record = Read(reader);
+                records[record.AssetId] = record;
+            }
+        }
+        return records;
+    }, cancellationToken);
 
     public Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default) =>
         RunAsync<IReadOnlyList<PreviewRecord>>(connection =>

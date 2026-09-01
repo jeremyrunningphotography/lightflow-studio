@@ -628,8 +628,9 @@
            ToolTip="Add a filter" AutomationProperties.Name="Add a filter"/>
           <Popup x:Name="BrowserFilterPopup" IsOpen="{Binding IsChecked, ElementName=BrowserFilterButton, Mode=TwoWay}"
            PlacementTarget="{Binding ElementName=BrowserFilterButton}" Placement="Bottom" VerticalOffset="4"
-           StaysOpen="False" AllowsTransparency="True">
-           <Border Width="208" Padding="7" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="8">
+           StaysOpen="False" AllowsTransparency="True" Opened="BrowserFilterPopup_Opened">
+           <Border Width="360" MaxHeight="620" Padding="7" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="8">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
              <TextBlock Style="{StaticResource FieldLabel}" Margin="4,0,4,4" Text="MEDIA TYPE"/>
              <!-- IsChecked is synced from code-behind once a predicate is added/removed, not declared here —
@@ -640,9 +641,45 @@
               Checked="BrowserFilterRawCheck_Changed" Unchecked="BrowserFilterRawCheck_Changed"/>
              <CheckBox x:Name="BrowserFilterVideoCheck" Margin="4,11,4,0" Content="Video"
               Checked="BrowserFilterVideoCheck_Changed" Unchecked="BrowserFilterVideoCheck_Changed"/>
-             <TextBlock Margin="4,14,4,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" LineHeight="16" TextWrapping="Wrap"
-              Text="More filters (date, size, camera, and more) arrive here over time."/>
+
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="CAPTURE / CAMERA"/>
+             <ItemsControl x:Name="BrowserCameraFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+              <CheckBox Margin="4,6,4,0" Content="{Binding Label}" IsChecked="{Binding IsActive, Mode=OneWay}" Click="BrowserAdvancedFilterCheck_Click"/>
+             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+             <ItemsControl x:Name="BrowserLensFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+              <CheckBox Margin="4,6,4,0" Content="{Binding Label}" IsChecked="{Binding IsActive, Mode=OneWay}" Click="BrowserAdvancedFilterCheck_Click"/>
+             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+             <TextBlock Margin="4,9,4,3" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Capture date range"/>
+             <StackPanel Orientation="Horizontal" Margin="4,0,4,0">
+              <DatePicker x:Name="BrowserCaptureDateFrom" Width="132" AutomationProperties.Name="Capture date from"/>
+              <TextBlock Margin="6,0" VerticalAlignment="Center" Text="to" Foreground="{StaticResource MutedTextBrush}"/>
+              <DatePicker x:Name="BrowserCaptureDateTo" Width="132" AutomationProperties.Name="Capture date to"/>
+             </StackPanel>
+             <Button Margin="4,6,4,0" HorizontalAlignment="Left" Padding="10,4" Content="Add date range" Click="BrowserAddCaptureDateFilter_Click"/>
+
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="VIDEO / TECHNICAL"/>
+             <StackPanel Orientation="Horizontal" Margin="4,4,4,0">
+              <ComboBox x:Name="BrowserDurationFilterCombo" Width="190" SelectedIndex="1" AutomationProperties.Name="Minimum duration">
+               <ComboBoxItem Content="Duration ≥ 10 seconds" Tag="10"/><ComboBoxItem Content="Duration ≥ 30 seconds" Tag="30"/>
+               <ComboBoxItem Content="Duration ≥ 1 minute" Tag="60"/><ComboBoxItem Content="Duration ≥ 5 minutes" Tag="300"/>
+              </ComboBox>
+              <Button Margin="6,0,0,0" Padding="10,4" Content="Add" Click="BrowserAddDurationFilter_Click"/>
+             </StackPanel>
+             <ItemsControl x:Name="BrowserResolutionFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+              <CheckBox Margin="4,6,4,0" Content="{Binding Label}" IsChecked="{Binding IsActive, Mode=OneWay}" Click="BrowserAdvancedFilterCheck_Click"/>
+             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+             <ItemsControl x:Name="BrowserFrameRateFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+              <CheckBox Margin="4,6,4,0" Content="{Binding Label}" IsChecked="{Binding IsActive, Mode=OneWay}" Click="BrowserAdvancedFilterCheck_Click"/>
+             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="LIGHTFLOW STATE"/>
+             <ItemsControl x:Name="BrowserStateFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+              <CheckBox Margin="4,6,4,0" Content="{Binding Label}" IsChecked="{Binding IsActive, Mode=OneWay}" Click="BrowserAdvancedFilterCheck_Click"/>
+             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+             <TextBlock Margin="4,12,4,3" Foreground="{StaticResource MutedTextBrush}" FontSize="11" LineHeight="16" TextWrapping="Wrap"
+              Text="Only indexed metadata and hydrated Catalog state are queried. Assets with unavailable values do not match those predicates."/>
             </StackPanel>
+            </ScrollViewer>
            </Border>
           </Popup>
           <!-- Sort reads as one control — a muted "Sort" label plus the field and its direction affordance,

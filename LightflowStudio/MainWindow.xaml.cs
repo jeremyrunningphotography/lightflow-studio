@@ -1068,7 +1068,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var states = await _storage.BrowserAssetStates.GetAsync(items.Select(item => item.AssetId).ToArray())
+            var states = await _storage.BrowserAssetStates.GetQueryStatesAsync(items.Select(item => item.AssetId).ToArray())
                 .ConfigureAwait(true);
             if (generation != _browserUiGeneration) return;
             foreach (var (assetId, state) in states)
@@ -1080,6 +1080,13 @@ public partial class MainWindow : Window
                     ? assetRevision : (long?)null;
                 if (BrowserAssetStateRevisionPolicy.CanApply(revision, changedAt))
                     _browserGrid.ApplyAssetState(assetId, state);
+            }
+            if (_browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.ColorState or
+                BrowserFilterField.CameraLutState or BrowserFilterField.CreativeLutState or
+                BrowserFilterField.ReviewRangeState or BrowserFilterField.SubclipState))
+            {
+                _browserGrid.ReapplyQuery();
+                UpdateBrowserStatusText();
             }
         }
         catch (OperationCanceledException) { }
@@ -1517,8 +1524,37 @@ public partial class MainWindow : Window
     /// </summary>
     private void ApplyCommittedBrowserAssetStateFlag(Guid assetId, BrowserAssetState flag, bool enabled)
     {
-        _browserAssetStateRevisions[assetId] = ++_browserAssetStateRevision;
+        var revision = ++_browserAssetStateRevision;
+        _browserAssetStateRevisions[assetId] = revision;
         _browserGrid.ApplyAssetStateFlag(assetId, flag, enabled);
+        if (_browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.ColorState or
+            BrowserFilterField.CameraLutState or BrowserFilterField.CreativeLutState or
+            BrowserFilterField.ReviewRangeState or BrowserFilterField.SubclipState))
+        {
+            _browserGrid.ReapplyQuery();
+            UpdateBrowserStatusText();
+        }
+        _ = RefreshCommittedBrowserAssetQueryStateAsync(assetId, revision);
+    }
+
+    private async Task RefreshCommittedBrowserAssetQueryStateAsync(Guid assetId, long revision)
+    {
+        try
+        {
+            var states = await _storage.BrowserAssetStates.GetQueryStatesAsync([assetId]).ConfigureAwait(true);
+            if (_browserAssetStateRevisions.GetValueOrDefault(assetId) != revision ||
+                !states.TryGetValue(assetId, out var state)) return;
+            _browserGrid.ApplyAssetState(assetId, state);
+            if (_browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.ColorState or
+                BrowserFilterField.CameraLutState or BrowserFilterField.CreativeLutState or
+                BrowserFilterField.ReviewRangeState or BrowserFilterField.SubclipState))
+            {
+                _browserGrid.ReapplyQuery();
+                UpdateBrowserStatusText();
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (InvalidOperationException) { }
     }
 
     private void BrowserViewMode_Click(object sender, RoutedEventArgs e)
@@ -1732,6 +1768,66 @@ public partial class MainWindow : Window
 
     private void BrowserFilterVideoCheck_Changed(object sender, RoutedEventArgs e) =>
         ToggleBrowserMediaTypeFilter(MediaTypeCategory.Video, BrowserFilterVideoCheck.IsChecked == true);
+
+    private void BrowserFilterPopup_Opened(object? sender, EventArgs e) => RefreshBrowserAdvancedFilterOptions();
+
+    private void RefreshBrowserAdvancedFilterOptions()
+    {
+        var tiles = _browserGrid.QueryableTiles;
+        BrowserCameraFilterOptions.ItemsSource = Options(tiles.Select(tile => tile.CameraDisplayName)
+            .Where(value => value is not null).Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+            .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.Camera, value!)));
+        BrowserLensFilterOptions.ItemsSource = Options(tiles.Select(tile => tile.LensModel)
+            .Where(value => value is not null).Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+            .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.Lens, value!)));
+        BrowserResolutionFilterOptions.ItemsSource = Options(tiles
+            .Where(tile => tile.PixelWidth is > 0 && tile.PixelHeight is > 0)
+            .Select(tile => (Width: tile.PixelWidth!.Value, Height: tile.PixelHeight!.Value)).Distinct()
+            .OrderBy(size => size.Width * (long)size.Height)
+            .Select(size => BrowserFilterPredicate.ForResolution(size.Width, size.Height)));
+        BrowserFrameRateFilterOptions.ItemsSource = Options(tiles.Select(tile => tile.FrameRate)
+            .Where(value => value is > 0).Select(value => Math.Round(value!.Value, 3)).Distinct().OrderBy(value => value)
+            .Select(value => BrowserFilterPredicate.ForMinimum(BrowserFilterField.FrameRate, value)));
+        BrowserStateFilterOptions.ItemsSource = Options(new[]
+        {
+            BrowserFilterPredicate.ForState(BrowserFilterField.ColorState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.ColorState, false),
+            BrowserFilterPredicate.ForState(BrowserFilterField.CameraLutState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.CreativeLutState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.ReviewRangeState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.ReviewRangeState, false),
+            BrowserFilterPredicate.ForState(BrowserFilterField.SubclipState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.SubclipState, false)
+        });
+    }
+
+    private IReadOnlyList<BrowserFilterOption> Options(IEnumerable<BrowserFilterPredicate> predicates) =>
+        predicates.Select(predicate => new BrowserFilterOption(predicate, _browserGrid.Query.Filters.Contains(predicate))).ToArray();
+
+    private void BrowserAdvancedFilterCheck_Click(object sender, RoutedEventArgs e)
+    {
+        if (_synchronizingBrowserQuery || ((FrameworkElement)sender).DataContext is not BrowserFilterOption option) return;
+        var enabled = ((System.Windows.Controls.CheckBox)sender).IsChecked == true;
+        ApplyBrowserQuery(query => enabled ? query.WithFilterAdded(option.Predicate) : query.WithFilterRemoved(option.Predicate));
+    }
+
+    private void BrowserAddCaptureDateFilter_Click(object sender, RoutedEventArgs e)
+    {
+        var from = BrowserCaptureDateFrom.SelectedDate;
+        var to = BrowserCaptureDateTo.SelectedDate;
+        if (from is null && to is null) return;
+        if (from is { } start && to is { } end && start.Date > end.Date) (from, to) = (to, from);
+        ApplyBrowserQuery(query => query.WithFilterAdded(BrowserFilterPredicate.ForDateRange(from, to)));
+    }
+
+    private void BrowserAddDurationFilter_Click(object sender, RoutedEventArgs e)
+    {
+        if (BrowserDurationFilterCombo.SelectedItem is not ComboBoxItem item ||
+            !double.TryParse(item.Tag?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)) return;
+        ApplyBrowserQuery(query => query.WithFilterAdded(BrowserFilterPredicate.ForMinimum(BrowserFilterField.Duration, seconds)));
+    }
 
     private void ToggleBrowserMediaTypeFilter(MediaTypeCategory category, bool isActive)
     {
@@ -2078,13 +2174,14 @@ public partial class MainWindow : Window
             BrowserDerivedWorkProjection.AssetsNeedingMetadataLookup(batch.Results, _browserGrid.HasMetadataApplied));
         var sortRelevantMetadataChanged = false;
 
+        IReadOnlyDictionary<Guid, PreviewRecord> records;
+        try { records = await previews.GetManyAsync(pendingThumbnails.Union(pendingMetadata).ToArray()).ConfigureAwait(true); }
+        catch { return; }
+
         foreach (var assetId in pendingThumbnails.Union(pendingMetadata))
         {
             if (generation != _browserUiGeneration) return;
-            PreviewRecord? record;
-            try { record = await previews.GetAsync(assetId).ConfigureAwait(true); }
-            catch { continue; }
-            if (generation != _browserUiGeneration || record is null) continue;
+            if (generation != _browserUiGeneration || !records.TryGetValue(assetId, out var record)) continue;
 
             if (pendingThumbnails.Contains(assetId) && record.ThumbnailRelativePath is not null &&
                 record.ThumbnailState == PreviewComponentState.Current)
@@ -2097,13 +2194,16 @@ public partial class MainWindow : Window
 
             if (pendingMetadata.Contains(assetId) && record.MetadataState == PreviewComponentState.Current)
             {
-                var (captureDate, durationSeconds) = BrowserQueryEngine.ExtractSortableMetadata(record.MetadataJson);
-                if (_browserGrid.ApplyMetadata(assetId, captureDate, durationSeconds)) sortRelevantMetadataChanged = true;
+                var metadata = BrowserQueryEngine.ExtractMetadata(record.MetadataJson);
+                if (_browserGrid.ApplyMetadata(assetId, metadata)) sortRelevantMetadataChanged = true;
             }
         }
 
         UpdateBrowserStatusText();
-        if (sortRelevantMetadataChanged && _browserGrid.Query.SortMode is BrowserSortMode.CaptureDate or BrowserSortMode.Duration)
+        var hasMetadataFilter = _browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.Camera or
+            BrowserFilterField.Lens or BrowserFilterField.CaptureDate or BrowserFilterField.Duration or
+            BrowserFilterField.Resolution or BrowserFilterField.FrameRate);
+        if (sortRelevantMetadataChanged && (_browserGrid.Query.SortMode is BrowserSortMode.CaptureDate or BrowserSortMode.Duration || hasMetadataFilter))
         {
             // Coalesce into one re-sort ~800ms after updates settle, rather than resorting/reflowing per
             // asset while a large folder's metadata is still streaming in — see #109's responsiveness goal.

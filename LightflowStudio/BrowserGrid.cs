@@ -443,7 +443,8 @@ internal sealed class BrowserGridModel
     public IReadOnlyList<BrowserGridTile> Tiles => _visibleTiles;
 
     public int TotalCount => _allTiles.Count;
-    public IReadOnlyList<BrowserGridTile> QueryableTiles => _allTiles;
+    public IReadOnlyList<BrowserGridTile> AdvancedFilterContextTiles =>
+        BrowserQueryEngine.ApplyAdvancedFilterContext(_allTiles, Query);
     public int VisibleCount => _visibleTiles.Count;
     public BrowserQuery Query { get; private set; } = BrowserQuery.Default;
     public IReadOnlySet<string> SelectedKeys => _selection.Snapshot();

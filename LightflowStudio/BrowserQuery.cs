@@ -75,7 +75,7 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.Duration => $"Duration ≥ {FormatDuration(NumberValue)}",
         BrowserFilterField.Resolution => $"Resolution: {NumberValue:0}×{NumberValue2:0}",
         BrowserFilterField.FrameRate => $"Frame rate: {NumberValue:0.###} fps",
-        BrowserFilterField.ColorState => BooleanValue == true ? "Color applied" : "Original",
+        BrowserFilterField.ColorState => BooleanValue == true ? "Color applied" : "Original color",
         BrowserFilterField.CameraLutState => BooleanValue == true ? "Camera LUT assigned" : "No Camera LUT",
         BrowserFilterField.CreativeLutState => BooleanValue == true ? "Creative LUT assigned" : "No Creative LUT",
         BrowserFilterField.ReviewRangeState => BooleanValue == true ? "Has saved range" : "No saved range",
@@ -190,6 +190,26 @@ internal static class BrowserQueryEngine
                 tile.RelativePath.Contains(search, StringComparison.OrdinalIgnoreCase));
 
         return Sort(filtered.ToArray(), query.SortMode, query.SortDescending);
+    }
+
+    /// <summary>
+    /// The universe from which the advanced Filter dropdown discovers available values: current media-type
+    /// toolbar predicates plus text search, deliberately before every advanced predicate. This keeps choice
+    /// discovery contextual without allowing an advanced facet to recursively erase its alternatives.
+    /// Operates only on already-resident Browser tiles.
+    /// </summary>
+    public static IReadOnlyList<BrowserGridTile> ApplyAdvancedFilterContext(
+        IReadOnlyList<BrowserGridTile> tiles, BrowserQuery query)
+    {
+        IEnumerable<BrowserGridTile> contextual = tiles;
+        var mediaTypes = query.Filters.Where(predicate => predicate.Field == BrowserFilterField.MediaType).ToArray();
+        if (mediaTypes.Length > 0)
+            contextual = contextual.Where(tile => mediaTypes.Any(predicate => predicate.Matches(tile)));
+        var search = query.SearchText.Trim();
+        if (search.Length > 0)
+            contextual = contextual.Where(tile => tile.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                tile.RelativePath.Contains(search, StringComparison.OrdinalIgnoreCase));
+        return contextual.ToArray();
     }
 
     /// <summary>

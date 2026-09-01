@@ -42,7 +42,7 @@ public sealed class BrowserQueryRegressionTests
     {
         var source = Source();
         foreach (var handler in new[] { "BrowserSortCombo_SelectionChanged", "BrowserSortDirection_Click", "ToggleBrowserMediaTypeFilter",
-            "BrowserFilterChip_Remove_Click" })
+            "BrowserFilterChip_Remove_Click", "BrowserAdvancedFilterCheck_Click", "BrowserClearAdvancedFilters_Click" })
         {
             var methodStart = source.IndexOf($"private void {handler}", StringComparison.Ordinal);
             Assert.True(methodStart >= 0, $"{handler} not found");
@@ -54,23 +54,12 @@ public sealed class BrowserQueryRegressionTests
     }
 
     [Fact]
-    public void MediaTypeFilterCheckboxHandlers_RouteThroughTheSharedGuardedToggleHelper()
+    public void MediaTypeFacet_IsOwnedOnlyByThePersistentQuickFilterButtons()
     {
         var source = Source();
-        foreach (var (handler, category) in new[]
-        {
-            ("BrowserFilterImagesCheck_Changed", "MediaTypeCategory.StillImage"),
-            ("BrowserFilterRawCheck_Changed", "MediaTypeCategory.RawImage"),
-            ("BrowserFilterVideoCheck_Changed", "MediaTypeCategory.Video"),
-        })
-        {
-            var methodStart = source.IndexOf($"private void {handler}", StringComparison.Ordinal);
-            Assert.True(methodStart >= 0, $"{handler} not found");
-            var methodEnd = source.IndexOf(';', methodStart);
-            var body = source[methodStart..methodEnd];
-            Assert.Contains("ToggleBrowserMediaTypeFilter(", body);
-            Assert.Contains(category, body);
-        }
+        Assert.DoesNotContain("BrowserFilterImagesCheck_Changed", source);
+        Assert.DoesNotContain("BrowserFilterRawCheck_Changed", source);
+        Assert.DoesNotContain("BrowserFilterVideoCheck_Changed", source);
 
         var toggleStart = source.IndexOf("private void ToggleBrowserMediaTypeFilter", StringComparison.Ordinal);
         var toggleEnd = source.IndexOf("\n    private", toggleStart + 1, StringComparison.Ordinal);
@@ -125,6 +114,36 @@ public sealed class BrowserQueryRegressionTests
         Assert.Contains("foreach (var (category, button) in _browserQuickFilterButtons) button.IsChecked = activeMediaTypes.Contains(category);", body);
         Assert.DoesNotContain("mediaTypeValues.Length == 1", body);
         Assert.DoesNotContain(" is [", body);
+    }
+
+    [Fact]
+    public void AdvancedFilterDiscovery_UsesPreAdvancedContextAndSuppressesSingleValueCategoricalGroups()
+    {
+        var source = Source();
+        var methodStart = source.IndexOf("private void RefreshBrowserAdvancedFilterOptions", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("_browserGrid.AdvancedFilterContextTiles", body);
+        Assert.Contains("BrowserCameraFilterGroup.Visibility = MeaningfullyVariable(cameraOptions);", body);
+        Assert.Contains("BrowserLensFilterGroup.Visibility = MeaningfullyVariable(lensOptions);", body);
+        Assert.Contains("BrowserResolutionFilterGroup.Visibility = MeaningfullyVariable(resolutionOptions);", body);
+        Assert.Contains("BrowserFrameRateFilterGroup.Visibility = MeaningfullyVariable(frameRateOptions);", body);
+        Assert.DoesNotContain("SetQuery", body);
+        Assert.DoesNotContain("WithFilterRemoved", body);
+    }
+
+    [Fact]
+    public void ClearAllAdvancedFilters_PreservesMediaTypeAndSearchIntent()
+    {
+        var source = Source();
+        var methodStart = source.IndexOf("private void BrowserClearAdvancedFilters_Click", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("filter.Field == BrowserFilterField.MediaType", body);
+        Assert.DoesNotContain("SearchText", body);
+        Assert.DoesNotContain("BrowserSearchBox", body);
     }
 
     [Fact]
@@ -254,8 +273,7 @@ public sealed class BrowserQueryRegressionTests
         var xaml = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         foreach (var name in new[]
         {
-            "BrowserSortCombo", "BrowserFilterImagesCheck", "BrowserFilterRawCheck", "BrowserFilterVideoCheck",
-            "BrowserQuickFilterAllButton"
+            "BrowserSortCombo", "BrowserQuickFilterAllButton"
         })
         {
             var start = xaml.IndexOf($"x:Name=\"{name}\"", StringComparison.Ordinal);

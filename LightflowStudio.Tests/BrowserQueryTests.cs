@@ -344,6 +344,41 @@ public sealed class BrowserQueryTests
     }
 
     [Fact]
+    public void AdvancedFilterContext_AppliesMediaTypeAndSearchButIgnoresEveryAdvancedPredicate()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([
+            Entry(rootId, "trip-canon.mp4", MediaTypeCategory.Video),
+            Entry(rootId, "trip-sony.mp4", MediaTypeCategory.Video),
+            Entry(rootId, "other-canon.mp4", MediaTypeCategory.Video),
+            Entry(rootId, "trip-photo.jpg", MediaTypeCategory.StillImage)
+        ]);
+        model.Tiles.Single(tile => tile.Name == "trip-canon.mp4").ApplyMetadata(
+            new BrowserTechnicalMetadata(null, 60, "Canon", "R5", null, 3840, 2160, 59.94));
+        model.Tiles.Single(tile => tile.Name == "trip-sony.mp4").ApplyMetadata(
+            new BrowserTechnicalMetadata(null, 60, "Sony", "FX3", null, 1920, 1080, 23.976));
+        model.Tiles.Single(tile => tile.Name == "other-canon.mp4").ApplyMetadata(
+            new BrowserTechnicalMetadata(null, 60, "Canon", "R5", null, 3840, 2160, 59.94));
+        var query = BrowserQuery.Default with
+        {
+            SearchText = "trip",
+            Filters =
+            [
+                BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video),
+                BrowserFilterPredicate.ForText(BrowserFilterField.Camera, "Canon R5")
+            ]
+        };
+
+        model.SetQuery(query);
+        var context = model.AdvancedFilterContextTiles;
+        var filtered = model.Tiles;
+
+        Assert.Equal(["trip-canon.mp4", "trip-sony.mp4"], context.Select(tile => tile.Name));
+        Assert.Equal(["trip-canon.mp4"], filtered.Select(tile => tile.Name));
+    }
+
+    [Fact]
     public void ExtractMetadataProjectsCameraLensResolutionAndFrameRateFromNormalizedPayload()
     {
         var json = """{"kind":"Video","durationSeconds":42.5,"video":{"codec":"h264","width":3840,"height":2160,"frameRate":23.976}}""";
@@ -385,6 +420,10 @@ public sealed class BrowserFilterPredicateTests
     [Fact]
     public void RemoveAutomationLabel_NamesTheSpecificFilterBeingRemoved() =>
         Assert.Equal("Remove Video filter", BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video).RemoveAutomationLabel);
+
+    [Fact]
+    public void OriginalColorLabel_RemainsUnderstandableAsAStandaloneChip() =>
+        Assert.Equal("Original color", BrowserFilterPredicate.ForState(BrowserFilterField.ColorState, false).Label);
 
     [Fact]
     public void TwoPredicatesForTheSameConditionAreStructurallyEqual()

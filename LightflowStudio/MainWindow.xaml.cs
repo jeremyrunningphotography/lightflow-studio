@@ -2012,6 +2012,17 @@ public partial class MainWindow : Window
     private void OpenSettings_Click(object sender, RoutedEventArgs e) =>
         MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Settings);
 
+    private void SettingsCategoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized || SettingsGeneralPage is null) return;
+        var category = (SettingsCategoryList.SelectedItem as ListBoxItem)?.Tag as string ?? "General";
+        SettingsGeneralPage.Visibility = category == "General" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsColorPage.Visibility = category == "Color" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsExportPage.Visibility = category == "Export" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsStoragePage.Visibility = category == "Storage" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsToolsPage.Visibility = category == "Tools" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void OpenAbout_Click(object sender, RoutedEventArgs e) =>
         MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.About);
 
@@ -2612,6 +2623,29 @@ public partial class MainWindow : Window
             SettingsScreengrabDirectory.Text = folder;
     }
 
+    private void SettingsPath_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized || SettingsDefaultVideoFolderStatus is null) return;
+        RefreshSettingsPathStatuses();
+    }
+
+    private void RefreshSettingsPathStatuses()
+    {
+        SettingsDefaultVideoFolderStatus.Text = SettingsFolderStatus(SettingsDefaultVideoFolder.Text);
+        SettingsScreengrabDirectoryStatus.Text = SettingsFolderStatus(SettingsScreengrabDirectory.Text);
+        SettingsFfmpegPathStatus.Text = string.IsNullOrWhiteSpace(SettingsFfmpegPath.Text)
+            ? "Using bundled FFmpeg when available, then the first copy on PATH."
+            : File.Exists(SettingsFfmpegPath.Text)
+                ? "FFmpeg executable is available."
+                : "This executable is currently unavailable. The setting will not be saved until the path is valid.";
+    }
+
+    private static string SettingsFolderStatus(string? path) => string.IsNullOrWhiteSpace(path)
+        ? "Enter a folder path."
+        : Directory.Exists(path)
+            ? "Folder is available."
+            : "This folder is currently unavailable. Lightflow will keep the path and try it when needed.";
+
     private void BrowseSettingsCameraLutFolder_Click(object sender, RoutedEventArgs e)
     {
         if (PickFolder("Select the Camera LUT folder", SettingsCameraLutFolder.Text) is { } folder)
@@ -3155,6 +3189,7 @@ public partial class MainWindow : Window
         ShowEncodingDetails.IsChecked = settings.DetailedActivityLogging;
         SettingsEncodingPreset.SelectedIndex = (int)settings.EncodingPreset;
         PopulateEncodingControls(settings.Encoding);
+        RefreshSettingsPathStatuses();
     }
 
     private sealed record CatalogBackupDisplay(CatalogBackup Backup, string DisplayName);

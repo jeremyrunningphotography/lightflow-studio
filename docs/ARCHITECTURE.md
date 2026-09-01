@@ -39,6 +39,18 @@ drawer's session-only dismissal.
 
 Lightflow Studio is Windows-first, not Windows-entangled. Shared product semantics remain platform-neutral wherever practical. Platform-specific implementations belong behind explicit boundaries; platform and runtime concepts must not leak into durable domain models or shared contracts.
 
+### Application instance ownership
+
+Normal desktop startup acquires stable per-user/session application ownership before storage configuration, Catalog
+open/migration/recovery, Preview initialization, background monitoring, Jobs recovery, or `MainWindow` construction.
+The Windows implementation is isolated at the application boundary and uses a named mutex for crash-safe ownership
+plus a current-user-only named pipe for versioned launch requests. Its identity is product-stable rather than derived
+from the executable path, so installed and portable copies cannot become competing owners. A losing process either
+forwards its launch request and exits or records a bootstrap diagnostic and exits safely; it never falls through into
+normal initialization. The current request handler restores and activates the existing WPF window without changing
+workspace state. Future argument behavior can extend the launch-request contract without introducing Windows handles,
+mutexes, pipes, or WPF types into durable domain state or feature services.
+
 - **Domain models stay platform-neutral.** Catalog data, Asset identity, Media ranges, Color intent, Preview identity, Encoding jobs/history, and capability handoffs do not depend on WPF, HWND, Flyleaf, D3D11, DirectShow, or other platform-specific runtime objects.
 - **Playback is an adapter boundary.** Lightflow owns playback semantics; Flyleaf and D3D11 provide the current Windows implementation. Another platform backend could implement the same semantics without redefining Catalog, Color, or range intent.
 - **Color intent is renderer-independent.** Camera/technical and Creative LUT assignments are Lightflow domain state. GPU resources, shader objects, and renderer handles are transient implementation details and never become Catalog state.

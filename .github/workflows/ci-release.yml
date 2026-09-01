@@ -34,7 +34,7 @@ jobs:
           .\scripts\Get-Ffmpeg.ps1
           .\scripts\Get-PlaybackDependencies.ps1
       - name: Test
-        run: dotnet test .\LightflowStudio.Tests\LightflowStudio.Tests.csproj -c Release --no-restore --logger "trx;LogFileName=tests.trx"
+        run: dotnet test .\LightflowStudio.Tests\LightflowStudio.Tests.csproj -c Release --no-restore --logger "trx;LogFileName=tests.trx" --blame-hang-timeout 5m --blame-hang-dump-type mini
       - name: Preserve test results
         if: always()
         uses: actions/upload-artifact@v6

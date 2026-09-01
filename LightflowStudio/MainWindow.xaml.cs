@@ -4393,6 +4393,12 @@ public partial class MainWindow : Window
             // The process exited between the state check and the kill request.
         }
     }
+
+    internal void ActivateFromLaunch(ApplicationLaunchRequest request)
+    {
+        _ = request; // Reserved for future file/folder/deep-link launch handling.
+        ApplicationWindowActivation.RestoreAndActivate(new WpfApplicationWindow(this, _lastNonMinimizedWindowState));
+    }
     private void AppendLog(string text)
     {
         _activityLogFile.TryAppend(text);

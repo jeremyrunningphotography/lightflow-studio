@@ -65,8 +65,66 @@ public sealed class SettingsExperienceTests
             .Attribute("AutomationProperties.Name"));
     }
 
+    [Fact]
+    public void SettingsControlFamilyInheritsTheExistingDarkLightflowTemplates()
+    {
+        var document = LoadWindow();
+        var input = Style(document, "SettingsInputStyle");
+        var path = Style(document, "SettingsPathTextBoxStyle");
+        var combo = Style(document, "SettingsComboBoxStyle");
+        var checkBox = Style(document, "SettingsCheckBoxStyle");
+        var secondary = Style(document, "SettingsSecondaryButtonStyle");
+        var expanderToggle = Style(document, "SettingsExpanderToggleStyle");
+
+        Assert.Equal("{StaticResource {x:Type TextBox}}", (string?)input.Attribute("BasedOn"));
+        Assert.Equal("{StaticResource SettingsInputStyle}", (string?)path.Attribute("BasedOn"));
+        Assert.Equal("{StaticResource {x:Type ComboBox}}", (string?)combo.Attribute("BasedOn"));
+        Assert.Equal("{StaticResource {x:Type CheckBox}}", (string?)checkBox.Attribute("BasedOn"));
+        Assert.Equal("{StaticResource {x:Type Button}}", (string?)secondary.Attribute("BasedOn"));
+        Assert.Contains("ShellCanvasBrush", input.ToString());
+        Assert.Contains("ShellDividerBrush", input.ToString());
+        Assert.Contains("IsKeyboardFocused", input.ToString());
+        Assert.Contains("IsKeyboardFocusWithin", combo.ToString());
+        Assert.Contains("IsKeyboardFocused", expanderToggle.ToString());
+        Assert.Contains("ShellFocusBrush", expanderToggle.ToString());
+    }
+
+    [Fact]
+    public void SettingsMaintenanceUsesRestrainedDistinctActionLevels()
+    {
+        var document = LoadWindow();
+
+        Assert.Equal("{StaticResource SettingsCompactInputStyle}",
+            (string?)Named(document, "SettingsPreviewCacheQuotaGb").Attribute("Style"));
+        Assert.Equal("{StaticResource SettingsQuietButtonStyle}",
+            (string?)Named(document, "RefreshPreviewUsageButton").Attribute("Style"));
+        Assert.Equal("{StaticResource SettingsDangerButtonStyle}",
+            (string?)Named(document, "ClearPreviewsButton").Attribute("Style"));
+        Assert.Equal("{StaticResource SettingsRebuildButtonStyle}",
+            (string?)Named(document, "RebuildPreviewsButton").Attribute("Style"));
+        Assert.DoesNotContain("#34261A", Named(document, "SettingsStoragePage").ToString());
+    }
+
+    [Fact]
+    public void CategoryPagesShareOneStretchingContentWidthStrategy()
+    {
+        var document = LoadWindow();
+        foreach (var name in new[] { "SettingsGeneralPage", "SettingsColorPage", "SettingsExportPage",
+                     "SettingsStoragePage", "SettingsToolsPage" })
+        {
+            var page = Named(document, name);
+            Assert.Equal("{StaticResource SettingsPageScrollViewerStyle}", (string?)page.Attribute("Style"));
+            var content = page.Elements().Single();
+            Assert.Equal("900", (string?)content.Attribute("MaxWidth"));
+            Assert.Equal("Stretch", (string?)content.Attribute("HorizontalAlignment"));
+        }
+    }
+
     private static XElement Named(XDocument document, string name) => document.Descendants().Single(element =>
         Name(element) == name);
+
+    private static XElement Style(XDocument document, string key) => document.Descendants().Single(element =>
+        element.Name.LocalName == "Style" && (string?)element.Attribute(Xaml + "Key") == key);
 
     private static string? Name(XElement element) => (string?)element.Attribute(Xaml + "Name");
 

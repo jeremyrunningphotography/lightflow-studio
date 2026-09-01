@@ -54,6 +54,17 @@ and progressive disclosure for uncommon technical or recovery controls. Destruct
 styling and confirmation. The Save/Restore footer remains visible while page content scrolls, and unavailable paths
 are stated in text rather than inferred from color or truncation.
 
+Settings control geometry is one scoped family layered on the existing application templates: text/path fields and
+combos use the dark Canvas input surface, Divider border, primary text, and warm focus border; read-only locations use
+the quieter Surface/Muted pairing. Inputs, combos, and secondary buttons share a 34-pixel height and six-to-seven-pixel
+corner vocabulary, including compact numeric inputs such as Preview quota. Checkboxes retain the Lightflow square
+dark indicator with explicit checked, hover, disabled, and two-pixel keyboard-focus states. Browse, Change, Add, and
+ordinary maintenance actions use one restrained raised secondary button family. Refresh-like actions may be quiet;
+rebuild actions use a warm outline without implying danger; destructive Clear/Restore actions use `DangerButton`-based
+chrome and confirmation. Nested Settings groups prefer dividers and whitespace over stacking multiple bordered cards,
+and Media Root availability is inline supporting text rather than a competing status badge. Every category uses the
+same stretching, maximum-width content strategy so switching pages does not change the utility's visual geometry.
+
 The Player's contextual Subclips surface is a restrained right-side drawer inside the Player host, not permanent shell navigation. Its Player-only right-edge pull is owned by the shell so it remains reachable while Jobs is open; the shell coordinates mutually exclusive drawer bodies, and the compact media-consuming Subclips column collapses completely while closed or retired. It uses the shared panel/card/focus vocabulary and establishes the compatible location for later contextual Inspector/Color work without speculatively building that architecture. Subclip cards pair a quiet poster with readable semantic name, exact range/duration text, desktop multi-selection, double-click quick review, and keyboard-focusable rename/order/delete actions; missing posters retain a deterministic media glyph rather than blocking interaction.
 
 Right-edge drawer pulls are sibling controls in one shell-owned vertical switcher, never independently positioned overlays. The shared switcher supplies DPI-scaled layout and a consistent gap; `DrawerPullButton` owns common width, height, corner, typography, focus, and active chrome. Drawer bodies use `DrawerBody`, compact uppercase `DrawerHeaderText`, and `DrawerCard` for the same dark surface/border/padding hierarchy while retaining each drawer's own functionality and sizing behavior. Destructive header actions reuse `DangerButton`, and compact semantic actions that must remain unmistakable under font fallback use explicit vector geometry.

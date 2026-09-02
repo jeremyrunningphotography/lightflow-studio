@@ -32,7 +32,34 @@ public sealed class BrowserCollectionsPresentationTests
 
         Assert.Equal(2, paths.Length);
         Assert.Equal(2, paths.Distinct().Count());
+        Assert.All(template.Descendants(ns + "Path"), path => Assert.Equal("{StaticResource MutedTextBrush}", (string?)path.Attribute("Fill")));
+        Assert.All(template.Descendants(ns + "Viewbox"), icon => Assert.Equal("18", (string?)icon.Attribute("Width")));
         Assert.DoesNotContain(template.Descendants(), node => ((string?)node.Attribute("Text"))?.Contains("Glyph") == true);
+    }
+
+    [Fact]
+    public void SidebarSections_CollapseIndependentlyInsideSharedScroller()
+    {
+        var document = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var locations = document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == "BrowserLocationsSectionToggle");
+        var collections = document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == "BrowserCollectionsSectionToggle");
+        Assert.Equal("BrowserScopeSectionToggle_Changed", (string?)locations.Attribute("Checked"));
+        Assert.Equal("BrowserScopeSectionToggle_Changed", (string?)collections.Attribute("Unchecked"));
+        Assert.Same(locations.Ancestors(ns + "ScrollViewer").Single(), collections.Ancestors(ns + "ScrollViewer").Single());
+    }
+
+    [Fact]
+    public void HierarchyMenus_ExposeDurableNameSortAndBothCreationCommandsUsePlacementDialog()
+    {
+        var xaml = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
+        var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+        Assert.Contains("Sort by Name — Ascending", xaml);
+        Assert.Contains("Sort by Name — Descending", xaml);
+        Assert.Contains("ReorderSetsAsync", code);
+        Assert.Contains("ReorderCollectionsAsync", code);
+        Assert.Contains("createSet: true", code);
     }
 
     [Fact]

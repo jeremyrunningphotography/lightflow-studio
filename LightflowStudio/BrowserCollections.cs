@@ -59,7 +59,7 @@ internal sealed class BrowserCollectionNode : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new(name));
 }
 
-internal sealed record CollectionSetPlacementOption(Guid CollectionSetId, string DisplayName);
+internal sealed record CollectionSetPlacementOption(Guid? CollectionSetId, string DisplayName);
 
 internal static class BrowserCollectionPlacement
 {
@@ -72,7 +72,7 @@ internal static class BrowserCollectionPlacement
 
     public static IReadOnlyList<CollectionSetPlacementOption> Options(IEnumerable<BrowserCollectionNode> roots)
     {
-        var output = new List<CollectionSetPlacementOption>();
+        var output = new List<CollectionSetPlacementOption> { new(null, "Top level") };
         Add(roots, 0);
         return output;
         void Add(IEnumerable<BrowserCollectionNode> nodes, int depth)
@@ -86,6 +86,18 @@ internal static class BrowserCollectionPlacement
     }
 }
 
+internal enum BrowserScopeSelectionKind { None, Folder, Collection }
+
+internal sealed class BrowserScopeSelection
+{
+    public BrowserScopeSelectionKind Active { get; private set; }
+    public void ActivateFolder() => Active = BrowserScopeSelectionKind.Folder;
+    public void ActivateCollection() => Active = BrowserScopeSelectionKind.Collection;
+}
+
+internal enum BrowserCollectionDropKind { None, InsertBefore, InsertAfter, IntoSet }
+internal sealed record BrowserCollectionDrop(BrowserCollectionDropKind Kind, BrowserCollectionNode Target);
+
 internal static class BrowserCollectionInteraction
 {
     public static BrowserCollectionNode ContextTarget(BrowserCollectionNode clicked, BrowserCollectionNode? selected) => clicked;
@@ -96,6 +108,26 @@ internal static class BrowserCollectionInteraction
         if (dragged.Id == targetSet.Id || dragged.ParentSetId == targetSet.Id) return false;
         return !dragged.IsSet || !BrowserCollectionTreeModel.Flatten(dragged.Children).Any(node => node.Id == targetSet.Id);
     }
+
+
+    public static BrowserCollectionDrop DropAt(BrowserCollectionNode dragged, BrowserCollectionNode target,
+        double relativeY)
+    {
+        if (ReferenceEquals(dragged, target)) return new(BrowserCollectionDropKind.None, target);
+        if (dragged.Kind == target.Kind && dragged.ParentSetId == target.ParentSetId && relativeY < 0.25)
+            return new(BrowserCollectionDropKind.InsertBefore, target);
+        if (dragged.Kind == target.Kind && dragged.ParentSetId == target.ParentSetId && relativeY > 0.75)
+            return new(BrowserCollectionDropKind.InsertAfter, target);
+        if (target.IsSet && CanDrop(dragged, target) && relativeY is >= 0.25 and <= 0.75)
+            return new(BrowserCollectionDropKind.IntoSet, target);
+        if (dragged.Kind == target.Kind && dragged.ParentSetId == target.ParentSetId)
+            return new(relativeY < 0.5 ? BrowserCollectionDropKind.InsertBefore : BrowserCollectionDropKind.InsertAfter, target);
+        return new(BrowserCollectionDropKind.None, target);
+    }
+
+    public static BrowserCollectionNode[] OrderByName(IEnumerable<BrowserCollectionNode> nodes, bool descending) =>
+        (descending ? nodes.OrderByDescending(node => node.Name, StringComparer.CurrentCultureIgnoreCase)
+            : nodes.OrderBy(node => node.Name, StringComparer.CurrentCultureIgnoreCase)).ToArray();
 }
 
 internal sealed class BrowserCollectionTreeModel

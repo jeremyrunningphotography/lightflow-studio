@@ -31,7 +31,8 @@ public sealed class WorkspaceStateStoreTests : IDisposable
                 IncludeSubfolders = true },
             Window = new() { Width = 1500, Height = 950, Left = 40, Top = 20, IsMaximized = true },
             Layout = new() { BrowserLocationsPaneWidth = 300, JobsDrawerWidth = 440, FullJobsListPaneWidth = 510,
-                BrowserCollectionId = Guid.NewGuid(), BrowserExpandedCollectionSetIds = [Guid.NewGuid(), Guid.NewGuid()] }
+                BrowserCollectionId = Guid.NewGuid(), BrowserExpandedCollectionSetIds = [Guid.NewGuid(), Guid.NewGuid()],
+                BrowserLocationsSectionExpanded = false, BrowserCollectionsSectionExpanded = true }
         };
 
         WorkspaceStateStore.Save(StatePath, state);
@@ -51,6 +52,8 @@ public sealed class WorkspaceStateStoreTests : IDisposable
         Assert.Equal(510, loaded.Layout.FullJobsListPaneWidth);
         Assert.Equal(state.Layout.BrowserCollectionId, loaded.Layout.BrowserCollectionId);
         Assert.Equal(state.Layout.BrowserExpandedCollectionSetIds, loaded.Layout.BrowserExpandedCollectionSetIds);
+        Assert.False(loaded.Layout.BrowserLocationsSectionExpanded);
+        Assert.True(loaded.Layout.BrowserCollectionsSectionExpanded);
     }
 
     [Fact]

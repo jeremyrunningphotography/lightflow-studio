@@ -32,6 +32,22 @@
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
+
+  <Style x:Key="BrowserSectionToggleButtonStyle" TargetType="ToggleButton">
+   <Setter Property="Padding" Value="2,4"/><Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+   <Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+    <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+     <StackPanel Orientation="Horizontal"><Path x:Name="Chevron" Width="8" Height="8" Margin="2,0,7,0" VerticalAlignment="Center"
+      Stroke="{StaticResource MutedTextBrush}" StrokeThickness="1.5" Data="M1,2 L4,5 L7,2"/>
+      <ContentPresenter VerticalAlignment="Center"/></StackPanel>
+    </Border>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger>
+     <Trigger Property="IsChecked" Value="False"><Setter TargetName="Chevron" Property="Data" Value="M2,1 L5,4 L2,7"/></Trigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style x:Key="SettingsSectionStyle" TargetType="Border" BasedOn="{StaticResource Card}">
    <Setter Property="Margin" Value="0,0,0,10"/><Setter Property="Padding" Value="14"/>
   </Style>
@@ -492,8 +508,12 @@
        <ScrollViewer x:Name="BrowserFolderScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
         CanContentScroll="False" Padding="0,0,2,2" Focusable="False" Style="{StaticResource BrowserFolderScrollViewerStyle}">
        <StackPanel>
-        <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Locations"/>
-        <Grid Margin="0,6,0,0">
+        <ToggleButton x:Name="BrowserLocationsSectionToggle" Style="{StaticResource BrowserSectionToggleButtonStyle}"
+         IsChecked="True" HorizontalContentAlignment="Left" FontSize="14"
+         Checked="BrowserScopeSectionToggle_Changed" Unchecked="BrowserScopeSectionToggle_Changed">
+         <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Locations"/>
+        </ToggleButton>
+        <Grid x:Name="BrowserLocationsSectionContent" Margin="0,6,0,0">
          <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}"
           SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseWheel="BrowserFolderTree_PreviewMouseWheel"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
@@ -558,17 +578,27 @@
         <Grid x:Name="BrowserCollectionsTopLevelDropTarget" Margin="0,10,0,4" AllowDrop="True"
          DragEnter="BrowserCollectionsTopLevel_DragEnter" DragOver="BrowserCollectionsTopLevel_DragEnter" DragLeave="BrowserCollectionsTopLevel_DragLeave" Drop="BrowserCollectionsTopLevel_Drop">
          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-         <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Collections" VerticalAlignment="Center"/>
+         <ToggleButton x:Name="BrowserCollectionsSectionToggle" Style="{StaticResource BrowserSectionToggleButtonStyle}"
+          IsChecked="True" HorizontalContentAlignment="Left" FontSize="14" VerticalAlignment="Center"
+          Checked="BrowserScopeSectionToggle_Changed" Unchecked="BrowserScopeSectionToggle_Changed">
+          <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Collections"/>
+          <ToggleButton.ContextMenu>
+           <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Sort by Name — Ascending" Tag="root:asc" Click="BrowserCollectionSortByName_Click"/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Sort by Name — Descending" Tag="root:desc" Click="BrowserCollectionSortByName_Click"/>
+           </ContextMenu>
+          </ToggleButton.ContextMenu>
+         </ToggleButton>
          <Button Grid.Column="1" Width="26" Height="24" Padding="0" Margin="4,0,0,0" ToolTip="New Collection"
           AutomationProperties.Name="New Collection" Click="BrowserNewCollection_Click">
-          <Viewbox Width="14" Height="14"><Canvas Width="18" Height="18"><Path Fill="{StaticResource ShellFocusBrush}" Data="M3,2 L15,2 L15,16 L3,16 Z M5,5 L13,5 L13,7 L5,7 Z M5,9 L10,9 L10,11 L5,11 Z M12,9 L14,9 L14,11 L16,11 L16,13 L14,13 L14,15 L12,15 L12,13 L10,13 L10,11 L12,11 Z"/></Canvas></Viewbox>
+          <Viewbox Width="14" Height="14"><Canvas Width="18" Height="18"><Path Fill="{StaticResource MutedTextBrush}" Data="M3,2 L15,2 L15,16 L3,16 Z M5,5 L13,5 L13,7 L5,7 Z M5,9 L10,9 L10,11 L5,11 Z M12,9 L14,9 L14,11 L16,11 L16,13 L14,13 L14,15 L12,15 L12,13 L10,13 L10,11 L12,11 Z"/></Canvas></Viewbox>
          </Button>
          <Button Grid.Column="2" Width="26" Height="24" Padding="0" Margin="4,0,0,0" ToolTip="New Collection Set"
           AutomationProperties.Name="New Collection Set" Click="BrowserNewCollectionSet_Click">
-          <Viewbox Width="14" Height="14"><Canvas Width="18" Height="18"><Path Fill="{StaticResource ShellFocusBrush}" Data="M2,3 L8,3 L10,5 L16,5 L16,15 L2,15 Z M5,8 L13,8 L13,10 L5,10 Z"/></Canvas></Viewbox>
+          <Viewbox Width="14" Height="14"><Canvas Width="18" Height="18"><Path Fill="{StaticResource MutedTextBrush}" Data="M2,4 L7,4 L9,6 L16,6 L16,15 L2,15 Z M4,2 L14,2 L14,5 L9.5,5 L7.5,3 L4,3 Z M5,8 L13,8 L13,13 L5,13 Z M7,9 L11,9 L11,12 L7,12 Z"/></Canvas></Viewbox>
          </Button>
         </Grid>
-        <Grid>
+        <Grid x:Name="BrowserCollectionsSectionContent">
          <TreeView x:Name="BrowserCollectionTree" BorderThickness="0" Background="Transparent"
           SelectedItemChanged="BrowserCollectionTree_SelectedItemChanged" ContextMenuOpening="BrowserCollectionTree_ContextMenuOpening"
           PreviewMouseLeftButtonDown="BrowserCollectionTree_PreviewMouseLeftButtonDown"
@@ -584,6 +614,9 @@
             <MenuItem x:Name="BrowserCollectionMoveUpMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Move up" Click="BrowserCollectionMoveUp_Click"/>
             <MenuItem x:Name="BrowserCollectionMoveDownMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Move down" Click="BrowserCollectionMoveDown_Click"/>
             <Separator/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Sort by Name — Ascending" Tag="selected:asc" Click="BrowserCollectionSortByName_Click"/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Sort by Name — Descending" Tag="selected:desc" Click="BrowserCollectionSortByName_Click"/>
+            <Separator/>
             <MenuItem x:Name="BrowserCollectionDeleteMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Delete" Click="BrowserCollectionDelete_Click"/>
            </ContextMenu>
           </TreeView.ContextMenu>
@@ -598,11 +631,11 @@
           <TreeView.Resources>
            <HierarchicalDataTemplate DataType="{x:Type local:BrowserCollectionNode}" ItemsSource="{Binding Children}">
             <Grid Height="26"><Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-             <Viewbox x:Name="CollectionIcon" Width="15" Height="15" VerticalAlignment="Center">
-              <Canvas Width="18" Height="18"><Path Fill="{StaticResource ShellFocusBrush}" Data="M3,2 L15,2 L15,16 L3,16 Z M5,5 L13,5 L13,7 L5,7 Z M5,9 L13,9 L13,11 L5,11 Z M5,13 L10,13 L10,14 L5,14 Z"/></Canvas>
+             <Viewbox x:Name="CollectionIcon" Width="18" Height="18" VerticalAlignment="Center">
+              <Canvas Width="18" Height="18"><Path Fill="{StaticResource MutedTextBrush}" Data="M3,2 L15,2 L15,16 L3,16 Z M5,5 L13,5 L13,7 L5,7 Z M5,9 L13,9 L13,11 L5,11 Z M5,13 L10,13 L10,14 L5,14 Z"/></Canvas>
              </Viewbox>
-             <Viewbox x:Name="CollectionSetIcon" Width="15" Height="15" VerticalAlignment="Center" Visibility="Collapsed">
-              <Canvas Width="18" Height="18"><Path Fill="{StaticResource ShellFocusBrush}" Data="M2,3 L8,3 L10,5 L16,5 L16,15 L2,15 Z M5,8 L13,8 L13,10 L5,10 Z"/></Canvas>
+             <Viewbox x:Name="CollectionSetIcon" Width="18" Height="18" VerticalAlignment="Center" Visibility="Collapsed">
+              <Canvas Width="18" Height="18"><Path Fill="{StaticResource MutedTextBrush}" Data="M2,4 L7,4 L9,6 L16,6 L16,15 L2,15 Z M4,2 L14,2 L14,5 L9.5,5 L7.5,3 L4,3 Z M5,8 L13,8 L13,13 L5,13 Z M7,9 L11,9 L11,12 L7,12 Z"/></Canvas>
              </Viewbox>
              <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
             </Grid>

@@ -26,6 +26,40 @@ public sealed class BrowserCollectionsTests
         Assert.Equal(set.Id, BrowserCollectionPlacement.SuggestedParent(collection));
         Assert.Equal(set.Id, BrowserCollectionPlacement.SuggestedParent(set));
         Assert.Null(BrowserCollectionPlacement.SuggestedParent(null));
+        var options = BrowserCollectionPlacement.Options([set]);
+        Assert.Null(options[0].CollectionSetId);
+        Assert.Equal("Top level", options[0].DisplayName);
+        Assert.Equal(set.Id, options[1].CollectionSetId);
+    }
+
+    [Fact]
+    public void ActiveScopeSelection_HasOneAuthoritativeKind()
+    {
+        var selection = new BrowserScopeSelection();
+        selection.ActivateFolder();
+        Assert.Equal(BrowserScopeSelectionKind.Folder, selection.Active);
+        selection.ActivateCollection();
+        Assert.Equal(BrowserScopeSelectionKind.Collection, selection.Active);
+    }
+
+    [Fact]
+    public void DragIntent_DistinguishesSiblingInsertionFromDropIntoSet()
+    {
+        var first = new BrowserCollectionNode(Collection("First", 0));
+        var second = new BrowserCollectionNode(Collection("Second", 1));
+        var set = new BrowserCollectionNode(Set("Set", 0));
+
+        Assert.Equal(BrowserCollectionDropKind.InsertBefore, BrowserCollectionInteraction.DropAt(first, second, 0.1).Kind);
+        Assert.Equal(BrowserCollectionDropKind.InsertAfter, BrowserCollectionInteraction.DropAt(first, second, 0.9).Kind);
+        Assert.Equal(BrowserCollectionDropKind.IntoSet, BrowserCollectionInteraction.DropAt(first, set, 0.5).Kind);
+    }
+
+    [Fact]
+    public void NameSort_IsExplicitAndPreservesSeparateKindInputs()
+    {
+        var nodes = new[] { new BrowserCollectionNode(Collection("Zulu", 0)), new BrowserCollectionNode(Collection("alpha", 1)) };
+        Assert.Equal(["alpha", "Zulu"], BrowserCollectionInteraction.OrderByName(nodes, false).Select(node => node.Name));
+        Assert.Equal(["Zulu", "alpha"], BrowserCollectionInteraction.OrderByName(nodes, true).Select(node => node.Name));
     }
 
     [Fact]

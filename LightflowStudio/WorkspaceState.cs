@@ -59,6 +59,8 @@ internal sealed record WorkspaceLayoutState
     public int? BrowserViewMode { get; init; }
     public Guid? BrowserCollectionId { get; init; }
     public IReadOnlyList<Guid> BrowserExpandedCollectionSetIds { get; init; } = [];
+    public bool? BrowserLocationsSectionExpanded { get; init; }
+    public bool? BrowserCollectionsSectionExpanded { get; init; }
 }
 
 /// <summary>Versioned, tolerant root document for per-user/per-machine workspace UI state. Never Catalog or Preview data.</summary>
@@ -249,6 +251,13 @@ internal sealed class WorkspaceStateService
         {
             BrowserCollectionId = collectionId,
             BrowserExpandedCollectionSetIds = expandedSetIds.Order().ToArray()
+        } };
+
+    public void SetBrowserScopeSectionState(bool locationsExpanded, bool collectionsExpanded) =>
+        _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with
+        {
+            BrowserLocationsSectionExpanded = locationsExpanded,
+            BrowserCollectionsSectionExpanded = collectionsExpanded
         } };
 
     /// <summary>Writes the current in-memory document atomically. Never throws: a failed save must not disrupt shutdown or navigation.</summary>

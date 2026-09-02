@@ -106,6 +106,8 @@ internal sealed class BrowserScopeSelection
 internal enum BrowserCollectionDropKind { None, InsertBefore, InsertAfter, IntoSet }
 internal sealed record BrowserCollectionDrop(BrowserCollectionDropKind Kind, BrowserCollectionNode Target);
 internal sealed record BrowserCollectionInsertionDestination(Guid? ParentSetId, int Ordinal);
+internal sealed record BrowserCollectionInsertionChoice(BrowserCollectionNode Target, BrowserCollectionDropKind Kind,
+    BrowserCollectionInsertionDestination Destination);
 
 internal sealed class BrowserCollectionDragHover
 {
@@ -208,16 +210,6 @@ internal static class BrowserCollectionInteraction
         else
         {
             destinationParent = target.ParentSetId;
-            if (kind == BrowserCollectionDropKind.InsertAfter)
-            {
-                while (destinationParent is { } parentId)
-                {
-                    var parent = all.SingleOrDefault(node => node.IsSet && node.Id == parentId);
-                    if (parent is null || !parent.IsExpanded || !ReferenceEquals(parent.Children.LastOrDefault(), anchor)) break;
-                    anchor = parent;
-                    destinationParent = parent.ParentSetId;
-                }
-            }
         }
 
         if (dragged.IsSet && (destinationParent == dragged.Id ||
@@ -232,6 +224,42 @@ internal static class BrowserCollectionInteraction
         var anchorIndex = siblings.FindIndex(node => node.Id == anchor.Id);
         if (anchorIndex < 0) return null;
         return new(destinationParent, anchorIndex + (beforeAnchor ? 0 : 1));
+    }
+
+    public static IReadOnlyList<BrowserCollectionInsertionChoice> ResolveInsertionChoices(
+        IEnumerable<BrowserCollectionNode> roots, BrowserCollectionNode dragged,
+        BrowserCollectionNode target, BrowserCollectionDropKind kind)
+    {
+        if (kind is not (BrowserCollectionDropKind.InsertBefore or BrowserCollectionDropKind.InsertAfter)) return [];
+        var rootList = roots.ToArray();
+        var visible = VisibleNodes(rootList).Where(node => !ReferenceEquals(node, dragged)).ToArray();
+        var targetIndex = Array.IndexOf(visible, target);
+        if (targetIndex < 0) return [];
+        var boundary = targetIndex + (kind == BrowserCollectionDropKind.InsertAfter ? 1 : 0);
+        var candidates = new List<BrowserCollectionInsertionChoice>(2);
+        Add(boundary > 0 ? visible[boundary - 1] : null, BrowserCollectionDropKind.InsertAfter);
+        Add(boundary < visible.Length ? visible[boundary] : null, BrowserCollectionDropKind.InsertBefore);
+        return candidates;
+
+        void Add(BrowserCollectionNode? candidateTarget, BrowserCollectionDropKind candidateKind)
+        {
+            if (candidateTarget is null || ReferenceEquals(candidateTarget, dragged)) return;
+            if (ResolveInsertion(rootList, dragged, candidateTarget, candidateKind) is not { } destination) return;
+            var duplicate = candidates.FindIndex(candidate => candidate.Destination == destination);
+            var choice = new BrowserCollectionInsertionChoice(candidateTarget, candidateKind, destination);
+            if (duplicate >= 0) candidates[duplicate] = choice;
+            else candidates.Add(choice);
+        }
+    }
+
+    private static IEnumerable<BrowserCollectionNode> VisibleNodes(IEnumerable<BrowserCollectionNode> nodes)
+    {
+        foreach (var node in nodes.OrderBy(node => node.Ordinal))
+        {
+            yield return node;
+            if (!node.IsSet || !node.IsExpanded) continue;
+            foreach (var child in VisibleNodes(node.Children)) yield return child;
+        }
     }
 }
 

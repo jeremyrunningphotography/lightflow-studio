@@ -167,10 +167,16 @@ public sealed class BrowserCollectionsTests
             roots, dragged, second, BrowserCollectionDropKind.InsertBefore));
         Assert.Equal(new(set.Id, 1), BrowserCollectionInteraction.ResolveInsertion(
             roots, dragged, first, BrowserCollectionDropKind.InsertAfter));
+        var headerBoundary = BrowserCollectionInteraction.ResolveInsertionChoices(
+            roots, dragged, set, BrowserCollectionDropKind.InsertAfter);
+        Assert.Single(headerBoundary);
+        Assert.Equal(new(set.Id, 0), headerBoundary[0].Destination);
+        Assert.Same(first, headerBoundary[0].Target);
+        Assert.Equal(BrowserCollectionDropKind.InsertBefore, headerBoundary[0].Kind);
     }
 
     [Fact]
-    public void FinalVisibleDescendant_ResolvesAfterWholeExpandedSubtreeAtParentLevel()
+    public void FinalVisibleDescendant_ExposesAppendInsideAndInsertAfterOutsideDestinations()
     {
         var set = new BrowserCollectionNode(Set("Set", 0)) { IsExpanded = true };
         var first = new BrowserCollectionNode(Collection("First", 0, set.Id));
@@ -181,8 +187,23 @@ public sealed class BrowserCollectionsTests
         var dragged = new BrowserCollectionNode(Collection("Dragged", 2));
         BrowserCollectionNode[] roots = [set, sibling, dragged];
 
-        Assert.Equal(new(null, 1), BrowserCollectionInteraction.ResolveInsertion(
+        Assert.Equal(new(set.Id, 2), BrowserCollectionInteraction.ResolveInsertion(
             roots, dragged, last, BrowserCollectionDropKind.InsertAfter));
+        Assert.Equal(new(null, 1), BrowserCollectionInteraction.ResolveInsertion(
+            roots, dragged, sibling, BrowserCollectionDropKind.InsertBefore));
+
+        var fromChildSide = BrowserCollectionInteraction.ResolveInsertionChoices(
+            roots, dragged, last, BrowserCollectionDropKind.InsertAfter);
+        var fromParentSide = BrowserCollectionInteraction.ResolveInsertionChoices(
+            roots, dragged, sibling, BrowserCollectionDropKind.InsertBefore);
+        Assert.Equal(2, fromChildSide.Count);
+        Assert.Equal(fromChildSide, fromParentSide);
+        Assert.Equal([new BrowserCollectionInsertionDestination(set.Id, 2),
+            new BrowserCollectionInsertionDestination(null, 1)],
+            fromChildSide.Select(choice => choice.Destination));
+        Assert.Equal([BrowserCollectionDropKind.InsertAfter, BrowserCollectionDropKind.InsertBefore],
+            fromChildSide.Select(choice => choice.Kind));
+        Assert.NotEqual(fromChildSide[0].Target.ParentSetId, fromChildSide[1].Target.ParentSetId);
     }
 
     [Fact]
@@ -195,6 +216,8 @@ public sealed class BrowserCollectionsTests
         BrowserCollectionNode[] roots = [set, sibling, dragged];
 
         Assert.Equal(new(null, 1), BrowserCollectionInteraction.ResolveInsertion(
+            roots, dragged, set, BrowserCollectionDropKind.InsertAfter));
+        Assert.Single(BrowserCollectionInteraction.ResolveInsertionChoices(
             roots, dragged, set, BrowserCollectionDropKind.InsertAfter));
     }
 
@@ -212,10 +235,21 @@ public sealed class BrowserCollectionsTests
         var dragged = new BrowserCollectionNode(Set("Dragged set", 2));
         BrowserCollectionNode[] roots = [outer, rootSibling, dragged];
 
-        Assert.Equal(new(outer.Id, 1), BrowserCollectionInteraction.ResolveInsertion(
+        Assert.Equal(new(nested.Id, 1), BrowserCollectionInteraction.ResolveInsertion(
             roots, dragged, leaf, BrowserCollectionDropKind.InsertAfter));
-        Assert.Equal(new(null, 1), BrowserCollectionInteraction.ResolveInsertion(
+        Assert.Equal(new(outer.Id, 2), BrowserCollectionInteraction.ResolveInsertion(
             roots, dragged, outerLast, BrowserCollectionDropKind.InsertAfter));
+
+        Assert.Equal([new BrowserCollectionInsertionDestination(nested.Id, 1),
+            new BrowserCollectionInsertionDestination(outer.Id, 1)],
+            BrowserCollectionInteraction.ResolveInsertionChoices(
+                    roots, dragged, leaf, BrowserCollectionDropKind.InsertAfter)
+                .Select(choice => choice.Destination));
+        Assert.Equal([new BrowserCollectionInsertionDestination(outer.Id, 2),
+            new BrowserCollectionInsertionDestination(null, 1)],
+            BrowserCollectionInteraction.ResolveInsertionChoices(
+                    roots, dragged, outerLast, BrowserCollectionDropKind.InsertAfter)
+                .Select(choice => choice.Destination));
     }
 
     [Fact]

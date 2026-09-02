@@ -27,10 +27,13 @@ public sealed class BrowserCollectionsPresentationTests
     {
         var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
         Assert.Contains("class CollectionDropAdorner", code);
-        Assert.Contains("new System.Windows.Media.Pen(accent, 4)", code);
+        Assert.Contains("new System.Windows.Media.Pen(accent, active ? 4 : 2)", code);
         Assert.Contains("DrawRoundedRectangle(null, new System.Windows.Media.Pen(accent, 2)", code);
         Assert.Contains("Math.Min(BrowserCollectionRowHeight, container.ActualHeight)", code);
         Assert.Contains("Math.Min(BrowserCollectionRowHeight, item.ActualHeight)", code);
+        Assert.Contains("ResolveInsertionChoices", code);
+        Assert.Contains("line.Edge == BrowserCollectionDropKind.InsertBefore ? 2 : -2", code);
+        Assert.Contains("UpdateLines(lines, activeDestination)", code);
         Assert.DoesNotContain("targetFill", code);
         Assert.DoesNotContain("item.BorderThickness =", code);
     }

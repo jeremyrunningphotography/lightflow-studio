@@ -3619,7 +3619,7 @@ public partial class MainWindow : Window
             BrowserCollectionInteraction.ResolveInsertion(_browserCollectionTree.Roots, dragged, drop.Target, drop.Kind) is null)
             drop = null;
         TrackCollectionDragHover(dragged, drop);
-        ShowCollectionDropFeedback(container, drop?.Kind ?? BrowserCollectionDropKind.None);
+        ShowCollectionDropFeedback(container, dragged, drop);
         e.Effects = drop is { Kind: not BrowserCollectionDropKind.None }
             ? System.Windows.DragDropEffects.Move : System.Windows.DragDropEffects.None;
         e.Handled = true;
@@ -3738,8 +3738,10 @@ public partial class MainWindow : Window
         node.IsSet ? CollectionHierarchyItemKind.Set : CollectionHierarchyItemKind.Collection,
         node.Id, node.Revision);
 
-    private void ShowCollectionDropFeedback(TreeViewItem? item, BrowserCollectionDropKind kind)
+    private void ShowCollectionDropFeedback(TreeViewItem? item, BrowserCollectionNode? dragged,
+        BrowserCollectionDrop? drop)
     {
+        var kind = drop?.Kind ?? BrowserCollectionDropKind.None;
         if (item is null || kind == BrowserCollectionDropKind.None) { ClearCollectionDropFeedback(); return; }
         _collectionDropAdornerLayer ??= System.Windows.Documents.AdornerLayer.GetAdornerLayer(BrowserCollectionTree);
         if (_collectionDropAdornerLayer is null) return;
@@ -3749,7 +3751,28 @@ public partial class MainWindow : Window
                 (System.Windows.Media.Brush)FindResource("ShellFocusBrush"));
             _collectionDropAdornerLayer.Add(_collectionDropAdorner);
         }
-        _collectionDropAdorner.Update(item, kind);
+        if (kind == BrowserCollectionDropKind.IntoSet)
+        {
+            _collectionDropAdorner.UpdateTarget(item);
+            return;
+        }
+        if (dragged is null || drop is null ||
+            BrowserCollectionInteraction.ResolveInsertion(_browserCollectionTree.Roots, dragged, drop.Target, kind)
+                is not { } activeDestination)
+        {
+            ClearCollectionDropFeedback();
+            return;
+        }
+        var containers = CollectionTreeItems(BrowserCollectionTree)
+            .Where(container => container.DataContext is BrowserCollectionNode)
+            .ToDictionary(container => ((BrowserCollectionNode)container.DataContext).Id);
+        var lines = BrowserCollectionInteraction.ResolveInsertionChoices(
+                _browserCollectionTree.Roots, dragged, drop.Target, kind)
+            .Where(choice => containers.ContainsKey(choice.Target.Id))
+            .Select(choice => new CollectionInsertionLine(containers[choice.Target.Id], choice.Kind, choice.Destination))
+            .ToArray();
+        if (lines.Length == 0) { ClearCollectionDropFeedback(); return; }
+        _collectionDropAdorner.UpdateLines(lines, activeDestination);
     }
 
     private void ClearCollectionDropFeedback()
@@ -3759,25 +3782,49 @@ public partial class MainWindow : Window
         _collectionDropAdornerLayer = null;
     }
 
+    private sealed record CollectionInsertionLine(TreeViewItem Item, BrowserCollectionDropKind Edge,
+        BrowserCollectionInsertionDestination Destination);
+
     private sealed class CollectionDropAdorner(
         UIElement adornedElement, System.Windows.Media.Brush accent)
         : System.Windows.Documents.Adorner(adornedElement)
     {
         private Rect _row;
         private BrowserCollectionDropKind _kind;
+        private IReadOnlyList<(Rect Row, BrowserCollectionDropKind Edge,
+            BrowserCollectionInsertionDestination Destination)> _lines = [];
+        private BrowserCollectionInsertionDestination? _activeDestination;
 
-        public void Update(TreeViewItem item, BrowserCollectionDropKind kind)
+        public void UpdateTarget(TreeViewItem item)
         {
             var origin = item.TranslatePoint(new System.Windows.Point(0, 0), AdornedElement);
             _row = new Rect(origin.X, origin.Y, Math.Max(item.ActualWidth, AdornedElement.RenderSize.Width - origin.X),
                 Math.Min(BrowserCollectionRowHeight, item.ActualHeight));
-            _kind = kind;
+            _kind = BrowserCollectionDropKind.IntoSet;
+            _lines = [];
+            _activeDestination = null;
+            InvalidateVisual();
+        }
+
+        public void UpdateLines(IReadOnlyList<CollectionInsertionLine> lines,
+            BrowserCollectionInsertionDestination activeDestination)
+        {
+            _kind = BrowserCollectionDropKind.None;
+            _row = Rect.Empty;
+            _activeDestination = activeDestination;
+            _lines = lines.Select(line =>
+            {
+                var origin = line.Item.TranslatePoint(new System.Windows.Point(0, 0), AdornedElement);
+                var row = new Rect(origin.X, origin.Y,
+                    Math.Max(line.Item.ActualWidth, AdornedElement.RenderSize.Width - origin.X),
+                    Math.Min(BrowserCollectionRowHeight, line.Item.ActualHeight));
+                return (row, line.Edge, line.Destination);
+            }).ToArray();
             InvalidateVisual();
         }
 
         protected override void OnRender(DrawingContext drawingContext)
         {
-            if (_kind == BrowserCollectionDropKind.None || _row.IsEmpty) return;
             if (_kind == BrowserCollectionDropKind.IntoSet)
             {
                 var target = new Rect(_row.Left + 1.5, _row.Top + 1.5,
@@ -3785,10 +3832,20 @@ public partial class MainWindow : Window
                 drawingContext.DrawRoundedRectangle(null, new System.Windows.Media.Pen(accent, 2), target, 5, 5);
                 return;
             }
-            var y = _kind == BrowserCollectionDropKind.InsertBefore ? _row.Top : _row.Bottom;
-            var pen = new System.Windows.Media.Pen(accent, 4) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-            drawingContext.DrawLine(pen, new System.Windows.Point(_row.Left, y),
-                new System.Windows.Point(_row.Right, y));
+            foreach (var line in _lines)
+            {
+                var dual = _lines.Count > 1;
+                var y = line.Edge == BrowserCollectionDropKind.InsertBefore ? line.Row.Top : line.Row.Bottom;
+                if (dual) y += line.Edge == BrowserCollectionDropKind.InsertBefore ? 2 : -2;
+                var active = line.Destination == _activeDestination;
+                var pen = new System.Windows.Media.Pen(accent, active ? 4 : 2)
+                {
+                    StartLineCap = PenLineCap.Round,
+                    EndLineCap = PenLineCap.Round
+                };
+                drawingContext.DrawLine(pen, new System.Windows.Point(line.Row.Left, y),
+                    new System.Windows.Point(line.Row.Right, y));
+            }
         }
 
         protected override HitTestResult? HitTestCore(PointHitTestParameters hitTestParameters) => null;

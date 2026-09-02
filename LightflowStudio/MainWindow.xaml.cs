@@ -3609,6 +3609,9 @@ public partial class MainWindow : Window
             ? BrowserCollectionInteraction.DropAt(dragged, target,
                 e.GetPosition(container).Y / Math.Max(1, Math.Min(BrowserCollectionRowHeight, container.ActualHeight)))
             : null;
+        if (dragged is not null && drop is { Kind: BrowserCollectionDropKind.InsertBefore or BrowserCollectionDropKind.InsertAfter } &&
+            BrowserCollectionInteraction.ResolveInsertion(_browserCollectionTree.Roots, dragged, drop.Target, drop.Kind) is null)
+            drop = null;
         ShowCollectionDropFeedback(container, drop?.Kind ?? BrowserCollectionDropKind.None);
         e.Effects = drop is { Kind: not BrowserCollectionDropKind.None }
             ? System.Windows.DragDropEffects.Move : System.Windows.DragDropEffects.None;
@@ -3638,18 +3641,19 @@ public partial class MainWindow : Window
         ClearCollectionDropFeedback();
         if (dragged is null || drop is null || drop.Kind == BrowserCollectionDropKind.None) return;
         if (drop.Kind == BrowserCollectionDropKind.IntoSet) await ReparentCollectionNodeAsync(dragged, drop.Target.Id);
-        else await ReorderCollectionNodeAsync(dragged, drop.Target, drop.Kind == BrowserCollectionDropKind.InsertAfter);
+        else if (BrowserCollectionInteraction.ResolveInsertion(_browserCollectionTree.Roots, dragged, drop.Target, drop.Kind)
+                 is { } destination)
+            await ReorderCollectionNodeAsync(dragged, destination);
         e.Handled = true;
     }
 
-    private async Task ReorderCollectionNodeAsync(BrowserCollectionNode dragged, BrowserCollectionNode target, bool after)
+    private async Task ReorderCollectionNodeAsync(BrowserCollectionNode dragged,
+        BrowserCollectionInsertionDestination destination)
     {
-        var destinationParent = target.ParentSetId;
+        var destinationParent = destination.ParentSetId;
         var siblings = BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
             .Where(node => node.ParentSetId == destinationParent && node.Id != dragged.Id)
             .OrderBy(node => node.Ordinal).ToList();
-        var targetIndex = siblings.FindIndex(node => node.Id == target.Id);
-        if (targetIndex < 0) return;
         await RunCollectionActionAsync(async () =>
         {
             var moved = dragged.ParentSetId == destinationParent
@@ -3660,7 +3664,7 @@ public partial class MainWindow : Window
                     : new CollectionHierarchyOrder(CollectionHierarchyItemKind.Collection, dragged.Id,
                         (await _storage.Collections.ReparentCollectionAsync(dragged.Id, dragged.Revision, destinationParent)).Revision);
             var order = siblings.Select(HierarchyOrder).ToList();
-            order.Insert(targetIndex + (after ? 1 : 0), moved);
+            order.Insert(Math.Clamp(destination.Ordinal, 0, order.Count), moved);
             await _storage.Collections.ReorderHierarchyAsync(destinationParent, order);
             await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
         });

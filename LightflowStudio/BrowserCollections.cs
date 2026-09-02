@@ -105,6 +105,7 @@ internal sealed class BrowserScopeSelection
 
 internal enum BrowserCollectionDropKind { None, InsertBefore, InsertAfter, IntoSet }
 internal sealed record BrowserCollectionDrop(BrowserCollectionDropKind Kind, BrowserCollectionNode Target);
+internal sealed record BrowserCollectionInsertionDestination(Guid? ParentSetId, int Ordinal);
 
 internal static class BrowserCollectionInteraction
 {
@@ -142,6 +143,53 @@ internal static class BrowserCollectionInteraction
     public static BrowserCollectionNode[] OrderByName(IEnumerable<BrowserCollectionNode> nodes, bool descending) =>
         (descending ? nodes.OrderByDescending(node => node.Name, StringComparer.CurrentCultureIgnoreCase)
             : nodes.OrderBy(node => node.Name, StringComparer.CurrentCultureIgnoreCase)).ToArray();
+
+    public static BrowserCollectionInsertionDestination? ResolveInsertion(
+        IEnumerable<BrowserCollectionNode> roots, BrowserCollectionNode dragged,
+        BrowserCollectionNode target, BrowserCollectionDropKind kind)
+    {
+        if (kind is not (BrowserCollectionDropKind.InsertBefore or BrowserCollectionDropKind.InsertAfter)) return null;
+
+        var all = BrowserCollectionTreeModel.Flatten(roots).ToArray();
+        BrowserCollectionNode anchor = target;
+        Guid? destinationParent;
+        var beforeAnchor = kind == BrowserCollectionDropKind.InsertBefore;
+
+        if (kind == BrowserCollectionDropKind.InsertAfter && target is { IsSet: true, IsExpanded: true } &&
+            target.Children.Count > 0)
+        {
+            destinationParent = target.Id;
+            anchor = target.Children[0];
+            beforeAnchor = true;
+        }
+        else
+        {
+            destinationParent = target.ParentSetId;
+            if (kind == BrowserCollectionDropKind.InsertAfter)
+            {
+                while (destinationParent is { } parentId)
+                {
+                    var parent = all.SingleOrDefault(node => node.IsSet && node.Id == parentId);
+                    if (parent is null || !parent.IsExpanded || !ReferenceEquals(parent.Children.LastOrDefault(), anchor)) break;
+                    anchor = parent;
+                    destinationParent = parent.ParentSetId;
+                }
+            }
+        }
+
+        if (dragged.IsSet && (destinationParent == dragged.Id ||
+            BrowserCollectionTreeModel.Flatten(dragged.Children).Any(node => node.Id == destinationParent))) return null;
+
+        var siblings = (destinationParent is { } destinationParentId
+                ? all.Single(node => node.IsSet && node.Id == destinationParentId).Children
+                : roots)
+            .Where(node => node.Id != dragged.Id)
+            .OrderBy(node => node.Ordinal)
+            .ToList();
+        var anchorIndex = siblings.FindIndex(node => node.Id == anchor.Id);
+        if (anchorIndex < 0) return null;
+        return new(destinationParent, anchorIndex + (beforeAnchor ? 0 : 1));
+    }
 }
 
 internal sealed class BrowserCollectionTreeModel

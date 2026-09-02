@@ -143,6 +143,95 @@ public sealed class BrowserCollectionsTests
     }
 
     [Fact]
+    public void ExpandedSet_HeaderBottomAndChildLinesResolveInsideItsVisibleSubtree()
+    {
+        var set = new BrowserCollectionNode(Set("Set", 0)) { IsExpanded = true };
+        var first = new BrowserCollectionNode(Collection("First", 0, set.Id));
+        var second = new BrowserCollectionNode(Collection("Second", 1, set.Id));
+        set.Children.Add(first);
+        set.Children.Add(second);
+        var sibling = new BrowserCollectionNode(Collection("Sibling", 1));
+        var dragged = new BrowserCollectionNode(Collection("Dragged", 2));
+        BrowserCollectionNode[] roots = [set, sibling, dragged];
+
+        Assert.Equal(new(set.Id, 0), BrowserCollectionInteraction.ResolveInsertion(
+            roots, dragged, set, BrowserCollectionDropKind.InsertAfter));
+        Assert.Equal(new(set.Id, 1), BrowserCollectionInteraction.ResolveInsertion(
+            roots, dragged, second, BrowserCollectionDropKind.InsertBefore));
+        Assert.Equal(new(set.Id, 1), BrowserCollectionInteraction.ResolveInsertion(
+            roots, dragged, first, BrowserCollectionDropKind.InsertAfter));
+    }
+
+    [Fact]
+    public void FinalVisibleDescendant_ResolvesAfterWholeExpandedSubtreeAtParentLevel()
+    {
+        var set = new BrowserCollectionNode(Set("Set", 0)) { IsExpanded = true };
+        var first = new BrowserCollectionNode(Collection("First", 0, set.Id));
+        var last = new BrowserCollectionNode(Collection("Last", 1, set.Id));
+        set.Children.Add(first);
+        set.Children.Add(last);
+        var sibling = new BrowserCollectionNode(Collection("Sibling", 1));
+        var dragged = new BrowserCollectionNode(Collection("Dragged", 2));
+        BrowserCollectionNode[] roots = [set, sibling, dragged];
+
+        Assert.Equal(new(null, 1), BrowserCollectionInteraction.ResolveInsertion(
+            roots, dragged, last, BrowserCollectionDropKind.InsertAfter));
+    }
+
+    [Fact]
+    public void CollapsedSet_HeaderBottomResolvesAfterSetAtParentLevel()
+    {
+        var set = new BrowserCollectionNode(Set("Set", 0));
+        set.Children.Add(new BrowserCollectionNode(Collection("Hidden", 0, set.Id)));
+        var sibling = new BrowserCollectionNode(Collection("Sibling", 1));
+        var dragged = new BrowserCollectionNode(Collection("Dragged", 2));
+        BrowserCollectionNode[] roots = [set, sibling, dragged];
+
+        Assert.Equal(new(null, 1), BrowserCollectionInteraction.ResolveInsertion(
+            roots, dragged, set, BrowserCollectionDropKind.InsertAfter));
+    }
+
+    [Fact]
+    public void NestedExpandedBoundaries_ClimbOnlyPastExhaustedVisibleSubtrees()
+    {
+        var outer = new BrowserCollectionNode(Set("Outer", 0)) { IsExpanded = true };
+        var nested = new BrowserCollectionNode(Set("Nested", 0, outer.Id)) { IsExpanded = true };
+        var leaf = new BrowserCollectionNode(Collection("Leaf", 0, nested.Id));
+        var outerLast = new BrowserCollectionNode(Collection("Outer last", 1, outer.Id));
+        nested.Children.Add(leaf);
+        outer.Children.Add(nested);
+        outer.Children.Add(outerLast);
+        var rootSibling = new BrowserCollectionNode(Collection("Root sibling", 1));
+        var dragged = new BrowserCollectionNode(Set("Dragged set", 2));
+        BrowserCollectionNode[] roots = [outer, rootSibling, dragged];
+
+        Assert.Equal(new(outer.Id, 1), BrowserCollectionInteraction.ResolveInsertion(
+            roots, dragged, leaf, BrowserCollectionDropKind.InsertAfter));
+        Assert.Equal(new(null, 1), BrowserCollectionInteraction.ResolveInsertion(
+            roots, dragged, outerLast, BrowserCollectionDropKind.InsertAfter));
+    }
+
+    [Fact]
+    public void CollectionAndSetMovesResolveValidDestinationsWhileSetCyclesRemainRejected()
+    {
+        var parent = new BrowserCollectionNode(Set("Parent", 0)) { IsExpanded = true };
+        var childSet = new BrowserCollectionNode(Set("Child", 0, parent.Id));
+        var childCollection = new BrowserCollectionNode(Collection("Child collection", 1, parent.Id));
+        parent.Children.Add(childSet);
+        parent.Children.Add(childCollection);
+        var collection = new BrowserCollectionNode(Collection("Collection", 1));
+        var otherSet = new BrowserCollectionNode(Set("Other set", 2));
+        BrowserCollectionNode[] roots = [parent, collection, otherSet];
+
+        Assert.Equal(new(parent.Id, 0), BrowserCollectionInteraction.ResolveInsertion(
+            roots, collection, parent, BrowserCollectionDropKind.InsertAfter));
+        Assert.Equal(new(parent.Id, 1), BrowserCollectionInteraction.ResolveInsertion(
+            roots, otherSet, childCollection, BrowserCollectionDropKind.InsertBefore));
+        Assert.Null(BrowserCollectionInteraction.ResolveInsertion(
+            roots, parent, childCollection, BrowserCollectionDropKind.InsertBefore));
+    }
+
+    [Fact]
     public async Task Scope_UsesMembershipOnlyPreservesOrderAndTruthfullyRetainsUnavailableMembers()
     {
         var collection = Collection("Picks", 0);

@@ -130,6 +130,69 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PreferredFrame_UsesExactDecodedTimestampAndColorAwareIdentity()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, "clip.mp4"), "source");
+        var assetId = await fixture.AddAssetAsync("clip.mp4", "video");
+        var timestamp = new MediaPresentationTimestamp(TimeSpan.FromTicks(12_345_678));
+        var preferred = await fixture.Coordinator.PreferredPreviewFrames.SetAsync(assetId, timestamp, TimeSpan.FromMinutes(1));
+        var renderer = new PositionRenderer();
+        using var service = new ThumbnailGenerationService(fixture.Coordinator.MediaAssets,
+            fixture.Coordinator.Previews!, fixture.Coordinator.Locations, renderer,
+            preferredFrames: fixture.Coordinator.PreferredPreviewFrames);
+
+        Assert.Equal(ThumbnailGenerationStatus.Succeeded, (await service.GenerateAsync(new(assetId))).Status);
+        Assert.Equal(timestamp.Position, renderer.Position);
+        Assert.Equal(ThumbnailGenerationService.BrowserVisualIdentity(PreviewVisualIdentity.Original, preferred),
+            (await fixture.Coordinator.Previews!.GetAsync(assetId))!.ThumbnailVisualIdentity);
+    }
+
+    [Fact]
+    public async Task PreferredFrameChangeDuringRender_CannotPublishStaleWork()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, "clip.mp4"), "source");
+        var assetId = await fixture.AddAssetAsync("clip.mp4", "video");
+        await fixture.Coordinator.PreferredPreviewFrames.SetAsync(assetId,
+            new(TimeSpan.FromSeconds(2)), TimeSpan.FromMinutes(1));
+        var renderer = new BlockingPositionRenderer();
+        using var service = new ThumbnailGenerationService(fixture.Coordinator.MediaAssets,
+            fixture.Coordinator.Previews!, fixture.Coordinator.Locations, renderer,
+            preferredFrames: fixture.Coordinator.PreferredPreviewFrames);
+
+        var generation = service.GenerateAsync(new(assetId));
+        await renderer.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await fixture.Coordinator.PreferredPreviewFrames.SetAsync(assetId,
+            new(TimeSpan.FromSeconds(7)), TimeSpan.FromMinutes(1));
+        renderer.Release.TrySetResult();
+
+        Assert.Equal(ThumbnailGenerationStatus.SourceChanged, (await generation).Status);
+        Assert.Null((await fixture.Coordinator.Previews!.GetAsync(assetId))!.ThumbnailRelativePath);
+    }
+
+    [Fact]
+    public async Task PreferredFrame_PersistsAcrossRestartAndResetRestoresAutomaticIdentity()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, "clip.mp4"), "source");
+        var assetId = await fixture.AddAssetAsync("clip.mp4", "video");
+        var first = await fixture.Coordinator.PreferredPreviewFrames.SetAsync(assetId,
+            new(TimeSpan.FromTicks(987_654)), TimeSpan.FromSeconds(10));
+        var second = await fixture.Coordinator.PreferredPreviewFrames.SetAsync(assetId,
+            new(TimeSpan.FromTicks(987_654)), TimeSpan.FromSeconds(10));
+        Assert.Equal(first.Revision + 1, second.Revision);
+        await fixture.ReopenAsync();
+
+        Assert.Equal(TimeSpan.FromTicks(987_654),
+            (await fixture.Coordinator.PreferredPreviewFrames.GetAsync(assetId))!.Position);
+        await fixture.Coordinator.PreferredPreviewFrames.ResetAsync(assetId);
+        Assert.Null(await fixture.Coordinator.PreferredPreviewFrames.GetAsync(assetId));
+        Assert.Equal(PreviewVisualIdentity.Original,
+            ThumbnailGenerationService.BrowserVisualIdentity(PreviewVisualIdentity.Original, null));
+    }
+
+    [Fact]
     public async Task CurrentThumbnail_PersistsAcrossReopenAndIsReused()
     {
         await using var fixture = await ThumbnailFixture.CreateAsync(_root);
@@ -543,6 +606,32 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
         public Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
             string destinationPath, CancellationToken cancellationToken = default)
         { cancellationToken.ThrowIfCancellationRequested(); CallCount++; WriteJpeg(destinationPath); return Task.FromResult(new ThumbnailRenderResult(ThumbnailGenerationStatus.Succeeded)); }
+    }
+
+    private sealed class PositionRenderer : IThumbnailRenderer
+    {
+        public TimeSpan? Position { get; private set; }
+        public Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
+            string destinationPath, CancellationToken cancellationToken = default)
+        {
+            Position = videoPosition;
+            WriteJpeg(destinationPath);
+            return Task.FromResult(new ThumbnailRenderResult(ThumbnailGenerationStatus.Succeeded));
+        }
+    }
+
+    private sealed class BlockingPositionRenderer : IThumbnailRenderer
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
+            string destinationPath, CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            WriteJpeg(destinationPath);
+            return new(ThumbnailGenerationStatus.Succeeded);
+        }
     }
 
     private sealed class SynchronousProgress<T>(Action<T> report) : IProgress<T>

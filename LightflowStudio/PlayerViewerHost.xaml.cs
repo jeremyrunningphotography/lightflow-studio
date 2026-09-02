@@ -13,6 +13,8 @@ using UserControl = System.Windows.Controls.UserControl;
 
 namespace LightflowStudio;
 
+internal sealed record PreviewFrameIntentChangedEventArgs(Guid AssetId, TimeSpan? Position, bool Reset);
+
 /// <summary>
 /// Lightflow's integrated Player/Viewer presentation content (#110). Deliberately independent of
 /// <c>MainWindow</c> and Browser chrome: it takes a <see cref="MediaPlaybackCoordinator"/> (the same
@@ -34,6 +36,7 @@ public partial class PlayerViewerHost : UserControl
     private readonly IFolderLauncher _folderLauncher;
     private readonly ILutLibraryCache? _lutCache;
     private readonly IAssetColorStore? _assetColors;
+    private readonly IPreferredPreviewFrameStore? _preferredPreviewFrames;
     private readonly Func<string>? _cameraLutFolder;
     private readonly Func<string>? _creativeLutFolder;
     private readonly Action<PlayerOpenMilestone>? _openMilestone;
@@ -62,6 +65,7 @@ public partial class PlayerViewerHost : UserControl
     private LutLibrarySnapshot? _cameraLibrary;
     private LutLibrarySnapshot? _creativeLibrary;
     private long _colorRefreshRevision;
+    private bool _previewFrameBusy;
 
     private sealed record LutChoice(Guid? LutId, string DisplayName, bool OpensFolder = false)
     {
@@ -75,7 +79,8 @@ public partial class PlayerViewerHost : UserControl
         IFolderLauncher? folderLauncher = null, ISubclipPosterService? subclipPosters = null,
         ILutLibraryCache? lutCache = null, IAssetColorStore? assetColors = null,
         Func<string>? cameraLutFolder = null, Func<string>? creativeLutFolder = null,
-        Action<PlayerOpenMilestone>? openMilestone = null)
+        Action<PlayerOpenMilestone>? openMilestone = null,
+        IPreferredPreviewFrameStore? preferredPreviewFrames = null)
     {
         _coordinator = coordinator;
         _rangeStore = rangeStore;
@@ -88,6 +93,7 @@ public partial class PlayerViewerHost : UserControl
         _cameraLutFolder = cameraLutFolder;
         _creativeLutFolder = creativeLutFolder;
         _openMilestone = openMilestone;
+        _preferredPreviewFrames = preferredPreviewFrames;
         InitializeComponent();
         SubclipsList.DataContext = _subclipItems;
     }
@@ -99,6 +105,7 @@ public partial class PlayerViewerHost : UserControl
     internal event EventHandler<MediaRangeStateChangedEventArgs>? RangeStateChanged;
     internal event EventHandler<AssetColorStateChangedEventArgs>? ColorStateChanged;
     internal event EventHandler<SubclipStateChangedEventArgs>? SubclipStateChanged;
+    internal event EventHandler<PreviewFrameIntentChangedEventArgs>? PreviewFrameIntentChanged;
     internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
     internal event EventHandler<PlayerViewerSubclipsExportRequestedEventArgs>? ExportSelectedSubclipsRequested;
     internal event EventHandler<SubclipsDrawerStateRequestedEventArgs>? SubclipsDrawerStateRequested;
@@ -341,7 +348,19 @@ public partial class PlayerViewerHost : UserControl
         PlayPauseButton.IsEnabled = enabled;
         SetInButton.IsEnabled = enabled;
         SetOutButton.IsEnabled = enabled;
-        ScreengrabButton.IsEnabled = enabled && _screengrabService is not null;
+        UpdatePausedFrameActions();
+    }
+
+    private void UpdatePausedFrameActions()
+    {
+        var timestamp = _retainedSteppedFrame?.Timestamp ?? _service?.Snapshot.DisplayedTimestamp;
+        var canUseDisplayedFrame = PositionSlider.IsEnabled && !_previewFrameBusy &&
+            _currentAsset?.Kind == MediaPresentationKind.Video &&
+            _service?.Snapshot.State == MediaPlaybackState.Paused &&
+            timestamp is { IsDecodedPresentationTimestamp: true };
+        ScreengrabButton.IsEnabled = canUseDisplayedFrame && _screengrabService is not null;
+        SetPreviewFrameButton.IsEnabled = canUseDisplayedFrame && _currentAsset?.AssetId is not null &&
+            _preferredPreviewFrames is not null;
     }
 
     private void SetColorControlsEnabled(bool enabled)
@@ -645,6 +664,7 @@ public partial class PlayerViewerHost : UserControl
             SetStatus(snapshot.Error?.Message ?? "Playback failed.");
             SetTransportEnabled(false);
         }
+        else UpdatePausedFrameActions();
     }
 
     private async void PositionSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -949,7 +969,8 @@ public partial class PlayerViewerHost : UserControl
 
     private async void Screengrab_Click(object sender, RoutedEventArgs e)
     {
-        if (_screengrabService is null || _service?.SourceInfo is not { } source || !ScreengrabButton.IsEnabled)
+        if (_screengrabService is null || _service?.SourceInfo is not { } source || !ScreengrabButton.IsEnabled ||
+            _service.Snapshot.State != MediaPlaybackState.Paused)
             return;
         var generation = _generation;
         ScreengrabButton.IsEnabled = false;
@@ -984,7 +1005,63 @@ public partial class PlayerViewerHost : UserControl
         finally
         {
             if (generation == _generation && _service is not null)
-                ScreengrabButton.IsEnabled = PositionSlider.IsEnabled;
+                UpdatePausedFrameActions();
+        }
+    }
+
+    private async void SetPreviewFrame_Click(object sender, RoutedEventArgs e)
+    {
+        if (_preferredPreviewFrames is null || _currentAsset?.AssetId is not Guid assetId ||
+            _service?.SourceInfo is not { } source || !SetPreviewFrameButton.IsEnabled) return;
+        var generation = _generation;
+        _previewFrameBusy = true;
+        UpdatePausedFrameActions();
+        try
+        {
+            await _frameStepQueue.WaitUntilIdleAsync().ConfigureAwait(true);
+            if (generation != _generation || _service?.Snapshot.State != MediaPlaybackState.Paused) return;
+            var timestamp = _retainedSteppedFrame?.Timestamp ?? _service.Snapshot.DisplayedTimestamp;
+            if (timestamp is not { IsDecodedPresentationTimestamp: true }) return;
+            await _preferredPreviewFrames.SetAsync(assetId, timestamp, source.Duration).ConfigureAwait(true);
+            if (generation == _generation)
+            {
+                SetStatus($"Browser Preview set to {FormatTimestamp(timestamp.Position)}.");
+                PreviewFrameIntentChanged?.Invoke(this, new(assetId, timestamp.Position, false));
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            if (generation == _generation) SetStatus($"Could not set Browser Preview: {exception.Message}");
+        }
+        finally
+        {
+            if (generation == _generation) { _previewFrameBusy = false; UpdatePausedFrameActions(); }
+        }
+    }
+
+    private async void ResetPreviewFrame_Click(object sender, RoutedEventArgs e)
+    {
+        if (_preferredPreviewFrames is null || _currentAsset?.AssetId is not Guid assetId) return;
+        var generation = _generation;
+        _previewFrameBusy = true;
+        UpdatePausedFrameActions();
+        try
+        {
+            await _preferredPreviewFrames.ResetAsync(assetId).ConfigureAwait(true);
+            if (generation == _generation)
+            {
+                SetStatus("Browser Preview reset to automatic selection.");
+                PreviewFrameIntentChanged?.Invoke(this, new(assetId, null, true));
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            if (generation == _generation) SetStatus($"Could not reset Browser Preview: {exception.Message}");
+        }
+        finally
+        {
+            if (generation == _generation) { _previewFrameBusy = false; UpdatePausedFrameActions(); }
         }
     }
 

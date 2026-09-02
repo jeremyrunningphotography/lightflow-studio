@@ -1499,7 +1499,8 @@ public partial class MainWindow : Window
             subclipPosters: _storage.CreateSubclipPosterService(),
             lutCache: _storage.LutCache,
             assetColors: _storage.AssetColors, cameraLutFolder: () => _storage.Settings.CameraLutFolder,
-            creativeLutFolder: () => _storage.Settings.CreativeLutFolder);
+            creativeLutFolder: () => _storage.Settings.CreativeLutFolder,
+            preferredPreviewFrames: _storage.PreferredPreviewFrames);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         _playerViewerHost.ExportRequested += PlayerViewerHost_ExportRequested;
         _playerViewerHost.ExportSelectedSubclipsRequested += PlayerViewerHost_ExportSelectedSubclipsRequested;
@@ -1514,7 +1515,23 @@ public partial class MainWindow : Window
         };
         _playerViewerHost.SubclipStateChanged += (_, change) =>
             ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Subclips, change.HasSubclips);
+        _playerViewerHost.PreviewFrameIntentChanged += (_, change) =>
+            _ = RegeneratePreferredFrameThumbnailAsync(change.AssetId);
         BrowserPlayerHost.Content = _playerViewerHost;
+    }
+
+    private async Task RegeneratePreferredFrameThumbnailAsync(Guid assetId)
+    {
+        try
+        {
+            await _storage.RegenerateThumbnailsAsync([assetId],
+                progress: new Progress<PreviewRegenerationCompleted>(ApplyCompletedPreview),
+                mode: PreviewRegenerationMode.Force);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            BrowserStatusText.Text = $"Browser Preview regeneration could not complete: {exception.Message}";
+        }
     }
 
     /// <summary>

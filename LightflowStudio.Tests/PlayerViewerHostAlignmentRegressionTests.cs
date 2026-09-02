@@ -131,8 +131,8 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
     {
         var xaml = Source();
         Assert.Contains("x:Name=\"ScreengrabButton\" Width=\"34\" Height=\"30\"", xaml);
-        Assert.Contains("ToolTip=\"Save full-resolution frame as PNG\"", xaml);
-        Assert.Contains("AutomationProperties.Name=\"Save full-resolution screengrab\"", xaml);
+        Assert.Contains("ToolTip=\"Save the current paused frame as a full-resolution PNG\"", xaml);
+        Assert.Contains("AutomationProperties.Name=\"Save paused frame as full-resolution screengrab\"", xaml);
         Assert.Contains("x:Name=\"ScreengrabFeedbackText\"", xaml);
         Assert.Contains("AutomationProperties.LiveSetting=\"Polite\"", xaml);
         Assert.Contains("x:Name=\"ScreengrabSuccessButton\" Width=\"26\" Height=\"26\"", xaml);
@@ -144,6 +144,10 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.DoesNotContain("SetScreengrabFeedback($\"Saved {Path.GetFileName(result.Path)}\")", behavior);
         Assert.Contains("ScreengrabSuccessButton.Visibility = Visibility.Visible;", behavior);
         Assert.Contains("_folderLauncher.Open(_lastScreengrabDirectory);", behavior);
+        Assert.Contains("x:Name=\"SetPreviewFrameButton\" Width=\"34\" Height=\"30\"", xaml);
+        Assert.Contains("Use the current paused frame as this asset's Browser Preview", xaml);
+        Assert.Contains("Header=\"Reset to Automatic Preview\"", xaml);
+        Assert.Contains("_service?.Snapshot.State == MediaPlaybackState.Paused", behavior);
     }
 
     [Fact]

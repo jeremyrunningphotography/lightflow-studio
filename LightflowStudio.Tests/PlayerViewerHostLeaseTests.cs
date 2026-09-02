@@ -879,6 +879,7 @@ public sealed class PlayerViewerHostLeaseTests
 
             host.PreviousFrameButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             await WaitUntilAsync(() => backend.Operations.Count == 3, "Previous Frame presentation handoff");
+            await WaitUntilAsync(() => host.ScreengrabButton.IsEnabled, "paused screengrab availability");
             var pauseCallsBeforeCapture = backend.PauseCallCount;
             host.ScreengrabButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             await WaitUntilAsync(() => screengrabs.SavedFrame is not null, "screengrab save");
@@ -892,6 +893,36 @@ public sealed class PlayerViewerHostLeaseTests
 
             host.ScreengrabSuccessButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             Assert.Equal(Path.Combine(Path.GetTempPath(), "screengrabs"), folders.OpenedDirectory);
+        });
+    }
+
+    [Fact]
+    public async Task SetPreviewFrame_UsesDisplayedDecodedTimestampOnlyWhilePausedWithoutChangingPlayback()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            var frames = new FakePreferredPreviewFrameStore();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var host = new PlayerViewerHost(coordinator, preferredPreviewFrames: frames);
+            var assetId = Guid.NewGuid();
+            var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4",
+                MediaPresentationKind.Video, assetId);
+            await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key,
+                Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
+
+            Assert.True(host.SetPreviewFrameButton.IsEnabled);
+            host.SetPreviewFrameButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await WaitUntilAsync(() => frames.LastSet is not null, "preferred Preview frame commit");
+            Assert.Equal(TimeSpan.Zero, frames.LastSet!.Position);
+            Assert.True(frames.LastSet.IsDecodedPresentationTimestamp);
+            Assert.Equal(0, backend.PlayCallCount);
+            Assert.Equal(0, backend.PauseCallCount);
+
+            host.PlayPauseButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await WaitUntilAsync(() => backend.PlayCallCount == 1, "playback start");
+            await WaitUntilAsync(() => !host.SetPreviewFrameButton.IsEnabled, "playing Preview-frame disablement");
         });
     }
 
@@ -970,6 +1001,21 @@ public sealed class PlayerViewerHostLeaseTests
             return Task.FromResult(new MediaDecodedFrame(new(TimeSpan.Zero), 1, 1, 4, [0, 0, 0, 255]));
         }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class FakePreferredPreviewFrameStore : IPreferredPreviewFrameStore
+    {
+        public MediaPresentationTimestamp? LastSet { get; private set; }
+        public Task<PreferredPreviewFrame?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PreferredPreviewFrame?>(null);
+        public Task<PreferredPreviewFrame> SetAsync(Guid assetId, MediaPresentationTimestamp timestamp,
+            TimeSpan sourceDuration, CancellationToken cancellationToken = default)
+        {
+            LastSet = timestamp;
+            var now = DateTimeOffset.UtcNow;
+            return Task.FromResult(new PreferredPreviewFrame(assetId, timestamp.Position, 1, now, now));
+        }
+        public Task ResetAsync(Guid assetId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class FakeLutLibrary(IReadOnlyDictionary<Guid, string>? paths = null) : ILutLibraryCache

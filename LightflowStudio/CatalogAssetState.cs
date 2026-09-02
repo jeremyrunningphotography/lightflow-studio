@@ -22,7 +22,19 @@ internal interface IBrowserAssetStateStore
 {
     Task<IReadOnlyDictionary<Guid, BrowserAssetState>> GetAsync(
         IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default);
+
+    async Task<IReadOnlyDictionary<Guid, BrowserAssetQueryState>> GetQueryStatesAsync(
+        IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) =>
+        (await GetAsync(assetIds, cancellationToken).ConfigureAwait(false)).ToDictionary(pair => pair.Key, pair =>
+            new BrowserAssetQueryState(pair.Value, false, false,
+                pair.Value.HasFlag(BrowserAssetState.Subclips) ? 1 : 0));
 }
+
+internal sealed record BrowserAssetQueryState(
+    BrowserAssetState Flags,
+    bool HasCameraLut,
+    bool HasCreativeLut,
+    int SubclipCount);
 
 /// <summary>
 /// Projects durable, user-authored Catalog facts into the small state vocabulary consumed by Browser tiles.
@@ -33,11 +45,17 @@ internal sealed class CatalogBrowserAssetStateStore(Func<CatalogDatabaseSession?
 {
     private const int QueryBatchSize = 500;
 
-    public Task<IReadOnlyDictionary<Guid, BrowserAssetState>> GetAsync(
+    public async Task<IReadOnlyDictionary<Guid, BrowserAssetState>> GetAsync(
         IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) =>
-        Task.Run<IReadOnlyDictionary<Guid, BrowserAssetState>>(() =>
+        (await GetQueryStatesAsync(assetIds, cancellationToken).ConfigureAwait(false))
+        .ToDictionary(pair => pair.Key, pair => pair.Value.Flags);
+
+    public Task<IReadOnlyDictionary<Guid, BrowserAssetQueryState>> GetQueryStatesAsync(
+        IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) =>
+        Task.Run<IReadOnlyDictionary<Guid, BrowserAssetQueryState>>(() =>
         {
-            var states = assetIds.Distinct().ToDictionary(assetId => assetId, _ => BrowserAssetState.None);
+            var states = assetIds.Distinct().ToDictionary(assetId => assetId,
+                _ => new BrowserAssetQueryState(BrowserAssetState.None, false, false, 0));
             if (states.Count == 0) return states;
 
             using var connection = RequireSession().OpenConnection();
@@ -58,25 +76,41 @@ internal sealed class CatalogBrowserAssetStateStore(Func<CatalogDatabaseSession?
                     """;
                 using var reader = command.ExecuteReader();
                 while (reader.Read() && Guid.TryParse(reader.GetString(0), out var assetId))
-                    states[assetId] |= BrowserAssetState.ReviewRange;
+                    states[assetId] = states[assetId] with { Flags = states[assetId].Flags | BrowserAssetState.ReviewRange };
                 reader.Close();
 
                 command.Parameters.Clear();
                 parameters = batch.Select((id, index) =>
                 { var name = $"$color{index}"; command.Parameters.AddWithValue(name, id.ToString("D")); return name; }).ToArray();
-                command.CommandText = $"SELECT AssetId FROM MediaAssetColor WHERE (CameraLutId IS NOT NULL OR CreativeLutId IS NOT NULL) AND AssetId IN ({string.Join(',', parameters)});";
+                command.CommandText = $"SELECT AssetId, CameraLutId IS NOT NULL, CreativeLutId IS NOT NULL FROM MediaAssetColor WHERE AssetId IN ({string.Join(',', parameters)});";
                 using var colorReader = command.ExecuteReader();
                 while (colorReader.Read() && Guid.TryParse(colorReader.GetString(0), out var colorAssetId))
-                    states[colorAssetId] |= BrowserAssetState.Color;
+                {
+                    var hasCamera = colorReader.GetBoolean(1);
+                    var hasCreative = colorReader.GetBoolean(2);
+                    states[colorAssetId] = states[colorAssetId] with
+                    {
+                        Flags = states[colorAssetId].Flags | (hasCamera || hasCreative ? BrowserAssetState.Color : BrowserAssetState.None),
+                        HasCameraLut = hasCamera,
+                        HasCreativeLut = hasCreative
+                    };
+                }
                 colorReader.Close();
 
                 command.Parameters.Clear();
                 parameters = batch.Select((id, index) =>
                 { var name = $"$subclip{index}"; command.Parameters.AddWithValue(name, id.ToString("D")); return name; }).ToArray();
-                command.CommandText = $"SELECT DISTINCT AssetId FROM Subclips WHERE AssetId IN ({string.Join(',', parameters)});";
+                command.CommandText = $"SELECT AssetId, COUNT(*) FROM Subclips WHERE AssetId IN ({string.Join(',', parameters)}) GROUP BY AssetId;";
                 using var subclipReader = command.ExecuteReader();
                 while (subclipReader.Read() && Guid.TryParse(subclipReader.GetString(0), out var subclipAssetId))
-                    states[subclipAssetId] |= BrowserAssetState.Subclips;
+                {
+                    var count = checked((int)subclipReader.GetInt64(1));
+                    states[subclipAssetId] = states[subclipAssetId] with
+                    {
+                        Flags = states[subclipAssetId].Flags | BrowserAssetState.Subclips,
+                        SubclipCount = count
+                    };
+                }
             }
             return states;
         }, cancellationToken);

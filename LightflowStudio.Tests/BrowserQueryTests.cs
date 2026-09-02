@@ -292,6 +292,104 @@ public sealed class BrowserQueryTests
         Assert.Null(duration);
     }
 
+    [Fact]
+    public void Apply_MetadataFacetsUseOnlyHydratedNormalizedPreviewValues()
+    {
+        var tiles = Tiles(("r5.mp4", 1), ("other.mp4", 2), ("pending.mp4", 3));
+        tiles[0].ApplyMetadata(new BrowserTechnicalMetadata(new DateTime(2025, 6, 10), 45,
+            "Canon", "EOS R5 Mark II", "RF28-70mm F2 L USM", 8192, 4320, 59.94));
+        tiles[1].ApplyMetadata(new BrowserTechnicalMetadata(new DateTime(2023, 1, 1), 12,
+            "Sony", "ILCE-7SM3", "FE 24-70mm F2.8 GM", 3840, 2160, 29.97));
+        var query = BrowserQuery.Default with { Filters =
+        [
+            BrowserFilterPredicate.ForText(BrowserFilterField.Camera, "Canon EOS R5 Mark II"),
+            BrowserFilterPredicate.ForText(BrowserFilterField.Lens, "RF28-70mm F2 L USM"),
+            BrowserFilterPredicate.ForDateRange(new DateTime(2025, 1, 1), new DateTime(2025, 12, 31)),
+            BrowserFilterPredicate.ForMinimum(BrowserFilterField.Duration, 30),
+            BrowserFilterPredicate.ForResolution(8192, 4320),
+            BrowserFilterPredicate.ForMinimum(BrowserFilterField.FrameRate, 59.94)
+        ] };
+
+        var result = BrowserQueryEngine.Apply(tiles, query);
+
+        Assert.Equal(["r5.mp4"], result.Select(tile => tile.Name));
+        Assert.False(tiles[2].MetadataApplied);
+    }
+
+    [Fact]
+    public void Apply_LightflowStateFacetsDistinguishHydratedFalseFromUnavailable()
+    {
+        var tiles = Tiles(("colored.mp4", 1), ("original.mp4", 2), ("pending.mp4", 3));
+        tiles[0].SetAssetState(new BrowserAssetQueryState(
+            BrowserAssetState.Color | BrowserAssetState.ReviewRange | BrowserAssetState.Subclips, true, true, 2));
+        tiles[1].SetAssetState(new BrowserAssetQueryState(BrowserAssetState.None, false, false, 0));
+
+        var colored = BrowserQueryEngine.Apply(tiles, BrowserQuery.Default with { Filters =
+        [
+            BrowserFilterPredicate.ForState(BrowserFilterField.ColorState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.CameraLutState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.CreativeLutState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.ReviewRangeState, true),
+            BrowserFilterPredicate.ForState(BrowserFilterField.SubclipState, true)
+        ] });
+        var original = BrowserQueryEngine.Apply(tiles, BrowserQuery.Default with { Filters =
+        [
+            BrowserFilterPredicate.ForState(BrowserFilterField.ColorState, false),
+            BrowserFilterPredicate.ForState(BrowserFilterField.ReviewRangeState, false),
+            BrowserFilterPredicate.ForState(BrowserFilterField.SubclipState, false)
+        ] });
+
+        Assert.Equal(["colored.mp4"], colored.Select(tile => tile.Name));
+        Assert.Equal(["original.mp4"], original.Select(tile => tile.Name));
+    }
+
+    [Fact]
+    public void AdvancedFilterContext_AppliesMediaTypeAndSearchButIgnoresEveryAdvancedPredicate()
+    {
+        var model = new BrowserGridModel();
+        var rootId = Guid.NewGuid();
+        model.Populate([
+            Entry(rootId, "trip-canon.mp4", MediaTypeCategory.Video),
+            Entry(rootId, "trip-sony.mp4", MediaTypeCategory.Video),
+            Entry(rootId, "other-canon.mp4", MediaTypeCategory.Video),
+            Entry(rootId, "trip-photo.jpg", MediaTypeCategory.StillImage)
+        ]);
+        model.Tiles.Single(tile => tile.Name == "trip-canon.mp4").ApplyMetadata(
+            new BrowserTechnicalMetadata(null, 60, "Canon", "R5", null, 3840, 2160, 59.94));
+        model.Tiles.Single(tile => tile.Name == "trip-sony.mp4").ApplyMetadata(
+            new BrowserTechnicalMetadata(null, 60, "Sony", "FX3", null, 1920, 1080, 23.976));
+        model.Tiles.Single(tile => tile.Name == "other-canon.mp4").ApplyMetadata(
+            new BrowserTechnicalMetadata(null, 60, "Canon", "R5", null, 3840, 2160, 59.94));
+        var query = BrowserQuery.Default with
+        {
+            SearchText = "trip",
+            Filters =
+            [
+                BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video),
+                BrowserFilterPredicate.ForText(BrowserFilterField.Camera, "Canon R5")
+            ]
+        };
+
+        model.SetQuery(query);
+        var context = model.AdvancedFilterContextTiles;
+        var filtered = model.Tiles;
+
+        Assert.Equal(["trip-canon.mp4", "trip-sony.mp4"], context.Select(tile => tile.Name));
+        Assert.Equal(["trip-canon.mp4"], filtered.Select(tile => tile.Name));
+    }
+
+    [Fact]
+    public void ExtractMetadataProjectsCameraLensResolutionAndFrameRateFromNormalizedPayload()
+    {
+        var json = """{"kind":"Video","durationSeconds":42.5,"video":{"codec":"h264","width":3840,"height":2160,"frameRate":23.976}}""";
+
+        var metadata = BrowserQueryEngine.ExtractMetadata(json);
+
+        Assert.Equal(3840, metadata.PixelWidth);
+        Assert.Equal(2160, metadata.PixelHeight);
+        Assert.Equal(23.976, metadata.FrameRate);
+    }
+
     private static IReadOnlyList<BrowserGridTile> Tiles(params (string Name, int Index)[] items)
     {
         var rootId = Guid.NewGuid();
@@ -324,6 +422,10 @@ public sealed class BrowserFilterPredicateTests
         Assert.Equal("Remove Video filter", BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video).RemoveAutomationLabel);
 
     [Fact]
+    public void OriginalColorLabel_RemainsUnderstandableAsAStandaloneChip() =>
+        Assert.Equal("Original color", BrowserFilterPredicate.ForState(BrowserFilterField.ColorState, false).Label);
+
+    [Fact]
     public void TwoPredicatesForTheSameConditionAreStructurallyEqual()
     {
         // Equality (not reference identity) is what WithFilterAdded/WithFilterRemoved rely on, and what
@@ -348,6 +450,74 @@ public sealed class BrowserFilterPredicateTests
 
     private static MediaFolderEntry Entry(Guid rootId, string name, MediaTypeCategory category) =>
         new(rootId, name, name.ToUpperInvariant(), name, false, new(category), 10, DateTimeOffset.UtcNow);
+}
+
+public sealed class BrowserFrameRateCanonicalizationTests
+{
+    [Theory]
+    [InlineData(23.90, 23.976)]
+    [InlineData(23.99, 24)]
+    [InlineData(24.90, 25)]
+    [InlineData(29.90, 29.97)]
+    [InlineData(30.10, 30)]
+    [InlineData(49.90, 50)]
+    [InlineData(59.674, 59.94)]
+    [InlineData(59.723, 59.94)]
+    [InlineData(59.85, 59.94)]
+    [InlineData(59.891, 59.94)]
+    [InlineData(60.20, 60)]
+    public void Canonicalize_NearCommonNominalRates(double raw, double expected) =>
+        Assert.Equal(expected, BrowserFrameRate.Canonicalize(raw));
+
+    [Theory]
+    [InlineData(50.249, 50)]
+    [InlineData(50.251, 50.251)]
+    [InlineData(60.299, 60)]
+    [InlineData(60.301, 60.301)]
+    public void Canonicalize_UsesExplicitHalfPercentBoundary(double raw, double expected) =>
+        Assert.Equal(expected, BrowserFrameRate.Canonicalize(raw));
+
+    [Fact]
+    public void PredicateMatchingAndLabelUseTheSameCanonicalRateAsDiscovery()
+    {
+        var rootId = Guid.NewGuid();
+        var nearNominal = new BrowserGridTile(
+            new MediaFolderEntry(rootId, "near.mp4", "NEAR.MP4", "near.mp4", false,
+                new(MediaTypeCategory.Video), 10, DateTimeOffset.UtcNow), 0);
+        nearNominal.ApplyMetadata(new BrowserTechnicalMetadata(null, 10, null, null, null, 3840, 2160, 59.674));
+        var distinct = new BrowserGridTile(
+            new MediaFolderEntry(rootId, "distinct.mp4", "DISTINCT.MP4", "distinct.mp4", false,
+                new(MediaTypeCategory.Video), 10, DateTimeOffset.UtcNow), 1);
+        distinct.ApplyMetadata(new BrowserTechnicalMetadata(null, 10, null, null, null, 3840, 2160, 58.5));
+
+        var predicate = BrowserFilterPredicate.ForFrameRate(59.891);
+
+        Assert.Equal("Frame rate: 59.94 fps", predicate.Label);
+        Assert.True(predicate.Matches(nearNominal));
+        Assert.False(predicate.Matches(distinct));
+    }
+
+    [Fact]
+    public void NearNominalValuesCollapseToOneInformationalChoiceAfterNormalization()
+    {
+        var choices = new[] { 59.674, 59.723, 59.85, 59.891 }
+            .Select(value => BrowserFrameRate.Canonicalize(value))
+            .Distinct()
+            .ToArray();
+        var option = new BrowserFilterOption(BrowserFilterPredicate.ForFrameRate(choices.Single()!.Value), false);
+
+        Assert.Single(choices);
+        Assert.Equal("59.94 fps", option.DescriptiveValueLabel);
+    }
+
+    [Fact]
+    public void MissingAndInvalidRatesRemainUnknown()
+    {
+        Assert.Null(BrowserFrameRate.Canonicalize(null));
+        Assert.Null(BrowserFrameRate.Canonicalize(0));
+        Assert.Null(BrowserFrameRate.Canonicalize(double.NaN));
+        Assert.Null(BrowserFrameRate.Canonicalize(double.PositiveInfinity));
+    }
 }
 
 public sealed class BrowserQueryFilterMutationTests

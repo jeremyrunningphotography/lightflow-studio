@@ -40,6 +40,16 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     private DateTime? _captureDate;
     private double? _durationSeconds;
     private BrowserAssetState _assetState;
+    private bool _assetStateApplied;
+    private bool _hasCameraLut;
+    private bool _hasCreativeLut;
+    private int _subclipCount;
+    private string? _cameraMake;
+    private string? _cameraModel;
+    private string? _lensModel;
+    private int? _pixelWidth;
+    private int? _pixelHeight;
+    private double? _frameRate;
     private bool _isThumbnailGenerating;
     private BrowserViewMode _viewMode = BrowserViewMode.Preview;
 
@@ -81,6 +91,14 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
 
     /// <summary>True once a metadata probe result (success or not) has been applied at least once, so callers avoid redundant Preview-store lookups.</summary>
     public bool MetadataApplied { get; private set; }
+    public string? CameraMake => _cameraMake;
+    public string? CameraModel => _cameraModel;
+    public string? CameraDisplayName => string.Join(' ', new[] { CameraMake, CameraModel }
+        .Where(value => !string.IsNullOrWhiteSpace(value))).Trim() is { Length: > 0 } value ? value : null;
+    public string? LensModel => _lensModel;
+    public int? PixelWidth => _pixelWidth;
+    public int? PixelHeight => _pixelHeight;
+    public double? FrameRate => _frameRate;
 
     public Guid? AssetId { get; private set; }
 
@@ -145,7 +163,11 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     public bool HasUserAuthoredState => AssetState != BrowserAssetState.None;
     public bool HasReviewRange => AssetState.HasFlag(BrowserAssetState.ReviewRange);
     public bool HasColorState => AssetState.HasFlag(BrowserAssetState.Color);
-    public bool HasSubclips => AssetState.HasFlag(BrowserAssetState.Subclips);
+    public bool HasSubclips => _subclipCount > 0;
+    public bool AssetStateApplied => _assetStateApplied;
+    public bool HasCameraLut => _hasCameraLut;
+    public bool HasCreativeLut => _hasCreativeLut;
+    public int SubclipCount => _subclipCount;
     public BrowserViewMode ViewMode
     {
         get => _viewMode;
@@ -171,19 +193,43 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         OnPropertyChanged(nameof(AssetId));
     }
 
-    public void SetAssetState(BrowserAssetState state) => AssetState = state;
+    public void SetAssetState(BrowserAssetState state)
+    {
+        AssetState = state;
+        _subclipCount = state.HasFlag(BrowserAssetState.Subclips) ? Math.Max(1, _subclipCount) : 0;
+        _assetStateApplied = true;
+    }
+    public void SetAssetState(BrowserAssetQueryState state)
+    {
+        AssetState = state.Flags;
+        _hasCameraLut = state.HasCameraLut;
+        _hasCreativeLut = state.HasCreativeLut;
+        _subclipCount = state.SubclipCount;
+        _assetStateApplied = true;
+    }
     public void SetViewMode(BrowserViewMode mode) => ViewMode = mode;
     public void SetThumbnailGenerating(bool value) => IsThumbnailGenerating = value;
 
     /// <summary>Applies a metadata probe result in place. Returns true if either sortable value actually changed, so callers can coalesce a re-sort.</summary>
-    public bool ApplyMetadata(DateTime? captureDate, double? durationSeconds)
+    public bool ApplyMetadata(BrowserTechnicalMetadata metadata)
     {
-        var changed = _captureDate != captureDate || _durationSeconds != durationSeconds;
-        CaptureDate = captureDate;
-        DurationSeconds = durationSeconds;
+        var changed = _captureDate != metadata.CaptureDate || _durationSeconds != metadata.DurationSeconds ||
+            _cameraMake != metadata.CameraMake || _cameraModel != metadata.CameraModel || _lensModel != metadata.LensModel ||
+            _pixelWidth != metadata.PixelWidth || _pixelHeight != metadata.PixelHeight || _frameRate != metadata.FrameRate;
+        CaptureDate = metadata.CaptureDate;
+        DurationSeconds = metadata.DurationSeconds;
+        _cameraMake = metadata.CameraMake;
+        _cameraModel = metadata.CameraModel;
+        _lensModel = metadata.LensModel;
+        _pixelWidth = metadata.PixelWidth;
+        _pixelHeight = metadata.PixelHeight;
+        _frameRate = metadata.FrameRate;
         MetadataApplied = true;
         return changed;
     }
+
+    public bool ApplyMetadata(DateTime? captureDate, double? durationSeconds) =>
+        ApplyMetadata(new BrowserTechnicalMetadata(captureDate, durationSeconds, null, null, null, null, null, null));
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -397,6 +443,8 @@ internal sealed class BrowserGridModel
     public IReadOnlyList<BrowserGridTile> Tiles => _visibleTiles;
 
     public int TotalCount => _allTiles.Count;
+    public IReadOnlyList<BrowserGridTile> AdvancedFilterContextTiles =>
+        BrowserQueryEngine.ApplyAdvancedFilterContext(_allTiles, Query);
     public int VisibleCount => _visibleTiles.Count;
     public BrowserQuery Query { get; private set; } = BrowserQuery.Default;
     public IReadOnlySet<string> SelectedKeys => _selection.Snapshot();
@@ -540,6 +588,9 @@ internal sealed class BrowserGridModel
     /// caller may choose to coalesce a later <see cref="SetQuery"/> re-application rather than resorting
     /// per-item while metadata streams in from a large folder.
     /// </summary>
+    public bool ApplyMetadata(Guid assetId, BrowserTechnicalMetadata metadata) =>
+        _tilesByAsset.TryGetValue(assetId, out var tile) && tile.ApplyMetadata(metadata);
+
     public bool ApplyMetadata(Guid assetId, DateTime? captureDate, double? durationSeconds) =>
         _tilesByAsset.TryGetValue(assetId, out var tile) && tile.ApplyMetadata(captureDate, durationSeconds);
 
@@ -549,9 +600,20 @@ internal sealed class BrowserGridModel
         if (_tilesByAsset.TryGetValue(assetId, out var tile)) tile.SetAssetState(state);
     }
 
+    public void ApplyAssetState(Guid assetId, BrowserAssetQueryState state)
+    {
+        if (_tilesByAsset.TryGetValue(assetId, out var tile)) tile.SetAssetState(state);
+    }
+
     public void ApplyAssetStates(IReadOnlyDictionary<Guid, BrowserAssetState> states)
     {
         foreach (var (assetId, state) in states) ApplyAssetState(assetId, state);
+    }
+
+    public void ApplyAssetStates(IReadOnlyDictionary<Guid, BrowserAssetQueryState> states)
+    {
+        foreach (var (assetId, state) in states)
+            if (_tilesByAsset.TryGetValue(assetId, out var tile)) tile.SetAssetState(state);
     }
 
     public BrowserViewMode ViewMode { get; private set; } = BrowserViewMode.Preview;

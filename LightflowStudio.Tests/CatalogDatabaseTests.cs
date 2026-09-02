@@ -345,6 +345,12 @@ public sealed class CatalogDatabaseTests : IDisposable
         Assert.Equal(BrowserAssetState.ReviewRange | BrowserAssetState.Color | BrowserAssetState.Subclips, projected[marked]);
         Assert.Equal(BrowserAssetState.None, projected[unmarked]);
 
+        var queryStates = await states.GetQueryStatesAsync([marked, unmarked]);
+        Assert.True(queryStates[marked].HasCameraLut);
+        Assert.False(queryStates[marked].HasCreativeLut);
+        Assert.Equal(1, queryStates[marked].SubclipCount);
+        Assert.Equal(new BrowserAssetQueryState(BrowserAssetState.None, false, false, 0), queryStates[unmarked]);
+
         await ranges.SaveAsync(marked, null);
         projected = await states.GetAsync([marked]);
         Assert.Equal(BrowserAssetState.Color | BrowserAssetState.Subclips, projected[marked]);

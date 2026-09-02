@@ -97,7 +97,7 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserFilterButton_OpensAPopupOfStackableMediaTypePredicatesRatherThanAPermanentComboBox()
+    public void BrowserFilterButton_OpensAdvancedPredicatesWithoutDuplicatingTheToolbarMediaTypeFacet()
     {
         // Progressive disclosure per #109's revised interaction model: Filter ▾ opens a compact predicate
         // editor; it must not be a permanent one-off ComboBox sitting in the everyday toolbar.
@@ -105,19 +105,38 @@ public class UiLayoutTests
         var ns = document.Root!.Name.Namespace;
         var filterButton = Named(document, "BrowserFilterButton");
         var popup = Named(document, "BrowserFilterPopup");
-        var imagesCheck = Named(document, "BrowserFilterImagesCheck");
-        var rawCheck = Named(document, "BrowserFilterRawCheck");
-        var videoCheck = Named(document, "BrowserFilterVideoCheck");
 
         Assert.Equal("ToggleButton", filterButton.Name.LocalName);
+        Assert.True(double.Parse((string)filterButton.Attribute("MinWidth")!, System.Globalization.CultureInfo.InvariantCulture) >= 80);
         Assert.Equal("Popup", popup.Name.LocalName);
         Assert.Equal("BrowserFilterButton", ((string?)popup.Attribute("PlacementTarget"))?.Replace("{Binding ElementName=", "").TrimEnd('}'));
-        Assert.Contains(popup.Descendants(), element => element == imagesCheck || element == rawCheck || element == videoCheck);
-        Assert.DoesNotContain(document.Descendants(ns + "ComboBox"), combo =>
-            (string?)combo.Attribute("Name") == "BrowserMediaFilterCombo");
+        Assert.DoesNotContain(popup.Descendants(ns + "CheckBox"), check =>
+            (string?)check.Attribute("Content") is "Images" or "RAW" or "Video");
+    }
 
-        foreach (var checkBox in new[] { imagesCheck, rawCheck, videoCheck })
-            Assert.DoesNotContain("IsChecked", checkBox.Attributes().Select(attribute => attribute.Name.LocalName));
+    [Fact]
+    public void BrowserFilterPopup_GroupsIndexedMetadataAndDurableStateInTheExistingProgressiveSurface()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var popup = Named(document, "BrowserFilterPopup");
+        Assert.Equal("BrowserFilterPopup_Opened", (string?)popup.Attribute("Opened"));
+        foreach (var name in new[]
+        {
+            "BrowserCameraFilterOptions", "BrowserLensFilterOptions", "BrowserCaptureDateFrom", "BrowserCaptureDateTo",
+            "BrowserDurationFilterCombo", "BrowserResolutionFilterOptions", "BrowserFrameRateFilterOptions",
+            "BrowserStateFilterOptions", "BrowserCameraFilterInformation", "BrowserLensFilterInformation",
+            "BrowserResolutionFilterInformation", "BrowserFrameRateFilterInformation"
+        })
+            Assert.Contains(popup.Descendants(), element => element == Named(document, name));
+        Assert.Contains(popup.Descendants(), element => element == Named(document, "BrowserClearAdvancedFiltersButton"));
+        Assert.Contains(popup.Descendants(), element => element == Named(document, "BrowserResolutionFilterGroup"));
+        Assert.Contains(popup.Descendants(), element => element == Named(document, "BrowserFrameRateFilterGroup"));
+        var stateChoice = Named(document, "BrowserStateFilterOptions").Descendants(ns + "CheckBox").Single();
+        Assert.Equal("{Binding DisplayLabel}", (string?)stateChoice.Attribute("Content"));
+        Assert.Equal("{Binding IsEnabled}", (string?)stateChoice.Attribute("IsEnabled"));
+        Assert.DoesNotContain(popup.Descendants(ns + "TextBlock"), text =>
+            ((string?)text.Attribute("Text"))?.Contains("hydrated Catalog state", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     [Fact]
@@ -1358,7 +1377,7 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserLiveDurableStateHandlers_PublishOnlyTheirCommittedFlag()
+    public void BrowserLiveDurableStateHandlers_PublishCommittedFlagThenRefreshAuthoritativeQueryProjection()
     {
         var behavior = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
         var handlersStart = behavior.IndexOf("private void EnsurePlayerViewerHost()", StringComparison.Ordinal);
@@ -1366,7 +1385,6 @@ public class UiLayoutTests
         Assert.True(handlersStart >= 0 && handlersEnd > handlersStart);
         var handlers = behavior[handlersStart..handlersEnd];
 
-        Assert.DoesNotContain("_browserGrid.ApplyAssetState(", handlers, StringComparison.Ordinal);
         Assert.Contains("ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.ReviewRange", handlers,
             StringComparison.Ordinal);
         Assert.Contains("ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Color", handlers,
@@ -1374,9 +1392,11 @@ public class UiLayoutTests
         Assert.Contains("ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Subclips", handlers,
             StringComparison.Ordinal);
         Assert.Contains("_browserGrid.ApplyAssetStateFlag(assetId, flag, enabled);", handlers, StringComparison.Ordinal);
+        Assert.Contains("RefreshCommittedBrowserAssetQueryStateAsync(assetId, revision)", handlers, StringComparison.Ordinal);
+        Assert.Contains("BrowserAssetStates.GetQueryStatesAsync([assetId])", handlers, StringComparison.Ordinal);
+        Assert.Contains("_browserGrid.ApplyAssetState(assetId, state);", handlers, StringComparison.Ordinal);
         Assert.Contains("ApplyCommittedBrowserAssetStateFlag(id, BrowserAssetState.Color, committed[id].HasColor);",
             behavior, StringComparison.Ordinal);
-        Assert.Equal(1, behavior.Split("_browserGrid.ApplyAssetState(", StringSplitOptions.None).Length - 1);
     }
 
     [Fact]

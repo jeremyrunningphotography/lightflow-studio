@@ -27,6 +27,19 @@ public sealed class PreviewPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetMany_ReturnsRequestedRecordsInOneBoundedProjection()
+    {
+        await using var store = new PreviewStoreService(LightflowStorageLocations.Create(_root));
+        var requested = Enumerable.Range(0, 1200).Select(_ => Guid.NewGuid()).ToArray();
+        foreach (var assetId in requested.Take(3)) await store.ObserveSourceAsync(assetId, Source());
+        await store.ObserveSourceAsync(Guid.NewGuid(), Source());
+
+        var records = await store.GetManyAsync(requested);
+
+        Assert.Equal(requested.Take(3).Order(), records.Keys.Order());
+    }
+
+    [Fact]
     public async Task CustomPreviewLocation_OwnsDatabaseAndCachePaths()
     {
         var custom = Path.Combine(_root, "preview-cache-on-other-drive");

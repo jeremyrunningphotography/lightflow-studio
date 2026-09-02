@@ -99,6 +99,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         CatalogReconciliation = new CatalogReconciliationService(MediaFolders, MediaAssets);
         MediaRanges = new CatalogMediaRangeStore(() => _catalogSession);
         Subclips = new CatalogSubclipService(() => _catalogSession);
+        PreferredPreviewFrames = new CatalogPreferredPreviewFrameStore(() => _catalogSession);
         Luts = new CatalogFolderLutLibrary(() => _catalogSession);
         LutCache = new ApplicationLutLibraryCache(Luts);
         AssetColors = new CatalogAssetColorStore(() => _catalogSession, LutCache);
@@ -123,6 +124,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public IMediaAssetService MediaAssets { get; }
     public IMediaRangeStore MediaRanges { get; }
     public ISubclipService Subclips { get; }
+    public IPreferredPreviewFrameStore PreferredPreviewFrames { get; }
     public IBrowserAssetStateStore BrowserAssetStates { get; }
     public ILutLibrary Luts { get; }
     public ILutLibraryCache LutCache { get; }
@@ -527,7 +529,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             return assetIds.Select(_ => new ThumbnailGenerationResult(ThumbnailGenerationStatus.Failed,
                 Diagnostic: PreviewDiagnostic ?? "Preview storage is unavailable.")).ToArray();
         using var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
-            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity);
+            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity, PreferredPreviewFrames);
         return await PreviewRegenerationBatch.RunAsync(assetIds, async (assetId, token) =>
         {
             using var assetLease = await _assetPreviewGenerationGate.EnterAsync(assetId, token).ConfigureAwait(false);
@@ -550,7 +552,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         var metadata = DerivedMediaMetadataFactory.Create(MediaAssets, Previews, Settings,
             operations: _previewOperations);
         var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
-            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity);
+            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity, PreferredPreviewFrames);
         return new PreviewMaintenanceService(Previews, MediaAssets, metadata, thumbnails,
             _previewOperations, Locations, ownsGenerators: true);
     }
@@ -561,7 +563,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         var metadata = DerivedMediaMetadataFactory.Create(MediaAssets, Previews, Settings,
             operations: _previewOperations);
         var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
-            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity);
+            null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity, PreferredPreviewFrames);
         return new DerivedWorkScheduler(MediaAssets, Previews, metadata, thumbnails,
             ownsGenerators: true, operations: _previewOperations, colors: AssetColors);
     }

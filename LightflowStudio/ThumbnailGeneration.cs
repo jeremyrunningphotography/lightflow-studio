@@ -320,13 +320,14 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
     private readonly IAssetColorStore? _colors;
     private readonly ILutLibraryCache? _lutCache;
     private readonly IThumbnailGenerationActivity? _activity;
+    private readonly IPreferredPreviewFrameStore? _preferredFrames;
 
     public ThumbnailGenerationService(IMediaAssetService assets, IPreviewStoreService previews,
         ILightflowStorageLocations locations, IThumbnailRenderer renderer,
         IDerivedMediaMetadataService? metadata = null, int maximumConcurrency = 2,
         IDisposable? ownedDependency = null, IPreviewOperationCoordinator? operations = null,
         IAssetColorStore? colors = null, ILutLibraryCache? lutCache = null,
-        IThumbnailGenerationActivity? activity = null)
+        IThumbnailGenerationActivity? activity = null, IPreferredPreviewFrameStore? preferredFrames = null)
     {
         _assets = assets;
         _previews = previews;
@@ -339,6 +340,7 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
         _colors = colors;
         _lutCache = lutCache;
         _activity = activity;
+        _preferredFrames = preferredFrames;
     }
 
     public async Task<ThumbnailGenerationResult> GenerateAsync(ThumbnailRequest request,
@@ -365,40 +367,43 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
         var asset = observed.Asset.Asset;
         var source = SourceIdentity(asset);
         var preview = await _previews.ObserveSourceAsync(request.AssetId, source, cancellationToken).ConfigureAwait(false);
+        var preferredFrame = _preferredFrames is null ? null
+            : await _preferredFrames.GetAsync(request.AssetId, cancellationToken).ConfigureAwait(false);
         ThumbnailColorRender color;
         try { color = await ResolveColorAsync(request.AssetId, cancellationToken).ConfigureAwait(false); }
         catch (Exception exception) when (exception is FileNotFoundException or InvalidDataException or KeyNotFoundException)
         {
             var failedIdentity = _colors is null ? PreviewVisualIdentity.Original
                 : (await _colors.GetAsync(request.AssetId, cancellationToken).ConfigureAwait(false)).ColorIdentity;
-            await RecordFailureAsync(request.AssetId, preview, failedIdentity, cancellationToken).ConfigureAwait(false);
+            await RecordFailureAsync(request.AssetId, preview, BrowserVisualIdentity(failedIdentity, preferredFrame), cancellationToken).ConfigureAwait(false);
             return new(ThumbnailGenerationStatus.Failed, ResolveExisting(preview.ThumbnailRelativePath), exception.Message);
         }
+        var visualIdentity = BrowserVisualIdentity(color.VisualIdentity, preferredFrame);
         if (!request.ForceRefresh && preview.ThumbnailState == PreviewComponentState.Current &&
             preview.ThumbnailGeneratorVersion == CurrentGeneratorVersion &&
-            string.Equals(preview.ThumbnailVisualIdentity ?? PreviewVisualIdentity.Original, color.VisualIdentity, StringComparison.Ordinal) &&
+            string.Equals(preview.ThumbnailVisualIdentity ?? PreviewVisualIdentity.Original, visualIdentity, StringComparison.Ordinal) &&
             ResolveExisting(preview.ThumbnailRelativePath) is { } existing && IsValidThumbnail(existing))
             return new(ThumbnailGenerationStatus.Current, existing);
 
         using var activity = _activity?.Begin(request.AssetId);
         var finalPath = _previews.GetArtifactPath(request.AssetId, PreviewArtifactKind.Thumbnail,
-            CurrentGeneratorVersion, source, "jpg", color.VisualIdentity);
+            CurrentGeneratorVersion, source, "jpg", visualIdentity);
         Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
         var temporaryPath = finalPath + $".{Guid.NewGuid():N}.lightflow";
         try
         {
-            var position = await RepresentativePositionAsync(request.AssetId, asset.MediaType, cancellationToken)
+            var position = preferredFrame?.Position ?? await RepresentativePositionAsync(request.AssetId, asset.MediaType, cancellationToken)
                 .ConfigureAwait(false);
             var rendered = await _renderer.RenderAsync(observed.Asset.PhysicalPath, asset.MediaType, position,
                 temporaryPath, color, cancellationToken).ConfigureAwait(false);
             if (rendered.Status != ThumbnailGenerationStatus.Succeeded)
             {
-                await RecordFailureAsync(request.AssetId, preview, color.VisualIdentity, cancellationToken).ConfigureAwait(false);
+                await RecordFailureAsync(request.AssetId, preview, visualIdentity, cancellationToken).ConfigureAwait(false);
                 return new(rendered.Status, ResolveExisting(preview.ThumbnailRelativePath), rendered.Diagnostic);
             }
             if (!IsValidThumbnail(temporaryPath))
             {
-                await RecordFailureAsync(request.AssetId, preview, color.VisualIdentity, cancellationToken).ConfigureAwait(false);
+                await RecordFailureAsync(request.AssetId, preview, visualIdentity, cancellationToken).ConfigureAwait(false);
                 return new(ThumbnailGenerationStatus.InvalidOutput, ResolveExisting(preview.ThumbnailRelativePath),
                     "The generated Preview was not a valid image.");
             }
@@ -422,29 +427,29 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
                 return new(ThumbnailGenerationStatus.SourceChanged, ResolveExisting(preview.ThumbnailRelativePath),
                     "The source changed while its Preview was being generated. Retry after the file is stable.");
 
-            var verifiedColorIdentity = await CurrentVisualIdentityAsync(request.AssetId, cancellationToken).ConfigureAwait(false);
-            if (!string.Equals(color.VisualIdentity, verifiedColorIdentity, StringComparison.Ordinal))
+            var verifiedVisualIdentity = await CurrentBrowserVisualIdentityAsync(request.AssetId, cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(visualIdentity, verifiedVisualIdentity, StringComparison.Ordinal))
                 return new(ThumbnailGenerationStatus.SourceChanged, ResolveExisting(preview.ThumbnailRelativePath),
-                    "Color changed while its Preview was being generated. Newer work will replace it.");
+                    "Preview frame or Color changed while its Preview was being generated. Newer work will replace it.");
 
             File.Move(temporaryPath, finalPath, overwrite: true);
-            if (!string.Equals(color.VisualIdentity,
-                    await CurrentVisualIdentityAsync(request.AssetId, cancellationToken).ConfigureAwait(false),
+            if (!string.Equals(visualIdentity,
+                    await CurrentBrowserVisualIdentityAsync(request.AssetId, cancellationToken).ConfigureAwait(false),
                     StringComparison.Ordinal))
             {
                 try { File.Delete(finalPath); } catch { }
                 return new(ThumbnailGenerationStatus.SourceChanged, ResolveExisting(preview.ThumbnailRelativePath),
-                    "Color changed before its Preview could be committed. Newer work will replace it.");
+                    "Preview frame or Color changed before its Preview could be committed. Newer work will replace it.");
             }
             var relative = Path.GetRelativePath(_locations.PreviewsDirectory, finalPath).Replace('\\', '/');
             await _previews.SetArtifactAsync(request.AssetId, PreviewArtifactKind.Thumbnail,
-                new(CurrentGeneratorVersion, PreviewComponentState.Current, relative, VisualIdentity: color.VisualIdentity), cancellationToken).ConfigureAwait(false);
+                new(CurrentGeneratorVersion, PreviewComponentState.Current, relative, VisualIdentity: visualIdentity), cancellationToken).ConfigureAwait(false);
             return new(ThumbnailGenerationStatus.Succeeded, finalPath);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            await RecordFailureAsync(request.AssetId, preview, color.VisualIdentity, CancellationToken.None).ConfigureAwait(false);
+            await RecordFailureAsync(request.AssetId, preview, visualIdentity, CancellationToken.None).ConfigureAwait(false);
             return new(ThumbnailGenerationStatus.Failed, ResolveExisting(preview.ThumbnailRelativePath), exception.Message);
         }
         finally { try { File.Delete(temporaryPath); } catch { } }
@@ -484,6 +489,17 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
         var intent = await _colors.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
         return intent.HasColor ? intent.ColorIdentity : PreviewVisualIdentity.Original;
     }
+
+    private async Task<string> CurrentBrowserVisualIdentityAsync(Guid assetId, CancellationToken cancellationToken)
+    {
+        var colorIdentity = await CurrentVisualIdentityAsync(assetId, cancellationToken).ConfigureAwait(false);
+        var preferred = _preferredFrames is null ? null
+            : await _preferredFrames.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
+        return BrowserVisualIdentity(colorIdentity, preferred);
+    }
+
+    internal static string BrowserVisualIdentity(string colorIdentity, PreferredPreviewFrame? preferred) =>
+        preferred is null ? colorIdentity : $"{colorIdentity};preferred-frame={preferred.Position.Ticks};revision={preferred.Revision}";
 
     private async Task<ThumbnailGenerationResult> RetainOfflineAsync(Guid assetId,
         PreviewSourceAvailability availability, ThumbnailGenerationStatus status, string? diagnostic,
@@ -539,12 +555,13 @@ internal static class ThumbnailGenerationFactory
     public static IThumbnailGenerationService Create(IMediaAssetService assets, IPreviewStoreService previews,
         ILightflowStorageLocations locations, AppSettings settings, string? applicationDirectory = null,
         int maximumConcurrency = 2, IPreviewOperationCoordinator? operations = null)
-        => Create(assets, previews, locations, settings, applicationDirectory, maximumConcurrency, operations, null, null, null);
+        => Create(assets, previews, locations, settings, applicationDirectory, maximumConcurrency, operations, null, null, null, null);
 
     public static IThumbnailGenerationService Create(IMediaAssetService assets, IPreviewStoreService previews,
         ILightflowStorageLocations locations, AppSettings settings, string? applicationDirectory,
         int maximumConcurrency, IPreviewOperationCoordinator? operations, IAssetColorStore? colors,
-        ILutLibraryCache? lutCache, IThumbnailGenerationActivity? activity)
+        ILutLibraryCache? lutCache, IThumbnailGenerationActivity? activity,
+        IPreferredPreviewFrameStore? preferredFrames = null)
     {
         applicationDirectory ??= AppContext.BaseDirectory;
         var configuredDirectory = string.IsNullOrWhiteSpace(settings.FfmpegPath)
@@ -560,7 +577,7 @@ internal static class ThumbnailGenerationFactory
         var renderer = new CompositeThumbnailRenderer(new WicImageThumbnailRenderer(),
             new FfmpegVideoThumbnailRenderer(ffmpeg, new ProbeProcessRunner()));
         return new ThumbnailGenerationService(assets, previews, locations, renderer, metadata,
-            maximumConcurrency, metadata, operations, colors, lutCache, activity);
+            maximumConcurrency, metadata, operations, colors, lutCache, activity, preferredFrames);
     }
 }
 

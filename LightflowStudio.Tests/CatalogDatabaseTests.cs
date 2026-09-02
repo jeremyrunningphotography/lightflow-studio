@@ -490,7 +490,7 @@ public sealed class CatalogDatabaseTests : IDisposable
         var surviving = await service.ListAsync(manyAssetId);
 
         Assert.Equal(CatalogOpenStatus.Ready, migrated.Status);
-        Assert.Equal([(7, 8)], backup.Requests);
+        Assert.Equal([(7, 9)], backup.Requests);
         Assert.Empty(await service.ListAsync(emptyAssetId));
         Assert.Equal([singleId], (await service.ListAsync(singleAssetId)).Select(item => item.SubclipId));
         Assert.Equal([keepId, overlapId, renamedId], surviving.Select(item => item.SubclipId));
@@ -506,7 +506,7 @@ public sealed class CatalogDatabaseTests : IDisposable
 
         var reopened = await new CatalogDatabaseService(locations, new RecordingBackup()).OpenExistingAsync();
         Assert.Equal(CatalogOpenStatus.Ready, reopened.Status);
-        Assert.Equal(8, reopened.SchemaVersion);
+        Assert.Equal(9, reopened.SchemaVersion);
         Assert.Equal(8L, Convert.ToInt64(Scalar(reopened.Session!, "SELECT count(*) FROM Subclips;")));
         await reopened.Session!.DisposeAsync();
     }

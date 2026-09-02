@@ -166,8 +166,24 @@
        </Button>
        <Button x:Name="ScreengrabButton" Width="34" Height="30" Padding="0" BorderThickness="1"
         FocusVisualStyle="{x:Null}" Click="Screengrab_Click" IsEnabled="False"
-        ToolTip="Save full-resolution frame as PNG" AutomationProperties.Name="Save full-resolution screengrab">
+        ToolTip="Save the current paused frame as a full-resolution PNG" AutomationProperties.Name="Save paused frame as full-resolution screengrab">
         <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE722;"/>
+       </Button>
+       <Button x:Name="SetPreviewFrameButton" Width="34" Height="30" Padding="0" Margin="4,0,0,0" BorderThickness="1"
+        FocusVisualStyle="{x:Null}" Click="SetPreviewFrame_Click" IsEnabled="False"
+        ToolTip="Use the current paused frame as this asset's Browser Preview" AutomationProperties.Name="Set paused frame as Browser Preview">
+        <Button.ContextMenu>
+         <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+          <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Reset to Automatic Preview"
+           Click="ResetPreviewFrame_Click" AutomationProperties.Name="Reset to Automatic Preview"/>
+         </ContextMenu>
+        </Button.ContextMenu>
+        <Grid Width="17" Height="17">
+         <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5"
+          StrokeLineJoin="Round" Data="M1,3 L16,3 L16,14 L1,14 Z M4,11 L7,8 L9,10 L12,7 L16,11"/>
+         <Ellipse Width="4" Height="4" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-2,0"
+          Fill="{StaticResource OrangeBrush}"/>
+        </Grid>
        </Button>
        <TextBlock x:Name="DurationText" VerticalAlignment="Center" Margin="10,0,12,0"
         Foreground="{StaticResource MutedTextBrush}" Text="00:00:00.000"/>

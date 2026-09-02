@@ -20,7 +20,8 @@ internal static class CatalogMigrations
         new(5, "Folder-backed LUT resource identity", ApplyVersion5),
         new(6, "Per-asset Color processing enabled state", ApplyVersion6),
         new(7, "Durable named and ordered asset Subclips", ApplyVersion7),
-        new(8, "Unique exact Subclip ranges", ApplyVersion8)
+        new(8, "Unique exact Subclip ranges", ApplyVersion8),
+        new(9, "Durable preferred Browser Preview frame timestamps", ApplyVersion9)
     ];
 
     private static void ApplyVersion1(
@@ -362,6 +363,23 @@ internal static class CatalogMigrations
 
             CREATE UNIQUE INDEX UX_Subclips_AssetId_ExactRange
                 ON Subclips (AssetId, InTicks, OutTicks);
+            """);
+    }
+
+    private static void ApplyVersion9(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CatalogMigrationContext context)
+    {
+        Execute(connection, transaction, """
+            CREATE TABLE MediaAssetPreferredFrames (
+                AssetId TEXT NOT NULL PRIMARY KEY CHECK (length(AssetId) = 36),
+                PositionTicks INTEGER NOT NULL CHECK (PositionTicks >= 0),
+                Revision INTEGER NOT NULL DEFAULT 1 CHECK (Revision > 0),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                FOREIGN KEY (AssetId) REFERENCES MediaAssets (AssetId) ON DELETE CASCADE
+            );
             """);
     }
 

@@ -148,6 +148,30 @@ public sealed class CatalogCollectionsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DirectReparent_DefaultsToAppendInDestinationMixedChildOrderForBothKinds()
+    {
+        await using var fixture = await Fixture.CreateAsync(_root);
+        var destination = await fixture.Collections.CreateSetAsync("Destination");
+        await fixture.Collections.CreateCollectionAsync("Existing collection", destination.CollectionSetId);
+        await fixture.Collections.CreateSetAsync("Existing set", destination.CollectionSetId);
+        var movedCollection = await fixture.Collections.CreateCollectionAsync("Moved collection");
+        var movedSet = await fixture.Collections.CreateSetAsync("Moved set");
+
+        movedCollection = await fixture.Collections.ReparentCollectionAsync(movedCollection.CollectionId,
+            movedCollection.Revision, destination.CollectionSetId);
+        movedSet = (await fixture.Collections.ListSetsAsync()).Single(item => item.CollectionSetId == movedSet.CollectionSetId);
+        movedSet = await fixture.Collections.ReparentSetAsync(movedSet.CollectionSetId,
+            movedSet.Revision, destination.CollectionSetId);
+
+        Assert.Equal(2, movedCollection.Ordinal);
+        Assert.Equal(3, movedSet.Ordinal);
+        Assert.Equal([0, 2], (await fixture.Collections.ListCollectionsAsync(destination.CollectionSetId))
+            .Select(item => item.Ordinal));
+        Assert.Equal([1, 3], (await fixture.Collections.ListSetsAsync(destination.CollectionSetId))
+            .Select(item => item.Ordinal));
+    }
+
+    [Fact]
     public async Task ReparentAndDelete_CompactOnlyAffectedSiblingOrderAndNeverDeleteAssets()
     {
         await using var fixture = await Fixture.CreateAsync(_root);

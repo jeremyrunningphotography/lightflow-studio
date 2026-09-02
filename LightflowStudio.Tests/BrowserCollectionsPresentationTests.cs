@@ -36,6 +36,32 @@ public sealed class BrowserCollectionsPresentationTests
     }
 
     [Fact]
+    public void DirectDrop_UsesVisibleHeaderHitTestingAndCollapsedDestinationReveal()
+    {
+        var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+
+        Assert.Contains("CollectionTreeItemAtHeader(e.GetPosition(BrowserCollectionTree))", code);
+        Assert.Contains("MoveIntoCollectionSetAsync(dragged, drop.Target)", code);
+        Assert.Contains("target.IsExpanded = true", code);
+        Assert.Contains("RevealCollectionNodeAsync(node.Id)", code);
+        Assert.Contains("BrowserTreeScroll.RevealVerticalOffset", code);
+        Assert.Contains("BrowserFolderScrollViewer.ScrollToVerticalOffset", code);
+    }
+
+    [Fact]
+    public void DragHover_UsesDeterministicTimerAndDoesNotCommitHierarchyMutation()
+    {
+        var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+        var hoverBody = MethodBody(code, "ExpandHoveredCollectionSet");
+
+        Assert.Contains("BrowserCollectionDragHover.Dwell", code);
+        Assert.Contains("target.IsExpanded = true", hoverBody);
+        Assert.Contains("PersistCollectionExpansionState()", hoverBody);
+        Assert.DoesNotContain("Reparent", hoverBody);
+        Assert.DoesNotContain("Reorder", hoverBody);
+    }
+
+    [Fact]
     public void CollectionHierarchy_UsesDistinctVectorPathsAndNoFilesystemGlyphBinding()
     {
         var document = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
@@ -97,5 +123,19 @@ public sealed class BrowserCollectionsPresentationTests
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null && !File.Exists(Path.Combine(current.FullName, "AGENTS.md"))) current = current.Parent;
         return current?.FullName ?? throw new DirectoryNotFoundException();
+    }
+
+    private static string MethodBody(string source, string name)
+    {
+        var start = source.LastIndexOf(name, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Method {name} not found.");
+        var brace = source.IndexOf('{', start);
+        var depth = 0;
+        for (var index = brace; index < source.Length; index++)
+        {
+            if (source[index] == '{') depth++;
+            else if (source[index] == '}' && --depth == 0) return source[brace..(index + 1)];
+        }
+        throw new InvalidOperationException($"Method {name} body was not closed.");
     }
 }

@@ -134,12 +134,19 @@ public sealed class BrowserCollectionsTests
         var draggedCollection = new BrowserCollectionNode(Collection("Dragged", 0));
         var empty = new BrowserCollectionNode(Set("Empty", 1));
         var populated = new BrowserCollectionNode(Set("Populated", 2));
+        var expandedEmpty = new BrowserCollectionNode(Set("Expanded empty", 3)) { IsExpanded = true };
+        var expandedPopulated = new BrowserCollectionNode(Set("Expanded populated", 4)) { IsExpanded = true };
         populated.Children.Add(new BrowserCollectionNode(Collection("Existing", 0, populated.Id)));
+        expandedPopulated.Children.Add(new BrowserCollectionNode(Collection("Existing", 0, expandedPopulated.Id)));
 
         Assert.Equal(BrowserCollectionDropKind.IntoSet,
             BrowserCollectionInteraction.DropAt(draggedCollection, empty, 0.5).Kind);
         Assert.Equal(BrowserCollectionDropKind.IntoSet,
             BrowserCollectionInteraction.DropAt(draggedCollection, populated, 0.5).Kind);
+        Assert.Equal(BrowserCollectionDropKind.IntoSet,
+            BrowserCollectionInteraction.DropAt(draggedCollection, expandedEmpty, 0.5).Kind);
+        Assert.Equal(BrowserCollectionDropKind.IntoSet,
+            BrowserCollectionInteraction.DropAt(draggedCollection, expandedPopulated, 0.5).Kind);
     }
 
     [Fact]
@@ -229,6 +236,81 @@ public sealed class BrowserCollectionsTests
             roots, otherSet, childCollection, BrowserCollectionDropKind.InsertBefore));
         Assert.Null(BrowserCollectionInteraction.ResolveInsertion(
             roots, parent, childCollection, BrowserCollectionDropKind.InsertBefore));
+    }
+
+    [Fact]
+    public void DragHover_ExpandsEligibleCollapsedSetOnlyAfterDeterministicDwellWithoutMutation()
+    {
+        var dragged = new BrowserCollectionNode(Collection("Dragged", 0));
+        var target = new BrowserCollectionNode(Set("Target", 1));
+        var originalParent = dragged.ParentSetId;
+        var originalOrdinal = dragged.Ordinal;
+        var start = DateTimeOffset.UtcNow;
+        var hover = new BrowserCollectionDragHover();
+
+        Assert.True(hover.Track(dragged, target, BrowserCollectionDropKind.IntoSet, start));
+        Assert.Null(hover.TakeReady(start + BrowserCollectionDragHover.Dwell - TimeSpan.FromMilliseconds(1)));
+        Assert.Same(target, hover.TakeReady(start + BrowserCollectionDragHover.Dwell));
+        Assert.Equal(originalParent, dragged.ParentSetId);
+        Assert.Equal(originalOrdinal, dragged.Ordinal);
+        Assert.Null(hover.PendingTarget);
+    }
+
+    [Fact]
+    public void DragHover_LeavingEarlyCancelsAndChangingTargetRestartsDwell()
+    {
+        var dragged = new BrowserCollectionNode(Collection("Dragged", 0));
+        var first = new BrowserCollectionNode(Set("First", 1));
+        var second = new BrowserCollectionNode(Set("Second", 2));
+        var start = DateTimeOffset.UtcNow;
+        var hover = new BrowserCollectionDragHover();
+
+        hover.Track(dragged, first, BrowserCollectionDropKind.IntoSet, start);
+        hover.Track(dragged, null, BrowserCollectionDropKind.None, start + TimeSpan.FromSeconds(1));
+        Assert.Null(hover.TakeReady(start + TimeSpan.FromSeconds(3)));
+
+        hover.Track(dragged, first, BrowserCollectionDropKind.IntoSet, start);
+        Assert.True(hover.Track(dragged, second, BrowserCollectionDropKind.IntoSet,
+            start + TimeSpan.FromSeconds(1)));
+        Assert.Null(hover.TakeReady(start + BrowserCollectionDragHover.Dwell));
+        Assert.Same(second, hover.TakeReady(start + TimeSpan.FromSeconds(1) + BrowserCollectionDragHover.Dwell));
+    }
+
+    [Fact]
+    public void DragHover_SupportsRecursiveDrillDownAndDoesNotRetriggerExpandedSet()
+    {
+        var dragged = new BrowserCollectionNode(Collection("Dragged", 0));
+        var outer = new BrowserCollectionNode(Set("Outer", 1));
+        var nested = new BrowserCollectionNode(Set("Nested", 0, outer.Id));
+        outer.Children.Add(nested);
+        var hover = new BrowserCollectionDragHover();
+        var start = DateTimeOffset.UtcNow;
+
+        hover.Track(dragged, outer, BrowserCollectionDropKind.IntoSet, start);
+        Assert.Same(outer, hover.TakeReady(start + BrowserCollectionDragHover.Dwell));
+        outer.IsExpanded = true;
+        Assert.False(hover.Track(dragged, outer, BrowserCollectionDropKind.IntoSet,
+            start + BrowserCollectionDragHover.Dwell));
+        Assert.Null(hover.PendingTarget);
+
+        Assert.True(hover.Track(dragged, nested, BrowserCollectionDropKind.IntoSet,
+            start + TimeSpan.FromSeconds(2)));
+        Assert.Same(nested, hover.TakeReady(start + TimeSpan.FromSeconds(2) + BrowserCollectionDragHover.Dwell));
+    }
+
+    [Fact]
+    public void DragHover_RejectsCycleDestinationAndNonCenterInsertionRegions()
+    {
+        var parent = new BrowserCollectionNode(Set("Parent", 0));
+        var child = new BrowserCollectionNode(Set("Child", 0, parent.Id));
+        parent.Children.Add(child);
+        var hover = new BrowserCollectionDragHover();
+        var now = DateTimeOffset.UtcNow;
+
+        Assert.False(hover.Track(parent, child, BrowserCollectionDropKind.IntoSet, now));
+        Assert.False(hover.Track(parent, child, BrowserCollectionDropKind.InsertBefore, now));
+        Assert.Null(hover.PendingTarget);
+        Assert.Null(hover.TakeReady(now + TimeSpan.FromSeconds(5)));
     }
 
     [Fact]

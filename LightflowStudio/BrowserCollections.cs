@@ -107,6 +107,49 @@ internal enum BrowserCollectionDropKind { None, InsertBefore, InsertAfter, IntoS
 internal sealed record BrowserCollectionDrop(BrowserCollectionDropKind Kind, BrowserCollectionNode Target);
 internal sealed record BrowserCollectionInsertionDestination(Guid? ParentSetId, int Ordinal);
 
+internal sealed class BrowserCollectionDragHover
+{
+    public static readonly TimeSpan Dwell = TimeSpan.FromMilliseconds(1350);
+    private BrowserCollectionNode? _dragged;
+    private BrowserCollectionNode? _target;
+    private DateTimeOffset _started;
+
+    public BrowserCollectionNode? PendingTarget => _target;
+
+    public bool Track(BrowserCollectionNode? dragged, BrowserCollectionNode? target,
+        BrowserCollectionDropKind kind, DateTimeOffset now)
+    {
+        var eligible = dragged is not null && target is { IsSet: true, IsExpanded: false } &&
+            kind == BrowserCollectionDropKind.IntoSet && BrowserCollectionInteraction.CanDrop(dragged, target);
+        if (!eligible)
+        {
+            Reset();
+            return false;
+        }
+        if (ReferenceEquals(_dragged, dragged) && ReferenceEquals(_target, target)) return false;
+        _dragged = dragged;
+        _target = target;
+        _started = now;
+        return true;
+    }
+
+    public BrowserCollectionNode? TakeReady(DateTimeOffset now)
+    {
+        if (_dragged is null || _target is null || now - _started < Dwell) return null;
+        var target = _target;
+        var valid = !target.IsExpanded && BrowserCollectionInteraction.CanDrop(_dragged, target);
+        Reset();
+        return valid ? target : null;
+    }
+
+    public void Reset()
+    {
+        _dragged = null;
+        _target = null;
+        _started = default;
+    }
+}
+
 internal static class BrowserCollectionInteraction
 {
     public static BrowserCollectionNode ContextTarget(BrowserCollectionNode clicked, BrowserCollectionNode? selected) => clicked;

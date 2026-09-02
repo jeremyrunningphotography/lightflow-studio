@@ -110,9 +110,9 @@ public sealed class BrowserTreeInteractionRegressionTests
         // defers it, since that reveal's own navigation (if any) is already being driven independently and
         // must never be raced by a second, competing one here.
         var body = MethodBody("private async void BrowserFolderTree_SelectedItemChanged");
-        Assert.Contains(
-            "if (ReferenceEquals(node, _browserTreeRevealedNode)) { _browserTreeRevealedNode = null; return; }",
-            body);
+        Assert.Contains("_browserScopeSelection.ShouldActivateFolder", body);
+        Assert.Contains("if (!activate)", body);
+        Assert.Contains("ReferenceEquals(node, _browserTreeRevealedNode)", body);
 
         // Set only by the two passive-reveal overloads — never by the interactive-click overload, which is
         // always immediately followed by an actual navigation call from its own caller.

@@ -506,6 +506,7 @@
       <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource ShellPanel}">
        <ScrollViewer x:Name="BrowserFolderScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+        PreviewMouseWheel="BrowserScopePane_PreviewMouseWheel"
         CanContentScroll="False" Padding="0,0,2,2" Focusable="False" Style="{StaticResource BrowserFolderScrollViewerStyle}">
        <StackPanel>
         <ToggleButton x:Name="BrowserLocationsSectionToggle" Style="{StaticResource BrowserSectionToggleButtonStyle}"
@@ -515,7 +516,7 @@
         </ToggleButton>
         <Grid x:Name="BrowserLocationsSectionContent" Margin="0,6,0,0">
          <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}"
-          SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseWheel="BrowserFolderTree_PreviewMouseWheel"
+          SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseLeftButtonDown="BrowserFolderTree_PreviewMouseLeftButtonDown"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
           <TreeView.ItemContainerStyle>
            <Style TargetType="TreeViewItem" BasedOn="{StaticResource BrowserTreeItemStyle}">
@@ -632,15 +633,16 @@
            <HierarchicalDataTemplate DataType="{x:Type local:BrowserCollectionNode}" ItemsSource="{Binding Children}">
             <Grid Height="26"><Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
              <Viewbox x:Name="CollectionIcon" Width="18" Height="18" VerticalAlignment="Center">
-              <Canvas Width="18" Height="18"><Path Fill="{StaticResource MutedTextBrush}" Data="M3,2 L15,2 L15,16 L3,16 Z M5,5 L13,5 L13,7 L5,7 Z M5,9 L13,9 L13,11 L5,11 Z M5,13 L10,13 L10,14 L5,14 Z"/></Canvas>
+              <Canvas Width="18" Height="18"><Path x:Name="CollectionIconPath" Fill="{StaticResource MutedTextBrush}" Data="M3,2 L15,2 L15,16 L3,16 Z M5,5 L13,5 L13,7 L5,7 Z M5,9 L13,9 L13,11 L5,11 Z M5,13 L10,13 L10,14 L5,14 Z"/></Canvas>
              </Viewbox>
              <Viewbox x:Name="CollectionSetIcon" Width="18" Height="18" VerticalAlignment="Center" Visibility="Collapsed">
-              <Canvas Width="18" Height="18"><Path Fill="{StaticResource MutedTextBrush}" Data="M2,4 L7,4 L9,6 L16,6 L16,15 L2,15 Z M4,2 L14,2 L14,5 L9.5,5 L7.5,3 L4,3 Z M5,8 L13,8 L13,13 L5,13 Z M7,9 L11,9 L11,12 L7,12 Z"/></Canvas>
+              <Canvas Width="18" Height="18"><Path x:Name="CollectionSetIconPath" Fill="{StaticResource MutedTextBrush}" Data="M2,4 L7,4 L9,6 L16,6 L16,15 L2,15 Z M4,2 L14,2 L14,5 L9.5,5 L7.5,3 L4,3 Z M5,8 L13,8 L13,13 L5,13 Z M7,9 L11,9 L11,12 L7,12 Z"/></Canvas>
              </Viewbox>
              <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
             </Grid>
             <HierarchicalDataTemplate.Triggers>
-             <DataTrigger Binding="{Binding IsSet}" Value="True"><Setter TargetName="CollectionIcon" Property="Visibility" Value="Collapsed"/><Setter TargetName="CollectionSetIcon" Property="Visibility" Value="Visible"/></DataTrigger>
+            <DataTrigger Binding="{Binding IsSet}" Value="True"><Setter TargetName="CollectionIcon" Property="Visibility" Value="Collapsed"/><Setter TargetName="CollectionSetIcon" Property="Visibility" Value="Visible"/></DataTrigger>
+             <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter TargetName="CollectionIconPath" Property="Fill" Value="{StaticResource ShellFocusBrush}"/><Setter TargetName="CollectionSetIconPath" Property="Fill" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
             </HierarchicalDataTemplate.Triggers>
            </HierarchicalDataTemplate>
           </TreeView.Resources>

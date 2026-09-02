@@ -93,6 +93,14 @@ internal sealed class BrowserScopeSelection
     public BrowserScopeSelectionKind Active { get; private set; }
     public void ActivateFolder() => Active = BrowserScopeSelectionKind.Folder;
     public void ActivateCollection() => Active = BrowserScopeSelectionKind.Collection;
+
+    public bool ShouldActivateFolder(BrowserTreeNode node, BrowserTreeNode? pointerTarget,
+        bool folderTreeHasKeyboardFocus, BrowserTreeNode? passiveRevealTarget)
+    {
+        var interactive = ReferenceEquals(node, pointerTarget) || folderTreeHasKeyboardFocus;
+        if (Active == BrowserScopeSelectionKind.Collection && !interactive) return false;
+        return interactive || !ReferenceEquals(node, passiveRevealTarget);
+    }
 }
 
 internal enum BrowserCollectionDropKind { None, InsertBefore, InsertAfter, IntoSet }
@@ -114,15 +122,21 @@ internal static class BrowserCollectionInteraction
         double relativeY)
     {
         if (ReferenceEquals(dragged, target)) return new(BrowserCollectionDropKind.None, target);
-        if (dragged.Kind == target.Kind && dragged.ParentSetId == target.ParentSetId && relativeY < 0.25)
+        if (dragged.Kind == target.Kind && CanInsertBeside(dragged, target) && relativeY < 0.25)
             return new(BrowserCollectionDropKind.InsertBefore, target);
-        if (dragged.Kind == target.Kind && dragged.ParentSetId == target.ParentSetId && relativeY > 0.75)
+        if (dragged.Kind == target.Kind && CanInsertBeside(dragged, target) && relativeY > 0.75)
             return new(BrowserCollectionDropKind.InsertAfter, target);
         if (target.IsSet && CanDrop(dragged, target) && relativeY is >= 0.25 and <= 0.75)
             return new(BrowserCollectionDropKind.IntoSet, target);
-        if (dragged.Kind == target.Kind && dragged.ParentSetId == target.ParentSetId)
+        if (dragged.Kind == target.Kind && CanInsertBeside(dragged, target))
             return new(relativeY < 0.5 ? BrowserCollectionDropKind.InsertBefore : BrowserCollectionDropKind.InsertAfter, target);
         return new(BrowserCollectionDropKind.None, target);
+    }
+
+    private static bool CanInsertBeside(BrowserCollectionNode dragged, BrowserCollectionNode target)
+    {
+        if (!dragged.IsSet || target.ParentSetId is not { } parent) return true;
+        return dragged.Id != parent && !BrowserCollectionTreeModel.Flatten(dragged.Children).Any(node => node.Id == parent);
     }
 
     public static BrowserCollectionNode[] OrderByName(IEnumerable<BrowserCollectionNode> nodes, bool descending) =>

@@ -367,7 +367,8 @@ public class UiLayoutTests
         Assert.Equal("Auto", (string?)scroller.Attribute("HorizontalScrollBarVisibility"));
         Assert.Equal("Auto", (string?)scroller.Attribute("VerticalScrollBarVisibility"));
         Assert.Equal("{StaticResource BrowserFolderScrollViewerStyle}", (string?)scroller.Attribute("Style"));
-        Assert.Equal("BrowserFolderTree_PreviewMouseWheel", (string?)tree.Attribute("PreviewMouseWheel"));
+        Assert.Null(tree.Attribute("PreviewMouseWheel"));
+        Assert.Equal("BrowserScopePane_PreviewMouseWheel", (string?)tree.Ancestors(ns + "ScrollViewer").Single().Attribute("PreviewMouseWheel"));
         Assert.Equal("{x:Null}", (string?)tree.Attribute("FocusVisualStyle"));
         Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
             attribute.Name.LocalName == "ScrollViewer.HorizontalScrollBarVisibility").Value);

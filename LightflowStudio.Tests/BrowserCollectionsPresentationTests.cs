@@ -18,7 +18,18 @@ public sealed class BrowserCollectionsPresentationTests
 
         Assert.Same(folderScroll, collectionScroll);
         Assert.Equal("BrowserFolderScrollViewer", (string?)folderScroll.Attribute(x + "Name"));
+        Assert.Equal("BrowserScopePane_PreviewMouseWheel", (string?)folderScroll.Attribute("PreviewMouseWheel"));
         Assert.Equal("Disabled", (string?)collections.Attribute("ScrollViewer.VerticalScrollBarVisibility"));
+    }
+
+    [Fact]
+    public void DragFeedback_UsesExplicitHighContrastAdornerInsteadOfTreeItemBorderProperties()
+    {
+        var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+        Assert.Contains("class CollectionDropAdorner", code);
+        Assert.Contains("new System.Windows.Media.Pen(accent, 4)", code);
+        Assert.Contains("DrawRoundedRectangle", code);
+        Assert.DoesNotContain("item.BorderThickness =", code);
     }
 
     [Fact]
@@ -34,6 +45,10 @@ public sealed class BrowserCollectionsPresentationTests
         Assert.Equal(2, paths.Distinct().Count());
         Assert.All(template.Descendants(ns + "Path"), path => Assert.Equal("{StaticResource MutedTextBrush}", (string?)path.Attribute("Fill")));
         Assert.All(template.Descendants(ns + "Viewbox"), icon => Assert.Equal("18", (string?)icon.Attribute("Width")));
+        var selected = template.Descendants(ns + "DataTrigger")
+            .Single(trigger => (string?)trigger.Attribute("Binding") == "{Binding IsSelected}");
+        Assert.Equal(2, selected.Descendants(ns + "Setter").Count(setter =>
+            (string?)setter.Attribute("Value") == "{StaticResource ShellFocusBrush}"));
         Assert.DoesNotContain(template.Descendants(), node => ((string?)node.Attribute("Text"))?.Contains("Glyph") == true);
     }
 

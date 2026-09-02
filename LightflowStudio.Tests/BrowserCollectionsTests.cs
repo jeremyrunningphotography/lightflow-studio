@@ -43,15 +43,44 @@ public sealed class BrowserCollectionsTests
     }
 
     [Fact]
+    public void CollectionToFolderTransition_AcceptsPointerSelectionButRejectsDelayedReveal()
+    {
+        var selection = new BrowserScopeSelection();
+        var clicked = new BrowserTreeNode("Clicked", @"C:\media\clicked");
+        var delayed = new BrowserTreeNode("Delayed", @"C:\media\delayed");
+        selection.ActivateCollection();
+
+        Assert.False(selection.ShouldActivateFolder(delayed, null, false, delayed));
+        Assert.True(selection.ShouldActivateFolder(clicked, clicked, false, delayed));
+        selection.ActivateFolder();
+        Assert.Equal(BrowserScopeSelectionKind.Folder, selection.Active);
+    }
+
+    [Fact]
+    public void FolderToCollectionToAnotherFolder_RemainsBidirectional()
+    {
+        var selection = new BrowserScopeSelection();
+        var first = new BrowserTreeNode("First", @"C:\media\first");
+        var second = new BrowserTreeNode("Second", @"C:\media\second");
+        selection.ActivateFolder();
+        selection.ActivateCollection();
+        Assert.True(selection.ShouldActivateFolder(first, first, false, null));
+        selection.ActivateFolder();
+        Assert.True(selection.ShouldActivateFolder(second, second, false, null));
+    }
+
+    [Fact]
     public void DragIntent_DistinguishesSiblingInsertionFromDropIntoSet()
     {
         var first = new BrowserCollectionNode(Collection("First", 0));
         var second = new BrowserCollectionNode(Collection("Second", 1));
         var set = new BrowserCollectionNode(Set("Set", 0));
+        var nestedCollection = new BrowserCollectionNode(Collection("Nested", 0, set.Id));
 
         Assert.Equal(BrowserCollectionDropKind.InsertBefore, BrowserCollectionInteraction.DropAt(first, second, 0.1).Kind);
         Assert.Equal(BrowserCollectionDropKind.InsertAfter, BrowserCollectionInteraction.DropAt(first, second, 0.9).Kind);
         Assert.Equal(BrowserCollectionDropKind.IntoSet, BrowserCollectionInteraction.DropAt(first, set, 0.5).Kind);
+        Assert.Equal(BrowserCollectionDropKind.InsertBefore, BrowserCollectionInteraction.DropAt(first, nestedCollection, 0.1).Kind);
     }
 
     [Fact]

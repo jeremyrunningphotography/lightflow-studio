@@ -502,7 +502,8 @@
   <TabControl Grid.Column="0" Margin="0,0,14,0" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
    SelectionChanged="MainTabs_SelectionChanged">
    <TabItem>
-    <Grid x:Name="BrowserWorkspaceRoot" Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}" SizeChanged="BrowserWorkspaceRoot_SizeChanged">
+    <Grid x:Name="BrowserWorkspaceRoot" Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}"
+     SizeChanged="BrowserWorkspaceRoot_SizeChanged">
       <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource ShellPanel}">
        <ScrollViewer x:Name="BrowserFolderScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
@@ -649,6 +650,10 @@
          </TreeView>
          <TextBlock x:Name="BrowserCollectionsEmptyState" Style="{StaticResource ShellPlaceholderText}" Text="Create a Collection or Collection Set to begin organizing your Catalog." TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12"/>
         </Grid>
+        <Border x:Name="BrowserCollectionsTrailingDropSurface" Height="96" Background="Transparent" AllowDrop="True"
+         Visibility="{Binding Visibility, ElementName=BrowserCollectionsSectionContent}"
+         PreviewDragEnter="BrowserCollectionTree_DragOver" PreviewDragOver="BrowserCollectionTree_DragOver"
+         PreviewDragLeave="BrowserCollectionTree_DragLeave" PreviewDrop="BrowserCollectionTree_Drop"/>
        </StackPanel>
        </ScrollViewer>
       </Border>

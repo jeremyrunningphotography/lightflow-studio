@@ -27,15 +27,50 @@ public sealed class BrowserCollectionsPresentationTests
     {
         var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
         Assert.Contains("class CollectionDropAdorner", code);
-        Assert.Contains("new System.Windows.Media.Pen(accent, active ? 4 : 2)", code);
+        Assert.Contains("new System.Windows.Media.Pen(accent, 4)", code);
         Assert.Contains("DrawRoundedRectangle(null, new System.Windows.Media.Pen(accent, 2)", code);
         Assert.Contains("Math.Min(BrowserCollectionRowHeight, container.ActualHeight)", code);
         Assert.Contains("Math.Min(BrowserCollectionRowHeight, item.ActualHeight)", code);
         Assert.Contains("ResolveInsertionChoices", code);
-        Assert.Contains("line.Edge == BrowserCollectionDropKind.InsertBefore ? 2 : -2", code);
-        Assert.Contains("UpdateLines(lines, activeDestination)", code);
+        Assert.Contains("UpdateLine(resolved.Line)", code);
+        Assert.DoesNotContain("UpdateLines", code);
+        Assert.DoesNotContain("active ? 4 : 2", code);
         Assert.DoesNotContain("targetFill", code);
         Assert.DoesNotContain("item.BorderThickness =", code);
+    }
+
+    [Fact]
+    public void DragSurface_SupportsTrailingBlankAreaAndNativeWheelRoutingDuringOleDrag()
+    {
+        var document = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var scroller = document.Descendants(ns + "ScrollViewer")
+            .Single(node => (string?)node.Attribute(x + "Name") == "BrowserFolderScrollViewer");
+        var trailingSurface = document.Descendants(ns + "Border")
+            .Single(node => (string?)node.Attribute(x + "Name") == "BrowserCollectionsTrailingDropSurface");
+        var collectionTree = document.Descendants(ns + "TreeView")
+            .Single(node => (string?)node.Attribute(x + "Name") == "BrowserCollectionTree");
+        var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+
+        Assert.Equal("True", (string?)collectionTree.Attribute("AllowDrop"));
+        Assert.Equal("BrowserCollectionTree_DragOver", (string?)collectionTree.Attribute("DragOver"));
+        Assert.Equal("96", (string?)trailingSurface.Attribute("Height"));
+        Assert.Equal("True", (string?)trailingSurface.Attribute("AllowDrop"));
+        Assert.Equal("{Binding Visibility, ElementName=BrowserCollectionsSectionContent}",
+            (string?)trailingSurface.Attribute("Visibility"));
+        Assert.Equal("BrowserCollectionTree_DragOver", (string?)trailingSurface.Attribute("PreviewDragEnter"));
+        Assert.Equal("BrowserCollectionTree_Drop", (string?)trailingSurface.Attribute("PreviewDrop"));
+        Assert.Same(scroller, trailingSurface.Ancestors(ns + "ScrollViewer").Single());
+        Assert.Contains("ResolveTrailingInsertionChoices", code);
+        Assert.Contains("SelectTrailingInsertionChoice", code);
+        Assert.Contains("ReferenceEquals(sender, BrowserCollectionsTrailingDropSurface)", code);
+        Assert.Contains("mouseWheelMessage = 0x020A", code);
+        Assert.Contains("BeginCollectionDragWheelRouting()", code);
+        Assert.Contains("EndCollectionDragWheelRouting()", code);
+        Assert.Contains("CancelCollectionDragHover();", MethodBody(code, "CollectionDragWindowHook"));
+        Assert.Contains("ResolveCollectionDragTarget(dragged, refreshedPoint)",
+            MethodBody(code, "CollectionDragWindowHook"));
     }
 
     [Fact]
@@ -43,7 +78,7 @@ public sealed class BrowserCollectionsPresentationTests
     {
         var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
 
-        Assert.Contains("CollectionTreeItemAtHeader(e.GetPosition(BrowserCollectionTree))", code);
+        Assert.Contains("CollectionTreeItemAtHeader(position, surface)", code);
         Assert.Contains("MoveIntoCollectionSetAsync(dragged, drop.Target)", code);
         Assert.Contains("target.IsExpanded = true", code);
         Assert.Contains("RevealCollectionNodeAsync(node.Id)", code);

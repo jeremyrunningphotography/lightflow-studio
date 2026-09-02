@@ -1799,9 +1799,9 @@ public partial class MainWindow : Window
         PresentDescriptiveFacet(BrowserResolutionFilterGroup, BrowserResolutionFilterOptions, BrowserResolutionFilterInformation,
             resolutionOptions, "Resolution", tiles.Count(tile => tile.PixelWidth is > 0 && tile.PixelHeight is > 0), tiles.Count);
 
-        var frameRateOptions = Options(tiles.Select(tile => tile.FrameRate)
-            .Where(value => value is > 0).Select(value => Math.Round(value!.Value, 3)).Distinct().OrderBy(value => value)
-            .Select(value => BrowserFilterPredicate.ForMinimum(BrowserFilterField.FrameRate, value)));
+        var frameRateOptions = Options(tiles.Select(tile => BrowserFrameRate.Canonicalize(tile.FrameRate))
+            .Where(value => value is not null).Select(value => value!.Value).Distinct().OrderBy(value => value)
+            .Select(BrowserFilterPredicate.ForFrameRate));
         BrowserFrameRateFilterOptions.ItemsSource = frameRateOptions;
         PresentDescriptiveFacet(BrowserFrameRateFilterGroup, BrowserFrameRateFilterOptions, BrowserFrameRateFilterInformation,
             frameRateOptions, "Frame rate", tiles.Count(tile => tile.FrameRate is > 0), tiles.Count);

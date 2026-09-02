@@ -152,6 +152,20 @@ public sealed class BrowserQueryRegressionTests
     }
 
     [Fact]
+    public void FrameRateDiscovery_CanonicalizesBeforeDistinctAndSingleValuePresentation()
+    {
+        var source = Source();
+        var methodStart = source.IndexOf("private void RefreshBrowserAdvancedFilterOptions", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("tiles.Select(tile => BrowserFrameRate.Canonicalize(tile.FrameRate))", body);
+        Assert.Contains(".Distinct().OrderBy(value => value)", body);
+        Assert.Contains(".Select(BrowserFilterPredicate.ForFrameRate)", body);
+        Assert.Contains("PresentDescriptiveFacet(BrowserFrameRateFilterGroup", body);
+    }
+
+    [Fact]
     public void ZeroCountStateOption_RemainsEnabledOnlyWhenActiveSoItCanBeRemoved()
     {
         var source = Source();

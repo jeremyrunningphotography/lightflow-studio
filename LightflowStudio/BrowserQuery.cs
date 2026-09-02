@@ -6,6 +6,30 @@ namespace LightflowStudio;
 internal enum BrowserSortMode { Name, CaptureDate, ModifiedDate, MediaType, FileSize, Duration }
 
 /// <summary>
+/// Browser-only creator-facing frame-rate normalization. Authoritative Preview metadata keeps its precise
+/// value; this boundary supplies stable query buckets without changing playback/export/diagnostic truth.
+/// </summary>
+internal static class BrowserFrameRate
+{
+    internal const double StandardRateRelativeTolerance = 0.005;
+    private static readonly double[] StandardRates = [23.976, 24, 25, 29.97, 30, 50, 59.94, 60];
+
+    public static double? Canonicalize(double? observed)
+    {
+        if (observed is not { } value || !double.IsFinite(value) || value <= 0) return null;
+
+        var nearest = StandardRates
+            .Select(standard => (Standard: standard, Distance: Math.Abs(value - standard)))
+            .OrderBy(candidate => candidate.Distance)
+            .ThenBy(candidate => candidate.Standard)
+            .First();
+        return nearest.Distance <= nearest.Standard * StandardRateRelativeTolerance
+            ? nearest.Standard
+            : Math.Round(value, 3, MidpointRounding.AwayFromZero);
+    }
+}
+
+/// <summary>
 /// The field a <see cref="BrowserFilterPredicate"/> constrains. Only <see cref="MediaType"/> is implemented;
 /// this enum exists so later predicate kinds (date, file size, duration, camera, lens, resolution, frame
 /// rate, rating, labels, flags, keywords) extend the same representation rather than requiring a redesign.
@@ -52,6 +76,8 @@ internal sealed record BrowserFilterPredicate
         new() { Field = field, TextValue = value };
     public static BrowserFilterPredicate ForMinimum(BrowserFilterField field, double value) =>
         new() { Field = field, NumberValue = value };
+    public static BrowserFilterPredicate ForFrameRate(double value) =>
+        new() { Field = BrowserFilterField.FrameRate, NumberValue = BrowserFrameRate.Canonicalize(value) };
     public static BrowserFilterPredicate ForResolution(int width, int height) =>
         new() { Field = BrowserFilterField.Resolution, NumberValue = width, NumberValue2 = height };
     public static BrowserFilterPredicate ForDateRange(DateTime? from, DateTime? to) =>
@@ -74,7 +100,7 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.CaptureDate => DateRangeLabel(),
         BrowserFilterField.Duration => $"Duration ≥ {FormatDuration(NumberValue)}",
         BrowserFilterField.Resolution => $"Resolution: {NumberValue:0}×{NumberValue2:0}",
-        BrowserFilterField.FrameRate => $"Frame rate: {NumberValue:0.###} fps",
+        BrowserFilterField.FrameRate => $"Frame rate: {BrowserFrameRate.Canonicalize(NumberValue):0.###} fps",
         BrowserFilterField.ColorState => BooleanValue == true ? "Color applied" : "Original color",
         BrowserFilterField.CameraLutState => BooleanValue == true ? "Camera LUT assigned" : "No Camera LUT",
         BrowserFilterField.CreativeLutState => BooleanValue == true ? "Creative LUT assigned" : "No Creative LUT",
@@ -96,8 +122,8 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.Duration => tile.MetadataApplied && tile.DurationSeconds is { } duration &&
             NumberValue is { } minimumDuration && duration >= minimumDuration,
         BrowserFilterField.Resolution => tile.MetadataApplied && tile.PixelWidth == NumberValue && tile.PixelHeight == NumberValue2,
-        BrowserFilterField.FrameRate => tile.MetadataApplied && tile.FrameRate is { } frameRate && NumberValue is { } expected &&
-            Math.Abs(frameRate - expected) < 0.001,
+        BrowserFilterField.FrameRate => tile.MetadataApplied && BrowserFrameRate.Canonicalize(tile.FrameRate) is { } frameRate &&
+            BrowserFrameRate.Canonicalize(NumberValue) is { } expected && frameRate == expected,
         BrowserFilterField.ColorState => MatchesState(tile, tile.HasColorState),
         BrowserFilterField.CameraLutState => MatchesState(tile, tile.HasCameraLut),
         BrowserFilterField.CreativeLutState => MatchesState(tile, tile.HasCreativeLut),
@@ -329,7 +355,7 @@ internal sealed record BrowserFilterOption(
     {
         BrowserFilterField.Camera or BrowserFilterField.Lens => Predicate.TextValue ?? Label,
         BrowserFilterField.Resolution => $"{Predicate.NumberValue:0}×{Predicate.NumberValue2:0}",
-        BrowserFilterField.FrameRate => $"{Predicate.NumberValue:0.###} fps",
+        BrowserFilterField.FrameRate => $"{BrowserFrameRate.Canonicalize(Predicate.NumberValue):0.###} fps",
         _ => Label
     };
 }

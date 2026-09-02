@@ -452,6 +452,74 @@ public sealed class BrowserFilterPredicateTests
         new(rootId, name, name.ToUpperInvariant(), name, false, new(category), 10, DateTimeOffset.UtcNow);
 }
 
+public sealed class BrowserFrameRateCanonicalizationTests
+{
+    [Theory]
+    [InlineData(23.90, 23.976)]
+    [InlineData(23.99, 24)]
+    [InlineData(24.90, 25)]
+    [InlineData(29.90, 29.97)]
+    [InlineData(30.10, 30)]
+    [InlineData(49.90, 50)]
+    [InlineData(59.674, 59.94)]
+    [InlineData(59.723, 59.94)]
+    [InlineData(59.85, 59.94)]
+    [InlineData(59.891, 59.94)]
+    [InlineData(60.20, 60)]
+    public void Canonicalize_NearCommonNominalRates(double raw, double expected) =>
+        Assert.Equal(expected, BrowserFrameRate.Canonicalize(raw));
+
+    [Theory]
+    [InlineData(50.249, 50)]
+    [InlineData(50.251, 50.251)]
+    [InlineData(60.299, 60)]
+    [InlineData(60.301, 60.301)]
+    public void Canonicalize_UsesExplicitHalfPercentBoundary(double raw, double expected) =>
+        Assert.Equal(expected, BrowserFrameRate.Canonicalize(raw));
+
+    [Fact]
+    public void PredicateMatchingAndLabelUseTheSameCanonicalRateAsDiscovery()
+    {
+        var rootId = Guid.NewGuid();
+        var nearNominal = new BrowserGridTile(
+            new MediaFolderEntry(rootId, "near.mp4", "NEAR.MP4", "near.mp4", false,
+                new(MediaTypeCategory.Video), 10, DateTimeOffset.UtcNow), 0);
+        nearNominal.ApplyMetadata(new BrowserTechnicalMetadata(null, 10, null, null, null, 3840, 2160, 59.674));
+        var distinct = new BrowserGridTile(
+            new MediaFolderEntry(rootId, "distinct.mp4", "DISTINCT.MP4", "distinct.mp4", false,
+                new(MediaTypeCategory.Video), 10, DateTimeOffset.UtcNow), 1);
+        distinct.ApplyMetadata(new BrowserTechnicalMetadata(null, 10, null, null, null, 3840, 2160, 58.5));
+
+        var predicate = BrowserFilterPredicate.ForFrameRate(59.891);
+
+        Assert.Equal("Frame rate: 59.94 fps", predicate.Label);
+        Assert.True(predicate.Matches(nearNominal));
+        Assert.False(predicate.Matches(distinct));
+    }
+
+    [Fact]
+    public void NearNominalValuesCollapseToOneInformationalChoiceAfterNormalization()
+    {
+        var choices = new[] { 59.674, 59.723, 59.85, 59.891 }
+            .Select(value => BrowserFrameRate.Canonicalize(value))
+            .Distinct()
+            .ToArray();
+        var option = new BrowserFilterOption(BrowserFilterPredicate.ForFrameRate(choices.Single()!.Value), false);
+
+        Assert.Single(choices);
+        Assert.Equal("59.94 fps", option.DescriptiveValueLabel);
+    }
+
+    [Fact]
+    public void MissingAndInvalidRatesRemainUnknown()
+    {
+        Assert.Null(BrowserFrameRate.Canonicalize(null));
+        Assert.Null(BrowserFrameRate.Canonicalize(0));
+        Assert.Null(BrowserFrameRate.Canonicalize(double.NaN));
+        Assert.Null(BrowserFrameRate.Canonicalize(double.PositiveInfinity));
+    }
+}
+
 public sealed class BrowserQueryFilterMutationTests
 {
     [Fact]

@@ -21,7 +21,8 @@ internal static class CatalogMigrations
         new(6, "Per-asset Color processing enabled state", ApplyVersion6),
         new(7, "Durable named and ordered asset Subclips", ApplyVersion7),
         new(8, "Unique exact Subclip ranges", ApplyVersion8),
-        new(9, "Durable preferred Browser Preview frame timestamps", ApplyVersion9)
+        new(9, "Durable preferred Browser Preview frame timestamps", ApplyVersion9),
+        new(10, "Durable Collections, Collection Sets, and membership", ApplyVersion10)
     ];
 
     private static void ApplyVersion1(
@@ -380,6 +381,67 @@ internal static class CatalogMigrations
                 UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
                 FOREIGN KEY (AssetId) REFERENCES MediaAssets (AssetId) ON DELETE CASCADE
             );
+            """);
+    }
+
+    private static void ApplyVersion10(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CatalogMigrationContext context)
+    {
+        Execute(connection, transaction, """
+            CREATE TABLE CollectionSets (
+                CollectionSetId TEXT NOT NULL PRIMARY KEY CHECK (length(CollectionSetId) = 36),
+                ParentCollectionSetId TEXT NULL CHECK (ParentCollectionSetId IS NULL OR length(ParentCollectionSetId) = 36),
+                Name TEXT NOT NULL CHECK (length(trim(Name)) > 0),
+                Ordinal INTEGER NOT NULL CHECK (Ordinal >= 0),
+                Revision INTEGER NOT NULL DEFAULT 1 CHECK (Revision > 0),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                FOREIGN KEY (ParentCollectionSetId) REFERENCES CollectionSets (CollectionSetId) ON DELETE RESTRICT,
+                UNIQUE (ParentCollectionSetId, Ordinal),
+                CHECK (ParentCollectionSetId IS NULL OR ParentCollectionSetId <> CollectionSetId)
+            );
+
+            CREATE UNIQUE INDEX UX_CollectionSets_TopLevelOrdinal
+                ON CollectionSets (Ordinal) WHERE ParentCollectionSetId IS NULL;
+            CREATE INDEX IX_CollectionSets_Parent_Order
+                ON CollectionSets (ParentCollectionSetId, Ordinal, CollectionSetId);
+
+            CREATE TABLE Collections (
+                CollectionId TEXT NOT NULL PRIMARY KEY CHECK (length(CollectionId) = 36),
+                ParentCollectionSetId TEXT NULL CHECK (ParentCollectionSetId IS NULL OR length(ParentCollectionSetId) = 36),
+                Name TEXT NOT NULL CHECK (length(trim(Name)) > 0),
+                Ordinal INTEGER NOT NULL CHECK (Ordinal >= 0),
+                Revision INTEGER NOT NULL DEFAULT 1 CHECK (Revision > 0),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                FOREIGN KEY (ParentCollectionSetId) REFERENCES CollectionSets (CollectionSetId) ON DELETE RESTRICT,
+                UNIQUE (ParentCollectionSetId, Ordinal)
+            );
+
+            CREATE UNIQUE INDEX UX_Collections_TopLevelOrdinal
+                ON Collections (Ordinal) WHERE ParentCollectionSetId IS NULL;
+            CREATE INDEX IX_Collections_Parent_Order
+                ON Collections (ParentCollectionSetId, Ordinal, CollectionId);
+
+            CREATE TABLE CollectionAssets (
+                CollectionId TEXT NOT NULL,
+                AssetId TEXT NOT NULL,
+                Ordinal INTEGER NOT NULL CHECK (Ordinal >= 0),
+                Revision INTEGER NOT NULL DEFAULT 1 CHECK (Revision > 0),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                PRIMARY KEY (CollectionId, AssetId),
+                FOREIGN KEY (CollectionId) REFERENCES Collections (CollectionId) ON DELETE CASCADE,
+                FOREIGN KEY (AssetId) REFERENCES MediaAssets (AssetId) ON DELETE RESTRICT,
+                UNIQUE (CollectionId, Ordinal)
+            );
+
+            CREATE INDEX IX_CollectionAssets_AssetId
+                ON CollectionAssets (AssetId, CollectionId);
+            CREATE INDEX IX_CollectionAssets_Collection_Order
+                ON CollectionAssets (CollectionId, Ordinal, AssetId);
             """);
     }
 

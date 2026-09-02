@@ -22,6 +22,7 @@ internal enum RightDrawerKind { None, Jobs, Subclips }
 
 public partial class MainWindow : Window
 {
+    private const double BrowserCollectionRowHeight = 26;
     private static bool JobsRuntimeEnabled => true;
     private string? _ffmpeg;
     private string? _ffprobe;
@@ -3516,14 +3517,11 @@ public partial class MainWindow : Window
     {
         var children = BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
             .Where(node => node.ParentSetId == parent).ToArray();
-        var sets = BrowserCollectionInteraction.OrderByName(children.Where(node => node.IsSet), descending);
-        var collections = BrowserCollectionInteraction.OrderByName(children.Where(node => node.IsCollection), descending);
+        var ordered = BrowserCollectionInteraction.OrderByName(children, descending);
         await RunCollectionActionAsync(async () =>
         {
-            if (sets.Length > 1)
-                await _storage.Collections.ReorderSetsAsync(parent, sets.Select(node => new CollectionOrder(node.Id, node.Revision)).ToArray());
-            if (collections.Length > 1)
-                await _storage.Collections.ReorderCollectionsAsync(parent, collections.Select(node => new CollectionOrder(node.Id, node.Revision)).ToArray());
+            if (ordered.Length > 1)
+                await _storage.Collections.ReorderHierarchyAsync(parent, ordered.Select(HierarchyOrder).ToArray());
             await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
         });
     }
@@ -3536,18 +3534,17 @@ public partial class MainWindow : Window
         var target = index + delta;
         if (index < 0 || target < 0 || target >= siblings.Count) return;
         (siblings[index], siblings[target]) = (siblings[target], siblings[index]);
-        var order = siblings.Select(item => new CollectionOrder(item.Id, item.Revision)).ToArray();
+        var order = siblings.Select(HierarchyOrder).ToArray();
         await RunCollectionActionAsync(async () =>
         {
-            if (node.IsSet) await _storage.Collections.ReorderSetsAsync(node.ParentSetId, order);
-            else await _storage.Collections.ReorderCollectionsAsync(node.ParentSetId, order);
+            await _storage.Collections.ReorderHierarchyAsync(node.ParentSetId, order);
             await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
         });
     }
 
     private List<BrowserCollectionNode> CollectionSiblings(BrowserCollectionNode node) =>
         BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
-            .Where(item => item.Kind == node.Kind && item.ParentSetId == node.ParentSetId)
+            .Where(item => item.ParentSetId == node.ParentSetId)
             .OrderBy(item => item.Ordinal).ToList();
 
     private void BrowserCollectionTreeItem_ExpansionChanged(object sender, RoutedEventArgs e)
@@ -3609,7 +3606,8 @@ public partial class MainWindow : Window
         var target = CollectionNodeFromElement(e.OriginalSource as DependencyObject);
         var container = TreeViewItemFromElement(e.OriginalSource as DependencyObject);
         var drop = dragged is not null && target is not null && container is not null
-            ? BrowserCollectionInteraction.DropAt(dragged, target, e.GetPosition(container).Y / Math.Max(1, container.ActualHeight))
+            ? BrowserCollectionInteraction.DropAt(dragged, target,
+                e.GetPosition(container).Y / Math.Max(1, Math.Min(BrowserCollectionRowHeight, container.ActualHeight)))
             : null;
         ShowCollectionDropFeedback(container, drop?.Kind ?? BrowserCollectionDropKind.None);
         e.Effects = drop is { Kind: not BrowserCollectionDropKind.None }
@@ -3634,7 +3632,8 @@ public partial class MainWindow : Window
         var target = CollectionNodeFromElement(e.OriginalSource as DependencyObject);
         var container = TreeViewItemFromElement(e.OriginalSource as DependencyObject);
         var drop = dragged is not null && target is not null && container is not null
-            ? BrowserCollectionInteraction.DropAt(dragged, target, e.GetPosition(container).Y / Math.Max(1, container.ActualHeight))
+            ? BrowserCollectionInteraction.DropAt(dragged, target,
+                e.GetPosition(container).Y / Math.Max(1, Math.Min(BrowserCollectionRowHeight, container.ActualHeight)))
             : null;
         ClearCollectionDropFeedback();
         if (dragged is null || drop is null || drop.Kind == BrowserCollectionDropKind.None) return;
@@ -3647,26 +3646,29 @@ public partial class MainWindow : Window
     {
         var destinationParent = target.ParentSetId;
         var siblings = BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
-            .Where(node => node.Kind == dragged.Kind && node.ParentSetId == destinationParent && node.Id != dragged.Id)
+            .Where(node => node.ParentSetId == destinationParent && node.Id != dragged.Id)
             .OrderBy(node => node.Ordinal).ToList();
         var targetIndex = siblings.FindIndex(node => node.Id == target.Id);
         if (targetIndex < 0) return;
         await RunCollectionActionAsync(async () =>
         {
             var moved = dragged.ParentSetId == destinationParent
-                ? new CollectionOrder(dragged.Id, dragged.Revision)
+                ? HierarchyOrder(dragged)
                 : dragged.IsSet
-                    ? new CollectionOrder(dragged.Id, (await _storage.Collections.ReparentSetAsync(
-                        dragged.Id, dragged.Revision, destinationParent)).Revision)
-                    : new CollectionOrder(dragged.Id, (await _storage.Collections.ReparentCollectionAsync(
-                        dragged.Id, dragged.Revision, destinationParent)).Revision);
-            var order = siblings.Select(node => new CollectionOrder(node.Id, node.Revision)).ToList();
+                    ? new CollectionHierarchyOrder(CollectionHierarchyItemKind.Set, dragged.Id,
+                        (await _storage.Collections.ReparentSetAsync(dragged.Id, dragged.Revision, destinationParent)).Revision)
+                    : new CollectionHierarchyOrder(CollectionHierarchyItemKind.Collection, dragged.Id,
+                        (await _storage.Collections.ReparentCollectionAsync(dragged.Id, dragged.Revision, destinationParent)).Revision);
+            var order = siblings.Select(HierarchyOrder).ToList();
             order.Insert(targetIndex + (after ? 1 : 0), moved);
-            if (dragged.IsSet) await _storage.Collections.ReorderSetsAsync(destinationParent, order);
-            else await _storage.Collections.ReorderCollectionsAsync(destinationParent, order);
+            await _storage.Collections.ReorderHierarchyAsync(destinationParent, order);
             await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
         });
     }
+
+    private static CollectionHierarchyOrder HierarchyOrder(BrowserCollectionNode node) => new(
+        node.IsSet ? CollectionHierarchyItemKind.Set : CollectionHierarchyItemKind.Collection,
+        node.Id, node.Revision);
 
     private void ShowCollectionDropFeedback(TreeViewItem? item, BrowserCollectionDropKind kind)
     {
@@ -3676,8 +3678,7 @@ public partial class MainWindow : Window
         if (_collectionDropAdorner is null)
         {
             _collectionDropAdorner = new CollectionDropAdorner(BrowserCollectionTree,
-                (System.Windows.Media.Brush)FindResource("ShellFocusBrush"),
-                (System.Windows.Media.Brush)FindResource("ShellSelectionBrush"));
+                (System.Windows.Media.Brush)FindResource("ShellFocusBrush"));
             _collectionDropAdornerLayer.Add(_collectionDropAdorner);
         }
         _collectionDropAdorner.Update(item, kind);
@@ -3691,7 +3692,7 @@ public partial class MainWindow : Window
     }
 
     private sealed class CollectionDropAdorner(
-        UIElement adornedElement, System.Windows.Media.Brush accent, System.Windows.Media.Brush targetFill)
+        UIElement adornedElement, System.Windows.Media.Brush accent)
         : System.Windows.Documents.Adorner(adornedElement)
     {
         private Rect _row;
@@ -3701,7 +3702,7 @@ public partial class MainWindow : Window
         {
             var origin = item.TranslatePoint(new System.Windows.Point(0, 0), AdornedElement);
             _row = new Rect(origin.X, origin.Y, Math.Max(item.ActualWidth, AdornedElement.RenderSize.Width - origin.X),
-                item.ActualHeight);
+                Math.Min(BrowserCollectionRowHeight, item.ActualHeight));
             _kind = kind;
             InvalidateVisual();
         }
@@ -3711,7 +3712,9 @@ public partial class MainWindow : Window
             if (_kind == BrowserCollectionDropKind.None || _row.IsEmpty) return;
             if (_kind == BrowserCollectionDropKind.IntoSet)
             {
-                drawingContext.DrawRoundedRectangle(targetFill, new System.Windows.Media.Pen(accent, 2.5), _row, 5, 5);
+                var target = new Rect(_row.Left + 1.5, _row.Top + 1.5,
+                    Math.Max(0, _row.Width - 3), Math.Max(0, _row.Height - 3));
+                drawingContext.DrawRoundedRectangle(null, new System.Windows.Media.Pen(accent, 2), target, 5, 5);
                 return;
             }
             var y = _kind == BrowserCollectionDropKind.InsertBefore ? _row.Top : _row.Bottom;

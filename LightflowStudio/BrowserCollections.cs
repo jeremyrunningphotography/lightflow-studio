@@ -122,13 +122,13 @@ internal static class BrowserCollectionInteraction
         double relativeY)
     {
         if (ReferenceEquals(dragged, target)) return new(BrowserCollectionDropKind.None, target);
-        if (dragged.Kind == target.Kind && CanInsertBeside(dragged, target) && relativeY < 0.25)
+        if (CanInsertBeside(dragged, target) && relativeY < 0.25)
             return new(BrowserCollectionDropKind.InsertBefore, target);
-        if (dragged.Kind == target.Kind && CanInsertBeside(dragged, target) && relativeY > 0.75)
+        if (CanInsertBeside(dragged, target) && relativeY > 0.75)
             return new(BrowserCollectionDropKind.InsertAfter, target);
         if (target.IsSet && CanDrop(dragged, target) && relativeY is >= 0.25 and <= 0.75)
             return new(BrowserCollectionDropKind.IntoSet, target);
-        if (dragged.Kind == target.Kind && CanInsertBeside(dragged, target))
+        if (CanInsertBeside(dragged, target))
             return new(relativeY < 0.5 ? BrowserCollectionDropKind.InsertBefore : BrowserCollectionDropKind.InsertAfter, target);
         return new(BrowserCollectionDropKind.None, target);
     }
@@ -169,11 +169,19 @@ internal sealed class BrowserCollectionTreeModel
                 parentNode.Children.Add(node);
         }
 
+        foreach (var setNode in nodes.Values)
+        {
+            var ordered = setNode.Children.OrderBy(node => node.Ordinal).ThenBy(node => node.Kind).ThenBy(node => node.Id).ToArray();
+            setNode.Children.Clear();
+            foreach (var child in ordered) setNode.Children.Add(child);
+        }
+
         Roots.Clear();
-        foreach (var node in sets.Where(set => set.ParentCollectionSetId is null).OrderBy(set => set.Ordinal)
-                     .Select(set => nodes[set.CollectionSetId])) Roots.Add(node);
-        foreach (var node in collections.Where(collection => collection.ParentCollectionSetId is null)
-                     .OrderBy(collection => collection.Ordinal).Select(collection => new BrowserCollectionNode(collection)))
+        var rootNodes = sets.Where(set => set.ParentCollectionSetId is null).Select(set => nodes[set.CollectionSetId])
+            .Concat(collections.Where(collection => collection.ParentCollectionSetId is null)
+                .Select(collection => new BrowserCollectionNode(collection)))
+            .OrderBy(node => node.Ordinal).ThenBy(node => node.Kind).ThenBy(node => node.Id);
+        foreach (var node in rootNodes)
         {
             node.IsSelected = node.Id == selectedCollectionId;
             if (node.IsSelected) SelectedNode = node;

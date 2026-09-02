@@ -28,7 +28,10 @@ public sealed class BrowserCollectionsPresentationTests
         var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
         Assert.Contains("class CollectionDropAdorner", code);
         Assert.Contains("new System.Windows.Media.Pen(accent, 4)", code);
-        Assert.Contains("DrawRoundedRectangle", code);
+        Assert.Contains("DrawRoundedRectangle(null, new System.Windows.Media.Pen(accent, 2)", code);
+        Assert.Contains("Math.Min(BrowserCollectionRowHeight, container.ActualHeight)", code);
+        Assert.Contains("Math.Min(BrowserCollectionRowHeight, item.ActualHeight)", code);
+        Assert.DoesNotContain("targetFill", code);
         Assert.DoesNotContain("item.BorderThickness =", code);
     }
 
@@ -72,8 +75,7 @@ public sealed class BrowserCollectionsPresentationTests
         var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
         Assert.Contains("Sort by Name — Ascending", xaml);
         Assert.Contains("Sort by Name — Descending", xaml);
-        Assert.Contains("ReorderSetsAsync", code);
-        Assert.Contains("ReorderCollectionsAsync", code);
+        Assert.Contains("ReorderHierarchyAsync", code);
         Assert.Contains("createSet: true", code);
     }
 

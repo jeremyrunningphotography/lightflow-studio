@@ -86,19 +86,20 @@ public sealed class CatalogCollectionsTests : IAsyncLifetime
         var second = await fixture.Collections.CreateCollectionAsync("Second");
         var third = await fixture.Collections.CreateCollectionAsync("Third");
 
-        var reordered = await fixture.Collections.ReorderCollectionsAsync(null,
-            [new(third.CollectionId, third.Revision), new(first.CollectionId, first.Revision), new(second.CollectionId, second.Revision)]);
+        await fixture.Collections.ReorderHierarchyAsync(null,
+            [Hierarchy(third), Hierarchy(first), Hierarchy(second)]);
+        var reordered = await fixture.Collections.ListCollectionsAsync();
         Assert.Equal([third.CollectionId, first.CollectionId, second.CollectionId], reordered.Select(x => x.CollectionId));
 
-        await Assert.ThrowsAsync<CollectionConcurrencyException>(() => fixture.Collections.ReorderCollectionsAsync(null,
-            reordered.Select((item, index) => new CollectionOrder(item.CollectionId,
-                index == 1 ? item.Revision - 1 : item.Revision)).Reverse().ToArray()));
+        await Assert.ThrowsAsync<CollectionConcurrencyException>(() => fixture.Collections.ReorderHierarchyAsync(null,
+            reordered.Select((item, index) => new CollectionHierarchyOrder(CollectionHierarchyItemKind.Collection,
+                item.CollectionId, index == 1 ? item.Revision - 1 : item.Revision)).Reverse().ToArray()));
         Assert.Equal([third.CollectionId, first.CollectionId, second.CollectionId],
             (await fixture.Collections.ListCollectionsAsync()).Select(x => x.CollectionId));
     }
 
     [Fact]
-    public async Task SetAndCollectionSiblingOrders_AreDenseAndIntentionallyIndependent()
+    public async Task SetAndCollectionSiblingOrder_IsOneDenseMixedSequence()
     {
         await using var fixture = await Fixture.CreateAsync(_root);
         var firstSet = await fixture.Collections.CreateSetAsync("Set one");
@@ -106,14 +107,44 @@ public sealed class CatalogCollectionsTests : IAsyncLifetime
         var firstCollection = await fixture.Collections.CreateCollectionAsync("Collection one");
         var secondCollection = await fixture.Collections.CreateCollectionAsync("Collection two");
 
-        var sets = await fixture.Collections.ReorderSetsAsync(null,
-            [new(secondSet.CollectionSetId, secondSet.Revision), new(firstSet.CollectionSetId, firstSet.Revision)]);
+        await fixture.Collections.ReorderHierarchyAsync(null,
+            [Hierarchy(firstCollection), Hierarchy(secondSet), Hierarchy(secondCollection), Hierarchy(firstSet)]);
+        var sets = await fixture.Collections.ListSetsAsync();
         var collections = await fixture.Collections.ListCollectionsAsync();
 
         Assert.Equal([secondSet.CollectionSetId, firstSet.CollectionSetId], sets.Select(item => item.CollectionSetId));
-        Assert.Equal([0, 1], sets.Select(item => item.Ordinal));
+        Assert.Equal([1, 3], sets.Select(item => item.Ordinal));
         Assert.Equal([firstCollection.CollectionId, secondCollection.CollectionId], collections.Select(item => item.CollectionId));
-        Assert.Equal([0, 1], collections.Select(item => item.Ordinal));
+        Assert.Equal([0, 2], collections.Select(item => item.Ordinal));
+    }
+
+    [Fact]
+    public async Task MixedOrder_ReparentExactPositionAndRestartPreserveTopLevelAndNestedSequences()
+    {
+        await using var fixture = await Fixture.CreateAsync(_root);
+        var container = await fixture.Collections.CreateSetAsync("Container");
+        var nestedSet = await fixture.Collections.CreateSetAsync("Nested Set", container.CollectionSetId);
+        var moved = await fixture.Collections.CreateCollectionAsync("Moved", container.CollectionSetId);
+        var nestedLast = await fixture.Collections.CreateCollectionAsync("Nested Last", container.CollectionSetId);
+        await fixture.Collections.ReorderHierarchyAsync(container.CollectionSetId,
+            [Hierarchy(moved), Hierarchy(nestedSet), Hierarchy(nestedLast)]);
+        moved = (await fixture.Collections.ListCollectionsAsync(container.CollectionSetId)).Single(item => item.CollectionId == moved.CollectionId);
+        var rootCollection = await fixture.Collections.CreateCollectionAsync("Root Collection");
+
+        moved = await fixture.Collections.ReparentCollectionAsync(moved.CollectionId, moved.Revision, null);
+        container = Assert.Single(await fixture.Collections.ListSetsAsync());
+        rootCollection = (await fixture.Collections.ListCollectionsAsync()).Single(item => item.CollectionId == rootCollection.CollectionId);
+        await fixture.Collections.ReorderHierarchyAsync(null,
+            [Hierarchy(moved), Hierarchy(container), Hierarchy(rootCollection)]);
+        await fixture.ReopenAsync();
+
+        Assert.Equal(0, Assert.Single(await fixture.Collections.ListCollectionsAsync(),
+            item => item.CollectionId == moved.CollectionId).Ordinal);
+        Assert.Equal(1, Assert.Single(await fixture.Collections.ListSetsAsync()).Ordinal);
+        Assert.Equal(2, Assert.Single(await fixture.Collections.ListCollectionsAsync(),
+            item => item.CollectionId == rootCollection.CollectionId).Ordinal);
+        Assert.Equal(0, Assert.Single(await fixture.Collections.ListSetsAsync(container.CollectionSetId)).Ordinal);
+        Assert.Equal(1, Assert.Single(await fixture.Collections.ListCollectionsAsync(container.CollectionSetId)).Ordinal);
     }
 
     [Fact]
@@ -128,7 +159,7 @@ public sealed class CatalogCollectionsTests : IAsyncLifetime
         await fixture.Collections.AddMembershipAsync(moved.CollectionId, asset);
 
         moved = await fixture.Collections.ReparentCollectionAsync(moved.CollectionId, moved.Revision, set.CollectionSetId);
-        Assert.Equal([0, 1], (await fixture.Collections.ListCollectionsAsync()).Select(x => x.Ordinal));
+        Assert.Equal([1, 2], (await fixture.Collections.ListCollectionsAsync()).Select(x => x.Ordinal));
         Assert.Equal(0, moved.Ordinal);
         await fixture.Collections.DeleteCollectionAsync(moved.CollectionId, moved.Revision);
 
@@ -225,9 +256,49 @@ public sealed class CatalogCollectionsTests : IAsyncLifetime
 
         var migrated = await new CatalogDatabaseService(locations, backup).OpenExistingAsync();
 
-        Assert.Equal([(9, 10)], backup.Requests);
-        Assert.Equal(10, migrated.SchemaVersion);
+        Assert.Equal([(9, 11)], backup.Requests);
+        Assert.Equal(11, migrated.SchemaVersion);
         Assert.Equal(3L, Scalar(migrated.Session!, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('CollectionSets','Collections','CollectionAssets');"));
+        await migrated.Session!.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task MigrationFromVersionTen_PreservesSeparateOrdersAsDeterministicMixedOrder()
+    {
+        var locations = LightflowStorageLocations.Create(_root);
+        var versionTen = await new CatalogDatabaseService(locations, null, CatalogMigrations.All.Take(10).ToArray()).CreateNewAsync();
+        var session = versionTen.Session!;
+        var rootSetA = Guid.NewGuid();
+        var rootSetB = Guid.NewGuid();
+        var nestedSet = Guid.NewGuid();
+        var rootCollectionA = Guid.NewGuid();
+        var rootCollectionB = Guid.NewGuid();
+        var nestedCollection = Guid.NewGuid();
+        var now = DateTime.UtcNow.ToString("O");
+        Execute(session, """
+            INSERT INTO CollectionSets VALUES ($setA,NULL,'Set A',0,1,$now,$now);
+            INSERT INTO CollectionSets VALUES ($setB,NULL,'Set B',1,1,$now,$now);
+            INSERT INTO CollectionSets VALUES ($nestedSet,$setA,'Nested Set',0,1,$now,$now);
+            INSERT INTO Collections VALUES ($collectionA,NULL,'Collection A',0,1,$now,$now);
+            INSERT INTO Collections VALUES ($collectionB,NULL,'Collection B',1,1,$now,$now);
+            INSERT INTO Collections VALUES ($nestedCollection,$setA,'Nested Collection',0,1,$now,$now);
+            """, ("$setA", rootSetA.ToString("D")), ("$setB", rootSetB.ToString("D")),
+            ("$nestedSet", nestedSet.ToString("D")), ("$collectionA", rootCollectionA.ToString("D")),
+            ("$collectionB", rootCollectionB.ToString("D")), ("$nestedCollection", nestedCollection.ToString("D")),
+            ("$now", now));
+        await session.DisposeAsync();
+        var backup = new RecordingBackup();
+
+        var migrated = await new CatalogDatabaseService(locations, backup).OpenExistingAsync();
+        var collections = new CatalogCollectionOrganizationService(() => migrated.Session);
+
+        Assert.Equal([(10, 11)], backup.Requests);
+        Assert.Equal([0, 1], (await collections.ListSetsAsync()).Select(item => item.Ordinal));
+        Assert.Equal([2, 3], (await collections.ListCollectionsAsync()).Select(item => item.Ordinal));
+        Assert.Equal(0, Assert.Single(await collections.ListSetsAsync(rootSetA)).Ordinal);
+        Assert.Equal(1, Assert.Single(await collections.ListCollectionsAsync(rootSetA)).Ordinal);
+        Assert.Throws<SqliteException>(() => Execute(migrated.Session!,
+            "UPDATE Collections SET Ordinal=0 WHERE CollectionId=$id;", ("$id", rootCollectionA.ToString("D"))));
         await migrated.Session!.DisposeAsync();
     }
 
@@ -304,11 +375,27 @@ public sealed class CatalogCollectionsTests : IAsyncLifetime
         }
     }
 
+    private static CollectionHierarchyOrder Hierarchy(CollectionSet item) => new(
+        CollectionHierarchyItemKind.Set, item.CollectionSetId, item.Revision);
+
+    private static CollectionHierarchyOrder Hierarchy(MediaCollection item) => new(
+        CollectionHierarchyItemKind.Collection, item.CollectionId, item.Revision);
+
     private static object? Scalar(CatalogDatabaseSession session, string sql)
     {
         using var connection = session.OpenConnection();
         using var command = connection.CreateCommand(); command.CommandText = sql;
         return command.ExecuteScalar();
+    }
+
+    private static void Execute(CatalogDatabaseSession session, string sql,
+        params (string Name, object Value)[] parameters)
+    {
+        using var connection = session.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        foreach (var parameter in parameters) command.Parameters.AddWithValue(parameter.Name, parameter.Value);
+        command.ExecuteNonQuery();
     }
 
     public Task InitializeAsync() { Directory.CreateDirectory(_root); return Task.CompletedTask; }

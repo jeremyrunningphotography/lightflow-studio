@@ -80,15 +80,18 @@ public sealed class BrowserCollectionsTests
         Assert.Equal(BrowserCollectionDropKind.InsertBefore, BrowserCollectionInteraction.DropAt(first, second, 0.1).Kind);
         Assert.Equal(BrowserCollectionDropKind.InsertAfter, BrowserCollectionInteraction.DropAt(first, second, 0.9).Kind);
         Assert.Equal(BrowserCollectionDropKind.IntoSet, BrowserCollectionInteraction.DropAt(first, set, 0.5).Kind);
+        Assert.Equal(BrowserCollectionDropKind.InsertBefore, BrowserCollectionInteraction.DropAt(first, set, 0.1).Kind);
+        Assert.Equal(BrowserCollectionDropKind.InsertAfter, BrowserCollectionInteraction.DropAt(first, set, 0.9).Kind);
         Assert.Equal(BrowserCollectionDropKind.InsertBefore, BrowserCollectionInteraction.DropAt(first, nestedCollection, 0.1).Kind);
     }
 
     [Fact]
-    public void NameSort_IsExplicitAndPreservesSeparateKindInputs()
+    public void NameSort_OrdersOneMixedVisibleSiblingList()
     {
-        var nodes = new[] { new BrowserCollectionNode(Collection("Zulu", 0)), new BrowserCollectionNode(Collection("alpha", 1)) };
-        Assert.Equal(["alpha", "Zulu"], BrowserCollectionInteraction.OrderByName(nodes, false).Select(node => node.Name));
-        Assert.Equal(["Zulu", "alpha"], BrowserCollectionInteraction.OrderByName(nodes, true).Select(node => node.Name));
+        var nodes = new[] { new BrowserCollectionNode(Collection("Zulu", 0)), new BrowserCollectionNode(Set("Bravo", 1)),
+            new BrowserCollectionNode(Collection("alpha", 2)) };
+        Assert.Equal(["alpha", "Bravo", "Zulu"], BrowserCollectionInteraction.OrderByName(nodes, false).Select(node => node.Name));
+        Assert.Equal(["Zulu", "Bravo", "alpha"], BrowserCollectionInteraction.OrderByName(nodes, true).Select(node => node.Name));
     }
 
     [Fact]
@@ -109,21 +112,34 @@ public sealed class BrowserCollectionsTests
     }
 
     [Fact]
-    public void Tree_PresentsSetsBeforeCollectionsAtEachLevelAndRestoresExpansionSelection()
+    public void Tree_PresentsOneMixedOrderAtEachLevelAndRestoresExpansionSelection()
     {
-        var top = Set("Top", 0);
-        var child = Set("Child", 0, top.CollectionSetId);
-        var nested = Collection("Nested", 0, child.CollectionSetId);
+        var top = Set("Top", 1);
+        var child = Set("Child", 1, top.CollectionSetId);
+        var nested = Collection("Nested", 0, top.CollectionSetId);
         var rootCollection = Collection("Root collection", 0);
         var model = new BrowserCollectionTreeModel();
 
         model.Populate([top, child], [rootCollection, nested], new HashSet<Guid> { top.CollectionSetId }, nested.CollectionId);
 
-        Assert.Equal([top.CollectionSetId, rootCollection.CollectionId], model.Roots.Select(node => node.Id));
-        Assert.True(model.Roots[0].IsExpanded);
-        Assert.Equal(child.CollectionSetId, Assert.Single(model.Roots[0].Children).Id);
-        Assert.Equal(nested.CollectionId, Assert.Single(model.Roots[0].Children[0].Children).Id);
+        Assert.Equal([rootCollection.CollectionId, top.CollectionSetId], model.Roots.Select(node => node.Id));
+        Assert.True(model.Roots[1].IsExpanded);
+        Assert.Equal([nested.CollectionId, child.CollectionSetId], model.Roots[1].Children.Select(node => node.Id));
         Assert.Equal(nested.CollectionId, model.SelectedNode!.Id);
+    }
+
+    [Fact]
+    public void EverySet_IsDirectIntoTargetWhetherEmptyOrPopulated()
+    {
+        var draggedCollection = new BrowserCollectionNode(Collection("Dragged", 0));
+        var empty = new BrowserCollectionNode(Set("Empty", 1));
+        var populated = new BrowserCollectionNode(Set("Populated", 2));
+        populated.Children.Add(new BrowserCollectionNode(Collection("Existing", 0, populated.Id)));
+
+        Assert.Equal(BrowserCollectionDropKind.IntoSet,
+            BrowserCollectionInteraction.DropAt(draggedCollection, empty, 0.5).Kind);
+        Assert.Equal(BrowserCollectionDropKind.IntoSet,
+            BrowserCollectionInteraction.DropAt(draggedCollection, populated, 0.5).Kind);
     }
 
     [Fact]
@@ -218,8 +234,7 @@ public sealed class BrowserCollectionsTests
         public Task<MediaCollection> ReparentCollectionAsync(Guid collectionId, long expectedRevision, Guid? parentCollectionSetId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task DeleteSetAsync(Guid collectionSetId, long expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task DeleteCollectionAsync(Guid collectionId, long expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<CollectionSet>> ReorderSetsAsync(Guid? parentCollectionSetId, IReadOnlyList<CollectionOrder> order, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<MediaCollection>> ReorderCollectionsAsync(Guid? parentCollectionSetId, IReadOnlyList<CollectionOrder> order, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task ReorderHierarchyAsync(Guid? parentCollectionSetId, IReadOnlyList<CollectionHierarchyOrder> order, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CollectionMembershipCreateResult> AddMembershipAsync(Guid collectionId, Guid assetId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<CollectionMembershipCreateResult>> AddMembershipsAsync(Guid collectionId, IReadOnlyList<Guid> assetIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task RemoveMembershipAsync(Guid collectionId, Guid assetId, long expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();

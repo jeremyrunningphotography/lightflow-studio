@@ -16,6 +16,8 @@ internal sealed record CollectionMembership(
     DateTimeOffset CreatedUtc, DateTimeOffset UpdatedUtc);
 
 internal sealed record CollectionOrder(Guid Id, long ExpectedRevision);
+internal enum CollectionHierarchyItemKind { Set, Collection }
+internal sealed record CollectionHierarchyOrder(CollectionHierarchyItemKind Kind, Guid Id, long ExpectedRevision);
 internal sealed record CollectionMembershipCreateResult(CollectionMembership Membership, bool Created);
 
 internal sealed class CollectionConcurrencyException(string message) : InvalidOperationException(message);
@@ -37,8 +39,7 @@ internal interface ICollectionOrganizationService
     Task<MediaCollection> ReparentCollectionAsync(Guid collectionId, long expectedRevision, Guid? parentCollectionSetId, CancellationToken cancellationToken = default);
     Task DeleteSetAsync(Guid collectionSetId, long expectedRevision, CancellationToken cancellationToken = default);
     Task DeleteCollectionAsync(Guid collectionId, long expectedRevision, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<CollectionSet>> ReorderSetsAsync(Guid? parentCollectionSetId, IReadOnlyList<CollectionOrder> order, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<MediaCollection>> ReorderCollectionsAsync(Guid? parentCollectionSetId, IReadOnlyList<CollectionOrder> order, CancellationToken cancellationToken = default);
+    Task ReorderHierarchyAsync(Guid? parentCollectionSetId, IReadOnlyList<CollectionHierarchyOrder> order, CancellationToken cancellationToken = default);
     Task<CollectionMembershipCreateResult> AddMembershipAsync(Guid collectionId, Guid assetId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CollectionMembershipCreateResult>> AddMembershipsAsync(Guid collectionId, IReadOnlyList<Guid> assetIds, CancellationToken cancellationToken = default);
     Task RemoveMembershipAsync(Guid collectionId, Guid assetId, long expectedRevision, CancellationToken cancellationToken = default);
@@ -98,7 +99,7 @@ internal sealed class CatalogCollectionOrganizationService(
         EnsureParentExists(connection, transaction, parentCollectionSetId);
         var now = FormatUtc(_utcNow());
         var id = Guid.NewGuid();
-        var ordinal = NextOrdinal(connection, transaction, "CollectionSets", "ParentCollectionSetId", parentCollectionSetId);
+        var ordinal = NextHierarchyOrdinal(connection, transaction, parentCollectionSetId);
         Execute(connection, transaction, """
             INSERT INTO CollectionSets
                 (CollectionSetId,ParentCollectionSetId,Name,Ordinal,Revision,CreatedUtc,UpdatedUtc)
@@ -115,7 +116,7 @@ internal sealed class CatalogCollectionOrganizationService(
         EnsureParentExists(connection, transaction, parentCollectionSetId);
         var now = FormatUtc(_utcNow());
         var id = Guid.NewGuid();
-        var ordinal = NextOrdinal(connection, transaction, "Collections", "ParentCollectionSetId", parentCollectionSetId);
+        var ordinal = NextHierarchyOrdinal(connection, transaction, parentCollectionSetId);
         Execute(connection, transaction, """
             INSERT INTO Collections
                 (CollectionId,ParentCollectionSetId,Name,Ordinal,Revision,CreatedUtc,UpdatedUtc)
@@ -159,7 +160,7 @@ internal sealed class CatalogCollectionOrganizationService(
         if (current.ParentCollectionSetId == parentCollectionSetId) return current;
         EnsureParentExists(connection, transaction, parentCollectionSetId);
         EnsureAcyclic(connection, transaction, collectionSetId, parentCollectionSetId);
-        var ordinal = NextOrdinal(connection, transaction, "CollectionSets", "ParentCollectionSetId", parentCollectionSetId);
+        var ordinal = NextHierarchyOrdinal(connection, transaction, parentCollectionSetId);
         if (Execute(connection, transaction, """
                 UPDATE CollectionSets SET ParentCollectionSetId=$parent,Ordinal=$ordinal,
                     Revision=Revision+1,UpdatedUtc=$now
@@ -167,8 +168,7 @@ internal sealed class CatalogCollectionOrganizationService(
                 """, ("$parent", Db(parentCollectionSetId)), ("$ordinal", ordinal), ("$now", FormatUtc(_utcNow())),
                 ("$id", collectionSetId.ToString("D")), ("$revision", expectedRevision)) != 1)
             throw Changed("Collection Set", "move");
-        NormalizeOrdinals(connection, transaction, "CollectionSets", "CollectionSetId", "ParentCollectionSetId",
-            current.ParentCollectionSetId, FormatUtc(_utcNow()));
+        NormalizeHierarchyOrdinals(connection, transaction, current.ParentCollectionSetId, FormatUtc(_utcNow()));
         return ReadSet(connection, transaction, collectionSetId)!;
     }, cancellationToken);
 
@@ -179,7 +179,7 @@ internal sealed class CatalogCollectionOrganizationService(
         if (current.Revision != expectedRevision) throw Changed("Collection", "move");
         if (current.ParentCollectionSetId == parentCollectionSetId) return current;
         EnsureParentExists(connection, transaction, parentCollectionSetId);
-        var ordinal = NextOrdinal(connection, transaction, "Collections", "ParentCollectionSetId", parentCollectionSetId);
+        var ordinal = NextHierarchyOrdinal(connection, transaction, parentCollectionSetId);
         if (Execute(connection, transaction, """
                 UPDATE Collections SET ParentCollectionSetId=$parent,Ordinal=$ordinal,
                     Revision=Revision+1,UpdatedUtc=$now
@@ -187,8 +187,7 @@ internal sealed class CatalogCollectionOrganizationService(
                 """, ("$parent", Db(parentCollectionSetId)), ("$ordinal", ordinal), ("$now", FormatUtc(_utcNow())),
                 ("$id", collectionId.ToString("D")), ("$revision", expectedRevision)) != 1)
             throw Changed("Collection", "move");
-        NormalizeOrdinals(connection, transaction, "Collections", "CollectionId", "ParentCollectionSetId",
-            current.ParentCollectionSetId, FormatUtc(_utcNow()));
+        NormalizeHierarchyOrdinals(connection, transaction, current.ParentCollectionSetId, FormatUtc(_utcNow()));
         return ReadCollection(connection, transaction, collectionId)!;
     }, cancellationToken);
 
@@ -206,8 +205,7 @@ internal sealed class CatalogCollectionOrganizationService(
                 "DELETE FROM CollectionSets WHERE CollectionSetId=$id AND Revision=$revision;",
                 ("$id", collectionSetId.ToString("D")), ("$revision", expectedRevision)) != 1)
             throw Changed("Collection Set", "deletion");
-        NormalizeOrdinals(connection, transaction, "CollectionSets", "CollectionSetId", "ParentCollectionSetId",
-            current.ParentCollectionSetId, FormatUtc(_utcNow()));
+        NormalizeHierarchyOrdinals(connection, transaction, current.ParentCollectionSetId, FormatUtc(_utcNow()));
         return null;
     }, cancellationToken);
 
@@ -222,20 +220,39 @@ internal sealed class CatalogCollectionOrganizationService(
                 "DELETE FROM Collections WHERE CollectionId=$id AND Revision=$revision;",
                 ("$id", collectionId.ToString("D")), ("$revision", expectedRevision)) != 1)
             throw Changed("Collection", "deletion");
-        NormalizeOrdinals(connection, transaction, "Collections", "CollectionId", "ParentCollectionSetId",
-            current.ParentCollectionSetId, FormatUtc(_utcNow()));
+        NormalizeHierarchyOrdinals(connection, transaction, current.ParentCollectionSetId, FormatUtc(_utcNow()));
         return null;
     }, cancellationToken);
 
-    public Task<IReadOnlyList<CollectionSet>> ReorderSetsAsync(Guid? parentCollectionSetId,
-        IReadOnlyList<CollectionOrder> order, CancellationToken cancellationToken = default) =>
-        ReorderAsync(parentCollectionSetId, order, "CollectionSets", "CollectionSetId", "ParentCollectionSetId",
-            ReadSets, cancellationToken);
+    public Task ReorderHierarchyAsync(Guid? parentCollectionSetId, IReadOnlyList<CollectionHierarchyOrder> order,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        ValidateHierarchyOrder(order);
+        return MutateAsync<object?>((connection, transaction) =>
+        {
+            var current = ReadHierarchyIdentities(connection, transaction, parentCollectionSetId);
+            var expected = current.ToDictionary(item => (item.Kind, item.Id), item => item.Revision);
+            if (expected.Count != order.Count || order.Any(item =>
+                    !expected.TryGetValue((item.Kind, item.Id), out var revision) || revision != item.ExpectedRevision))
+                throw Changed("Collection hierarchy", "reorder");
 
-    public Task<IReadOnlyList<MediaCollection>> ReorderCollectionsAsync(Guid? parentCollectionSetId,
-        IReadOnlyList<CollectionOrder> order, CancellationToken cancellationToken = default) =>
-        ReorderAsync(parentCollectionSetId, order, "Collections", "CollectionId", "ParentCollectionSetId",
-            ReadCollections, cancellationToken);
+            var now = FormatUtc(_utcNow());
+            ShiftHierarchyOrdinals(connection, transaction, parentCollectionSetId);
+            for (var ordinal = 0; ordinal < order.Count; ordinal++)
+            {
+                var item = order[ordinal];
+                var table = item.Kind == CollectionHierarchyItemKind.Set ? "CollectionSets" : "Collections";
+                var idColumn = item.Kind == CollectionHierarchyItemKind.Set ? "CollectionSetId" : "CollectionId";
+                if (Execute(connection, transaction,
+                        $"UPDATE {table} SET Ordinal=$ordinal,Revision=Revision+1,UpdatedUtc=$now WHERE {idColumn}=$id AND {ScopePredicate("ParentCollectionSetId")};",
+                        ("$ordinal", ordinal), ("$now", now), ("$id", item.Id.ToString("D")),
+                        ("$scope", Db(parentCollectionSetId))) != 1)
+                    throw Changed("Collection hierarchy", "reorder");
+            }
+            return null;
+        }, cancellationToken);
+    }
 
     public async Task<CollectionMembershipCreateResult> AddMembershipAsync(Guid collectionId, Guid assetId,
         CancellationToken cancellationToken = default) =>
@@ -414,6 +431,21 @@ internal sealed class CatalogCollectionOrganizationService(
         return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
+    private static int NextHierarchyOrdinal(SqliteConnection connection, SqliteTransaction transaction, Guid? parent)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"""
+            SELECT coalesce(max(Ordinal)+1,0) FROM (
+                SELECT Ordinal FROM CollectionSets WHERE {ScopePredicate("ParentCollectionSetId")}
+                UNION ALL
+                SELECT Ordinal FROM Collections WHERE {ScopePredicate("ParentCollectionSetId")}
+            );
+            """;
+        AddScope(command, "ParentCollectionSetId", parent);
+        return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
     private static int NextMembershipOrdinal(SqliteConnection connection, SqliteTransaction transaction, Guid collectionId) =>
         NextOrdinal(connection, transaction, "CollectionAssets", "CollectionId", collectionId);
 
@@ -432,6 +464,54 @@ internal sealed class CatalogCollectionOrganizationService(
     private static void NormalizeMembershipOrdinals(SqliteConnection connection, SqliteTransaction transaction,
         Guid collectionId, string now) => NormalizeOrdinals(connection, transaction, "CollectionAssets", "AssetId",
         "CollectionId", collectionId, now);
+
+    private static void NormalizeHierarchyOrdinals(SqliteConnection connection, SqliteTransaction transaction,
+        Guid? parent, string now)
+    {
+        var items = ReadHierarchyIdentities(connection, transaction, parent);
+        ShiftHierarchyOrdinals(connection, transaction, parent);
+        for (var ordinal = 0; ordinal < items.Count; ordinal++)
+        {
+            var item = items[ordinal];
+            var table = item.Kind == CollectionHierarchyItemKind.Set ? "CollectionSets" : "Collections";
+            var idColumn = item.Kind == CollectionHierarchyItemKind.Set ? "CollectionSetId" : "CollectionId";
+            Execute(connection, transaction,
+                $"UPDATE {table} SET Ordinal=$ordinal,Revision=Revision+1,UpdatedUtc=$now WHERE {idColumn}=$id;",
+                ("$ordinal", ordinal), ("$now", now), ("$id", item.Id.ToString("D")));
+        }
+    }
+
+    private static void ShiftHierarchyOrdinals(SqliteConnection connection, SqliteTransaction transaction, Guid? parent)
+    {
+        ExecuteScope(connection, transaction,
+            $"UPDATE CollectionSets SET Ordinal=Ordinal+1000000000 WHERE {ScopePredicate("ParentCollectionSetId")};",
+            "ParentCollectionSetId", parent);
+        ExecuteScope(connection, transaction,
+            $"UPDATE Collections SET Ordinal=Ordinal+1000000000 WHERE {ScopePredicate("ParentCollectionSetId")};",
+            "ParentCollectionSetId", parent);
+    }
+
+    private static List<(CollectionHierarchyItemKind Kind, Guid Id, long Revision)> ReadHierarchyIdentities(
+        SqliteConnection connection, SqliteTransaction transaction, Guid? parent)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"""
+            SELECT Kind,Id,Revision FROM (
+                SELECT 0 AS Kind,CollectionSetId AS Id,Revision,Ordinal
+                FROM CollectionSets WHERE {ScopePredicate("ParentCollectionSetId")}
+                UNION ALL
+                SELECT 1 AS Kind,CollectionId AS Id,Revision,Ordinal
+                FROM Collections WHERE {ScopePredicate("ParentCollectionSetId")}
+            ) ORDER BY Ordinal,Kind,Id;
+            """;
+        AddScope(command, "ParentCollectionSetId", parent);
+        using var reader = command.ExecuteReader();
+        var result = new List<(CollectionHierarchyItemKind, Guid, long)>();
+        while (reader.Read()) result.Add(((CollectionHierarchyItemKind)reader.GetInt32(0),
+            Guid.Parse(reader.GetString(1)), reader.GetInt64(2)));
+        return result;
+    }
 
     private static List<Guid> ReadIds(SqliteConnection connection, SqliteTransaction transaction, string table,
         string idColumn, string scopeColumn, Guid? scope)
@@ -527,6 +607,12 @@ internal sealed class CatalogCollectionOrganizationService(
     {
         if (order.Select(item => item.Id).Distinct().Count() != order.Count)
             throw new ArgumentException("Collection order cannot contain duplicate identities.", nameof(order));
+    }
+
+    private static void ValidateHierarchyOrder(IReadOnlyList<CollectionHierarchyOrder> order)
+    {
+        if (order.Select(item => (item.Kind, item.Id)).Distinct().Count() != order.Count)
+            throw new ArgumentException("Collection hierarchy order cannot contain duplicate identities.", nameof(order));
     }
 
     private static T AssertSingle<T>(IReadOnlyList<T> values) => values.Count == 1 ? values[0] :

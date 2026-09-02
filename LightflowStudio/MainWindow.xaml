@@ -642,14 +642,16 @@
 
              <StackPanel x:Name="BrowserCameraFilterGroup">
              <TextBlock Style="{StaticResource FieldLabel}" Margin="4,10,4,4" Text="CAMERA"/>
+             <TextBlock x:Name="BrowserCameraFilterInformation" Margin="4,6,4,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap"/>
              <ItemsControl x:Name="BrowserCameraFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
-              <CheckBox Margin="4,6,4,0" Content="{Binding Label}" IsChecked="{Binding IsActive, Mode=OneWay}" Click="BrowserAdvancedFilterCheck_Click"/>
+              <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
              </StackPanel>
              <StackPanel x:Name="BrowserLensFilterGroup">
              <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="LENS"/>
+             <TextBlock x:Name="BrowserLensFilterInformation" Margin="4,6,4,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap"/>
              <ItemsControl x:Name="BrowserLensFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
-              <CheckBox Margin="4,6,4,0" Content="{Binding Label}" IsChecked="{Binding IsActive, Mode=OneWay}" Click="BrowserAdvancedFilterCheck_Click"/>
+              <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
              </StackPanel>
              <StackPanel x:Name="BrowserCaptureDateFilterGroup">
@@ -672,21 +674,23 @@
              </StackPanel>
              <StackPanel x:Name="BrowserResolutionFilterGroup">
              <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="RESOLUTION"/>
+             <TextBlock x:Name="BrowserResolutionFilterInformation" Margin="4,6,4,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap"/>
              <ItemsControl x:Name="BrowserResolutionFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
-              <CheckBox Margin="4,6,4,0" Content="{Binding Label}" IsChecked="{Binding IsActive, Mode=OneWay}" Click="BrowserAdvancedFilterCheck_Click"/>
+              <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
              </StackPanel>
              <StackPanel x:Name="BrowserFrameRateFilterGroup">
              <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="FRAME RATE"/>
+             <TextBlock x:Name="BrowserFrameRateFilterInformation" Margin="4,6,4,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextWrapping="Wrap"/>
              <ItemsControl x:Name="BrowserFrameRateFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
-              <CheckBox Margin="4,6,4,0" Content="{Binding Label}" IsChecked="{Binding IsActive, Mode=OneWay}" Click="BrowserAdvancedFilterCheck_Click"/>
+              <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
              </StackPanel>
 
              <StackPanel x:Name="BrowserStateFilterGroup">
              <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="LIGHTFLOW STATE"/>
              <ItemsControl x:Name="BrowserStateFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
-              <CheckBox Margin="4,6,4,0" Content="{Binding Label}" IsChecked="{Binding IsActive, Mode=OneWay}" Click="BrowserAdvancedFilterCheck_Click"/>
+              <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
              </StackPanel>
             </StackPanel>

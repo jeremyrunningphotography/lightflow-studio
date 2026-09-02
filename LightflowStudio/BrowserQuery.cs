@@ -317,7 +317,19 @@ internal sealed record BrowserTechnicalMetadata(
     public static BrowserTechnicalMetadata Empty { get; } = new(null, null, null, null, null, null, null, null);
 }
 
-internal sealed record BrowserFilterOption(BrowserFilterPredicate Predicate, bool IsActive)
+internal sealed record BrowserFilterOption(
+    BrowserFilterPredicate Predicate,
+    bool IsActive,
+    bool IsEnabled = true,
+    int? ContextCount = null)
 {
     public string Label => Predicate.Label;
+    public string DisplayLabel => ContextCount is { } count ? $"{Label} ({count})" : Label;
+    public string DescriptiveValueLabel => Predicate.Field switch
+    {
+        BrowserFilterField.Camera or BrowserFilterField.Lens => Predicate.TextValue ?? Label,
+        BrowserFilterField.Resolution => $"{Predicate.NumberValue:0}×{Predicate.NumberValue2:0}",
+        BrowserFilterField.FrameRate => $"{Predicate.NumberValue:0.###} fps",
+        _ => Label
+    };
 }

@@ -117,7 +117,7 @@ public sealed class BrowserQueryRegressionTests
     }
 
     [Fact]
-    public void AdvancedFilterDiscovery_UsesPreAdvancedContextAndSuppressesSingleValueCategoricalGroups()
+    public void AdvancedFilterDiscovery_UsesPreAdvancedContextAndPresentsSingleValuesWithoutCreatingPredicates()
     {
         var source = Source();
         var methodStart = source.IndexOf("private void RefreshBrowserAdvancedFilterOptions", StringComparison.Ordinal);
@@ -125,12 +125,42 @@ public sealed class BrowserQueryRegressionTests
         var body = source[methodStart..methodEnd];
 
         Assert.Contains("_browserGrid.AdvancedFilterContextTiles", body);
-        Assert.Contains("BrowserCameraFilterGroup.Visibility = MeaningfullyVariable(cameraOptions);", body);
-        Assert.Contains("BrowserLensFilterGroup.Visibility = MeaningfullyVariable(lensOptions);", body);
-        Assert.Contains("BrowserResolutionFilterGroup.Visibility = MeaningfullyVariable(resolutionOptions);", body);
-        Assert.Contains("BrowserFrameRateFilterGroup.Visibility = MeaningfullyVariable(frameRateOptions);", body);
+        Assert.Contains("PresentDescriptiveFacet(BrowserCameraFilterGroup", body);
+        Assert.Contains("PresentDescriptiveFacet(BrowserLensFilterGroup", body);
+        Assert.Contains("PresentDescriptiveFacet(BrowserResolutionFilterGroup", body);
+        Assert.Contains("PresentDescriptiveFacet(BrowserFrameRateFilterGroup", body);
         Assert.DoesNotContain("SetQuery", body);
         Assert.DoesNotContain("WithFilterRemoved", body);
+    }
+
+    [Fact]
+    public void LightflowStateDiscovery_IsStableCountedAndExcludesPendingTilesFromKnownCounts()
+    {
+        var source = Source();
+        var methodStart = source.IndexOf("private void RefreshBrowserAdvancedFilterOptions", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("tiles.Where(tile => tile.AssetStateApplied)", body);
+        Assert.Contains("StateOption(BrowserFilterField.ColorState, true", body);
+        Assert.Contains("StateOption(BrowserFilterField.ColorState, false", body);
+        Assert.Contains("StateOption(BrowserFilterField.CameraLutState, true", body);
+        Assert.Contains("StateOption(BrowserFilterField.CreativeLutState, true", body);
+        Assert.Contains("StateOption(BrowserFilterField.ReviewRangeState, true", body);
+        Assert.Contains("StateOption(BrowserFilterField.SubclipState, true", body);
+        Assert.Contains("BrowserStateFilterGroup.Visibility = Visibility.Visible;", body);
+    }
+
+    [Fact]
+    public void ZeroCountStateOption_RemainsEnabledOnlyWhenActiveSoItCanBeRemoved()
+    {
+        var source = Source();
+        var methodStart = source.IndexOf("private BrowserFilterOption StateOption", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
+        var body = source[methodStart..methodEnd];
+
+        Assert.Contains("count > 0 || active", body);
+        Assert.Contains("count", body);
     }
 
     [Fact]

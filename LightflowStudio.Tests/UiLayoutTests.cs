@@ -125,12 +125,16 @@ public class UiLayoutTests
         {
             "BrowserCameraFilterOptions", "BrowserLensFilterOptions", "BrowserCaptureDateFrom", "BrowserCaptureDateTo",
             "BrowserDurationFilterCombo", "BrowserResolutionFilterOptions", "BrowserFrameRateFilterOptions",
-            "BrowserStateFilterOptions"
+            "BrowserStateFilterOptions", "BrowserCameraFilterInformation", "BrowserLensFilterInformation",
+            "BrowserResolutionFilterInformation", "BrowserFrameRateFilterInformation"
         })
             Assert.Contains(popup.Descendants(), element => element == Named(document, name));
         Assert.Contains(popup.Descendants(), element => element == Named(document, "BrowserClearAdvancedFiltersButton"));
         Assert.Contains(popup.Descendants(), element => element == Named(document, "BrowserResolutionFilterGroup"));
         Assert.Contains(popup.Descendants(), element => element == Named(document, "BrowserFrameRateFilterGroup"));
+        var stateChoice = Named(document, "BrowserStateFilterOptions").Descendants(ns + "CheckBox").Single();
+        Assert.Equal("{Binding DisplayLabel}", (string?)stateChoice.Attribute("Content"));
+        Assert.Equal("{Binding IsEnabled}", (string?)stateChoice.Attribute("IsEnabled"));
         Assert.DoesNotContain(popup.Descendants(ns + "TextBlock"), text =>
             ((string?)text.Attribute("Text"))?.Contains("hydrated Catalog state", StringComparison.OrdinalIgnoreCase) == true);
     }

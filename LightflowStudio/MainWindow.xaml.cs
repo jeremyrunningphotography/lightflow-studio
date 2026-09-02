@@ -1767,14 +1767,16 @@ public partial class MainWindow : Window
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
             .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.Camera, value!)));
         BrowserCameraFilterOptions.ItemsSource = cameraOptions;
-        BrowserCameraFilterGroup.Visibility = MeaningfullyVariable(cameraOptions);
+        PresentDescriptiveFacet(BrowserCameraFilterGroup, BrowserCameraFilterOptions, BrowserCameraFilterInformation,
+            cameraOptions, "Camera", tiles.Count(tile => tile.CameraDisplayName is not null), tiles.Count);
 
         var lensOptions = Options(tiles.Select(tile => tile.LensModel)
             .Where(value => value is not null).Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
             .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.Lens, value!)));
         BrowserLensFilterOptions.ItemsSource = lensOptions;
-        BrowserLensFilterGroup.Visibility = MeaningfullyVariable(lensOptions);
+        PresentDescriptiveFacet(BrowserLensFilterGroup, BrowserLensFilterOptions, BrowserLensFilterInformation,
+            lensOptions, "Lens", tiles.Count(tile => tile.LensModel is not null), tiles.Count);
 
         BrowserCaptureDateFilterGroup.Visibility = tiles.Any(tile => tile.MetadataApplied && tile.CaptureDate is not null)
             ? Visibility.Visible : Visibility.Collapsed;
@@ -1794,38 +1796,53 @@ public partial class MainWindow : Window
             .OrderBy(size => size.Width * (long)size.Height)
             .Select(size => BrowserFilterPredicate.ForResolution(size.Width, size.Height)));
         BrowserResolutionFilterOptions.ItemsSource = resolutionOptions;
-        BrowserResolutionFilterGroup.Visibility = MeaningfullyVariable(resolutionOptions);
+        PresentDescriptiveFacet(BrowserResolutionFilterGroup, BrowserResolutionFilterOptions, BrowserResolutionFilterInformation,
+            resolutionOptions, "Resolution", tiles.Count(tile => tile.PixelWidth is > 0 && tile.PixelHeight is > 0), tiles.Count);
 
         var frameRateOptions = Options(tiles.Select(tile => tile.FrameRate)
             .Where(value => value is > 0).Select(value => Math.Round(value!.Value, 3)).Distinct().OrderBy(value => value)
             .Select(value => BrowserFilterPredicate.ForMinimum(BrowserFilterField.FrameRate, value)));
         BrowserFrameRateFilterOptions.ItemsSource = frameRateOptions;
-        BrowserFrameRateFilterGroup.Visibility = MeaningfullyVariable(frameRateOptions);
+        PresentDescriptiveFacet(BrowserFrameRateFilterGroup, BrowserFrameRateFilterOptions, BrowserFrameRateFilterInformation,
+            frameRateOptions, "Frame rate", tiles.Count(tile => tile.FrameRate is > 0), tiles.Count);
 
         var hydratedStateTiles = tiles.Where(tile => tile.AssetStateApplied).ToArray();
-        var statePredicates = new List<BrowserFilterPredicate>();
-        AddBinaryStateOptions(statePredicates, hydratedStateTiles, BrowserFilterField.ColorState, tile => tile.HasColorState, includeFalse: true);
-        AddBinaryStateOptions(statePredicates, hydratedStateTiles, BrowserFilterField.CameraLutState, tile => tile.HasCameraLut, includeFalse: false);
-        AddBinaryStateOptions(statePredicates, hydratedStateTiles, BrowserFilterField.CreativeLutState, tile => tile.HasCreativeLut, includeFalse: false);
-        AddBinaryStateOptions(statePredicates, hydratedStateTiles, BrowserFilterField.ReviewRangeState, tile => tile.HasReviewRange, includeFalse: true);
-        AddBinaryStateOptions(statePredicates, hydratedStateTiles, BrowserFilterField.SubclipState, tile => tile.HasSubclips, includeFalse: true);
-        var stateOptions = Options(statePredicates);
+        var stateOptions = new[]
+        {
+            StateOption(BrowserFilterField.ColorState, true, hydratedStateTiles.Count(tile => tile.HasColorState)),
+            StateOption(BrowserFilterField.ColorState, false, hydratedStateTiles.Count(tile => !tile.HasColorState)),
+            StateOption(BrowserFilterField.CameraLutState, true, hydratedStateTiles.Count(tile => tile.HasCameraLut)),
+            StateOption(BrowserFilterField.CreativeLutState, true, hydratedStateTiles.Count(tile => tile.HasCreativeLut)),
+            StateOption(BrowserFilterField.ReviewRangeState, true, hydratedStateTiles.Count(tile => tile.HasReviewRange)),
+            StateOption(BrowserFilterField.ReviewRangeState, false, hydratedStateTiles.Count(tile => !tile.HasReviewRange)),
+            StateOption(BrowserFilterField.SubclipState, true, hydratedStateTiles.Count(tile => tile.HasSubclips)),
+            StateOption(BrowserFilterField.SubclipState, false, hydratedStateTiles.Count(tile => !tile.HasSubclips))
+        };
         BrowserStateFilterOptions.ItemsSource = stateOptions;
-        BrowserStateFilterGroup.Visibility = stateOptions.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        BrowserStateFilterGroup.Visibility = Visibility.Visible;
     }
 
-    private static Visibility MeaningfullyVariable(IReadOnlyCollection<BrowserFilterOption> options) =>
-        options.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
-
-    private static void AddBinaryStateOptions(List<BrowserFilterPredicate> options,
-        IReadOnlyCollection<BrowserGridTile> tiles, BrowserFilterField field,
-        Func<BrowserGridTile, bool> selector, bool includeFalse)
+    private static void PresentDescriptiveFacet(StackPanel group, ItemsControl choices, TextBlock information,
+        IReadOnlyList<BrowserFilterOption> options, string fieldLabel, int knownCount, int contextualCount)
     {
-        var hasTrue = tiles.Any(selector);
-        var hasFalse = tiles.Any(tile => !selector(tile));
-        if (!hasTrue || !hasFalse) return;
-        options.Add(BrowserFilterPredicate.ForState(field, true));
-        if (includeFalse) options.Add(BrowserFilterPredicate.ForState(field, false));
+        group.Visibility = options.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        choices.Visibility = options.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        information.Visibility = options.Count == 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (options.Count != 1) return;
+
+        var coverage = knownCount == contextualCount
+            ? $"all {knownCount} {PluralizeItems(knownCount)}"
+            : $"{knownCount} known {PluralizeItems(knownCount)}";
+        information.Text = $"{fieldLabel} {options[0].DescriptiveValueLabel} · {coverage}";
+    }
+
+    private static string PluralizeItems(int count) => count == 1 ? "item" : "items";
+
+    private BrowserFilterOption StateOption(BrowserFilterField field, bool value, int count)
+    {
+        var predicate = BrowserFilterPredicate.ForState(field, value);
+        var active = _browserGrid.Query.Filters.Contains(predicate);
+        return new BrowserFilterOption(predicate, active, count > 0 || active, count);
     }
 
     private IReadOnlyList<BrowserFilterOption> Options(IEnumerable<BrowserFilterPredicate> predicates) =>

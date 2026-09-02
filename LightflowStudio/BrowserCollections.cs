@@ -40,7 +40,6 @@ internal sealed class BrowserCollectionNode : INotifyPropertyChanged
     public long Revision { get; }
     public bool IsSet => Kind == BrowserCollectionNodeKind.Set;
     public bool IsCollection => Kind == BrowserCollectionNodeKind.Collection;
-    public string Glyph => IsSet ? "\uE8B7" : "\uE8D5";
     public ObservableCollection<BrowserCollectionNode> Children { get; } = [];
 
     public bool IsExpanded
@@ -58,6 +57,45 @@ internal sealed class BrowserCollectionNode : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new(name));
+}
+
+internal sealed record CollectionSetPlacementOption(Guid CollectionSetId, string DisplayName);
+
+internal static class BrowserCollectionPlacement
+{
+    public static Guid? SuggestedParent(BrowserCollectionNode? current) => current switch
+    {
+        { IsSet: true } => current.Id,
+        { IsCollection: true, ParentSetId: { } parent } => parent,
+        _ => null
+    };
+
+    public static IReadOnlyList<CollectionSetPlacementOption> Options(IEnumerable<BrowserCollectionNode> roots)
+    {
+        var output = new List<CollectionSetPlacementOption>();
+        Add(roots, 0);
+        return output;
+        void Add(IEnumerable<BrowserCollectionNode> nodes, int depth)
+        {
+            foreach (var node in nodes.Where(node => node.IsSet).OrderBy(node => node.Ordinal))
+            {
+                output.Add(new(node.Id, $"{new string(' ', depth * 2)}{node.Name}"));
+                Add(node.Children, depth + 1);
+            }
+        }
+    }
+}
+
+internal static class BrowserCollectionInteraction
+{
+    public static BrowserCollectionNode ContextTarget(BrowserCollectionNode clicked, BrowserCollectionNode? selected) => clicked;
+    public static bool CanDrop(BrowserCollectionNode dragged, BrowserCollectionNode? targetSet)
+    {
+        if (targetSet is not null && !targetSet.IsSet) return false;
+        if (targetSet is null) return dragged.ParentSetId is not null;
+        if (dragged.Id == targetSet.Id || dragged.ParentSetId == targetSet.Id) return false;
+        return !dragged.IsSet || !BrowserCollectionTreeModel.Flatten(dragged.Children).Any(node => node.Id == targetSet.Id);
+    }
 }
 
 internal sealed class BrowserCollectionTreeModel

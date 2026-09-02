@@ -109,6 +109,8 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _collectionScopeCts;
     private bool _synchronizingCollectionTree;
     private BrowserCollectionNode? _browserCollectionTreeRevealedNode;
+    private System.Windows.Point _collectionDragStart;
+    private BrowserCollectionNode? _collectionDragNode;
     private bool _synchronizingBrowserScopeMode;
     private readonly DispatcherTimer _browserRecursiveRefreshDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     /// <summary>Denominator as of the last recursive-progress report, so <see cref="ApplyRecursiveScopeLoadingProgress"/> can tell whether discovery is still actively growing. Reset alongside everything else in <see cref="ResetBrowserLoadingProgress"/>.</summary>
@@ -3197,7 +3199,13 @@ public partial class MainWindow : Window
             return;
         }
         _browserCollectionTree.Select(node);
-        if (node.IsCollection) await LoadCollectionScopeAsync(node.Id);
+        if (node.IsCollection)
+        {
+            _synchronizingBrowserTree = true;
+            try { _browserTree.RestoreSelection(null); }
+            finally { _synchronizingBrowserTree = false; }
+            await LoadCollectionScopeAsync(node.Id);
+        }
     }
 
     private async Task LoadCollectionScopeAsync(Guid collectionId)
@@ -3233,6 +3241,9 @@ public partial class MainWindow : Window
         if (queryScope != _browserScopeIdentity) _browserGrid.ClearSelection();
         _browserScopeIdentity = queryScope;
         _activeCollectionScope = scope;
+        _synchronizingBrowserTree = true;
+        try { _browserTree.RestoreSelection(null); }
+        finally { _synchronizingBrowserTree = false; }
         _lastLoadedBrowserState = null;
         _browserGrid.Populate(scope.Entries);
         UpdateBrowserGridColumns();
@@ -3288,12 +3299,12 @@ public partial class MainWindow : Window
 
     private async void BrowserNewCollection_Click(object sender, RoutedEventArgs e)
     {
-        var name = TextEntryDialog.Prompt(this, "New Collection", "Name this Collection");
-        if (name is null) return;
-        var parent = _browserCollectionTree.SelectedNode is { IsSet: true } set ? set.Id : (Guid?)null;
+        var dialog = new NewCollectionDialog(BrowserCollectionPlacement.Options(_browserCollectionTree.Roots),
+            BrowserCollectionPlacement.SuggestedParent(_browserCollectionTree.SelectedNode)) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
         await RunCollectionActionAsync(async () =>
         {
-            var created = await _storage.Collections.CreateCollectionAsync(name, parent);
+            var created = await _storage.Collections.CreateCollectionAsync(dialog.CollectionName, dialog.ParentSetId);
             await LoadCollectionScopeAsync(created.CollectionId);
         });
     }
@@ -3302,7 +3313,7 @@ public partial class MainWindow : Window
     {
         var name = TextEntryDialog.Prompt(this, "New Collection Set", "Name this Collection Set");
         if (name is null) return;
-        var parent = _browserCollectionTree.SelectedNode is { IsSet: true } set ? set.Id : (Guid?)null;
+        var parent = BrowserCollectionPlacement.SuggestedParent(_browserCollectionTree.SelectedNode);
         await RunCollectionActionAsync(async () =>
         {
             var created = await _storage.Collections.CreateSetAsync(name, parent);
@@ -3332,8 +3343,14 @@ public partial class MainWindow : Window
     {
         if (_browserCollectionTree.SelectedNode is not { } node) return;
         var kind = node.IsSet ? "Collection Set" : "Collection";
+        if (node.IsSet && node.Children.Count > 0)
+        {
+            NoticeDialog.Show(this, "Collection Set not empty", $"“{node.Name}” can’t be deleted yet.",
+                "Move or delete every nested Collection and Collection Set first, then try again.");
+            return;
+        }
         var detail = node.IsCollection ? "This removes Collection membership only. Source media will not be deleted."
-            : "A Collection Set must be empty before it can be deleted.";
+            : "Only this empty organizational Set will be removed.";
         if (!ConfirmationDialog.Confirm(this, $"Delete {kind}", $"Delete “{node.Name}”?", detail, null, "Delete")) return;
         try
         {
@@ -3347,11 +3364,12 @@ public partial class MainWindow : Window
             }
             await RefreshCollectionsAsync();
         }
-        catch (CollectionNotEmptyException exception)
+        catch (CollectionNotEmptyException)
         {
-            MessageBox.Show(exception.Message, "Collection Set not deleted", MessageBoxButton.OK, MessageBoxImage.Information);
+            NoticeDialog.Show(this, "Collection Set not empty", "This Collection Set can’t be deleted yet.",
+                "The hierarchy changed and the Set now contains an item. Refresh, empty it, and try again.");
         }
-        catch (Exception exception) when (IsCollectionActionFailure(exception)) { ShowCollectionActionFailure(exception); }
+        catch (Exception exception) when (IsCollectionActionFailure(exception)) { await HandleCollectionActionFailureAsync(exception); }
     }
 
     private void BrowserCollectionTree_ContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -3426,14 +3444,107 @@ public partial class MainWindow : Window
     private async Task RunCollectionActionAsync(Func<Task> action)
     {
         try { await action(); }
-        catch (Exception exception) when (IsCollectionActionFailure(exception)) { ShowCollectionActionFailure(exception); }
+        catch (Exception exception) when (IsCollectionActionFailure(exception)) { await HandleCollectionActionFailureAsync(exception); }
     }
 
     private static bool IsCollectionActionFailure(Exception exception) => exception is InvalidOperationException or
         ArgumentException or IOException or UnauthorizedAccessException or SqliteException;
 
-    private void ShowCollectionActionFailure(Exception exception) => MessageBox.Show(exception.Message,
-        "Collection was not changed", MessageBoxButton.OK, MessageBoxImage.Warning);
+    private async Task HandleCollectionActionFailureAsync(Exception exception)
+    {
+        if (exception is CollectionConcurrencyException)
+        {
+            await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
+            NoticeDialog.Show(this, "Collections changed", "The Collections hierarchy changed before this action finished.",
+                "The latest hierarchy is now shown. Review it and try the action again.");
+            return;
+        }
+        NoticeDialog.Show(this, "Collection was not changed", "Lightflow couldn’t complete that Collection action.", exception.Message);
+    }
+
+    private void BrowserCollectionTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _collectionDragStart = e.GetPosition(BrowserCollectionTree);
+        _collectionDragNode = CollectionNodeFromElement(e.OriginalSource as DependencyObject);
+    }
+
+    private void BrowserCollectionTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (CollectionNodeFromElement(e.OriginalSource as DependencyObject) is not { } clicked) return;
+        var target = BrowserCollectionInteraction.ContextTarget(clicked, _browserCollectionTree.SelectedNode);
+        _synchronizingCollectionTree = true;
+        try { _browserCollectionTree.Select(target); }
+        finally { _synchronizingCollectionTree = false; }
+    }
+
+    private void BrowserCollectionTree_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _collectionDragNode is null) return;
+        var current = e.GetPosition(BrowserCollectionTree);
+        if (Math.Abs(current.X - _collectionDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - _collectionDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        var dragged = _collectionDragNode;
+        _collectionDragNode = null;
+        System.Windows.DragDrop.DoDragDrop(BrowserCollectionTree, dragged, System.Windows.DragDropEffects.Move);
+    }
+
+    private void BrowserCollectionTree_DragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        var dragged = e.Data.GetData(typeof(BrowserCollectionNode)) as BrowserCollectionNode;
+        var target = CollectionNodeFromElement(e.OriginalSource as DependencyObject);
+        e.Effects = dragged is not null && target is not null && BrowserCollectionInteraction.CanDrop(dragged, target)
+            ? System.Windows.DragDropEffects.Move : System.Windows.DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void BrowserCollectionTree_DragLeave(object sender, System.Windows.DragEventArgs e) { }
+    private async void BrowserCollectionTree_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        var dragged = e.Data.GetData(typeof(BrowserCollectionNode)) as BrowserCollectionNode;
+        var target = CollectionNodeFromElement(e.OriginalSource as DependencyObject);
+        if (dragged is null || target is null || !BrowserCollectionInteraction.CanDrop(dragged, target)) return;
+        await ReparentCollectionNodeAsync(dragged, target.Id);
+        e.Handled = true;
+    }
+
+    private void BrowserCollectionsTopLevel_DragEnter(object sender, System.Windows.DragEventArgs e) =>
+        BrowserCollectionsTopLevel_DragOver(e);
+    private void BrowserCollectionsTopLevel_DragLeave(object sender, System.Windows.DragEventArgs e) =>
+        ((FrameworkElement)sender).Opacity = 1;
+    private void BrowserCollectionsTopLevel_DragOver(System.Windows.DragEventArgs e)
+    {
+        var dragged = e.Data.GetData(typeof(BrowserCollectionNode)) as BrowserCollectionNode;
+        e.Effects = dragged is not null && BrowserCollectionInteraction.CanDrop(dragged, null)
+            ? System.Windows.DragDropEffects.Move : System.Windows.DragDropEffects.None;
+        BrowserCollectionsTopLevelDropTarget.Opacity = e.Effects == System.Windows.DragDropEffects.Move ? 0.65 : 1;
+        e.Handled = true;
+    }
+    private async void BrowserCollectionsTopLevel_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        ((FrameworkElement)sender).Opacity = 1;
+        var dragged = e.Data.GetData(typeof(BrowserCollectionNode)) as BrowserCollectionNode;
+        if (dragged is null || !BrowserCollectionInteraction.CanDrop(dragged, null)) return;
+        await ReparentCollectionNodeAsync(dragged, null);
+        e.Handled = true;
+    }
+
+    private async Task ReparentCollectionNodeAsync(BrowserCollectionNode node, Guid? parent) =>
+        await RunCollectionActionAsync(async () =>
+        {
+            if (node.IsSet) await _storage.Collections.ReparentSetAsync(node.Id, node.Revision, parent);
+            else await _storage.Collections.ReparentCollectionAsync(node.Id, node.Revision, parent);
+            await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
+        });
+
+    private static BrowserCollectionNode? CollectionNodeFromElement(DependencyObject? element)
+    {
+        while (element is not null)
+        {
+            if (element is FrameworkElement { DataContext: BrowserCollectionNode node }) return node;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return null;
+    }
 
     private async void AddMediaRoot_Click(object sender, RoutedEventArgs e)
     {

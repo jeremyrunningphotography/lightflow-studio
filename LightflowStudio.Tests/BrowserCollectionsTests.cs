@@ -6,6 +6,46 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserCollectionsTests
 {
     [Fact]
+    public void RightClick_TargetsClickedCollectionInsteadOfPreviouslySelectedSet()
+    {
+        var selectedSet = new BrowserCollectionNode(Set("Selected set", 0));
+        var clickedCollection = new BrowserCollectionNode(Collection("Clicked collection", 0, selectedSet.Id));
+
+        var target = BrowserCollectionInteraction.ContextTarget(clickedCollection, selectedSet);
+
+        Assert.Same(clickedCollection, target);
+        Assert.True(target.IsCollection);
+    }
+
+    [Fact]
+    public void Placement_DefaultsToContainingSetButAllowsTopLevelOverride()
+    {
+        var set = new BrowserCollectionNode(Set("Set", 0));
+        var collection = new BrowserCollectionNode(Collection("Collection", 0, set.Id));
+
+        Assert.Equal(set.Id, BrowserCollectionPlacement.SuggestedParent(collection));
+        Assert.Equal(set.Id, BrowserCollectionPlacement.SuggestedParent(set));
+        Assert.Null(BrowserCollectionPlacement.SuggestedParent(null));
+    }
+
+    [Fact]
+    public void HierarchyDrop_AllowsSetTargetsAndTopLevelWhileRejectingCyclesAndCollectionTargets()
+    {
+        var parent = new BrowserCollectionNode(Set("Parent", 0));
+        var child = new BrowserCollectionNode(Set("Child", 0, parent.Id));
+        var other = new BrowserCollectionNode(Set("Other", 1));
+        var collection = new BrowserCollectionNode(Collection("Collection", 0, parent.Id));
+        parent.Children.Add(child);
+        parent.Children.Add(collection);
+
+        Assert.True(BrowserCollectionInteraction.CanDrop(collection, other));
+        Assert.True(BrowserCollectionInteraction.CanDrop(child, other));
+        Assert.True(BrowserCollectionInteraction.CanDrop(child, null));
+        Assert.False(BrowserCollectionInteraction.CanDrop(parent, child));
+        Assert.False(BrowserCollectionInteraction.CanDrop(other, collection));
+    }
+
+    [Fact]
     public void Tree_PresentsSetsBeforeCollectionsAtEachLevelAndRestoresExpansionSelection()
     {
         var top = Set("Top", 0);

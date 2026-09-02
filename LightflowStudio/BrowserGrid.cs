@@ -57,11 +57,13 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     {
         RootId = entry.RootId;
         RelativePath = entry.RelativePath;
-        Key = entry.RelativePathKey;
+        Key = entry.StableKey ?? entry.RelativePathKey;
         Name = entry.Name;
         Category = entry.MediaType.Category;
         FileSizeBytes = entry.FileSizeBytes;
         ModifiedUtc = entry.LastWriteUtc;
+        AssetId = entry.AssetId;
+        IsAvailable = entry.IsAvailable;
         _index = index;
     }
 
@@ -71,6 +73,8 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     public string Name { get; }
     public MediaTypeCategory Category { get; }
     public long? FileSizeBytes { get; }
+    public bool IsAvailable { get; }
+    public bool IsUnavailable => !IsAvailable;
 
     /// <summary>Filesystem last-write time from enumeration; always available without probing a source.</summary>
     public DateTimeOffset ModifiedUtc { get; }
@@ -114,7 +118,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         _ => throw new InvalidOperationException($"{Category} is not a presentable Browser media category.")
     };
 
-    public string AutomationLabel => $"{Name}, {Category} media";
+    public string AutomationLabel => $"{Name}, {Category} media{(IsAvailable ? "" : ", unavailable")}";
 
     public int Index
     {

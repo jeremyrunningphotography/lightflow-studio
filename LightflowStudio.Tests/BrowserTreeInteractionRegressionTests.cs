@@ -228,7 +228,8 @@ public sealed class BrowserTreeInteractionRegressionTests
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
 
-        var template = document.Descendants(ns + "HierarchicalDataTemplate").Single();
+        var template = document.Descendants(ns + "HierarchicalDataTemplate")
+            .Single(element => (string?)element.Attribute("DataType") == "{x:Type local:BrowserTreeNode}");
         var iconTriggers = template.Descendants(ns + "DataTrigger")
             .Where(trigger => (string?)trigger.Attribute("Binding") is { } binding &&
                 (binding.Contains("IsSelected") || binding.Contains("IsRecursiveScope") || binding.Contains("IsFilledFolderIcon")))

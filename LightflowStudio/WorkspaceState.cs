@@ -57,6 +57,8 @@ internal sealed record WorkspaceLayoutState
 
     /// <summary>#161: one global Browser presentation preference, stored beside Preview size.</summary>
     public int? BrowserViewMode { get; init; }
+    public Guid? BrowserCollectionId { get; init; }
+    public IReadOnlyList<Guid> BrowserExpandedCollectionSetIds { get; init; } = [];
 }
 
 /// <summary>Versioned, tolerant root document for per-user/per-machine workspace UI state. Never Catalog or Preview data.</summary>
@@ -135,9 +137,12 @@ internal sealed record WorkspaceState
             : (int?)null;
         var browserViewMode = layout.BrowserViewMode is { } mode && Enum.IsDefined((BrowserViewMode)mode)
             ? mode : (int?)null;
+        var collectionId = layout.BrowserCollectionId is { } id && id != Guid.Empty ? id : (Guid?)null;
+        var expandedSets = (layout.BrowserExpandedCollectionSetIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
         return layout with { BrowserLocationsPaneWidth = paneWidth, JobsDrawerWidth = jobsDrawerWidth,
             FullJobsListPaneWidth = fullJobsListPaneWidth,
-            BrowserThumbnailSizeLevel = thumbnailSizeLevel, BrowserViewMode = browserViewMode };
+            BrowserThumbnailSizeLevel = thumbnailSizeLevel, BrowserViewMode = browserViewMode,
+            BrowserCollectionId = collectionId, BrowserExpandedCollectionSetIds = expandedSets };
     }
 }
 
@@ -238,6 +243,13 @@ internal sealed class WorkspaceStateService
 
     public void SetBrowserViewMode(BrowserViewMode mode) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { BrowserViewMode = (int)mode } };
+
+    public void SetBrowserCollectionState(Guid? collectionId, IReadOnlySet<Guid> expandedSetIds) =>
+        _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with
+        {
+            BrowserCollectionId = collectionId,
+            BrowserExpandedCollectionSetIds = expandedSetIds.Order().ToArray()
+        } };
 
     /// <summary>Writes the current in-memory document atomically. Never throws: a failed save must not disrupt shutdown or navigation.</summary>
     public void Save()

@@ -36,11 +36,11 @@ public sealed class BrowserRecursiveScopeRegressionTests
         // that inherit the very same Catalog recursive root (e.g. 2026 -> 2026/August): they are still
         // different RelativeFolder values, so this identity still changes and selection still clears.
         Assert.Contains("if (scope != _browserQueryScope) ResetBrowserQueryToolbar();", body);
-        Assert.Contains("(identityLocation.RootId, identityLocation.RelativeFolder, state.Mode)", body);
+        Assert.Contains("$\"folder:{identityLocation.RootId:D}:{identityLocation.RelativeFolder}:{state.Mode}\"", body);
         Assert.Contains("if (scopeIdentity != _browserScopeIdentity) _browserGrid.ClearSelection();", body);
 
         var fieldDeclaration = Source().Split('\n')
-            .Single(line => line.Contains("private (Guid RootId, string RelativeFolder)? _browserQueryScope;"));
+            .Single(line => line.Contains("private string? _browserQueryScope;"));
         Assert.DoesNotContain("BrowserScopeMode", fieldDeclaration);
     }
 

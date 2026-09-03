@@ -116,6 +116,8 @@ public partial class MainWindow : Window
     private BrowserCollectionNode? _collectionDragNode;
     private System.Windows.Point _browserAssetDragStart;
     private BrowserGridTile? _browserAssetDragTile;
+    private BrowserGridTile? _browserAssetPendingSingleSelection;
+    private BrowserCollectionNode? _browserCollectionPointerTarget;
     private readonly BrowserCollectionDragSession _collectionDragSession = new();
     private LowLevelMouseWheelHook? _collectionDragWheelHook;
     private BrowserCollectionNode? _browserCollectionActionNode;
@@ -1332,6 +1334,7 @@ public partial class MainWindow : Window
     private void BrowserGridTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
+        _browserAssetPendingSingleSelection = null;
         _browserAssetDragStart = e.GetPosition(BrowserGridRows);
         _browserAssetDragTile = tile;
         // #110: a real double-click always opens, matching ordinary Explorer/media-browser convention,
@@ -1346,6 +1349,9 @@ public partial class MainWindow : Window
         }
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) _browserGrid.SelectRange(tile.Index);
         else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) _browserGrid.ToggleCtrl(tile.Index);
+        else if (BrowserAssetDragSelection.ShouldDeferSingleSelection(tile.IsSelected,
+                     _browserGrid.SelectedKeys.Count, shiftPressed: false, controlPressed: false))
+            _browserAssetPendingSingleSelection = tile;
         else _browserGrid.SelectSingle(tile.Index);
         BrowserGridRows.Focus();
         UpdateBrowserStatusText();
@@ -1381,7 +1387,9 @@ public partial class MainWindow : Window
             Math.Abs(current.Y - _browserAssetDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
         var tile = _browserAssetDragTile;
         _browserAssetDragTile = null;
-        var ids = tile.IsSelected ? _browserGrid.SelectedAssetIdsInBrowserOrder : tile.AssetId is { } id ? [id] : [];
+        _browserAssetPendingSingleSelection = null;
+        var ids = BrowserAssetDragSelection.AssetIdsForDrag(tile.IsSelected, tile.AssetId,
+            _browserGrid.SelectedAssetIdsInBrowserOrder);
         if (ids.Count == 0) return;
         System.Windows.DragDrop.DoDragDrop((DependencyObject)sender, new BrowserAssetDragPayload(ids),
             System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
@@ -1392,6 +1400,17 @@ public partial class MainWindow : Window
         var payload = e.Data.GetData(typeof(BrowserAssetDragPayload)) as BrowserAssetDragPayload;
         e.Effects = payload is not null && CanManuallyReorderCollection()
             ? System.Windows.DragDropEffects.Move : System.Windows.DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void BrowserGridTile_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile ||
+            !ReferenceEquals(tile, _browserAssetPendingSingleSelection)) return;
+        _browserAssetPendingSingleSelection = null;
+        _browserAssetDragTile = null;
+        _browserGrid.SelectSingle(tile.Index);
+        UpdateBrowserStatusText();
         e.Handled = true;
     }
 
@@ -1429,6 +1448,9 @@ public partial class MainWindow : Window
             .Where(node => node.IsCollection).Select(node => (node.Id, CollectionDisplayPath(node.Id))).ToArray();
         var dialog = new AddToCollectionDialog(assetIds.Count, choices, CreateCollectionFromAddFlowAsync) { Owner = this };
         if (dialog.ShowDialog() != true) return;
+        var destinationName = dialog.SelectedCollectionIds.Count == 1
+            ? BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
+                .FirstOrDefault(node => node.Id == dialog.SelectedCollectionIds[0])?.Name : null;
         await RunCollectionActionAsync(async () =>
         {
             var added = 0;
@@ -1436,9 +1458,8 @@ public partial class MainWindow : Window
                 added += (await _storage.Collections.AddMembershipsAsync(collectionId, assetIds)).Count(result => result.Created);
             var attempted = assetIds.Count * dialog.SelectedCollectionIds.Count;
             var duplicates = attempted - added;
-            NoticeDialog.Show(this, "Collection membership updated",
-                added == 0 ? "Those assets were already in the selected Collection(s)." : $"Added {added} membership{(added == 1 ? "" : "s")}.",
-                duplicates > 0 ? $"{duplicates} existing membership{(duplicates == 1 ? " was" : "s were")} left unchanged." : "Source files and paths were not changed.");
+            BrowserStatusText.Text = CollectionMembershipFeedback.ForAdd(added, duplicates,
+                assetIds.Count, dialog.SelectedCollectionIds.Count, destinationName);
         });
     }
 
@@ -1466,6 +1487,9 @@ public partial class MainWindow : Window
     }
 
     private async void BrowserRemoveFromCollection_Click(object sender, RoutedEventArgs e)
+        => await RemoveBrowserSelectionFromActiveCollectionAsync();
+
+    private async Task RemoveBrowserSelectionFromActiveCollectionAsync()
     {
         if (_activeCollectionScope is null) return;
         var selected = _browserGrid.SelectedAssetIdsInBrowserOrder.ToHashSet();
@@ -1474,10 +1498,16 @@ public partial class MainWindow : Window
             .Select(item => new CollectionOrder(item.AssetId, item.Revision)).ToArray();
         if (removing.Length == 0) return;
         var collectionId = _activeCollectionScope.Collection.CollectionId;
+        var collectionName = _activeCollectionScope.Collection.Name;
+        if (!ConfirmationDialog.Confirm(this, "Remove from Collection",
+                $"Remove {removing.Length} asset{(removing.Length == 1 ? "" : "s")} from “{collectionName}”?",
+                "The assets remain available in their folders and any other Collections.", null,
+                "Remove", "Keep in Collection")) return;
         await RunCollectionActionAsync(async () =>
         {
             await _storage.Collections.RemoveMembershipsAsync(collectionId, removing);
             await LoadCollectionScopeAsync(collectionId);
+            BrowserStatusText.Text = $"Removed {removing.Length} asset{(removing.Length == 1 ? "" : "s")} from {collectionName}";
         });
     }
 
@@ -1639,13 +1669,19 @@ public partial class MainWindow : Window
             _browserGrid.ApplyThumbnail(completed.AssetId, path);
     }
 
-    private void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private async void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.A && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
             _browserGrid.SelectAll();
             UpdateBrowserStatusText();
             e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Delete && _activeCollectionScope is not null && _browserGrid.SelectedKeys.Count > 0)
+        {
+            e.Handled = true;
+            await RemoveBrowserSelectionFromActiveCollectionAsync();
             return;
         }
         // #110: Enter opens the single selected item — a conservative reading of "open" for a keyboard user;
@@ -3367,11 +3403,16 @@ public partial class MainWindow : Window
     private async void BrowserCollectionTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (_synchronizingCollectionTree || e.NewValue is not BrowserCollectionNode node) return;
-        if (ReferenceEquals(node, _browserCollectionTreeRevealedNode))
+        var interactive = BrowserCollectionActivation.IsInteractive(node, _browserCollectionPointerTarget,
+            BrowserCollectionTree.IsKeyboardFocusWithin);
+        _browserCollectionPointerTarget = null;
+        if (BrowserCollectionActivation.ShouldIgnoreDelayedReveal(node, _browserCollectionTreeRevealedNode, interactive))
         {
             _browserCollectionTreeRevealedNode = null;
             return;
         }
+        if (interactive && ReferenceEquals(node, _browserCollectionTreeRevealedNode))
+            _browserCollectionTreeRevealedNode = null;
         _browserCollectionTree.Select(node);
         _browserCollectionActionNode = node;
         if (node.IsCollection)
@@ -3719,6 +3760,7 @@ public partial class MainWindow : Window
     {
         _collectionDragStart = e.GetPosition(BrowserCollectionTree);
         _collectionDragNode = CollectionNodeFromElement(e.OriginalSource as DependencyObject);
+        _browserCollectionPointerTarget = _collectionDragNode;
     }
 
     private void BrowserCollectionTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -3860,9 +3902,8 @@ public partial class MainWindow : Window
             {
                 var results = await _storage.Collections.AddMembershipsAsync(assetTarget!.Id, assets.AssetIds);
                 var created = results.Count(result => result.Created);
-                NoticeDialog.Show(this, "Collection membership updated",
-                    created == 0 ? "Those assets are already in this Collection." : $"Added {created} asset{(created == 1 ? "" : "s")} to {assetTarget.Name}.",
-                    created == results.Count ? "Source files and paths were not changed." : $"{results.Count - created} existing membership{(results.Count - created == 1 ? " was" : "s were")} left unchanged.");
+                BrowserStatusText.Text = CollectionMembershipFeedback.ForAdd(created, results.Count - created,
+                    assets.AssetIds.Count, 1, assetTarget.Name);
             });
             e.Handled = true;
             return;

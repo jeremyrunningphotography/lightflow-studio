@@ -908,7 +908,7 @@
                     is required: it re-resolves for every realized/recycled tile whenever those resources
                     change, including tiles the slider changes while virtualized out of view. -->
                <Border Width="{DynamicResource BrowserTileWidth}" Margin="0,0,12,12" Padding="7" CornerRadius="6" BorderThickness="1" AllowDrop="True"
-                MouseLeftButtonDown="BrowserGridTile_MouseLeftButtonDown" MouseRightButtonDown="BrowserGridTile_MouseRightButtonDown"
+                MouseLeftButtonDown="BrowserGridTile_MouseLeftButtonDown" MouseLeftButtonUp="BrowserGridTile_MouseLeftButtonUp" MouseRightButtonDown="BrowserGridTile_MouseRightButtonDown"
                 MouseMove="BrowserGridTile_MouseMove" DragOver="BrowserGridTile_DragOver" Drop="BrowserGridTile_Drop"
                 ContextMenuOpening="BrowserGridTile_ContextMenuOpening"
                 ToolTip="{Binding Name}" AutomationProperties.Name="{Binding AutomationLabel}">

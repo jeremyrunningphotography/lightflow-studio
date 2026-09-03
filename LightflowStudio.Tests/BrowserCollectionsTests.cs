@@ -5,6 +5,61 @@ namespace LightflowStudio.Tests;
 
 public sealed class BrowserCollectionsTests
 {
+    [Theory]
+    [InlineData(true, 2, true)]
+    [InlineData(true, 3, true)]
+    [InlineData(false, 2, false)]
+    [InlineData(true, 1, false)]
+    public void AssetDragSelection_DefersPlainClickCollapseOnlyForAnExistingMultiSelection(
+        bool tileSelected, int selectionCount, bool expected) =>
+        Assert.Equal(expected, BrowserAssetDragSelection.ShouldDeferSingleSelection(
+            tileSelected, selectionCount, shiftPressed: false, controlPressed: false));
+
+    [Fact]
+    public void AssetDragSelection_ModifiedClicksKeepEstablishedCtrlShiftSemantics()
+    {
+        Assert.False(BrowserAssetDragSelection.ShouldDeferSingleSelection(true, 3, shiftPressed: true, controlPressed: false));
+        Assert.False(BrowserAssetDragSelection.ShouldDeferSingleSelection(true, 3, shiftPressed: false, controlPressed: true));
+    }
+
+    [Fact]
+    public void DragFromEitherSelectedTileCarriesTheEntireStableAssetSelection()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        IReadOnlyList<Guid> selected = [first, second];
+
+        Assert.Equal(selected, BrowserAssetDragSelection.AssetIdsForDrag(true, first, selected));
+        Assert.Equal(selected, BrowserAssetDragSelection.AssetIdsForDrag(true, second, selected));
+        Assert.Equal([Guid.Empty], BrowserAssetDragSelection.AssetIdsForDrag(false, Guid.Empty, selected));
+    }
+
+    [Fact]
+    public void GenuineCollectionPointerActivationOverridesMatchingDelayedRevealMarker()
+    {
+        var collection = new BrowserCollectionNode(Collection("Target", 0));
+        var interactive = BrowserCollectionActivation.IsInteractive(collection, collection, keyboardFocusWithin: false);
+
+        Assert.True(interactive);
+        Assert.False(BrowserCollectionActivation.ShouldIgnoreDelayedReveal(collection, collection, interactive));
+        Assert.True(BrowserCollectionActivation.ShouldIgnoreDelayedReveal(collection, collection, interactive: false));
+    }
+
+    [Theory]
+    [InlineData(1, 0, 1, 1, "Added 1 asset to Picks")]
+    [InlineData(0, 3, 3, 1, "3 assets were already in Picks")]
+    [InlineData(6, 0, 3, 2, "Added 6 memberships across 2 Collections")]
+    public void MembershipFeedback_IsConciseNonTechnicalAndTruthful(int added, int duplicates,
+        int assets, int collections, string expected)
+    {
+        var result = CollectionMembershipFeedback.ForAdd(added, duplicates, assets, collections,
+            collections == 1 ? "Picks" : null);
+
+        Assert.Equal(expected, result);
+        Assert.DoesNotContain("Source files", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("paths", result, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void AssetMembershipDrop_AcceptsCollectionsAndRejectsSets()
     {

@@ -144,6 +144,43 @@ public sealed class BrowserCollectionsPresentationTests
     }
 
     [Fact]
+    public void RoutineMembershipSuccess_UsesStatusTextRatherThanBlockingNotice()
+    {
+        var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+        var add = MethodBody(source, "private async Task AddBrowserSelectionToCollectionsAsync()");
+        var drop = MethodBody(source, "private async void BrowserCollectionTree_Drop(");
+
+        Assert.Contains("BrowserStatusText.Text = CollectionMembershipFeedback.ForAdd", add);
+        Assert.Contains("BrowserStatusText.Text = CollectionMembershipFeedback.ForAdd", drop);
+        Assert.DoesNotContain("NoticeDialog.Show", add);
+        Assert.DoesNotContain("NoticeDialog.Show", drop);
+        Assert.DoesNotContain("Source files and paths were not changed", source);
+    }
+
+    [Fact]
+    public void CollectionRemoval_RequiresConfirmationAndDeleteRoutesOnlyFromCollectionScope()
+    {
+        var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+        var removal = MethodBody(source, "private async Task RemoveBrowserSelectionFromActiveCollectionAsync()");
+        var keyboard = MethodBody(source, "private async void BrowserGridRows_KeyDown(");
+
+        Assert.Contains("ConfirmationDialog.Confirm", removal);
+        Assert.Contains("RemoveMembershipsAsync", removal);
+        Assert.Contains("BrowserStatusText.Text", removal);
+        Assert.Contains("e.Key == Key.Delete && _activeCollectionScope is not null", keyboard);
+    }
+
+    [Fact]
+    public void CollectionPointerIntentCanOverrideAStaleRevealWithoutChangingHierarchyDragPayload()
+    {
+        var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+        Assert.Contains("_browserCollectionPointerTarget = _collectionDragNode", source);
+        Assert.Contains("BrowserCollectionActivation.ShouldIgnoreDelayedReveal", source);
+        Assert.Contains("e.Data.GetData(typeof(BrowserCollectionNode))", source);
+        Assert.Contains("e.Data.GetData(typeof(BrowserAssetDragPayload))", source);
+    }
+
+    [Fact]
     public void CollectionModals_SizeToContentWithoutFixedMinimumHeight()
     {
         var ns = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml/presentation");

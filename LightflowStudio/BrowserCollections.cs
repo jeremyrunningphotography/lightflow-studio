@@ -9,6 +9,41 @@ internal enum BrowserCollectionNodeKind { Set, Collection }
 
 internal sealed record BrowserAssetDragPayload(IReadOnlyList<Guid> AssetIds);
 
+internal static class BrowserAssetDragSelection
+{
+    public static bool ShouldDeferSingleSelection(bool tileIsSelected, int selectionCount,
+        bool shiftPressed, bool controlPressed) =>
+        tileIsSelected && selectionCount > 1 && !shiftPressed && !controlPressed;
+
+    public static IReadOnlyList<Guid> AssetIdsForDrag(bool originIsSelected, Guid? originAssetId,
+        IReadOnlyList<Guid> selectedAssetIds) =>
+        originIsSelected ? selectedAssetIds : originAssetId is { } id ? [id] : [];
+}
+
+internal static class BrowserCollectionActivation
+{
+    public static bool IsInteractive(BrowserCollectionNode node, BrowserCollectionNode? pointerTarget,
+        bool keyboardFocusWithin) => ReferenceEquals(node, pointerTarget) || keyboardFocusWithin;
+
+    public static bool ShouldIgnoreDelayedReveal(BrowserCollectionNode node, BrowserCollectionNode? revealedNode,
+        bool interactive) => ReferenceEquals(node, revealedNode) && !interactive;
+}
+
+internal static class CollectionMembershipFeedback
+{
+    public static string ForAdd(int added, int duplicates, int assetCount, int collectionCount, string? collectionName)
+    {
+        if (added == 0)
+            return collectionCount == 1 && collectionName is not null
+                ? $"{assetCount} asset{(assetCount == 1 ? " was" : "s were")} already in {collectionName}"
+                : $"{duplicates} membership{(duplicates == 1 ? " was" : "s were")} already present";
+        var result = collectionCount == 1 && collectionName is not null
+            ? $"Added {added} asset{(added == 1 ? "" : "s")} to {collectionName}"
+            : $"Added {added} membership{(added == 1 ? "" : "s")} across {collectionCount} Collections";
+        return duplicates > 0 ? $"{result} • {duplicates} already present" : result;
+    }
+}
+
 internal static class BrowserCollectionMembershipInteraction
 {
     public static bool CanDrop(BrowserAssetDragPayload? payload, BrowserCollectionNode? target) =>

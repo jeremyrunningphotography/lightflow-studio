@@ -860,6 +860,7 @@ public partial class PlayerViewerHost : UserControl
         if (presentedRange?.In is { } rangeIn) InTimeButton.Content = FormatTimestamp(rangeIn);
         if (presentedRange?.Out is { } rangeOut) OutTimeButton.Content = FormatTimestamp(rangeOut);
         AddSubclipButton.IsEnabled = CurrentSubclipCreationEligibility().CanCreate;
+        PlayerRangeStateIndicator.Visibility = _reviewRange is not null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private SubclipCreationEligibility CurrentSubclipCreationEligibility() =>
@@ -1165,6 +1166,7 @@ public partial class PlayerViewerHost : UserControl
         SubclipsEmptyText.Visibility = hasSubclips ? Visibility.Collapsed : Visibility.Visible;
         ExportSubclipsButton.IsEnabled = hasSubclips;
         ExportAllSubclipsMenuItem.IsEnabled = hasSubclips;
+        PlayerSubclipsStateIndicator.Visibility = hasSubclips ? Visibility.Visible : Visibility.Collapsed;
     }
 
     internal void SetSubclipsDrawerOpen(bool open)
@@ -1430,7 +1432,7 @@ public partial class PlayerViewerHost : UserControl
         if (key is Key.Left or Key.Right && IsArrowKeyOwnedByFocusedControl(inputOwner)) return false;
         if (key >= Key.D0 && key <= Key.D5)
         {
-            _ = SetRatingAsync(key - Key.D0);
+            _ = SetRatingAsync(key - Key.D0, toggleCurrent: false);
             return _currentAsset?.AssetId is not null;
         }
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && key is Key.Up or Key.Down)
@@ -1480,10 +1482,24 @@ public partial class PlayerViewerHost : UserControl
 
     private void SyncClassificationControls()
     {
-        PlayerRatingButton.Content = _classification is { Rating: > 0 } value ? $"{value.Rating} ★" : "Unrated";
-        PlayerFlagButton.Content = _classification?.Flag.ToString() ?? "Unflagged";
-        PlayerLabelButton.Content = _classification?.ColorLabel?.ToString() ?? "No label";
-        PlayerRatingButton.IsEnabled = PlayerFlagButton.IsEnabled = PlayerLabelButton.IsEnabled = _classification is not null;
+        var ratingButtons = new[] { PlayerRating1, PlayerRating2, PlayerRating3, PlayerRating4, PlayerRating5 };
+        for (var index = 0; index < ratingButtons.Length; index++)
+        {
+            ratingButtons[index].IsEnabled = _classification is not null;
+            ratingButtons[index].IsChecked = _classification?.Rating == index + 1;
+        }
+        PlayerReject.IsEnabled = PlayerUnflagged.IsEnabled = PlayerPick.IsEnabled = _classification is not null;
+        PlayerReject.IsChecked = _classification?.Flag == AssetFlag.Rejected;
+        PlayerUnflagged.IsChecked = _classification?.Flag == AssetFlag.Unflagged;
+        PlayerPick.IsChecked = _classification?.Flag == AssetFlag.Picked;
+        var labelButtons = new[] { PlayerNoLabel, PlayerLabelRed, PlayerLabelYellow, PlayerLabelGreen, PlayerLabelBlue, PlayerLabelPurple };
+        foreach (var button in labelButtons) button.IsEnabled = _classification is not null;
+        PlayerNoLabel.IsChecked = _classification?.ColorLabel is null;
+        PlayerLabelRed.IsChecked = _classification?.ColorLabel == AssetColorLabel.Red;
+        PlayerLabelYellow.IsChecked = _classification?.ColorLabel == AssetColorLabel.Yellow;
+        PlayerLabelGreen.IsChecked = _classification?.ColorLabel == AssetColorLabel.Green;
+        PlayerLabelBlue.IsChecked = _classification?.ColorLabel == AssetColorLabel.Blue;
+        PlayerLabelPurple.IsChecked = _classification?.ColorLabel == AssetColorLabel.Purple;
     }
 
     private async Task SaveClassificationAsync(AssetClassification value)
@@ -1495,18 +1511,25 @@ public partial class PlayerViewerHost : UserControl
         ClassificationChanged?.Invoke(this, value);
     }
 
-    private Task SetRatingAsync(int rating) => _classification is { } value
-        ? SaveClassificationAsync(value with { Rating = value.Rating == rating ? 0 : rating }) : Task.CompletedTask;
+    private Task SetRatingAsync(int rating, bool toggleCurrent) => _classification is { } value
+        ? SaveClassificationAsync(value with { Rating = AssetClassificationCommandPolicy.SetRating(value.Rating, rating, toggleCurrent) }) : Task.CompletedTask;
     private Task StepFlagAsync(int delta) => _classification is { } value
-        ? SaveClassificationAsync(value with { Flag = (AssetFlag)Math.Clamp((int)value.Flag + delta, -1, 1) }) : Task.CompletedTask;
-    private void PlayerRatingButton_Click(object sender, RoutedEventArgs e) => _ = SetRatingAsync((_classification?.Rating ?? 0) % 5 + 1);
-    private void PlayerFlagButton_Click(object sender, RoutedEventArgs e) => _ = StepFlagAsync(1);
-    private void PlayerLabelButton_Click(object sender, RoutedEventArgs e)
+        ? SaveClassificationAsync(value with { Flag = AssetClassificationCommandPolicy.StepFlag(value.Flag, delta) }) : Task.CompletedTask;
+    private void PlayerRating_Click(object sender, RoutedEventArgs e)
     {
-        if (_classification is not { } value) return;
-        AssetColorLabel? next = value.ColorLabel is null ? AssetColorLabel.Red :
-            (int)value.ColorLabel == 5 ? null : (AssetColorLabel)((int)value.ColorLabel + 1);
-        _ = SaveClassificationAsync(value with { ColorLabel = next });
+        if (sender is ToggleButton { Tag: string text } && int.TryParse(text, out var rating))
+            _ = SetRatingAsync(rating, toggleCurrent: true);
+    }
+    private void PlayerFlag_Click(object sender, RoutedEventArgs e)
+    {
+        if (_classification is { } value && sender is ToggleButton { Tag: string text } && Enum.TryParse<AssetFlag>(text, out var flag))
+            _ = SaveClassificationAsync(value with { Flag = flag });
+    }
+    private void PlayerColorLabel_Click(object sender, RoutedEventArgs e)
+    {
+        if (_classification is not { } value || sender is not ToggleButton { Tag: string text }) return;
+        AssetColorLabel? label = text == "None" ? null : Enum.TryParse<AssetColorLabel>(text, out var parsed) ? parsed : null;
+        _ = SaveClassificationAsync(value with { ColorLabel = label });
     }
 
     private void PlayerViewerHost_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)

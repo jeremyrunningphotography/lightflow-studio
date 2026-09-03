@@ -602,3 +602,45 @@ public sealed class BrowserQueryFilterMutationTests
     public void WithoutField_IsANoOpWhenTheFieldHasNoActivePredicates() =>
         Assert.Same(BrowserQuery.Default, BrowserQuery.Default.WithoutField(BrowserFilterField.MediaType));
 }
+
+public sealed class BrowserQueryLockPolicyTests
+{
+    [Fact]
+    public void LockedQuery_PreservesCompletePortableIntentAcrossOrdinaryScopes()
+    {
+        var filter = BrowserFilterPredicate.ForMinimum(BrowserFilterField.Rating, 3);
+        var locked = BrowserQuery.Default with
+        {
+            SearchText = "ceremony",
+            Filters = [filter],
+            SortMode = BrowserSortMode.Duration,
+            SortDescending = true
+        };
+
+        var materialized = BrowserQueryLockPolicy.Materialize(locked, BrowserSortMode.Name);
+
+        Assert.Same(locked, materialized);
+    }
+
+    [Fact]
+    public void ManualLock_MaterializesFolderFallbackWithoutMutatingCollectionSnapshot()
+    {
+        var locked = BrowserQuery.Default with { SearchText = "picks", SortMode = BrowserSortMode.Manual, SortDescending = true };
+
+        var folder = BrowserQueryLockPolicy.Materialize(locked, BrowserSortMode.Name);
+        var collection = BrowserQueryLockPolicy.Materialize(locked, BrowserSortMode.Manual);
+
+        Assert.Equal(BrowserSortMode.Name, folder.SortMode);
+        Assert.False(folder.SortDescending);
+        Assert.Equal("picks", folder.SearchText);
+        Assert.Same(locked, collection);
+        Assert.Equal(BrowserSortMode.Manual, locked.SortMode);
+    }
+
+    [Fact]
+    public void UnlockedScope_UsesItsEstablishedDefaultQuery()
+    {
+        Assert.Equal(BrowserSortMode.Name, BrowserQueryLockPolicy.Materialize(null, BrowserSortMode.Name).SortMode);
+        Assert.Equal(BrowserSortMode.Manual, BrowserQueryLockPolicy.Materialize(null, BrowserSortMode.Manual).SortMode);
+    }
+}

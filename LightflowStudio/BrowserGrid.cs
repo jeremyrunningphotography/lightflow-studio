@@ -27,6 +27,15 @@ internal sealed class StringEmptyToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+internal sealed class RatingAtLeastConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is int rating && int.TryParse(parameter?.ToString(), out var threshold) && rating >= threshold;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 /// <summary>
 /// One media tile in the Browser thumbnail grid. Identity is the stable, Catalog-normalized
 /// <see cref="MediaFolderEntry.RelativePathKey"/> rather than any visual container, so selection and

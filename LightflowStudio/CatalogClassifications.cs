@@ -5,6 +5,18 @@ namespace LightflowStudio;
 internal enum AssetFlag { Rejected = -1, Unflagged = 0, Picked = 1 }
 internal enum AssetColorLabel { Red = 1, Yellow = 2, Green = 3, Blue = 4, Purple = 5 }
 
+internal static class AssetClassificationCommandPolicy
+{
+    public static int SetRating(int current, int requested, bool toggleCurrent)
+    {
+        if (requested is < 0 or > 5) throw new ArgumentOutOfRangeException(nameof(requested));
+        return toggleCurrent && requested > 0 && current == requested ? 0 : requested;
+    }
+
+    public static AssetFlag StepFlag(AssetFlag current, int delta) =>
+        (AssetFlag)Math.Clamp((int)current + Math.Sign(delta), (int)AssetFlag.Rejected, (int)AssetFlag.Picked);
+}
+
 internal sealed record AssetClassification(Guid AssetId, int Rating, AssetFlag Flag,
     AssetColorLabel? ColorLabel, IReadOnlyList<string> Keywords, long Revision = 0)
 {

@@ -350,6 +350,22 @@
   <Style x:Key="BrowserStateIconItemStyle" TargetType="ContentPresenter">
    <Setter Property="Margin" Value="{DynamicResource BrowserStateIconSpacing}"/>
   </Style>
+  <local:RatingAtLeastConverter x:Key="RatingAtLeast"/>
+  <DataTemplate x:Key="BrowserRatingIndicator">
+   <StackPanel Orientation="Horizontal" ToolTip="{Binding Rating, StringFormat=Rating: {0} of 5}" AutomationProperties.Name="{Binding Rating, StringFormat=Rating: {0} of 5}">
+    <Path Width="12" Height="12" Margin="0,0,1,0" Stretch="Uniform" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z" Stroke="#FFF2C05C" StrokeThickness="1.5"><Path.Style><Style TargetType="Path"><Setter Property="Fill" Value="Transparent"/><Style.Triggers><DataTrigger Binding="{Binding Rating, Converter={StaticResource RatingAtLeast}, ConverterParameter=1}" Value="True"><Setter Property="Fill" Value="#FFF2C05C"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+    <Path Width="12" Height="12" Margin="0,0,1,0" Stretch="Uniform" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z" Stroke="#FFF2C05C" StrokeThickness="1.5"><Path.Style><Style TargetType="Path"><Setter Property="Fill" Value="Transparent"/><Style.Triggers><DataTrigger Binding="{Binding Rating, Converter={StaticResource RatingAtLeast}, ConverterParameter=2}" Value="True"><Setter Property="Fill" Value="#FFF2C05C"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+    <Path Width="12" Height="12" Margin="0,0,1,0" Stretch="Uniform" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z" Stroke="#FFF2C05C" StrokeThickness="1.5"><Path.Style><Style TargetType="Path"><Setter Property="Fill" Value="Transparent"/><Style.Triggers><DataTrigger Binding="{Binding Rating, Converter={StaticResource RatingAtLeast}, ConverterParameter=3}" Value="True"><Setter Property="Fill" Value="#FFF2C05C"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+    <Path Width="12" Height="12" Margin="0,0,1,0" Stretch="Uniform" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z" Stroke="#FFF2C05C" StrokeThickness="1.5"><Path.Style><Style TargetType="Path"><Setter Property="Fill" Value="Transparent"/><Style.Triggers><DataTrigger Binding="{Binding Rating, Converter={StaticResource RatingAtLeast}, ConverterParameter=4}" Value="True"><Setter Property="Fill" Value="#FFF2C05C"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+    <Path Width="12" Height="12" Stretch="Uniform" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z" Stroke="#FFF2C05C" StrokeThickness="1.5"><Path.Style><Style TargetType="Path"><Setter Property="Fill" Value="Transparent"/><Style.Triggers><DataTrigger Binding="{Binding Rating, Converter={StaticResource RatingAtLeast}, ConverterParameter=5}" Value="True"><Setter Property="Fill" Value="#FFF2C05C"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+   </StackPanel>
+  </DataTemplate>
+  <DataTemplate x:Key="BrowserFlagIndicator">
+   <Grid Width="16" Height="16" ToolTip="{Binding Flag}" AutomationProperties.Name="{Binding Flag}">
+    <Path x:Name="FlagShape" Stretch="Uniform" StrokeThickness="1.7" StrokeLineJoin="Round" Data="M3,15 L3,2 M3,3 C7,0 10,5 14,2 L14,9 C10,12 7,7 3,10 Z"><Path.Style><Style TargetType="Path"><Setter Property="Stroke" Value="#FFFF8A1F"/><Setter Property="Fill" Value="#99FF8A1F"/><Style.Triggers><DataTrigger Binding="{Binding Flag}" Value="{x:Static local:AssetFlag.Rejected}"><Setter Property="Stroke" Value="#FFE85A5A"/><Setter Property="Fill" Value="#99E85A5A"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+    <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding Flag}" Value="{x:Static local:AssetFlag.Unflagged}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Grid.Style>
+   </Grid>
+  </DataTemplate>
 
   <Style x:Key="BrowserViewModeButtonStyle" TargetType="ToggleButton">
    <Setter Property="Width" Value="27"/><Setter Property="Height" Value="24"/><Setter Property="Padding" Value="4"/>
@@ -687,7 +703,14 @@
         Search/filter/sort/status live here, never in the left sidebar, and never inside folder navigation.
        -->
        <Border Grid.Row="2" Grid.Column="0" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="5,4" IsEnabled="False">
-        <StackPanel>
+       <StackPanel>
+        <DockPanel LastChildFill="True">
+         <ToggleButton DockPanel.Dock="Right" x:Name="BrowserQueryLockButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Width="34" Height="32" Margin="8,0,0,4"
+          Click="BrowserQueryLockButton_Click" ToolTip="Keep these filters when changing folders or Collections." AutomationProperties.Name="Keep filters across folders and Collections">
+          <Viewbox Width="15" Height="15" Stretch="Uniform">
+           <Grid Width="16" Height="16"><Path x:Name="BrowserQueryLockBody" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.6" StrokeLineJoin="Round" Fill="Transparent" Data="M3,7 L13,7 L13,15 L3,15 Z M5,7 L5,5 C5,1.5 11,1.5 11,5 L11,7"/><Ellipse Width="2.2" Height="2.2" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Margin="0,4,0,0"/></Grid>
+          </Viewbox>
+         </ToggleButton>
          <WrapPanel x:Name="BrowserQueryLayout" Orientation="Horizontal">
           <!-- Independent per-category toggles (multiple may be active; OR within the facet), presented as
                one segmented control; Filter ▾ (below) additionally supports stacking with other, future
@@ -825,10 +848,8 @@
              AutomationProperties.Name="Toggle sort direction" Click="BrowserSortDirection_Click"/>
            </StackPanel>
           </Border>
-          <ToggleButton x:Name="BrowserQueryLockButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Margin="8,0,0,4"
-           Content="&#xE72E; Lock" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Click="BrowserQueryLockButton_Click"
-           ToolTip="Keep the complete search, filters, and sort while changing folders or Collections" AutomationProperties.Name="Lock Browser query"/>
          </WrapPanel>
+        </DockPanel>
          <!-- Collapsed (and empty) whenever no predicate is active, so the toolbar stays a single quiet row
               for ordinary browsing — see MainWindow.SyncBrowserQueryToolbarVisuals. -->
          <ItemsControl x:Name="BrowserFilterChips" Margin="0,8,0,0" Visibility="Collapsed" Focusable="False">
@@ -974,11 +995,11 @@
                   <Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/>
                   <Style.Triggers>
                    <DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Background" Value="#1B2028"/></DataTrigger>
-                   <DataTrigger Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Red}"><Setter Property="BorderBrush" Value="#E85A5A"/><Setter Property="BorderThickness" Value="3"/></DataTrigger>
-                   <DataTrigger Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Yellow}"><Setter Property="BorderBrush" Value="#E3B341"/><Setter Property="BorderThickness" Value="3"/></DataTrigger>
-                   <DataTrigger Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Green}"><Setter Property="BorderBrush" Value="#57AB5A"/><Setter Property="BorderThickness" Value="3"/></DataTrigger>
-                   <DataTrigger Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Blue}"><Setter Property="BorderBrush" Value="#539BF5"/><Setter Property="BorderThickness" Value="3"/></DataTrigger>
-                   <DataTrigger Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Purple}"><Setter Property="BorderBrush" Value="#B083F0"/><Setter Property="BorderThickness" Value="3"/></DataTrigger>
+                   <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Red}"/></MultiDataTrigger.Conditions><Setter Property="Background" Value="#3A2427"/></MultiDataTrigger>
+                   <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Yellow}"/></MultiDataTrigger.Conditions><Setter Property="Background" Value="#393324"/></MultiDataTrigger>
+                   <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Green}"/></MultiDataTrigger.Conditions><Setter Property="Background" Value="#24362A"/></MultiDataTrigger>
+                   <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Blue}"/></MultiDataTrigger.Conditions><Setter Property="Background" Value="#243244"/></MultiDataTrigger>
+                   <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Purple}"/></MultiDataTrigger.Conditions><Setter Property="Background" Value="#332842"/></MultiDataTrigger>
                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
                     <Setter Property="Background" Value="{StaticResource ShellSelectionBrush}"/>
                     <Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
@@ -988,28 +1009,45 @@
                 </Border.Style>
                 <Grid>
                  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                 <!-- Quiet reserved upper frame for future rating/flag state; Info only. -->
-                 <Border x:Name="BrowserInfoUpperFrame" Height="16">
+                 <Border x:Name="BrowserInfoUpperFrame" Height="22" Padding="2,2">
                   <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
                   <DockPanel LastChildFill="False">
-                   <TextBlock DockPanel.Dock="Left" Text="{Binding RatingText}" Foreground="#F3C969" FontSize="10" FontWeight="SemiBold"/>
-                   <TextBlock DockPanel.Dock="Right" Text="{Binding FlagText}" Foreground="{StaticResource OrangeBrush}" FontSize="11"/>
+                   <ContentPresenter DockPanel.Dock="Left" Content="{Binding}" ContentTemplate="{StaticResource BrowserRatingIndicator}"/>
+                   <ContentPresenter DockPanel.Dock="Right" Content="{Binding}" ContentTemplate="{StaticResource BrowserFlagIndicator}"/>
                   </DockPanel>
                  </Border>
                  <Border x:Name="BrowserPreviewSurface" Grid.Row="1" Background="#05070A" CornerRadius="4" ClipToBounds="True">
                   <Border.Style><Style TargetType="Border">
                    <Setter Property="Height" Value="{DynamicResource BrowserTileThumbnailHeight}"/>
-                   <Style.Triggers><DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Height" Value="{DynamicResource BrowserTileInfoPreviewHeight}"/></DataTrigger></Style.Triggers>
+                   <Setter Property="BorderThickness" Value="0"/>
+                   <Style.Triggers>
+                    <DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Height" Value="{DynamicResource BrowserTileInfoPreviewHeight}"/></DataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Red}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="#FFE85A5A"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Red}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="#FFE85A5A"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Yellow}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="#FFE3B341"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Yellow}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="#FFE3B341"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Green}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="#FF57AB5A"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Green}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="#FF57AB5A"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Blue}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="#FF539BF5"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Blue}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="#FF539BF5"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Purple}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="#FFB083F0"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Purple}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="#FFB083F0"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                   </Style.Triggers>
                   </Style></Border.Style>
                   <Grid>
                    <Image Source="{Binding ThumbnailPath}" Stretch="Uniform"/>
                    <TextBlock Text="{Binding CategoryGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="28" Foreground="{StaticResource MutedTextBrush}"
                     HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibility}}"/>
-                   <Border x:Name="BrowserHybridStateOverlay" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4" Padding="3,2" CornerRadius="3" Background="#B005070A">
+                   <Border x:Name="BrowserHybridStateOverlay" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="4" Padding="3,2" CornerRadius="3" Background="#9905070A">
+                    <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding HasUserAuthoredState}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></Border.Style>
+                    <DockPanel LastChildFill="False">
+                     <ContentPresenter DockPanel.Dock="Left" Content="{Binding}" ContentTemplate="{StaticResource BrowserRatingIndicator}"/>
+                     <ContentPresenter DockPanel.Dock="Right" Content="{Binding}" ContentTemplate="{StaticResource BrowserFlagIndicator}"/>
+                    </DockPanel>
+                   </Border>
+                   <Border x:Name="BrowserHybridLowerStateOverlay" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Margin="4" Padding="3,2" CornerRadius="3" Background="#9905070A">
                     <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding HasUserAuthoredState}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></Border.Style>
                     <StackPanel Orientation="Horizontal">
-                     <TextBlock Text="{Binding RatingText}" Foreground="#F3C969" FontSize="10" FontWeight="SemiBold" Margin="0,0,4,0"/>
-                     <TextBlock Text="{Binding FlagText}" Foreground="{StaticResource OrangeBrush}" FontSize="11" Margin="0,0,4,0"/>
                      <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserReviewRangeIcon}" Visibility="{Binding HasReviewRange, Converter={StaticResource BoolToVisibility}}"/>
                      <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserSubclipsIcon}" Visibility="{Binding HasSubclips, Converter={StaticResource BoolToVisibility}}"/>
                      <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserColorIcon}" Visibility="{Binding HasColorState, Converter={StaticResource BoolToVisibility}}"/>
@@ -1017,13 +1055,14 @@
                    </Border>
                    <ProgressBar x:Name="BrowserThumbnailWorkingIndicator" Width="38" Height="4" Margin="0,0,0,7" HorizontalAlignment="Center" VerticalAlignment="Bottom"
                     IsIndeterminate="True" Visibility="{Binding IsThumbnailGenerating, Converter={StaticResource BoolToVisibility}}" ToolTip="Generating Preview" AutomationProperties.Name="Generating Preview"/>
-                   <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4" Padding="5,2" CornerRadius="3" Background="#D0332020"
-                    Visibility="{Binding IsUnavailable, Converter={StaticResource BoolToVisibility}}" ToolTip="Source unavailable; Collection membership and existing Preview are retained">
+                   <Border x:Name="BrowserUnavailableIndicator" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4" Padding="5,2" CornerRadius="3" Background="#D0332020"
+                    ToolTip="Source unavailable; Collection membership and existing Preview are retained">
+                    <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsUnavailable}" Value="True"/><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsUnavailable}" Value="True"/><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></Border.Style>
                     <TextBlock Text="OFFLINE" Foreground="#FFD2D2" FontSize="9" FontWeight="SemiBold"/>
                    </Border>
                   </Grid>
                  </Border>
-                 <Border x:Name="BrowserInfoLowerFrame" Grid.Row="2" Height="22">
+                 <Border x:Name="BrowserInfoLowerFrame" Grid.Row="2" Height="24" Padding="2,2">
                   <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
                   <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                    <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserReviewRangeIcon}" Visibility="{Binding HasReviewRange, Converter={StaticResource BoolToVisibility}}"/>

@@ -48,6 +48,25 @@ public sealed class CatalogClassificationTests
     }
 
     [Fact]
+    public void DirectRatingClick_TogglesOnlyTheCurrentlySelectedNonzeroRating()
+    {
+        Assert.Equal(4, AssetClassificationCommandPolicy.SetRating(2, 4, toggleCurrent: true));
+        Assert.Equal(0, AssetClassificationCommandPolicy.SetRating(4, 4, toggleCurrent: true));
+        Assert.Equal(4, AssetClassificationCommandPolicy.SetRating(4, 4, toggleCurrent: false));
+        Assert.Equal(0, AssetClassificationCommandPolicy.SetRating(4, 0, toggleCurrent: false));
+    }
+
+    [Theory]
+    [InlineData(-1, 1, 0)]
+    [InlineData(0, 1, 1)]
+    [InlineData(1, 1, 1)]
+    [InlineData(1, -1, 0)]
+    [InlineData(0, -1, -1)]
+    [InlineData(-1, -1, -1)]
+    public void FlagShortcut_UsesOrderedClampedTransitions(int current, int delta, int expected) =>
+        Assert.Equal((AssetFlag)expected, AssetClassificationCommandPolicy.StepFlag((AssetFlag)current, delta));
+
+    [Fact]
     public void QueryClassificationFacets_UseMinimumRatingAndExactOtherValues()
     {
         var rootId = Guid.NewGuid();

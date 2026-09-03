@@ -200,6 +200,15 @@ internal sealed record BrowserQuery
             : this;
 }
 
+internal static class BrowserQueryLockPolicy
+{
+    public static BrowserQuery Materialize(BrowserQuery? locked, BrowserSortMode scopeDefaultSort) =>
+        locked is null ? BrowserQuery.Default with { SortMode = scopeDefaultSort } :
+        locked.SortMode == BrowserSortMode.Manual && scopeDefaultSort != BrowserSortMode.Manual
+            ? locked with { SortMode = BrowserSortMode.Name, SortDescending = false }
+            : locked;
+}
+
 /// <summary>
 /// Pure filter/search/sort over an already-populated tile set. Operates entirely on data already resident
 /// on each <see cref="BrowserGridTile"/> (Catalog/Preview-indexed or filesystem-enumerated); it never touches

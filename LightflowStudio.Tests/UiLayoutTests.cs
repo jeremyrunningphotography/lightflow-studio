@@ -10,10 +10,12 @@ public class UiLayoutTests
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var hybrid = Named(document, "BrowserHybridStateOverlay");
+        var hybridLower = Named(document, "BrowserHybridLowerStateOverlay");
         var working = Named(document, "BrowserThumbnailWorkingIndicator");
-        Assert.Contains(hybrid.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasReviewRange") == true);
-        Assert.Contains(hybrid.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasSubclips") == true);
-        Assert.Contains(hybrid.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasColorState") == true);
+        Assert.Contains(hybridLower.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasReviewRange") == true);
+        Assert.Contains(hybridLower.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasSubclips") == true);
+        Assert.Contains(hybridLower.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasColorState") == true);
+        Assert.NotNull(hybrid.Descendants().FirstOrDefault(element => (string?)element.Attribute("ContentTemplate") == "{StaticResource BrowserRatingIndicator}"));
         Assert.Contains("IsThumbnailGenerating", (string?)working.Attribute("Visibility"));
         Assert.Equal("True", (string?)working.Attribute("IsIndeterminate"));
         Assert.NotNull(working.Ancestors().FirstOrDefault(element => element.Name.LocalName == "Grid")?
@@ -1377,6 +1379,70 @@ public class UiLayoutTests
         Assert.Equal("{Binding AutomationLabel}", (string?)tileBorder.Attribute("AutomationProperties.Name"));
         Assert.DoesNotContain(filenameStyle.Descendants(ns + "DataTrigger"), trigger =>
             (string?)trigger.Attribute("Value") is "{x:Static local:BrowserViewMode.Info}" or "{x:Static local:BrowserViewMode.Hybrid}");
+    }
+
+    [Fact]
+    public void ClassificationPresentation_IsModeAwareVectorBasedAndResponsive()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var preview = Named(document, "BrowserPreviewSurface");
+        var tileTemplate = document.Descendants(ns + "DataTemplate")
+            .Single(template => (string?)template.Attribute("DataType") == "{x:Type local:BrowserGridTile}");
+        var tileBorder = tileTemplate.Elements(ns + "Border").Single();
+
+        Assert.DoesNotContain(tileBorder.Descendants(ns + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("ColorLabel") == true);
+        var labelFrames = preview.Descendants(ns + "MultiDataTrigger").Where(trigger =>
+            trigger.Descendants(ns + "Condition").Any(condition => ((string?)condition.Attribute("Binding"))?.Contains("ColorLabel") == true)).ToArray();
+        Assert.NotEmpty(labelFrames);
+        Assert.All(labelFrames, trigger => Assert.Contains(trigger.Descendants(ns + "Condition"), condition =>
+            (string?)condition.Attribute("Value") is "{x:Static local:BrowserViewMode.Info}" or "{x:Static local:BrowserViewMode.Hybrid}"));
+        Assert.DoesNotContain(labelFrames.SelectMany(trigger => trigger.Descendants(ns + "Condition")), condition =>
+            (string?)condition.Attribute("Value") == "{x:Static local:BrowserViewMode.Preview}");
+        Assert.DoesNotContain(Named(document, "BrowserUnavailableIndicator").Descendants(ns + "Condition"), condition =>
+            (string?)condition.Attribute("Value") == "{x:Static local:BrowserViewMode.Preview}");
+
+        var rating = document.Descendants(ns + "DataTemplate").Single(template =>
+            (string?)template.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "BrowserRatingIndicator");
+        Assert.Equal(5, rating.Descendants(ns + "Path").Count());
+        Assert.All(rating.Descendants(ns + "Path"), path => Assert.Equal("12", (string?)path.Attribute("Width")));
+        Assert.NotNull(Named(document, "BrowserHybridLowerStateOverlay"));
+    }
+
+    [Fact]
+    public void BrowserFilterLock_IsOneFarRightVectorControlWithConciseTooltip()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var control = Named(document, "BrowserQueryLockButton");
+        Assert.Equal("Right", (string?)control.Attribute("DockPanel.Dock"));
+        Assert.Equal("Keep these filters when changing folders or Collections.", (string?)control.Attribute("ToolTip"));
+        Assert.NotNull(control.Descendants(ns + "Path").SingleOrDefault());
+        Assert.Null(control.Attribute("FontFamily"));
+        Assert.Null(control.Attribute("Content"));
+    }
+
+    [Fact]
+    public void PlayerClassificationRow_UsesDirectVectorAndSwatchChoicesRatherThanCycleButtons()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        Assert.Null(document.Descendants().FirstOrDefault(element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerRatingButton"));
+        foreach (var name in new[] { "PlayerRating1", "PlayerRating2", "PlayerRating3", "PlayerRating4", "PlayerRating5",
+                     "PlayerReject", "PlayerUnflagged", "PlayerPick", "PlayerNoLabel", "PlayerLabelRed", "PlayerLabelYellow",
+                     "PlayerLabelGreen", "PlayerLabelBlue", "PlayerLabelPurple" })
+            Assert.Equal(ns + "ToggleButton", Named(document, name).Name);
+        Assert.All(Enumerable.Range(1, 5), rating =>
+        {
+            var button = Named(document, $"PlayerRating{rating}");
+            Assert.Equal(rating.ToString(), (string?)button.Attribute("Tag"));
+            Assert.Equal("PlayerRating_Click", (string?)button.Attribute("Click"));
+            Assert.NotNull(button.Descendants(ns + "Path").SingleOrDefault());
+        });
+        Assert.NotNull(Named(document, "PlayerRangeStateIndicator"));
+        Assert.NotNull(Named(document, "PlayerSubclipsStateIndicator"));
+        Assert.DoesNotContain(document.Descendants(), element => ((string?)element.Attribute("ToolTip"))?.Contains("Cycle", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     [Fact]

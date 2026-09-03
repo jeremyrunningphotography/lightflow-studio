@@ -1929,11 +1929,7 @@ public partial class MainWindow : Window
     /// <summary>Returns the toolbar to its defaults for a newly opened scope, without re-triggering each control's own change handler.</summary>
     private void ResetBrowserQueryToolbar(BrowserSortMode sortMode = BrowserSortMode.Name)
     {
-        var query = _lockedBrowserQuery is { } locked
-            ? locked.SortMode == BrowserSortMode.Manual && sortMode != BrowserSortMode.Manual
-                ? locked with { SortMode = BrowserSortMode.Name, SortDescending = false }
-                : locked
-            : BrowserQuery.Default with { SortMode = sortMode };
+        var query = BrowserQueryLockPolicy.Materialize(_lockedBrowserQuery, sortMode);
         _synchronizingBrowserQuery = true;
         try
         {
@@ -1953,8 +1949,8 @@ public partial class MainWindow : Window
     {
         _lockedBrowserQuery = BrowserQueryLockButton.IsChecked == true ? _browserGrid.Query : null;
         BrowserQueryLockButton.ToolTip = _lockedBrowserQuery is null
-            ? "Keep the complete search, filters, and sort while changing folders or Collections"
-            : "Browser query locked; click to restore normal per-scope reset behavior";
+            ? "Keep these filters when changing folders or Collections."
+            : "Filters stay when changing folders or Collections.";
     }
 
     /// <summary>
@@ -2273,7 +2269,8 @@ public partial class MainWindow : Window
         foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
         {
             var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
-            await CommitBrowserClassificationAsync(value with { Rating = value.Rating == rating ? 0 : rating }).ConfigureAwait(true);
+            await CommitBrowserClassificationAsync(value with
+                { Rating = AssetClassificationCommandPolicy.SetRating(value.Rating, rating, toggleCurrent: true) }).ConfigureAwait(true);
         }
     }
 
@@ -2342,7 +2339,7 @@ public partial class MainWindow : Window
         {
             var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
             await CommitBrowserClassificationAsync(value with
-                { Flag = (AssetFlag)Math.Clamp((int)value.Flag + delta, -1, 1) }).ConfigureAwait(true);
+                { Flag = AssetClassificationCommandPolicy.StepFlag(value.Flag, delta) }).ConfigureAwait(true);
         }
     }
 

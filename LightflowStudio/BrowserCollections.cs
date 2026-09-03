@@ -232,8 +232,7 @@ internal static class BrowserCollectionInteraction
     {
         if (kind is not (BrowserCollectionDropKind.InsertBefore or BrowserCollectionDropKind.InsertAfter)) return [];
         var rootList = roots.ToArray();
-        var draggedSubtree = BrowserCollectionTreeModel.Flatten([dragged]).Select(node => node.Id).ToHashSet();
-        var visible = VisibleNodes(rootList).Where(node => !draggedSubtree.Contains(node.Id)).ToArray();
+        var visible = VisibleNodes(rootList).Where(node => !ReferenceEquals(node, dragged)).ToArray();
         var targetIndex = Array.IndexOf(visible, target);
         if (targetIndex < 0) return [];
         var boundary = targetIndex + (kind == BrowserCollectionDropKind.InsertAfter ? 1 : 0);
@@ -251,56 +250,6 @@ internal static class BrowserCollectionInteraction
             if (duplicate >= 0) candidates[duplicate] = choice;
             else candidates.Add(choice);
         }
-    }
-
-    public static IReadOnlyList<BrowserCollectionInsertionChoice> ResolveTrailingInsertionChoices(
-        IEnumerable<BrowserCollectionNode> roots, BrowserCollectionNode dragged)
-    {
-        var rootList = roots.ToArray();
-        var all = BrowserCollectionTreeModel.Flatten(rootList).ToArray();
-        var draggedSubtree = BrowserCollectionTreeModel.Flatten([dragged]).Select(node => node.Id).ToHashSet();
-        var cursor = VisibleNodes(rootList).LastOrDefault(node => !draggedSubtree.Contains(node.Id));
-        if (cursor is null) return [];
-
-        var choices = new List<BrowserCollectionInsertionChoice>();
-        if (cursor is { IsSet: true, IsExpanded: true } &&
-            (!dragged.IsSet || (cursor.Id != dragged.Id &&
-                !BrowserCollectionTreeModel.Flatten(dragged.Children).Any(node => node.Id == cursor.Id))))
-        {
-            var childOrdinal = cursor.Children.Count(node => node.Id != dragged.Id);
-            choices.Add(new BrowserCollectionInsertionChoice(cursor, BrowserCollectionDropKind.InsertAfter,
-                new BrowserCollectionInsertionDestination(cursor.Id, childOrdinal)));
-        }
-        while (true)
-        {
-            var parentId = cursor.ParentSetId;
-            var siblings = parentId is { } id
-                ? all.Single(node => node.IsSet && node.Id == id).Children.AsEnumerable()
-                : rootList.AsEnumerable();
-            var ordinal = siblings
-                .Count(node => node.Id != dragged.Id);
-            var destination = new BrowserCollectionInsertionDestination(parentId, ordinal);
-            if (!dragged.IsSet || (parentId != dragged.Id &&
-                !BrowserCollectionTreeModel.Flatten(dragged.Children).Any(node => node.Id == parentId)))
-                choices.Add(new BrowserCollectionInsertionChoice(cursor, BrowserCollectionDropKind.InsertAfter,
-                    destination));
-            if (parentId is not { } parentSetId) break;
-            cursor = all.Single(node => node.IsSet && node.Id == parentSetId);
-        }
-        return choices;
-    }
-
-    public static BrowserCollectionInsertionChoice? SelectTrailingInsertionChoice(
-        IEnumerable<(BrowserCollectionInsertionChoice Choice, double Indent)> candidates, double pointerX)
-    {
-        var ordered = candidates.OrderBy(candidate => candidate.Indent).ToArray();
-        if (ordered.Length == 0) return null;
-        for (var index = 0; index < ordered.Length - 1; index++)
-        {
-            var boundary = (ordered[index].Indent + ordered[index + 1].Indent) / 2;
-            if (pointerX < boundary) return ordered[index].Choice;
-        }
-        return ordered[^1].Choice;
     }
 
     private static IEnumerable<BrowserCollectionNode> VisibleNodes(IEnumerable<BrowserCollectionNode> nodes)

@@ -23,7 +23,7 @@ internal static class BrowserAssetDragSelection
 internal static class BrowserCollectionActivation
 {
     public static bool IsInteractive(BrowserCollectionNode node, BrowserCollectionNode? pointerTarget,
-        bool keyboardFocusWithin) => ReferenceEquals(node, pointerTarget) || keyboardFocusWithin;
+        bool keyboardSelectionPending) => ReferenceEquals(node, pointerTarget) || keyboardSelectionPending;
 
     public static bool ShouldIgnoreDelayedReveal(BrowserCollectionNode node, BrowserCollectionNode? revealedNode,
         bool interactive) => ReferenceEquals(node, revealedNode) && !interactive;

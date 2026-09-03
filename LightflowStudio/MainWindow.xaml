@@ -603,6 +603,7 @@
          <TreeView x:Name="BrowserCollectionTree" BorderThickness="0" Background="Transparent" Padding="0,0,0,96"
           SelectedItemChanged="BrowserCollectionTree_SelectedItemChanged" ContextMenuOpening="BrowserCollectionTree_ContextMenuOpening"
           PreviewMouseLeftButtonDown="BrowserCollectionTree_PreviewMouseLeftButtonDown"
+          PreviewKeyDown="BrowserCollectionTree_PreviewKeyDown"
           PreviewMouseRightButtonDown="BrowserCollectionTree_PreviewMouseRightButtonDown"
           PreviewMouseMove="BrowserCollectionTree_PreviewMouseMove" AllowDrop="True"
           DragOver="BrowserCollectionTree_DragOver" DragLeave="BrowserCollectionTree_DragLeave" Drop="BrowserCollectionTree_Drop"

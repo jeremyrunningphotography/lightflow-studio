@@ -174,7 +174,11 @@ public sealed class BrowserCollectionsPresentationTests
     public void CollectionPointerIntentCanOverrideAStaleRevealWithoutChangingHierarchyDragPayload()
     {
         var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+        var xaml = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
         Assert.Contains("_browserCollectionPointerTarget = _collectionDragNode", source);
+        Assert.Contains("PreviewKeyDown=\"BrowserCollectionTree_PreviewKeyDown\"", xaml);
+        Assert.Contains("_browserCollectionKeyboardSelectionPending", source);
+        Assert.DoesNotContain("BrowserCollectionTree.IsKeyboardFocusWithin", source);
         Assert.Contains("BrowserCollectionActivation.ShouldIgnoreDelayedReveal", source);
         Assert.Contains("e.Data.GetData(typeof(BrowserCollectionNode))", source);
         Assert.Contains("e.Data.GetData(typeof(BrowserAssetDragPayload))", source);

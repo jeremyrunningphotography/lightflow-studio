@@ -38,11 +38,20 @@ public sealed class BrowserCollectionsTests
     public void GenuineCollectionPointerActivationOverridesMatchingDelayedRevealMarker()
     {
         var collection = new BrowserCollectionNode(Collection("Target", 0));
-        var interactive = BrowserCollectionActivation.IsInteractive(collection, collection, keyboardFocusWithin: false);
+        var interactive = BrowserCollectionActivation.IsInteractive(collection, collection, keyboardSelectionPending: false);
 
         Assert.True(interactive);
         Assert.False(BrowserCollectionActivation.ShouldIgnoreDelayedReveal(collection, collection, interactive));
         Assert.True(BrowserCollectionActivation.ShouldIgnoreDelayedReveal(collection, collection, interactive: false));
+    }
+
+    [Fact]
+    public void CollectionActivation_KeyboardIntentIsExplicitRatherThanInferredFromLingeringFocus()
+    {
+        var collection = new BrowserCollectionNode(Collection("Collection", 0));
+
+        Assert.True(BrowserCollectionActivation.IsInteractive(collection, null, keyboardSelectionPending: true));
+        Assert.False(BrowserCollectionActivation.IsInteractive(collection, null, keyboardSelectionPending: false));
     }
 
     [Theory]

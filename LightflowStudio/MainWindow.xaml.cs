@@ -118,6 +118,7 @@ public partial class MainWindow : Window
     private BrowserGridTile? _browserAssetDragTile;
     private BrowserGridTile? _browserAssetPendingSingleSelection;
     private BrowserCollectionNode? _browserCollectionPointerTarget;
+    private bool _browserCollectionKeyboardSelectionPending;
     private readonly BrowserCollectionDragSession _collectionDragSession = new();
     private LowLevelMouseWheelHook? _collectionDragWheelHook;
     private BrowserCollectionNode? _browserCollectionActionNode;
@@ -3404,8 +3405,9 @@ public partial class MainWindow : Window
     {
         if (_synchronizingCollectionTree || e.NewValue is not BrowserCollectionNode node) return;
         var interactive = BrowserCollectionActivation.IsInteractive(node, _browserCollectionPointerTarget,
-            BrowserCollectionTree.IsKeyboardFocusWithin);
+            _browserCollectionKeyboardSelectionPending);
         _browserCollectionPointerTarget = null;
+        _browserCollectionKeyboardSelectionPending = false;
         if (BrowserCollectionActivation.ShouldIgnoreDelayedReveal(node, _browserCollectionTreeRevealedNode, interactive))
         {
             _browserCollectionTreeRevealedNode = null;
@@ -3761,6 +3763,15 @@ public partial class MainWindow : Window
         _collectionDragStart = e.GetPosition(BrowserCollectionTree);
         _collectionDragNode = CollectionNodeFromElement(e.OriginalSource as DependencyObject);
         _browserCollectionPointerTarget = _collectionDragNode;
+    }
+
+    private void BrowserCollectionTree_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Up or Key.Down or Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown))
+            return;
+        _browserCollectionKeyboardSelectionPending = true;
+        Dispatcher.BeginInvoke(() => _browserCollectionKeyboardSelectionPending = false,
+            System.Windows.Threading.DispatcherPriority.Input);
     }
 
     private void BrowserCollectionTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)

@@ -5,6 +5,93 @@ namespace LightflowStudio.Tests;
 
 public sealed class BrowserCollectionsTests
 {
+    [Theory]
+    [InlineData(true, 2, true)]
+    [InlineData(true, 3, true)]
+    [InlineData(false, 2, false)]
+    [InlineData(true, 1, false)]
+    public void AssetDragSelection_DefersPlainClickCollapseOnlyForAnExistingMultiSelection(
+        bool tileSelected, int selectionCount, bool expected) =>
+        Assert.Equal(expected, BrowserAssetDragSelection.ShouldDeferSingleSelection(
+            tileSelected, selectionCount, shiftPressed: false, controlPressed: false));
+
+    [Fact]
+    public void AssetDragSelection_ModifiedClicksKeepEstablishedCtrlShiftSemantics()
+    {
+        Assert.False(BrowserAssetDragSelection.ShouldDeferSingleSelection(true, 3, shiftPressed: true, controlPressed: false));
+        Assert.False(BrowserAssetDragSelection.ShouldDeferSingleSelection(true, 3, shiftPressed: false, controlPressed: true));
+    }
+
+    [Fact]
+    public void DragFromEitherSelectedTileCarriesTheEntireStableAssetSelection()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        IReadOnlyList<Guid> selected = [first, second];
+
+        Assert.Equal(selected, BrowserAssetDragSelection.AssetIdsForDrag(true, first, selected));
+        Assert.Equal(selected, BrowserAssetDragSelection.AssetIdsForDrag(true, second, selected));
+        Assert.Equal([Guid.Empty], BrowserAssetDragSelection.AssetIdsForDrag(false, Guid.Empty, selected));
+    }
+
+    [Fact]
+    public void GenuineCollectionPointerActivationOverridesMatchingDelayedRevealMarker()
+    {
+        var collection = new BrowserCollectionNode(Collection("Target", 0));
+        var interactive = BrowserCollectionActivation.IsInteractive(collection, collection, keyboardSelectionPending: false);
+
+        Assert.True(interactive);
+        Assert.False(BrowserCollectionActivation.ShouldIgnoreDelayedReveal(collection, collection, interactive));
+        Assert.True(BrowserCollectionActivation.ShouldIgnoreDelayedReveal(collection, collection, interactive: false));
+    }
+
+    [Fact]
+    public void CollectionActivation_KeyboardIntentIsExplicitRatherThanInferredFromLingeringFocus()
+    {
+        var collection = new BrowserCollectionNode(Collection("Collection", 0));
+
+        Assert.True(BrowserCollectionActivation.IsInteractive(collection, null, keyboardSelectionPending: true));
+        Assert.False(BrowserCollectionActivation.IsInteractive(collection, null, keyboardSelectionPending: false));
+    }
+
+    [Theory]
+    [InlineData(1, 0, 1, 1, "Added 1 media item to Picks")]
+    [InlineData(0, 3, 3, 1, "3 media items are already in Picks")]
+    [InlineData(6, 0, 3, 2, "Added 6 media items to 2 Collections")]
+    [InlineData(0, 2, 1, 2, "2 media items were already present")]
+    [InlineData(4, 2, 3, 2, "Added 4 media items to 2 Collections • 2 media items were already present")]
+    public void MembershipFeedback_IsConciseNonTechnicalAndTruthful(int added, int duplicates,
+        int assets, int collections, string expected)
+    {
+        var result = CollectionMembershipFeedback.ForAdd(added, duplicates, assets, collections,
+            collections == 1 ? "Picks" : null);
+
+        Assert.Equal(expected, result);
+        Assert.DoesNotContain("Source files", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("paths", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("asset", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AssetMembershipDrop_AcceptsCollectionsAndRejectsSets()
+    {
+        var payload = new BrowserAssetDragPayload([Guid.NewGuid(), Guid.NewGuid()]);
+
+        Assert.True(BrowserCollectionMembershipInteraction.CanDrop(payload, new BrowserCollectionNode(Collection("Target", 0))));
+        Assert.False(BrowserCollectionMembershipInteraction.CanDrop(payload, new BrowserCollectionNode(Set("Organizer", 0))));
+        Assert.False(BrowserCollectionMembershipInteraction.CanDrop(new BrowserAssetDragPayload([]), new BrowserCollectionNode(Collection("Target", 0))));
+    }
+
+    [Fact]
+    public void MultiAssetManualMove_PreservesSelectionOrderAndOtherMemberships()
+    {
+        var ids = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToArray();
+
+        var reordered = BrowserCollectionMembershipInteraction.MoveBefore(ids, [ids[3], ids[1]], ids[0]);
+
+        Assert.Equal([ids[3], ids[1], ids[0], ids[2], ids[4]], reordered);
+    }
+
     [Fact]
     public void RightClick_TargetsClickedCollectionInsteadOfPreviouslySelectedSet()
     {

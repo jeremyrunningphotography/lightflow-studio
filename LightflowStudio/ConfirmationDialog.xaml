@@ -11,7 +11,7 @@
     <TextBlock x:Name="DetailText" Foreground="{StaticResource TextBrush}" FontSize="11" TextWrapping="Wrap"/>
    </Border>
    <StackPanel Grid.Row="3" Margin="0,8,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
-    <Button IsCancel="True" Content="Keep Jobs" Click="Cancel_Click"/>
+    <Button x:Name="CancelButton" IsCancel="True" Content="Keep Jobs" Click="Cancel_Click"/>
     <Button x:Name="ConfirmButton" IsDefault="True" Style="{StaticResource DangerButton}" Content="Confirm" Click="Confirm_Click"/>
    </StackPanel>
   </Grid>

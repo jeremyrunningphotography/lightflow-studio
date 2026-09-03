@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace LightflowStudio;
 
-internal enum BrowserSortMode { Name, CaptureDate, ModifiedDate, MediaType, FileSize, Duration }
+internal enum BrowserSortMode { Name, CaptureDate, ModifiedDate, MediaType, FileSize, Duration, Manual }
 
 /// <summary>
 /// Browser-only creator-facing frame-rate normalization. Authoritative Preview metadata keeps its precise
@@ -306,6 +306,8 @@ internal static class BrowserQueryEngine
 
     private static IReadOnlyList<BrowserGridTile> OrderAscending(IReadOnlyList<BrowserGridTile> tiles, BrowserSortMode mode)
     {
+        if (mode == BrowserSortMode.Manual)
+            return [.. tiles.OrderBy(tile => tile.ManualOrdinal)];
         IOrderedEnumerable<BrowserGridTile> ordered = mode switch
         {
             BrowserSortMode.Name => tiles.OrderBy(tile => tile.Name, StringComparer.OrdinalIgnoreCase),

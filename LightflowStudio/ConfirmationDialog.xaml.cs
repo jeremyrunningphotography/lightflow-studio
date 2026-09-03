@@ -16,9 +16,16 @@ public partial class ConfirmationDialog : Window
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
     }
 
+    public ConfirmationDialog(string title, string heading, string message, string? detail, string confirmLabel,
+        string cancelLabel) : this(title, heading, message, detail, confirmLabel) => CancelButton.Content = cancelLabel;
+
     private void Cancel_Click(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
     private void Confirm_Click(object sender, RoutedEventArgs e) { DialogResult = true; Close(); }
 
     internal static bool Confirm(Window owner, string title, string heading, string message, string? detail,
         string confirmLabel) => new ConfirmationDialog(title, heading, message, detail, confirmLabel) { Owner = owner }.ShowDialog() == true;
+
+    internal static bool Confirm(Window owner, string title, string heading, string message, string? detail,
+        string confirmLabel, string cancelLabel) =>
+        new ConfirmationDialog(title, heading, message, detail, confirmLabel, cancelLabel) { Owner = owner }.ShowDialog() == true;
 }

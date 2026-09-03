@@ -7,10 +7,64 @@ namespace LightflowStudio;
 
 internal enum BrowserCollectionNodeKind { Set, Collection }
 
+internal sealed record BrowserAssetDragPayload(IReadOnlyList<Guid> AssetIds);
+
+internal static class BrowserAssetDragSelection
+{
+    public static bool ShouldDeferSingleSelection(bool tileIsSelected, int selectionCount,
+        bool shiftPressed, bool controlPressed) =>
+        tileIsSelected && selectionCount > 1 && !shiftPressed && !controlPressed;
+
+    public static IReadOnlyList<Guid> AssetIdsForDrag(bool originIsSelected, Guid? originAssetId,
+        IReadOnlyList<Guid> selectedAssetIds) =>
+        originIsSelected ? selectedAssetIds : originAssetId is { } id ? [id] : [];
+}
+
+internal static class BrowserCollectionActivation
+{
+    public static bool IsInteractive(BrowserCollectionNode node, BrowserCollectionNode? pointerTarget,
+        bool keyboardSelectionPending) => ReferenceEquals(node, pointerTarget) || keyboardSelectionPending;
+
+    public static bool ShouldIgnoreDelayedReveal(BrowserCollectionNode node, BrowserCollectionNode? revealedNode,
+        bool interactive) => ReferenceEquals(node, revealedNode) && !interactive;
+}
+
+internal static class CollectionMembershipFeedback
+{
+    public static string ForAdd(int added, int duplicates, int assetCount, int collectionCount, string? collectionName)
+    {
+        if (added == 0)
+            return collectionCount == 1 && collectionName is not null
+                ? $"{assetCount} media item{(assetCount == 1 ? " is" : "s are")} already in {collectionName}"
+                : $"{duplicates} media item{(duplicates == 1 ? " was" : "s were")} already present";
+        var result = collectionCount == 1 && collectionName is not null
+            ? $"Added {added} media item{(added == 1 ? "" : "s")} to {collectionName}"
+            : $"Added {added} media items to {collectionCount} Collections";
+        return duplicates > 0 ? $"{result} • {duplicates} media item{(duplicates == 1 ? " was" : "s were")} already present" : result;
+    }
+}
+
+internal static class BrowserCollectionMembershipInteraction
+{
+    public static bool CanDrop(BrowserAssetDragPayload? payload, BrowserCollectionNode? target) =>
+        payload is { AssetIds.Count: > 0 } && target?.IsCollection == true;
+
+    public static IReadOnlyList<Guid> MoveBefore(IReadOnlyList<Guid> current, IReadOnlyList<Guid> moving, Guid target)
+    {
+        var movingSet = moving.ToHashSet();
+        var remaining = current.Where(id => !movingSet.Contains(id)).ToList();
+        var targetIndex = remaining.IndexOf(target);
+        if (targetIndex < 0) return current;
+        remaining.InsertRange(targetIndex, moving.Where(current.Contains));
+        return remaining;
+    }
+}
+
 internal sealed class BrowserCollectionNode : INotifyPropertyChanged
 {
     private bool _isExpanded;
     private bool _isSelected;
+    private bool _isAssetDropTarget;
 
     public BrowserCollectionNode(CollectionSet set)
     {
@@ -52,6 +106,11 @@ internal sealed class BrowserCollectionNode : INotifyPropertyChanged
     {
         get => _isSelected;
         set { if (_isSelected != value) { _isSelected = value; OnPropertyChanged(); } }
+    }
+    public bool IsAssetDropTarget
+    {
+        get => _isAssetDropTarget;
+        set { if (_isAssetDropTarget == value) return; _isAssetDropTarget = value; OnPropertyChanged(); }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -105,6 +105,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         LutCache = new ApplicationLutLibraryCache(Luts);
         AssetColors = new CatalogAssetColorStore(() => _catalogSession, LutCache);
         BrowserAssetStates = new CatalogBrowserAssetStateStore(() => _catalogSession);
+        AssetClassifications = new CatalogAssetClassificationStore(() => _catalogSession);
         ThumbnailActivity = new ThumbnailGenerationActivity();
         DerivedWork = CreateDerivedWorkScheduler();
         MediaDiscovery = new MediaDiscoveryRefreshService(CatalogReconciliation, () => DerivedWork);
@@ -128,6 +129,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public ICollectionOrganizationService Collections { get; }
     public IPreferredPreviewFrameStore PreferredPreviewFrames { get; }
     public IBrowserAssetStateStore BrowserAssetStates { get; }
+    public IAssetClassificationStore AssetClassifications { get; }
     public ILutLibrary Luts { get; }
     public ILutLibraryCache LutCache { get; }
     public IAssetColorStore AssetColors { get; }

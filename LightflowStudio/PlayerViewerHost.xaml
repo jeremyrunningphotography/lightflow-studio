@@ -112,7 +112,7 @@
    <Border Grid.Row="2" Grid.Column="0" x:Name="TransportBar" Margin="6,0,6,6" Padding="7,5,7,5" Visibility="Collapsed"
     Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
     <Grid>
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid x:Name="ColorSurface" Margin="1,0,1,4" HorizontalAlignment="Stretch">
       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <TextBlock Text="COLOR" Margin="0,0,14,0" VerticalAlignment="Center" Foreground="{StaticResource ShellNavigationTextBrush}" FontSize="10" FontWeight="SemiBold"/>
@@ -123,14 +123,20 @@
       <Button x:Name="ExportButton" Grid.Column="6" Margin="6,0,0,0" Padding="5,2" Style="{StaticResource ExportLaunchButton}" Content="Export…" IsEnabled="False"
        Click="ExportButton_Click" ToolTip="Export this asset with its saved range and assigned Color" AutomationProperties.Name="Export current asset"/>
      </Grid>
-     <Grid Grid.Row="1" Height="22">
+     <StackPanel Grid.Row="1" Margin="2,0,2,4" Orientation="Horizontal" VerticalAlignment="Center">
+      <TextBlock Text="RATING" Margin="0,0,7,0" VerticalAlignment="Center" Foreground="{StaticResource ShellNavigationTextBrush}" FontSize="10" FontWeight="SemiBold"/>
+      <Button x:Name="PlayerRatingButton" MinWidth="66" Height="24" Padding="6,1" Click="PlayerRatingButton_Click" ToolTip="Set rating; press 1–5, or 0 to clear" AutomationProperties.Name="Asset rating"/>
+      <Button x:Name="PlayerFlagButton" MinWidth="72" Height="24" Margin="6,0,0,0" Padding="6,1" Click="PlayerFlagButton_Click" ToolTip="Cycle Rejected, Unflagged, Picked; Ctrl+Up/Down" AutomationProperties.Name="Asset flag"/>
+      <Button x:Name="PlayerLabelButton" MinWidth="72" Height="24" Margin="6,0,0,0" Padding="6,1" Click="PlayerLabelButton_Click" ToolTip="Cycle asset color label" AutomationProperties.Name="Asset color label"/>
+     </StackPanel>
+     <Grid Grid.Row="2" Height="22">
       <local:TrimRangeIndicator x:Name="ReviewRangeIndicator" Height="18" Margin="7,0" VerticalAlignment="Center"
        Panel.ZIndex="1" IsHitTestVisible="False"/>
       <Slider x:Name="PositionSlider" Style="{StaticResource PlaybackTimelineSlider}" Minimum="0" Maximum="1"
        ValueChanged="PositionSlider_ValueChanged" PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
        IsEnabled="False" ToolTip="Full source timeline: click anywhere to seek, or drag the playhead"/>
      </Grid>
-     <Grid Grid.Row="2" Margin="2,4,2,0">
+     <Grid Grid.Row="3" Margin="2,4,2,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal">
        <Button x:Name="SetInButton" Style="{StaticResource RangeSetButton}" Content="Set In" Click="SetIn_Click" IsEnabled="False" ToolTip="Set In to the displayed frame (I)" AutomationProperties.Name="Set In"/>
@@ -143,7 +149,7 @@
        <Button x:Name="SetOutButton" Style="{StaticResource RangeSetButton}" Content="Set Out" Click="SetOut_Click" IsEnabled="False" ToolTip="Set Out to the displayed frame (O)" AutomationProperties.Name="Set Out"/>
       </StackPanel>
      </Grid>
-     <Grid Grid.Row="3" Margin="2,7,2,0">
+     <Grid Grid.Row="4" Margin="2,7,2,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <TextBlock x:Name="CurrentTimeText" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="00:00:00.000"/>
       <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">

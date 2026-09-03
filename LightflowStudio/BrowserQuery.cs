@@ -47,7 +47,11 @@ internal enum BrowserFilterField
     CameraLutState,
     CreativeLutState,
     ReviewRangeState,
-    SubclipState
+    SubclipState,
+    Rating,
+    Flag,
+    ColorLabel,
+    Keyword
 }
 
 /// <summary>
@@ -106,6 +110,10 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.CreativeLutState => BooleanValue == true ? "Creative LUT assigned" : "No Creative LUT",
         BrowserFilterField.ReviewRangeState => BooleanValue == true ? "Has saved range" : "No saved range",
         BrowserFilterField.SubclipState => BooleanValue == true ? "Has Subclips" : "No Subclips",
+        BrowserFilterField.Rating => NumberValue == 0 ? "Unrated" : $"Rating ≥ {NumberValue:0}",
+        BrowserFilterField.Flag => $"Flag: {TextValue}",
+        BrowserFilterField.ColorLabel => $"Label: {TextValue}",
+        BrowserFilterField.Keyword => $"Keyword: {TextValue}",
         _ => "Filter"
     };
 
@@ -129,6 +137,12 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.CreativeLutState => MatchesState(tile, tile.HasCreativeLut),
         BrowserFilterField.ReviewRangeState => MatchesState(tile, tile.HasReviewRange),
         BrowserFilterField.SubclipState => MatchesState(tile, tile.HasSubclips),
+        BrowserFilterField.Rating => tile.AssetStateApplied && NumberValue is { } rating &&
+            (rating == 0 ? tile.Rating == 0 : tile.Rating >= rating),
+        BrowserFilterField.Flag => tile.AssetStateApplied && Enum.TryParse<AssetFlag>(TextValue, true, out var flag) && tile.Flag == flag,
+        BrowserFilterField.ColorLabel => tile.AssetStateApplied && Enum.TryParse<AssetColorLabel>(TextValue, true, out var label) && tile.ColorLabel == label,
+        BrowserFilterField.Keyword => tile.AssetStateApplied && TextValue is { } keyword &&
+            tile.Keywords.Any(value => string.Equals(value, keyword, StringComparison.OrdinalIgnoreCase)),
         _ => true
     };
 

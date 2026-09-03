@@ -789,6 +789,13 @@
               <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
              </StackPanel>
+
+             <StackPanel x:Name="BrowserClassificationFilterGroup">
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="RATING, FLAG, LABEL &amp; KEYWORD"/>
+             <ItemsControl x:Name="BrowserClassificationFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+              <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
+             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+             </StackPanel>
             </StackPanel>
             </ScrollViewer>
            </Border>
@@ -818,6 +825,9 @@
              AutomationProperties.Name="Toggle sort direction" Click="BrowserSortDirection_Click"/>
            </StackPanel>
           </Border>
+          <ToggleButton x:Name="BrowserQueryLockButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Margin="8,0,0,4"
+           Content="&#xE72E; Lock" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Click="BrowserQueryLockButton_Click"
+           ToolTip="Keep the complete search, filters, and sort while changing folders or Collections" AutomationProperties.Name="Lock Browser query"/>
          </WrapPanel>
          <!-- Collapsed (and empty) whenever no predicate is active, so the toolbar stays a single quiet row
               for ordinary browsing — see MainWindow.SyncBrowserQueryToolbarVisuals. -->
@@ -918,6 +928,31 @@
                   <MenuItem x:Name="BrowserAddToCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Add to Collection…" Click="BrowserAddToCollection_Click"/>
                   <MenuItem x:Name="BrowserRemoveFromCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Remove from this Collection" Click="BrowserRemoveFromCollection_Click"/>
                   <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rating">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Unrated" Tag="0" Click="BrowserRating_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="1 star" Tag="1" Click="BrowserRating_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="2 stars" Tag="2" Click="BrowserRating_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="3 stars" Tag="3" Click="BrowserRating_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="4 stars" Tag="4" Click="BrowserRating_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="5 stars" Tag="5" Click="BrowserRating_Click"/>
+                  </MenuItem>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Flag">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rejected" Tag="Rejected" Click="BrowserFlag_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Unflagged" Tag="Unflagged" Click="BrowserFlag_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Picked" Tag="Picked" Click="BrowserFlag_Click"/>
+                  </MenuItem>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Color label">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="None" Tag="None" Click="BrowserColorLabel_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Red" Tag="Red" Click="BrowserColorLabel_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Yellow" Tag="Yellow" Click="BrowserColorLabel_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Green" Tag="Green" Click="BrowserColorLabel_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Blue" Tag="Blue" Click="BrowserColorLabel_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Purple" Tag="Purple" Click="BrowserColorLabel_Click"/>
+                  </MenuItem>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Keywords">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Add keyword…" Click="BrowserAddKeyword_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Clear keywords" Click="BrowserClearKeywords_Click"/>
+                  </MenuItem>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export">
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export…" Click="BrowserContextExport_Click"/>
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export Subclips…" Click="BrowserContextExportSubclips_Click"/>
@@ -938,6 +973,12 @@
                   <Setter Property="Background" Value="{StaticResource ShellPanelBrush}"/>
                   <Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/>
                   <Style.Triggers>
+                   <DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Background" Value="#1B2028"/></DataTrigger>
+                   <DataTrigger Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Red}"><Setter Property="BorderBrush" Value="#E85A5A"/><Setter Property="BorderThickness" Value="3"/></DataTrigger>
+                   <DataTrigger Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Yellow}"><Setter Property="BorderBrush" Value="#E3B341"/><Setter Property="BorderThickness" Value="3"/></DataTrigger>
+                   <DataTrigger Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Green}"><Setter Property="BorderBrush" Value="#57AB5A"/><Setter Property="BorderThickness" Value="3"/></DataTrigger>
+                   <DataTrigger Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Blue}"><Setter Property="BorderBrush" Value="#539BF5"/><Setter Property="BorderThickness" Value="3"/></DataTrigger>
+                   <DataTrigger Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Purple}"><Setter Property="BorderBrush" Value="#B083F0"/><Setter Property="BorderThickness" Value="3"/></DataTrigger>
                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
                     <Setter Property="Background" Value="{StaticResource ShellSelectionBrush}"/>
                     <Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
@@ -950,6 +991,10 @@
                  <!-- Quiet reserved upper frame for future rating/flag state; Info only. -->
                  <Border x:Name="BrowserInfoUpperFrame" Height="16">
                   <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
+                  <DockPanel LastChildFill="False">
+                   <TextBlock DockPanel.Dock="Left" Text="{Binding RatingText}" Foreground="#F3C969" FontSize="10" FontWeight="SemiBold"/>
+                   <TextBlock DockPanel.Dock="Right" Text="{Binding FlagText}" Foreground="{StaticResource OrangeBrush}" FontSize="11"/>
+                  </DockPanel>
                  </Border>
                  <Border x:Name="BrowserPreviewSurface" Grid.Row="1" Background="#05070A" CornerRadius="4" ClipToBounds="True">
                   <Border.Style><Style TargetType="Border">
@@ -963,6 +1008,8 @@
                    <Border x:Name="BrowserHybridStateOverlay" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4" Padding="3,2" CornerRadius="3" Background="#B005070A">
                     <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding HasUserAuthoredState}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></Border.Style>
                     <StackPanel Orientation="Horizontal">
+                     <TextBlock Text="{Binding RatingText}" Foreground="#F3C969" FontSize="10" FontWeight="SemiBold" Margin="0,0,4,0"/>
+                     <TextBlock Text="{Binding FlagText}" Foreground="{StaticResource OrangeBrush}" FontSize="11" Margin="0,0,4,0"/>
                      <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserReviewRangeIcon}" Visibility="{Binding HasReviewRange, Converter={StaticResource BoolToVisibility}}"/>
                      <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserSubclipsIcon}" Visibility="{Binding HasSubclips, Converter={StaticResource BoolToVisibility}}"/>
                      <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserColorIcon}" Visibility="{Binding HasColorState, Converter={StaticResource BoolToVisibility}}"/>

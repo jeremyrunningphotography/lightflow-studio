@@ -37,6 +37,7 @@ public partial class PlayerViewerHost : UserControl
     private readonly ILutLibraryCache? _lutCache;
     private readonly IAssetColorStore? _assetColors;
     private readonly IPreferredPreviewFrameStore? _preferredPreviewFrames;
+    private readonly IAssetClassificationStore? _classifications;
     private readonly Func<string>? _cameraLutFolder;
     private readonly Func<string>? _creativeLutFolder;
     private readonly Action<PlayerOpenMilestone>? _openMilestone;
@@ -66,6 +67,7 @@ public partial class PlayerViewerHost : UserControl
     private LutLibrarySnapshot? _creativeLibrary;
     private long _colorRefreshRevision;
     private bool _previewFrameBusy;
+    private AssetClassification? _classification;
 
     private sealed record LutChoice(Guid? LutId, string DisplayName, bool OpensFolder = false)
     {
@@ -80,7 +82,8 @@ public partial class PlayerViewerHost : UserControl
         ILutLibraryCache? lutCache = null, IAssetColorStore? assetColors = null,
         Func<string>? cameraLutFolder = null, Func<string>? creativeLutFolder = null,
         Action<PlayerOpenMilestone>? openMilestone = null,
-        IPreferredPreviewFrameStore? preferredPreviewFrames = null)
+        IPreferredPreviewFrameStore? preferredPreviewFrames = null,
+        IAssetClassificationStore? classifications = null)
     {
         _coordinator = coordinator;
         _rangeStore = rangeStore;
@@ -94,6 +97,7 @@ public partial class PlayerViewerHost : UserControl
         _creativeLutFolder = creativeLutFolder;
         _openMilestone = openMilestone;
         _preferredPreviewFrames = preferredPreviewFrames;
+        _classifications = classifications;
         InitializeComponent();
         SubclipsList.DataContext = _subclipItems;
     }
@@ -106,6 +110,7 @@ public partial class PlayerViewerHost : UserControl
     internal event EventHandler<AssetColorStateChangedEventArgs>? ColorStateChanged;
     internal event EventHandler<SubclipStateChangedEventArgs>? SubclipStateChanged;
     internal event EventHandler<PreviewFrameIntentChangedEventArgs>? PreviewFrameIntentChanged;
+    internal event EventHandler<AssetClassification>? ClassificationChanged;
     internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
     internal event EventHandler<PlayerViewerSubclipsExportRequestedEventArgs>? ExportSelectedSubclipsRequested;
     internal event EventHandler<SubclipsDrawerStateRequestedEventArgs>? SubclipsDrawerStateRequested;
@@ -141,6 +146,7 @@ public partial class PlayerViewerHost : UserControl
         if (generation != _generation) return;
 
         _currentAsset = asset;
+        await LoadClassificationAsync(asset.AssetId, generation, token).ConfigureAwait(true);
         ResetSubclipWork();
         SubclipsPanel.Visibility = Visibility.Collapsed;
         AddSubclipButton.IsEnabled = false;
@@ -1422,6 +1428,16 @@ public partial class PlayerViewerHost : UserControl
     {
         if (IsTextEntryControl(inputOwner)) return false;
         if (key is Key.Left or Key.Right && IsArrowKeyOwnedByFocusedControl(inputOwner)) return false;
+        if (key >= Key.D0 && key <= Key.D5)
+        {
+            _ = SetRatingAsync(key - Key.D0);
+            return _currentAsset?.AssetId is not null;
+        }
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && key is Key.Up or Key.Down)
+        {
+            _ = StepFlagAsync(key == Key.Up ? 1 : -1);
+            return _currentAsset?.AssetId is not null;
+        }
         switch (key)
         {
             case Key.C when _service is not null && _colorActive && !_momentaryColorBypass:
@@ -1452,6 +1468,45 @@ public partial class PlayerViewerHost : UserControl
                 return true;
         }
         return false;
+    }
+
+    private async Task LoadClassificationAsync(Guid? assetId, long generation, CancellationToken token)
+    {
+        _classification = assetId is { } id && _classifications is not null
+            ? (await _classifications.GetAsync([id], token).ConfigureAwait(true)).GetValueOrDefault(id)
+            : null;
+        if (generation == _generation) SyncClassificationControls();
+    }
+
+    private void SyncClassificationControls()
+    {
+        PlayerRatingButton.Content = _classification is { Rating: > 0 } value ? $"{value.Rating} ★" : "Unrated";
+        PlayerFlagButton.Content = _classification?.Flag.ToString() ?? "Unflagged";
+        PlayerLabelButton.Content = _classification?.ColorLabel?.ToString() ?? "No label";
+        PlayerRatingButton.IsEnabled = PlayerFlagButton.IsEnabled = PlayerLabelButton.IsEnabled = _classification is not null;
+    }
+
+    private async Task SaveClassificationAsync(AssetClassification value)
+    {
+        if (_classifications is null || _currentAsset?.AssetId != value.AssetId) return;
+        await _classifications.SaveAsync(value).ConfigureAwait(true);
+        _classification = value;
+        SyncClassificationControls();
+        ClassificationChanged?.Invoke(this, value);
+    }
+
+    private Task SetRatingAsync(int rating) => _classification is { } value
+        ? SaveClassificationAsync(value with { Rating = value.Rating == rating ? 0 : rating }) : Task.CompletedTask;
+    private Task StepFlagAsync(int delta) => _classification is { } value
+        ? SaveClassificationAsync(value with { Flag = (AssetFlag)Math.Clamp((int)value.Flag + delta, -1, 1) }) : Task.CompletedTask;
+    private void PlayerRatingButton_Click(object sender, RoutedEventArgs e) => _ = SetRatingAsync((_classification?.Rating ?? 0) % 5 + 1);
+    private void PlayerFlagButton_Click(object sender, RoutedEventArgs e) => _ = StepFlagAsync(1);
+    private void PlayerLabelButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_classification is not { } value) return;
+        AssetColorLabel? next = value.ColorLabel is null ? AssetColorLabel.Red :
+            (int)value.ColorLabel == 5 ? null : (AssetColorLabel)((int)value.ColorLabel + 1);
+        _ = SaveClassificationAsync(value with { ColorLabel = next });
     }
 
     private void PlayerViewerHost_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)

@@ -831,7 +831,8 @@ public class UiLayoutTests
         Assert.Contains(app.Descendants(ns + "Style"), style => (string?)style.Attribute(x + "Key") == "LightflowContextMenuStyle");
         Assert.Contains(app.Descendants(ns + "Style"), style => (string?)style.Attribute(x + "Key") == "LightflowMenuItemStyle");
         Assert.Equal(
-            ["Add to Collection…", "Remove from this Collection", "Export", "Regenerate Previews", "Rename", "Camera LUT", "Creative LUT"],
+            ["Add to Collection…", "Remove from this Collection", "Rating", "Flag", "Color label", "Keywords",
+                "Export", "Regenerate Previews", "Rename", "Camera LUT", "Creative LUT"],
             contextMenu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
         Assert.Equal(["Export…", "Export Subclips…"], contextMenu.Elements(ns + "MenuItem").Single(item => (string?)item.Attribute("Header") == "Export")
             .Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());

@@ -34,7 +34,8 @@ internal sealed record BrowserAssetQueryState(
     BrowserAssetState Flags,
     bool HasCameraLut,
     bool HasCreativeLut,
-    int SubclipCount);
+    int SubclipCount,
+    AssetClassification? Classification = null);
 
 /// <summary>
 /// Projects durable, user-authored Catalog facts into the small state vocabulary consumed by Browser tiles.
@@ -110,6 +111,27 @@ internal sealed class CatalogBrowserAssetStateStore(Func<CatalogDatabaseSession?
                         Flags = states[subclipAssetId].Flags | BrowserAssetState.Subclips,
                         SubclipCount = count
                     };
+                }
+                subclipReader.Close();
+
+                command.Parameters.Clear();
+                parameters = batch.Select((id, index) =>
+                { var name = $"$classification{index}"; command.Parameters.AddWithValue(name, id.ToString("D")); return name; }).ToArray();
+                command.CommandText = $"SELECT AssetId,Rating,Flag,ColorLabel,Revision FROM MediaAssetClassifications WHERE AssetId IN ({string.Join(',', parameters)});";
+                using var classificationReader = command.ExecuteReader();
+                while (classificationReader.Read() && Guid.TryParse(classificationReader.GetString(0), out var classificationAssetId))
+                    states[classificationAssetId] = states[classificationAssetId] with { Classification = new(
+                        classificationAssetId, classificationReader.GetInt32(1), (AssetFlag)classificationReader.GetInt32(2),
+                        classificationReader.IsDBNull(3) ? null : (AssetColorLabel)classificationReader.GetInt32(3), [], classificationReader.GetInt64(4)) };
+                classificationReader.Close();
+
+                command.CommandText = $"SELECT AssetId,Keyword FROM MediaAssetKeywords WHERE AssetId IN ({string.Join(',', parameters)}) ORDER BY AssetId,Ordinal;";
+                using var keywordReader = command.ExecuteReader();
+                while (keywordReader.Read() && Guid.TryParse(keywordReader.GetString(0), out var keywordAssetId))
+                {
+                    var classification = states[keywordAssetId].Classification ?? AssetClassification.Empty(keywordAssetId);
+                    states[keywordAssetId] = states[keywordAssetId] with { Classification = classification with
+                        { Keywords = [.. classification.Keywords, keywordReader.GetString(1)] } };
                 }
             }
             return states;

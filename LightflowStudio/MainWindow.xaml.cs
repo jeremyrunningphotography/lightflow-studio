@@ -22,6 +22,8 @@ internal enum RightDrawerKind { None, Jobs, Subclips }
 
 public partial class MainWindow : Window
 {
+    private const double BrowserCollectionRowHeight = 26;
+    private const double BrowserCollectionIndent = 19;
     private static bool JobsRuntimeEnabled => true;
     private string? _ffmpeg;
     private string? _ffprobe;
@@ -67,6 +69,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<BrowserStorageEntry> _browserStorageEntries = [];
     private readonly BrowserGridModel _browserGrid = new();
     private readonly BrowserTreeModel _browserTree = new();
+    private readonly BrowserCollectionTreeModel _browserCollectionTree = new();
+    private readonly BrowserCollectionScopeService _browserCollectionScopes;
     private readonly BrowserNavigationSession _browserNavigation;
     private BrowserFolderState? _lastLoadedBrowserState;
     private readonly DispatcherTimer _batchFolderRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
@@ -88,13 +92,14 @@ public partial class MainWindow : Window
     private bool _synchronizingBrowserTree;
     /// <summary>The node most recently targeted by a passive (non-interactive) tree reveal, consumed by <see cref="BrowserFolderTree_SelectedItemChanged"/> the first time a matching event arrives. See that method's doc comment.</summary>
     private BrowserTreeNode? _browserTreeRevealedNode;
+    private BrowserTreeNode? _browserFolderPointerTarget;
     private readonly WorkspaceStateService _workspaceState;
     private readonly DispatcherTimer _workspaceSaveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private WindowState _lastNonMinimizedWindowState = WindowState.Normal;
     private readonly DispatcherTimer _browserSearchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private readonly DispatcherTimer _browserMetadataResortTimer = new() { Interval = TimeSpan.FromMilliseconds(800) };
     private bool _synchronizingBrowserQuery;
-    private (Guid RootId, string RelativeFolder)? _browserQueryScope;
+    private string? _browserQueryScope;
     private IDerivedWorkBatch? _activeBrowserDerivedWorkBatch;
     private readonly Dictionary<MediaTypeCategory, ToggleButton> _browserQuickFilterButtons = [];
     private BrowserThumbnailSize _browserThumbnailSize = BrowserGridLayout.DefaultThumbnailSize;
@@ -102,7 +107,21 @@ public partial class MainWindow : Window
     // #124: identity of the candidate media set currently populating the grid — folder + scope mode. Unlike
     // _browserQueryScope (folder only, used to decide whether BrowserQuery resets), a change here always
     // clears Browser selection, including toggling Include Subfolders while the same folder stays open.
-    private (Guid RootId, string RelativeFolder, BrowserScopeMode Mode)? _browserScopeIdentity;
+    private string? _browserScopeIdentity;
+    private BrowserCollectionScope? _activeCollectionScope;
+    private CancellationTokenSource? _collectionScopeCts;
+    private bool _synchronizingCollectionTree;
+    private BrowserCollectionNode? _browserCollectionTreeRevealedNode;
+    private System.Windows.Point _collectionDragStart;
+    private BrowserCollectionNode? _collectionDragNode;
+    private readonly BrowserCollectionDragSession _collectionDragSession = new();
+    private LowLevelMouseWheelHook? _collectionDragWheelHook;
+    private BrowserCollectionNode? _browserCollectionActionNode;
+    private readonly BrowserScopeSelection _browserScopeSelection = new();
+    private CollectionDropAdorner? _collectionDropAdorner;
+    private System.Windows.Documents.AdornerLayer? _collectionDropAdornerLayer;
+    private readonly BrowserCollectionDragHover _collectionDragHover = new();
+    private readonly DispatcherTimer _collectionDragHoverTimer = new() { Interval = BrowserCollectionDragHover.Dwell };
     private bool _synchronizingBrowserScopeMode;
     private readonly DispatcherTimer _browserRecursiveRefreshDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     /// <summary>Denominator as of the last recursive-progress report, so <see cref="ApplyRecursiveScopeLoadingProgress"/> can tell whether discovery is still actively growing. Reset alongside everything else in <see cref="ResetBrowserLoadingProgress"/>.</summary>
@@ -136,6 +155,7 @@ public partial class MainWindow : Window
             storage.MediaDiscovery, storage.MediaFolders, storage.BrowserRecursiveRoots, storage.RecursiveMediaDiscovery);
         _browserNavigation.EffectiveScopeDetermined += BrowserNavigation_EffectiveScopeDetermined;
         _browserNavigation.RecursiveScopeProgressChanged += BrowserNavigation_RecursiveScopeProgressChanged;
+        _browserCollectionScopes = new(storage.Collections, storage.MediaAssets, storage.MediaRoots, storage.MediaTypes, () => storage.DerivedWork);
         _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
         _jobRuntimeStore = new JobRuntimeStore<EncodingJobOptions, EncodingItemResult>(storage.Locations.JobRuntimePath);
@@ -188,6 +208,7 @@ public partial class MainWindow : Window
             _workspaceSaveTimer.Stop();
             _workspaceState.Save();
         };
+        _collectionDragHoverTimer.Tick += (_, _) => ExpandHoveredCollectionSet();
         _browserSearchDebounceTimer.Tick += (_, _) =>
         {
             _browserSearchDebounceTimer.Stop();
@@ -211,6 +232,7 @@ public partial class MainWindow : Window
             // scan look like it keeps restarting. Monitoring is a hint only — explicit Refresh stays
             // authoritative regardless — so it is safe to simply drop a hint that arrives mid-load rather than
             // rescheduling it.
+            if (_activeCollectionScope is not null) return;
             if (BrowserLoadingOverlay.Visibility == Visibility.Visible) return;
             _ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
         };
@@ -240,6 +262,7 @@ public partial class MainWindow : Window
                 JobsDrawerList.ItemsSource = _jobsDrawerCards;
                 MediaRootsList.ItemsSource = _mediaRoots;
                 BrowserFolderTree.ItemsSource = _browserTree.Roots;
+                BrowserCollectionTree.ItemsSource = _browserCollectionTree.Roots;
                 BrowserGridRows.ItemsSource = _browserGrid.Rows;
                 if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed += BrowserMonitoring_FolderRefreshed;
 
@@ -249,7 +272,11 @@ public partial class MainWindow : Window
                 // which the user is looking at yet. Measured on real hardware: this alone cut the delay
                 // before restoration starts from ~1.1s to ~0.16s. Restoration itself proceeds independently.
                 await RefreshBrowserStorageAsync();
-                _ = RestoreBrowserLocationAsync(_workspaceState.Current.Browser);
+                await RefreshCollectionsAsync();
+                if (_workspaceState.Current.Layout?.BrowserCollectionId is { } collectionId)
+                    _ = LoadCollectionScopeAsync(collectionId);
+                else
+                    _ = RestoreBrowserLocationAsync(_workspaceState.Current.Browser);
 
                 RefreshCatalogBackups();
                 RefreshHistory();
@@ -286,6 +313,8 @@ public partial class MainWindow : Window
             _activeJobExecutor?.TerminateAll();
             _browserEncodingHandoffCts?.Cancel();
             _browserEncodingHandoffCts = null;
+            _collectionScopeCts?.Cancel();
+            _collectionScopeCts?.Dispose();
             if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
             _browserNavigation.RecursiveScopeProgressChanged -= BrowserNavigation_RecursiveScopeProgressChanged;
             _browserNavigation.EffectiveScopeDetermined -= BrowserNavigation_EffectiveScopeDetermined;
@@ -293,6 +322,7 @@ public partial class MainWindow : Window
             _browserSearchDebounceTimer.Stop();
             _browserMetadataResortTimer.Stop();
             _browserRecursiveRefreshDebounceTimer.Stop();
+            _collectionDragHoverTimer.Stop();
             _browserNavigation.Dispose();
         };
     }
@@ -336,6 +366,10 @@ public partial class MainWindow : Window
             : BrowserGridLayout.DefaultThumbnailSize;
         ApplyBrowserThumbnailSize(savedThumbnailSize);
         ApplyBrowserViewMode(_workspaceState.GetBrowserViewMode(), persist: false);
+        var layout = _workspaceState.Current.Layout;
+        BrowserLocationsSectionToggle.IsChecked = layout?.BrowserLocationsSectionExpanded ?? true;
+        BrowserCollectionsSectionToggle.IsChecked = layout?.BrowserCollectionsSectionExpanded ?? true;
+        ApplyBrowserScopeSectionVisibility();
     }
 
     /// <summary>
@@ -427,6 +461,10 @@ public partial class MainWindow : Window
         _workspaceState.SetJobsDrawerWidth(_jobsDrawerWidth);
         _workspaceState.SetFullJobsListPaneWidth(FullJobsListColumn.ActualWidth);
         _workspaceState.SetBrowserThumbnailSizeLevel((int)_browserThumbnailSize);
+        _workspaceState.SetBrowserCollectionState(_activeCollectionScope?.Collection.CollectionId,
+            _browserCollectionTree.ExpandedSetIds());
+        _workspaceState.SetBrowserScopeSectionState(BrowserLocationsSectionToggle.IsChecked == true,
+            BrowserCollectionsSectionToggle.IsChecked == true);
         _workspaceState.Save();
     }
 
@@ -495,6 +533,7 @@ public partial class MainWindow : Window
     private void BrowserMonitoring_FolderRefreshed(object? sender, MediaFolderEnumerationRequest request) =>
         Dispatcher.BeginInvoke(() =>
         {
+            if (_activeCollectionScope is not null) return;
             var location = _browserNavigation.State.Location;
             if (location is null || location.RootId != request.RootId) return;
             if (_browserNavigation.State.Mode == BrowserScopeMode.IncludeSubfolders)
@@ -530,7 +569,28 @@ public partial class MainWindow : Window
     private async void BrowserFolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (_synchronizingBrowserTree || e.NewValue is not BrowserTreeNode { IsPlaceholder: false } node) return;
-        if (ReferenceEquals(node, _browserTreeRevealedNode)) { _browserTreeRevealedNode = null; return; }
+        var interactive = ReferenceEquals(_browserFolderPointerTarget, node) || BrowserFolderTree.IsKeyboardFocusWithin;
+        var activate = _browserScopeSelection.ShouldActivateFolder(node, _browserFolderPointerTarget,
+            BrowserFolderTree.IsKeyboardFocusWithin, _browserTreeRevealedNode);
+        _browserFolderPointerTarget = null;
+        if (!activate)
+        {
+            if (ReferenceEquals(node, _browserTreeRevealedNode)) _browserTreeRevealedNode = null;
+            if (_browserScopeSelection.Active == BrowserScopeSelectionKind.Collection)
+            {
+                _synchronizingBrowserTree = true;
+                try
+                {
+                    _browserTree.RestoreSelection(null);
+                    ClearRealizedTreeSelection(BrowserFolderTree);
+                }
+                finally { _synchronizingBrowserTree = false; }
+            }
+            return;
+        }
+        if (interactive && ReferenceEquals(node, _browserTreeRevealedNode)) _browserTreeRevealedNode = null;
+        ActivateFolderScopeSelection();
+        _collectionScopeCts?.Cancel();
         RequestBrowserTreeSelection(node);
         if (node.Storage is { Kind: BrowserStorageKind.ManagedRoot, RootId: { } rootId })
             await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToRootAsync(rootId));
@@ -807,21 +867,33 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private void BrowserFolderTree_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    private void BrowserScopePane_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (!ScrollBrowserScopeByWheel(e.Delta)) return;
+        e.Handled = true;
+    }
+
+    private bool ScrollBrowserScopeByWheel(int delta)
     {
         const double pixelsPerWheelNotch = 48;
-        var distance = -(e.Delta / (double)Mouse.MouseWheelDeltaForOneLine) * pixelsPerWheelNotch;
+        var distance = -(delta / (double)Mouse.MouseWheelDeltaForOneLine) * pixelsPerWheelNotch;
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && BrowserFolderScrollViewer.ScrollableWidth > 0)
-            BrowserFolderScrollViewer.ScrollToHorizontalOffset(
-                Math.Clamp(BrowserFolderScrollViewer.HorizontalOffset + distance, 0,
-                    BrowserFolderScrollViewer.ScrollableWidth));
+        {
+            var offset = Math.Clamp(BrowserFolderScrollViewer.HorizontalOffset + distance, 0,
+                BrowserFolderScrollViewer.ScrollableWidth);
+            if (Math.Abs(offset - BrowserFolderScrollViewer.HorizontalOffset) < 0.01) return false;
+            BrowserFolderScrollViewer.ScrollToHorizontalOffset(offset);
+        }
         else if (BrowserFolderScrollViewer.ScrollableHeight > 0)
-            BrowserFolderScrollViewer.ScrollToVerticalOffset(
-                Math.Clamp(BrowserFolderScrollViewer.VerticalOffset + distance, 0,
-                    BrowserFolderScrollViewer.ScrollableHeight));
+        {
+            var offset = Math.Clamp(BrowserFolderScrollViewer.VerticalOffset + distance, 0,
+                BrowserFolderScrollViewer.ScrollableHeight);
+            if (Math.Abs(offset - BrowserFolderScrollViewer.VerticalOffset) < 0.01) return false;
+            BrowserFolderScrollViewer.ScrollToVerticalOffset(offset);
+        }
         else
-            return;
-        e.Handled = true;
+            return false;
+        return true;
     }
 
     private async void BrowserGo_Click(object sender, RoutedEventArgs e) => await NavigateToEnteredBrowserPathAsync();
@@ -860,8 +932,16 @@ public partial class MainWindow : Window
         await RunBrowserNavigationAsync(() => _browserNavigation.UpAsync());
     }
 
-    private async void BrowserRefresh_Click(object sender, RoutedEventArgs e) =>
-        await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+    private async void BrowserRefresh_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeCollectionScope is { } collection)
+            await LoadCollectionScopeAsync(collection.Collection.CollectionId);
+        else
+            await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+    }
+
+    private void BrowserFolderTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+        _browserFolderPointerTarget = BrowserTreeNodeFromElement(e.OriginalSource as DependencyObject);
 
     /// <summary>
     /// #124 (revised): toggles Include Subfolders for whichever folder is currently open, via
@@ -970,8 +1050,15 @@ public partial class MainWindow : Window
 
     private void ApplyBrowserState(BrowserFolderState state)
     {
+        ActivateFolderScopeSelection();
+        _activeCollectionScope = null;
+        BrowserCurrentPath.IsReadOnly = false;
+        _workspaceState.SetBrowserCollectionState(null, _browserCollectionTree.ExpandedSetIds());
+        _synchronizingCollectionTree = true;
+        try { _browserCollectionTree.Select(null); }
+        finally { _synchronizingCollectionTree = false; }
         _lastLoadedBrowserState = state;
-        var scope = state.Location is { } scopeLocation ? (scopeLocation.RootId, scopeLocation.RelativeFolder) : ((Guid, string)?)null;
+        var scope = state.Location is { } scopeLocation ? $"folder:{scopeLocation.RootId:D}:{scopeLocation.RelativeFolder}" : null;
         // A genuinely new scope (different folder, or navigating away from/into a location entirely) starts
         // sort/filter/search over: the media-area toolbar narrows *the current* scope, not a remembered one.
         // Refreshing the same folder (monitoring, explicit Refresh) must not disturb the chosen view of it.
@@ -986,8 +1073,7 @@ public partial class MainWindow : Window
         // same-scope refresh (explicit Refresh, monitoring) leaves this identity unchanged and therefore
         // preserves selection via BrowserGridModel.Populate's existing key-based retention.
         var scopeIdentity = state.Location is { } identityLocation
-            ? (identityLocation.RootId, identityLocation.RelativeFolder, state.Mode)
-            : ((Guid, string, BrowserScopeMode)?)null;
+            ? $"folder:{identityLocation.RootId:D}:{identityLocation.RelativeFolder}:{state.Mode}" : null;
         // #110: a genuine navigation/scope change (not a same-folder refresh) leaves whatever asset the
         // Player/Viewer was showing behind — it belonged to the scope being left. A same-folder refresh
         // (explicit Refresh, a relevant monitoring event) reaches this with an unchanged scopeIdentity and
@@ -1148,6 +1234,7 @@ public partial class MainWindow : Window
     private void BrowserNavigation_EffectiveScopeDetermined(object? sender, BrowserEffectiveScope scope) =>
         Dispatcher.BeginInvoke(() =>
         {
+            if (_browserScopeSelection.Active == BrowserScopeSelectionKind.Collection) return;
             _browserRecursiveRoots = scope.RecursiveRoots;
             SyncBrowserTreeRecursiveIcons();
             SyncBrowserScopeToggle(scope.Mode);
@@ -1295,23 +1382,24 @@ public partial class MainWindow : Window
     private async Task ExportBrowserAssetsAsync(IReadOnlyList<Guid> assetIds)
     {
         var location = _lastLoadedBrowserState?.Location;
-        if (location is null)
+        if (location is null && _activeCollectionScope is null)
         {
             MessageBox.Show("The current Browser location is no longer available.", "Export",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         await ApplyEncodingHandoffAsync(new CapabilityInvocation("video.encode", assetIds,
-            new CapabilitySourceContext(location.RootId, location.RelativeFolder)));
+            location is null ? null : new CapabilitySourceContext(location.RootId, location.RelativeFolder)));
     }
 
     private async Task ExportBrowserSubclipsAsync()
     {
         var state = CurrentBrowserSelectionActions();
-        if (!state.CanExport || _lastLoadedBrowserState?.Location is not { } location) return;
+        if (!state.CanExport) return;
+        var location = _lastLoadedBrowserState?.Location;
         await ApplySubclipExportHandoffAsync(new(SubclipExportEntryKind.BrowserSources,
             _browserGrid.SelectedAssetIdsInBrowserOrder, SourceContext:
-                new CapabilitySourceContext(location.RootId, location.RelativeFolder),
+                location is null ? null : new CapabilitySourceContext(location.RootId, location.RelativeFolder),
             IncludeNoSubclipSources: true));
     }
 
@@ -1970,6 +2058,8 @@ public partial class MainWindow : Window
         var remaining = progress is null ? 0 : progress.Pending + progress.Running;
         BrowserStatusText.Text = BrowserStatusPresentation.Describe(_browserGrid.VisibleCount, _browserGrid.TotalCount,
             _browserGrid.SelectedKeys.Count, _browserGrid.SelectedTotalSizeBytes, isGenerating, remaining);
+        if (_activeCollectionScope is { UnavailableCount: > 0 } scope)
+            BrowserStatusText.Text += $" • {scope.UnavailableCount} unavailable";
         UpdateBrowserSelectionActions();
     }
 
@@ -3122,6 +3212,862 @@ public partial class MainWindow : Window
             _activityLogFile.TryAppend($"[App] Storage locations unavailable: {exception.Message}");
         }
     }
+
+    private async Task RefreshCollectionsAsync(Guid? selectedCollectionId = null)
+    {
+        try
+        {
+            var sets = new List<CollectionSet>();
+            var collections = new List<MediaCollection>();
+            var pending = new Queue<Guid?>();
+            pending.Enqueue(null);
+            while (pending.Count > 0)
+            {
+                var parent = pending.Dequeue();
+                var children = await _storage.Collections.ListSetsAsync(parent);
+                sets.AddRange(children);
+                foreach (var child in children) pending.Enqueue(child.CollectionSetId);
+                collections.AddRange(await _storage.Collections.ListCollectionsAsync(parent));
+            }
+            var expanded = _browserCollectionTree.Roots.Count == 0
+                ? (_workspaceState.Current.Layout?.BrowserExpandedCollectionSetIds ?? []).ToHashSet()
+                : _browserCollectionTree.ExpandedSetIds();
+            _synchronizingCollectionTree = true;
+            try { _browserCollectionTree.Populate(sets, collections, expanded, selectedCollectionId); }
+            finally { _synchronizingCollectionTree = false; }
+            _browserCollectionActionNode = null;
+            _browserCollectionTreeRevealedNode = _browserCollectionTree.SelectedNode;
+            BrowserCollectionsEmptyState.Visibility = sets.Count + collections.Count == 0
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or IOException)
+        {
+            BrowserCollectionsEmptyState.Text = $"Collections unavailable: {exception.Message}";
+            BrowserCollectionsEmptyState.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async void BrowserCollectionTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        if (_synchronizingCollectionTree || e.NewValue is not BrowserCollectionNode node) return;
+        if (ReferenceEquals(node, _browserCollectionTreeRevealedNode))
+        {
+            _browserCollectionTreeRevealedNode = null;
+            return;
+        }
+        _browserCollectionTree.Select(node);
+        _browserCollectionActionNode = node;
+        if (node.IsCollection)
+        {
+            ActivateCollectionScopeSelection(node);
+            await LoadCollectionScopeAsync(node.Id);
+        }
+    }
+
+    private void ActivateFolderScopeSelection()
+    {
+        _browserScopeSelection.ActivateFolder();
+        _synchronizingCollectionTree = true;
+        try
+        {
+            _browserCollectionTree.Select(null);
+            ClearRealizedTreeSelection(BrowserCollectionTree);
+        }
+        finally { _synchronizingCollectionTree = false; }
+    }
+
+    private void ActivateCollectionScopeSelection(BrowserCollectionNode? node)
+    {
+        _browserScopeSelection.ActivateCollection();
+        _synchronizingBrowserTree = true;
+        try
+        {
+            _browserTree.RestoreSelection(null);
+            ClearRealizedTreeSelection(BrowserFolderTree);
+        }
+        finally { _synchronizingBrowserTree = false; }
+        _synchronizingCollectionTree = true;
+        try { _browserCollectionTree.Select(node); }
+        finally { _synchronizingCollectionTree = false; }
+    }
+
+    private static void ClearRealizedTreeSelection(DependencyObject parent)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is TreeViewItem item && item.IsSelected) item.IsSelected = false;
+            ClearRealizedTreeSelection(child);
+        }
+    }
+
+    private void BrowserScopeSectionToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (BrowserLocationsSectionContent is null || BrowserCollectionsSectionContent is null) return;
+        ApplyBrowserScopeSectionVisibility();
+        _workspaceState.SetBrowserScopeSectionState(BrowserLocationsSectionToggle.IsChecked == true,
+            BrowserCollectionsSectionToggle.IsChecked == true);
+        _workspaceSaveTimer.Stop();
+        _workspaceSaveTimer.Start();
+    }
+
+    private void ApplyBrowserScopeSectionVisibility()
+    {
+        BrowserLocationsSectionContent.Visibility = BrowserLocationsSectionToggle.IsChecked == true
+            ? Visibility.Visible : Visibility.Collapsed;
+        BrowserCollectionsSectionContent.Visibility = BrowserCollectionsSectionToggle.IsChecked == true
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async Task LoadCollectionScopeAsync(Guid collectionId)
+    {
+        _collectionScopeCts?.Cancel();
+        _collectionScopeCts?.Dispose();
+        var request = _collectionScopeCts = new CancellationTokenSource();
+        var generation = ++_browserUiGeneration;
+        ShowBrowserLoadingState("Loading Collection…");
+        try
+        {
+            var scope = await _browserCollectionScopes.LoadAsync(collectionId, request.Token).ConfigureAwait(true);
+            if (request.IsCancellationRequested || generation != _browserUiGeneration) return;
+            ApplyCollectionScope(scope, generation);
+            await RefreshCollectionsAsync(collectionId);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException or IOException)
+        {
+            BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+            MessageBox.Show(exception.Message, "Collection could not be opened", MessageBoxButton.OK, MessageBoxImage.Warning);
+            await RefreshCollectionsAsync();
+        }
+    }
+
+    private void ApplyCollectionScope(BrowserCollectionScope scope, long generation)
+    {
+        ActivateCollectionScopeSelection(BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
+            .FirstOrDefault(node => node.Id == scope.Collection.CollectionId));
+        var queryScope = $"collection:{scope.Collection.CollectionId:D}";
+        if (queryScope != _browserQueryScope) ResetBrowserQueryToolbar();
+        _browserQueryScope = queryScope;
+        if (queryScope != _browserScopeIdentity && _browserPresentation == BrowserPresentationMode.PlayerViewer)
+            _ = ReturnToBrowserGridAsync(restoreScrollOffset: false, focusGrid: false);
+        if (queryScope != _browserScopeIdentity) _browserGrid.ClearSelection();
+        _browserScopeIdentity = queryScope;
+        _activeCollectionScope = scope;
+        _lastLoadedBrowserState = null;
+        _browserGrid.Populate(scope.Entries);
+        UpdateBrowserGridColumns();
+        _ = LoadCollectionPreviewStateAsync(scope.Assets.Select(item => item.AssetId).ToArray(), generation);
+        _ = LoadBrowserAssetStatesAsync(scope.Assets, generation, _browserAssetStateRevision);
+        AttachBrowserDerivedWork(scope.DerivedWork, generation);
+        BrowserCurrentPath.Text = $"Collections / {scope.Collection.Name}";
+        BrowserCurrentPath.IsReadOnly = true;
+        BrowserBackButton.IsEnabled = false;
+        BrowserForwardButton.IsEnabled = false;
+        BrowserUpButton.IsEnabled = false;
+        BrowserRefreshButton.IsEnabled = true;
+        BrowserQueryToolbar.IsEnabled = true;
+        BrowserIncludeSubfoldersButton.IsChecked = false;
+        BrowserIncludeSubfoldersButton.IsEnabled = false;
+        BrowserGridRows.Visibility = Visibility.Visible;
+        BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+        BrowserEmptyState.Visibility = _browserGrid.TotalCount == 0 ? Visibility.Visible : Visibility.Collapsed;
+        BrowserEmptyTitle.Text = "No assets in this Collection";
+        BrowserEmptyMessage.Text = "Asset membership is managed separately; Collection Sets organize Collections and are not asset scopes.";
+        UpdateBrowserStatusText();
+        _workspaceState.SetBrowserCollectionState(scope.Collection.CollectionId, _browserCollectionTree.ExpandedSetIds());
+        _workspaceSaveTimer.Stop();
+        _workspaceSaveTimer.Start();
+    }
+
+    private async Task LoadCollectionPreviewStateAsync(IReadOnlyList<Guid> assetIds, long generation)
+    {
+        if (_storage.Previews is not { } previews) return;
+        IReadOnlyDictionary<Guid, PreviewRecord> records;
+        try { records = await previews.GetManyAsync(assetIds).ConfigureAwait(true); }
+        catch { return; }
+        var metadataChanged = false;
+        foreach (var (assetId, record) in records)
+        {
+            if (generation != _browserUiGeneration) return;
+            if (record.ThumbnailState == PreviewComponentState.Current && record.ThumbnailRelativePath is { } relative)
+            {
+                try
+                {
+                    var absolute = MediaPathSemantics.ResolveContained(_storage.Locations.PreviewsDirectory, relative);
+                    if (File.Exists(absolute)) _browserGrid.ApplyThumbnail(assetId, absolute);
+                }
+                catch { }
+            }
+            if (record.MetadataState == PreviewComponentState.Current &&
+                _browserGrid.ApplyMetadata(assetId, BrowserQueryEngine.ExtractMetadata(record.MetadataJson)))
+                metadataChanged = true;
+        }
+        if (metadataChanged) _browserGrid.ReapplyQuery();
+        UpdateBrowserStatusText();
+    }
+
+    private async void BrowserNewCollection_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new NewCollectionDialog(BrowserCollectionPlacement.Options(_browserCollectionTree.Roots),
+            BrowserCollectionPlacement.SuggestedParent(_browserCollectionTree.SelectedNode)) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        await RunCollectionActionAsync(async () =>
+        {
+            var created = await _storage.Collections.CreateCollectionAsync(dialog.CollectionName, dialog.ParentSetId);
+            await LoadCollectionScopeAsync(created.CollectionId);
+        });
+    }
+
+    private async void BrowserNewCollectionSet_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new NewCollectionDialog(BrowserCollectionPlacement.Options(_browserCollectionTree.Roots),
+            BrowserCollectionPlacement.SuggestedParent(_browserCollectionTree.SelectedNode), createSet: true) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        await RunCollectionActionAsync(async () =>
+        {
+            var created = await _storage.Collections.CreateSetAsync(dialog.CollectionName, dialog.ParentSetId);
+            await RefreshCollectionsAsync();
+            if (BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
+                .FirstOrDefault(node => node.Id == created.CollectionSetId) is { } node) node.IsExpanded = true;
+        });
+    }
+
+    private async void BrowserCollectionRename_Click(object sender, RoutedEventArgs e)
+    {
+        if (CollectionActionNode is not { } node) return;
+        var name = TextEntryDialog.Prompt(this, $"Rename {(node.IsSet ? "Collection Set" : "Collection")}", "Name", node.Name);
+        if (name is null) return;
+        await RunCollectionActionAsync(async () =>
+        {
+            if (node.IsSet) await _storage.Collections.RenameSetAsync(node.Id, node.Revision, name);
+            else await _storage.Collections.RenameCollectionAsync(node.Id, node.Revision, name);
+            if (node.IsCollection && _activeCollectionScope?.Collection.CollectionId == node.Id)
+                await LoadCollectionScopeAsync(node.Id);
+            else
+                await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
+        });
+    }
+
+    private async void BrowserCollectionDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (CollectionActionNode is not { } node) return;
+        var kind = node.IsSet ? "Collection Set" : "Collection";
+        if (node.IsSet && node.Children.Count > 0)
+        {
+            NoticeDialog.Show(this, "Collection Set not empty", $"“{node.Name}” can’t be deleted yet.",
+                "Move or delete every nested Collection and Collection Set first, then try again.");
+            return;
+        }
+        var detail = node.IsCollection ? "This removes Collection membership only. Source media will not be deleted."
+            : "Only this empty organizational Set will be removed.";
+        if (!ConfirmationDialog.Confirm(this, $"Delete {kind}", $"Delete “{node.Name}”?", detail, null, "Delete")) return;
+        try
+        {
+            if (node.IsSet) await _storage.Collections.DeleteSetAsync(node.Id, node.Revision);
+            else await _storage.Collections.DeleteCollectionAsync(node.Id, node.Revision);
+            if (node.IsCollection && _activeCollectionScope?.Collection.CollectionId == node.Id)
+            {
+                _activeCollectionScope = null;
+                _browserGrid.Populate([]);
+                await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+            }
+            await RefreshCollectionsAsync();
+        }
+        catch (CollectionNotEmptyException)
+        {
+            NoticeDialog.Show(this, "Collection Set not empty", "This Collection Set can’t be deleted yet.",
+                "The hierarchy changed and the Set now contains an item. Refresh, empty it, and try again.");
+        }
+        catch (Exception exception) when (IsCollectionActionFailure(exception)) { await HandleCollectionActionFailureAsync(exception); }
+    }
+
+    private void BrowserCollectionTree_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        var node = CollectionActionNode;
+        if (node is null) { e.Handled = true; return; }
+        BrowserCollectionMoveMenu.Items.Clear();
+        AddCollectionMoveTarget("Top level", null);
+        var descendants = node.IsSet ? BrowserCollectionTreeModel.Flatten(node.Children).Select(child => child.Id).ToHashSet() : [];
+        foreach (var set in BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots).Where(item => item.IsSet &&
+                     item.Id != node.Id && !descendants.Contains(item.Id)))
+            AddCollectionMoveTarget(set.Name, set.Id);
+        var siblings = CollectionSiblings(node);
+        var index = siblings.FindIndex(item => item.Id == node.Id);
+        BrowserCollectionMoveUpMenu.IsEnabled = index > 0;
+        BrowserCollectionMoveDownMenu.IsEnabled = index >= 0 && index < siblings.Count - 1;
+    }
+
+    private void AddCollectionMoveTarget(string name, Guid? parent)
+    {
+        var item = new MenuItem { Header = name, Tag = parent?.ToString("D") ?? "root", Style = (Style)FindResource("LightflowMenuItemStyle") };
+        item.Click += BrowserCollectionMoveTarget_Click;
+        BrowserCollectionMoveMenu.Items.Add(item);
+    }
+
+    private async void BrowserCollectionMoveTarget_Click(object sender, RoutedEventArgs e)
+    {
+        if (CollectionActionNode is not { } node || sender is not MenuItem item) return;
+        var parent = Equals(item.Tag, "root") ? (Guid?)null : Guid.Parse((string)item.Tag);
+        if (node.ParentSetId == parent) return;
+        await RunCollectionActionAsync(async () =>
+        {
+            if (node.IsSet) await _storage.Collections.ReparentSetAsync(node.Id, node.Revision, parent);
+            else await _storage.Collections.ReparentCollectionAsync(node.Id, node.Revision, parent);
+            await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
+        });
+    }
+
+    private async void BrowserCollectionMoveUp_Click(object sender, RoutedEventArgs e) => await ReorderCollectionNodeAsync(-1);
+    private async void BrowserCollectionMoveDown_Click(object sender, RoutedEventArgs e) => await ReorderCollectionNodeAsync(1);
+
+    private async void BrowserCollectionSortByName_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string tag }) return;
+        var parts = tag.Split(':');
+        var parent = parts[0] == "root" ? (Guid?)null
+            : CollectionActionNode is { IsSet: true } set ? set.Id
+            : CollectionActionNode?.ParentSetId;
+        var descending = parts[^1] == "desc";
+        await SortCollectionChildrenByNameAsync(parent, descending);
+    }
+
+    private async Task SortCollectionChildrenByNameAsync(Guid? parent, bool descending)
+    {
+        var children = BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
+            .Where(node => node.ParentSetId == parent).ToArray();
+        var ordered = BrowserCollectionInteraction.OrderByName(children, descending);
+        await RunCollectionActionAsync(async () =>
+        {
+            if (ordered.Length > 1)
+                await _storage.Collections.ReorderHierarchyAsync(parent, ordered.Select(HierarchyOrder).ToArray());
+            await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
+        });
+    }
+
+    private async Task ReorderCollectionNodeAsync(int delta)
+    {
+        if (CollectionActionNode is not { } node) return;
+        var siblings = CollectionSiblings(node);
+        var index = siblings.FindIndex(item => item.Id == node.Id);
+        var target = index + delta;
+        if (index < 0 || target < 0 || target >= siblings.Count) return;
+        (siblings[index], siblings[target]) = (siblings[target], siblings[index]);
+        var order = siblings.Select(HierarchyOrder).ToArray();
+        await RunCollectionActionAsync(async () =>
+        {
+            await _storage.Collections.ReorderHierarchyAsync(node.ParentSetId, order);
+            await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
+        });
+    }
+
+    private List<BrowserCollectionNode> CollectionSiblings(BrowserCollectionNode node) =>
+        BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
+            .Where(item => item.ParentSetId == node.ParentSetId)
+            .OrderBy(item => item.Ordinal).ToList();
+
+    private void BrowserCollectionTreeItem_ExpansionChanged(object sender, RoutedEventArgs e)
+        => PersistCollectionExpansionState();
+
+    private void PersistCollectionExpansionState()
+    {
+        _workspaceState.SetBrowserCollectionState(_activeCollectionScope?.Collection.CollectionId,
+            _browserCollectionTree.ExpandedSetIds());
+        _workspaceSaveTimer.Stop();
+        _workspaceSaveTimer.Start();
+    }
+
+    private async Task RunCollectionActionAsync(Func<Task> action)
+    {
+        try { await action(); }
+        catch (Exception exception) when (IsCollectionActionFailure(exception)) { await HandleCollectionActionFailureAsync(exception); }
+    }
+
+    private static bool IsCollectionActionFailure(Exception exception) => exception is InvalidOperationException or
+        ArgumentException or IOException or UnauthorizedAccessException or SqliteException;
+
+    private async Task HandleCollectionActionFailureAsync(Exception exception)
+    {
+        if (exception is CollectionConcurrencyException)
+        {
+            await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
+            NoticeDialog.Show(this, "Collections changed", "The Collections hierarchy changed before this action finished.",
+                "The latest hierarchy is now shown. Review it and try the action again.");
+            return;
+        }
+        NoticeDialog.Show(this, "Collection was not changed", "Lightflow couldn’t complete that Collection action.", exception.Message);
+    }
+
+    private void BrowserCollectionTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _collectionDragStart = e.GetPosition(BrowserCollectionTree);
+        _collectionDragNode = CollectionNodeFromElement(e.OriginalSource as DependencyObject);
+    }
+
+    private void BrowserCollectionTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (CollectionNodeFromElement(e.OriginalSource as DependencyObject) is not { } clicked) return;
+        var target = BrowserCollectionInteraction.ContextTarget(clicked, _browserCollectionTree.SelectedNode);
+        _browserCollectionActionNode = target;
+    }
+
+    private void BrowserCollectionTree_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _collectionDragNode is null) return;
+        var current = e.GetPosition(BrowserCollectionTree);
+        if (Math.Abs(current.X - _collectionDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - _collectionDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        var dragged = _collectionDragNode;
+        _collectionDragNode = null;
+        _collectionDragSession.Begin(dragged);
+        _collectionDragWheelHook = LowLevelMouseWheelHook.TryInstall(RouteCollectionDragWheel);
+        try { System.Windows.DragDrop.DoDragDrop(BrowserCollectionTree, dragged, System.Windows.DragDropEffects.Move); }
+        finally
+        {
+            _collectionDragWheelHook?.Dispose();
+            _collectionDragWheelHook = null;
+            _collectionDragSession.End();
+            CancelCollectionDragHover();
+            ClearCollectionDropFeedback();
+        }
+    }
+
+    private bool RouteCollectionDragWheel(System.Windows.Point screenPoint, int delta)
+    {
+        var sidebarPoint = BrowserFolderScrollViewer.PointFromScreen(screenPoint);
+        var pointerOverSidebar = sidebarPoint.X >= 0 && sidebarPoint.Y >= 0 &&
+            sidebarPoint.X <= BrowserFolderScrollViewer.ActualWidth &&
+            sidebarPoint.Y <= BrowserFolderScrollViewer.ActualHeight;
+        return _collectionDragSession.RouteWheel(pointerOverSidebar,
+            () => ScrollBrowserScopeByWheel(delta), dragged =>
+            {
+                CancelCollectionDragHover();
+                ClearCollectionDropFeedback();
+                _ = Dispatcher.BeginInvoke(DispatcherPriority.Render,
+                    () => RefreshCollectionDragFeedback(dragged, screenPoint));
+            });
+    }
+
+    private void RefreshCollectionDragFeedback(BrowserCollectionNode dragged, System.Windows.Point screenPoint)
+    {
+        if (!ReferenceEquals(_collectionDragSession.Payload, dragged)) return;
+        var position = BrowserCollectionTree.PointFromScreen(screenPoint);
+        var container = CollectionTreeItemAtHeader(position);
+        var target = container?.DataContext as BrowserCollectionNode;
+        var drop = target is not null && container is not null
+            ? BrowserCollectionInteraction.DropAt(dragged, target,
+                HeaderRelativeY(position, container)) : null;
+        if (drop is { Kind: BrowserCollectionDropKind.InsertBefore or BrowserCollectionDropKind.InsertAfter } &&
+            BrowserCollectionInteraction.ResolveInsertion(_browserCollectionTree.Roots, dragged, drop.Target,
+                drop.Kind) is null) drop = null;
+        if (drop is not null)
+        {
+            TrackCollectionDragHover(dragged, drop);
+            ShowCollectionDropFeedback(container, dragged, drop);
+            return;
+        }
+        if (TryResolveTrailingInsertion(dragged, position, out var trailing, out var line))
+        {
+            CancelCollectionDragHover();
+            ShowTrailingCollectionDropFeedback(line, trailing.Destination);
+        }
+    }
+
+    private void BrowserCollectionTree_DragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        var dragged = e.Data.GetData(typeof(BrowserCollectionNode)) as BrowserCollectionNode;
+        var container = CollectionTreeItemAtHeader(e.GetPosition(BrowserCollectionTree));
+        var target = container?.DataContext as BrowserCollectionNode;
+        var drop = dragged is not null && target is not null && container is not null
+            ? BrowserCollectionInteraction.DropAt(dragged, target, HeaderRelativeY(e, container)) : null;
+        if (dragged is not null && drop is { Kind: BrowserCollectionDropKind.InsertBefore or BrowserCollectionDropKind.InsertAfter } &&
+            BrowserCollectionInteraction.ResolveInsertion(_browserCollectionTree.Roots, dragged, drop.Target, drop.Kind) is null)
+            drop = null;
+        if (dragged is not null && drop is null &&
+            TryResolveTrailingInsertion(dragged, e.GetPosition(BrowserCollectionTree), out var trailing, out var line))
+        {
+            CancelCollectionDragHover();
+            ShowTrailingCollectionDropFeedback(line, trailing.Destination);
+            e.Effects = System.Windows.DragDropEffects.Move;
+            e.Handled = true;
+            return;
+        }
+        TrackCollectionDragHover(dragged, drop);
+        ShowCollectionDropFeedback(container, dragged, drop);
+        e.Effects = drop is { Kind: not BrowserCollectionDropKind.None }
+            ? System.Windows.DragDropEffects.Move : System.Windows.DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private static BrowserTreeNode? BrowserTreeNodeFromElement(DependencyObject? element)
+    {
+        while (element is not null)
+        {
+            if (element is FrameworkElement { DataContext: BrowserTreeNode node }) return node;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return null;
+    }
+
+    private void BrowserCollectionTree_DragLeave(object sender, System.Windows.DragEventArgs e)
+    {
+        var position = e.GetPosition(BrowserCollectionTree);
+        if (position.X >= 0 && position.Y >= 0 && position.X <= BrowserCollectionTree.ActualWidth &&
+            position.Y <= BrowserCollectionTree.ActualHeight) return;
+        CancelCollectionDragHover();
+        ClearCollectionDropFeedback();
+    }
+    private async void BrowserCollectionTree_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        var dragged = e.Data.GetData(typeof(BrowserCollectionNode)) as BrowserCollectionNode;
+        var container = CollectionTreeItemAtHeader(e.GetPosition(BrowserCollectionTree));
+        var target = container?.DataContext as BrowserCollectionNode;
+        var drop = dragged is not null && target is not null && container is not null
+            ? BrowserCollectionInteraction.DropAt(dragged, target, HeaderRelativeY(e, container)) : null;
+        CancelCollectionDragHover();
+        ClearCollectionDropFeedback();
+        if (dragged is not null && drop is null &&
+            TryResolveTrailingInsertion(dragged, e.GetPosition(BrowserCollectionTree), out var trailing, out _))
+        {
+            e.Handled = true;
+            await ReorderCollectionNodeAsync(dragged, trailing.Destination);
+            return;
+        }
+        if (dragged is null || drop is null || drop.Kind == BrowserCollectionDropKind.None) return;
+        if (drop.Kind == BrowserCollectionDropKind.IntoSet) await MoveIntoCollectionSetAsync(dragged, drop.Target);
+        else if (BrowserCollectionInteraction.ResolveInsertion(_browserCollectionTree.Roots, dragged, drop.Target, drop.Kind)
+                 is { } destination)
+            await ReorderCollectionNodeAsync(dragged, destination);
+        e.Handled = true;
+    }
+
+    private static double HeaderRelativeY(System.Windows.DragEventArgs e, TreeViewItem container) =>
+        e.GetPosition(container).Y / Math.Max(1, Math.Min(BrowserCollectionRowHeight, container.ActualHeight));
+
+    private double HeaderRelativeY(System.Windows.Point treePosition, TreeViewItem container)
+    {
+        var origin = container.TranslatePoint(new System.Windows.Point(0, 0), BrowserCollectionTree);
+        return (treePosition.Y - origin.Y) /
+            Math.Max(1, Math.Min(BrowserCollectionRowHeight, container.ActualHeight));
+    }
+
+    private TreeViewItem? CollectionTreeItemAtHeader(System.Windows.Point position) =>
+        CollectionTreeItems(BrowserCollectionTree).FirstOrDefault(item =>
+        {
+            var origin = item.TranslatePoint(new System.Windows.Point(0, 0), BrowserCollectionTree);
+            var row = new Rect(origin.X, origin.Y, Math.Max(0, BrowserCollectionTree.ActualWidth - origin.X),
+                Math.Min(BrowserCollectionRowHeight, item.ActualHeight));
+            return row.Contains(position);
+        });
+
+    private bool TryResolveTrailingInsertion(BrowserCollectionNode dragged, System.Windows.Point position,
+        out BrowserCollectionInsertionChoice choice, out CollectionInsertionLine line)
+    {
+        choice = null!;
+        line = null!;
+        var containers = CollectionTreeItems(BrowserCollectionTree)
+            .Where(container => container.DataContext is BrowserCollectionNode)
+            .ToDictionary(container => ((BrowserCollectionNode)container.DataContext).Id);
+        var lastItem = CollectionTreeItems(BrowserCollectionTree).LastOrDefault();
+        if (lastItem is null) return false;
+        var lastOrigin = lastItem.TranslatePoint(new System.Windows.Point(0, 0), BrowserCollectionTree);
+        var lastBottom = lastOrigin.Y + Math.Min(BrowserCollectionRowHeight, lastItem.ActualHeight);
+        if (position.X < 0 || position.X > BrowserCollectionTree.ActualWidth ||
+            position.Y < lastBottom || position.Y > BrowserCollectionTree.ActualHeight) return false;
+
+        var candidates = BrowserCollectionInteraction.ResolveTrailingInsertionChoices(
+                _browserCollectionTree.Roots, dragged)
+            .Where(candidate => containers.ContainsKey(candidate.Target.Id))
+            .Select(candidate => (Choice: candidate,
+                Indent: CollectionInsertionIndent(candidate, containers[candidate.Target.Id])))
+            .ToArray();
+        var active = BrowserCollectionInteraction.SelectTrailingInsertionChoice(candidates, position.X);
+        if (active is null) return false;
+        choice = active;
+        var item = containers[active.Target.Id];
+        line = new CollectionInsertionLine(item, active.Kind, active.Destination, lastBottom,
+            CollectionInsertionIndent(active, item));
+        return true;
+    }
+
+    private double CollectionInsertionIndent(BrowserCollectionInsertionChoice choice, TreeViewItem item)
+    {
+        var left = item.TranslatePoint(new System.Windows.Point(0, 0), BrowserCollectionTree).X;
+        return choice.Destination.ParentSetId == choice.Target.Id ? left + BrowserCollectionIndent : left;
+    }
+
+    private static IEnumerable<TreeViewItem> CollectionTreeItems(ItemsControl parent)
+    {
+        foreach (var item in parent.Items)
+        {
+            if (parent.ItemContainerGenerator.ContainerFromItem(item) is not TreeViewItem container) continue;
+            yield return container;
+            if (!container.IsExpanded) continue;
+            foreach (var child in CollectionTreeItems(container)) yield return child;
+        }
+    }
+
+    private void TrackCollectionDragHover(BrowserCollectionNode? dragged, BrowserCollectionDrop? drop)
+    {
+        var changed = _collectionDragHover.Track(dragged, drop?.Target, drop?.Kind ?? BrowserCollectionDropKind.None,
+            DateTimeOffset.UtcNow);
+        if (_collectionDragHover.PendingTarget is null)
+        {
+            _collectionDragHoverTimer.Stop();
+            return;
+        }
+        if (!changed) return;
+        _collectionDragHoverTimer.Stop();
+        _collectionDragHoverTimer.Start();
+    }
+
+    private void ExpandHoveredCollectionSet()
+    {
+        _collectionDragHoverTimer.Stop();
+        if (_collectionDragHover.TakeReady(DateTimeOffset.UtcNow) is not { } target) return;
+        target.IsExpanded = true;
+        PersistCollectionExpansionState();
+    }
+
+    private void CancelCollectionDragHover()
+    {
+        _collectionDragHoverTimer.Stop();
+        _collectionDragHover.Reset();
+    }
+
+    private async Task ReorderCollectionNodeAsync(BrowserCollectionNode dragged,
+        BrowserCollectionInsertionDestination destination)
+    {
+        var destinationParent = destination.ParentSetId;
+        var siblings = BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
+            .Where(node => node.ParentSetId == destinationParent && node.Id != dragged.Id)
+            .OrderBy(node => node.Ordinal).ToList();
+        await RunCollectionActionAsync(async () =>
+        {
+            var moved = dragged.ParentSetId == destinationParent
+                ? HierarchyOrder(dragged)
+                : dragged.IsSet
+                    ? new CollectionHierarchyOrder(CollectionHierarchyItemKind.Set, dragged.Id,
+                        (await _storage.Collections.ReparentSetAsync(dragged.Id, dragged.Revision, destinationParent)).Revision)
+                    : new CollectionHierarchyOrder(CollectionHierarchyItemKind.Collection, dragged.Id,
+                        (await _storage.Collections.ReparentCollectionAsync(dragged.Id, dragged.Revision, destinationParent)).Revision);
+            var order = siblings.Select(HierarchyOrder).ToList();
+            order.Insert(Math.Clamp(destination.Ordinal, 0, order.Count), moved);
+            await _storage.Collections.ReorderHierarchyAsync(destinationParent, order);
+            await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
+        });
+    }
+
+    private static CollectionHierarchyOrder HierarchyOrder(BrowserCollectionNode node) => new(
+        node.IsSet ? CollectionHierarchyItemKind.Set : CollectionHierarchyItemKind.Collection,
+        node.Id, node.Revision);
+
+    private void ShowCollectionDropFeedback(TreeViewItem? item, BrowserCollectionNode? dragged,
+        BrowserCollectionDrop? drop)
+    {
+        var kind = drop?.Kind ?? BrowserCollectionDropKind.None;
+        if (item is null || kind == BrowserCollectionDropKind.None) { ClearCollectionDropFeedback(); return; }
+        _collectionDropAdornerLayer ??= System.Windows.Documents.AdornerLayer.GetAdornerLayer(BrowserCollectionTree);
+        if (_collectionDropAdornerLayer is null) return;
+        if (_collectionDropAdorner is null)
+        {
+            _collectionDropAdorner = new CollectionDropAdorner(BrowserCollectionTree,
+                (System.Windows.Media.Brush)FindResource("ShellFocusBrush"));
+            _collectionDropAdornerLayer.Add(_collectionDropAdorner);
+        }
+        if (kind == BrowserCollectionDropKind.IntoSet)
+        {
+            _collectionDropAdorner.UpdateTarget(item);
+            return;
+        }
+        if (dragged is null || drop is null ||
+            BrowserCollectionInteraction.ResolveInsertion(_browserCollectionTree.Roots, dragged, drop.Target, kind)
+                is not { } activeDestination)
+        {
+            ClearCollectionDropFeedback();
+            return;
+        }
+        var containers = CollectionTreeItems(BrowserCollectionTree)
+            .Where(container => container.DataContext is BrowserCollectionNode)
+            .ToDictionary(container => ((BrowserCollectionNode)container.DataContext).Id);
+        var lines = BrowserCollectionInteraction.ResolveInsertionChoices(
+                _browserCollectionTree.Roots, dragged, drop.Target, kind)
+            .Where(choice => choice.Destination == activeDestination)
+            .Where(choice => containers.ContainsKey(choice.Target.Id))
+            .Select(choice => new CollectionInsertionLine(containers[choice.Target.Id], choice.Kind, choice.Destination))
+            .ToArray();
+        if (lines.Length == 0) { ClearCollectionDropFeedback(); return; }
+        _collectionDropAdorner.UpdateLines(lines, activeDestination);
+    }
+
+    private void ShowTrailingCollectionDropFeedback(CollectionInsertionLine line,
+        BrowserCollectionInsertionDestination destination)
+    {
+        _collectionDropAdornerLayer ??= System.Windows.Documents.AdornerLayer.GetAdornerLayer(BrowserCollectionTree);
+        if (_collectionDropAdornerLayer is null) return;
+        if (_collectionDropAdorner is null)
+        {
+            _collectionDropAdorner = new CollectionDropAdorner(BrowserCollectionTree,
+                (System.Windows.Media.Brush)FindResource("ShellFocusBrush"));
+            _collectionDropAdornerLayer.Add(_collectionDropAdorner);
+        }
+        _collectionDropAdorner.UpdateLines([line], destination);
+    }
+
+    private void ClearCollectionDropFeedback()
+    {
+        if (_collectionDropAdorner is not null) _collectionDropAdornerLayer?.Remove(_collectionDropAdorner);
+        _collectionDropAdorner = null;
+        _collectionDropAdornerLayer = null;
+    }
+
+    private sealed record CollectionInsertionLine(TreeViewItem Item, BrowserCollectionDropKind Edge,
+        BrowserCollectionInsertionDestination Destination, double? ExplicitY = null, double? ExplicitLeft = null);
+
+    private sealed class CollectionDropAdorner(
+        UIElement adornedElement, System.Windows.Media.Brush accent)
+        : System.Windows.Documents.Adorner(adornedElement)
+    {
+        private Rect _row;
+        private BrowserCollectionDropKind _kind;
+        private IReadOnlyList<(Rect Row, BrowserCollectionDropKind Edge,
+            BrowserCollectionInsertionDestination Destination, double? ExplicitY, double? ExplicitLeft)> _lines = [];
+        private BrowserCollectionInsertionDestination? _activeDestination;
+
+        public void UpdateTarget(TreeViewItem item)
+        {
+            var origin = item.TranslatePoint(new System.Windows.Point(0, 0), AdornedElement);
+            _row = new Rect(origin.X, origin.Y, Math.Max(item.ActualWidth, AdornedElement.RenderSize.Width - origin.X),
+                Math.Min(BrowserCollectionRowHeight, item.ActualHeight));
+            _kind = BrowserCollectionDropKind.IntoSet;
+            _lines = [];
+            _activeDestination = null;
+            InvalidateVisual();
+        }
+
+        public void UpdateLines(IReadOnlyList<CollectionInsertionLine> lines,
+            BrowserCollectionInsertionDestination activeDestination)
+        {
+            _kind = BrowserCollectionDropKind.None;
+            _row = Rect.Empty;
+            _activeDestination = activeDestination;
+            _lines = lines.Select(line =>
+            {
+                var origin = line.Item.TranslatePoint(new System.Windows.Point(0, 0), AdornedElement);
+                var row = new Rect(origin.X, origin.Y,
+                    Math.Max(line.Item.ActualWidth, AdornedElement.RenderSize.Width - origin.X),
+                    Math.Min(BrowserCollectionRowHeight, line.Item.ActualHeight));
+                return (row, line.Edge, line.Destination, line.ExplicitY, line.ExplicitLeft);
+            }).ToArray();
+            InvalidateVisual();
+        }
+
+        protected override void OnRender(DrawingContext drawingContext)
+        {
+            if (_kind == BrowserCollectionDropKind.IntoSet)
+            {
+                var target = new Rect(_row.Left + 1.5, _row.Top + 1.5,
+                    Math.Max(0, _row.Width - 3), Math.Max(0, _row.Height - 3));
+                drawingContext.DrawRoundedRectangle(null, new System.Windows.Media.Pen(accent, 2), target, 5, 5);
+                return;
+            }
+            foreach (var line in _lines)
+            {
+                var dual = _lines.Count > 1;
+                var y = line.ExplicitY ??
+                    (line.Edge == BrowserCollectionDropKind.InsertBefore ? line.Row.Top : line.Row.Bottom);
+                if (dual) y += line.Edge == BrowserCollectionDropKind.InsertBefore ? 2 : -2;
+                var active = line.Destination == _activeDestination;
+                var pen = new System.Windows.Media.Pen(accent, active ? 4 : 2)
+                {
+                    StartLineCap = PenLineCap.Round,
+                    EndLineCap = PenLineCap.Round
+                };
+                drawingContext.DrawLine(pen, new System.Windows.Point(line.ExplicitLeft ?? line.Row.Left, y),
+                    new System.Windows.Point(line.Row.Right, y));
+            }
+        }
+
+        protected override HitTestResult? HitTestCore(PointHitTestParameters hitTestParameters) => null;
+    }
+
+    private void BrowserCollectionsTopLevel_DragEnter(object sender, System.Windows.DragEventArgs e) =>
+        BrowserCollectionsTopLevel_DragOver(e);
+    private void BrowserCollectionsTopLevel_DragLeave(object sender, System.Windows.DragEventArgs e) =>
+        ((FrameworkElement)sender).Opacity = 1;
+    private void BrowserCollectionsTopLevel_DragOver(System.Windows.DragEventArgs e)
+    {
+        var dragged = e.Data.GetData(typeof(BrowserCollectionNode)) as BrowserCollectionNode;
+        e.Effects = dragged is not null && BrowserCollectionInteraction.CanDrop(dragged, null)
+            ? System.Windows.DragDropEffects.Move : System.Windows.DragDropEffects.None;
+        BrowserCollectionsTopLevelDropTarget.Opacity = e.Effects == System.Windows.DragDropEffects.Move ? 0.65 : 1;
+        e.Handled = true;
+    }
+    private async void BrowserCollectionsTopLevel_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        ((FrameworkElement)sender).Opacity = 1;
+        var dragged = e.Data.GetData(typeof(BrowserCollectionNode)) as BrowserCollectionNode;
+        if (dragged is null || !BrowserCollectionInteraction.CanDrop(dragged, null)) return;
+        await ReparentCollectionNodeAsync(dragged, null);
+        e.Handled = true;
+    }
+
+    private async Task ReparentCollectionNodeAsync(BrowserCollectionNode node, Guid? parent) =>
+        await RunCollectionActionAsync(async () =>
+        {
+            if (node.IsSet) await _storage.Collections.ReparentSetAsync(node.Id, node.Revision, parent);
+            else await _storage.Collections.ReparentCollectionAsync(node.Id, node.Revision, parent);
+            await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
+        });
+
+    private async Task MoveIntoCollectionSetAsync(BrowserCollectionNode node, BrowserCollectionNode target)
+    {
+        var expandAfterMove = !target.IsExpanded;
+        await RunCollectionActionAsync(async () =>
+        {
+            // The Catalog reparent contracts append to the destination's mixed children. Direct row drops
+            // intentionally use that default; exact child placement belongs to the insertion-line gesture.
+            if (node.IsSet) await _storage.Collections.ReparentSetAsync(node.Id, node.Revision, target.Id);
+            else await _storage.Collections.ReparentCollectionAsync(node.Id, node.Revision, target.Id);
+            if (expandAfterMove)
+            {
+                target.IsExpanded = true;
+                PersistCollectionExpansionState();
+            }
+            await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
+            if (expandAfterMove) await RevealCollectionNodeAsync(node.Id);
+        });
+    }
+
+    private async Task RevealCollectionNodeAsync(Guid nodeId)
+    {
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+        BrowserCollectionTree.UpdateLayout();
+        var node = BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
+            .FirstOrDefault(item => item.Id == nodeId);
+        if (node is null) return;
+        var container = CollectionTreeItems(BrowserCollectionTree)
+            .FirstOrDefault(item => ReferenceEquals(item.DataContext, node));
+        if (container is null) return;
+        var visiblePosition = container.TranslatePoint(new System.Windows.Point(0, 0), BrowserFolderScrollViewer);
+        var rowTop = BrowserFolderScrollViewer.VerticalOffset + visiblePosition.Y;
+        var verticalOffset = BrowserTreeScroll.RevealVerticalOffset(BrowserFolderScrollViewer.VerticalOffset,
+            BrowserFolderScrollViewer.ViewportHeight, rowTop, BrowserCollectionRowHeight);
+        BrowserFolderScrollViewer.ScrollToVerticalOffset(
+            Math.Min(verticalOffset, BrowserFolderScrollViewer.ScrollableHeight));
+    }
+
+    private static BrowserCollectionNode? CollectionNodeFromElement(DependencyObject? element)
+    {
+        while (element is not null)
+        {
+            if (element is FrameworkElement { DataContext: BrowserCollectionNode node }) return node;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return null;
+    }
+
+    private BrowserCollectionNode? CollectionActionNode => _browserCollectionActionNode ?? _browserCollectionTree.SelectedNode;
 
     private async void AddMediaRoot_Click(object sender, RoutedEventArgs e)
     {

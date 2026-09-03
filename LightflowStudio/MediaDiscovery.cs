@@ -172,7 +172,10 @@ internal sealed record MediaFolderEntry(
     bool IsDirectory,
     MediaTypeClassification MediaType,
     long? FileSizeBytes,
-    DateTimeOffset LastWriteUtc);
+    DateTimeOffset LastWriteUtc,
+    string? StableKey = null,
+    Guid? AssetId = null,
+    bool IsAvailable = true);
 
 internal enum MediaFolderEnumerationStatus
 {

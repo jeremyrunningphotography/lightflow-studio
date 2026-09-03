@@ -110,9 +110,9 @@ public sealed class BrowserTreeInteractionRegressionTests
         // defers it, since that reveal's own navigation (if any) is already being driven independently and
         // must never be raced by a second, competing one here.
         var body = MethodBody("private async void BrowserFolderTree_SelectedItemChanged");
-        Assert.Contains(
-            "if (ReferenceEquals(node, _browserTreeRevealedNode)) { _browserTreeRevealedNode = null; return; }",
-            body);
+        Assert.Contains("_browserScopeSelection.ShouldActivateFolder", body);
+        Assert.Contains("if (!activate)", body);
+        Assert.Contains("ReferenceEquals(node, _browserTreeRevealedNode)", body);
 
         // Set only by the two passive-reveal overloads — never by the interactive-click overload, which is
         // always immediately followed by an actual navigation call from its own caller.
@@ -228,7 +228,8 @@ public sealed class BrowserTreeInteractionRegressionTests
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
 
-        var template = document.Descendants(ns + "HierarchicalDataTemplate").Single();
+        var template = document.Descendants(ns + "HierarchicalDataTemplate")
+            .Single(element => (string?)element.Attribute("DataType") == "{x:Type local:BrowserTreeNode}");
         var iconTriggers = template.Descendants(ns + "DataTrigger")
             .Where(trigger => (string?)trigger.Attribute("Binding") is { } binding &&
                 (binding.Contains("IsSelected") || binding.Contains("IsRecursiveScope") || binding.Contains("IsFilledFolderIcon")))

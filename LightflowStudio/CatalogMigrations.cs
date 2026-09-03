@@ -22,7 +22,8 @@ internal static class CatalogMigrations
         new(7, "Durable named and ordered asset Subclips", ApplyVersion7),
         new(8, "Unique exact Subclip ranges", ApplyVersion8),
         new(9, "Durable preferred Browser Preview frame timestamps", ApplyVersion9),
-        new(10, "Durable Collections, Collection Sets, and membership", ApplyVersion10)
+        new(10, "Durable Collections, Collection Sets, and membership", ApplyVersion10),
+        new(11, "Mixed Collection hierarchy sibling order", ApplyVersion11)
     ];
 
     private static void ApplyVersion1(
@@ -442,6 +443,67 @@ internal static class CatalogMigrations
                 ON CollectionAssets (AssetId, CollectionId);
             CREATE INDEX IX_CollectionAssets_Collection_Order
                 ON CollectionAssets (CollectionId, Ordinal, AssetId);
+            """);
+    }
+
+    private static void ApplyVersion11(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CatalogMigrationContext context)
+    {
+        // Version 10 kept dense Set and Collection ordinals independently and #213 rendered Sets first.
+        // Preserve that exact visible order deterministically while evolving Ordinal into one mixed sequence.
+        Execute(connection, transaction, """
+            UPDATE Collections SET Ordinal = Ordinal + 1000000000;
+            UPDATE Collections AS collection
+            SET Ordinal = Ordinal - 1000000000 + (
+                SELECT count(*) FROM CollectionSets AS sibling
+                WHERE sibling.ParentCollectionSetId IS collection.ParentCollectionSetId
+            );
+
+            CREATE TRIGGER CollectionSets_MixedOrdinal_Insert
+            BEFORE INSERT ON CollectionSets
+            WHEN EXISTS (
+                SELECT 1 FROM Collections AS sibling
+                WHERE sibling.ParentCollectionSetId IS NEW.ParentCollectionSetId
+                  AND sibling.Ordinal = NEW.Ordinal
+            )
+            BEGIN
+                SELECT RAISE(ABORT, 'duplicate mixed Collection hierarchy ordinal');
+            END;
+
+            CREATE TRIGGER CollectionSets_MixedOrdinal_Update
+            BEFORE UPDATE OF ParentCollectionSetId, Ordinal ON CollectionSets
+            WHEN EXISTS (
+                SELECT 1 FROM Collections AS sibling
+                WHERE sibling.ParentCollectionSetId IS NEW.ParentCollectionSetId
+                  AND sibling.Ordinal = NEW.Ordinal
+            )
+            BEGIN
+                SELECT RAISE(ABORT, 'duplicate mixed Collection hierarchy ordinal');
+            END;
+
+            CREATE TRIGGER Collections_MixedOrdinal_Insert
+            BEFORE INSERT ON Collections
+            WHEN EXISTS (
+                SELECT 1 FROM CollectionSets AS sibling
+                WHERE sibling.ParentCollectionSetId IS NEW.ParentCollectionSetId
+                  AND sibling.Ordinal = NEW.Ordinal
+            )
+            BEGIN
+                SELECT RAISE(ABORT, 'duplicate mixed Collection hierarchy ordinal');
+            END;
+
+            CREATE TRIGGER Collections_MixedOrdinal_Update
+            BEFORE UPDATE OF ParentCollectionSetId, Ordinal ON Collections
+            WHEN EXISTS (
+                SELECT 1 FROM CollectionSets AS sibling
+                WHERE sibling.ParentCollectionSetId IS NEW.ParentCollectionSetId
+                  AND sibling.Ordinal = NEW.Ordinal
+            )
+            BEGIN
+                SELECT RAISE(ABORT, 'duplicate mixed Collection hierarchy ordinal');
+            END;
             """);
     }
 

@@ -367,15 +367,17 @@ public class UiLayoutTests
         Assert.Equal("Auto", (string?)scroller.Attribute("HorizontalScrollBarVisibility"));
         Assert.Equal("Auto", (string?)scroller.Attribute("VerticalScrollBarVisibility"));
         Assert.Equal("{StaticResource BrowserFolderScrollViewerStyle}", (string?)scroller.Attribute("Style"));
-        Assert.Equal("BrowserFolderTree_PreviewMouseWheel", (string?)tree.Attribute("PreviewMouseWheel"));
+        Assert.Null(tree.Attribute("PreviewMouseWheel"));
+        Assert.Equal("BrowserScopePane_PreviewMouseWheel", (string?)tree.Ancestors(ns + "ScrollViewer").Single().Attribute("PreviewMouseWheel"));
         Assert.Equal("{x:Null}", (string?)tree.Attribute("FocusVisualStyle"));
         Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
             attribute.Name.LocalName == "ScrollViewer.HorizontalScrollBarVisibility").Value);
         Assert.Equal("Disabled", tree.Attributes().Single(attribute =>
             attribute.Name.LocalName == "ScrollViewer.VerticalScrollBarVisibility").Value);
-        // #124 (revised): the recursive-scope outline is gone — folder icons communicate recursive-mode
-        // inheritance instead — so the TreeView is once again the ScrollViewer's direct content child.
-        Assert.Equal(scroller, tree.Parent);
+        // #213: folder and Collection sections share this one outer scope-pane scroller; neither TreeView
+        // owns an independent vertical scrollbar.
+        Assert.Equal(scroller, tree.Ancestors(ns + "ScrollViewer").Single());
+        Assert.Equal(scroller, Named(document, "BrowserCollectionTree").Ancestors(ns + "ScrollViewer").Single());
 
         var appNs = app.Root!.Name.Namespace;
         var horizontalTrigger = app.Descendants(appNs + "Trigger").Single(trigger =>

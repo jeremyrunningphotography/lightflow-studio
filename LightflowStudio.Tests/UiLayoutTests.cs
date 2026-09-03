@@ -1407,6 +1407,17 @@ public class UiLayoutTests
             (string?)template.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "BrowserRatingIndicator");
         Assert.Equal(5, rating.Descendants(ns + "Path").Count());
         Assert.All(rating.Descendants(ns + "Path"), path => Assert.Equal("12", (string?)path.Attribute("Width")));
+        var ratingPaths = rating.Descendants(ns + "Path").ToArray();
+        Assert.All(ratingPaths, path =>
+        {
+            Assert.Equal("#FFF2C05C", (string?)path.Attribute("Fill"));
+            Assert.Contains(path.Descendants(ns + "Setter"), setter =>
+                (string?)setter.Attribute("Property") == "Visibility" && (string?)setter.Attribute("Value") == "Collapsed");
+        });
+        Assert.Equal(Enumerable.Range(1, 5).Select(value => $"ConverterParameter={value}"), ratingPaths.Select(path =>
+            ((string?)path.Descendants(ns + "DataTrigger").Single().Attribute("Binding"))!.Split(',').Last().Trim().TrimEnd('}')));
+        Assert.All(ratingPaths, path => Assert.Contains(path.Descendants(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Visibility" && (string?)setter.Attribute("Value") == "Visible"));
         Assert.NotNull(Named(document, "BrowserHybridLowerStateOverlay"));
     }
 
@@ -1438,10 +1449,23 @@ public class UiLayoutTests
             var button = Named(document, $"PlayerRating{rating}");
             Assert.Equal(rating.ToString(), (string?)button.Attribute("Tag"));
             Assert.Equal("PlayerRating_Click", (string?)button.Attribute("Click"));
-            Assert.NotNull(button.Descendants(ns + "Path").SingleOrDefault());
+            Assert.Equal("{StaticResource PlayerRatingStarPath}", (string?)button.Descendants(ns + "Path").Single().Attribute("Style"));
         });
-        Assert.NotNull(Named(document, "PlayerRangeStateIndicator"));
-        Assert.NotNull(Named(document, "PlayerSubclipsStateIndicator"));
+        var starStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerRatingStarPath");
+        Assert.Contains(starStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "Transparent");
+        Assert.Contains(starStyle.Descendants(ns + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsChecked") == true && (string?)trigger.Attribute("Value") == "True");
+        Assert.Null(document.Descendants().FirstOrDefault(element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) is "PlayerRangeStateIndicator" or "PlayerSubclipsStateIndicator"));
+        var choiceStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerClassificationChoice");
+        Assert.Contains(choiceStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "BorderThickness" && (string?)setter.Attribute("Value") == "0");
+        Assert.DoesNotContain(choiceStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "FocusVisualStyle");
+        var codeBehind = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
+        Assert.Contains("ratingButtons[index].IsChecked = _classification?.Rating >= index + 1;", codeBehind);
         Assert.DoesNotContain(document.Descendants(), element => ((string?)element.Attribute("ToolTip"))?.Contains("Cycle", StringComparison.OrdinalIgnoreCase) == true);
     }
 

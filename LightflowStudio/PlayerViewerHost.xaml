@@ -77,15 +77,20 @@
   </Style>
   <Style x:Key="PlayerClassificationChoice" TargetType="ToggleButton">
    <Setter Property="Height" Value="24"/><Setter Property="MinWidth" Value="24"/><Setter Property="Padding" Value="4,2"/><Setter Property="Margin" Value="1,0"/>
-   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="#39404B"/><Setter Property="BorderThickness" Value="1"/>
-   <Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-   <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Background" Value="#20242C"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{StaticResource OrangeBrush}"/><Setter Property="Background" Value="#38231B"/><Setter Property="BorderBrush" Value="{StaticResource OrangeBrush}"/></Trigger></Style.Triggers>
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Foreground" Value="{StaticResource ShellFocusBrush}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{StaticResource OrangeBrush}"/></Trigger></Style.Triggers>
   </Style>
   <Style x:Key="PlayerStarChoice" TargetType="ToggleButton" BasedOn="{StaticResource PlayerClassificationChoice}">
    <Setter Property="Width" Value="25"/><Setter Property="ToolTip" Value="Set rating"/>
   </Style>
   <Style x:Key="PlayerSwatchChoice" TargetType="ToggleButton" BasedOn="{StaticResource PlayerClassificationChoice}">
    <Setter Property="Width" Value="24"/><Setter Property="Padding" Value="4"/>
+  </Style>
+  <Style x:Key="PlayerRatingStarPath" TargetType="Path">
+   <Setter Property="Width" Value="14"/><Setter Property="Height" Value="14"/><Setter Property="Stretch" Value="Uniform"/>
+   <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"/><Setter Property="StrokeThickness" Value="1.4"/><Setter Property="Fill" Value="Transparent"/>
+   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Fill" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"/></DataTrigger></Style.Triggers>
   </Style>
  </UserControl.Resources>
  <Border Style="{StaticResource ShellPanel}" Background="#07090D" Padding="0" ClipToBounds="True">
@@ -136,14 +141,14 @@
        Click="ExportButton_Click" ToolTip="Export this asset with its saved range and assigned Color" AutomationProperties.Name="Export current asset"/>
      </Grid>
      <Grid Grid.Row="1" Margin="2,0,2,4">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <TextBlock Text="RATING" Margin="0,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource ShellNavigationTextBrush}" FontSize="10" FontWeight="SemiBold"/>
       <StackPanel Grid.Column="1" Orientation="Horizontal">
-       <ToggleButton x:Name="PlayerRating1" Style="{StaticResource PlayerStarChoice}" Tag="1" Click="PlayerRating_Click" AutomationProperties.Name="1 star"><Path Width="14" Height="14" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z"/></ToggleButton>
-       <ToggleButton x:Name="PlayerRating2" Style="{StaticResource PlayerStarChoice}" Tag="2" Click="PlayerRating_Click" AutomationProperties.Name="2 stars"><Path Width="14" Height="14" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z"/></ToggleButton>
-       <ToggleButton x:Name="PlayerRating3" Style="{StaticResource PlayerStarChoice}" Tag="3" Click="PlayerRating_Click" AutomationProperties.Name="3 stars"><Path Width="14" Height="14" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z"/></ToggleButton>
-       <ToggleButton x:Name="PlayerRating4" Style="{StaticResource PlayerStarChoice}" Tag="4" Click="PlayerRating_Click" AutomationProperties.Name="4 stars"><Path Width="14" Height="14" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z"/></ToggleButton>
-       <ToggleButton x:Name="PlayerRating5" Style="{StaticResource PlayerStarChoice}" Tag="5" Click="PlayerRating_Click" AutomationProperties.Name="5 stars"><Path Width="14" Height="14" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z"/></ToggleButton>
+       <ToggleButton x:Name="PlayerRating1" Style="{StaticResource PlayerStarChoice}" Tag="1" Click="PlayerRating_Click" AutomationProperties.Name="1 star"><Path Style="{StaticResource PlayerRatingStarPath}" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z"/></ToggleButton>
+       <ToggleButton x:Name="PlayerRating2" Style="{StaticResource PlayerStarChoice}" Tag="2" Click="PlayerRating_Click" AutomationProperties.Name="2 stars"><Path Style="{StaticResource PlayerRatingStarPath}" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z"/></ToggleButton>
+       <ToggleButton x:Name="PlayerRating3" Style="{StaticResource PlayerStarChoice}" Tag="3" Click="PlayerRating_Click" AutomationProperties.Name="3 stars"><Path Style="{StaticResource PlayerRatingStarPath}" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z"/></ToggleButton>
+       <ToggleButton x:Name="PlayerRating4" Style="{StaticResource PlayerStarChoice}" Tag="4" Click="PlayerRating_Click" AutomationProperties.Name="4 stars"><Path Style="{StaticResource PlayerRatingStarPath}" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z"/></ToggleButton>
+       <ToggleButton x:Name="PlayerRating5" Style="{StaticResource PlayerStarChoice}" Tag="5" Click="PlayerRating_Click" AutomationProperties.Name="5 stars"><Path Style="{StaticResource PlayerRatingStarPath}" Data="M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z"/></ToggleButton>
       </StackPanel>
       <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="10,0,0,0">
        <ToggleButton x:Name="PlayerReject" Style="{StaticResource PlayerClassificationChoice}" Tag="Rejected" Click="PlayerFlag_Click" ToolTip="Reject" AutomationProperties.Name="Reject"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" Fill="Transparent" Data="M3,15 L3,2 M3,3 C7,0 10,5 14,2 L14,9 C10,12 7,7 3,10 Z"/></ToggleButton>
@@ -157,10 +162,6 @@
        <ToggleButton x:Name="PlayerLabelGreen" Style="{StaticResource PlayerSwatchChoice}" Tag="Green" Click="PlayerColorLabel_Click" ToolTip="Green label" AutomationProperties.Name="Green label"><Ellipse Width="13" Height="13" Fill="#57AB5A"/></ToggleButton>
        <ToggleButton x:Name="PlayerLabelBlue" Style="{StaticResource PlayerSwatchChoice}" Tag="Blue" Click="PlayerColorLabel_Click" ToolTip="Blue label" AutomationProperties.Name="Blue label"><Ellipse Width="13" Height="13" Fill="#539BF5"/></ToggleButton>
        <ToggleButton x:Name="PlayerLabelPurple" Style="{StaticResource PlayerSwatchChoice}" Tag="Purple" Click="PlayerColorLabel_Click" ToolTip="Purple label" AutomationProperties.Name="Purple label"><Ellipse Width="13" Height="13" Fill="#B083F0"/></ToggleButton>
-      </StackPanel>
-      <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
-       <Grid x:Name="PlayerRangeStateIndicator" Width="20" Height="16" Margin="4,0" Visibility="Collapsed" ToolTip="In/Out Range" AutomationProperties.Name="In/Out Range"><Path Stroke="#FF55D878" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M2,3 L2,13 M2,8 L18,8 M18,3 L18,13"/></Grid>
-       <Grid x:Name="PlayerSubclipsStateIndicator" Width="20" Height="16" Margin="4,0" Visibility="Collapsed" ToolTip="Saved Subclips" AutomationProperties.Name="Saved Subclips"><Path Stroke="#FFFF8A1F" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M3,3 L15,3 M6,8 L18,8 M3,13 L15,13"/><Ellipse Width="2.5" Height="2.5" Margin="13.5,0,0,11" Fill="#FFFF8A1F"/><Ellipse Width="2.5" Height="2.5" Margin="16.5,5,0,6" Fill="#FFFF8A1F"/><Ellipse Width="2.5" Height="2.5" Margin="13.5,10,0,1" Fill="#FFFF8A1F"/></Grid>
       </StackPanel>
      </Grid>
      <Grid Grid.Row="2" Height="22">

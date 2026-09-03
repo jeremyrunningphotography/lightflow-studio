@@ -860,7 +860,6 @@ public partial class PlayerViewerHost : UserControl
         if (presentedRange?.In is { } rangeIn) InTimeButton.Content = FormatTimestamp(rangeIn);
         if (presentedRange?.Out is { } rangeOut) OutTimeButton.Content = FormatTimestamp(rangeOut);
         AddSubclipButton.IsEnabled = CurrentSubclipCreationEligibility().CanCreate;
-        PlayerRangeStateIndicator.Visibility = _reviewRange is not null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private SubclipCreationEligibility CurrentSubclipCreationEligibility() =>
@@ -1166,7 +1165,6 @@ public partial class PlayerViewerHost : UserControl
         SubclipsEmptyText.Visibility = hasSubclips ? Visibility.Collapsed : Visibility.Visible;
         ExportSubclipsButton.IsEnabled = hasSubclips;
         ExportAllSubclipsMenuItem.IsEnabled = hasSubclips;
-        PlayerSubclipsStateIndicator.Visibility = hasSubclips ? Visibility.Visible : Visibility.Collapsed;
     }
 
     internal void SetSubclipsDrawerOpen(bool open)
@@ -1486,7 +1484,7 @@ public partial class PlayerViewerHost : UserControl
         for (var index = 0; index < ratingButtons.Length; index++)
         {
             ratingButtons[index].IsEnabled = _classification is not null;
-            ratingButtons[index].IsChecked = _classification?.Rating == index + 1;
+            ratingButtons[index].IsChecked = _classification?.Rating >= index + 1;
         }
         PlayerReject.IsEnabled = PlayerUnflagged.IsEnabled = PlayerPick.IsEnabled = _classification is not null;
         PlayerReject.IsChecked = _classification?.Flag == AssetFlag.Rejected;

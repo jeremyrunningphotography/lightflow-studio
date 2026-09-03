@@ -6,6 +6,18 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserQueryTests
 {
     [Fact]
+    public void ManualSort_PreservesMembershipOrderWhileExplicitNameSortOverridesIt()
+    {
+        var tiles = Tiles(("z.jpg", 1), ("a.jpg", 2), ("m.jpg", 3));
+
+        var manual = BrowserQueryEngine.Apply(tiles, BrowserQuery.Default with { SortMode = BrowserSortMode.Manual });
+        var byName = BrowserQueryEngine.Apply(tiles, BrowserQuery.Default with { SortMode = BrowserSortMode.Name });
+
+        Assert.Equal(["z.jpg", "a.jpg", "m.jpg"], manual.Select(tile => tile.Name));
+        Assert.Equal(["a.jpg", "m.jpg", "z.jpg"], byName.Select(tile => tile.Name));
+    }
+
+    [Fact]
     public void Apply_DefaultQuerySortsByNameAscendingCaseInsensitively()
     {
         var tiles = Tiles(("banana.jpg", 1), ("Apple.jpg", 2), ("cherry.jpg", 3));

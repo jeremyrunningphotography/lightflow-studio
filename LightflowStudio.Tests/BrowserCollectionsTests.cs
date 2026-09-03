@@ -6,6 +6,26 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserCollectionsTests
 {
     [Fact]
+    public void AssetMembershipDrop_AcceptsCollectionsAndRejectsSets()
+    {
+        var payload = new BrowserAssetDragPayload([Guid.NewGuid(), Guid.NewGuid()]);
+
+        Assert.True(BrowserCollectionMembershipInteraction.CanDrop(payload, new BrowserCollectionNode(Collection("Target", 0))));
+        Assert.False(BrowserCollectionMembershipInteraction.CanDrop(payload, new BrowserCollectionNode(Set("Organizer", 0))));
+        Assert.False(BrowserCollectionMembershipInteraction.CanDrop(new BrowserAssetDragPayload([]), new BrowserCollectionNode(Collection("Target", 0))));
+    }
+
+    [Fact]
+    public void MultiAssetManualMove_PreservesSelectionOrderAndOtherMemberships()
+    {
+        var ids = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToArray();
+
+        var reordered = BrowserCollectionMembershipInteraction.MoveBefore(ids, [ids[3], ids[1]], ids[0]);
+
+        Assert.Equal([ids[3], ids[1], ids[0], ids[2], ids[4]], reordered);
+    }
+
+    [Fact]
     public void RightClick_TargetsClickedCollectionInsteadOfPreviouslySelectedSet()
     {
         var selectedSet = new BrowserCollectionNode(Set("Selected set", 0));

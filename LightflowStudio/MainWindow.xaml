@@ -631,7 +631,7 @@
           </TreeView.ItemContainerStyle>
           <TreeView.Resources>
            <HierarchicalDataTemplate DataType="{x:Type local:BrowserCollectionNode}" ItemsSource="{Binding Children}">
-            <Grid Height="26"><Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Grid x:Name="CollectionRow" Height="26"><Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
              <Viewbox x:Name="CollectionIcon" Width="18" Height="18" VerticalAlignment="Center">
               <Canvas Width="18" Height="18"><Path x:Name="CollectionIconPath" Fill="{StaticResource MutedTextBrush}" Data="M3,2 L15,2 L15,16 L3,16 Z M5,5 L13,5 L13,7 L5,7 Z M5,9 L13,9 L13,11 L5,11 Z M5,13 L10,13 L10,14 L5,14 Z"/></Canvas>
              </Viewbox>
@@ -643,6 +643,7 @@
             <HierarchicalDataTemplate.Triggers>
             <DataTrigger Binding="{Binding IsSet}" Value="True"><Setter TargetName="CollectionIcon" Property="Visibility" Value="Collapsed"/><Setter TargetName="CollectionSetIcon" Property="Visibility" Value="Visible"/></DataTrigger>
              <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter TargetName="CollectionIconPath" Property="Fill" Value="{StaticResource ShellFocusBrush}"/><Setter TargetName="CollectionSetIconPath" Property="Fill" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
+             <DataTrigger Binding="{Binding IsAssetDropTarget}" Value="True"><Setter TargetName="CollectionRow" Property="Background" Value="{StaticResource ShellSelectionBrush}"/><Setter TargetName="CollectionIconPath" Property="Fill" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
             </HierarchicalDataTemplate.Triggers>
            </HierarchicalDataTemplate>
           </TreeView.Resources>
@@ -808,6 +809,7 @@
              <ComboBoxItem Content="Media type"/>
              <ComboBoxItem Content="File size"/>
              <ComboBoxItem Content="Duration"/>
+             <ComboBoxItem Content="Manual"/>
             </ComboBox>
             <Border Width="1" Margin="0,7" Background="{StaticResource ShellDividerBrush}"/>
             <Button x:Name="BrowserSortDirectionButton" Width="32" Height="{StaticResource BrowserRow2ControlHeight}" Padding="0,7" Background="Transparent" BorderThickness="0" Margin="0" Content="&#xE70E;"
@@ -905,12 +907,16 @@
                     updates — see MainWindow.ApplyBrowserThumbnailSize. DynamicResource (not StaticResource)
                     is required: it re-resolves for every realized/recycled tile whenever those resources
                     change, including tiles the slider changes while virtualized out of view. -->
-               <Border Width="{DynamicResource BrowserTileWidth}" Margin="0,0,12,12" Padding="7" CornerRadius="6" BorderThickness="1"
+               <Border Width="{DynamicResource BrowserTileWidth}" Margin="0,0,12,12" Padding="7" CornerRadius="6" BorderThickness="1" AllowDrop="True"
                 MouseLeftButtonDown="BrowserGridTile_MouseLeftButtonDown" MouseRightButtonDown="BrowserGridTile_MouseRightButtonDown"
+                MouseMove="BrowserGridTile_MouseMove" DragOver="BrowserGridTile_DragOver" Drop="BrowserGridTile_Drop"
                 ContextMenuOpening="BrowserGridTile_ContextMenuOpening"
                 ToolTip="{Binding Name}" AutomationProperties.Name="{Binding AutomationLabel}">
                 <Border.ContextMenu>
                  <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+                  <MenuItem x:Name="BrowserAddToCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Add to Collection…" Click="BrowserAddToCollection_Click"/>
+                  <MenuItem x:Name="BrowserRemoveFromCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Remove from this Collection" Click="BrowserRemoveFromCollection_Click"/>
+                  <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export">
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export…" Click="BrowserContextExport_Click"/>
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export Subclips…" Click="BrowserContextExportSubclips_Click"/>

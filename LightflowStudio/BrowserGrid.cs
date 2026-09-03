@@ -37,6 +37,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     private bool _isSelected;
     private string? _thumbnailPath;
     private int _index;
+    private int _manualOrdinal;
     private DateTime? _captureDate;
     private double? _durationSeconds;
     private BrowserAssetState _assetState;
@@ -65,6 +66,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         AssetId = entry.AssetId;
         IsAvailable = entry.IsAvailable;
         _index = index;
+        _manualOrdinal = index;
     }
 
     public Guid RootId { get; }
@@ -124,6 +126,12 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     {
         get => _index;
         set { if (_index != value) { _index = value; OnPropertyChanged(); } }
+    }
+
+    public int ManualOrdinal
+    {
+        get => _manualOrdinal;
+        set => _manualOrdinal = value;
     }
 
     public bool IsSelected
@@ -521,7 +529,8 @@ internal sealed class BrowserGridModel
         foreach (var entry in entries)
         {
             if (!IsPresentable(entry)) continue;
-            var tile = existingByKey.TryGetValue(entry.RelativePathKey, out var prior) ? prior : new BrowserGridTile(entry, 0);
+            var tile = existingByKey.TryGetValue(entry.RelativePathKey, out var prior) ? prior : new BrowserGridTile(entry, desired.Count);
+            tile.ManualOrdinal = desired.Count;
             tile.SetViewMode(ViewMode);
             desired.Add(tile);
         }
@@ -684,6 +693,16 @@ internal sealed class BrowserGridModel
     public void SelectAll() => ApplySelectionChange(() => _selection.SelectAll(_visibleTiles.Select(tile => tile.Key)));
 
     public void ClearSelection() => ApplySelectionChange(_selection.Clear);
+
+    public void ApplyManualOrder(IReadOnlyList<Guid> assetIds)
+    {
+        var rank = assetIds.Select((id, index) => (id, index)).ToDictionary(item => item.id, item => item.index);
+        _allTiles = _allTiles.OrderBy(tile => tile.AssetId is { } id && rank.TryGetValue(id, out var value)
+                ? value : int.MaxValue)
+            .ThenBy(tile => tile.ManualOrdinal).ToList();
+        for (var index = 0; index < _allTiles.Count; index++) _allTiles[index].ManualOrdinal = index;
+        RecomputeVisible();
+    }
 
     private void ApplySelectionChange(Action mutate)
     {

@@ -7,10 +7,29 @@ namespace LightflowStudio;
 
 internal enum BrowserCollectionNodeKind { Set, Collection }
 
+internal sealed record BrowserAssetDragPayload(IReadOnlyList<Guid> AssetIds);
+
+internal static class BrowserCollectionMembershipInteraction
+{
+    public static bool CanDrop(BrowserAssetDragPayload? payload, BrowserCollectionNode? target) =>
+        payload is { AssetIds.Count: > 0 } && target?.IsCollection == true;
+
+    public static IReadOnlyList<Guid> MoveBefore(IReadOnlyList<Guid> current, IReadOnlyList<Guid> moving, Guid target)
+    {
+        var movingSet = moving.ToHashSet();
+        var remaining = current.Where(id => !movingSet.Contains(id)).ToList();
+        var targetIndex = remaining.IndexOf(target);
+        if (targetIndex < 0) return current;
+        remaining.InsertRange(targetIndex, moving.Where(current.Contains));
+        return remaining;
+    }
+}
+
 internal sealed class BrowserCollectionNode : INotifyPropertyChanged
 {
     private bool _isExpanded;
     private bool _isSelected;
+    private bool _isAssetDropTarget;
 
     public BrowserCollectionNode(CollectionSet set)
     {
@@ -52,6 +71,11 @@ internal sealed class BrowserCollectionNode : INotifyPropertyChanged
     {
         get => _isSelected;
         set { if (_isSelected != value) { _isSelected = value; OnPropertyChanged(); } }
+    }
+    public bool IsAssetDropTarget
+    {
+        get => _isAssetDropTarget;
+        set { if (_isAssetDropTarget == value) return; _isAssetDropTarget = value; OnPropertyChanged(); }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -55,9 +55,11 @@ public sealed class BrowserCollectionsTests
     }
 
     [Theory]
-    [InlineData(1, 0, 1, 1, "Added 1 asset to Picks")]
-    [InlineData(0, 3, 3, 1, "3 assets were already in Picks")]
-    [InlineData(6, 0, 3, 2, "Added 6 memberships across 2 Collections")]
+    [InlineData(1, 0, 1, 1, "Added 1 media item to Picks")]
+    [InlineData(0, 3, 3, 1, "3 media items are already in Picks")]
+    [InlineData(6, 0, 3, 2, "Added 6 media items to 2 Collections")]
+    [InlineData(0, 2, 1, 2, "2 media items were already present")]
+    [InlineData(4, 2, 3, 2, "Added 4 media items to 2 Collections • 2 media items were already present")]
     public void MembershipFeedback_IsConciseNonTechnicalAndTruthful(int added, int duplicates,
         int assets, int collections, string expected)
     {
@@ -67,6 +69,7 @@ public sealed class BrowserCollectionsTests
         Assert.Equal(expected, result);
         Assert.DoesNotContain("Source files", result, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("paths", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("asset", result, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

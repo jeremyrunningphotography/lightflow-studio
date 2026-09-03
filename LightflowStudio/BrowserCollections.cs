@@ -35,12 +35,12 @@ internal static class CollectionMembershipFeedback
     {
         if (added == 0)
             return collectionCount == 1 && collectionName is not null
-                ? $"{assetCount} asset{(assetCount == 1 ? " was" : "s were")} already in {collectionName}"
-                : $"{duplicates} membership{(duplicates == 1 ? " was" : "s were")} already present";
+                ? $"{assetCount} media item{(assetCount == 1 ? " is" : "s are")} already in {collectionName}"
+                : $"{duplicates} media item{(duplicates == 1 ? " was" : "s were")} already present";
         var result = collectionCount == 1 && collectionName is not null
-            ? $"Added {added} asset{(added == 1 ? "" : "s")} to {collectionName}"
-            : $"Added {added} membership{(added == 1 ? "" : "s")} across {collectionCount} Collections";
-        return duplicates > 0 ? $"{result} • {duplicates} already present" : result;
+            ? $"Added {added} media item{(added == 1 ? "" : "s")} to {collectionName}"
+            : $"Added {added} media items to {collectionCount} Collections";
+        return duplicates > 0 ? $"{result} • {duplicates} media item{(duplicates == 1 ? " was" : "s were")} already present" : result;
     }
 }
 

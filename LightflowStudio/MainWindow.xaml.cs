@@ -1501,14 +1501,14 @@ public partial class MainWindow : Window
         var collectionId = _activeCollectionScope.Collection.CollectionId;
         var collectionName = _activeCollectionScope.Collection.Name;
         if (!ConfirmationDialog.Confirm(this, "Remove from Collection",
-                $"Remove {removing.Length} asset{(removing.Length == 1 ? "" : "s")} from “{collectionName}”?",
-                "The assets remain available in their folders and any other Collections.", null,
+                $"Remove {removing.Length} media item{(removing.Length == 1 ? "" : "s")} from “{collectionName}”?",
+                "The media remains available in its folders and any other Collections.", null,
                 "Remove", "Keep in Collection")) return;
         await RunCollectionActionAsync(async () =>
         {
             await _storage.Collections.RemoveMembershipsAsync(collectionId, removing);
             await LoadCollectionScopeAsync(collectionId);
-            BrowserStatusText.Text = $"Removed {removing.Length} asset{(removing.Length == 1 ? "" : "s")} from {collectionName}";
+            BrowserStatusText.Text = $"Removed {removing.Length} media item{(removing.Length == 1 ? "" : "s")} from {collectionName}";
         });
     }
 
@@ -3532,8 +3532,8 @@ public partial class MainWindow : Window
         BrowserGridRows.Visibility = Visibility.Visible;
         BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
         BrowserEmptyState.Visibility = _browserGrid.TotalCount == 0 ? Visibility.Visible : Visibility.Collapsed;
-        BrowserEmptyTitle.Text = "No assets in this Collection";
-        BrowserEmptyMessage.Text = "Asset membership is managed separately; Collection Sets organize Collections and are not asset scopes.";
+        BrowserEmptyTitle.Text = "No media in this Collection";
+        BrowserEmptyMessage.Text = "Media membership is managed separately; Collection Sets organize Collections and do not contain media directly.";
         UpdateBrowserStatusText();
         _workspaceState.SetBrowserCollectionState(scope.Collection.CollectionId, _browserCollectionTree.ExpandedSetIds());
         _workspaceSaveTimer.Stop();

@@ -155,6 +155,10 @@ public sealed class BrowserCollectionsPresentationTests
         Assert.DoesNotContain("NoticeDialog.Show", add);
         Assert.DoesNotContain("NoticeDialog.Show", drop);
         Assert.DoesNotContain("Source files and paths were not changed", source);
+        Assert.Contains("Remove {removing.Length} media item", source);
+        Assert.Contains("Removed {removing.Length} media item", source);
+        Assert.Contains("No media in this Collection", source);
+        Assert.DoesNotContain("Remove {removing.Length} asset", source);
     }
 
     [Fact]

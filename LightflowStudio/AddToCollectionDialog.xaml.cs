@@ -25,7 +25,7 @@ public partial class AddToCollectionDialog : Window
         _createCollection = createCollection;
         _choices = collections.Select(item => new AddToCollectionChoice(item.Id, item.DisplayName)).ToList();
         CollectionChoices.ItemsSource = _choices;
-        SelectionSummary.Text = assetCount == 1 ? "Add 1 selected asset to one or more Collections." : $"Add {assetCount} selected assets to one or more Collections.";
+        SelectionSummary.Text = assetCount == 1 ? "Add 1 selected media item to one or more Collections." : $"Add {assetCount} selected media items to one or more Collections.";
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
     }
 

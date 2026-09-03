@@ -600,7 +600,7 @@
          </Button>
         </Grid>
         <Grid x:Name="BrowserCollectionsSectionContent">
-         <TreeView x:Name="BrowserCollectionTree" BorderThickness="0" Background="Transparent"
+         <TreeView x:Name="BrowserCollectionTree" BorderThickness="0" Background="Transparent" Padding="0,0,0,96"
           SelectedItemChanged="BrowserCollectionTree_SelectedItemChanged" ContextMenuOpening="BrowserCollectionTree_ContextMenuOpening"
           PreviewMouseLeftButtonDown="BrowserCollectionTree_PreviewMouseLeftButtonDown"
           PreviewMouseRightButtonDown="BrowserCollectionTree_PreviewMouseRightButtonDown"

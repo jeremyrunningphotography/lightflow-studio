@@ -33,9 +33,44 @@ public sealed class BrowserCollectionsPresentationTests
         Assert.Contains("Math.Min(BrowserCollectionRowHeight, item.ActualHeight)", code);
         Assert.Contains("ResolveInsertionChoices", code);
         Assert.Contains("line.Edge == BrowserCollectionDropKind.InsertBefore ? 2 : -2", code);
+        Assert.Contains("choice.Destination == activeDestination", code);
         Assert.Contains("UpdateLines(lines, activeDestination)", code);
         Assert.DoesNotContain("targetFill", code);
         Assert.DoesNotContain("item.BorderThickness =", code);
+    }
+
+    [Fact]
+    public void TrailingInsertion_ExtendsTheExistingTreeOwnedDragSurfaceAndAdorner()
+    {
+        var document = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var tree = document.Descendants(ns + "TreeView")
+            .Single(node => (string?)node.Attribute(x + "Name") == "BrowserCollectionTree");
+        var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+
+        Assert.Equal("0,0,0,96", (string?)tree.Attribute("Padding"));
+        Assert.Equal("True", (string?)tree.Attribute("AllowDrop"));
+        Assert.DoesNotContain("BrowserCollectionsTrailingDropSurface", document.ToString());
+        Assert.Contains("new CollectionDropAdorner(BrowserCollectionTree", code);
+        Assert.DoesNotContain("new CollectionDropAdorner(BrowserFolderScrollViewer", code);
+        Assert.Contains("TryResolveTrailingInsertion", code);
+        Assert.Contains("ShowTrailingCollectionDropFeedback", code);
+    }
+
+    [Fact]
+    public void DragWheelBridge_IsScopedToTheActiveDragAndLeavesNormalWheelRoutingInPlace()
+    {
+        var code = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
+        var hook = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "LowLevelMouseWheelHook.cs"));
+
+        Assert.Contains("BrowserScopePane_PreviewMouseWheel", code);
+        Assert.Contains("LowLevelMouseWheelHook.TryInstall(RouteCollectionDragWheel)", code);
+        Assert.Contains("_collectionDragWheelHook?.Dispose()", code);
+        Assert.Contains("CancelCollectionDragHover();", MethodBody(code, "RouteCollectionDragWheel"));
+        Assert.Contains("RefreshCollectionDragFeedback", MethodBody(code, "RouteCollectionDragWheel"));
+        Assert.Contains("WhMouseLl = 14", hook);
+        Assert.Contains("WmMouseWheel = 0x020A", hook);
     }
 
     [Fact]

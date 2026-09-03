@@ -70,6 +70,26 @@ public sealed class BrowserCollectionsTests
     }
 
     [Fact]
+    public void DragWheelSession_PreservesPayloadAndRetargetsOnlyAfterAnActualSidebarScroll()
+    {
+        var dragged = new BrowserCollectionNode(Collection("Dragged", 0));
+        var session = new BrowserCollectionDragSession();
+        BrowserCollectionNode? retargeted = null;
+        session.Begin(dragged);
+
+        Assert.False(session.RouteWheel(false, () => true, node => retargeted = node));
+        Assert.False(session.RouteWheel(true, () => false, node => retargeted = node));
+        Assert.Null(retargeted);
+        Assert.True(session.RouteWheel(true, () => true, node => retargeted = node));
+        Assert.Same(dragged, session.Payload);
+        Assert.Same(dragged, retargeted);
+
+        session.End();
+        Assert.False(session.RouteWheel(true, () => true, node => retargeted = node));
+        Assert.Null(session.Payload);
+    }
+
+    [Fact]
     public void DragIntent_DistinguishesSiblingInsertionFromDropIntoSet()
     {
         var first = new BrowserCollectionNode(Collection("First", 0));
@@ -270,6 +290,69 @@ public sealed class BrowserCollectionsTests
             roots, otherSet, childCollection, BrowserCollectionDropKind.InsertBefore));
         Assert.Null(BrowserCollectionInteraction.ResolveInsertion(
             roots, parent, childCollection, BrowserCollectionDropKind.InsertBefore));
+    }
+
+    [Fact]
+    public void TrailingExpandedRootSet_ExposesAppendInsideAndInsertAfterWithoutFollowingSibling()
+    {
+        var set = new BrowserCollectionNode(Set("Set", 0)) { IsExpanded = true };
+        var child = new BrowserCollectionNode(Collection("Child", 0, set.Id));
+        set.Children.Add(child);
+        var dragged = new BrowserCollectionNode(Collection("Dragged", 1));
+
+        var choices = BrowserCollectionInteraction.ResolveTrailingInsertionChoices([set, dragged], dragged);
+
+        Assert.Equal([new BrowserCollectionInsertionDestination(set.Id, 1),
+            new BrowserCollectionInsertionDestination(null, 1)], choices.Select(choice => choice.Destination));
+    }
+
+    [Fact]
+    public void TrailingExpandedSetWhoseOnlyChildIsDragged_StillExposesFirstChildAndParentDestinations()
+    {
+        var set = new BrowserCollectionNode(Set("Set", 0)) { IsExpanded = true };
+        var dragged = new BrowserCollectionNode(Collection("Dragged", 0, set.Id));
+        set.Children.Add(dragged);
+
+        var choices = BrowserCollectionInteraction.ResolveTrailingInsertionChoices([set], dragged);
+
+        Assert.Equal([new BrowserCollectionInsertionDestination(set.Id, 0),
+            new BrowserCollectionInsertionDestination(null, 1)], choices.Select(choice => choice.Destination));
+    }
+
+    [Fact]
+    public void TrailingNestedExpandedSets_ExposeEveryExhaustedAncestorLevel()
+    {
+        var outer = new BrowserCollectionNode(Set("Outer", 0)) { IsExpanded = true };
+        var nested = new BrowserCollectionNode(Set("Nested", 0, outer.Id)) { IsExpanded = true };
+        var leaf = new BrowserCollectionNode(Collection("Leaf", 0, nested.Id));
+        nested.Children.Add(leaf);
+        outer.Children.Add(nested);
+        var dragged = new BrowserCollectionNode(Collection("Dragged", 1));
+
+        var choices = BrowserCollectionInteraction.ResolveTrailingInsertionChoices([outer, dragged], dragged);
+
+        Assert.Equal([new BrowserCollectionInsertionDestination(nested.Id, 1),
+            new BrowserCollectionInsertionDestination(outer.Id, 1),
+            new BrowserCollectionInsertionDestination(null, 1)], choices.Select(choice => choice.Destination));
+    }
+
+    [Fact]
+    public void TrailingOrdinaryRootCollection_ExposesRootAppendAndHorizontalSelectionChoosesOneLevel()
+    {
+        var first = new BrowserCollectionNode(Collection("First", 0));
+        var last = new BrowserCollectionNode(Collection("Last", 1));
+        var dragged = new BrowserCollectionNode(Collection("Dragged", 2));
+        var rootChoice = Assert.Single(BrowserCollectionInteraction.ResolveTrailingInsertionChoices(
+            [first, last, dragged], dragged));
+        Assert.Equal(new BrowserCollectionInsertionDestination(null, 2), rootChoice.Destination);
+
+        var set = new BrowserCollectionNode(Set("Set", 0));
+        var nestedChoice = new BrowserCollectionInsertionChoice(last, BrowserCollectionDropKind.InsertAfter,
+            new(set.Id, 1));
+        Assert.Same(rootChoice, BrowserCollectionInteraction.SelectTrailingInsertionChoice(
+            [(nestedChoice, 60d), (rootChoice, 20d)], 30));
+        Assert.Same(nestedChoice, BrowserCollectionInteraction.SelectTrailingInsertionChoice(
+            [(nestedChoice, 60d), (rootChoice, 20d)], 55));
     }
 
     [Fact]

@@ -23,6 +23,7 @@ internal enum RightDrawerKind { None, Jobs, Subclips }
 public partial class MainWindow : Window
 {
     private const double BrowserCollectionRowHeight = 26;
+    private const double BrowserCollectionIndent = 19;
     private static bool JobsRuntimeEnabled => true;
     private string? _ffmpeg;
     private string? _ffprobe;
@@ -113,6 +114,8 @@ public partial class MainWindow : Window
     private BrowserCollectionNode? _browserCollectionTreeRevealedNode;
     private System.Windows.Point _collectionDragStart;
     private BrowserCollectionNode? _collectionDragNode;
+    private readonly BrowserCollectionDragSession _collectionDragSession = new();
+    private LowLevelMouseWheelHook? _collectionDragWheelHook;
     private BrowserCollectionNode? _browserCollectionActionNode;
     private readonly BrowserScopeSelection _browserScopeSelection = new();
     private CollectionDropAdorner? _collectionDropAdorner;
@@ -866,19 +869,31 @@ public partial class MainWindow : Window
 
     private void BrowserScopePane_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        const double pixelsPerWheelNotch = 48;
-        var distance = -(e.Delta / (double)Mouse.MouseWheelDeltaForOneLine) * pixelsPerWheelNotch;
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && BrowserFolderScrollViewer.ScrollableWidth > 0)
-            BrowserFolderScrollViewer.ScrollToHorizontalOffset(
-                Math.Clamp(BrowserFolderScrollViewer.HorizontalOffset + distance, 0,
-                    BrowserFolderScrollViewer.ScrollableWidth));
-        else if (BrowserFolderScrollViewer.ScrollableHeight > 0)
-            BrowserFolderScrollViewer.ScrollToVerticalOffset(
-                Math.Clamp(BrowserFolderScrollViewer.VerticalOffset + distance, 0,
-                    BrowserFolderScrollViewer.ScrollableHeight));
-        else
-            return;
+        if (!ScrollBrowserScopeByWheel(e.Delta)) return;
         e.Handled = true;
+    }
+
+    private bool ScrollBrowserScopeByWheel(int delta)
+    {
+        const double pixelsPerWheelNotch = 48;
+        var distance = -(delta / (double)Mouse.MouseWheelDeltaForOneLine) * pixelsPerWheelNotch;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && BrowserFolderScrollViewer.ScrollableWidth > 0)
+        {
+            var offset = Math.Clamp(BrowserFolderScrollViewer.HorizontalOffset + distance, 0,
+                BrowserFolderScrollViewer.ScrollableWidth);
+            if (Math.Abs(offset - BrowserFolderScrollViewer.HorizontalOffset) < 0.01) return false;
+            BrowserFolderScrollViewer.ScrollToHorizontalOffset(offset);
+        }
+        else if (BrowserFolderScrollViewer.ScrollableHeight > 0)
+        {
+            var offset = Math.Clamp(BrowserFolderScrollViewer.VerticalOffset + distance, 0,
+                BrowserFolderScrollViewer.ScrollableHeight);
+            if (Math.Abs(offset - BrowserFolderScrollViewer.VerticalOffset) < 0.01) return false;
+            BrowserFolderScrollViewer.ScrollToVerticalOffset(offset);
+        }
+        else
+            return false;
+        return true;
     }
 
     private async void BrowserGo_Click(object sender, RoutedEventArgs e) => await NavigateToEnteredBrowserPathAsync();
@@ -3604,8 +3619,58 @@ public partial class MainWindow : Window
             Math.Abs(current.Y - _collectionDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
         var dragged = _collectionDragNode;
         _collectionDragNode = null;
+        _collectionDragSession.Begin(dragged);
+        _collectionDragWheelHook = LowLevelMouseWheelHook.TryInstall(RouteCollectionDragWheel);
         try { System.Windows.DragDrop.DoDragDrop(BrowserCollectionTree, dragged, System.Windows.DragDropEffects.Move); }
-        finally { CancelCollectionDragHover(); ClearCollectionDropFeedback(); }
+        finally
+        {
+            _collectionDragWheelHook?.Dispose();
+            _collectionDragWheelHook = null;
+            _collectionDragSession.End();
+            CancelCollectionDragHover();
+            ClearCollectionDropFeedback();
+        }
+    }
+
+    private bool RouteCollectionDragWheel(System.Windows.Point screenPoint, int delta)
+    {
+        var sidebarPoint = BrowserFolderScrollViewer.PointFromScreen(screenPoint);
+        var pointerOverSidebar = sidebarPoint.X >= 0 && sidebarPoint.Y >= 0 &&
+            sidebarPoint.X <= BrowserFolderScrollViewer.ActualWidth &&
+            sidebarPoint.Y <= BrowserFolderScrollViewer.ActualHeight;
+        return _collectionDragSession.RouteWheel(pointerOverSidebar,
+            () => ScrollBrowserScopeByWheel(delta), dragged =>
+            {
+                CancelCollectionDragHover();
+                ClearCollectionDropFeedback();
+                _ = Dispatcher.BeginInvoke(DispatcherPriority.Render,
+                    () => RefreshCollectionDragFeedback(dragged, screenPoint));
+            });
+    }
+
+    private void RefreshCollectionDragFeedback(BrowserCollectionNode dragged, System.Windows.Point screenPoint)
+    {
+        if (!ReferenceEquals(_collectionDragSession.Payload, dragged)) return;
+        var position = BrowserCollectionTree.PointFromScreen(screenPoint);
+        var container = CollectionTreeItemAtHeader(position);
+        var target = container?.DataContext as BrowserCollectionNode;
+        var drop = target is not null && container is not null
+            ? BrowserCollectionInteraction.DropAt(dragged, target,
+                HeaderRelativeY(position, container)) : null;
+        if (drop is { Kind: BrowserCollectionDropKind.InsertBefore or BrowserCollectionDropKind.InsertAfter } &&
+            BrowserCollectionInteraction.ResolveInsertion(_browserCollectionTree.Roots, dragged, drop.Target,
+                drop.Kind) is null) drop = null;
+        if (drop is not null)
+        {
+            TrackCollectionDragHover(dragged, drop);
+            ShowCollectionDropFeedback(container, dragged, drop);
+            return;
+        }
+        if (TryResolveTrailingInsertion(dragged, position, out var trailing, out var line))
+        {
+            CancelCollectionDragHover();
+            ShowTrailingCollectionDropFeedback(line, trailing.Destination);
+        }
     }
 
     private void BrowserCollectionTree_DragOver(object sender, System.Windows.DragEventArgs e)
@@ -3618,6 +3683,15 @@ public partial class MainWindow : Window
         if (dragged is not null && drop is { Kind: BrowserCollectionDropKind.InsertBefore or BrowserCollectionDropKind.InsertAfter } &&
             BrowserCollectionInteraction.ResolveInsertion(_browserCollectionTree.Roots, dragged, drop.Target, drop.Kind) is null)
             drop = null;
+        if (dragged is not null && drop is null &&
+            TryResolveTrailingInsertion(dragged, e.GetPosition(BrowserCollectionTree), out var trailing, out var line))
+        {
+            CancelCollectionDragHover();
+            ShowTrailingCollectionDropFeedback(line, trailing.Destination);
+            e.Effects = System.Windows.DragDropEffects.Move;
+            e.Handled = true;
+            return;
+        }
         TrackCollectionDragHover(dragged, drop);
         ShowCollectionDropFeedback(container, dragged, drop);
         e.Effects = drop is { Kind: not BrowserCollectionDropKind.None }
@@ -3652,6 +3726,13 @@ public partial class MainWindow : Window
             ? BrowserCollectionInteraction.DropAt(dragged, target, HeaderRelativeY(e, container)) : null;
         CancelCollectionDragHover();
         ClearCollectionDropFeedback();
+        if (dragged is not null && drop is null &&
+            TryResolveTrailingInsertion(dragged, e.GetPosition(BrowserCollectionTree), out var trailing, out _))
+        {
+            e.Handled = true;
+            await ReorderCollectionNodeAsync(dragged, trailing.Destination);
+            return;
+        }
         if (dragged is null || drop is null || drop.Kind == BrowserCollectionDropKind.None) return;
         if (drop.Kind == BrowserCollectionDropKind.IntoSet) await MoveIntoCollectionSetAsync(dragged, drop.Target);
         else if (BrowserCollectionInteraction.ResolveInsertion(_browserCollectionTree.Roots, dragged, drop.Target, drop.Kind)
@@ -3663,6 +3744,13 @@ public partial class MainWindow : Window
     private static double HeaderRelativeY(System.Windows.DragEventArgs e, TreeViewItem container) =>
         e.GetPosition(container).Y / Math.Max(1, Math.Min(BrowserCollectionRowHeight, container.ActualHeight));
 
+    private double HeaderRelativeY(System.Windows.Point treePosition, TreeViewItem container)
+    {
+        var origin = container.TranslatePoint(new System.Windows.Point(0, 0), BrowserCollectionTree);
+        return (treePosition.Y - origin.Y) /
+            Math.Max(1, Math.Min(BrowserCollectionRowHeight, container.ActualHeight));
+    }
+
     private TreeViewItem? CollectionTreeItemAtHeader(System.Windows.Point position) =>
         CollectionTreeItems(BrowserCollectionTree).FirstOrDefault(item =>
         {
@@ -3671,6 +3759,42 @@ public partial class MainWindow : Window
                 Math.Min(BrowserCollectionRowHeight, item.ActualHeight));
             return row.Contains(position);
         });
+
+    private bool TryResolveTrailingInsertion(BrowserCollectionNode dragged, System.Windows.Point position,
+        out BrowserCollectionInsertionChoice choice, out CollectionInsertionLine line)
+    {
+        choice = null!;
+        line = null!;
+        var containers = CollectionTreeItems(BrowserCollectionTree)
+            .Where(container => container.DataContext is BrowserCollectionNode)
+            .ToDictionary(container => ((BrowserCollectionNode)container.DataContext).Id);
+        var lastItem = CollectionTreeItems(BrowserCollectionTree).LastOrDefault();
+        if (lastItem is null) return false;
+        var lastOrigin = lastItem.TranslatePoint(new System.Windows.Point(0, 0), BrowserCollectionTree);
+        var lastBottom = lastOrigin.Y + Math.Min(BrowserCollectionRowHeight, lastItem.ActualHeight);
+        if (position.X < 0 || position.X > BrowserCollectionTree.ActualWidth ||
+            position.Y < lastBottom || position.Y > BrowserCollectionTree.ActualHeight) return false;
+
+        var candidates = BrowserCollectionInteraction.ResolveTrailingInsertionChoices(
+                _browserCollectionTree.Roots, dragged)
+            .Where(candidate => containers.ContainsKey(candidate.Target.Id))
+            .Select(candidate => (Choice: candidate,
+                Indent: CollectionInsertionIndent(candidate, containers[candidate.Target.Id])))
+            .ToArray();
+        var active = BrowserCollectionInteraction.SelectTrailingInsertionChoice(candidates, position.X);
+        if (active is null) return false;
+        choice = active;
+        var item = containers[active.Target.Id];
+        line = new CollectionInsertionLine(item, active.Kind, active.Destination, lastBottom,
+            CollectionInsertionIndent(active, item));
+        return true;
+    }
+
+    private double CollectionInsertionIndent(BrowserCollectionInsertionChoice choice, TreeViewItem item)
+    {
+        var left = item.TranslatePoint(new System.Windows.Point(0, 0), BrowserCollectionTree).X;
+        return choice.Destination.ParentSetId == choice.Target.Id ? left + BrowserCollectionIndent : left;
+    }
 
     private static IEnumerable<TreeViewItem> CollectionTreeItems(ItemsControl parent)
     {
@@ -3768,11 +3892,26 @@ public partial class MainWindow : Window
             .ToDictionary(container => ((BrowserCollectionNode)container.DataContext).Id);
         var lines = BrowserCollectionInteraction.ResolveInsertionChoices(
                 _browserCollectionTree.Roots, dragged, drop.Target, kind)
+            .Where(choice => choice.Destination == activeDestination)
             .Where(choice => containers.ContainsKey(choice.Target.Id))
             .Select(choice => new CollectionInsertionLine(containers[choice.Target.Id], choice.Kind, choice.Destination))
             .ToArray();
         if (lines.Length == 0) { ClearCollectionDropFeedback(); return; }
         _collectionDropAdorner.UpdateLines(lines, activeDestination);
+    }
+
+    private void ShowTrailingCollectionDropFeedback(CollectionInsertionLine line,
+        BrowserCollectionInsertionDestination destination)
+    {
+        _collectionDropAdornerLayer ??= System.Windows.Documents.AdornerLayer.GetAdornerLayer(BrowserCollectionTree);
+        if (_collectionDropAdornerLayer is null) return;
+        if (_collectionDropAdorner is null)
+        {
+            _collectionDropAdorner = new CollectionDropAdorner(BrowserCollectionTree,
+                (System.Windows.Media.Brush)FindResource("ShellFocusBrush"));
+            _collectionDropAdornerLayer.Add(_collectionDropAdorner);
+        }
+        _collectionDropAdorner.UpdateLines([line], destination);
     }
 
     private void ClearCollectionDropFeedback()
@@ -3783,7 +3922,7 @@ public partial class MainWindow : Window
     }
 
     private sealed record CollectionInsertionLine(TreeViewItem Item, BrowserCollectionDropKind Edge,
-        BrowserCollectionInsertionDestination Destination);
+        BrowserCollectionInsertionDestination Destination, double? ExplicitY = null, double? ExplicitLeft = null);
 
     private sealed class CollectionDropAdorner(
         UIElement adornedElement, System.Windows.Media.Brush accent)
@@ -3792,7 +3931,7 @@ public partial class MainWindow : Window
         private Rect _row;
         private BrowserCollectionDropKind _kind;
         private IReadOnlyList<(Rect Row, BrowserCollectionDropKind Edge,
-            BrowserCollectionInsertionDestination Destination)> _lines = [];
+            BrowserCollectionInsertionDestination Destination, double? ExplicitY, double? ExplicitLeft)> _lines = [];
         private BrowserCollectionInsertionDestination? _activeDestination;
 
         public void UpdateTarget(TreeViewItem item)
@@ -3818,7 +3957,7 @@ public partial class MainWindow : Window
                 var row = new Rect(origin.X, origin.Y,
                     Math.Max(line.Item.ActualWidth, AdornedElement.RenderSize.Width - origin.X),
                     Math.Min(BrowserCollectionRowHeight, line.Item.ActualHeight));
-                return (row, line.Edge, line.Destination);
+                return (row, line.Edge, line.Destination, line.ExplicitY, line.ExplicitLeft);
             }).ToArray();
             InvalidateVisual();
         }
@@ -3835,7 +3974,8 @@ public partial class MainWindow : Window
             foreach (var line in _lines)
             {
                 var dual = _lines.Count > 1;
-                var y = line.Edge == BrowserCollectionDropKind.InsertBefore ? line.Row.Top : line.Row.Bottom;
+                var y = line.ExplicitY ??
+                    (line.Edge == BrowserCollectionDropKind.InsertBefore ? line.Row.Top : line.Row.Bottom);
                 if (dual) y += line.Edge == BrowserCollectionDropKind.InsertBefore ? 2 : -2;
                 var active = line.Destination == _activeDestination;
                 var pen = new System.Windows.Media.Pen(accent, active ? 4 : 2)
@@ -3843,7 +3983,7 @@ public partial class MainWindow : Window
                     StartLineCap = PenLineCap.Round,
                     EndLineCap = PenLineCap.Round
                 };
-                drawingContext.DrawLine(pen, new System.Windows.Point(line.Row.Left, y),
+                drawingContext.DrawLine(pen, new System.Windows.Point(line.ExplicitLeft ?? line.Row.Left, y),
                     new System.Windows.Point(line.Row.Right, y));
             }
         }

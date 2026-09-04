@@ -144,10 +144,16 @@ public class UiLayoutTests
         Assert.Equal(["RATING", "FLAGS", "COLOR LABEL", "KEYWORDS"], popup.Descendants(ns + "TextBlock")
             .Select(text => (string?)text.Attribute("Text"))
             .Where(text => text is "RATING" or "FLAGS" or "COLOR LABEL" or "KEYWORDS"));
-        var operatorMenu = Named(document, "BrowserRatingOperatorMenu");
+        var operatorMenu = Named(document, "BrowserRatingOperatorPanel");
+        Assert.Contains(operatorMenu.Ancestors(), ancestor => ancestor == popup);
+        Assert.Empty(operatorMenu.Descendants(ns + "ContextMenu"));
         Assert.Equal(["Rating is less than", "Rating is less than or equal to", "Rating is equal to",
             "Rating is greater than or equal to", "Rating is greater than"],
-            operatorMenu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")));
+            operatorMenu.Descendants(ns + "Button").Select(item => (string?)item.Attribute("Content")));
+        Assert.All(operatorMenu.Descendants(ns + "Button"), button =>
+            Assert.Equal("{StaticResource BrowserRatingOperatorChoice}", (string?)button.Attribute("Style")));
+        Assert.DoesNotContain(Named(document, "BrowserRatingFilterGroup").Descendants(ns + "Button"), button =>
+            (string?)button.Attribute("Content") == "Add");
         Assert.Equal(5, Enumerable.Range(1, 5).Count(value =>
             (string?)Named(document, $"BrowserRatingThreshold{value}").Attribute("Tag") == value.ToString()));
         var colorChoice = Named(document, "BrowserColorLabelFilterOptions").Descendants(ns + "CheckBox").Single();

@@ -649,6 +649,26 @@ public sealed class BrowserQueryLockPolicyTests
 
 public sealed class BrowserClassificationFilterTests
 {
+    [Fact]
+    public void RatingEditor_OperatorAloneDoesNotCreatePredicateAndStarSelectionCommitsDirectly()
+    {
+        var empty = BrowserQuery.Default;
+
+        var operatorOnly = BrowserRatingFilterEditor.SelectComparison(empty, BrowserNumberComparison.LessThan);
+        var selected = BrowserRatingFilterEditor.SelectThreshold(operatorOnly, BrowserNumberComparison.LessThan, 3);
+        var changedThreshold = BrowserRatingFilterEditor.SelectThreshold(selected, BrowserNumberComparison.LessThan, 5);
+        var changedOperator = BrowserRatingFilterEditor.SelectComparison(changedThreshold, BrowserNumberComparison.Equal);
+
+        Assert.Same(empty, operatorOnly);
+        Assert.DoesNotContain(operatorOnly.Filters, filter => filter.Field == BrowserFilterField.Rating);
+        Assert.Equal(BrowserFilterPredicate.ForRating(BrowserNumberComparison.LessThan, 3),
+            Assert.Single(selected.Filters, filter => filter.Field == BrowserFilterField.Rating));
+        Assert.Equal(BrowserFilterPredicate.ForRating(BrowserNumberComparison.LessThan, 5),
+            Assert.Single(changedThreshold.Filters, filter => filter.Field == BrowserFilterField.Rating));
+        Assert.Equal(BrowserFilterPredicate.ForRating(BrowserNumberComparison.Equal, 5),
+            Assert.Single(changedOperator.Filters, filter => filter.Field == BrowserFilterField.Rating));
+    }
+
     [Theory]
     [InlineData(1, "Rating < ★★★")]
     [InlineData(2, "Rating ≤ ★★★")]
@@ -676,6 +696,20 @@ public sealed class BrowserClassificationFilterTests
             BrowserClassificationFilterChoices.Flags.Select(predicate => predicate.Label));
         Assert.Equal([AssetFlag.Picked, AssetFlag.Unflagged, AssetFlag.Rejected],
             BrowserClassificationFilterChoices.Flags.Select(predicate => Enum.Parse<AssetFlag>(predicate.TextValue!)));
+        Assert.Equal(["Picked", "Unflagged", "Rejected"], BrowserClassificationFilterChoices.Flags
+            .Select(predicate => new BrowserFilterOption(predicate, false).DisplayLabel));
+    }
+
+    [Fact]
+    public void GroupedChoiceLabels_RemoveOnlyRedundantSectionPrefixes()
+    {
+        Assert.Equal("1920×1080", new BrowserFilterOption(BrowserFilterPredicate.ForResolution(1920, 1080), false).DisplayLabel);
+        Assert.Equal("29.97 fps", new BrowserFilterOption(BrowserFilterPredicate.ForFrameRate(29.97), false).DisplayLabel);
+        Assert.Equal("Sony A1", new BrowserFilterOption(BrowserFilterPredicate.ForText(BrowserFilterField.Camera, "Sony A1"), false).DisplayLabel);
+        Assert.Equal("≥ 10:00", new BrowserFilterOption(BrowserFilterPredicate.ForMinimum(BrowserFilterField.Duration, 600), false).DisplayLabel);
+        Assert.Equal("Resolution: 1920×1080", BrowserFilterPredicate.ForResolution(1920, 1080).Label);
+        Assert.Equal("Frame rate: 29.97 fps", BrowserFilterPredicate.ForFrameRate(29.97).Label);
+        Assert.Equal("Flag: Picked", BrowserClassificationFilterChoices.Flags[0].Label);
     }
 
     [Fact]

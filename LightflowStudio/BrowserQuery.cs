@@ -192,7 +192,7 @@ internal sealed record BrowserFilterPredicate
         _ => "Capture date"
     };
 
-    private static string FormatDuration(double? seconds) => seconds switch
+    internal static string FormatDuration(double? seconds) => seconds switch
     {
         >= 3600 => TimeSpan.FromSeconds(seconds.Value).ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture),
         > 0 => TimeSpan.FromSeconds(seconds.Value).ToString(@"m\:ss", CultureInfo.InvariantCulture),
@@ -239,6 +239,21 @@ internal static class BrowserQueryLockPolicy
         locked.SortMode == BrowserSortMode.Manual && scopeDefaultSort != BrowserSortMode.Manual
             ? locked with { SortMode = BrowserSortMode.Name, SortDescending = false }
             : locked;
+}
+
+internal static class BrowserRatingFilterEditor
+{
+    public static BrowserQuery SelectThreshold(BrowserQuery query, BrowserNumberComparison comparison, int threshold) =>
+        query.WithoutField(BrowserFilterField.Rating)
+            .WithFilterAdded(BrowserFilterPredicate.ForRating(comparison, threshold));
+
+    public static BrowserQuery SelectComparison(BrowserQuery query, BrowserNumberComparison comparison)
+    {
+        var active = query.Filters.LastOrDefault(filter => filter.Field == BrowserFilterField.Rating);
+        return active?.NumberValue is { } threshold
+            ? SelectThreshold(query, comparison, (int)threshold)
+            : query;
+    }
 }
 
 internal static class BrowserClassificationFilterChoices
@@ -424,7 +439,15 @@ internal sealed record BrowserFilterOption(
     int? ContextCount = null)
 {
     public string Label => Predicate.Label;
-    private string ChoiceLabel => Predicate.Field == BrowserFilterField.ColorLabel ? Predicate.TextValue ?? Label : Label;
+    private string ChoiceLabel => Predicate.Field switch
+    {
+        BrowserFilterField.Camera or BrowserFilterField.Lens or BrowserFilterField.Flag or
+            BrowserFilterField.ColorLabel or BrowserFilterField.Keyword => Predicate.TextValue ?? Label,
+        BrowserFilterField.Duration => $"≥ {BrowserFilterPredicate.FormatDuration(Predicate.NumberValue)}",
+        BrowserFilterField.Resolution => $"{Predicate.NumberValue:0}×{Predicate.NumberValue2:0}",
+        BrowserFilterField.FrameRate => $"{BrowserFrameRate.Canonicalize(Predicate.NumberValue):0.###} fps",
+        _ => Label
+    };
     public string DisplayLabel => ContextCount is { } count ? $"{ChoiceLabel} ({count})" : ChoiceLabel;
     public string DescriptiveValueLabel => Predicate.Field switch
     {

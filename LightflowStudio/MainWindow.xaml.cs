@@ -102,7 +102,7 @@ public partial class MainWindow : Window
     private string? _browserQueryScope;
     private BrowserQuery? _lockedBrowserQuery;
     private BrowserNumberComparison _browserRatingComparison = BrowserNumberComparison.GreaterThanOrEqual;
-    private int _browserRatingThreshold = 3;
+    private int? _browserRatingThreshold;
     private IDerivedWorkBatch? _activeBrowserDerivedWorkBatch;
     private readonly Dictionary<MediaTypeCategory, ToggleButton> _browserQuickFilterButtons = [];
     private BrowserThumbnailSize _browserThumbnailSize = BrowserGridLayout.DefaultThumbnailSize;
@@ -2108,6 +2108,7 @@ public partial class MainWindow : Window
             _browserRatingComparison = activeRating.Comparison;
             _browserRatingThreshold = Math.Clamp((int)rating, 1, 5);
         }
+        else _browserRatingThreshold = null;
         SyncBrowserRatingFilterEditor();
         BrowserFlagFilterOptions.ItemsSource = Options(BrowserClassificationFilterChoices.Flags);
         BrowserColorLabelFilterOptions.ItemsSource = Options(BrowserClassificationFilterChoices.ColorLabels);
@@ -2143,14 +2144,13 @@ public partial class MainWindow : Window
     private IReadOnlyList<BrowserFilterOption> Options(IEnumerable<BrowserFilterPredicate> predicates) =>
         predicates.Select(predicate => new BrowserFilterOption(predicate, _browserGrid.Query.Filters.Contains(predicate))).ToArray();
 
-    private void BrowserRatingOperatorButton_Click(object sender, RoutedEventArgs e) =>
-        BrowserRatingOperatorMenu.IsOpen = true;
-
     private void BrowserRatingOperatorChoice_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is MenuItem { Tag: string text } && Enum.TryParse<BrowserNumberComparison>(text, out var comparison))
+        if (sender is System.Windows.Controls.Button { Tag: string text } && Enum.TryParse<BrowserNumberComparison>(text, out var comparison))
         {
             _browserRatingComparison = comparison;
+            BrowserRatingOperatorButton.IsChecked = false;
+            ApplyBrowserQuery(query => BrowserRatingFilterEditor.SelectComparison(query, comparison));
             SyncBrowserRatingFilterEditor();
         }
     }
@@ -2160,6 +2160,8 @@ public partial class MainWindow : Window
         if (sender is ToggleButton { Tag: string text } && int.TryParse(text, out var threshold))
         {
             _browserRatingThreshold = Math.Clamp(threshold, 1, 5);
+            ApplyBrowserQuery(query => BrowserRatingFilterEditor.SelectThreshold(query,
+                _browserRatingComparison, _browserRatingThreshold.Value));
             SyncBrowserRatingFilterEditor();
         }
     }
@@ -2168,12 +2170,9 @@ public partial class MainWindow : Window
     {
         BrowserRatingOperatorButton.Content = BrowserFilterPredicate.ComparisonSymbol(_browserRatingComparison);
         var choices = new[] { BrowserRatingThreshold1, BrowserRatingThreshold2, BrowserRatingThreshold3, BrowserRatingThreshold4, BrowserRatingThreshold5 };
-        for (var index = 0; index < choices.Length; index++) choices[index].IsChecked = index < _browserRatingThreshold;
+        for (var index = 0; index < choices.Length; index++)
+            choices[index].IsChecked = _browserRatingThreshold is { } threshold && index < threshold;
     }
-
-    private void BrowserAddRatingFilter_Click(object sender, RoutedEventArgs e) =>
-        ApplyBrowserQuery(query => query.WithoutField(BrowserFilterField.Rating)
-            .WithFilterAdded(BrowserFilterPredicate.ForRating(_browserRatingComparison, _browserRatingThreshold)));
 
     private void BrowserAdvancedFilterCheck_Click(object sender, RoutedEventArgs e)
     {

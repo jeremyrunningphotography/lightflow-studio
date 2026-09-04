@@ -2144,9 +2144,23 @@ public partial class MainWindow : Window
     private IReadOnlyList<BrowserFilterOption> Options(IEnumerable<BrowserFilterPredicate> predicates) =>
         predicates.Select(predicate => new BrowserFilterOption(predicate, _browserGrid.Query.Filters.Contains(predicate))).ToArray();
 
+    private void BrowserRatingOperatorPopup_Opened(object? sender, EventArgs e)
+    {
+        BrowserFilterPopup.StaysOpen = true;
+        SyncBrowserRatingOperatorChoices();
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
+            BrowserRatingOperatorChoices.Children.OfType<ToggleButton>().First(button => button.IsChecked == true).Focus());
+    }
+
+    private void BrowserRatingOperatorPopup_Closed(object? sender, EventArgs e)
+    {
+        BrowserRatingOperatorButton.IsChecked = false;
+        BrowserFilterPopup.StaysOpen = false;
+    }
+
     private void BrowserRatingOperatorChoice_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is System.Windows.Controls.Button { Tag: string text } && Enum.TryParse<BrowserNumberComparison>(text, out var comparison))
+        if (sender is ToggleButton { Tag: string text } && Enum.TryParse<BrowserNumberComparison>(text, out var comparison))
         {
             _browserRatingComparison = comparison;
             BrowserRatingOperatorButton.IsChecked = false;
@@ -2169,9 +2183,35 @@ public partial class MainWindow : Window
     private void SyncBrowserRatingFilterEditor()
     {
         BrowserRatingOperatorButton.Content = BrowserFilterPredicate.ComparisonSymbol(_browserRatingComparison);
+        SyncBrowserRatingOperatorChoices();
         var choices = new[] { BrowserRatingThreshold1, BrowserRatingThreshold2, BrowserRatingThreshold3, BrowserRatingThreshold4, BrowserRatingThreshold5 };
         for (var index = 0; index < choices.Length; index++)
             choices[index].IsChecked = _browserRatingThreshold is { } threshold && index < threshold;
+    }
+
+    private void SyncBrowserRatingOperatorChoices()
+    {
+        foreach (var button in BrowserRatingOperatorChoices.Children.OfType<ToggleButton>())
+            button.IsChecked = button.Tag is string text && Enum.TryParse<BrowserNumberComparison>(text, out var comparison) &&
+                comparison == _browserRatingComparison;
+    }
+
+    private void BrowserRatingOperatorChoices_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        var choices = BrowserRatingOperatorChoices.Children.OfType<ToggleButton>().ToArray();
+        if (e.Key == System.Windows.Input.Key.Escape)
+        {
+            BrowserRatingOperatorButton.IsChecked = false;
+            BrowserRatingOperatorButton.Focus();
+            e.Handled = true;
+            return;
+        }
+        if (e.Key is not (System.Windows.Input.Key.Up or System.Windows.Input.Key.Down) ||
+            System.Windows.Input.Keyboard.FocusedElement is not ToggleButton focused) return;
+        var index = Array.IndexOf(choices, focused);
+        if (index < 0) return;
+        choices[(index + (e.Key == System.Windows.Input.Key.Down ? 1 : choices.Length - 1)) % choices.Length].Focus();
+        e.Handled = true;
     }
 
     private void BrowserAdvancedFilterCheck_Click(object sender, RoutedEventArgs e)

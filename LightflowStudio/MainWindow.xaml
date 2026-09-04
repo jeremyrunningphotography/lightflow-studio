@@ -389,9 +389,9 @@
    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton"><Grid Background="Transparent"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{StaticResource ClassificationRatingBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Opacity" Value="0.72"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
-  <Style x:Key="BrowserRatingOperatorChoice" TargetType="Button">
-   <Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="Padding" Value="9,6"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="4"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  <Style x:Key="BrowserRatingOperatorChoice" TargetType="ToggleButton">
+   <Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="Padding" Value="8,4"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="FontSize" Value="11"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton"><Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="3"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/><Setter Property="Foreground" Value="{StaticResource ShellFocusBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
 
   <!-- #125: compact hit area for the thumbnail-size slider's track, mirroring TrimEditorWindow's
@@ -835,16 +835,17 @@
                <ToggleButton x:Name="BrowserRatingThreshold5" Style="{StaticResource BrowserRatingThresholdChoice}" Tag="5" Click="BrowserRatingThreshold_Click" AutomationProperties.Name="5 star threshold"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
               </StackPanel>
              </StackPanel>
-             <Border x:Name="BrowserRatingOperatorPanel" Margin="4,4,4,0" Padding="3" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="6">
-              <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsChecked, ElementName=BrowserRatingOperatorButton}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
-              <StackPanel>
-               <Button Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is less than" Tag="LessThan" Click="BrowserRatingOperatorChoice_Click"/>
-               <Button Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is less than or equal to" Tag="LessThanOrEqual" Click="BrowserRatingOperatorChoice_Click"/>
-               <Button Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is equal to" Tag="Equal" Click="BrowserRatingOperatorChoice_Click"/>
-               <Button Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is greater than or equal to" Tag="GreaterThanOrEqual" Click="BrowserRatingOperatorChoice_Click"/>
-               <Button Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is greater than" Tag="GreaterThan" Click="BrowserRatingOperatorChoice_Click"/>
-              </StackPanel>
-             </Border>
+             <Popup x:Name="BrowserRatingOperatorPopup" IsOpen="{Binding IsChecked, ElementName=BrowserRatingOperatorButton, Mode=TwoWay}" PlacementTarget="{Binding ElementName=BrowserRatingOperatorButton}" Placement="Bottom" VerticalOffset="2" StaysOpen="False" AllowsTransparency="True" Opened="BrowserRatingOperatorPopup_Opened" Closed="BrowserRatingOperatorPopup_Closed">
+              <Border MinWidth="208" Padding="3" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="6">
+               <StackPanel x:Name="BrowserRatingOperatorChoices" PreviewKeyDown="BrowserRatingOperatorChoices_PreviewKeyDown">
+                <ToggleButton Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is less than" Tag="LessThan" Click="BrowserRatingOperatorChoice_Click"/>
+                <ToggleButton Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is less than or equal to" Tag="LessThanOrEqual" Click="BrowserRatingOperatorChoice_Click"/>
+                <ToggleButton Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is equal to" Tag="Equal" Click="BrowserRatingOperatorChoice_Click"/>
+                <ToggleButton Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is greater than or equal to" Tag="GreaterThanOrEqual" Click="BrowserRatingOperatorChoice_Click"/>
+                <ToggleButton Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is greater than" Tag="GreaterThan" Click="BrowserRatingOperatorChoice_Click"/>
+               </StackPanel>
+              </Border>
+             </Popup>
              </StackPanel>
 
              <StackPanel x:Name="BrowserFlagFilterGroup">

@@ -144,13 +144,19 @@ public class UiLayoutTests
         Assert.Equal(["RATING", "FLAGS", "COLOR LABEL", "KEYWORDS"], popup.Descendants(ns + "TextBlock")
             .Select(text => (string?)text.Attribute("Text"))
             .Where(text => text is "RATING" or "FLAGS" or "COLOR LABEL" or "KEYWORDS"));
-        var operatorMenu = Named(document, "BrowserRatingOperatorPanel");
+        var operatorMenu = Named(document, "BrowserRatingOperatorPopup");
         Assert.Contains(operatorMenu.Ancestors(), ancestor => ancestor == popup);
         Assert.Empty(operatorMenu.Descendants(ns + "ContextMenu"));
+        Assert.Equal("Bottom", (string?)operatorMenu.Attribute("Placement"));
+        Assert.Equal("BrowserRatingOperatorButton", ((string?)operatorMenu.Attribute("PlacementTarget"))?
+            .Replace("{Binding ElementName=", "").TrimEnd('}'));
+        Assert.Equal("False", (string?)operatorMenu.Attribute("StaysOpen"));
+        Assert.Equal("BrowserRatingOperatorPopup_Opened", (string?)operatorMenu.Attribute("Opened"));
+        Assert.Equal("BrowserRatingOperatorPopup_Closed", (string?)operatorMenu.Attribute("Closed"));
         Assert.Equal(["Rating is less than", "Rating is less than or equal to", "Rating is equal to",
             "Rating is greater than or equal to", "Rating is greater than"],
-            operatorMenu.Descendants(ns + "Button").Select(item => (string?)item.Attribute("Content")));
-        Assert.All(operatorMenu.Descendants(ns + "Button"), button =>
+            operatorMenu.Descendants(ns + "ToggleButton").Select(item => (string?)item.Attribute("Content")));
+        Assert.All(operatorMenu.Descendants(ns + "ToggleButton"), button =>
             Assert.Equal("{StaticResource BrowserRatingOperatorChoice}", (string?)button.Attribute("Style")));
         Assert.DoesNotContain(Named(document, "BrowserRatingFilterGroup").Descendants(ns + "Button"), button =>
             (string?)button.Attribute("Content") == "Add");
@@ -159,6 +165,11 @@ public class UiLayoutTests
         var colorChoice = Named(document, "BrowserColorLabelFilterOptions").Descendants(ns + "CheckBox").Single();
         Assert.Contains(colorChoice.Descendants(ns + "Ellipse"), ellipse => ellipse.Descendants(ns + "DataTrigger").Count() == 5);
         Assert.Contains(colorChoice.Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "{Binding DisplayLabel}");
+        var behavior = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
+        Assert.Contains("BrowserFilterPopup.StaysOpen = true;", behavior);
+        Assert.Contains("BrowserFilterPopup.StaysOpen = false;", behavior);
+        Assert.Contains("SyncBrowserRatingOperatorChoices();", behavior);
+        Assert.Contains("BrowserRatingOperatorChoices_PreviewKeyDown", behavior);
     }
 
     [Fact]

@@ -66,6 +66,17 @@ public sealed class CatalogClassificationTests
     public void FlagShortcut_UsesOrderedClampedTransitions(int current, int delta, int expected) =>
         Assert.Equal((AssetFlag)expected, AssetClassificationCommandPolicy.StepFlag((AssetFlag)current, delta));
 
+    [Theory]
+    [InlineData(0, 1, 1)]
+    [InlineData(1, 1, 0)]
+    [InlineData(-1, 1, 1)]
+    [InlineData(0, -1, -1)]
+    [InlineData(-1, -1, 0)]
+    [InlineData(1, -1, -1)]
+    public void DirectFlagChoice_TogglesActiveChoiceAndSwitchesOppositeChoice(int current, int requested, int expected) =>
+        Assert.Equal((AssetFlag)expected,
+            AssetClassificationCommandPolicy.ToggleFlag((AssetFlag)current, (AssetFlag)requested));
+
     [Fact]
     public void QueryClassificationFacets_UseMinimumRatingAndExactOtherValues()
     {
@@ -76,10 +87,52 @@ public sealed class CatalogClassificationTests
         tile.SetAssetState(new BrowserAssetQueryState(BrowserAssetState.None, false, false, 0,
             new(assetId, 4, AssetFlag.Picked, AssetColorLabel.Blue, ["ceremony"])));
 
-        Assert.True(BrowserFilterPredicate.ForMinimum(BrowserFilterField.Rating, 3).Matches(tile));
+        Assert.True(BrowserFilterPredicate.ForRating(BrowserNumberComparison.GreaterThanOrEqual, 3).Matches(tile));
         Assert.True(BrowserFilterPredicate.ForText(BrowserFilterField.Flag, "Picked").Matches(tile));
         Assert.True(BrowserFilterPredicate.ForText(BrowserFilterField.ColorLabel, "Blue").Matches(tile));
         Assert.True(BrowserFilterPredicate.ForText(BrowserFilterField.Keyword, "CEREMONY").Matches(tile));
-        Assert.False(BrowserFilterPredicate.ForMinimum(BrowserFilterField.Rating, 5).Matches(tile));
+        Assert.False(BrowserFilterPredicate.ForRating(BrowserNumberComparison.GreaterThanOrEqual, 5).Matches(tile));
+    }
+
+    [Theory]
+    [InlineData(1, 4, false)]
+    [InlineData(1, 5, true)]
+    [InlineData(2, 3, false)]
+    [InlineData(2, 4, true)]
+    [InlineData(3, 3, false)]
+    [InlineData(3, 4, true)]
+    [InlineData(0, 4, true)]
+    [InlineData(0, 5, false)]
+    [InlineData(4, 3, true)]
+    [InlineData(4, 4, false)]
+    public void RatingComparison_MatchesEachOperatorAtItsBoundary(int comparisonValue, int threshold, bool expected)
+    {
+        var rootId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var tile = new BrowserGridTile(new(rootId, "clip.mp4", "CLIP.MP4", "clip.mp4", false,
+            new(MediaTypeCategory.Video), 1, DateTimeOffset.UtcNow, AssetId: assetId), 0);
+        tile.SetAssetState(new BrowserAssetQueryState(BrowserAssetState.None, false, false, 0,
+            new(assetId, 4, AssetFlag.Unflagged, null, [])));
+
+        Assert.Equal(expected, BrowserFilterPredicate.ForRating((BrowserNumberComparison)comparisonValue, threshold).Matches(tile));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void FlagPredicate_MatchesEachExactDurableState(int flagValue)
+    {
+        var rootId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var tile = new BrowserGridTile(new(rootId, "clip.mp4", "CLIP.MP4", "clip.mp4", false,
+            new(MediaTypeCategory.Video), 1, DateTimeOffset.UtcNow, AssetId: assetId), 0);
+        var flag = (AssetFlag)flagValue;
+        tile.SetAssetState(new BrowserAssetQueryState(BrowserAssetState.None, false, false, 0,
+            new(assetId, 0, flag, null, [])));
+
+        Assert.True(BrowserFilterPredicate.ForText(BrowserFilterField.Flag, flag.ToString()).Matches(tile));
+        Assert.All(Enum.GetValues<AssetFlag>().Where(candidate => candidate != flag), candidate =>
+            Assert.False(BrowserFilterPredicate.ForText(BrowserFilterField.Flag, candidate.ToString()).Matches(tile)));
     }
 }

@@ -104,21 +104,18 @@
    <Setter Property="Width" Value="24"/><Setter Property="Padding" Value="4"/>
    <Style.Triggers><Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger></Style.Triggers>
   </Style>
-  <Style x:Key="PlayerUnflaggedChoice" TargetType="ToggleButton" BasedOn="{StaticResource PlayerClassificationChoice}">
-   <Style.Triggers><Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger></Style.Triggers>
-  </Style>
   <Style x:Key="PlayerRatingStarPath" TargetType="Path">
    <Setter Property="Width" Value="14"/><Setter Property="Height" Value="14"/><Setter Property="Stretch" Value="Uniform"/>
    <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"/><Setter Property="StrokeThickness" Value="1.4"/><Setter Property="Fill" Value="Transparent"/>
    <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Fill" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"/></DataTrigger></Style.Triggers>
   </Style>
   <Style x:Key="PlayerPickFlagPath" TargetType="Path">
-   <Setter Property="Stroke" Value="{StaticResource MutedTextBrush}"/><Setter Property="Fill" Value="{StaticResource MutedTextBrush}"/><Setter Property="StrokeThickness" Value="1.7"/><Setter Property="Opacity" Value="0.55"/>
-   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Stroke" Value="{StaticResource TextBrush}"/><Setter Property="Fill" Value="{StaticResource TextBrush}"/><Setter Property="StrokeThickness" Value="2.2"/><Setter Property="Opacity" Value="1"/></DataTrigger></Style.Triggers>
+   <Setter Property="Fill" Value="{StaticResource ClassificationPickedInactiveBrush}"/>
+   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Fill" Value="{StaticResource ClassificationPickedActiveBrush}"/></DataTrigger></Style.Triggers>
   </Style>
   <Style x:Key="PlayerRejectFlagPath" TargetType="Path">
-   <Setter Property="Stroke" Value="{StaticResource ClassificationRejectBrush}"/><Setter Property="Fill" Value="Transparent"/><Setter Property="StrokeThickness" Value="1.7"/>
-   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Fill" Value="{StaticResource ClassificationRejectBrush}"/><Setter Property="StrokeThickness" Value="2.2"/></DataTrigger></Style.Triggers>
+   <Setter Property="Fill" Value="{StaticResource ClassificationRejectedInactiveBrush}"/>
+   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Fill" Value="{StaticResource ClassificationRejectedActiveBrush}"/></DataTrigger></Style.Triggers>
   </Style>
   <Style x:Key="PlayerColorSwatch" TargetType="Ellipse">
    <Setter Property="Width" Value="13"/><Setter Property="Height" Value="13"/><Setter Property="Stroke" Value="Transparent"/><Setter Property="StrokeThickness" Value="0"/>
@@ -185,8 +182,7 @@
       </StackPanel>
       <StackPanel x:Name="PlayerFlagGroup" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
        <ToggleButton x:Name="PlayerPick" Style="{StaticResource PlayerClassificationChoice}" Tag="Picked" Click="PlayerFlag_Click" ToolTip="Pick" AutomationProperties.Name="Pick"><Path Width="15" Height="15" Stretch="Uniform" StrokeLineJoin="Round" Style="{StaticResource PlayerPickFlagPath}" Data="{StaticResource ClassificationFlagGeometry}"/></ToggleButton>
-       <ToggleButton x:Name="PlayerUnflagged" Style="{StaticResource PlayerUnflaggedChoice}" Tag="Unflagged" Click="PlayerFlag_Click" ToolTip="Unflagged" AutomationProperties.Name="Unflagged"><Grid Width="15" Height="15"><Path Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.5" Fill="Transparent" Data="{StaticResource ClassificationFlagGeometry}"/><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M2,14 L14,2"/></Grid></ToggleButton>
-       <ToggleButton x:Name="PlayerReject" Style="{StaticResource PlayerClassificationChoice}" Tag="Rejected" Click="PlayerFlag_Click" ToolTip="Reject" AutomationProperties.Name="Reject"><Path Width="15" Height="15" Stretch="Uniform" StrokeLineJoin="Round" Style="{StaticResource PlayerRejectFlagPath}" Data="{StaticResource ClassificationFlagGeometry}"/></ToggleButton>
+       <ToggleButton x:Name="PlayerReject" Style="{StaticResource PlayerClassificationChoice}" Tag="Rejected" Click="PlayerFlag_Click" ToolTip="Reject" AutomationProperties.Name="Reject"><Grid Width="15" Height="15"><Path Stretch="Uniform" Style="{StaticResource PlayerRejectFlagPath}" Data="{StaticResource ClassificationFlagGeometry}"/><Path Stretch="Uniform" Stroke="{StaticResource ClassificationRejectedXBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="{StaticResource ClassificationRejectedXGeometry}"/></Grid></ToggleButton>
       </StackPanel>
       <StackPanel x:Name="PlayerLabelGroup" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
        <ToggleButton x:Name="PlayerNoLabel" Style="{StaticResource PlayerSwatchChoice}" Tag="None" Click="PlayerColorLabel_Click" ToolTip="No color label" AutomationProperties.Name="No color label"><Grid Width="15" Height="15"><Ellipse Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.5"/><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.5" StrokeStartLineCap="Round" Data="M3,12 L12,3"/></Grid></ToggleButton>

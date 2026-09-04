@@ -15,6 +15,12 @@ internal static class AssetClassificationCommandPolicy
 
     public static AssetFlag StepFlag(AssetFlag current, int delta) =>
         (AssetFlag)Math.Clamp((int)current + Math.Sign(delta), (int)AssetFlag.Rejected, (int)AssetFlag.Picked);
+
+    public static AssetFlag ToggleFlag(AssetFlag current, AssetFlag requested)
+    {
+        if (requested == AssetFlag.Unflagged) throw new ArgumentOutOfRangeException(nameof(requested));
+        return current == requested ? AssetFlag.Unflagged : requested;
+    }
 }
 
 internal sealed record AssetClassification(Guid AssetId, int Rating, AssetFlag Flag,

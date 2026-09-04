@@ -1486,9 +1486,8 @@ public partial class PlayerViewerHost : UserControl
             ratingButtons[index].IsEnabled = _classification is not null;
             ratingButtons[index].IsChecked = _classification?.Rating >= index + 1;
         }
-        PlayerReject.IsEnabled = PlayerUnflagged.IsEnabled = PlayerPick.IsEnabled = _classification is not null;
+        PlayerReject.IsEnabled = PlayerPick.IsEnabled = _classification is not null;
         PlayerReject.IsChecked = _classification?.Flag == AssetFlag.Rejected;
-        PlayerUnflagged.IsChecked = _classification?.Flag == AssetFlag.Unflagged;
         PlayerPick.IsChecked = _classification?.Flag == AssetFlag.Picked;
         var labelButtons = new[] { PlayerNoLabel, PlayerLabelRed, PlayerLabelYellow, PlayerLabelGreen, PlayerLabelBlue, PlayerLabelPurple };
         foreach (var button in labelButtons) button.IsEnabled = _classification is not null;
@@ -1521,7 +1520,7 @@ public partial class PlayerViewerHost : UserControl
     private void PlayerFlag_Click(object sender, RoutedEventArgs e)
     {
         if (_classification is { } value && sender is ToggleButton { Tag: string text } && Enum.TryParse<AssetFlag>(text, out var flag))
-            _ = SaveClassificationAsync(value with { Flag = flag });
+            _ = SaveClassificationAsync(value with { Flag = AssetClassificationCommandPolicy.ToggleFlag(value.Flag, flag) });
     }
     private void PlayerColorLabel_Click(object sender, RoutedEventArgs e)
     {

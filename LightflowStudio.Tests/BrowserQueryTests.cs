@@ -608,7 +608,7 @@ public sealed class BrowserQueryLockPolicyTests
     [Fact]
     public void LockedQuery_PreservesCompletePortableIntentAcrossOrdinaryScopes()
     {
-        var filter = BrowserFilterPredicate.ForMinimum(BrowserFilterField.Rating, 3);
+        var filter = BrowserFilterPredicate.ForRating(BrowserNumberComparison.LessThanOrEqual, 3);
         var locked = BrowserQuery.Default with
         {
             SearchText = "ceremony",
@@ -620,6 +620,8 @@ public sealed class BrowserQueryLockPolicyTests
         var materialized = BrowserQueryLockPolicy.Materialize(locked, BrowserSortMode.Name);
 
         Assert.Same(locked, materialized);
+        Assert.Equal(BrowserNumberComparison.LessThanOrEqual, materialized.Filters.Single().Comparison);
+        Assert.Equal(3, materialized.Filters.Single().NumberValue);
     }
 
     [Fact]
@@ -642,5 +644,55 @@ public sealed class BrowserQueryLockPolicyTests
     {
         Assert.Equal(BrowserSortMode.Name, BrowserQueryLockPolicy.Materialize(null, BrowserSortMode.Name).SortMode);
         Assert.Equal(BrowserSortMode.Manual, BrowserQueryLockPolicy.Materialize(null, BrowserSortMode.Manual).SortMode);
+    }
+}
+
+public sealed class BrowserClassificationFilterTests
+{
+    [Theory]
+    [InlineData(1, "Rating < ★★★")]
+    [InlineData(2, "Rating ≤ ★★★")]
+    [InlineData(3, "Rating = ★★★")]
+    [InlineData(0, "Rating ≥ ★★★")]
+    [InlineData(4, "Rating > ★★★")]
+    public void RatingChip_PreservesOperatorAndStarThreshold(int comparisonValue, string expected) =>
+        Assert.Equal(expected, BrowserFilterPredicate.ForRating((BrowserNumberComparison)comparisonValue, 3).Label);
+
+    [Fact]
+    public void RatingPredicate_JsonRoundTripPreservesOperatorAndThreshold()
+    {
+        var predicate = BrowserFilterPredicate.ForRating(BrowserNumberComparison.GreaterThan, 4);
+
+        var restored = System.Text.Json.JsonSerializer.Deserialize<BrowserFilterPredicate>(
+            System.Text.Json.JsonSerializer.Serialize(predicate));
+
+        Assert.Equal(predicate, restored);
+    }
+
+    [Fact]
+    public void FlagChoices_AreOrderedPickedUnflaggedRejectedAndAllMatchExactly()
+    {
+        Assert.Equal(["Flag: Picked", "Flag: Unflagged", "Flag: Rejected"],
+            BrowserClassificationFilterChoices.Flags.Select(predicate => predicate.Label));
+        Assert.Equal([AssetFlag.Picked, AssetFlag.Unflagged, AssetFlag.Rejected],
+            BrowserClassificationFilterChoices.Flags.Select(predicate => Enum.Parse<AssetFlag>(predicate.TextValue!)));
+    }
+
+    [Fact]
+    public void ColorAndKeywordChoices_PreserveEstablishedOrderAndComposeWithOtherPredicates()
+    {
+        Assert.Equal(["Red", "Yellow", "Green", "Blue", "Purple"],
+            BrowserClassificationFilterChoices.ColorLabels.Select(predicate => new BrowserFilterOption(predicate, false).DisplayLabel));
+        Assert.Equal(["ceremony", "Favorites"], BrowserClassificationFilterChoices.Keywords(["Favorites", "ceremony", "CEREMONY"])
+            .Select(predicate => predicate.TextValue));
+
+        var query = BrowserQuery.Default with { Filters =
+        [
+            BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video),
+            BrowserFilterPredicate.ForRating(BrowserNumberComparison.Equal, 4),
+            BrowserClassificationFilterChoices.Flags[0],
+            BrowserClassificationFilterChoices.ColorLabels[3]
+        ] };
+        Assert.Equal(4, query.Filters.Count);
     }
 }

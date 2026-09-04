@@ -362,7 +362,8 @@
   </DataTemplate>
   <DataTemplate x:Key="BrowserFlagIndicator">
    <Grid Width="16" Height="16" ToolTip="{Binding Flag}" AutomationProperties.Name="{Binding Flag}">
-    <Path x:Name="FlagShape" Stretch="Uniform" StrokeThickness="1.7" StrokeLineJoin="Round" Data="{StaticResource ClassificationFlagGeometry}"><Path.Style><Style TargetType="Path"><Setter Property="Stroke" Value="{StaticResource ClassificationPickBrush}"/><Setter Property="Fill" Value="{StaticResource ClassificationPickBrush}"/><Setter Property="Opacity" Value="0.6"/><Style.Triggers><DataTrigger Binding="{Binding Flag}" Value="{x:Static local:AssetFlag.Rejected}"><Setter Property="Stroke" Value="{StaticResource ClassificationRejectBrush}"/><Setter Property="Fill" Value="{StaticResource ClassificationRejectBrush}"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+    <Path x:Name="PickedFlagShape" Stretch="Uniform" Fill="{StaticResource ClassificationPickedActiveBrush}" Data="{StaticResource ClassificationFlagGeometry}"><Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Flag}" Value="{x:Static local:AssetFlag.Picked}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+    <Grid x:Name="RejectedFlagShape"><Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Flag}" Value="{x:Static local:AssetFlag.Rejected}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Grid.Style><Path Stretch="Uniform" Fill="{StaticResource ClassificationRejectedActiveBrush}" Data="{StaticResource ClassificationFlagGeometry}"/><Path Stretch="Uniform" Stroke="{StaticResource ClassificationRejectedXBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="{StaticResource ClassificationRejectedXGeometry}"/></Grid>
     <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding Flag}" Value="{x:Static local:AssetFlag.Unflagged}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Grid.Style>
    </Grid>
   </DataTemplate>
@@ -382,6 +383,11 @@
      <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger>
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="BrowserRatingThresholdChoice" TargetType="ToggleButton">
+   <Setter Property="Width" Value="27"/><Setter Property="Height" Value="27"/><Setter Property="Margin" Value="0"/>
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton"><Grid Background="Transparent"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{StaticResource ClassificationRatingBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Opacity" Value="0.72"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
 
   <!-- #125: compact hit area for the thumbnail-size slider's track, mirroring TrimEditorWindow's
@@ -813,9 +819,46 @@
              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
              </StackPanel>
 
-             <StackPanel x:Name="BrowserClassificationFilterGroup">
-             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="RATING, FLAG, LABEL &amp; KEYWORD"/>
-             <ItemsControl x:Name="BrowserClassificationFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+             <StackPanel x:Name="BrowserRatingFilterGroup">
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="RATING"/>
+             <StackPanel Orientation="Horizontal" Margin="4,4,4,0">
+              <Button x:Name="BrowserRatingOperatorButton" Width="40" Height="28" Padding="4" Content="≥" Click="BrowserRatingOperatorButton_Click" ToolTip="Choose rating comparison" AutomationProperties.Name="Rating comparison operator">
+               <Button.ContextMenu><ContextMenu x:Name="BrowserRatingOperatorMenu">
+                <MenuItem Header="Rating is less than" Tag="LessThan" Click="BrowserRatingOperatorChoice_Click"/>
+                <MenuItem Header="Rating is less than or equal to" Tag="LessThanOrEqual" Click="BrowserRatingOperatorChoice_Click"/>
+                <MenuItem Header="Rating is equal to" Tag="Equal" Click="BrowserRatingOperatorChoice_Click"/>
+                <MenuItem Header="Rating is greater than or equal to" Tag="GreaterThanOrEqual" Click="BrowserRatingOperatorChoice_Click"/>
+                <MenuItem Header="Rating is greater than" Tag="GreaterThan" Click="BrowserRatingOperatorChoice_Click"/>
+               </ContextMenu></Button.ContextMenu>
+              </Button>
+              <StackPanel Orientation="Horizontal" Margin="8,0,0,0">
+               <ToggleButton x:Name="BrowserRatingThreshold1" Style="{StaticResource BrowserRatingThresholdChoice}" Tag="1" Click="BrowserRatingThreshold_Click" AutomationProperties.Name="1 star threshold"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+               <ToggleButton x:Name="BrowserRatingThreshold2" Style="{StaticResource BrowserRatingThresholdChoice}" Tag="2" Click="BrowserRatingThreshold_Click" AutomationProperties.Name="2 star threshold"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+               <ToggleButton x:Name="BrowserRatingThreshold3" Style="{StaticResource BrowserRatingThresholdChoice}" Tag="3" Click="BrowserRatingThreshold_Click" AutomationProperties.Name="3 star threshold"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+               <ToggleButton x:Name="BrowserRatingThreshold4" Style="{StaticResource BrowserRatingThresholdChoice}" Tag="4" Click="BrowserRatingThreshold_Click" AutomationProperties.Name="4 star threshold"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+               <ToggleButton x:Name="BrowserRatingThreshold5" Style="{StaticResource BrowserRatingThresholdChoice}" Tag="5" Click="BrowserRatingThreshold_Click" AutomationProperties.Name="5 star threshold"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+              </StackPanel>
+              <Button Margin="8,0,0,0" Padding="10,4" Content="Add" Click="BrowserAddRatingFilter_Click"/>
+             </StackPanel>
+             </StackPanel>
+
+             <StackPanel x:Name="BrowserFlagFilterGroup">
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="FLAGS"/>
+             <ItemsControl x:Name="BrowserFlagFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+              <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
+             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+             </StackPanel>
+
+             <StackPanel x:Name="BrowserColorLabelFilterGroup">
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="COLOR LABEL"/>
+             <ItemsControl x:Name="BrowserColorLabelFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+              <CheckBox Margin="4,6,4,0" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"><StackPanel Orientation="Horizontal"><Ellipse Width="12" Height="12" Margin="0,0,7,0"><Ellipse.Style><Style TargetType="Ellipse"><Style.Triggers><DataTrigger Binding="{Binding Predicate.TextValue}" Value="Red"><Setter Property="Fill" Value="{StaticResource ClassificationLabelRedBrush}"/></DataTrigger><DataTrigger Binding="{Binding Predicate.TextValue}" Value="Yellow"><Setter Property="Fill" Value="{StaticResource ClassificationLabelYellowBrush}"/></DataTrigger><DataTrigger Binding="{Binding Predicate.TextValue}" Value="Green"><Setter Property="Fill" Value="{StaticResource ClassificationLabelGreenBrush}"/></DataTrigger><DataTrigger Binding="{Binding Predicate.TextValue}" Value="Blue"><Setter Property="Fill" Value="{StaticResource ClassificationLabelAzureBrush}"/></DataTrigger><DataTrigger Binding="{Binding Predicate.TextValue}" Value="Purple"><Setter Property="Fill" Value="{StaticResource ClassificationLabelPurpleBrush}"/></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse><TextBlock Text="{Binding DisplayLabel}"/></StackPanel></CheckBox>
+             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+             </StackPanel>
+
+             <StackPanel x:Name="BrowserKeywordFilterGroup">
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="KEYWORDS"/>
+             <ItemsControl x:Name="BrowserKeywordFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
               <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
              </StackPanel>

@@ -128,7 +128,8 @@ public class UiLayoutTests
             "BrowserCameraFilterOptions", "BrowserLensFilterOptions", "BrowserCaptureDateFrom", "BrowserCaptureDateTo",
             "BrowserDurationFilterCombo", "BrowserResolutionFilterOptions", "BrowserFrameRateFilterOptions",
             "BrowserStateFilterOptions", "BrowserCameraFilterInformation", "BrowserLensFilterInformation",
-            "BrowserResolutionFilterInformation", "BrowserFrameRateFilterInformation"
+            "BrowserResolutionFilterInformation", "BrowserFrameRateFilterInformation", "BrowserRatingFilterGroup",
+            "BrowserFlagFilterOptions", "BrowserColorLabelFilterOptions", "BrowserKeywordFilterOptions"
         })
             Assert.Contains(popup.Descendants(), element => element == Named(document, name));
         Assert.Contains(popup.Descendants(), element => element == Named(document, "BrowserClearAdvancedFiltersButton"));
@@ -139,6 +140,18 @@ public class UiLayoutTests
         Assert.Equal("{Binding IsEnabled}", (string?)stateChoice.Attribute("IsEnabled"));
         Assert.DoesNotContain(popup.Descendants(ns + "TextBlock"), text =>
             ((string?)text.Attribute("Text"))?.Contains("hydrated Catalog state", StringComparison.OrdinalIgnoreCase) == true);
+        Assert.Equal(["RATING", "FLAGS", "COLOR LABEL", "KEYWORDS"], popup.Descendants(ns + "TextBlock")
+            .Select(text => (string?)text.Attribute("Text"))
+            .Where(text => text is "RATING" or "FLAGS" or "COLOR LABEL" or "KEYWORDS"));
+        var operatorMenu = Named(document, "BrowserRatingOperatorMenu");
+        Assert.Equal(["Rating is less than", "Rating is less than or equal to", "Rating is equal to",
+            "Rating is greater than or equal to", "Rating is greater than"],
+            operatorMenu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")));
+        Assert.Equal(5, Enumerable.Range(1, 5).Count(value =>
+            (string?)Named(document, $"BrowserRatingThreshold{value}").Attribute("Tag") == value.ToString()));
+        var colorChoice = Named(document, "BrowserColorLabelFilterOptions").Descendants(ns + "CheckBox").Single();
+        Assert.Contains(colorChoice.Descendants(ns + "Ellipse"), ellipse => ellipse.Descendants(ns + "DataTrigger").Count() == 5);
+        Assert.Contains(colorChoice.Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "{Binding DisplayLabel}");
     }
 
     [Fact]
@@ -1423,6 +1436,16 @@ public class UiLayoutTests
             ((string?)path.Descendants(ns + "DataTrigger").Single().Attribute("Binding"))!.Split(',').Last().Trim().TrimEnd('}')));
         Assert.All(ratingPaths, path => Assert.Contains(path.Descendants(ns + "Setter"), setter =>
             (string?)setter.Attribute("Property") == "Visibility" && (string?)setter.Attribute("Value") == "Visible"));
+        var flag = document.Descendants(ns + "DataTemplate").Single(template =>
+            (string?)template.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "BrowserFlagIndicator");
+        Assert.Contains(flag.Descendants(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationFlagGeometry}" &&
+            path.Descendants(ns + "DataTrigger").Any(trigger => (string?)trigger.Attribute("Value") == "{x:Static local:AssetFlag.Picked}"));
+        Assert.Contains(flag.Descendants(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}");
+        Assert.Contains(flag.Descendants(ns + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Value") == "{x:Static local:AssetFlag.Unflagged}" &&
+            trigger.Descendants(ns + "Setter").Any(setter => (string?)setter.Attribute("Value") == "Collapsed"));
         Assert.NotNull(Named(document, "BrowserHybridLowerStateOverlay"));
     }
 
@@ -1446,9 +1469,11 @@ public class UiLayoutTests
         var ns = document.Root!.Name.Namespace;
         Assert.Null(document.Descendants().FirstOrDefault(element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerRatingButton"));
         foreach (var name in new[] { "PlayerRating1", "PlayerRating2", "PlayerRating3", "PlayerRating4", "PlayerRating5",
-                     "PlayerReject", "PlayerUnflagged", "PlayerPick", "PlayerNoLabel", "PlayerLabelRed", "PlayerLabelYellow",
+                     "PlayerReject", "PlayerPick", "PlayerNoLabel", "PlayerLabelRed", "PlayerLabelYellow",
                      "PlayerLabelGreen", "PlayerLabelBlue", "PlayerLabelPurple" })
             Assert.Equal(ns + "ToggleButton", Named(document, name).Name);
+        Assert.Null(document.Descendants().FirstOrDefault(element =>
+            (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerUnflagged"));
         Assert.All(Enumerable.Range(1, 5), rating =>
         {
             var button = Named(document, $"PlayerRating{rating}");
@@ -1501,16 +1526,20 @@ public class UiLayoutTests
         var pickStyle = document.Descendants(ns + "Style").Single(style =>
             (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerPickFlagPath");
         Assert.Contains(pickStyle.Elements(ns + "Setter"), setter =>
-            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource MutedTextBrush}");
+            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationPickedInactiveBrush}");
         Assert.Contains(pickStyle.Descendants(ns + "DataTrigger").Descendants(ns + "Setter"), setter =>
-            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource TextBrush}");
-        foreach (var name in new[] { "PlayerReject", "PlayerUnflagged", "PlayerPick" })
+            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationPickedActiveBrush}");
+        foreach (var name in new[] { "PlayerReject", "PlayerPick" })
             Assert.Contains(Named(document, name).Descendants(ns + "Path"), path =>
                 (string?)path.Attribute("Data") == "{StaticResource ClassificationFlagGeometry}");
+        Assert.Contains(Named(document, "PlayerReject").Descendants(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}");
         var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
         var appNs = app.Root!.Name.Namespace;
         foreach (var key in new[] { "ClassificationStarGeometry", "ClassificationFlagGeometry", "ClassificationRatingBrush",
-                     "ClassificationPickBrush", "ClassificationRejectBrush", "ClassificationLabelRedBrush", "ClassificationLabelYellowBrush",
+                     "ClassificationPickBrush", "ClassificationRejectBrush", "ClassificationRejectedXGeometry",
+                     "ClassificationPickedActiveBrush", "ClassificationPickedInactiveBrush", "ClassificationRejectedActiveBrush",
+                     "ClassificationRejectedInactiveBrush", "ClassificationRejectedXBrush", "ClassificationLabelRedBrush", "ClassificationLabelYellowBrush",
                      "ClassificationLabelGreenBrush", "ClassificationLabelAzureBrush", "ClassificationLabelPurpleBrush" })
             Assert.Single(app.Descendants(), element =>
                 (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == key);
@@ -1519,6 +1548,8 @@ public class UiLayoutTests
                 (string?)Named(document, $"PlayerLabel{label}").Descendants(appNs + "Ellipse").Single().Attribute("Fill"));
         var codeBehind = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
         Assert.Contains("ratingButtons[index].IsChecked = _classification?.Rating >= index + 1;", codeBehind);
+        Assert.Contains("AssetClassificationCommandPolicy.ToggleFlag(value.Flag, flag)", codeBehind);
+        Assert.DoesNotContain("PlayerUnflagged", codeBehind);
         Assert.DoesNotContain(document.Descendants(), element => ((string?)element.Attribute("ToolTip"))?.Contains("Cycle", StringComparison.OrdinalIgnoreCase) == true);
     }
 

@@ -2354,7 +2354,7 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private string? CurrentBrowserFolder() => _lastLoadedBrowserState?.Location.AbsolutePath;
+    private string? CurrentBrowserFolder() => _lastLoadedBrowserState?.Location?.AbsolutePath;
 
     private async Task<IReadOnlyList<FileOperationSource>> SelectedFileOperationSourcesAsync()
     {
@@ -2363,8 +2363,8 @@ public partial class MainWindow : Window
         {
             var resolved = tile.AssetId is { } id ? await _storage.MediaAssets.GetAsync(id) : null;
             var path = resolved?.PhysicalPath;
-            if (path is null && _lastLoadedBrowserState is { } state)
-                path = MediaPathSemantics.ResolveContained(state.Location.RootPath, tile.RelativePath);
+            if (path is null && _lastLoadedBrowserState is { Location: { } location })
+                path = MediaPathSemantics.ResolveContained(location.RootPath, tile.RelativePath);
             if (path is not null) sources.Add(new(tile.AssetId, path, tile.FileSizeBytes));
         }
         return sources;

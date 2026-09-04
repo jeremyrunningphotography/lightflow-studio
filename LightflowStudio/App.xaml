@@ -39,15 +39,15 @@
        fabric so the shape remains unmistakably a flag when scaled to thumbnail-indicator size. -->
   <StreamGeometry x:Key="ClassificationFlagGeometry">M2,18 L4,18 L4,11 C7,9 10,12 15,9 L15,2 C11,5 8,2 4,4 L4,1 L2,1 Z</StreamGeometry>
   <!-- Kept wholly inside the fabric portion of ClassificationFlagGeometry: never across its stem. -->
-  <StreamGeometry x:Key="ClassificationRejectedXGeometry">M7,4.5 L10.5,7.5 M10.5,4.5 L7,7.5</StreamGeometry>
+  <StreamGeometry x:Key="ClassificationRejectedXGeometry">M7.5,4.75 L10.5,7.25 M10.5,4.75 L7.5,7.25</StreamGeometry>
   <SolidColorBrush x:Key="ClassificationRatingBrush" Color="#F2C05C"/>
   <SolidColorBrush x:Key="ClassificationPickBrush" Color="#FF8A1F"/>
   <SolidColorBrush x:Key="ClassificationRejectBrush" Color="#E85A5A"/>
   <SolidColorBrush x:Key="ClassificationPickedActiveBrush" Color="#F5F7FA"/>
   <SolidColorBrush x:Key="ClassificationPickedInactiveBrush" Color="#707783"/>
-  <SolidColorBrush x:Key="ClassificationRejectedActiveBrush" Color="#111318"/>
-  <SolidColorBrush x:Key="ClassificationRejectedInactiveBrush" Color="#555C67"/>
-  <SolidColorBrush x:Key="ClassificationRejectedXBrush" Color="#B1B7C0"/>
+  <SolidColorBrush x:Key="ClassificationRejectedInteriorBrush" Color="#111318"/>
+  <SolidColorBrush x:Key="ClassificationRejectedActiveBrush" Color="#F5F7FA"/>
+  <SolidColorBrush x:Key="ClassificationRejectedInactiveBrush" Color="#707783"/>
   <SolidColorBrush x:Key="ClassificationLabelRedBrush" Color="#E85A5A"/>
   <SolidColorBrush x:Key="ClassificationLabelYellowBrush" Color="#E3B341"/>
   <SolidColorBrush x:Key="ClassificationLabelGreenBrush" Color="#57AB5A"/>

@@ -75,24 +75,19 @@
    <Setter Property="Width" Value="24"/><Setter Property="Height" Value="24"/><Setter Property="Margin" Value="2,0,0,0"/>
    <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/><Setter Property="FontSize" Value="12"/>
   </Style>
-  <Style x:Key="PlayerClassificationFocusVisual" TargetType="Control">
-   <Setter Property="Template"><Setter.Value><ControlTemplate>
-    <Grid><AdornedElementPlaceholder/><Border Margin="1" BorderBrush="{StaticResource TextBrush}" BorderThickness="1" CornerRadius="12" Opacity="0.62"/></Grid>
-   </ControlTemplate></Setter.Value></Setter>
-  </Style>
   <Style x:Key="PlayerClassificationChoice" TargetType="ToggleButton">
    <Setter Property="Height" Value="24"/><Setter Property="MinWidth" Value="24"/><Setter Property="Padding" Value="4,2"/><Setter Property="Margin" Value="1,0"/>
    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/>
-   <Setter Property="Cursor" Value="Hand"/>
-   <Setter Property="FocusVisualStyle" Value="{StaticResource PlayerClassificationFocusVisual}"/>
+   <Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
-    <Grid Background="Transparent">
+    <Grid x:Name="InteractionSurface" Background="Transparent" RenderTransformOrigin="0.5,0.5">
      <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
     </Grid>
     <ControlTemplate.Triggers>
      <Trigger Property="IsMouseOver" Value="True"><Setter Property="Opacity" Value="0.78"/></Trigger>
      <Trigger Property="IsPressed" Value="True"><Setter Property="Opacity" Value="0.58"/></Trigger>
      <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.38"/><Setter Property="Cursor" Value="Arrow"/></Trigger>
+     <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsKeyboardFocused, RelativeSource={RelativeSource TemplatedParent}}" Value="True"/><Condition Binding="{Binding (KeyboardNavigation.ShowKeyboardCues), RelativeSource={RelativeSource TemplatedParent}}" Value="True"/></MultiDataTrigger.Conditions><Setter TargetName="InteractionSurface" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1.12" ScaleY="1.12"/></Setter.Value></Setter></MultiDataTrigger>
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
@@ -114,8 +109,12 @@
    <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Fill" Value="{StaticResource ClassificationPickedActiveBrush}"/></DataTrigger></Style.Triggers>
   </Style>
   <Style x:Key="PlayerRejectFlagPath" TargetType="Path">
-   <Setter Property="Fill" Value="{StaticResource ClassificationRejectedInactiveBrush}"/>
-   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Fill" Value="{StaticResource ClassificationRejectedActiveBrush}"/></DataTrigger></Style.Triggers>
+   <Setter Property="Fill" Value="{StaticResource ClassificationRejectedInteriorBrush}"/><Setter Property="Stroke" Value="{StaticResource ClassificationRejectedInactiveBrush}"/><Setter Property="StrokeThickness" Value="1.5"/><Setter Property="StrokeLineJoin" Value="Round"/>
+   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Stroke" Value="{StaticResource ClassificationRejectedActiveBrush}"/></DataTrigger></Style.Triggers>
+  </Style>
+  <Style x:Key="PlayerRejectXPath" TargetType="Path">
+   <Setter Property="Stroke" Value="{StaticResource ClassificationRejectedInactiveBrush}"/>
+   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Stroke" Value="{StaticResource ClassificationRejectedActiveBrush}"/></DataTrigger></Style.Triggers>
   </Style>
   <Style x:Key="PlayerColorSwatch" TargetType="Ellipse">
    <Setter Property="Width" Value="13"/><Setter Property="Height" Value="13"/><Setter Property="Stroke" Value="Transparent"/><Setter Property="StrokeThickness" Value="0"/>
@@ -181,7 +180,7 @@
        <ToggleButton x:Name="PlayerRating5" Style="{StaticResource PlayerStarChoice}" Tag="5" Click="PlayerRating_Click" AutomationProperties.Name="5 stars"><Path Style="{StaticResource PlayerRatingStarPath}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
       </StackPanel>
       <StackPanel x:Name="PlayerFlagGroup" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
-       <ToggleButton x:Name="PlayerReject" Style="{StaticResource PlayerClassificationChoice}" Tag="Rejected" Click="PlayerFlag_Click" ToolTip="Reject" AutomationProperties.Name="Reject"><Grid Width="15" Height="15"><Path Stretch="Uniform" Style="{StaticResource PlayerRejectFlagPath}" Data="{StaticResource ClassificationFlagGeometry}"/><Path Stretch="Uniform" Stroke="{StaticResource ClassificationRejectedXBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="{StaticResource ClassificationRejectedXGeometry}"/></Grid></ToggleButton>
+       <ToggleButton x:Name="PlayerReject" Style="{StaticResource PlayerClassificationChoice}" Tag="Rejected" Click="PlayerFlag_Click" ToolTip="Reject" AutomationProperties.Name="Reject"><Grid Width="15" Height="15"><Path Stretch="Uniform" Style="{StaticResource PlayerRejectFlagPath}" Data="{StaticResource ClassificationFlagGeometry}"/><Path Stretch="Uniform" Style="{StaticResource PlayerRejectXPath}" StrokeThickness="1.25" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="{StaticResource ClassificationRejectedXGeometry}"/></Grid></ToggleButton>
        <ToggleButton x:Name="PlayerPick" Style="{StaticResource PlayerClassificationChoice}" Tag="Picked" Click="PlayerFlag_Click" ToolTip="Pick" AutomationProperties.Name="Pick"><Path Width="15" Height="15" Stretch="Uniform" StrokeLineJoin="Round" Style="{StaticResource PlayerPickFlagPath}" Data="{StaticResource ClassificationFlagGeometry}"/></ToggleButton>
       </StackPanel>
       <StackPanel x:Name="PlayerLabelGroup" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">

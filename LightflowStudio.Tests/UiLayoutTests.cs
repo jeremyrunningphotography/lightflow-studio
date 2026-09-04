@@ -1444,6 +1444,16 @@ public class UiLayoutTests
             path.Descendants(ns + "DataTrigger").Any(trigger => (string?)trigger.Attribute("Value") == "{x:Static local:AssetFlag.Picked}"));
         Assert.Contains(flag.Descendants(ns + "Path"), path =>
             (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}");
+        var rejectedFlag = flag.Descendants(ns + "Grid").Single(grid =>
+            (string?)grid.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "RejectedFlagShape");
+        Assert.Equal(2, rejectedFlag.Elements(ns + "Path").Count());
+        Assert.Contains(rejectedFlag.Elements(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationFlagGeometry}" &&
+            (string?)path.Attribute("Fill") == "{StaticResource ClassificationRejectedInteriorBrush}" &&
+            (string?)path.Attribute("Stroke") == "{StaticResource ClassificationRejectedActiveBrush}");
+        Assert.Contains(rejectedFlag.Elements(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}" &&
+            (string?)path.Attribute("Stroke") == "{StaticResource ClassificationRejectedActiveBrush}");
         Assert.Contains(flag.Descendants(ns + "DataTrigger"), trigger =>
             (string?)trigger.Attribute("Value") == "{x:Static local:AssetFlag.Unflagged}" &&
             trigger.Descendants(ns + "Setter").Any(setter => (string?)setter.Attribute("Value") == "Collapsed"));
@@ -1497,18 +1507,19 @@ public class UiLayoutTests
             (string?)setter.Attribute("Property") == "BorderThickness" && (string?)setter.Attribute("Value") == "0");
         Assert.Contains(choiceStyle.Elements(ns + "Setter"), setter =>
             (string?)setter.Attribute("Property") == "FocusVisualStyle" &&
-            (string?)setter.Attribute("Value") == "{StaticResource PlayerClassificationFocusVisual}");
+            (string?)setter.Attribute("Value") == "{x:Null}");
         var choiceTemplate = choiceStyle.Descendants(ns + "ControlTemplate").Single();
         Assert.DoesNotContain(choiceTemplate.Descendants(ns + "Border"), border =>
             (string?)border.Attribute("Background") != "Transparent");
-        Assert.DoesNotContain(choiceTemplate.Descendants(ns + "Trigger"), trigger =>
-            (string?)trigger.Attribute("Property") == "IsKeyboardFocused");
-        var focusVisual = document.Descendants(ns + "Style").Single(style =>
-            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerClassificationFocusVisual");
-        Assert.Empty(focusVisual.Descendants(ns + "Ellipse"));
-        Assert.Contains(focusVisual.Descendants(ns + "Border"), border =>
-            (string?)border.Attribute("BorderBrush") == "{StaticResource TextBrush}" &&
-            (string?)border.Attribute("CornerRadius") == "12");
+        Assert.Empty(choiceTemplate.Descendants(ns + "Ellipse"));
+        Assert.Empty(choiceTemplate.Descendants(ns + "Border"));
+        var keyboardFocusTrigger = choiceTemplate.Descendants(ns + "MultiDataTrigger").Single();
+        Assert.Contains(keyboardFocusTrigger.Descendants(ns + "Condition"), condition =>
+            ((string?)condition.Attribute("Binding"))?.Contains("IsKeyboardFocused") == true);
+        Assert.Contains(keyboardFocusTrigger.Descendants(ns + "Condition"), condition =>
+            ((string?)condition.Attribute("Binding"))?.Contains("KeyboardNavigation.ShowKeyboardCues") == true);
+        Assert.Contains(keyboardFocusTrigger.Descendants(ns + "ScaleTransform"), transform =>
+            (string?)transform.Attribute("ScaleX") == "1.12" && (string?)transform.Attribute("ScaleY") == "1.12");
         var colorSurface = Named(document, "ColorSurface");
         Assert.Equal(new[] { "*", "Auto", "*" }, colorSurface.Descendants(ns + "ColumnDefinition").Take(3).Select(column => (string?)column.Attribute("Width")));
         var colorGroup = Named(document, "PlayerColorGroup");
@@ -1541,12 +1552,26 @@ public class UiLayoutTests
                 (string?)path.Attribute("Data") == "{StaticResource ClassificationFlagGeometry}");
         Assert.Contains(Named(document, "PlayerReject").Descendants(ns + "Path"), path =>
             (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}");
+        var rejectBodyStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerRejectFlagPath");
+        Assert.Contains(rejectBodyStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationRejectedInteriorBrush}");
+        Assert.Contains(rejectBodyStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Stroke" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationRejectedInactiveBrush}");
+        Assert.Contains(rejectBodyStyle.Descendants(ns + "DataTrigger").Descendants(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Stroke" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationRejectedActiveBrush}");
+        var rejectXStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerRejectXPath");
+        Assert.Contains(rejectXStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Stroke" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationRejectedInactiveBrush}");
+        Assert.Contains(rejectXStyle.Descendants(ns + "DataTrigger").Descendants(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Stroke" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationRejectedActiveBrush}");
         var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
         var appNs = app.Root!.Name.Namespace;
         foreach (var key in new[] { "ClassificationStarGeometry", "ClassificationFlagGeometry", "ClassificationRatingBrush",
                      "ClassificationPickBrush", "ClassificationRejectBrush", "ClassificationRejectedXGeometry",
-                     "ClassificationPickedActiveBrush", "ClassificationPickedInactiveBrush", "ClassificationRejectedActiveBrush",
-                     "ClassificationRejectedInactiveBrush", "ClassificationRejectedXBrush", "ClassificationLabelRedBrush", "ClassificationLabelYellowBrush",
+                     "ClassificationPickedActiveBrush", "ClassificationPickedInactiveBrush", "ClassificationRejectedInteriorBrush", "ClassificationRejectedActiveBrush",
+                     "ClassificationRejectedInactiveBrush", "ClassificationLabelRedBrush", "ClassificationLabelYellowBrush",
                      "ClassificationLabelGreenBrush", "ClassificationLabelAzureBrush", "ClassificationLabelPurpleBrush" })
             Assert.Single(app.Descendants(), element =>
                 (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == key);

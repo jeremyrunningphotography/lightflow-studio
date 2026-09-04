@@ -75,6 +75,51 @@
    <Setter Property="Width" Value="24"/><Setter Property="Height" Value="24"/><Setter Property="Margin" Value="2,0,0,0"/>
    <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/><Setter Property="FontSize" Value="12"/>
   </Style>
+  <Style x:Key="PlayerClassificationChoice" TargetType="ToggleButton">
+   <Setter Property="Height" Value="24"/><Setter Property="MinWidth" Value="24"/><Setter Property="Padding" Value="4,2"/><Setter Property="Margin" Value="1,0"/>
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+    <Grid x:Name="InteractionSurface" Background="Transparent" RenderTransformOrigin="0.5,0.5">
+     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    </Grid>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsMouseOver" Value="True"><Setter Property="Opacity" Value="0.78"/></Trigger>
+     <Trigger Property="IsPressed" Value="True"><Setter Property="Opacity" Value="0.58"/></Trigger>
+     <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.38"/><Setter Property="Cursor" Value="Arrow"/></Trigger>
+     <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsKeyboardFocused, RelativeSource={RelativeSource TemplatedParent}}" Value="True"/><Condition Binding="{Binding (KeyboardNavigation.ShowKeyboardCues), RelativeSource={RelativeSource TemplatedParent}}" Value="True"/></MultiDataTrigger.Conditions><Setter TargetName="InteractionSurface" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1.12" ScaleY="1.12"/></Setter.Value></Setter></MultiDataTrigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PlayerStarChoice" TargetType="ToggleButton" BasedOn="{StaticResource PlayerClassificationChoice}">
+   <Setter Property="Width" Value="25"/><Setter Property="ToolTip" Value="Set rating"/>
+   <Style.Triggers><Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{StaticResource ClassificationRatingBrush}"/></Trigger></Style.Triggers>
+  </Style>
+  <Style x:Key="PlayerSwatchChoice" TargetType="ToggleButton" BasedOn="{StaticResource PlayerClassificationChoice}">
+   <Setter Property="Width" Value="24"/><Setter Property="Padding" Value="4"/>
+   <Style.Triggers><Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger></Style.Triggers>
+  </Style>
+  <Style x:Key="PlayerRatingStarPath" TargetType="Path">
+   <Setter Property="Width" Value="14"/><Setter Property="Height" Value="14"/><Setter Property="Stretch" Value="Uniform"/>
+   <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"/><Setter Property="StrokeThickness" Value="1.4"/><Setter Property="Fill" Value="Transparent"/>
+   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Fill" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"/></DataTrigger></Style.Triggers>
+  </Style>
+  <Style x:Key="PlayerPickFlagPath" TargetType="Path">
+   <Setter Property="Fill" Value="{StaticResource ClassificationPickedInactiveBrush}"/>
+   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Fill" Value="{StaticResource ClassificationPickedActiveBrush}"/></DataTrigger></Style.Triggers>
+  </Style>
+  <Style x:Key="PlayerRejectFlagPath" TargetType="Path">
+   <Setter Property="Fill" Value="{StaticResource ClassificationRejectedInteriorBrush}"/><Setter Property="Stroke" Value="{StaticResource ClassificationRejectedInactiveBrush}"/><Setter Property="StrokeThickness" Value="1.8"/><Setter Property="StrokeStartLineCap" Value="Round"/><Setter Property="StrokeEndLineCap" Value="Round"/><Setter Property="StrokeLineJoin" Value="Round"/>
+   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Stroke" Value="{StaticResource ClassificationRejectedActiveBrush}"/></DataTrigger></Style.Triggers>
+  </Style>
+  <Style x:Key="PlayerRejectXPath" TargetType="Path">
+   <Setter Property="Stroke" Value="{StaticResource ClassificationRejectedInactiveBrush}"/>
+   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Stroke" Value="{StaticResource ClassificationRejectedActiveBrush}"/></DataTrigger></Style.Triggers>
+  </Style>
+  <Style x:Key="PlayerColorSwatch" TargetType="Ellipse">
+   <Setter Property="Width" Value="13"/><Setter Property="Height" Value="13"/><Setter Property="Stroke" Value="Transparent"/><Setter Property="StrokeThickness" Value="0"/>
+   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Width" Value="16"/><Setter Property="Height" Value="16"/><Setter Property="Stroke" Value="{StaticResource TextBrush}"/><Setter Property="StrokeThickness" Value="2"/></DataTrigger></Style.Triggers>
+  </Style>
  </UserControl.Resources>
  <Border Style="{StaticResource ShellPanel}" Background="#07090D" Padding="0" ClipToBounds="True">
   <Grid>
@@ -112,25 +157,49 @@
    <Border Grid.Row="2" Grid.Column="0" x:Name="TransportBar" Margin="6,0,6,6" Padding="7,5,7,5" Visibility="Collapsed"
     Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
     <Grid>
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid x:Name="ColorSurface" Margin="1,0,1,4" HorizontalAlignment="Stretch">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <TextBlock Text="COLOR" Margin="0,0,14,0" VerticalAlignment="Center" Foreground="{StaticResource ShellNavigationTextBrush}" FontSize="10" FontWeight="SemiBold"/>
-      <TextBlock Grid.Column="1" Text="Camera" Margin="0,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
-      <ComboBox x:Name="CameraLutCombo" Grid.Column="2" Height="26" SelectionChanged="CameraLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Camera / technical LUT; hold C for momentary Original" AutomationProperties.Name="Camera LUT"/>
-      <TextBlock Grid.Column="3" Text="Creative" Margin="12,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
-      <ComboBox x:Name="CreativeLutCombo" Grid.Column="4" Height="26" SelectionChanged="CreativeLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Creative LUT; hold C for momentary Original" AutomationProperties.Name="Creative LUT"/>
-      <Button x:Name="ExportButton" Grid.Column="6" Margin="6,0,0,0" Padding="5,2" Style="{StaticResource ExportLaunchButton}" Content="Export…" IsEnabled="False"
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel x:Name="PlayerColorGroup" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+       <TextBlock Text="COLOR" Margin="0,0,14,0" VerticalAlignment="Center" Foreground="{StaticResource ShellNavigationTextBrush}" FontSize="10" FontWeight="SemiBold"/>
+       <TextBlock Text="Camera" Margin="0,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
+       <ComboBox x:Name="CameraLutCombo" Width="150" Height="26" SelectionChanged="CameraLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Camera / technical LUT; hold C for momentary Original" AutomationProperties.Name="Camera LUT"/>
+       <TextBlock Text="Creative" Margin="12,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
+       <ComboBox x:Name="CreativeLutCombo" Width="150" Height="26" SelectionChanged="CreativeLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Creative LUT; hold C for momentary Original" AutomationProperties.Name="Creative LUT"/>
+      </StackPanel>
+      <Button x:Name="ExportButton" Grid.Column="2" HorizontalAlignment="Right" Margin="6,0,0,0" Padding="5,2" Style="{StaticResource ExportLaunchButton}" Content="Export…" IsEnabled="False"
        Click="ExportButton_Click" ToolTip="Export this asset with its saved range and assigned Color" AutomationProperties.Name="Export current asset"/>
      </Grid>
-     <Grid Grid.Row="1" Height="22">
+     <Grid Grid.Row="1" Margin="2,0,2,4">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel x:Name="PlayerRatingGroup" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
+       <ToggleButton x:Name="PlayerRating1" Style="{StaticResource PlayerStarChoice}" Tag="1" Click="PlayerRating_Click" AutomationProperties.Name="1 star"><Path Style="{StaticResource PlayerRatingStarPath}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+       <ToggleButton x:Name="PlayerRating2" Style="{StaticResource PlayerStarChoice}" Tag="2" Click="PlayerRating_Click" AutomationProperties.Name="2 stars"><Path Style="{StaticResource PlayerRatingStarPath}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+       <ToggleButton x:Name="PlayerRating3" Style="{StaticResource PlayerStarChoice}" Tag="3" Click="PlayerRating_Click" AutomationProperties.Name="3 stars"><Path Style="{StaticResource PlayerRatingStarPath}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+       <ToggleButton x:Name="PlayerRating4" Style="{StaticResource PlayerStarChoice}" Tag="4" Click="PlayerRating_Click" AutomationProperties.Name="4 stars"><Path Style="{StaticResource PlayerRatingStarPath}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+       <ToggleButton x:Name="PlayerRating5" Style="{StaticResource PlayerStarChoice}" Tag="5" Click="PlayerRating_Click" AutomationProperties.Name="5 stars"><Path Style="{StaticResource PlayerRatingStarPath}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+      </StackPanel>
+      <StackPanel x:Name="PlayerFlagGroup" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+       <ToggleButton x:Name="PlayerReject" Style="{StaticResource PlayerClassificationChoice}" Tag="Rejected" Click="PlayerFlag_Click" ToolTip="Reject" AutomationProperties.Name="Reject"><Viewbox Width="15" Height="15" Stretch="Uniform"><Canvas Width="24" Height="24"><Path Style="{StaticResource PlayerRejectFlagPath}" Data="{StaticResource ClassificationRejectedFlagGeometry}"/><Path Style="{StaticResource PlayerRejectXPath}" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="{StaticResource ClassificationRejectedXGeometry}"/></Canvas></Viewbox></ToggleButton>
+       <ToggleButton x:Name="PlayerPick" Style="{StaticResource PlayerClassificationChoice}" Tag="Picked" Click="PlayerFlag_Click" ToolTip="Pick" AutomationProperties.Name="Pick"><Viewbox Width="15" Height="15" Stretch="Uniform"><Canvas Width="24" Height="24"><Path StrokeLineJoin="Round" Style="{StaticResource PlayerPickFlagPath}" Data="{StaticResource ClassificationPickedFlagGeometry}"/></Canvas></Viewbox></ToggleButton>
+      </StackPanel>
+      <StackPanel x:Name="PlayerLabelGroup" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+       <ToggleButton x:Name="PlayerNoLabel" Style="{StaticResource PlayerSwatchChoice}" Tag="None" Click="PlayerColorLabel_Click" ToolTip="No color label" AutomationProperties.Name="No color label"><Grid Width="15" Height="15"><Ellipse Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.5"/><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.5" StrokeStartLineCap="Round" Data="M3,12 L12,3"/></Grid></ToggleButton>
+       <ToggleButton x:Name="PlayerLabelRed" Style="{StaticResource PlayerSwatchChoice}" Tag="Red" Click="PlayerColorLabel_Click" ToolTip="Red label" AutomationProperties.Name="Red label"><Ellipse Style="{StaticResource PlayerColorSwatch}" Fill="{StaticResource ClassificationLabelRedBrush}"/></ToggleButton>
+       <ToggleButton x:Name="PlayerLabelYellow" Style="{StaticResource PlayerSwatchChoice}" Tag="Yellow" Click="PlayerColorLabel_Click" ToolTip="Yellow label" AutomationProperties.Name="Yellow label"><Ellipse Style="{StaticResource PlayerColorSwatch}" Fill="{StaticResource ClassificationLabelYellowBrush}"/></ToggleButton>
+       <ToggleButton x:Name="PlayerLabelGreen" Style="{StaticResource PlayerSwatchChoice}" Tag="Green" Click="PlayerColorLabel_Click" ToolTip="Green label" AutomationProperties.Name="Green label"><Ellipse Style="{StaticResource PlayerColorSwatch}" Fill="{StaticResource ClassificationLabelGreenBrush}"/></ToggleButton>
+       <ToggleButton x:Name="PlayerLabelBlue" Style="{StaticResource PlayerSwatchChoice}" Tag="Blue" Click="PlayerColorLabel_Click" ToolTip="Blue label" AutomationProperties.Name="Blue label"><Ellipse Style="{StaticResource PlayerColorSwatch}" Fill="{StaticResource ClassificationLabelAzureBrush}"/></ToggleButton>
+       <ToggleButton x:Name="PlayerLabelPurple" Style="{StaticResource PlayerSwatchChoice}" Tag="Purple" Click="PlayerColorLabel_Click" ToolTip="Purple label" AutomationProperties.Name="Purple label"><Ellipse Style="{StaticResource PlayerColorSwatch}" Fill="{StaticResource ClassificationLabelPurpleBrush}"/></ToggleButton>
+      </StackPanel>
+     </Grid>
+     <Grid Grid.Row="2" Height="22">
       <local:TrimRangeIndicator x:Name="ReviewRangeIndicator" Height="18" Margin="7,0" VerticalAlignment="Center"
        Panel.ZIndex="1" IsHitTestVisible="False"/>
       <Slider x:Name="PositionSlider" Style="{StaticResource PlaybackTimelineSlider}" Minimum="0" Maximum="1"
        ValueChanged="PositionSlider_ValueChanged" PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
        IsEnabled="False" ToolTip="Full source timeline: click anywhere to seek, or drag the playhead"/>
      </Grid>
-     <Grid Grid.Row="2" Margin="2,4,2,0">
+     <Grid Grid.Row="3" Margin="2,4,2,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal">
        <Button x:Name="SetInButton" Style="{StaticResource RangeSetButton}" Content="Set In" Click="SetIn_Click" IsEnabled="False" ToolTip="Set In to the displayed frame (I)" AutomationProperties.Name="Set In"/>
@@ -143,7 +212,7 @@
        <Button x:Name="SetOutButton" Style="{StaticResource RangeSetButton}" Content="Set Out" Click="SetOut_Click" IsEnabled="False" ToolTip="Set Out to the displayed frame (O)" AutomationProperties.Name="Set Out"/>
       </StackPanel>
      </Grid>
-     <Grid Grid.Row="3" Margin="2,7,2,0">
+     <Grid Grid.Row="4" Margin="2,7,2,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <TextBlock x:Name="CurrentTimeText" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="00:00:00.000"/>
       <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">

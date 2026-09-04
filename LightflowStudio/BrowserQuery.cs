@@ -4,6 +4,7 @@ using System.Text.Json;
 namespace LightflowStudio;
 
 internal enum BrowserSortMode { Name, CaptureDate, ModifiedDate, MediaType, FileSize, Duration, Manual }
+internal enum BrowserNumberComparison { GreaterThanOrEqual, LessThan, LessThanOrEqual, Equal, GreaterThan }
 
 /// <summary>
 /// Browser-only creator-facing frame-rate normalization. Authoritative Preview metadata keeps its precise
@@ -47,7 +48,11 @@ internal enum BrowserFilterField
     CameraLutState,
     CreativeLutState,
     ReviewRangeState,
-    SubclipState
+    SubclipState,
+    Rating,
+    Flag,
+    ColorLabel,
+    Keyword
 }
 
 /// <summary>
@@ -69,6 +74,9 @@ internal sealed record BrowserFilterPredicate
     public DateTime? DateFrom { get; init; }
     public DateTime? DateTo { get; init; }
     public bool? BooleanValue { get; init; }
+    // GreaterThanOrEqual is deliberately zero so queries written before #215's operator chooser
+    // deserialize with their original minimum-rating semantics.
+    public BrowserNumberComparison Comparison { get; init; } = BrowserNumberComparison.GreaterThanOrEqual;
 
     public static BrowserFilterPredicate ForMediaType(MediaTypeCategory category) =>
         new() { Field = BrowserFilterField.MediaType, MediaTypeValue = category };
@@ -76,6 +84,11 @@ internal sealed record BrowserFilterPredicate
         new() { Field = field, TextValue = value };
     public static BrowserFilterPredicate ForMinimum(BrowserFilterField field, double value) =>
         new() { Field = field, NumberValue = value };
+    public static BrowserFilterPredicate ForRating(BrowserNumberComparison comparison, int value)
+    {
+        if (value is < 0 or > 5) throw new ArgumentOutOfRangeException(nameof(value));
+        return new() { Field = BrowserFilterField.Rating, NumberValue = value, Comparison = comparison };
+    }
     public static BrowserFilterPredicate ForFrameRate(double value) =>
         new() { Field = BrowserFilterField.FrameRate, NumberValue = BrowserFrameRate.Canonicalize(value) };
     public static BrowserFilterPredicate ForResolution(int width, int height) =>
@@ -106,6 +119,10 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.CreativeLutState => BooleanValue == true ? "Creative LUT assigned" : "No Creative LUT",
         BrowserFilterField.ReviewRangeState => BooleanValue == true ? "Has saved range" : "No saved range",
         BrowserFilterField.SubclipState => BooleanValue == true ? "Has Subclips" : "No Subclips",
+        BrowserFilterField.Rating => $"Rating {ComparisonSymbol(Comparison)} {RatingStars(NumberValue)}",
+        BrowserFilterField.Flag => $"Flag: {TextValue}",
+        BrowserFilterField.ColorLabel => $"Label: {TextValue}",
+        BrowserFilterField.Keyword => $"Keyword: {TextValue}",
         _ => "Filter"
     };
 
@@ -129,6 +146,11 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.CreativeLutState => MatchesState(tile, tile.HasCreativeLut),
         BrowserFilterField.ReviewRangeState => MatchesState(tile, tile.HasReviewRange),
         BrowserFilterField.SubclipState => MatchesState(tile, tile.HasSubclips),
+        BrowserFilterField.Rating => tile.AssetStateApplied && NumberValue is { } rating && Compare(tile.Rating, rating, Comparison),
+        BrowserFilterField.Flag => tile.AssetStateApplied && Enum.TryParse<AssetFlag>(TextValue, true, out var flag) && tile.Flag == flag,
+        BrowserFilterField.ColorLabel => tile.AssetStateApplied && Enum.TryParse<AssetColorLabel>(TextValue, true, out var label) && tile.ColorLabel == label,
+        BrowserFilterField.Keyword => tile.AssetStateApplied && TextValue is { } keyword &&
+            tile.Keywords.Any(value => string.Equals(value, keyword, StringComparison.OrdinalIgnoreCase)),
         _ => true
     };
 
@@ -138,6 +160,30 @@ internal sealed record BrowserFilterPredicate
     private static bool TextEquals(string? actual, string? expected) =>
         actual is not null && expected is not null && string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
 
+    private static bool Compare(double actual, double expected, BrowserNumberComparison comparison) => comparison switch
+    {
+        BrowserNumberComparison.LessThan => actual < expected,
+        BrowserNumberComparison.LessThanOrEqual => actual <= expected,
+        BrowserNumberComparison.Equal => actual == expected,
+        BrowserNumberComparison.GreaterThanOrEqual => actual >= expected,
+        BrowserNumberComparison.GreaterThan => actual > expected,
+        _ => false
+    };
+
+    internal static string ComparisonSymbol(BrowserNumberComparison comparison) => comparison switch
+    {
+        BrowserNumberComparison.LessThan => "<",
+        BrowserNumberComparison.LessThanOrEqual => "≤",
+        BrowserNumberComparison.Equal => "=",
+        BrowserNumberComparison.GreaterThanOrEqual => "≥",
+        BrowserNumberComparison.GreaterThan => ">",
+        _ => "?"
+    };
+
+    private static string RatingStars(double? value) => value is > 0
+        ? new string('★', Math.Clamp((int)value.Value, 1, 5))
+        : "Unrated";
+
     private string DateRangeLabel() => (DateFrom, DateTo) switch
     {
         ({ } from, { } to) => $"Capture date: {from:d} – {to:d}",
@@ -146,7 +192,7 @@ internal sealed record BrowserFilterPredicate
         _ => "Capture date"
     };
 
-    private static string FormatDuration(double? seconds) => seconds switch
+    internal static string FormatDuration(double? seconds) => seconds switch
     {
         >= 3600 => TimeSpan.FromSeconds(seconds.Value).ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture),
         > 0 => TimeSpan.FromSeconds(seconds.Value).ToString(@"m\:ss", CultureInfo.InvariantCulture),
@@ -184,6 +230,47 @@ internal sealed record BrowserQuery
         Filters.Any(existing => existing.Field == field)
             ? this with { Filters = Filters.Where(existing => existing.Field != field).ToArray() }
             : this;
+}
+
+internal static class BrowserQueryLockPolicy
+{
+    public static BrowserQuery Materialize(BrowserQuery? locked, BrowserSortMode scopeDefaultSort) =>
+        locked is null ? BrowserQuery.Default with { SortMode = scopeDefaultSort } :
+        locked.SortMode == BrowserSortMode.Manual && scopeDefaultSort != BrowserSortMode.Manual
+            ? locked with { SortMode = BrowserSortMode.Name, SortDescending = false }
+            : locked;
+}
+
+internal static class BrowserRatingFilterEditor
+{
+    public static BrowserQuery SelectThreshold(BrowserQuery query, BrowserNumberComparison comparison, int threshold) =>
+        query.WithoutField(BrowserFilterField.Rating)
+            .WithFilterAdded(BrowserFilterPredicate.ForRating(comparison, threshold));
+
+    public static BrowserQuery SelectComparison(BrowserQuery query, BrowserNumberComparison comparison)
+    {
+        var active = query.Filters.LastOrDefault(filter => filter.Field == BrowserFilterField.Rating);
+        return active?.NumberValue is { } threshold
+            ? SelectThreshold(query, comparison, (int)threshold)
+            : query;
+    }
+}
+
+internal static class BrowserClassificationFilterChoices
+{
+    public static IReadOnlyList<BrowserFilterPredicate> Flags { get; } =
+    [
+        BrowserFilterPredicate.ForText(BrowserFilterField.Flag, AssetFlag.Picked.ToString()),
+        BrowserFilterPredicate.ForText(BrowserFilterField.Flag, AssetFlag.Unflagged.ToString()),
+        BrowserFilterPredicate.ForText(BrowserFilterField.Flag, AssetFlag.Rejected.ToString())
+    ];
+
+    public static IReadOnlyList<BrowserFilterPredicate> ColorLabels { get; } = Enum.GetValues<AssetColorLabel>()
+        .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.ColorLabel, value.ToString())).ToArray();
+
+    public static IReadOnlyList<BrowserFilterPredicate> Keywords(IEnumerable<string> keywords) => keywords
+        .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+        .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.Keyword, value)).ToArray();
 }
 
 /// <summary>
@@ -352,7 +439,16 @@ internal sealed record BrowserFilterOption(
     int? ContextCount = null)
 {
     public string Label => Predicate.Label;
-    public string DisplayLabel => ContextCount is { } count ? $"{Label} ({count})" : Label;
+    private string ChoiceLabel => Predicate.Field switch
+    {
+        BrowserFilterField.Camera or BrowserFilterField.Lens or BrowserFilterField.Flag or
+            BrowserFilterField.ColorLabel or BrowserFilterField.Keyword => Predicate.TextValue ?? Label,
+        BrowserFilterField.Duration => $"≥ {BrowserFilterPredicate.FormatDuration(Predicate.NumberValue)}",
+        BrowserFilterField.Resolution => $"{Predicate.NumberValue:0}×{Predicate.NumberValue2:0}",
+        BrowserFilterField.FrameRate => $"{BrowserFrameRate.Canonicalize(Predicate.NumberValue):0.###} fps",
+        _ => Label
+    };
+    public string DisplayLabel => ContextCount is { } count ? $"{ChoiceLabel} ({count})" : ChoiceLabel;
     public string DescriptiveValueLabel => Predicate.Field switch
     {
         BrowserFilterField.Camera or BrowserFilterField.Lens => Predicate.TextValue ?? Label,

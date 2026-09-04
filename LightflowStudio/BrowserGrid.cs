@@ -27,6 +27,15 @@ internal sealed class StringEmptyToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+internal sealed class RatingAtLeastConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is int rating && int.TryParse(parameter?.ToString(), out var threshold) && rating >= threshold;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 /// <summary>
 /// One media tile in the Browser thumbnail grid. Identity is the stable, Catalog-normalized
 /// <see cref="MediaFolderEntry.RelativePathKey"/> rather than any visual container, so selection and
@@ -45,6 +54,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     private bool _hasCameraLut;
     private bool _hasCreativeLut;
     private int _subclipCount;
+    private AssetClassification? _classification;
     private string? _cameraMake;
     private string? _cameraModel;
     private string? _lensModel;
@@ -172,7 +182,8 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         }
     }
 
-    public bool HasUserAuthoredState => AssetState != BrowserAssetState.None;
+    public bool HasUserAuthoredState => AssetState != BrowserAssetState.None || Rating > 0 ||
+        Flag != AssetFlag.Unflagged || ColorLabel is not null;
     public bool HasReviewRange => AssetState.HasFlag(BrowserAssetState.ReviewRange);
     public bool HasColorState => AssetState.HasFlag(BrowserAssetState.Color);
     public bool HasSubclips => _subclipCount > 0;
@@ -180,6 +191,14 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     public bool HasCameraLut => _hasCameraLut;
     public bool HasCreativeLut => _hasCreativeLut;
     public int SubclipCount => _subclipCount;
+    public int Rating => _classification?.Rating ?? 0;
+    public AssetFlag Flag => _classification?.Flag ?? AssetFlag.Unflagged;
+    public AssetColorLabel? ColorLabel => _classification?.ColorLabel;
+    public IReadOnlyList<string> Keywords => _classification?.Keywords ?? [];
+    public AssetClassification? Classification => _classification;
+    public string RatingText => Rating > 0 ? new string('★', Rating) : "";
+    public string FlagText => Flag switch { AssetFlag.Picked => "⚑", AssetFlag.Rejected => "⚐", _ => "" };
+    public bool HasColorLabel => ColorLabel is not null;
     public BrowserViewMode ViewMode
     {
         get => _viewMode;
@@ -210,6 +229,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         AssetState = state;
         _subclipCount = state.HasFlag(BrowserAssetState.Subclips) ? Math.Max(1, _subclipCount) : 0;
         _assetStateApplied = true;
+        PublishProjectedState();
     }
     public void SetAssetState(BrowserAssetQueryState state)
     {
@@ -217,7 +237,32 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         _hasCameraLut = state.HasCameraLut;
         _hasCreativeLut = state.HasCreativeLut;
         _subclipCount = state.SubclipCount;
+        _classification = state.Classification ?? (AssetId is { } assetId ? AssetClassification.Empty(assetId) : null);
         _assetStateApplied = true;
+        PublishProjectedState();
+    }
+    public void SetClassification(AssetClassification classification)
+    {
+        _classification = classification;
+        _assetStateApplied = true;
+        PublishProjectedState();
+    }
+    private void PublishProjectedState()
+    {
+        OnPropertyChanged(nameof(HasSubclips));
+        OnPropertyChanged(nameof(SubclipCount));
+        OnPropertyChanged(nameof(HasCameraLut));
+        OnPropertyChanged(nameof(HasCreativeLut));
+        OnPropertyChanged(nameof(AssetStateApplied));
+        OnPropertyChanged(nameof(HasUserAuthoredState));
+        OnPropertyChanged(nameof(Rating));
+        OnPropertyChanged(nameof(RatingText));
+        OnPropertyChanged(nameof(Flag));
+        OnPropertyChanged(nameof(FlagText));
+        OnPropertyChanged(nameof(ColorLabel));
+        OnPropertyChanged(nameof(HasColorLabel));
+        OnPropertyChanged(nameof(Keywords));
+        OnPropertyChanged(nameof(AssetStateLabel));
     }
     public void SetViewMode(BrowserViewMode mode) => ViewMode = mode;
     public void SetThumbnailGenerating(bool value) => IsThumbnailGenerating = value;
@@ -616,6 +661,11 @@ internal sealed class BrowserGridModel
     public void ApplyAssetState(Guid assetId, BrowserAssetQueryState state)
     {
         if (_tilesByAsset.TryGetValue(assetId, out var tile)) tile.SetAssetState(state);
+    }
+
+    public void ApplyClassification(AssetClassification classification)
+    {
+        if (_tilesByAsset.TryGetValue(classification.AssetId, out var tile)) tile.SetClassification(classification);
     }
 
     public void ApplyAssetStates(IReadOnlyDictionary<Guid, BrowserAssetState> states)

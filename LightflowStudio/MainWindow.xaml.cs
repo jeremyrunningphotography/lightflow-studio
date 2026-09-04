@@ -100,6 +100,9 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _browserMetadataResortTimer = new() { Interval = TimeSpan.FromMilliseconds(800) };
     private bool _synchronizingBrowserQuery;
     private string? _browserQueryScope;
+    private BrowserQuery? _lockedBrowserQuery;
+    private BrowserNumberComparison _browserRatingComparison = BrowserNumberComparison.GreaterThanOrEqual;
+    private int? _browserRatingThreshold;
     private IDerivedWorkBatch? _activeBrowserDerivedWorkBatch;
     private readonly Dictionary<MediaTypeCategory, ToggleButton> _browserQuickFilterButtons = [];
     private BrowserThumbnailSize _browserThumbnailSize = BrowserGridLayout.DefaultThumbnailSize;
@@ -1174,7 +1177,8 @@ public partial class MainWindow : Window
             }
             if (_browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.ColorState or
                 BrowserFilterField.CameraLutState or BrowserFilterField.CreativeLutState or
-                BrowserFilterField.ReviewRangeState or BrowserFilterField.SubclipState))
+                BrowserFilterField.ReviewRangeState or BrowserFilterField.SubclipState or BrowserFilterField.Rating or
+                BrowserFilterField.Flag or BrowserFilterField.ColorLabel or BrowserFilterField.Keyword))
             {
                 _browserGrid.ReapplyQuery();
                 UpdateBrowserStatusText();
@@ -1739,7 +1743,8 @@ public partial class MainWindow : Window
             lutCache: _storage.LutCache,
             assetColors: _storage.AssetColors, cameraLutFolder: () => _storage.Settings.CameraLutFolder,
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder,
-            preferredPreviewFrames: _storage.PreferredPreviewFrames);
+            preferredPreviewFrames: _storage.PreferredPreviewFrames,
+            classifications: _storage.AssetClassifications);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         _playerViewerHost.ExportRequested += PlayerViewerHost_ExportRequested;
         _playerViewerHost.ExportSelectedSubclipsRequested += PlayerViewerHost_ExportSelectedSubclipsRequested;
@@ -1756,6 +1761,14 @@ public partial class MainWindow : Window
             ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Subclips, change.HasSubclips);
         _playerViewerHost.PreviewFrameIntentChanged += (_, change) =>
             _ = RegeneratePreferredFrameThumbnailAsync(change.AssetId);
+        _playerViewerHost.ClassificationChanged += (_, change) =>
+        {
+            var revision = ++_browserAssetStateRevision;
+            _browserAssetStateRevisions[change.AssetId] = revision;
+            _browserGrid.ApplyClassification(change);
+            _browserGrid.ReapplyQuery();
+            UpdateBrowserStatusText();
+        };
         BrowserPlayerHost.Content = _playerViewerHost;
     }
 
@@ -1910,6 +1923,7 @@ public partial class MainWindow : Window
     private void ApplyBrowserQuery(Func<BrowserQuery, BrowserQuery> transform)
     {
         _browserGrid.SetQuery(transform(_browserGrid.Query));
+        if (_lockedBrowserQuery is not null) _lockedBrowserQuery = _browserGrid.Query;
         SyncBrowserQueryToolbarVisuals();
         UpdateBrowserStatusText();
     }
@@ -1917,19 +1931,28 @@ public partial class MainWindow : Window
     /// <summary>Returns the toolbar to its defaults for a newly opened scope, without re-triggering each control's own change handler.</summary>
     private void ResetBrowserQueryToolbar(BrowserSortMode sortMode = BrowserSortMode.Name)
     {
+        var query = BrowserQueryLockPolicy.Materialize(_lockedBrowserQuery, sortMode);
         _synchronizingBrowserQuery = true;
         try
         {
             _browserSearchDebounceTimer.Stop();
-            BrowserSearchBox.Text = "";
+            BrowserSearchBox.Text = query.SearchText;
             ((ComboBoxItem)BrowserSortCombo.Items[(int)BrowserSortMode.Manual]).Visibility =
                 sortMode == BrowserSortMode.Manual ? Visibility.Visible : Visibility.Collapsed;
-            BrowserSortCombo.SelectedIndex = (int)sortMode;
+            BrowserSortCombo.SelectedIndex = (int)query.SortMode;
             BrowserFilterButton.IsChecked = false;
         }
         finally { _synchronizingBrowserQuery = false; }
-        _browserGrid.SetQuery(BrowserQuery.Default with { SortMode = sortMode });
+        _browserGrid.SetQuery(query);
         SyncBrowserQueryToolbarVisuals();
+    }
+
+    private void BrowserQueryLockButton_Click(object sender, RoutedEventArgs e)
+    {
+        _lockedBrowserQuery = BrowserQueryLockButton.IsChecked == true ? _browserGrid.Query : null;
+        BrowserQueryLockButton.ToolTip = _lockedBrowserQuery is null
+            ? "Keep these filters when changing folders or Collections."
+            : "Filters stay when changing folders or Collections.";
     }
 
     /// <summary>
@@ -2079,6 +2102,20 @@ public partial class MainWindow : Window
         };
         BrowserStateFilterOptions.ItemsSource = stateOptions;
         BrowserStateFilterGroup.Visibility = Visibility.Visible;
+
+        if (_browserGrid.Query.Filters.LastOrDefault(filter => filter.Field == BrowserFilterField.Rating) is { NumberValue: { } rating } activeRating)
+        {
+            _browserRatingComparison = activeRating.Comparison;
+            _browserRatingThreshold = Math.Clamp((int)rating, 1, 5);
+        }
+        else _browserRatingThreshold = null;
+        SyncBrowserRatingFilterEditor();
+        BrowserFlagFilterOptions.ItemsSource = Options(BrowserClassificationFilterChoices.Flags);
+        BrowserColorLabelFilterOptions.ItemsSource = Options(BrowserClassificationFilterChoices.ColorLabels);
+        var keywordOptions = Options(BrowserClassificationFilterChoices.Keywords(
+            hydratedStateTiles.SelectMany(tile => tile.Keywords)));
+        BrowserKeywordFilterOptions.ItemsSource = keywordOptions;
+        BrowserKeywordFilterGroup.Visibility = keywordOptions.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static void PresentDescriptiveFacet(StackPanel group, ItemsControl choices, TextBlock information,
@@ -2106,6 +2143,76 @@ public partial class MainWindow : Window
 
     private IReadOnlyList<BrowserFilterOption> Options(IEnumerable<BrowserFilterPredicate> predicates) =>
         predicates.Select(predicate => new BrowserFilterOption(predicate, _browserGrid.Query.Filters.Contains(predicate))).ToArray();
+
+    private void BrowserRatingOperatorPopup_Opened(object? sender, EventArgs e)
+    {
+        BrowserFilterPopup.StaysOpen = true;
+        SyncBrowserRatingOperatorChoices();
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
+            BrowserRatingOperatorChoices.Children.OfType<ToggleButton>().First(button => button.IsChecked == true).Focus());
+    }
+
+    private void BrowserRatingOperatorPopup_Closed(object? sender, EventArgs e)
+    {
+        BrowserRatingOperatorButton.IsChecked = false;
+        BrowserFilterPopup.StaysOpen = false;
+    }
+
+    private void BrowserRatingOperatorChoice_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton { Tag: string text } && Enum.TryParse<BrowserNumberComparison>(text, out var comparison))
+        {
+            _browserRatingComparison = comparison;
+            BrowserRatingOperatorButton.IsChecked = false;
+            ApplyBrowserQuery(query => BrowserRatingFilterEditor.SelectComparison(query, comparison));
+            SyncBrowserRatingFilterEditor();
+        }
+    }
+
+    private void BrowserRatingThreshold_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton { Tag: string text } && int.TryParse(text, out var threshold))
+        {
+            _browserRatingThreshold = Math.Clamp(threshold, 1, 5);
+            ApplyBrowserQuery(query => BrowserRatingFilterEditor.SelectThreshold(query,
+                _browserRatingComparison, _browserRatingThreshold.Value));
+            SyncBrowserRatingFilterEditor();
+        }
+    }
+
+    private void SyncBrowserRatingFilterEditor()
+    {
+        BrowserRatingOperatorButton.Content = BrowserFilterPredicate.ComparisonSymbol(_browserRatingComparison);
+        SyncBrowserRatingOperatorChoices();
+        var choices = new[] { BrowserRatingThreshold1, BrowserRatingThreshold2, BrowserRatingThreshold3, BrowserRatingThreshold4, BrowserRatingThreshold5 };
+        for (var index = 0; index < choices.Length; index++)
+            choices[index].IsChecked = _browserRatingThreshold is { } threshold && index < threshold;
+    }
+
+    private void SyncBrowserRatingOperatorChoices()
+    {
+        foreach (var button in BrowserRatingOperatorChoices.Children.OfType<ToggleButton>())
+            button.IsChecked = button.Tag is string text && Enum.TryParse<BrowserNumberComparison>(text, out var comparison) &&
+                comparison == _browserRatingComparison;
+    }
+
+    private void BrowserRatingOperatorChoices_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        var choices = BrowserRatingOperatorChoices.Children.OfType<ToggleButton>().ToArray();
+        if (e.Key == System.Windows.Input.Key.Escape)
+        {
+            BrowserRatingOperatorButton.IsChecked = false;
+            BrowserRatingOperatorButton.Focus();
+            e.Handled = true;
+            return;
+        }
+        if (e.Key is not (System.Windows.Input.Key.Up or System.Windows.Input.Key.Down) ||
+            System.Windows.Input.Keyboard.FocusedElement is not ToggleButton focused) return;
+        var index = Array.IndexOf(choices, focused);
+        if (index < 0) return;
+        choices[(index + (e.Key == System.Windows.Input.Key.Down ? 1 : choices.Length - 1)) % choices.Length].Focus();
+        e.Handled = true;
+    }
 
     private void BrowserAdvancedFilterCheck_Click(object sender, RoutedEventArgs e)
     {
@@ -2174,6 +2281,24 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
+        var inputOwner = e.OriginalSource as DependencyObject;
+        if (_browserPresentation == BrowserPresentationMode.Grid &&
+            MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home) &&
+            !PlayerViewerHost.IsTextEntryControl(inputOwner))
+        {
+            if (e.Key >= Key.D0 && e.Key <= Key.D5)
+            {
+                _ = SetSelectedBrowserRatingsAsync(e.Key - Key.D0);
+                e.Handled = true;
+                return;
+            }
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.Key is Key.Up or Key.Down)
+            {
+                _ = StepSelectedBrowserFlagsAsync(e.Key == Key.Up ? 1 : -1);
+                e.Handled = true;
+                return;
+            }
+        }
         if (e.Key == Key.Escape && MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)
             && Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase
             && Keyboard.FocusedElement is not System.Windows.Controls.ComboBox)
@@ -2198,6 +2323,110 @@ public partial class MainWindow : Window
     private bool PlayerOwnsShortcutContext() =>
         MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home) &&
         _browserPresentation == BrowserPresentationMode.PlayerViewer && _playerViewerHost is not null;
+
+    private async Task SetSelectedBrowserRatingsAsync(int rating)
+    {
+        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
+        {
+            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
+            await CommitBrowserClassificationAsync(value with { Rating = rating }).ConfigureAwait(true);
+        }
+    }
+
+    private void BrowserRating_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string text } || !int.TryParse(text, out var rating)) return;
+        _ = SetSelectedBrowserRatingsFromMenuAsync(rating);
+    }
+
+    private async Task SetSelectedBrowserRatingsFromMenuAsync(int rating)
+    {
+        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
+        {
+            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
+            await CommitBrowserClassificationAsync(value with
+                { Rating = AssetClassificationCommandPolicy.SetRating(value.Rating, rating, toggleCurrent: true) }).ConfigureAwait(true);
+        }
+    }
+
+    private void BrowserFlag_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string text } || !Enum.TryParse<AssetFlag>(text, out var flag)) return;
+        _ = SetSelectedBrowserFlagsAsync(flag);
+    }
+
+    private async Task SetSelectedBrowserFlagsAsync(AssetFlag flag)
+    {
+        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
+        {
+            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
+            await CommitBrowserClassificationAsync(value with { Flag = flag }).ConfigureAwait(true);
+        }
+    }
+
+    private void BrowserColorLabel_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string text }) return;
+        AssetColorLabel? label = text == "None" ? null : Enum.TryParse<AssetColorLabel>(text, out var parsed) ? parsed : null;
+        _ = SetSelectedBrowserColorLabelsAsync(label);
+    }
+
+    private async Task SetSelectedBrowserColorLabelsAsync(AssetColorLabel? label)
+    {
+        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
+        {
+            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
+            await CommitBrowserClassificationAsync(value with { ColorLabel = label }).ConfigureAwait(true);
+        }
+    }
+
+    private void BrowserAddKeyword_Click(object sender, RoutedEventArgs e)
+    {
+        var keyword = Microsoft.VisualBasic.Interaction.InputBox("Keyword to add to the selected Media:",
+            "Add keyword", "").Trim();
+        if (keyword.Length == 0) return;
+        _ = AddSelectedBrowserKeywordAsync(keyword);
+    }
+
+    private async Task AddSelectedBrowserKeywordAsync(string keyword)
+    {
+        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
+        {
+            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
+            await CommitBrowserClassificationAsync(value with { Keywords = [.. value.Keywords, keyword] }).ConfigureAwait(true);
+        }
+    }
+
+    private void BrowserClearKeywords_Click(object sender, RoutedEventArgs e) => _ = ClearSelectedBrowserKeywordsAsync();
+
+    private async Task ClearSelectedBrowserKeywordsAsync()
+    {
+        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
+        {
+            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
+            await CommitBrowserClassificationAsync(value with { Keywords = [] }).ConfigureAwait(true);
+        }
+    }
+
+    private async Task StepSelectedBrowserFlagsAsync(int delta)
+    {
+        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
+        {
+            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
+            await CommitBrowserClassificationAsync(value with
+                { Flag = AssetClassificationCommandPolicy.StepFlag(value.Flag, delta) }).ConfigureAwait(true);
+        }
+    }
+
+    private async Task CommitBrowserClassificationAsync(AssetClassification value)
+    {
+        await _storage.AssetClassifications.SaveAsync(value).ConfigureAwait(true);
+        var revision = ++_browserAssetStateRevision;
+        _browserAssetStateRevisions[value.AssetId] = revision;
+        _browserGrid.ApplyClassification(value);
+        _browserGrid.ReapplyQuery();
+        UpdateBrowserStatusText();
+    }
 
     /// <summary>
     /// Lightweight Browser status: visible/total item counts, selection count/size (scoped to the whole

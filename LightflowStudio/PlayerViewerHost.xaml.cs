@@ -37,6 +37,7 @@ public partial class PlayerViewerHost : UserControl
     private readonly ILutLibraryCache? _lutCache;
     private readonly IAssetColorStore? _assetColors;
     private readonly IPreferredPreviewFrameStore? _preferredPreviewFrames;
+    private readonly IAssetClassificationStore? _classifications;
     private readonly Func<string>? _cameraLutFolder;
     private readonly Func<string>? _creativeLutFolder;
     private readonly Action<PlayerOpenMilestone>? _openMilestone;
@@ -66,6 +67,7 @@ public partial class PlayerViewerHost : UserControl
     private LutLibrarySnapshot? _creativeLibrary;
     private long _colorRefreshRevision;
     private bool _previewFrameBusy;
+    private AssetClassification? _classification;
 
     private sealed record LutChoice(Guid? LutId, string DisplayName, bool OpensFolder = false)
     {
@@ -80,7 +82,8 @@ public partial class PlayerViewerHost : UserControl
         ILutLibraryCache? lutCache = null, IAssetColorStore? assetColors = null,
         Func<string>? cameraLutFolder = null, Func<string>? creativeLutFolder = null,
         Action<PlayerOpenMilestone>? openMilestone = null,
-        IPreferredPreviewFrameStore? preferredPreviewFrames = null)
+        IPreferredPreviewFrameStore? preferredPreviewFrames = null,
+        IAssetClassificationStore? classifications = null)
     {
         _coordinator = coordinator;
         _rangeStore = rangeStore;
@@ -94,6 +97,7 @@ public partial class PlayerViewerHost : UserControl
         _creativeLutFolder = creativeLutFolder;
         _openMilestone = openMilestone;
         _preferredPreviewFrames = preferredPreviewFrames;
+        _classifications = classifications;
         InitializeComponent();
         SubclipsList.DataContext = _subclipItems;
     }
@@ -106,6 +110,7 @@ public partial class PlayerViewerHost : UserControl
     internal event EventHandler<AssetColorStateChangedEventArgs>? ColorStateChanged;
     internal event EventHandler<SubclipStateChangedEventArgs>? SubclipStateChanged;
     internal event EventHandler<PreviewFrameIntentChangedEventArgs>? PreviewFrameIntentChanged;
+    internal event EventHandler<AssetClassification>? ClassificationChanged;
     internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
     internal event EventHandler<PlayerViewerSubclipsExportRequestedEventArgs>? ExportSelectedSubclipsRequested;
     internal event EventHandler<SubclipsDrawerStateRequestedEventArgs>? SubclipsDrawerStateRequested;
@@ -141,6 +146,7 @@ public partial class PlayerViewerHost : UserControl
         if (generation != _generation) return;
 
         _currentAsset = asset;
+        await LoadClassificationAsync(asset.AssetId, generation, token).ConfigureAwait(true);
         ResetSubclipWork();
         SubclipsPanel.Visibility = Visibility.Collapsed;
         AddSubclipButton.IsEnabled = false;
@@ -1422,6 +1428,16 @@ public partial class PlayerViewerHost : UserControl
     {
         if (IsTextEntryControl(inputOwner)) return false;
         if (key is Key.Left or Key.Right && IsArrowKeyOwnedByFocusedControl(inputOwner)) return false;
+        if (key >= Key.D0 && key <= Key.D5)
+        {
+            _ = SetRatingAsync(key - Key.D0, toggleCurrent: false);
+            return _currentAsset?.AssetId is not null;
+        }
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && key is Key.Up or Key.Down)
+        {
+            _ = StepFlagAsync(key == Key.Up ? 1 : -1);
+            return _currentAsset?.AssetId is not null;
+        }
         switch (key)
         {
             case Key.C when _service is not null && _colorActive && !_momentaryColorBypass:
@@ -1452,6 +1468,65 @@ public partial class PlayerViewerHost : UserControl
                 return true;
         }
         return false;
+    }
+
+    private async Task LoadClassificationAsync(Guid? assetId, long generation, CancellationToken token)
+    {
+        _classification = assetId is { } id && _classifications is not null
+            ? (await _classifications.GetAsync([id], token).ConfigureAwait(true)).GetValueOrDefault(id)
+            : null;
+        if (generation == _generation) SyncClassificationControls();
+    }
+
+    private void SyncClassificationControls()
+    {
+        var ratingButtons = new[] { PlayerRating1, PlayerRating2, PlayerRating3, PlayerRating4, PlayerRating5 };
+        for (var index = 0; index < ratingButtons.Length; index++)
+        {
+            ratingButtons[index].IsEnabled = _classification is not null;
+            ratingButtons[index].IsChecked = _classification?.Rating >= index + 1;
+        }
+        PlayerReject.IsEnabled = PlayerPick.IsEnabled = _classification is not null;
+        PlayerReject.IsChecked = _classification?.Flag == AssetFlag.Rejected;
+        PlayerPick.IsChecked = _classification?.Flag == AssetFlag.Picked;
+        var labelButtons = new[] { PlayerNoLabel, PlayerLabelRed, PlayerLabelYellow, PlayerLabelGreen, PlayerLabelBlue, PlayerLabelPurple };
+        foreach (var button in labelButtons) button.IsEnabled = _classification is not null;
+        PlayerNoLabel.IsChecked = _classification?.ColorLabel is null;
+        PlayerLabelRed.IsChecked = _classification?.ColorLabel == AssetColorLabel.Red;
+        PlayerLabelYellow.IsChecked = _classification?.ColorLabel == AssetColorLabel.Yellow;
+        PlayerLabelGreen.IsChecked = _classification?.ColorLabel == AssetColorLabel.Green;
+        PlayerLabelBlue.IsChecked = _classification?.ColorLabel == AssetColorLabel.Blue;
+        PlayerLabelPurple.IsChecked = _classification?.ColorLabel == AssetColorLabel.Purple;
+    }
+
+    private async Task SaveClassificationAsync(AssetClassification value)
+    {
+        if (_classifications is null || _currentAsset?.AssetId != value.AssetId) return;
+        await _classifications.SaveAsync(value).ConfigureAwait(true);
+        _classification = value;
+        SyncClassificationControls();
+        ClassificationChanged?.Invoke(this, value);
+    }
+
+    private Task SetRatingAsync(int rating, bool toggleCurrent) => _classification is { } value
+        ? SaveClassificationAsync(value with { Rating = AssetClassificationCommandPolicy.SetRating(value.Rating, rating, toggleCurrent) }) : Task.CompletedTask;
+    private Task StepFlagAsync(int delta) => _classification is { } value
+        ? SaveClassificationAsync(value with { Flag = AssetClassificationCommandPolicy.StepFlag(value.Flag, delta) }) : Task.CompletedTask;
+    private void PlayerRating_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton { Tag: string text } && int.TryParse(text, out var rating))
+            _ = SetRatingAsync(rating, toggleCurrent: true);
+    }
+    private void PlayerFlag_Click(object sender, RoutedEventArgs e)
+    {
+        if (_classification is { } value && sender is ToggleButton { Tag: string text } && Enum.TryParse<AssetFlag>(text, out var flag))
+            _ = SaveClassificationAsync(value with { Flag = AssetClassificationCommandPolicy.ToggleFlag(value.Flag, flag) });
+    }
+    private void PlayerColorLabel_Click(object sender, RoutedEventArgs e)
+    {
+        if (_classification is not { } value || sender is not ToggleButton { Tag: string text }) return;
+        AssetColorLabel? label = text == "None" ? null : Enum.TryParse<AssetColorLabel>(text, out var parsed) ? parsed : null;
+        _ = SaveClassificationAsync(value with { ColorLabel = label });
     }
 
     private void PlayerViewerHost_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)

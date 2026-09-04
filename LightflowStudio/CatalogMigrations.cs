@@ -23,7 +23,8 @@ internal static class CatalogMigrations
         new(8, "Unique exact Subclip ranges", ApplyVersion8),
         new(9, "Durable preferred Browser Preview frame timestamps", ApplyVersion9),
         new(10, "Durable Collections, Collection Sets, and membership", ApplyVersion10),
-        new(11, "Mixed Collection hierarchy sibling order", ApplyVersion11)
+        new(11, "Mixed Collection hierarchy sibling order", ApplyVersion11),
+        new(12, "Durable asset ratings, flags, color labels, and keywords", ApplyVersion12)
     ];
 
     private static void ApplyVersion1(
@@ -504,6 +505,36 @@ internal static class CatalogMigrations
             BEGIN
                 SELECT RAISE(ABORT, 'duplicate mixed Collection hierarchy ordinal');
             END;
+            """);
+    }
+
+    private static void ApplyVersion12(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CatalogMigrationContext context)
+    {
+        Execute(connection, transaction, """
+            CREATE TABLE MediaAssetClassifications (
+                AssetId TEXT NOT NULL PRIMARY KEY CHECK (length(AssetId) = 36),
+                Rating INTEGER NOT NULL DEFAULT 0 CHECK (Rating BETWEEN 0 AND 5),
+                Flag INTEGER NOT NULL DEFAULT 0 CHECK (Flag BETWEEN -1 AND 1),
+                ColorLabel INTEGER NULL CHECK (ColorLabel BETWEEN 1 AND 5),
+                Revision INTEGER NOT NULL DEFAULT 1 CHECK (Revision > 0),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28),
+                FOREIGN KEY (AssetId) REFERENCES MediaAssets (AssetId) ON DELETE CASCADE
+            );
+
+            CREATE TABLE MediaAssetKeywords (
+                AssetId TEXT NOT NULL,
+                Keyword TEXT NOT NULL COLLATE NOCASE CHECK (length(trim(Keyword)) > 0),
+                Ordinal INTEGER NOT NULL CHECK (Ordinal >= 0),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                PRIMARY KEY (AssetId, Keyword),
+                FOREIGN KEY (AssetId) REFERENCES MediaAssets (AssetId) ON DELETE CASCADE,
+                UNIQUE (AssetId, Ordinal)
+            );
+            CREATE INDEX IX_MediaAssetKeywords_Keyword ON MediaAssetKeywords (Keyword COLLATE NOCASE, AssetId);
             """);
     }
 

@@ -350,6 +350,23 @@
   <Style x:Key="BrowserStateIconItemStyle" TargetType="ContentPresenter">
    <Setter Property="Margin" Value="{DynamicResource BrowserStateIconSpacing}"/>
   </Style>
+  <local:RatingAtLeastConverter x:Key="RatingAtLeast"/>
+  <DataTemplate x:Key="BrowserRatingIndicator">
+   <StackPanel Orientation="Horizontal" ToolTip="{Binding Rating, StringFormat=Rating: {0} of 5}" AutomationProperties.Name="{Binding Rating, StringFormat=Rating: {0} of 5}">
+    <Path Width="12" Height="12" Margin="0,0,1,0" Stretch="Uniform" Fill="{StaticResource ClassificationRatingBrush}" Data="{StaticResource ClassificationStarGeometry}"><Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Rating, Converter={StaticResource RatingAtLeast}, ConverterParameter=1}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+    <Path Width="12" Height="12" Margin="0,0,1,0" Stretch="Uniform" Fill="{StaticResource ClassificationRatingBrush}" Data="{StaticResource ClassificationStarGeometry}"><Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Rating, Converter={StaticResource RatingAtLeast}, ConverterParameter=2}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+    <Path Width="12" Height="12" Margin="0,0,1,0" Stretch="Uniform" Fill="{StaticResource ClassificationRatingBrush}" Data="{StaticResource ClassificationStarGeometry}"><Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Rating, Converter={StaticResource RatingAtLeast}, ConverterParameter=3}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+    <Path Width="12" Height="12" Margin="0,0,1,0" Stretch="Uniform" Fill="{StaticResource ClassificationRatingBrush}" Data="{StaticResource ClassificationStarGeometry}"><Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Rating, Converter={StaticResource RatingAtLeast}, ConverterParameter=4}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+    <Path Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource ClassificationRatingBrush}" Data="{StaticResource ClassificationStarGeometry}"><Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Rating, Converter={StaticResource RatingAtLeast}, ConverterParameter=5}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+   </StackPanel>
+  </DataTemplate>
+  <DataTemplate x:Key="BrowserFlagIndicator">
+   <Grid Width="16" Height="16" ToolTip="{Binding Flag}" AutomationProperties.Name="{Binding Flag}">
+    <Viewbox x:Name="PickedFlagShape" Stretch="Uniform"><Viewbox.Style><Style TargetType="Viewbox"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Flag}" Value="{x:Static local:AssetFlag.Picked}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Viewbox.Style><Canvas Width="24" Height="24"><Path Fill="{StaticResource ClassificationPickedActiveBrush}" Data="{StaticResource ClassificationPickedFlagGeometry}"/></Canvas></Viewbox>
+    <Grid x:Name="RejectedFlagShape"><Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Flag}" Value="{x:Static local:AssetFlag.Rejected}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Grid.Style><Viewbox Stretch="Uniform"><Canvas Width="24" Height="24"><Path Fill="{StaticResource ClassificationRejectedInteriorBrush}" Stroke="{StaticResource ClassificationRejectedActiveBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="{StaticResource ClassificationRejectedFlagGeometry}"/><Path Stroke="{StaticResource ClassificationRejectedActiveBrush}" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="{StaticResource ClassificationRejectedXGeometry}"/></Canvas></Viewbox></Grid>
+    <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding Flag}" Value="{x:Static local:AssetFlag.Unflagged}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Grid.Style>
+   </Grid>
+  </DataTemplate>
 
   <Style x:Key="BrowserViewModeButtonStyle" TargetType="ToggleButton">
    <Setter Property="Width" Value="27"/><Setter Property="Height" Value="24"/><Setter Property="Padding" Value="4"/>
@@ -366,6 +383,21 @@
      <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger>
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="BrowserRatingThresholdChoice" TargetType="ToggleButton">
+   <Setter Property="Width" Value="27"/><Setter Property="Height" Value="27"/><Setter Property="Margin" Value="0"/>
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton"><Grid Background="Transparent"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{StaticResource ClassificationRatingBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Opacity" Value="0.72"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="BrowserRatingOperatorChoice" TargetType="ToggleButton">
+   <Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="Padding" Value="8,4"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="FontSize" Value="11"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton"><Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="3"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/><Setter Property="Foreground" Value="{StaticResource ShellFocusBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="BrowserRatingOperatorTrigger" TargetType="ToggleButton">
+   <Setter Property="Width" Value="34"/><Setter Property="Height" Value="24"/><Setter Property="Padding" Value="0"/>
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Setter Property="Background" Value="{StaticResource ShellSurfaceBrush}"/><Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/><Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/><Setter Property="FontSize" Value="12"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton"><Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" SnapsToDevicePixels="True"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="False"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/><Setter Property="Foreground" Value="{StaticResource ShellFocusBrush}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
 
   <!-- #125: compact hit area for the thumbnail-size slider's track, mirroring TrimEditorWindow's
@@ -687,7 +719,14 @@
         Search/filter/sort/status live here, never in the left sidebar, and never inside folder navigation.
        -->
        <Border Grid.Row="2" Grid.Column="0" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="5,4" IsEnabled="False">
-        <StackPanel>
+       <StackPanel>
+        <DockPanel LastChildFill="True">
+         <ToggleButton DockPanel.Dock="Right" x:Name="BrowserQueryLockButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Width="34" Height="32" Margin="8,0,0,4"
+          Click="BrowserQueryLockButton_Click" ToolTip="Keep these filters when changing folders or Collections." AutomationProperties.Name="Keep filters across folders and Collections">
+          <Viewbox Width="15" Height="15" Stretch="Uniform">
+           <Grid Width="16" Height="16"><Path x:Name="BrowserQueryLockBody" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.6" StrokeLineJoin="Round" Fill="Transparent" Data="M3,7 L13,7 L13,15 L3,15 Z M5,7 L5,5 C5,1.5 11,1.5 11,5 L11,7"/><Ellipse Width="2.2" Height="2.2" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Margin="0,4,0,0"/></Grid>
+          </Viewbox>
+         </ToggleButton>
          <WrapPanel x:Name="BrowserQueryLayout" Orientation="Horizontal">
           <!-- Independent per-category toggles (multiple may be active; OR within the facet), presented as
                one segmented control; Filter ▾ (below) additionally supports stacking with other, future
@@ -789,6 +828,52 @@
               <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
              </StackPanel>
+
+             <StackPanel x:Name="BrowserRatingFilterGroup">
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="RATING"/>
+             <StackPanel Orientation="Horizontal" Margin="4,4,4,0">
+              <ToggleButton x:Name="BrowserRatingOperatorButton" Style="{StaticResource BrowserRatingOperatorTrigger}" Content="≥" ToolTip="Choose rating comparison" AutomationProperties.Name="Rating comparison operator"/>
+              <StackPanel Orientation="Horizontal" Margin="8,0,0,0">
+               <ToggleButton x:Name="BrowserRatingThreshold1" Style="{StaticResource BrowserRatingThresholdChoice}" Tag="1" Click="BrowserRatingThreshold_Click" AutomationProperties.Name="1 star threshold"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+               <ToggleButton x:Name="BrowserRatingThreshold2" Style="{StaticResource BrowserRatingThresholdChoice}" Tag="2" Click="BrowserRatingThreshold_Click" AutomationProperties.Name="2 star threshold"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+               <ToggleButton x:Name="BrowserRatingThreshold3" Style="{StaticResource BrowserRatingThresholdChoice}" Tag="3" Click="BrowserRatingThreshold_Click" AutomationProperties.Name="3 star threshold"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+               <ToggleButton x:Name="BrowserRatingThreshold4" Style="{StaticResource BrowserRatingThresholdChoice}" Tag="4" Click="BrowserRatingThreshold_Click" AutomationProperties.Name="4 star threshold"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+               <ToggleButton x:Name="BrowserRatingThreshold5" Style="{StaticResource BrowserRatingThresholdChoice}" Tag="5" Click="BrowserRatingThreshold_Click" AutomationProperties.Name="5 star threshold"><Path Width="15" Height="15" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
+              </StackPanel>
+             </StackPanel>
+             <Popup x:Name="BrowserRatingOperatorPopup" IsOpen="{Binding IsChecked, ElementName=BrowserRatingOperatorButton, Mode=TwoWay}" PlacementTarget="{Binding ElementName=BrowserRatingOperatorButton}" Placement="Bottom" VerticalOffset="2" StaysOpen="False" AllowsTransparency="True" Opened="BrowserRatingOperatorPopup_Opened" Closed="BrowserRatingOperatorPopup_Closed">
+              <Border MinWidth="208" Padding="3" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="6">
+               <StackPanel x:Name="BrowserRatingOperatorChoices" PreviewKeyDown="BrowserRatingOperatorChoices_PreviewKeyDown">
+                <ToggleButton Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is less than" Tag="LessThan" Click="BrowserRatingOperatorChoice_Click"/>
+                <ToggleButton Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is less than or equal to" Tag="LessThanOrEqual" Click="BrowserRatingOperatorChoice_Click"/>
+                <ToggleButton Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is equal to" Tag="Equal" Click="BrowserRatingOperatorChoice_Click"/>
+                <ToggleButton Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is greater than or equal to" Tag="GreaterThanOrEqual" Click="BrowserRatingOperatorChoice_Click"/>
+                <ToggleButton Style="{StaticResource BrowserRatingOperatorChoice}" Content="Rating is greater than" Tag="GreaterThan" Click="BrowserRatingOperatorChoice_Click"/>
+               </StackPanel>
+              </Border>
+             </Popup>
+             </StackPanel>
+
+             <StackPanel x:Name="BrowserFlagFilterGroup">
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="FLAGS"/>
+             <ItemsControl x:Name="BrowserFlagFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+              <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
+             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+             </StackPanel>
+
+             <StackPanel x:Name="BrowserColorLabelFilterGroup">
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="COLOR LABEL"/>
+             <ItemsControl x:Name="BrowserColorLabelFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+              <CheckBox Margin="4,6,4,0" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"><StackPanel Orientation="Horizontal"><Ellipse Width="12" Height="12" Margin="0,0,7,0"><Ellipse.Style><Style TargetType="Ellipse"><Style.Triggers><DataTrigger Binding="{Binding Predicate.TextValue}" Value="Red"><Setter Property="Fill" Value="{StaticResource ClassificationLabelRedBrush}"/></DataTrigger><DataTrigger Binding="{Binding Predicate.TextValue}" Value="Yellow"><Setter Property="Fill" Value="{StaticResource ClassificationLabelYellowBrush}"/></DataTrigger><DataTrigger Binding="{Binding Predicate.TextValue}" Value="Green"><Setter Property="Fill" Value="{StaticResource ClassificationLabelGreenBrush}"/></DataTrigger><DataTrigger Binding="{Binding Predicate.TextValue}" Value="Blue"><Setter Property="Fill" Value="{StaticResource ClassificationLabelAzureBrush}"/></DataTrigger><DataTrigger Binding="{Binding Predicate.TextValue}" Value="Purple"><Setter Property="Fill" Value="{StaticResource ClassificationLabelPurpleBrush}"/></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse><TextBlock Text="{Binding DisplayLabel}"/></StackPanel></CheckBox>
+             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+             </StackPanel>
+
+             <StackPanel x:Name="BrowserKeywordFilterGroup">
+             <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="KEYWORDS"/>
+             <ItemsControl x:Name="BrowserKeywordFilterOptions"><ItemsControl.ItemTemplate><DataTemplate>
+              <CheckBox Margin="4,6,4,0" Content="{Binding DisplayLabel}" IsChecked="{Binding IsActive, Mode=OneWay}" IsEnabled="{Binding IsEnabled}" Click="BrowserAdvancedFilterCheck_Click"/>
+             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+             </StackPanel>
             </StackPanel>
             </ScrollViewer>
            </Border>
@@ -819,6 +904,7 @@
            </StackPanel>
           </Border>
          </WrapPanel>
+        </DockPanel>
          <!-- Collapsed (and empty) whenever no predicate is active, so the toolbar stays a single quiet row
               for ordinary browsing — see MainWindow.SyncBrowserQueryToolbarVisuals. -->
          <ItemsControl x:Name="BrowserFilterChips" Margin="0,8,0,0" Visibility="Collapsed" Focusable="False">
@@ -918,6 +1004,31 @@
                   <MenuItem x:Name="BrowserAddToCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Add to Collection…" Click="BrowserAddToCollection_Click"/>
                   <MenuItem x:Name="BrowserRemoveFromCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Remove from this Collection" Click="BrowserRemoveFromCollection_Click"/>
                   <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rating">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Unrated" Tag="0" Click="BrowserRating_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="1 star" Tag="1" Click="BrowserRating_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="2 stars" Tag="2" Click="BrowserRating_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="3 stars" Tag="3" Click="BrowserRating_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="4 stars" Tag="4" Click="BrowserRating_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="5 stars" Tag="5" Click="BrowserRating_Click"/>
+                  </MenuItem>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Flag">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rejected" Tag="Rejected" Click="BrowserFlag_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Unflagged" Tag="Unflagged" Click="BrowserFlag_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Picked" Tag="Picked" Click="BrowserFlag_Click"/>
+                  </MenuItem>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Color label">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="None" Tag="None" Click="BrowserColorLabel_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Red" Tag="Red" Click="BrowserColorLabel_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Yellow" Tag="Yellow" Click="BrowserColorLabel_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Green" Tag="Green" Click="BrowserColorLabel_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Blue" Tag="Blue" Click="BrowserColorLabel_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Purple" Tag="Purple" Click="BrowserColorLabel_Click"/>
+                  </MenuItem>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Keywords">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Add keyword…" Click="BrowserAddKeyword_Click"/>
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Clear keywords" Click="BrowserClearKeywords_Click"/>
+                  </MenuItem>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export">
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export…" Click="BrowserContextExport_Click"/>
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export Subclips…" Click="BrowserContextExportSubclips_Click"/>
@@ -938,6 +1049,12 @@
                   <Setter Property="Background" Value="{StaticResource ShellPanelBrush}"/>
                   <Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/>
                   <Style.Triggers>
+                   <DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Background" Value="#1B2028"/></DataTrigger>
+                   <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Red}"/></MultiDataTrigger.Conditions><Setter Property="Background" Value="#3A2427"/></MultiDataTrigger>
+                   <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Yellow}"/></MultiDataTrigger.Conditions><Setter Property="Background" Value="#393324"/></MultiDataTrigger>
+                   <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Green}"/></MultiDataTrigger.Conditions><Setter Property="Background" Value="#24362A"/></MultiDataTrigger>
+                   <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Blue}"/></MultiDataTrigger.Conditions><Setter Property="Background" Value="#243244"/></MultiDataTrigger>
+                   <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Purple}"/></MultiDataTrigger.Conditions><Setter Property="Background" Value="#332842"/></MultiDataTrigger>
                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
                     <Setter Property="Background" Value="{StaticResource ShellSelectionBrush}"/>
                     <Setter Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>
@@ -947,20 +1064,43 @@
                 </Border.Style>
                 <Grid>
                  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                 <!-- Quiet reserved upper frame for future rating/flag state; Info only. -->
-                 <Border x:Name="BrowserInfoUpperFrame" Height="16">
+                 <Border x:Name="BrowserInfoUpperFrame" Height="22" Padding="2,2">
                   <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
+                  <DockPanel LastChildFill="False">
+                   <ContentPresenter DockPanel.Dock="Left" Content="{Binding}" ContentTemplate="{StaticResource BrowserRatingIndicator}"/>
+                   <ContentPresenter DockPanel.Dock="Right" Content="{Binding}" ContentTemplate="{StaticResource BrowserFlagIndicator}"/>
+                  </DockPanel>
                  </Border>
                  <Border x:Name="BrowserPreviewSurface" Grid.Row="1" Background="#05070A" CornerRadius="4" ClipToBounds="True">
                   <Border.Style><Style TargetType="Border">
                    <Setter Property="Height" Value="{DynamicResource BrowserTileThumbnailHeight}"/>
-                   <Style.Triggers><DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Height" Value="{DynamicResource BrowserTileInfoPreviewHeight}"/></DataTrigger></Style.Triggers>
+                   <Setter Property="BorderThickness" Value="0"/>
+                   <Style.Triggers>
+                    <DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Height" Value="{DynamicResource BrowserTileInfoPreviewHeight}"/></DataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Red}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="{StaticResource ClassificationLabelRedBrush}"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Red}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="{StaticResource ClassificationLabelRedBrush}"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Yellow}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="{StaticResource ClassificationLabelYellowBrush}"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Yellow}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="{StaticResource ClassificationLabelYellowBrush}"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Green}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="{StaticResource ClassificationLabelGreenBrush}"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Green}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="{StaticResource ClassificationLabelGreenBrush}"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Blue}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="{StaticResource ClassificationLabelAzureBrush}"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Blue}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="{StaticResource ClassificationLabelAzureBrush}"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Purple}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="{StaticResource ClassificationLabelPurpleBrush}"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                    <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding ColorLabel}" Value="{x:Static local:AssetColorLabel.Purple}"/></MultiDataTrigger.Conditions><Setter Property="BorderBrush" Value="{StaticResource ClassificationLabelPurpleBrush}"/><Setter Property="BorderThickness" Value="3"/></MultiDataTrigger>
+                   </Style.Triggers>
                   </Style></Border.Style>
                   <Grid>
                    <Image Source="{Binding ThumbnailPath}" Stretch="Uniform"/>
                    <TextBlock Text="{Binding CategoryGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="28" Foreground="{StaticResource MutedTextBrush}"
                     HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibility}}"/>
-                   <Border x:Name="BrowserHybridStateOverlay" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4" Padding="3,2" CornerRadius="3" Background="#B005070A">
+                   <Border x:Name="BrowserHybridStateOverlay" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="4" Padding="3,2" CornerRadius="3" Background="#9905070A">
+                    <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding HasUserAuthoredState}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></Border.Style>
+                    <DockPanel LastChildFill="False">
+                     <ContentPresenter DockPanel.Dock="Left" Content="{Binding}" ContentTemplate="{StaticResource BrowserRatingIndicator}"/>
+                     <ContentPresenter DockPanel.Dock="Right" Content="{Binding}" ContentTemplate="{StaticResource BrowserFlagIndicator}"/>
+                    </DockPanel>
+                   </Border>
+                   <Border x:Name="BrowserHybridLowerStateOverlay" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Margin="4" Padding="3,2" CornerRadius="3" Background="#9905070A">
                     <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding HasUserAuthoredState}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></Border.Style>
                     <StackPanel Orientation="Horizontal">
                      <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserReviewRangeIcon}" Visibility="{Binding HasReviewRange, Converter={StaticResource BoolToVisibility}}"/>
@@ -970,13 +1110,14 @@
                    </Border>
                    <ProgressBar x:Name="BrowserThumbnailWorkingIndicator" Width="38" Height="4" Margin="0,0,0,7" HorizontalAlignment="Center" VerticalAlignment="Bottom"
                     IsIndeterminate="True" Visibility="{Binding IsThumbnailGenerating, Converter={StaticResource BoolToVisibility}}" ToolTip="Generating Preview" AutomationProperties.Name="Generating Preview"/>
-                   <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4" Padding="5,2" CornerRadius="3" Background="#D0332020"
-                    Visibility="{Binding IsUnavailable, Converter={StaticResource BoolToVisibility}}" ToolTip="Source unavailable; Collection membership and existing Preview are retained">
+                   <Border x:Name="BrowserUnavailableIndicator" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4" Padding="5,2" CornerRadius="3" Background="#D0332020"
+                    ToolTip="Source unavailable; Collection membership and existing Preview are retained">
+                    <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsUnavailable}" Value="True"/><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsUnavailable}" Value="True"/><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></Border.Style>
                     <TextBlock Text="OFFLINE" Foreground="#FFD2D2" FontSize="9" FontWeight="SemiBold"/>
                    </Border>
                   </Grid>
                  </Border>
-                 <Border x:Name="BrowserInfoLowerFrame" Grid.Row="2" Height="22">
+                 <Border x:Name="BrowserInfoLowerFrame" Grid.Row="2" Height="24" Padding="2,2">
                   <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
                   <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                    <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserReviewRangeIcon}" Visibility="{Binding HasReviewRange, Converter={StaticResource BoolToVisibility}}"/>

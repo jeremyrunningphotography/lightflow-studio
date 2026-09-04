@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using System.Windows.Media;
 using Xunit;
 
 namespace LightflowStudio.Tests;
@@ -10,10 +11,12 @@ public class UiLayoutTests
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var hybrid = Named(document, "BrowserHybridStateOverlay");
+        var hybridLower = Named(document, "BrowserHybridLowerStateOverlay");
         var working = Named(document, "BrowserThumbnailWorkingIndicator");
-        Assert.Contains(hybrid.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasReviewRange") == true);
-        Assert.Contains(hybrid.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasSubclips") == true);
-        Assert.Contains(hybrid.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasColorState") == true);
+        Assert.Contains(hybridLower.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasReviewRange") == true);
+        Assert.Contains(hybridLower.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasSubclips") == true);
+        Assert.Contains(hybridLower.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasColorState") == true);
+        Assert.NotNull(hybrid.Descendants().FirstOrDefault(element => (string?)element.Attribute("ContentTemplate") == "{StaticResource BrowserRatingIndicator}"));
         Assert.Contains("IsThumbnailGenerating", (string?)working.Attribute("Visibility"));
         Assert.Equal("True", (string?)working.Attribute("IsIndeterminate"));
         Assert.NotNull(working.Ancestors().FirstOrDefault(element => element.Name.LocalName == "Grid")?
@@ -119,6 +122,7 @@ public class UiLayoutTests
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
+        var nsX = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var popup = Named(document, "BrowserFilterPopup");
         Assert.Equal("BrowserFilterPopup_Opened", (string?)popup.Attribute("Opened"));
         foreach (var name in new[]
@@ -126,7 +130,8 @@ public class UiLayoutTests
             "BrowserCameraFilterOptions", "BrowserLensFilterOptions", "BrowserCaptureDateFrom", "BrowserCaptureDateTo",
             "BrowserDurationFilterCombo", "BrowserResolutionFilterOptions", "BrowserFrameRateFilterOptions",
             "BrowserStateFilterOptions", "BrowserCameraFilterInformation", "BrowserLensFilterInformation",
-            "BrowserResolutionFilterInformation", "BrowserFrameRateFilterInformation"
+            "BrowserResolutionFilterInformation", "BrowserFrameRateFilterInformation", "BrowserRatingFilterGroup",
+            "BrowserFlagFilterOptions", "BrowserColorLabelFilterOptions", "BrowserKeywordFilterOptions"
         })
             Assert.Contains(popup.Descendants(), element => element == Named(document, name));
         Assert.Contains(popup.Descendants(), element => element == Named(document, "BrowserClearAdvancedFiltersButton"));
@@ -137,6 +142,48 @@ public class UiLayoutTests
         Assert.Equal("{Binding IsEnabled}", (string?)stateChoice.Attribute("IsEnabled"));
         Assert.DoesNotContain(popup.Descendants(ns + "TextBlock"), text =>
             ((string?)text.Attribute("Text"))?.Contains("hydrated Catalog state", StringComparison.OrdinalIgnoreCase) == true);
+        Assert.Equal(["RATING", "FLAGS", "COLOR LABEL", "KEYWORDS"], popup.Descendants(ns + "TextBlock")
+            .Select(text => (string?)text.Attribute("Text"))
+            .Where(text => text is "RATING" or "FLAGS" or "COLOR LABEL" or "KEYWORDS"));
+        var operatorMenu = Named(document, "BrowserRatingOperatorPopup");
+        var operatorTrigger = Named(document, "BrowserRatingOperatorButton");
+        Assert.Equal("{StaticResource BrowserRatingOperatorTrigger}", (string?)operatorTrigger.Attribute("Style"));
+        var operatorTriggerStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(nsX + "Key") == "BrowserRatingOperatorTrigger");
+        Assert.Equal("ToggleButton", (string?)operatorTriggerStyle.Attribute("TargetType"));
+        Assert.Contains(operatorTriggerStyle.Descendants(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Background" &&
+            (string?)setter.Attribute("Value") == "{StaticResource ShellSurfaceBrush}");
+        Assert.Contains(operatorTriggerStyle.Descendants(ns + "Border"), border =>
+            (string?)border.Attribute("CornerRadius") == "4");
+        Assert.Contains(operatorTriggerStyle.Descendants(ns + "Trigger"), trigger =>
+            (string?)trigger.Attribute("Property") == "IsChecked" &&
+            (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(operatorMenu.Ancestors(), ancestor => ancestor == popup);
+        Assert.Empty(operatorMenu.Descendants(ns + "ContextMenu"));
+        Assert.Equal("Bottom", (string?)operatorMenu.Attribute("Placement"));
+        Assert.Equal("BrowserRatingOperatorButton", ((string?)operatorMenu.Attribute("PlacementTarget"))?
+            .Replace("{Binding ElementName=", "").TrimEnd('}'));
+        Assert.Equal("False", (string?)operatorMenu.Attribute("StaysOpen"));
+        Assert.Equal("BrowserRatingOperatorPopup_Opened", (string?)operatorMenu.Attribute("Opened"));
+        Assert.Equal("BrowserRatingOperatorPopup_Closed", (string?)operatorMenu.Attribute("Closed"));
+        Assert.Equal(["Rating is less than", "Rating is less than or equal to", "Rating is equal to",
+            "Rating is greater than or equal to", "Rating is greater than"],
+            operatorMenu.Descendants(ns + "ToggleButton").Select(item => (string?)item.Attribute("Content")));
+        Assert.All(operatorMenu.Descendants(ns + "ToggleButton"), button =>
+            Assert.Equal("{StaticResource BrowserRatingOperatorChoice}", (string?)button.Attribute("Style")));
+        Assert.DoesNotContain(Named(document, "BrowserRatingFilterGroup").Descendants(ns + "Button"), button =>
+            (string?)button.Attribute("Content") == "Add");
+        Assert.Equal(5, Enumerable.Range(1, 5).Count(value =>
+            (string?)Named(document, $"BrowserRatingThreshold{value}").Attribute("Tag") == value.ToString()));
+        var colorChoice = Named(document, "BrowserColorLabelFilterOptions").Descendants(ns + "CheckBox").Single();
+        Assert.Contains(colorChoice.Descendants(ns + "Ellipse"), ellipse => ellipse.Descendants(ns + "DataTrigger").Count() == 5);
+        Assert.Contains(colorChoice.Descendants(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "{Binding DisplayLabel}");
+        var behavior = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
+        Assert.Contains("BrowserFilterPopup.StaysOpen = true;", behavior);
+        Assert.Contains("BrowserFilterPopup.StaysOpen = false;", behavior);
+        Assert.Contains("SyncBrowserRatingOperatorChoices();", behavior);
+        Assert.Contains("BrowserRatingOperatorChoices_PreviewKeyDown", behavior);
     }
 
     [Fact]
@@ -831,7 +878,8 @@ public class UiLayoutTests
         Assert.Contains(app.Descendants(ns + "Style"), style => (string?)style.Attribute(x + "Key") == "LightflowContextMenuStyle");
         Assert.Contains(app.Descendants(ns + "Style"), style => (string?)style.Attribute(x + "Key") == "LightflowMenuItemStyle");
         Assert.Equal(
-            ["Add to Collection…", "Remove from this Collection", "Export", "Regenerate Previews", "Rename", "Camera LUT", "Creative LUT"],
+            ["Add to Collection…", "Remove from this Collection", "Rating", "Flag", "Color label", "Keywords",
+                "Export", "Regenerate Previews", "Rename", "Camera LUT", "Creative LUT"],
             contextMenu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
         Assert.Equal(["Export…", "Export Subclips…"], contextMenu.Elements(ns + "MenuItem").Single(item => (string?)item.Attribute("Header") == "Export")
             .Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
@@ -880,11 +928,12 @@ public class UiLayoutTests
         var export = Named(document, "ExportButton");
 
         Assert.Equal("Stretch", (string?)color.Attribute("HorizontalAlignment"));
-        Assert.Equal("6", (string?)export.Attribute("Grid.Column"));
+        Assert.Equal("2", (string?)export.Attribute("Grid.Column"));
+        Assert.Equal("Right", (string?)export.Attribute("HorizontalAlignment"));
         Assert.Equal("Export…", (string?)export.Attribute("Content"));
         Assert.Equal("ExportButton_Click", (string?)export.Attribute("Click"));
-        Assert.Equal("*", (string?)color.Element(ns + "Grid.ColumnDefinitions")!
-            .Elements(ns + "ColumnDefinition").ElementAt(5).Attribute("Width"));
+        Assert.Equal(new[] { "*", "Auto", "*" }, color.Element(ns + "Grid.ColumnDefinitions")!
+            .Elements(ns + "ColumnDefinition").Select(column => (string?)column.Attribute("Width")));
     }
 
     [Fact]
@@ -1376,6 +1425,236 @@ public class UiLayoutTests
         Assert.Equal("{Binding AutomationLabel}", (string?)tileBorder.Attribute("AutomationProperties.Name"));
         Assert.DoesNotContain(filenameStyle.Descendants(ns + "DataTrigger"), trigger =>
             (string?)trigger.Attribute("Value") is "{x:Static local:BrowserViewMode.Info}" or "{x:Static local:BrowserViewMode.Hybrid}");
+    }
+
+    [Fact]
+    public void ClassificationPresentation_IsModeAwareVectorBasedAndResponsive()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var preview = Named(document, "BrowserPreviewSurface");
+        var tileTemplate = document.Descendants(ns + "DataTemplate")
+            .Single(template => (string?)template.Attribute("DataType") == "{x:Type local:BrowserGridTile}");
+        var tileBorder = tileTemplate.Elements(ns + "Border").Single();
+
+        Assert.DoesNotContain(tileBorder.Descendants(ns + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("ColorLabel") == true);
+        var labelFrames = preview.Descendants(ns + "MultiDataTrigger").Where(trigger =>
+            trigger.Descendants(ns + "Condition").Any(condition => ((string?)condition.Attribute("Binding"))?.Contains("ColorLabel") == true)).ToArray();
+        Assert.NotEmpty(labelFrames);
+        Assert.All(labelFrames, trigger => Assert.Contains(trigger.Descendants(ns + "Condition"), condition =>
+            (string?)condition.Attribute("Value") is "{x:Static local:BrowserViewMode.Info}" or "{x:Static local:BrowserViewMode.Hybrid}"));
+        Assert.DoesNotContain(labelFrames.SelectMany(trigger => trigger.Descendants(ns + "Condition")), condition =>
+            (string?)condition.Attribute("Value") == "{x:Static local:BrowserViewMode.Preview}");
+        Assert.All(labelFrames.SelectMany(trigger => trigger.Descendants(ns + "Setter")).Where(setter =>
+            (string?)setter.Attribute("Property") == "BorderBrush"), setter =>
+            Assert.StartsWith("{StaticResource ClassificationLabel", (string?)setter.Attribute("Value")));
+        Assert.DoesNotContain(Named(document, "BrowserUnavailableIndicator").Descendants(ns + "Condition"), condition =>
+            (string?)condition.Attribute("Value") == "{x:Static local:BrowserViewMode.Preview}");
+
+        var rating = document.Descendants(ns + "DataTemplate").Single(template =>
+            (string?)template.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "BrowserRatingIndicator");
+        Assert.Equal(5, rating.Descendants(ns + "Path").Count());
+        Assert.All(rating.Descendants(ns + "Path"), path => Assert.Equal("12", (string?)path.Attribute("Width")));
+        var ratingPaths = rating.Descendants(ns + "Path").ToArray();
+        Assert.All(ratingPaths, path =>
+        {
+            Assert.Equal("{StaticResource ClassificationRatingBrush}", (string?)path.Attribute("Fill"));
+            Assert.Equal("{StaticResource ClassificationStarGeometry}", (string?)path.Attribute("Data"));
+            Assert.Contains(path.Descendants(ns + "Setter"), setter =>
+                (string?)setter.Attribute("Property") == "Visibility" && (string?)setter.Attribute("Value") == "Collapsed");
+        });
+        Assert.Equal(Enumerable.Range(1, 5).Select(value => $"ConverterParameter={value}"), ratingPaths.Select(path =>
+            ((string?)path.Descendants(ns + "DataTrigger").Single().Attribute("Binding"))!.Split(',').Last().Trim().TrimEnd('}')));
+        Assert.All(ratingPaths, path => Assert.Contains(path.Descendants(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Visibility" && (string?)setter.Attribute("Value") == "Visible"));
+        var flag = document.Descendants(ns + "DataTemplate").Single(template =>
+            (string?)template.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "BrowserFlagIndicator");
+        var pickedFlag = flag.Descendants(ns + "Viewbox").Single(viewbox =>
+            (string?)viewbox.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PickedFlagShape");
+        Assert.Contains(pickedFlag.Descendants(ns + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Value") == "{x:Static local:AssetFlag.Picked}");
+        Assert.Contains(pickedFlag.Descendants(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationPickedFlagGeometry}");
+        Assert.Contains(flag.Descendants(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}");
+        var rejectedFlag = flag.Descendants(ns + "Grid").Single(grid =>
+            (string?)grid.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "RejectedFlagShape");
+        var rejectedCanvas = rejectedFlag.Descendants(ns + "Canvas").Single();
+        Assert.Equal("24", (string?)rejectedCanvas.Attribute("Width"));
+        Assert.Equal("24", (string?)rejectedCanvas.Attribute("Height"));
+        Assert.Equal(2, rejectedCanvas.Elements(ns + "Path").Count());
+        Assert.All(rejectedCanvas.Elements(ns + "Path"), path => Assert.Null(path.Attribute("Stretch")));
+        Assert.Contains(rejectedCanvas.Elements(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedFlagGeometry}" &&
+            (string?)path.Attribute("Fill") == "{StaticResource ClassificationRejectedInteriorBrush}" &&
+            (string?)path.Attribute("Stroke") == "{StaticResource ClassificationRejectedActiveBrush}");
+        Assert.Contains(rejectedCanvas.Elements(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}" &&
+            (string?)path.Attribute("Stroke") == "{StaticResource ClassificationRejectedActiveBrush}");
+        Assert.Contains(flag.Descendants(ns + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Value") == "{x:Static local:AssetFlag.Unflagged}" &&
+            trigger.Descendants(ns + "Setter").Any(setter => (string?)setter.Attribute("Value") == "Collapsed"));
+        Assert.NotNull(Named(document, "BrowserHybridLowerStateOverlay"));
+    }
+
+    [Fact]
+    public void BrowserFilterLock_IsOneFarRightVectorControlWithConciseTooltip()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var control = Named(document, "BrowserQueryLockButton");
+        Assert.Equal("Right", (string?)control.Attribute("DockPanel.Dock"));
+        Assert.Equal("Keep these filters when changing folders or Collections.", (string?)control.Attribute("ToolTip"));
+        Assert.NotNull(control.Descendants(ns + "Path").SingleOrDefault());
+        Assert.Null(control.Attribute("FontFamily"));
+        Assert.Null(control.Attribute("Content"));
+    }
+
+    [Fact]
+    public void PlayerClassificationRow_UsesDirectVectorAndSwatchChoicesRatherThanCycleButtons()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        Assert.Null(document.Descendants().FirstOrDefault(element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerRatingButton"));
+        foreach (var name in new[] { "PlayerRating1", "PlayerRating2", "PlayerRating3", "PlayerRating4", "PlayerRating5",
+                     "PlayerReject", "PlayerPick", "PlayerNoLabel", "PlayerLabelRed", "PlayerLabelYellow",
+                     "PlayerLabelGreen", "PlayerLabelBlue", "PlayerLabelPurple" })
+            Assert.Equal(ns + "ToggleButton", Named(document, name).Name);
+        Assert.Null(document.Descendants().FirstOrDefault(element =>
+            (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerUnflagged"));
+        Assert.All(Enumerable.Range(1, 5), rating =>
+        {
+            var button = Named(document, $"PlayerRating{rating}");
+            Assert.Equal(rating.ToString(), (string?)button.Attribute("Tag"));
+            Assert.Equal("PlayerRating_Click", (string?)button.Attribute("Click"));
+            var star = button.Descendants(ns + "Path").Single();
+            Assert.Equal("{StaticResource PlayerRatingStarPath}", (string?)star.Attribute("Style"));
+            Assert.Equal("{StaticResource ClassificationStarGeometry}", (string?)star.Attribute("Data"));
+        });
+        var starStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerRatingStarPath");
+        Assert.Contains(starStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "Transparent");
+        Assert.Contains(starStyle.Descendants(ns + "DataTrigger"), trigger =>
+            ((string?)trigger.Attribute("Binding"))?.Contains("IsChecked") == true && (string?)trigger.Attribute("Value") == "True");
+        Assert.Null(document.Descendants().FirstOrDefault(element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) is "PlayerRangeStateIndicator" or "PlayerSubclipsStateIndicator"));
+        var choiceStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerClassificationChoice");
+        Assert.Contains(choiceStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "BorderThickness" && (string?)setter.Attribute("Value") == "0");
+        Assert.Contains(choiceStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "FocusVisualStyle" &&
+            (string?)setter.Attribute("Value") == "{x:Null}");
+        var choiceTemplate = choiceStyle.Descendants(ns + "ControlTemplate").Single();
+        Assert.DoesNotContain(choiceTemplate.Descendants(ns + "Border"), border =>
+            (string?)border.Attribute("Background") != "Transparent");
+        Assert.Empty(choiceTemplate.Descendants(ns + "Ellipse"));
+        Assert.Empty(choiceTemplate.Descendants(ns + "Border"));
+        var keyboardFocusTrigger = choiceTemplate.Descendants(ns + "MultiDataTrigger").Single();
+        Assert.Contains(keyboardFocusTrigger.Descendants(ns + "Condition"), condition =>
+            ((string?)condition.Attribute("Binding"))?.Contains("IsKeyboardFocused") == true);
+        Assert.Contains(keyboardFocusTrigger.Descendants(ns + "Condition"), condition =>
+            ((string?)condition.Attribute("Binding"))?.Contains("KeyboardNavigation.ShowKeyboardCues") == true);
+        Assert.Contains(keyboardFocusTrigger.Descendants(ns + "ScaleTransform"), transform =>
+            (string?)transform.Attribute("ScaleX") == "1.12" && (string?)transform.Attribute("ScaleY") == "1.12");
+        var colorSurface = Named(document, "ColorSurface");
+        Assert.Equal(new[] { "*", "Auto", "*" }, colorSurface.Descendants(ns + "ColumnDefinition").Take(3).Select(column => (string?)column.Attribute("Width")));
+        var colorGroup = Named(document, "PlayerColorGroup");
+        Assert.Equal("1", (string?)colorGroup.Attribute("Grid.Column"));
+        Assert.Contains(colorGroup.Elements(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "COLOR");
+        Assert.Contains(colorGroup.Descendants(), element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "CameraLutCombo");
+        Assert.Contains(colorGroup.Descendants(), element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "CreativeLutCombo");
+        var export = Named(document, "ExportButton");
+        Assert.Equal("2", (string?)export.Attribute("Grid.Column"));
+        Assert.Equal("Right", (string?)export.Attribute("HorizontalAlignment"));
+        var ratingGroup = Named(document, "PlayerRatingGroup");
+        var classificationRow = ratingGroup.Parent!;
+        Assert.Equal(new[] { "*", "*", "*" }, classificationRow.Descendants(ns + "ColumnDefinition").Take(3).Select(column => (string?)column.Attribute("Width")));
+        Assert.Equal("Left", (string?)ratingGroup.Attribute("HorizontalAlignment"));
+        var flagGroup = Named(document, "PlayerFlagGroup");
+        Assert.Equal("Center", (string?)flagGroup.Attribute("HorizontalAlignment"));
+        Assert.Equal(new[] { "PlayerReject", "PlayerPick" }, flagGroup.Elements(ns + "ToggleButton")
+            .Select(button => (string)button.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))!));
+        Assert.Equal("Right", (string?)Named(document, "PlayerLabelGroup").Attribute("HorizontalAlignment"));
+        Assert.DoesNotContain(classificationRow.Descendants(ns + "TextBlock"), text =>
+            (string?)text.Attribute("Text") is "RATING" or "FLAG" or "COLOR LABEL");
+        var pickStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerPickFlagPath");
+        Assert.Contains(pickStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationPickedInactiveBrush}");
+        Assert.Contains(pickStyle.Descendants(ns + "DataTrigger").Descendants(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationPickedActiveBrush}");
+        Assert.Contains(Named(document, "PlayerReject").Descendants(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedFlagGeometry}");
+        Assert.Contains(Named(document, "PlayerPick").Descendants(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationPickedFlagGeometry}");
+        Assert.Contains(Named(document, "PlayerReject").Descendants(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}");
+        foreach (var name in new[] { "PlayerReject", "PlayerPick" })
+        {
+            var canvas = Named(document, name).Descendants(ns + "Canvas").Single();
+            Assert.Equal("24", (string?)canvas.Attribute("Width"));
+            Assert.Equal("24", (string?)canvas.Attribute("Height"));
+            Assert.All(canvas.Elements(ns + "Path"), path => Assert.Null(path.Attribute("Stretch")));
+        }
+        var rejectBodyStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerRejectFlagPath");
+        Assert.Contains(rejectBodyStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationRejectedInteriorBrush}");
+        Assert.Contains(rejectBodyStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Stroke" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationRejectedInactiveBrush}");
+        Assert.Contains(rejectBodyStyle.Descendants(ns + "DataTrigger").Descendants(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Stroke" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationRejectedActiveBrush}");
+        var rejectXStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerRejectXPath");
+        Assert.Contains(rejectXStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Stroke" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationRejectedInactiveBrush}");
+        Assert.Contains(rejectXStyle.Descendants(ns + "DataTrigger").Descendants(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Stroke" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationRejectedActiveBrush}");
+        var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
+        var appNs = app.Root!.Name.Namespace;
+        foreach (var key in new[] { "ClassificationStarGeometry", "ClassificationPickedFlagGeometry", "ClassificationRejectedFlagGeometry", "ClassificationRatingBrush",
+                     "ClassificationPickBrush", "ClassificationRejectBrush", "ClassificationRejectedXGeometry",
+                     "ClassificationPickedActiveBrush", "ClassificationPickedInactiveBrush", "ClassificationRejectedInteriorBrush", "ClassificationRejectedActiveBrush",
+                     "ClassificationRejectedInactiveBrush", "ClassificationLabelRedBrush", "ClassificationLabelYellowBrush",
+                     "ClassificationLabelGreenBrush", "ClassificationLabelAzureBrush", "ClassificationLabelPurpleBrush" })
+            Assert.Single(app.Descendants(), element =>
+                (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == key);
+        foreach (var (label, resource) in new[] { ("Red", "Red"), ("Yellow", "Yellow"), ("Green", "Green"), ("Blue", "Azure"), ("Purple", "Purple") })
+            Assert.Equal($"{{StaticResource ClassificationLabel{resource}Brush}}",
+                (string?)Named(document, $"PlayerLabel{label}").Descendants(appNs + "Ellipse").Single().Attribute("Fill"));
+        var codeBehind = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
+        Assert.Contains("ratingButtons[index].IsChecked = _classification?.Rating >= index + 1;", codeBehind);
+        Assert.Contains("AssetClassificationCommandPolicy.ToggleFlag(value.Flag, flag)", codeBehind);
+        Assert.DoesNotContain("PlayerUnflagged", codeBehind);
+        Assert.DoesNotContain(document.Descendants(), element => ((string?)element.Attribute("ToolTip"))?.Contains("Cycle", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    [Fact]
+    public void SharedFlagGeometry_MatchesAuthoritativeSvgPathsAndContainsRejectedX()
+    {
+        var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
+        var key = XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml");
+        Geometry Resource(string name) => Geometry.Parse(app.Descendants().Single(element =>
+            (string?)element.Attribute(key) == name).Value);
+        static string Canonical(Geometry geometry) => geometry.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        var picked = Resource("ClassificationPickedFlagGeometry");
+        var rejected = Resource("ClassificationRejectedFlagGeometry");
+        var rejectedX = Resource("ClassificationRejectedXGeometry");
+        var expectedPicked = Geometry.Parse("M4,3.25 C4,2.84 4.34,2.5 4.75,2.5 C5.16,2.5 5.5,2.84 5.5,3.25 V4.35 C7.15,3.55 8.8,3.2 10.45,3.35 C12.4,3.53 14.1,4.35 15.75,4.55 C17.25,4.73 18.7,4.45 20.25,3.7 V13.25 C18.65,14 17.15,14.28 15.6,14.1 C13.95,13.9 12.25,13.08 10.35,12.9 C8.75,12.75 7.15,13.05 5.5,13.8 V21 C5.5,21.41 5.16,21.75 4.75,21.75 C4.34,21.75 4,21.41 4,21 Z");
+        var expectedRejected = Geometry.Parse("M4.75,21 V3.6 M5.5,4.35 C7.15,3.55 8.8,3.2 10.45,3.35 C12.4,3.53 14.1,4.35 15.75,4.55 C17.25,4.73 18.7,4.45 20.25,3.7 V13.25 C18.65,14 17.15,14.28 15.6,14.1 C13.95,13.9 12.25,13.08 10.35,12.9 C8.75,12.75 7.15,13.05 5.5,13.8 Z");
+        var expectedRejectedX = Geometry.Parse("M9.15,6.4 L15.6,11 M15.6,6.4 L9.15,11");
+
+        Assert.Equal(Canonical(expectedPicked), Canonical(picked));
+        Assert.Equal(Canonical(expectedRejected), Canonical(rejected));
+        Assert.Equal(Canonical(expectedRejectedX), Canonical(rejectedX));
+        Assert.True(picked.Bounds.Height >= 19, "The supplied Picked geometry must retain its pronounced stem.");
+        Assert.True(rejectedX.Bounds.Left > 5.5 && rejectedX.Bounds.Right < 20.25,
+            "The supplied rejected X must remain horizontally inside the flag fabric and clear of its stem.");
+        Assert.True(rejectedX.Bounds.Top > 4.35 && rejectedX.Bounds.Bottom < 13.25,
+            "The supplied rejected X must remain vertically inside the flag fabric.");
     }
 
     [Fact]

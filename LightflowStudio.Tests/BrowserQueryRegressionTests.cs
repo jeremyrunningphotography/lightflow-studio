@@ -296,7 +296,7 @@ public sealed class BrowserQueryRegressionTests
         var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
         var body = source[methodStart..methodEnd];
         var guardOn = body.IndexOf("_synchronizingBrowserQuery = true;", StringComparison.Ordinal);
-        var sortAssignment = body.IndexOf("BrowserSortCombo.SelectedIndex = (int)sortMode;", StringComparison.Ordinal);
+        var sortAssignment = body.IndexOf("BrowserSortCombo.SelectedIndex = (int)query.SortMode;", StringComparison.Ordinal);
         var filterButtonAssignment = body.IndexOf("BrowserFilterButton.IsChecked = false;", StringComparison.Ordinal);
         var guardOff = body.IndexOf("finally { _synchronizingBrowserQuery = false; }", StringComparison.Ordinal);
 

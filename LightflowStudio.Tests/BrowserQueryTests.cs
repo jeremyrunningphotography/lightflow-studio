@@ -602,3 +602,131 @@ public sealed class BrowserQueryFilterMutationTests
     public void WithoutField_IsANoOpWhenTheFieldHasNoActivePredicates() =>
         Assert.Same(BrowserQuery.Default, BrowserQuery.Default.WithoutField(BrowserFilterField.MediaType));
 }
+
+public sealed class BrowserQueryLockPolicyTests
+{
+    [Fact]
+    public void LockedQuery_PreservesCompletePortableIntentAcrossOrdinaryScopes()
+    {
+        var filter = BrowserFilterPredicate.ForRating(BrowserNumberComparison.LessThanOrEqual, 3);
+        var locked = BrowserQuery.Default with
+        {
+            SearchText = "ceremony",
+            Filters = [filter],
+            SortMode = BrowserSortMode.Duration,
+            SortDescending = true
+        };
+
+        var materialized = BrowserQueryLockPolicy.Materialize(locked, BrowserSortMode.Name);
+
+        Assert.Same(locked, materialized);
+        Assert.Equal(BrowserNumberComparison.LessThanOrEqual, materialized.Filters.Single().Comparison);
+        Assert.Equal(3, materialized.Filters.Single().NumberValue);
+    }
+
+    [Fact]
+    public void ManualLock_MaterializesFolderFallbackWithoutMutatingCollectionSnapshot()
+    {
+        var locked = BrowserQuery.Default with { SearchText = "picks", SortMode = BrowserSortMode.Manual, SortDescending = true };
+
+        var folder = BrowserQueryLockPolicy.Materialize(locked, BrowserSortMode.Name);
+        var collection = BrowserQueryLockPolicy.Materialize(locked, BrowserSortMode.Manual);
+
+        Assert.Equal(BrowserSortMode.Name, folder.SortMode);
+        Assert.False(folder.SortDescending);
+        Assert.Equal("picks", folder.SearchText);
+        Assert.Same(locked, collection);
+        Assert.Equal(BrowserSortMode.Manual, locked.SortMode);
+    }
+
+    [Fact]
+    public void UnlockedScope_UsesItsEstablishedDefaultQuery()
+    {
+        Assert.Equal(BrowserSortMode.Name, BrowserQueryLockPolicy.Materialize(null, BrowserSortMode.Name).SortMode);
+        Assert.Equal(BrowserSortMode.Manual, BrowserQueryLockPolicy.Materialize(null, BrowserSortMode.Manual).SortMode);
+    }
+}
+
+public sealed class BrowserClassificationFilterTests
+{
+    [Fact]
+    public void RatingEditor_OperatorAloneDoesNotCreatePredicateAndStarSelectionCommitsDirectly()
+    {
+        var empty = BrowserQuery.Default;
+
+        var operatorOnly = BrowserRatingFilterEditor.SelectComparison(empty, BrowserNumberComparison.LessThan);
+        var selected = BrowserRatingFilterEditor.SelectThreshold(operatorOnly, BrowserNumberComparison.LessThan, 3);
+        var changedThreshold = BrowserRatingFilterEditor.SelectThreshold(selected, BrowserNumberComparison.LessThan, 5);
+        var changedOperator = BrowserRatingFilterEditor.SelectComparison(changedThreshold, BrowserNumberComparison.Equal);
+
+        Assert.Same(empty, operatorOnly);
+        Assert.DoesNotContain(operatorOnly.Filters, filter => filter.Field == BrowserFilterField.Rating);
+        Assert.Equal(BrowserFilterPredicate.ForRating(BrowserNumberComparison.LessThan, 3),
+            Assert.Single(selected.Filters, filter => filter.Field == BrowserFilterField.Rating));
+        Assert.Equal(BrowserFilterPredicate.ForRating(BrowserNumberComparison.LessThan, 5),
+            Assert.Single(changedThreshold.Filters, filter => filter.Field == BrowserFilterField.Rating));
+        Assert.Equal(BrowserFilterPredicate.ForRating(BrowserNumberComparison.Equal, 5),
+            Assert.Single(changedOperator.Filters, filter => filter.Field == BrowserFilterField.Rating));
+    }
+
+    [Theory]
+    [InlineData(1, "Rating < ★★★")]
+    [InlineData(2, "Rating ≤ ★★★")]
+    [InlineData(3, "Rating = ★★★")]
+    [InlineData(0, "Rating ≥ ★★★")]
+    [InlineData(4, "Rating > ★★★")]
+    public void RatingChip_PreservesOperatorAndStarThreshold(int comparisonValue, string expected) =>
+        Assert.Equal(expected, BrowserFilterPredicate.ForRating((BrowserNumberComparison)comparisonValue, 3).Label);
+
+    [Fact]
+    public void RatingPredicate_JsonRoundTripPreservesOperatorAndThreshold()
+    {
+        var predicate = BrowserFilterPredicate.ForRating(BrowserNumberComparison.GreaterThan, 4);
+
+        var restored = System.Text.Json.JsonSerializer.Deserialize<BrowserFilterPredicate>(
+            System.Text.Json.JsonSerializer.Serialize(predicate));
+
+        Assert.Equal(predicate, restored);
+    }
+
+    [Fact]
+    public void FlagChoices_AreOrderedPickedUnflaggedRejectedAndAllMatchExactly()
+    {
+        Assert.Equal(["Flag: Picked", "Flag: Unflagged", "Flag: Rejected"],
+            BrowserClassificationFilterChoices.Flags.Select(predicate => predicate.Label));
+        Assert.Equal([AssetFlag.Picked, AssetFlag.Unflagged, AssetFlag.Rejected],
+            BrowserClassificationFilterChoices.Flags.Select(predicate => Enum.Parse<AssetFlag>(predicate.TextValue!)));
+        Assert.Equal(["Picked", "Unflagged", "Rejected"], BrowserClassificationFilterChoices.Flags
+            .Select(predicate => new BrowserFilterOption(predicate, false).DisplayLabel));
+    }
+
+    [Fact]
+    public void GroupedChoiceLabels_RemoveOnlyRedundantSectionPrefixes()
+    {
+        Assert.Equal("1920×1080", new BrowserFilterOption(BrowserFilterPredicate.ForResolution(1920, 1080), false).DisplayLabel);
+        Assert.Equal("29.97 fps", new BrowserFilterOption(BrowserFilterPredicate.ForFrameRate(29.97), false).DisplayLabel);
+        Assert.Equal("Sony A1", new BrowserFilterOption(BrowserFilterPredicate.ForText(BrowserFilterField.Camera, "Sony A1"), false).DisplayLabel);
+        Assert.Equal("≥ 10:00", new BrowserFilterOption(BrowserFilterPredicate.ForMinimum(BrowserFilterField.Duration, 600), false).DisplayLabel);
+        Assert.Equal("Resolution: 1920×1080", BrowserFilterPredicate.ForResolution(1920, 1080).Label);
+        Assert.Equal("Frame rate: 29.97 fps", BrowserFilterPredicate.ForFrameRate(29.97).Label);
+        Assert.Equal("Flag: Picked", BrowserClassificationFilterChoices.Flags[0].Label);
+    }
+
+    [Fact]
+    public void ColorAndKeywordChoices_PreserveEstablishedOrderAndComposeWithOtherPredicates()
+    {
+        Assert.Equal(["Red", "Yellow", "Green", "Blue", "Purple"],
+            BrowserClassificationFilterChoices.ColorLabels.Select(predicate => new BrowserFilterOption(predicate, false).DisplayLabel));
+        Assert.Equal(["ceremony", "Favorites"], BrowserClassificationFilterChoices.Keywords(["Favorites", "ceremony", "CEREMONY"])
+            .Select(predicate => predicate.TextValue));
+
+        var query = BrowserQuery.Default with { Filters =
+        [
+            BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video),
+            BrowserFilterPredicate.ForRating(BrowserNumberComparison.Equal, 4),
+            BrowserClassificationFilterChoices.Flags[0],
+            BrowserClassificationFilterChoices.ColorLabels[3]
+        ] };
+        Assert.Equal(4, query.Filters.Count);
+    }
+}

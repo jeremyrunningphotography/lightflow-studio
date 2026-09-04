@@ -32,6 +32,18 @@
   <SolidColorBrush x:Key="MagentaBrush" Color="{StaticResource MagentaColor}"/>
   <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
   <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}"/>
+  <!-- Shared Catalog-classification vocabulary: Browser presentation and Player editing consume
+       these same vector/color resources so the two surfaces cannot visually drift. -->
+  <StreamGeometry x:Key="ClassificationStarGeometry">M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z</StreamGeometry>
+  <StreamGeometry x:Key="ClassificationFlagGeometry">M3,15 L3,2 M3,3 C7,0 10,5 14,2 L14,9 C10,12 7,7 3,10 Z</StreamGeometry>
+  <SolidColorBrush x:Key="ClassificationRatingBrush" Color="#F2C05C"/>
+  <SolidColorBrush x:Key="ClassificationPickBrush" Color="#FF8A1F"/>
+  <SolidColorBrush x:Key="ClassificationRejectBrush" Color="#E85A5A"/>
+  <SolidColorBrush x:Key="ClassificationLabelRedBrush" Color="#E85A5A"/>
+  <SolidColorBrush x:Key="ClassificationLabelYellowBrush" Color="#E3B341"/>
+  <SolidColorBrush x:Key="ClassificationLabelGreenBrush" Color="#57AB5A"/>
+  <SolidColorBrush x:Key="ClassificationLabelAzureBrush" Color="#539BF5"/>
+  <SolidColorBrush x:Key="ClassificationLabelPurpleBrush" Color="#B083F0"/>
   <GeometryGroup x:Key="SemanticAttentionIconGeometry" FillRule="EvenOdd">
    <EllipseGeometry Center="8,8" RadiusX="6.4" RadiusY="6.4"/>
    <EllipseGeometry Center="8,8" RadiusX="4.9" RadiusY="4.9"/>

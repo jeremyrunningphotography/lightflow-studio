@@ -1400,6 +1400,9 @@ public class UiLayoutTests
             (string?)condition.Attribute("Value") is "{x:Static local:BrowserViewMode.Info}" or "{x:Static local:BrowserViewMode.Hybrid}"));
         Assert.DoesNotContain(labelFrames.SelectMany(trigger => trigger.Descendants(ns + "Condition")), condition =>
             (string?)condition.Attribute("Value") == "{x:Static local:BrowserViewMode.Preview}");
+        Assert.All(labelFrames.SelectMany(trigger => trigger.Descendants(ns + "Setter")).Where(setter =>
+            (string?)setter.Attribute("Property") == "BorderBrush"), setter =>
+            Assert.StartsWith("{StaticResource ClassificationLabel", (string?)setter.Attribute("Value")));
         Assert.DoesNotContain(Named(document, "BrowserUnavailableIndicator").Descendants(ns + "Condition"), condition =>
             (string?)condition.Attribute("Value") == "{x:Static local:BrowserViewMode.Preview}");
 
@@ -1410,7 +1413,8 @@ public class UiLayoutTests
         var ratingPaths = rating.Descendants(ns + "Path").ToArray();
         Assert.All(ratingPaths, path =>
         {
-            Assert.Equal("#FFF2C05C", (string?)path.Attribute("Fill"));
+            Assert.Equal("{StaticResource ClassificationRatingBrush}", (string?)path.Attribute("Fill"));
+            Assert.Equal("{StaticResource ClassificationStarGeometry}", (string?)path.Attribute("Data"));
             Assert.Contains(path.Descendants(ns + "Setter"), setter =>
                 (string?)setter.Attribute("Property") == "Visibility" && (string?)setter.Attribute("Value") == "Collapsed");
         });
@@ -1449,7 +1453,9 @@ public class UiLayoutTests
             var button = Named(document, $"PlayerRating{rating}");
             Assert.Equal(rating.ToString(), (string?)button.Attribute("Tag"));
             Assert.Equal("PlayerRating_Click", (string?)button.Attribute("Click"));
-            Assert.Equal("{StaticResource PlayerRatingStarPath}", (string?)button.Descendants(ns + "Path").Single().Attribute("Style"));
+            var star = button.Descendants(ns + "Path").Single();
+            Assert.Equal("{StaticResource PlayerRatingStarPath}", (string?)star.Attribute("Style"));
+            Assert.Equal("{StaticResource ClassificationStarGeometry}", (string?)star.Attribute("Data"));
         });
         var starStyle = document.Descendants(ns + "Style").Single(style =>
             (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerRatingStarPath");
@@ -1464,6 +1470,24 @@ public class UiLayoutTests
             (string?)setter.Attribute("Property") == "BorderThickness" && (string?)setter.Attribute("Value") == "0");
         Assert.DoesNotContain(choiceStyle.Elements(ns + "Setter"), setter =>
             (string?)setter.Attribute("Property") == "FocusVisualStyle");
+        var choiceTemplate = choiceStyle.Descendants(ns + "ControlTemplate").Single();
+        Assert.DoesNotContain(choiceTemplate.Descendants(ns + "Border"), border =>
+            (string?)border.Attribute("Background") != "Transparent");
+        Assert.Contains(choiceTemplate.Descendants(ns + "Trigger"), trigger =>
+            (string?)trigger.Attribute("Property") == "IsKeyboardFocused");
+        foreach (var name in new[] { "PlayerReject", "PlayerUnflagged", "PlayerPick" })
+            Assert.Contains(Named(document, name).Descendants(ns + "Path"), path =>
+                (string?)path.Attribute("Data") == "{StaticResource ClassificationFlagGeometry}");
+        var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
+        var appNs = app.Root!.Name.Namespace;
+        foreach (var key in new[] { "ClassificationStarGeometry", "ClassificationFlagGeometry", "ClassificationRatingBrush",
+                     "ClassificationPickBrush", "ClassificationRejectBrush", "ClassificationLabelRedBrush", "ClassificationLabelYellowBrush",
+                     "ClassificationLabelGreenBrush", "ClassificationLabelAzureBrush", "ClassificationLabelPurpleBrush" })
+            Assert.Single(app.Descendants(), element =>
+                (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == key);
+        foreach (var (label, resource) in new[] { ("Red", "Red"), ("Yellow", "Yellow"), ("Green", "Green"), ("Blue", "Azure"), ("Purple", "Purple") })
+            Assert.Equal($"{{StaticResource ClassificationLabel{resource}Brush}}",
+                (string?)Named(document, $"PlayerLabel{label}").Descendants(appNs + "Ellipse").Single().Attribute("Fill"));
         var codeBehind = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
         Assert.Contains("ratingButtons[index].IsChecked = _classification?.Rating >= index + 1;", codeBehind);
         Assert.DoesNotContain(document.Descendants(), element => ((string?)element.Attribute("ToolTip"))?.Contains("Cycle", StringComparison.OrdinalIgnoreCase) == true);

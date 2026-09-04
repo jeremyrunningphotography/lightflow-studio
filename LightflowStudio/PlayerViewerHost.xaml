@@ -77,7 +77,7 @@
   </Style>
   <Style x:Key="PlayerClassificationFocusVisual" TargetType="Control">
    <Setter Property="Template"><Setter.Value><ControlTemplate>
-    <Grid><AdornedElementPlaceholder/><Ellipse Width="5" Height="5" Margin="0,1,1,0" HorizontalAlignment="Right" VerticalAlignment="Top" Fill="{StaticResource ShellFocusBrush}"/></Grid>
+    <Grid><AdornedElementPlaceholder/><Border Margin="1" BorderBrush="{StaticResource TextBrush}" BorderThickness="1" CornerRadius="12" Opacity="0.62"/></Grid>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="PlayerClassificationChoice" TargetType="ToggleButton">
@@ -181,8 +181,8 @@
        <ToggleButton x:Name="PlayerRating5" Style="{StaticResource PlayerStarChoice}" Tag="5" Click="PlayerRating_Click" AutomationProperties.Name="5 stars"><Path Style="{StaticResource PlayerRatingStarPath}" Data="{StaticResource ClassificationStarGeometry}"/></ToggleButton>
       </StackPanel>
       <StackPanel x:Name="PlayerFlagGroup" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
-       <ToggleButton x:Name="PlayerPick" Style="{StaticResource PlayerClassificationChoice}" Tag="Picked" Click="PlayerFlag_Click" ToolTip="Pick" AutomationProperties.Name="Pick"><Path Width="15" Height="15" Stretch="Uniform" StrokeLineJoin="Round" Style="{StaticResource PlayerPickFlagPath}" Data="{StaticResource ClassificationFlagGeometry}"/></ToggleButton>
        <ToggleButton x:Name="PlayerReject" Style="{StaticResource PlayerClassificationChoice}" Tag="Rejected" Click="PlayerFlag_Click" ToolTip="Reject" AutomationProperties.Name="Reject"><Grid Width="15" Height="15"><Path Stretch="Uniform" Style="{StaticResource PlayerRejectFlagPath}" Data="{StaticResource ClassificationFlagGeometry}"/><Path Stretch="Uniform" Stroke="{StaticResource ClassificationRejectedXBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="{StaticResource ClassificationRejectedXGeometry}"/></Grid></ToggleButton>
+       <ToggleButton x:Name="PlayerPick" Style="{StaticResource PlayerClassificationChoice}" Tag="Picked" Click="PlayerFlag_Click" ToolTip="Pick" AutomationProperties.Name="Pick"><Path Width="15" Height="15" Stretch="Uniform" StrokeLineJoin="Round" Style="{StaticResource PlayerPickFlagPath}" Data="{StaticResource ClassificationFlagGeometry}"/></ToggleButton>
       </StackPanel>
       <StackPanel x:Name="PlayerLabelGroup" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
        <ToggleButton x:Name="PlayerNoLabel" Style="{StaticResource PlayerSwatchChoice}" Tag="None" Click="PlayerColorLabel_Click" ToolTip="No color label" AutomationProperties.Name="No color label"><Grid Width="15" Height="15"><Ellipse Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.5"/><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.5" StrokeStartLineCap="Round" Data="M3,12 L12,3"/></Grid></ToggleButton>

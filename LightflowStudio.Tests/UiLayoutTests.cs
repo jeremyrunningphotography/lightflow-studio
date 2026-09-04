@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using System.Windows.Media;
 using Xunit;
 
 namespace LightflowStudio.Tests;
@@ -1504,7 +1505,10 @@ public class UiLayoutTests
             (string?)trigger.Attribute("Property") == "IsKeyboardFocused");
         var focusVisual = document.Descendants(ns + "Style").Single(style =>
             (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerClassificationFocusVisual");
-        Assert.Single(focusVisual.Descendants(ns + "Ellipse"));
+        Assert.Empty(focusVisual.Descendants(ns + "Ellipse"));
+        Assert.Contains(focusVisual.Descendants(ns + "Border"), border =>
+            (string?)border.Attribute("BorderBrush") == "{StaticResource TextBrush}" &&
+            (string?)border.Attribute("CornerRadius") == "12");
         var colorSurface = Named(document, "ColorSurface");
         Assert.Equal(new[] { "*", "Auto", "*" }, colorSurface.Descendants(ns + "ColumnDefinition").Take(3).Select(column => (string?)column.Attribute("Width")));
         var colorGroup = Named(document, "PlayerColorGroup");
@@ -1519,7 +1523,10 @@ public class UiLayoutTests
         var classificationRow = ratingGroup.Parent!;
         Assert.Equal(new[] { "*", "*", "*" }, classificationRow.Descendants(ns + "ColumnDefinition").Take(3).Select(column => (string?)column.Attribute("Width")));
         Assert.Equal("Left", (string?)ratingGroup.Attribute("HorizontalAlignment"));
-        Assert.Equal("Center", (string?)Named(document, "PlayerFlagGroup").Attribute("HorizontalAlignment"));
+        var flagGroup = Named(document, "PlayerFlagGroup");
+        Assert.Equal("Center", (string?)flagGroup.Attribute("HorizontalAlignment"));
+        Assert.Equal(new[] { "PlayerReject", "PlayerPick" }, flagGroup.Elements(ns + "ToggleButton")
+            .Select(button => (string)button.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))!));
         Assert.Equal("Right", (string?)Named(document, "PlayerLabelGroup").Attribute("HorizontalAlignment"));
         Assert.DoesNotContain(classificationRow.Descendants(ns + "TextBlock"), text =>
             (string?)text.Attribute("Text") is "RATING" or "FLAG" or "COLOR LABEL");
@@ -1551,6 +1558,22 @@ public class UiLayoutTests
         Assert.Contains("AssetClassificationCommandPolicy.ToggleFlag(value.Flag, flag)", codeBehind);
         Assert.DoesNotContain("PlayerUnflagged", codeBehind);
         Assert.DoesNotContain(document.Descendants(), element => ((string?)element.Attribute("ToolTip"))?.Contains("Cycle", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    [Fact]
+    public void SharedFlagGeometry_HasPronouncedStemAndRejectedXStaysInsideFabric()
+    {
+        var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
+        var key = XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml");
+        var flagData = app.Descendants().Single(element => (string?)element.Attribute(key) == "ClassificationFlagGeometry").Value;
+        var rejectedXData = app.Descendants().Single(element => (string?)element.Attribute(key) == "ClassificationRejectedXGeometry").Value;
+        var flag = Geometry.Parse(flagData);
+        var rejectedX = Geometry.Parse(rejectedXData);
+
+        Assert.True(flag.Bounds.Height >= 17, "The filled flag must retain a pronounced stem at small sizes.");
+        Assert.True(rejectedX.Bounds.Left > flag.Bounds.Left + 3, "The rejected X must not cross the flag stem.");
+        Assert.True(rejectedX.Bounds.Right < flag.Bounds.Right, "The rejected X must remain inside the flag body.");
+        Assert.True(rejectedX.Bounds.Bottom < 9, "The rejected X must remain inside the upper fabric area.");
     }
 
     [Fact]

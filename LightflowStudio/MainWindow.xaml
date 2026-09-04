@@ -547,9 +547,19 @@
          <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Locations"/>
         </ToggleButton>
         <Grid x:Name="BrowserLocationsSectionContent" Margin="0,6,0,0">
-         <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}"
+         <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}" AllowDrop="True"
           SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseLeftButtonDown="BrowserFolderTree_PreviewMouseLeftButtonDown"
+          DragOver="BrowserFolderTree_DragOver" Drop="BrowserFolderTree_Drop"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+          <TreeView.ContextMenu>
+           <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Cut" InputGestureText="Ctrl+X" Click="BrowserFolderCut_Click"/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Copy" InputGestureText="Ctrl+C" Click="BrowserFolderCopy_Click"/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Paste into folder" InputGestureText="Ctrl+V" Click="BrowserFolderPaste_Click"/>
+            <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Delete" InputGestureText="Delete" Click="BrowserFolderDelete_Click"/>
+           </ContextMenu>
+          </TreeView.ContextMenu>
           <TreeView.ItemContainerStyle>
            <Style TargetType="TreeViewItem" BasedOn="{StaticResource BrowserTreeItemStyle}">
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
@@ -1042,6 +1052,11 @@
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Creative LUT" SubmenuOpened="BrowserContextCreativeLut_SubmenuOpened">
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Loading…" IsEnabled="False"/>
                   </MenuItem>
+                  <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Cut" InputGestureText="Ctrl+X" Click="BrowserCut_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Copy" InputGestureText="Ctrl+C" Click="BrowserCopy_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Paste" InputGestureText="Ctrl+V" Click="BrowserPaste_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Delete" InputGestureText="Delete" Click="BrowserDelete_Click"/>
                  </ContextMenu>
                 </Border.ContextMenu>
                 <Border.Style>

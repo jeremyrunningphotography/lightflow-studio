@@ -48,6 +48,10 @@ public partial class MainWindow : Window
     private readonly ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult> _jobsRuntime;
     private readonly GlobalExportScheduler _exportScheduler;
     private readonly ExportJobCoordinator _exportCoordinator;
+    private readonly FileOperationExecutor _fileOperationExecutor;
+    private readonly FileOperationJobs _fileOperationJobs;
+    private FileOperationKind? _lightflowClipboardKind;
+    private IReadOnlyList<FileOperationSource> _lightflowClipboardSources = [];
     private readonly ObservableCollection<JobCardPresentation> _jobsDrawerCards = [];
     private readonly HashSet<Guid> _expandedJobIds = [];
     private readonly HashSet<Guid> _dismissedTerminalJobIds = [];
@@ -192,6 +196,11 @@ public partial class MainWindow : Window
             { _activityLogFile.TryAppend($"[App] Could not save the Export queue pause policy: {exception.Message}"); }
         });
         _exportCoordinator = new ExportJobCoordinator(_exportScheduler, _jobHistory);
+        _fileOperationExecutor = new FileOperationExecutor(new WindowsFileOperationPlatform(), storage.MediaAssets,
+            storage.BrowserLocations);
+        _fileOperationJobs = new FileOperationJobs(_fileOperationExecutor,
+            new FileOperationHistoryStore(storage.Locations.FileOperationHistoryPath));
+        _fileOperationJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
         _exportCoordinator.Completed += _ => Dispatcher.BeginInvoke(RefreshHistory);
         _exportScheduler.Changed += ExportScheduler_Changed;
         _exportScheduler.SubmissionAccepted += _ => Dispatcher.BeginInvoke(() =>
@@ -1384,7 +1393,7 @@ public partial class MainWindow : Window
         ((MenuItem)menu.Items[8]).IsEnabled = state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled;
     }
 
-    private void BrowserGridTile_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    private async void BrowserGridTile_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed || _browserAssetDragTile is null) return;
         var current = e.GetPosition(BrowserGridRows);
@@ -1396,7 +1405,11 @@ public partial class MainWindow : Window
         var ids = BrowserAssetDragSelection.AssetIdsForDrag(tile.IsSelected, tile.AssetId,
             _browserGrid.SelectedAssetIdsInBrowserOrder);
         if (ids.Count == 0) return;
-        System.Windows.DragDrop.DoDragDrop((DependencyObject)sender, new BrowserAssetDragPayload(ids),
+        var sources = await SelectedFileOperationSourcesAsync();
+        var data = new System.Windows.DataObject();
+        data.SetData(typeof(BrowserAssetDragPayload), new BrowserAssetDragPayload(ids));
+        data.SetData(System.Windows.DataFormats.FileDrop, sources.Select(source => source.Path).ToArray());
+        System.Windows.DragDrop.DoDragDrop((DependencyObject)sender, data,
             System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
     }
 
@@ -2282,6 +2295,27 @@ public partial class MainWindow : Window
             return;
         }
         var inputOwner = e.OriginalSource as DependencyObject;
+        if (_browserPresentation == BrowserPresentationMode.Grid && MainTabs.SelectedIndex == 0 &&
+            !PlayerViewerHost.IsTextEntryControl(inputOwner))
+        {
+            var control = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+            if (control && e.Key == Key.X) { e.Handled = true; _ = CopyBrowserSelectionToClipboardAsync(FileOperationKind.Move); return; }
+            if (control && e.Key == Key.C) { e.Handled = true; _ = CopyBrowserSelectionToClipboardAsync(FileOperationKind.Copy); return; }
+            if (control && e.Key == Key.V) { e.Handled = true; _ = PasteBrowserClipboardAsync(CurrentBrowserFolder()); return; }
+            if (e.Key == Key.Delete)
+            {
+                e.Handled = true;
+                if (BrowserFolderTree.IsKeyboardFocusWithin && SelectedFolderOperationSource() is { } folder)
+                {
+                    var permanent = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+                    if (!permanent || ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete this folder?",
+                        "The folder and all contents will be permanently removed.", "It will not go to the Recycle Bin.", "Delete permanently"))
+                        _ = ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, [folder], null);
+                }
+                else _ = DeleteBrowserSelectionAsync(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+                return;
+            }
+        }
         if (_browserPresentation == BrowserPresentationMode.Grid &&
             MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home) &&
             !PlayerViewerHost.IsTextEntryControl(inputOwner))
@@ -2318,6 +2352,155 @@ public partial class MainWindow : Window
     {
         if (!PlayerOwnsShortcutContext() || !_playerViewerHost!.TryHandleShortcutKeyUp(e.Key)) return;
         e.Handled = true;
+    }
+
+    private string? CurrentBrowserFolder() => _lastLoadedBrowserState?.Location?.AbsolutePath;
+
+    private async Task<IReadOnlyList<FileOperationSource>> SelectedFileOperationSourcesAsync()
+    {
+        var sources = new List<FileOperationSource>();
+        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder)
+        {
+            var resolved = tile.AssetId is { } id ? await _storage.MediaAssets.GetAsync(id) : null;
+            var path = resolved?.PhysicalPath;
+            if (path is null && _lastLoadedBrowserState is { Location: { } location })
+                path = MediaPathSemantics.ResolveContained(location.RootPath, tile.RelativePath);
+            if (path is not null) sources.Add(new(tile.AssetId, path, tile.FileSizeBytes));
+        }
+        return sources;
+    }
+
+    private async Task CopyBrowserSelectionToClipboardAsync(FileOperationKind kind)
+    {
+        var sources = await SelectedFileOperationSourcesAsync();
+        if (sources.Count == 0) return;
+        var data = new System.Windows.DataObject();
+        data.SetData(System.Windows.DataFormats.FileDrop, sources.Select(source => source.Path).ToArray());
+        data.SetData("Preferred DropEffect", new MemoryStream(BitConverter.GetBytes(kind == FileOperationKind.Move ? 2 : 1)));
+        data.SetData("LightflowStudio.FileOperation", kind.ToString());
+        System.Windows.Clipboard.SetDataObject(data, true);
+        _lightflowClipboardKind = kind;
+        _lightflowClipboardSources = sources;
+        BrowserStatusText.Text = $"{(kind == FileOperationKind.Move ? "Cut" : "Copied")} {sources.Count} item(s).";
+    }
+
+    private async Task PasteBrowserClipboardAsync(string? destination)
+    {
+        if (string.IsNullOrWhiteSpace(destination) || !System.Windows.Clipboard.ContainsFileDropList()) return;
+        var paths = System.Windows.Clipboard.GetFileDropList().Cast<string>().ToArray();
+        var parsed = FileOperationKind.Copy;
+        var isOwned = System.Windows.Clipboard.GetData("LightflowStudio.FileOperation") is string owned &&
+            Enum.TryParse(owned, out parsed);
+        var kind = isOwned ? parsed : ClipboardPreferredKind();
+        var known = (isOwned ? _lightflowClipboardSources : await SelectedFileOperationSourcesAsync())
+            .ToDictionary(source => source.Path, StringComparer.OrdinalIgnoreCase);
+        var sources = paths.Select(path => known.TryGetValue(path, out var source) ? source :
+            new FileOperationSource(null, path, File.Exists(path) ? new FileInfo(path).Length : null, Directory.Exists(path))).ToArray();
+        await ExecuteFileOperationAsync(kind, sources, destination);
+        if (kind == FileOperationKind.Move) { System.Windows.Clipboard.Clear(); _lightflowClipboardKind = null; _lightflowClipboardSources = []; }
+    }
+
+    private static FileOperationKind ClipboardPreferredKind()
+    {
+        try
+        {
+            if (System.Windows.Clipboard.GetData("Preferred DropEffect") is MemoryStream stream)
+            {
+                stream.Position = 0; Span<byte> bytes = stackalloc byte[4];
+                if (stream.Read(bytes) == 4 && (BitConverter.ToInt32(bytes) & 2) != 0) return FileOperationKind.Move;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or System.Runtime.InteropServices.COMException) { }
+        return FileOperationKind.Copy;
+    }
+
+    private async Task DeleteBrowserSelectionAsync(bool permanent)
+    {
+        var sources = await SelectedFileOperationSourcesAsync();
+        if (sources.Count == 0) return;
+        if (permanent && !ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete selected items?",
+            $"{sources.Count} item(s) will be permanently removed.", "They will not go to the Recycle Bin and this cannot be undone.",
+            "Delete permanently")) return;
+        await ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, sources, null);
+    }
+
+    private async Task ExecuteFileOperationAsync(FileOperationKind kind, IReadOnlyList<FileOperationSource> sources, string? destination)
+    {
+        try
+        {
+            var intent = await Task.Run(() => FileOperationPlanner.Plan(kind, sources, destination));
+            if (intent.Execution == FileOperationExecution.Job)
+            {
+                _fileOperationJobs.Enqueue(intent); OpenJobsDrawer();
+                BrowserStatusText.Text = $"{kind} is tracked in Jobs."; return;
+            }
+            var result = await _fileOperationExecutor.ExecuteAsync(intent);
+            BrowserStatusText.Text = result.Succeeded ? $"{kind} completed." :
+                $"{kind}: {result.CompletedItems} completed, {result.Failures.Count} failed.";
+            if (_activeCollectionScope is null) await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+            else await LoadCollectionScopeAsync(_activeCollectionScope.Collection.CollectionId);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        { NoticeDialog.Show(this, "File operation", "The operation could not continue", exception.Message); }
+    }
+
+    private async void BrowserCut_Click(object sender, RoutedEventArgs e) => await CopyBrowserSelectionToClipboardAsync(FileOperationKind.Move);
+    private async void BrowserCopy_Click(object sender, RoutedEventArgs e) => await CopyBrowserSelectionToClipboardAsync(FileOperationKind.Copy);
+    private async void BrowserPaste_Click(object sender, RoutedEventArgs e) => await PasteBrowserClipboardAsync(CurrentBrowserFolder());
+    private async void BrowserDelete_Click(object sender, RoutedEventArgs e) => await DeleteBrowserSelectionAsync(false);
+
+    private FileOperationSource? SelectedFolderOperationSource() => _browserTree.SelectedNode?.AbsolutePath is { } path
+        ? new FileOperationSource(null, path, IsDirectory: true) : null;
+    private void CopySelectedFolderToClipboard(FileOperationKind kind)
+    {
+        if (SelectedFolderOperationSource() is not { } source) return;
+        var data = new System.Windows.DataObject();
+        data.SetData(System.Windows.DataFormats.FileDrop, new[] { source.Path });
+        data.SetData("Preferred DropEffect", new MemoryStream(BitConverter.GetBytes(kind == FileOperationKind.Move ? 2 : 1)));
+        data.SetData("LightflowStudio.FileOperation", kind.ToString());
+        System.Windows.Clipboard.SetDataObject(data, true); _lightflowClipboardKind = kind;
+        _lightflowClipboardSources = [source];
+    }
+    private void BrowserFolderCut_Click(object sender, RoutedEventArgs e) => CopySelectedFolderToClipboard(FileOperationKind.Move);
+    private void BrowserFolderCopy_Click(object sender, RoutedEventArgs e) => CopySelectedFolderToClipboard(FileOperationKind.Copy);
+    private async void BrowserFolderPaste_Click(object sender, RoutedEventArgs e) => await PasteBrowserClipboardAsync(_browserTree.SelectedNode?.AbsolutePath);
+    private async void BrowserFolderDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedFolderOperationSource() is { } source) await ExecuteFileOperationAsync(FileOperationKind.Recycle, [source], null);
+    }
+
+    private void BrowserFolderTree_DragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        var node = BrowserFolderDropTarget(e.OriginalSource as DependencyObject);
+        var paths = e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[];
+        if (node?.AbsolutePath is null || paths is not { Length: > 0 }) e.Effects = System.Windows.DragDropEffects.None;
+        else e.Effects = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath,
+            Keyboard.Modifiers.HasFlag(ModifierKeys.Control), Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) == FileOperationKind.Copy
+            ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private async void BrowserFolderTree_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        var node = BrowserFolderDropTarget(e.OriginalSource as DependencyObject);
+        var paths = e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[];
+        if (node?.AbsolutePath is null || paths is not { Length: > 0 }) return;
+        var kind = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath,
+            Keyboard.Modifiers.HasFlag(ModifierKeys.Control), Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+        var selected = (await SelectedFileOperationSourcesAsync()).ToDictionary(source => source.Path, StringComparer.OrdinalIgnoreCase);
+        await ExecuteFileOperationAsync(kind, paths.Select(path => selected.TryGetValue(path, out var source) ? source :
+            new FileOperationSource(null, path, File.Exists(path) ? new FileInfo(path).Length : null, Directory.Exists(path))).ToArray(), node.AbsolutePath);
+        e.Handled = true;
+    }
+
+    private static BrowserTreeNode? BrowserFolderDropTarget(DependencyObject? element)
+    {
+        while (element is not null)
+        {
+            if (element is FrameworkElement { DataContext: BrowserTreeNode node }) return node;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return null;
     }
 
     private bool PlayerOwnsShortcutContext() =>
@@ -5231,7 +5414,10 @@ public partial class MainWindow : Window
         var focusedJobId = FocusedJobsWorkspaceItem()?.JobId;
         var filter = (JobsWorkspaceFilter)Math.Clamp(JobsFilter?.SelectedIndex ?? 0, 0, 7);
         var projected = JobsWorkspacePresentation.Project(_exportScheduler.Jobs, _durableHistoryRecords,
-            JobsSearchText?.Text, filter, _deletedFullJobsTerminalJobIds);
+                JobsSearchText?.Text, filter, _deletedFullJobsTerminalJobIds)
+            .Concat(JobsWorkspacePresentation.ProjectFileOperations(_fileOperationJobs.Jobs, _fileOperationJobs.History,
+                JobsSearchText?.Text, filter)).OrderBy(item => JobsPresentation.IsTerminal(item.State) ? 1 : 0)
+            .ThenByDescending(item => item.SortTime).ToArray();
         FullJobsMaximumExports.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         ReconcileJobsWorkspace(projected);
         HistoryEmptyText.Visibility = _historyRecords.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -5383,7 +5569,9 @@ public partial class MainWindow : Window
         if (ConfirmationDialog.Confirm(this, selection.IsSingle ? "Cancel Export Job" : "Cancel Selected Export Jobs",
                 selection.IsSingle ? $"Cancel {single!.Name}?" : $"Cancel all {intended.Count} selected Jobs?",
                 "Incomplete output uses the existing cleanup policy.", single?.OutputPath, selection.IsSingle ? "Cancel Job" : "Cancel selected"))
-            foreach (var id in intended) _exportScheduler.Cancel(id);
+            foreach (var id in intended)
+                if (_fileOperationJobs.Jobs.Any(job => job.Intent.OperationId == id)) _fileOperationJobs.Cancel(id);
+                else _exportScheduler.Cancel(id);
     }
 
     private void JobsBackToBrowser_Click(object sender, RoutedEventArgs e) =>
@@ -5696,10 +5884,13 @@ public partial class MainWindow : Window
     {
         if (JobsStatusButton is null) return;
         var queuePaused = _exportScheduler.IsQueuePaused;
-        JobsStatusButton.Content = JobsPresentation.StatusText(jobs, queuePaused);
+        var fileJobs = _fileOperationJobs.Jobs;
+        var activeFileJobs = fileJobs.Count(job => job.State is FileOperationState.Waiting or FileOperationState.Running);
+        JobsStatusButton.Content = activeFileJobs == 0 ? JobsPresentation.StatusText(jobs, queuePaused)
+            : $"{JobsPresentation.StatusText(jobs, queuePaused)} · {activeFileJobs} file {(activeFileJobs == 1 ? "operation" : "operations")}";
         AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs workspace.");
         JobsStatusButton.ToolTip = "Open full Jobs workspace";
-        var activeCount = jobs.Count(job => !JobsPresentation.IsTerminal(job.State));
+        var activeCount = jobs.Count(job => !JobsPresentation.IsTerminal(job.State)) + activeFileJobs;
         JobsDrawerPullButton.Tag = activeCount > 0 ? "Active" : "Idle";
         JobsDrawerPullCount.Text = activeCount.ToString();
         JobsDrawerPullCount.Visibility = activeCount > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -5719,8 +5910,8 @@ public partial class MainWindow : Window
         AutomationProperties.SetName(JobsCancelAllButton, cancelAll
             ? $"Cancel all {cancellableCount} active Jobs"
             : clearableCount > 0 ? $"Clear all {clearableCount} dismissible Jobs from drawer" : "Clear all, no Jobs to clear");
-        var cards = visibleJobs
-            .Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId))).ToList();
+        var cards = visibleJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId)))
+            .Concat(fileJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.Intent.OperationId)))).ToList();
         JobsPresentation.Reconcile(_jobsDrawerCards, cards);
         if (MainTabs?.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
     }
@@ -5854,6 +6045,15 @@ public partial class MainWindow : Window
     private void JobsCancel_Click(object sender, RoutedEventArgs e)
     {
         if (JobIdFrom(sender) is not { } id) return;
+        var fileJob = _fileOperationJobs.Jobs.FirstOrDefault(snapshot => snapshot.Intent.OperationId == id &&
+            snapshot.State is FileOperationState.Waiting or FileOperationState.Running);
+        if (fileJob is not null)
+        {
+            if (ConfirmationDialog.Confirm(this, "Cancel file operation", "Cancel this file operation?",
+                "Completed items remain completed and will be reported truthfully.", fileJob.CurrentItem, "Cancel Job"))
+                _fileOperationJobs.Cancel(id);
+            return;
+        }
         var job = _exportScheduler.Jobs.FirstOrDefault(snapshot => snapshot.JobId == id && !JobsPresentation.IsTerminal(snapshot.State));
         if (job is null) return;
         if (ConfirmationDialog.Confirm(this, "Cancel Export Job", "Cancel this Export Job?",
@@ -5871,7 +6071,9 @@ public partial class MainWindow : Window
             if (!ConfirmationDialog.Confirm(this, "Cancel all Export Jobs", $"Cancel all {intended.Count} active {noun}?",
                 "Needs-attention and terminal Jobs are unaffected. Incomplete outputs use the existing cleanup policy.",
                 null, "Cancel all")) return;
-            foreach (var id in intended) _exportScheduler.Cancel(id);
+            foreach (var id in intended)
+                if (_fileOperationJobs.Jobs.Any(job => job.Intent.OperationId == id)) _fileOperationJobs.Cancel(id);
+                else _exportScheduler.Cancel(id);
             return;
         }
         foreach (var job in JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds)

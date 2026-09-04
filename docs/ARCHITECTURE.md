@@ -14,6 +14,18 @@ Lightflow Studio is evolving from a video-focused application into a capability-
 
 ## Unified Jobs presentation
 
+Browser filesystem operations introduced by #206 use immutable `FileOperationIntent` and terminal
+`FileOperationResult` records. One centralized `FileOperationPromotionPolicy` decides whether an ordinary operation
+executes directly or appears in Jobs; command semantics do not change at that boundary. Promoted filesystem work
+projects into the same Jobs drawer through capability-neutral card/lifecycle vocabulary, while typed filesystem
+intent stays separate from Export definitions, FFmpeg scheduling, and Encoding history. A small active-intent
+checkpoint becomes an explicit Interrupted provenance record on restart; transfers are never claimed to have resumed.
+
+`WindowsFileOperationPlatform` contains Recycle Bin mechanics; normal Delete never falls back to permanent deletion.
+Lightflow-authored moves update `RootId + relative path` on the existing Catalog asset after filesystem success, so
+all `AssetId`-keyed user state remains attached. Copies enter new-asset reconciliation and never inherit the source
+`AssetId`. Filesystem watcher events remain hints and cannot become an alternative owner of these mutations.
+
 The full Jobs workspace is a keyed presentation/query layer over two existing authorities. `GlobalExportScheduler`
 remains the sole owner of modern current execution, queue order, progress, concurrency, reservations, commands, and
 recovery. `JobHistoryStore` remains the durable terminal-record boundary. The workspace never polls FFmpeg or

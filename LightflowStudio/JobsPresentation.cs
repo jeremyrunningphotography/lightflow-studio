@@ -111,6 +111,25 @@ internal static class JobsPresentation
             !IsTerminal(job.State), job.State == JobState.Queued);
     }
 
+    public static JobCardPresentation Card(FileOperationJobSnapshot job, bool expanded)
+    {
+        var state = job.State switch
+        {
+            FileOperationState.Waiting => "Waiting", FileOperationState.Running => job.Intent.Kind.ToString(),
+            FileOperationState.CompletedWithFailures => "Completed with warnings", _ => job.State.ToString()
+        };
+        var progress = job.Intent.EstimatedBytes is > 0 ? Math.Clamp(job.CompletedBytes * 100d / job.Intent.EstimatedBytes.Value, 0, 100)
+            : job.Intent.Sources.Count > 0 ? job.CompletedItems * 100d / job.Intent.Sources.Count : 0;
+        var glyph = job.State switch { FileOperationState.Waiting => "○", FileOperationState.Running => "◔",
+            FileOperationState.Completed => "✓", FileOperationState.Cancelled => "×", _ => "!" };
+        return new(job.Intent.OperationId, $"{job.Intent.Kind} {job.Intent.Sources.Count} item{(job.Intent.Sources.Count == 1 ? "" : "s")}",
+            glyph, state, progress, job.State == FileOperationState.Running, "", null, job.Intent.Destination ?? "",
+            job.CurrentItem is null ? "Filesystem operation" : Path.GetFileName(job.CurrentItem),
+            $"{job.CompletedItems} of {job.Intent.Sources.Count} items", $"{job.CompletedBytes:N0} bytes", "", "",
+            job.Failures.FirstOrDefault()?.Diagnostic, expanded, false, false, false,
+            job.State is FileOperationState.Waiting or FileOperationState.Running, false);
+    }
+
     public static void Reconcile(ObservableCollection<JobCardPresentation> cards,
         IReadOnlyList<JobCardPresentation> desired)
     {

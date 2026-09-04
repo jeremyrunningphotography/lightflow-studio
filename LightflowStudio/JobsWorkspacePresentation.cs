@@ -39,6 +39,39 @@ internal sealed record JobsSelectionEligibility(
 
 internal static class JobsWorkspacePresentation
 {
+    public static IReadOnlyList<JobsWorkspaceItem> ProjectFileOperations(
+        IReadOnlyList<FileOperationJobSnapshot> current, IReadOnlyList<FileOperationHistoryRecord> history,
+        string? search = null, JobsWorkspaceFilter filter = JobsWorkspaceFilter.All)
+    {
+        var currentIds = current.Select(job => job.Intent.OperationId).ToHashSet();
+        var items = current.Select(FromFileOperation).Concat(history.Where(record => !currentIds.Contains(record.Intent.OperationId))
+            .Select(record => FromFileOperation(new(record.Intent, record.Result.State, record.Result.CompletedItems,
+                record.Result.CompletedBytes, null, record.Result.Failures, record.Result))));
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var value = search.Trim();
+            items = items.Where(item => item.Name.Contains(value, StringComparison.OrdinalIgnoreCase) ||
+                item.SourcePath.Contains(value, StringComparison.OrdinalIgnoreCase) || item.OutputPath.Contains(value, StringComparison.OrdinalIgnoreCase));
+        }
+        return items.Where(item => Matches(item.State, filter)).ToArray();
+    }
+
+    private static JobsWorkspaceItem FromFileOperation(FileOperationJobSnapshot job)
+    {
+        var state = job.State switch { FileOperationState.Waiting => JobState.Queued, FileOperationState.Running => JobState.Running,
+            FileOperationState.Completed => JobState.Completed, FileOperationState.CompletedWithFailures => JobState.CompletedWithWarnings,
+            FileOperationState.Cancelled => JobState.Cancelled, _ => JobState.Failed };
+        var progress = job.Intent.EstimatedBytes is > 0 ? job.CompletedBytes * 100d / job.Intent.EstimatedBytes.Value :
+            job.Intent.Sources.Count > 0 ? job.CompletedItems * 100d / job.Intent.Sources.Count : 0;
+        var detail = string.Join(Environment.NewLine, new[] { $"Job: {job.Intent.OperationId}", $"Operation: {job.Intent.Kind}",
+            $"Items: {job.CompletedItems} of {job.Intent.Sources.Count}", $"Bytes: {job.CompletedBytes:N0}",
+            $"Destination: {job.Intent.Destination}" }.Concat(job.Failures.Select(failure => $"Failed: {failure.Path} — {failure.Diagnostic}")));
+        return new(job.Intent.OperationId, null, null, job.Result is null, false,
+            $"{job.Intent.Kind} {job.Intent.Sources.Count} item(s)", "File operation", state, progress,
+            job.Result?.CompletedUtc.ToLocalTime().ToString("MMM d, HH:mm") ?? "Active",
+            job.Intent.Sources.FirstOrDefault()?.Path ?? "", job.Intent.Destination ?? "",
+            job.Failures.FirstOrDefault()?.Diagnostic ?? "", detail, job.Result?.CompletedUtc ?? job.Intent.CreatedUtc, long.MaxValue);
+    }
     public static IReadOnlyList<JobsWorkspaceItem> Project(IReadOnlyList<ExportJobSnapshot> current,
         IReadOnlyList<EncodingJobHistoryRecord> history, string? search = null,
         JobsWorkspaceFilter filter = JobsWorkspaceFilter.All,

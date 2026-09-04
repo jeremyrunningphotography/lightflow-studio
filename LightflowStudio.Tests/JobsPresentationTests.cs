@@ -138,7 +138,7 @@ public sealed class JobsPresentationTests
 
         var source = MainWindowSource();
         Assert.Contains("JobsPresentation.BulkCancellableJobs(jobs).Select(job => job.JobId).ToList()", source);
-        Assert.Contains("foreach (var id in intended) _exportScheduler.Cancel(id);", source);
+        Assert.Contains("else _exportScheduler.Cancel(id);", source);
         Assert.Contains("Cancel all {intended.Count} active", source);
         Assert.Contains("job.OutputPath", source);
 

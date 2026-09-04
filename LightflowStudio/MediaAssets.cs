@@ -106,6 +106,8 @@ internal interface IMediaAssetRepository
     Task<bool> MarkMissingAsync(Guid assetId, DateTimeOffset observedUtc, CancellationToken cancellationToken = default);
     Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds, DateTimeOffset observedUtc,
         CancellationToken cancellationToken = default);
+    Task<MediaAssetOperationStatus> RelocateAsync(Guid assetId, Guid rootId, string relativePath,
+        DateTimeOffset observedUtc, CancellationToken cancellationToken = default);
 }
 
 internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> session) : IMediaAssetRepository
@@ -218,6 +220,26 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         return updated;
     }, cancellationToken);
 
+    public Task<MediaAssetOperationStatus> RelocateAsync(Guid assetId, Guid rootId, string relativePath,
+        DateTimeOffset observedUtc, CancellationToken cancellationToken = default) => RunAsync(() =>
+    {
+        var normalized = MediaPathSemantics.NormalizeRelativePath(relativePath);
+        using var connection = RequireSession().OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE MediaAssets SET RootId=$root, RelativePath=$path, RelativePathKey=$key,
+                SourceStatus='available', UpdatedUtc=$now, LastSeenUtc=$now WHERE AssetId=$asset;
+            """;
+        command.Parameters.AddWithValue("$root", rootId.ToString("D"));
+        command.Parameters.AddWithValue("$path", normalized);
+        command.Parameters.AddWithValue("$key", MediaPathSemantics.RelativePathKey(normalized));
+        command.Parameters.AddWithValue("$now", Timestamp(observedUtc));
+        command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
+        try { return command.ExecuteNonQuery() == 1 ? MediaAssetOperationStatus.Succeeded : MediaAssetOperationStatus.NotFound; }
+        catch (SqliteException exception) when (exception.SqliteExtendedErrorCode == 2067)
+        { return MediaAssetOperationStatus.AlreadyExists; }
+    }, cancellationToken);
+
     private CatalogDatabaseSession RequireSession() => session() ?? throw new InvalidOperationException("The Catalog is unavailable.");
 
     private static MediaAsset? ReadOne(SqliteCommand command)
@@ -281,6 +303,9 @@ internal interface IMediaAssetService
     Task<MediaAssetResolution?> FindAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default);
     Task<MediaAssetOperationResult> ObserveAsync(Guid assetId, CancellationToken cancellationToken = default);
     Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default);
+    Task<MediaAssetOperationResult> RelocateAsync(Guid assetId, Guid rootId, string relativePath,
+        CancellationToken cancellationToken = default) => Task.FromResult(new MediaAssetOperationResult(
+            MediaAssetOperationStatus.Failed, Diagnostic: "Catalog relocation is not supported by this asset provider."));
 }
 
 internal sealed class MediaAssetService(IMediaAssetRepository repository, IMediaRootService roots,
@@ -379,6 +404,20 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
     public Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds,
         CancellationToken cancellationToken = default) =>
         repository.MarkMissingAsync(assetIds, DateTimeOffset.UtcNow, cancellationToken);
+
+    public async Task<MediaAssetOperationResult> RelocateAsync(Guid assetId, Guid rootId, string relativePath,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = MediaPathSemantics.NormalizeRelativePath(relativePath);
+        var existing = await repository.FindAsync(rootId, MediaPathSemantics.RelativePathKey(normalized), cancellationToken)
+            .ConfigureAwait(false);
+        if (existing is not null && existing.AssetId != assetId)
+            return new(MediaAssetOperationStatus.AlreadyExists, Diagnostic: "Another asset already owns the destination location.");
+        var status = await repository.RelocateAsync(assetId, rootId, normalized, DateTimeOffset.UtcNow, cancellationToken)
+            .ConfigureAwait(false);
+        if (status != MediaAssetOperationStatus.Succeeded) return new(status, Diagnostic: "The Catalog location could not be updated.");
+        return await ObserveAsync(assetId, cancellationToken).ConfigureAwait(false);
+    }
 
     private async Task<MediaAssetResolution> ResolveAsync(MediaAsset asset, CancellationToken cancellationToken)
     {

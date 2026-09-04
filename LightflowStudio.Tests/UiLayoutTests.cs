@@ -1439,19 +1439,26 @@ public class UiLayoutTests
             (string?)setter.Attribute("Property") == "Visibility" && (string?)setter.Attribute("Value") == "Visible"));
         var flag = document.Descendants(ns + "DataTemplate").Single(template =>
             (string?)template.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "BrowserFlagIndicator");
-        Assert.Contains(flag.Descendants(ns + "Path"), path =>
-            (string?)path.Attribute("Data") == "{StaticResource ClassificationFlagGeometry}" &&
-            path.Descendants(ns + "DataTrigger").Any(trigger => (string?)trigger.Attribute("Value") == "{x:Static local:AssetFlag.Picked}"));
+        var pickedFlag = flag.Descendants(ns + "Viewbox").Single(viewbox =>
+            (string?)viewbox.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PickedFlagShape");
+        Assert.Contains(pickedFlag.Descendants(ns + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Value") == "{x:Static local:AssetFlag.Picked}");
+        Assert.Contains(pickedFlag.Descendants(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationPickedFlagGeometry}");
         Assert.Contains(flag.Descendants(ns + "Path"), path =>
             (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}");
         var rejectedFlag = flag.Descendants(ns + "Grid").Single(grid =>
             (string?)grid.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "RejectedFlagShape");
-        Assert.Equal(2, rejectedFlag.Elements(ns + "Path").Count());
-        Assert.Contains(rejectedFlag.Elements(ns + "Path"), path =>
-            (string?)path.Attribute("Data") == "{StaticResource ClassificationFlagGeometry}" &&
+        var rejectedCanvas = rejectedFlag.Descendants(ns + "Canvas").Single();
+        Assert.Equal("24", (string?)rejectedCanvas.Attribute("Width"));
+        Assert.Equal("24", (string?)rejectedCanvas.Attribute("Height"));
+        Assert.Equal(2, rejectedCanvas.Elements(ns + "Path").Count());
+        Assert.All(rejectedCanvas.Elements(ns + "Path"), path => Assert.Null(path.Attribute("Stretch")));
+        Assert.Contains(rejectedCanvas.Elements(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedFlagGeometry}" &&
             (string?)path.Attribute("Fill") == "{StaticResource ClassificationRejectedInteriorBrush}" &&
             (string?)path.Attribute("Stroke") == "{StaticResource ClassificationRejectedActiveBrush}");
-        Assert.Contains(rejectedFlag.Elements(ns + "Path"), path =>
+        Assert.Contains(rejectedCanvas.Elements(ns + "Path"), path =>
             (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}" &&
             (string?)path.Attribute("Stroke") == "{StaticResource ClassificationRejectedActiveBrush}");
         Assert.Contains(flag.Descendants(ns + "DataTrigger"), trigger =>
@@ -1547,11 +1554,19 @@ public class UiLayoutTests
             (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationPickedInactiveBrush}");
         Assert.Contains(pickStyle.Descendants(ns + "DataTrigger").Descendants(ns + "Setter"), setter =>
             (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationPickedActiveBrush}");
-        foreach (var name in new[] { "PlayerReject", "PlayerPick" })
-            Assert.Contains(Named(document, name).Descendants(ns + "Path"), path =>
-                (string?)path.Attribute("Data") == "{StaticResource ClassificationFlagGeometry}");
+        Assert.Contains(Named(document, "PlayerReject").Descendants(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedFlagGeometry}");
+        Assert.Contains(Named(document, "PlayerPick").Descendants(ns + "Path"), path =>
+            (string?)path.Attribute("Data") == "{StaticResource ClassificationPickedFlagGeometry}");
         Assert.Contains(Named(document, "PlayerReject").Descendants(ns + "Path"), path =>
             (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}");
+        foreach (var name in new[] { "PlayerReject", "PlayerPick" })
+        {
+            var canvas = Named(document, name).Descendants(ns + "Canvas").Single();
+            Assert.Equal("24", (string?)canvas.Attribute("Width"));
+            Assert.Equal("24", (string?)canvas.Attribute("Height"));
+            Assert.All(canvas.Elements(ns + "Path"), path => Assert.Null(path.Attribute("Stretch")));
+        }
         var rejectBodyStyle = document.Descendants(ns + "Style").Single(style =>
             (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerRejectFlagPath");
         Assert.Contains(rejectBodyStyle.Elements(ns + "Setter"), setter =>
@@ -1568,7 +1583,7 @@ public class UiLayoutTests
             (string?)setter.Attribute("Property") == "Stroke" && (string?)setter.Attribute("Value") == "{StaticResource ClassificationRejectedActiveBrush}");
         var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
         var appNs = app.Root!.Name.Namespace;
-        foreach (var key in new[] { "ClassificationStarGeometry", "ClassificationFlagGeometry", "ClassificationRatingBrush",
+        foreach (var key in new[] { "ClassificationStarGeometry", "ClassificationPickedFlagGeometry", "ClassificationRejectedFlagGeometry", "ClassificationRatingBrush",
                      "ClassificationPickBrush", "ClassificationRejectBrush", "ClassificationRejectedXGeometry",
                      "ClassificationPickedActiveBrush", "ClassificationPickedInactiveBrush", "ClassificationRejectedInteriorBrush", "ClassificationRejectedActiveBrush",
                      "ClassificationRejectedInactiveBrush", "ClassificationLabelRedBrush", "ClassificationLabelYellowBrush",
@@ -1586,19 +1601,29 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void SharedFlagGeometry_HasPronouncedStemAndRejectedXStaysInsideFabric()
+    public void SharedFlagGeometry_MatchesAuthoritativeSvgPathsAndContainsRejectedX()
     {
         var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
         var key = XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml");
-        var flagData = app.Descendants().Single(element => (string?)element.Attribute(key) == "ClassificationFlagGeometry").Value;
-        var rejectedXData = app.Descendants().Single(element => (string?)element.Attribute(key) == "ClassificationRejectedXGeometry").Value;
-        var flag = Geometry.Parse(flagData);
-        var rejectedX = Geometry.Parse(rejectedXData);
+        Geometry Resource(string name) => Geometry.Parse(app.Descendants().Single(element =>
+            (string?)element.Attribute(key) == name).Value);
+        static string Canonical(Geometry geometry) => geometry.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-        Assert.True(flag.Bounds.Height >= 17, "The filled flag must retain a pronounced stem at small sizes.");
-        Assert.True(rejectedX.Bounds.Left > flag.Bounds.Left + 3, "The rejected X must not cross the flag stem.");
-        Assert.True(rejectedX.Bounds.Right < flag.Bounds.Right, "The rejected X must remain inside the flag body.");
-        Assert.True(rejectedX.Bounds.Bottom < 9, "The rejected X must remain inside the upper fabric area.");
+        var picked = Resource("ClassificationPickedFlagGeometry");
+        var rejected = Resource("ClassificationRejectedFlagGeometry");
+        var rejectedX = Resource("ClassificationRejectedXGeometry");
+        var expectedPicked = Geometry.Parse("M4,3.25 C4,2.84 4.34,2.5 4.75,2.5 C5.16,2.5 5.5,2.84 5.5,3.25 V4.35 C7.15,3.55 8.8,3.2 10.45,3.35 C12.4,3.53 14.1,4.35 15.75,4.55 C17.25,4.73 18.7,4.45 20.25,3.7 V13.25 C18.65,14 17.15,14.28 15.6,14.1 C13.95,13.9 12.25,13.08 10.35,12.9 C8.75,12.75 7.15,13.05 5.5,13.8 V21 C5.5,21.41 5.16,21.75 4.75,21.75 C4.34,21.75 4,21.41 4,21 Z");
+        var expectedRejected = Geometry.Parse("M4.75,21 V3.6 M5.5,4.35 C7.15,3.55 8.8,3.2 10.45,3.35 C12.4,3.53 14.1,4.35 15.75,4.55 C17.25,4.73 18.7,4.45 20.25,3.7 V13.25 C18.65,14 17.15,14.28 15.6,14.1 C13.95,13.9 12.25,13.08 10.35,12.9 C8.75,12.75 7.15,13.05 5.5,13.8 Z");
+        var expectedRejectedX = Geometry.Parse("M9.15,6.4 L15.6,11 M15.6,6.4 L9.15,11");
+
+        Assert.Equal(Canonical(expectedPicked), Canonical(picked));
+        Assert.Equal(Canonical(expectedRejected), Canonical(rejected));
+        Assert.Equal(Canonical(expectedRejectedX), Canonical(rejectedX));
+        Assert.True(picked.Bounds.Height >= 19, "The supplied Picked geometry must retain its pronounced stem.");
+        Assert.True(rejectedX.Bounds.Left > 5.5 && rejectedX.Bounds.Right < 20.25,
+            "The supplied rejected X must remain horizontally inside the flag fabric and clear of its stem.");
+        Assert.True(rejectedX.Bounds.Top > 4.35 && rejectedX.Bounds.Bottom < 13.25,
+            "The supplied rejected X must remain vertically inside the flag fabric.");
     }
 
     [Fact]

@@ -35,11 +35,10 @@
   <!-- Shared Catalog-classification vocabulary: Browser presentation and Player editing consume
        these same vector/color resources so the two surfaces cannot visually drift. -->
   <StreamGeometry x:Key="ClassificationStarGeometry">M10,1 L12.8,6.7 L19,7.6 L14.5,12 L15.6,18.2 L10,15.3 L4.4,18.2 L5.5,12 L1,7.6 L7.2,6.7 Z</StreamGeometry>
-  <!-- One closed, filled silhouette shared by Browser and Player. The stem extends below the
-       fabric so the shape remains unmistakably a flag when scaled to thumbnail-indicator size. -->
-  <StreamGeometry x:Key="ClassificationFlagGeometry">M2,18 L4,18 L4,11 C7,9 10,12 15,9 L15,2 C11,5 8,2 4,4 L4,1 L2,1 Z</StreamGeometry>
-  <!-- Kept wholly inside the fabric portion of ClassificationFlagGeometry: never across its stem. -->
-  <StreamGeometry x:Key="ClassificationRejectedXGeometry">M7.5,4.75 L10.5,7.25 M10.5,4.75 L7.5,7.25</StreamGeometry>
+  <!-- Direct WPF translations of Jeremy's authoritative 24x24 SVG reference paths. -->
+  <StreamGeometry x:Key="ClassificationPickedFlagGeometry">M4,3.25 C4,2.84 4.34,2.5 4.75,2.5 C5.16,2.5 5.5,2.84 5.5,3.25 V4.35 C7.15,3.55 8.8,3.2 10.45,3.35 C12.4,3.53 14.1,4.35 15.75,4.55 C17.25,4.73 18.7,4.45 20.25,3.7 V13.25 C18.65,14 17.15,14.28 15.6,14.1 C13.95,13.9 12.25,13.08 10.35,12.9 C8.75,12.75 7.15,13.05 5.5,13.8 V21 C5.5,21.41 5.16,21.75 4.75,21.75 C4.34,21.75 4,21.41 4,21 Z</StreamGeometry>
+  <StreamGeometry x:Key="ClassificationRejectedFlagGeometry">M4.75,21 V3.6 M5.5,4.35 C7.15,3.55 8.8,3.2 10.45,3.35 C12.4,3.53 14.1,4.35 15.75,4.55 C17.25,4.73 18.7,4.45 20.25,3.7 V13.25 C18.65,14 17.15,14.28 15.6,14.1 C13.95,13.9 12.25,13.08 10.35,12.9 C8.75,12.75 7.15,13.05 5.5,13.8 Z</StreamGeometry>
+  <StreamGeometry x:Key="ClassificationRejectedXGeometry">M9.15,6.4 L15.6,11 M15.6,6.4 L9.15,11</StreamGeometry>
   <SolidColorBrush x:Key="ClassificationRatingBrush" Color="#F2C05C"/>
   <SolidColorBrush x:Key="ClassificationPickBrush" Color="#FF8A1F"/>
   <SolidColorBrush x:Key="ClassificationRejectBrush" Color="#E85A5A"/>

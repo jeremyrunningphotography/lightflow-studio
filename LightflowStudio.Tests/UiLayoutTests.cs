@@ -122,6 +122,7 @@ public class UiLayoutTests
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
+        var nsX = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var popup = Named(document, "BrowserFilterPopup");
         Assert.Equal("BrowserFilterPopup_Opened", (string?)popup.Attribute("Opened"));
         foreach (var name in new[]
@@ -145,6 +146,19 @@ public class UiLayoutTests
             .Select(text => (string?)text.Attribute("Text"))
             .Where(text => text is "RATING" or "FLAGS" or "COLOR LABEL" or "KEYWORDS"));
         var operatorMenu = Named(document, "BrowserRatingOperatorPopup");
+        var operatorTrigger = Named(document, "BrowserRatingOperatorButton");
+        Assert.Equal("{StaticResource BrowserRatingOperatorTrigger}", (string?)operatorTrigger.Attribute("Style"));
+        var operatorTriggerStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(nsX + "Key") == "BrowserRatingOperatorTrigger");
+        Assert.Equal("ToggleButton", (string?)operatorTriggerStyle.Attribute("TargetType"));
+        Assert.Contains(operatorTriggerStyle.Descendants(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Background" &&
+            (string?)setter.Attribute("Value") == "{StaticResource ShellSurfaceBrush}");
+        Assert.Contains(operatorTriggerStyle.Descendants(ns + "Border"), border =>
+            (string?)border.Attribute("CornerRadius") == "4");
+        Assert.Contains(operatorTriggerStyle.Descendants(ns + "Trigger"), trigger =>
+            (string?)trigger.Attribute("Property") == "IsChecked" &&
+            (string?)trigger.Attribute("Value") == "True");
         Assert.Contains(operatorMenu.Ancestors(), ancestor => ancestor == popup);
         Assert.Empty(operatorMenu.Descendants(ns + "ContextMenu"));
         Assert.Equal("Bottom", (string?)operatorMenu.Attribute("Placement"));

@@ -883,11 +883,12 @@ public class UiLayoutTests
         var export = Named(document, "ExportButton");
 
         Assert.Equal("Stretch", (string?)color.Attribute("HorizontalAlignment"));
-        Assert.Equal("6", (string?)export.Attribute("Grid.Column"));
+        Assert.Equal("2", (string?)export.Attribute("Grid.Column"));
+        Assert.Equal("Right", (string?)export.Attribute("HorizontalAlignment"));
         Assert.Equal("Export…", (string?)export.Attribute("Content"));
         Assert.Equal("ExportButton_Click", (string?)export.Attribute("Click"));
-        Assert.Equal("*", (string?)color.Element(ns + "Grid.ColumnDefinitions")!
-            .Elements(ns + "ColumnDefinition").ElementAt(5).Attribute("Width"));
+        Assert.Equal(new[] { "*", "Auto", "*" }, color.Element(ns + "Grid.ColumnDefinitions")!
+            .Elements(ns + "ColumnDefinition").Select(column => (string?)column.Attribute("Width")));
     }
 
     [Fact]
@@ -1468,13 +1469,41 @@ public class UiLayoutTests
             (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerClassificationChoice");
         Assert.Contains(choiceStyle.Elements(ns + "Setter"), setter =>
             (string?)setter.Attribute("Property") == "BorderThickness" && (string?)setter.Attribute("Value") == "0");
-        Assert.DoesNotContain(choiceStyle.Elements(ns + "Setter"), setter =>
-            (string?)setter.Attribute("Property") == "FocusVisualStyle");
+        Assert.Contains(choiceStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "FocusVisualStyle" &&
+            (string?)setter.Attribute("Value") == "{StaticResource PlayerClassificationFocusVisual}");
         var choiceTemplate = choiceStyle.Descendants(ns + "ControlTemplate").Single();
         Assert.DoesNotContain(choiceTemplate.Descendants(ns + "Border"), border =>
             (string?)border.Attribute("Background") != "Transparent");
-        Assert.Contains(choiceTemplate.Descendants(ns + "Trigger"), trigger =>
+        Assert.DoesNotContain(choiceTemplate.Descendants(ns + "Trigger"), trigger =>
             (string?)trigger.Attribute("Property") == "IsKeyboardFocused");
+        var focusVisual = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerClassificationFocusVisual");
+        Assert.Single(focusVisual.Descendants(ns + "Ellipse"));
+        var colorSurface = Named(document, "ColorSurface");
+        Assert.Equal(new[] { "*", "Auto", "*" }, colorSurface.Descendants(ns + "ColumnDefinition").Take(3).Select(column => (string?)column.Attribute("Width")));
+        var colorGroup = Named(document, "PlayerColorGroup");
+        Assert.Equal("1", (string?)colorGroup.Attribute("Grid.Column"));
+        Assert.Contains(colorGroup.Elements(ns + "TextBlock"), text => (string?)text.Attribute("Text") == "COLOR");
+        Assert.Contains(colorGroup.Descendants(), element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "CameraLutCombo");
+        Assert.Contains(colorGroup.Descendants(), element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "CreativeLutCombo");
+        var export = Named(document, "ExportButton");
+        Assert.Equal("2", (string?)export.Attribute("Grid.Column"));
+        Assert.Equal("Right", (string?)export.Attribute("HorizontalAlignment"));
+        var ratingGroup = Named(document, "PlayerRatingGroup");
+        var classificationRow = ratingGroup.Parent!;
+        Assert.Equal(new[] { "*", "*", "*" }, classificationRow.Descendants(ns + "ColumnDefinition").Take(3).Select(column => (string?)column.Attribute("Width")));
+        Assert.Equal("Left", (string?)ratingGroup.Attribute("HorizontalAlignment"));
+        Assert.Equal("Center", (string?)Named(document, "PlayerFlagGroup").Attribute("HorizontalAlignment"));
+        Assert.Equal("Right", (string?)Named(document, "PlayerLabelGroup").Attribute("HorizontalAlignment"));
+        Assert.DoesNotContain(classificationRow.Descendants(ns + "TextBlock"), text =>
+            (string?)text.Attribute("Text") is "RATING" or "FLAG" or "COLOR LABEL");
+        var pickStyle = document.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PlayerPickFlagPath");
+        Assert.Contains(pickStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource MutedTextBrush}");
+        Assert.Contains(pickStyle.Descendants(ns + "DataTrigger").Descendants(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Fill" && (string?)setter.Attribute("Value") == "{StaticResource TextBrush}");
         foreach (var name in new[] { "PlayerReject", "PlayerUnflagged", "PlayerPick" })
             Assert.Contains(Named(document, name).Descendants(ns + "Path"), path =>
                 (string?)path.Attribute("Data") == "{StaticResource ClassificationFlagGeometry}");

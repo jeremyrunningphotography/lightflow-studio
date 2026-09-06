@@ -76,6 +76,54 @@ public sealed class ExportModalRegressionTests
     }
 
     [Fact]
+    public void DestinationUsesTwoExplicitModesAndOneIndependentOptionalSubfolder()
+    {
+        var root = FindRepositoryRoot();
+        var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
+        var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
+
+        Assert.Equal("Specific folder", (string?)Named(xaml, "SpecificFolderRadio").Attribute("Content"));
+        Assert.Equal("Same folder as original", (string?)Named(xaml, "SameFolderRadio").Attribute("Content"));
+        Assert.Equal("DestinationMode", (string?)Named(xaml, "SpecificFolderRadio").Attribute("GroupName"));
+        Assert.Equal("DestinationMode", (string?)Named(xaml, "SameFolderRadio").Attribute("GroupName"));
+        Assert.Equal("DestinationModeRadio", ResourceName(Named(xaml, "SpecificFolderRadio"), "Style"));
+        Assert.Equal("DestinationModeRadio", ResourceName(Named(xaml, "SameFolderRadio"), "Style"));
+        var destinationModeRow = Named(xaml, "DestinationModeRow");
+        Assert.Equal("Left", (string?)destinationModeRow.Attribute("HorizontalAlignment"));
+        Assert.Equal(["150", "210"], destinationModeRow.Descendants()
+            .Where(element => element.Name.LocalName == "ColumnDefinition")
+            .Select(element => (string?)element.Attribute("MinWidth")));
+        var destinationModeStyle = xaml.Descendants()
+            .Single(element => element.Name.LocalName == "Style" &&
+                (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "DestinationModeRadio");
+        Assert.Equal("TextBrush", ResourceName(destinationModeStyle.Descendants()
+            .Single(element => element.Name.LocalName == "Setter" && (string?)element.Attribute("Property") == "Foreground"), "Value"));
+        Assert.Equal("{TemplateBinding Foreground}", destinationModeStyle.Descendants()
+            .Single(element => element.Name.LocalName == "ContentPresenter")
+            .Attributes().Single(attribute => attribute.Name.LocalName.EndsWith("Foreground", StringComparison.Ordinal)).Value);
+        Assert.Contains(destinationModeStyle.Descendants(), element =>
+            element.Name.LocalName == "Trigger" && (string?)element.Attribute("Property") == "IsChecked");
+        Assert.Contains(destinationModeStyle.Descendants(), element =>
+            element.Name.LocalName == "Trigger" && (string?)element.Attribute("Property") == "IsKeyboardFocused");
+        Assert.Equal("Create subfolder", (string?)Named(xaml, "CreateSubfolderCheck").Attribute("Content"));
+        Assert.Contains("SpecificFolderPanel.IsEnabled", source);
+        Assert.Contains("SubfolderText.IsEnabled", source);
+        Assert.Contains("ExportDestinationMode.SameFolderAsOriginal", source);
+    }
+
+    private static string? ResourceName(XElement element, string attributeName)
+    {
+        var value = (string?)element.Attribute(attributeName);
+        if (value is null) return null;
+        const string staticResourcePrefix = "{StaticResource ";
+        const string dynamicResourcePrefix = "{DynamicResource ";
+        var prefix = value.StartsWith(staticResourcePrefix, StringComparison.Ordinal)
+            ? staticResourcePrefix : dynamicResourcePrefix;
+        return value.StartsWith(prefix, StringComparison.Ordinal) && value.EndsWith('}')
+            ? value[prefix.Length..^1] : null;
+    }
+
+    [Fact]
     public void BrowserAndPlayerShareModalPathWithoutEncodingWorkspaceNavigation()
     {
         var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));

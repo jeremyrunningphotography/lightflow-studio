@@ -12,7 +12,8 @@ internal enum FileOperationState { Waiting, Running, Completed, CompletedWithFai
 internal sealed record FileOperationSource(Guid? AssetId, string Path, long? SizeBytes = null, bool IsDirectory = false);
 internal sealed record FileOperationIntent(Guid OperationId, FileOperationKind Kind,
     IReadOnlyList<FileOperationSource> Sources, string? Destination, DateTimeOffset CreatedUtc,
-    long? EstimatedBytes, bool CrossVolume, FileOperationExecution Execution);
+    long? EstimatedBytes, bool CrossVolume, FileOperationExecution Execution,
+    IReadOnlyList<string>? PlannedDestinations = null);
 internal sealed record FileOperationFailure(string Path, string Diagnostic);
 internal sealed record FileSystemMutation(FileOperationKind Kind, string? SourcePath, string? DestinationPath,
     bool IsDirectory, Guid? AssetId = null);
@@ -93,30 +94,51 @@ internal static class FileOperationPlanner
         if (materialized.Select(source => source.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() != materialized.Length)
             throw new ArgumentException("The selection contains the same filesystem item more than once.");
         string? target = null;
+        IReadOnlyList<string>? plannedDestinations = null;
         if (kind is FileOperationKind.Copy or FileOperationKind.Move)
         {
             if (string.IsNullOrWhiteSpace(destination)) throw new ArgumentException("Choose a destination folder.");
             target = Path.GetFullPath(destination);
             if (!Directory.Exists(target)) throw new DirectoryNotFoundException("The destination folder is unavailable.");
+            var reserved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var planned = new List<string>(materialized.Length);
             foreach (var source in materialized)
             {
                 if (!File.Exists(source.Path) && !Directory.Exists(source.Path))
                     throw new FileNotFoundException("A selected source is unavailable.", source.Path);
-                if (string.Equals(source.Path, Path.Combine(target, Path.GetFileName(source.Path)), StringComparison.OrdinalIgnoreCase))
-                    throw new IOException("A source and destination are the same filesystem item.");
                 if (source.IsDirectory && FileOperationPathSemantics.IsSameOrDescendant(target, source.Path))
-                    throw new IOException("A folder cannot be copied or moved into itself or one of its descendants.");
+                {
+                    var sameParentCopy = kind == FileOperationKind.Copy && string.Equals(
+                        Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(source.Path)),
+                        Path.TrimEndingDirectorySeparator(target), StringComparison.OrdinalIgnoreCase);
+                    if (!sameParentCopy) throw new IOException("A folder cannot be copied or moved into itself or one of its descendants.");
+                }
                 var proposed = Path.Combine(target, Path.GetFileName(source.Path));
-                if (File.Exists(proposed) || Directory.Exists(proposed))
+                if (kind == FileOperationKind.Copy && (File.Exists(proposed) || Directory.Exists(proposed) || reserved.Contains(proposed)))
+                    proposed = DuplicateDestination(target, Path.GetFileName(source.Path), source.IsDirectory, reserved);
+                else if (File.Exists(proposed) || Directory.Exists(proposed))
                     throw new IOException($"The destination already contains ‘{Path.GetFileName(source.Path)}’. Nothing was overwritten.");
+                reserved.Add(proposed); planned.Add(proposed);
             }
+            plannedDestinations = planned;
         }
         var bytesKnown = materialized.All(source => source.SizeBytes is not null);
         long? bytes = bytesKnown ? materialized.Sum(source => source.SizeBytes!.Value) : null;
         var cross = target is not null && materialized.Any(source => !FileOperationPathSemantics.SameVolume(source.Path, target));
         var execution = forceJob ? FileOperationExecution.Job : FileOperationPromotionPolicy.Decide(kind,
             materialized.Length, bytes, cross, materialized.Any(source => source.IsDirectory));
-        return new(Guid.NewGuid(), kind, materialized, target, DateTimeOffset.UtcNow, bytes, cross, execution);
+        return new(Guid.NewGuid(), kind, materialized, target, DateTimeOffset.UtcNow, bytes, cross, execution, plannedDestinations);
+    }
+
+    private static string DuplicateDestination(string folder, string name, bool directory, HashSet<string> reserved)
+    {
+        var extension = directory ? "" : Path.GetExtension(name);
+        var stem = directory ? name : Path.GetFileNameWithoutExtension(name);
+        for (var number = 1; ; number++)
+        {
+            var candidate = Path.Combine(folder, $"{stem} ({number}){extension}");
+            if (!File.Exists(candidate) && !Directory.Exists(candidate) && !reserved.Contains(candidate)) return candidate;
+        }
     }
 }
 
@@ -183,12 +205,14 @@ internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMe
         var failures = new List<FileOperationFailure>();
         var completedItems = 0;
         long completedBytes = 0;
-        foreach (var source in intent.Sources)
+        for (var sourceIndex = 0; sourceIndex < intent.Sources.Count; sourceIndex++)
         {
+            var source = intent.Sources[sourceIndex];
             if (cancellationToken.IsCancellationRequested) break;
             try
             {
-                var destination = intent.Destination is null ? null : Path.Combine(intent.Destination, Path.GetFileName(source.Path));
+                var destination = intent.PlannedDestinations is { } planned ? planned[sourceIndex] :
+                    intent.Destination is null ? null : Path.Combine(intent.Destination, Path.GetFileName(source.Path));
                 switch (intent.Kind)
                 {
                     case FileOperationKind.Copy:

@@ -100,6 +100,8 @@ public partial class MainWindow : Window
     private System.Windows.Point _browserFolderDragStart;
     private BrowserTreeNode? _browserFolderDragNode;
     private BrowserTreeNode? _browserFileDropTarget;
+    private FileDragAdorner? _fileDragAdorner;
+    private System.Windows.Documents.AdornerLayer? _fileDragAdornerLayer;
     private readonly WorkspaceStateService _workspaceState;
     private readonly DispatcherTimer _workspaceSaveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private WindowState _lastNonMinimizedWindowState = WindowState.Normal;
@@ -138,7 +140,6 @@ public partial class MainWindow : Window
     private readonly BrowserCollectionDragHover _collectionDragHover = new();
     private readonly DispatcherTimer _collectionDragHoverTimer = new() { Interval = BrowserCollectionDragHover.Dwell };
     private bool _synchronizingBrowserScopeMode;
-    private readonly DispatcherTimer _browserRecursiveRefreshDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     /// <summary>Denominator as of the last recursive-progress report, so <see cref="ApplyRecursiveScopeLoadingProgress"/> can tell whether discovery is still actively growing. Reset alongside everything else in <see cref="ResetBrowserLoadingProgress"/>.</summary>
     private int _browserRecursiveProgressLastDiscovered;
     // #124 (revised): every stored Catalog recursive root, as of the most recent navigation — see
@@ -242,22 +243,6 @@ public partial class MainWindow : Window
             _browserGrid.ReapplyQuery();
             UpdateBrowserStatusText();
         };
-        _browserRecursiveRefreshDebounceTimer.Tick += (_, _) =>
-        {
-            _browserRecursiveRefreshDebounceTimer.Stop();
-            // #124: a relevant monitoring event arriving while a load is already in flight — most commonly the
-            // recursive scan's own folder reads, which some drives/watchers (particularly removable/network
-            // media) report back as spurious "changed" notifications — must never restart it from scratch. The
-            // in-flight load already performs a full, current enumerate+reconcile pass over the same scope and
-            // will reflect this change once it completes; starting a second one here would cancel it mid-walk
-            // (Begin() latest-wins) and silently reset FoldersVisited to zero, making one continuous recursive
-            // scan look like it keeps restarting. Monitoring is a hint only — explicit Refresh stays
-            // authoritative regardless — so it is safe to simply drop a hint that arrives mid-load rather than
-            // rescheduling it.
-            if (_activeCollectionScope is not null) return;
-            if (BrowserLoadingOverlay.Visibility == Visibility.Visible) return;
-            _ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
-        };
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
         StateChanged += (_, _) =>
         {
@@ -343,7 +328,6 @@ public partial class MainWindow : Window
             _workspaceSaveTimer.Stop();
             _browserSearchDebounceTimer.Stop();
             _browserMetadataResortTimer.Stop();
-            _browserRecursiveRefreshDebounceTimer.Stop();
             _collectionDragHoverTimer.Stop();
             _browserNavigation.Dispose();
         };
@@ -541,34 +525,33 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// #101's monitoring hint reaches an open Browser view here. Direct mode preserves the exact-folder
-    /// behavior #108 established. #124 recursive mode additionally treats any descendant folder inside the
-    /// active base scope as relevant (via <see cref="BrowserScope.IsWithinFolderScope"/>) — unrelated
-    /// sibling/ancestor/other-root events are still ignored. Because a burst of filesystem activity across
-    /// many descendant folders can raise several <see cref="IMediaRootMonitoringService.FolderRefreshed"/>
-    /// events in quick succession, and each one would otherwise re-run the entire recursive scope, relevant
-    /// recursive events are coalesced through <see cref="_browserRecursiveRefreshDebounceTimer"/> into a
-    /// single authoritative refresh rather than one per event — a refresh-storm guard on top of #101's own
-    /// per-folder debounce, using the same debounce convention. Either way this is a hint only: explicit
-    /// Refresh remains authoritative regardless.
+    /// #101's already-debounced monitoring hint updates the exact materialized folder and, when it intersects
+    /// the active Browser scope, incrementally reconciles that projection without restarting a recursive walk.
     /// </summary>
     private void BrowserMonitoring_FolderRefreshed(object? sender, MediaFolderEnumerationRequest request) =>
-        Dispatcher.BeginInvoke(() =>
+        Dispatcher.BeginInvoke(async () => await SynchronizeMonitoredFolderAsync(request));
+
+    private async Task SynchronizeMonitoredFolderAsync(MediaFolderEnumerationRequest request)
+    {
+        if (_activeCollectionScope is not null) return;
+        var state = _lastLoadedBrowserState;
+        var location = _browserNavigation.ActiveLocation;
+        if (state is null || location is null || location.RootId != request.RootId) return;
+        var relative = request.RelativeFolder ?? "";
+        var absolute = relative.Length == 0 ? location.RootPath : MediaPathSemantics.ResolveContained(location.RootPath, relative);
+        var listing = await _storage.MediaFolders.EnumerateAsync(new(request.RootId, relative));
+        if (listing.Succeeded) _browserTree.ApplyDirectoryListing(absolute, location.RootPath, listing.Entries);
+        if (BrowserLoadingOverlay.Visibility == Visibility.Visible) return;
+        if (state.Mode == BrowserScopeMode.DirectFolder)
         {
-            if (_activeCollectionScope is not null) return;
-            var location = _browserNavigation.State.Location;
-            if (location is null || location.RootId != request.RootId) return;
-            if (_browserNavigation.State.Mode == BrowserScopeMode.IncludeSubfolders)
-            {
-                if (!BrowserScope.IsWithinFolderScope(request.RelativeFolder, location.RelativeFolder)) return;
-                _browserRecursiveRefreshDebounceTimer.Stop();
-                _browserRecursiveRefreshDebounceTimer.Start();
-                return;
-            }
-            if (!string.Equals(location.RelativeFolder ?? "", request.RelativeFolder ?? "", StringComparison.OrdinalIgnoreCase))
-                return;
-            _ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
-        });
+            if (string.Equals(location.RelativeFolder, relative, StringComparison.OrdinalIgnoreCase))
+                await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+            return;
+        }
+        if (!BrowserScope.IsWithinFolderScope(relative, location.RelativeFolder)) return;
+        await SynchronizeFileSystemMutationAsync(new(FileOperationKind.Copy,
+            Path.Combine(absolute, "watcher-change"), null, false));
+    }
 
     /// <summary>
     /// Selecting a row is the one action that changes Browser scope/contents. <see cref="_browserTreeRevealedNode"/>
@@ -959,7 +942,21 @@ public partial class MainWindow : Window
         if (_activeCollectionScope is { } collection)
             await LoadCollectionScopeAsync(collection.Collection.CollectionId);
         else
+        {
             await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+            await RefreshMaterializedFolderTreeAsync();
+        }
+    }
+
+    private async Task RefreshMaterializedFolderTreeAsync()
+    {
+        foreach (var node in _browserTree.MaterializedFolders())
+        {
+            var listing = await _storage.MediaFolders.EnumerateAsync(new(node.RootId!.Value, node.RelativeFolder));
+            var root = await _storage.MediaRoots.GetAsync(node.RootId.Value);
+            if (listing.Succeeded && node.AbsolutePath is { } path && root?.PhysicalPath is { } rootPath)
+                _browserTree.ApplyDirectoryListing(path, rootPath, listing.Entries);
+        }
     }
 
     private void BrowserFolderTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1418,8 +1415,10 @@ public partial class MainWindow : Window
         var data = new System.Windows.DataObject();
         data.SetData(typeof(BrowserAssetDragPayload), new BrowserAssetDragPayload(ids));
         data.SetData(System.Windows.DataFormats.FileDrop, sources.Select(source => source.Path).ToArray());
+        ShowFileDragAdorner(sources.Count, FileOperationKind.Move);
         System.Windows.DragDrop.DoDragDrop((DependencyObject)sender, data,
             System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
+        ClearFileDragAdorner();
     }
 
     private void BrowserGridTile_DragOver(object sender, System.Windows.DragEventArgs e)
@@ -2321,7 +2320,7 @@ public partial class MainWindow : Window
                         ? ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete this folder?",
                             "The folder and all contents will be permanently removed.", "It will not go to the Recycle Bin.", "Delete permanently")
                         : ConfirmationDialog.Confirm(this, "Move to Recycle Bin", "Move this folder to the Recycle Bin?",
-                            "The folder and all contents will be recycled.", "You can normally restore it from the Windows Recycle Bin.", "Recycle");
+                            "The folder and all contents will be recycled.", "You can normally restore it from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep folder");
                     if (confirmed)
                         _ = ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, [folder], null);
                 }
@@ -2367,7 +2366,7 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private string? CurrentBrowserFolder() => _lastLoadedBrowserState?.Location?.AbsolutePath;
+    private string? CurrentBrowserFolder() => _browserNavigation.ActiveLocation?.AbsolutePath;
 
     private async Task<IReadOnlyList<FileOperationSource>> SelectedFileOperationSourcesAsync()
     {
@@ -2435,7 +2434,7 @@ public partial class MainWindow : Window
             ? ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete selected items?",
                 $"{sources.Count} item(s) will be permanently removed.", "They will not go to the Recycle Bin and this cannot be undone.", "Delete permanently")
             : ConfirmationDialog.Confirm(this, "Move to Recycle Bin", "Move selected items to the Recycle Bin?",
-                $"{sources.Count} item(s) will be recycled.", "You can normally restore them from the Windows Recycle Bin.", "Recycle");
+                $"{sources.Count} item(s) will be recycled.", "You can normally restore them from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep files");
         if (!confirmed) return;
         await ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, sources, null);
     }
@@ -2533,6 +2532,14 @@ public partial class MainWindow : Window
     private async void BrowserCut_Click(object sender, RoutedEventArgs e) => await CopyBrowserSelectionToClipboardAsync(FileOperationKind.Move);
     private async void BrowserCopy_Click(object sender, RoutedEventArgs e) => await CopyBrowserSelectionToClipboardAsync(FileOperationKind.Copy);
     private async void BrowserPaste_Click(object sender, RoutedEventArgs e) => await PasteBrowserClipboardAsync(CurrentBrowserFolder());
+    private async void BrowserBackgroundPaste_Click(object sender, RoutedEventArgs e) =>
+        await PasteBrowserClipboardAsync(_browserNavigation.ActiveLocation?.AbsolutePath);
+    private void BrowserGridBackground_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (BrowserGridRows.ContextMenu?.Items[0] is MenuItem paste)
+            paste.IsEnabled = _activeCollectionScope is null && _browserNavigation.ActiveLocation is not null &&
+                System.Windows.Clipboard.ContainsFileDropList();
+    }
     private async void BrowserDelete_Click(object sender, RoutedEventArgs e) => await DeleteBrowserSelectionAsync(false);
     private async void BrowserRename_Click(object sender, RoutedEventArgs e)
     {
@@ -2564,7 +2571,7 @@ public partial class MainWindow : Window
     {
         if (SelectedFolderOperationSource() is not { } source || !ConfirmationDialog.Confirm(this, "Move to Recycle Bin",
             "Move this folder to the Recycle Bin?", "The folder and all contents will be recycled.",
-            "You can normally restore it from the Windows Recycle Bin.", "Recycle")) return;
+            "You can normally restore it from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep folder")) return;
         await ExecuteFileOperationAsync(FileOperationKind.Recycle, [source], null);
     }
 
@@ -2597,8 +2604,9 @@ public partial class MainWindow : Window
         var node = _browserFolderDragNode; _browserFolderDragNode = null;
         var data = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, new[] { path });
         BrowserStatusText.Text = $"Move folder ‘{node.DisplayName}’ — hold Ctrl to copy";
+        ShowFileDragAdorner(1, FileOperationKind.Move);
         System.Windows.DragDrop.DoDragDrop(BrowserFolderTree, data, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
-        ClearFolderDropFeedback();
+        ClearFolderDropFeedback(); ClearFileDragAdorner();
     }
 
     private void BrowserFolderTree_DragOver(object sender, System.Windows.DragEventArgs e)
@@ -2611,6 +2619,7 @@ public partial class MainWindow : Window
         {
             var kind = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath,
                 Keyboard.Modifiers.HasFlag(ModifierKeys.Control), Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+            UpdateFileDragAdorner(paths.Length, kind);
             try
             {
                 var sources = paths.Select(path => new FileOperationSource(null, path,
@@ -2631,6 +2640,27 @@ public partial class MainWindow : Window
     {
         if (_browserFileDropTarget is not { } node) return;
         node.IsFileDropTarget = false; node.IsInvalidFileDropTarget = false; _browserFileDropTarget = null;
+    }
+
+    private void ShowFileDragAdorner(int count, FileOperationKind kind)
+    {
+        ClearFileDragAdorner();
+        _fileDragAdornerLayer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(BrowserWorkspaceRoot);
+        if (_fileDragAdornerLayer is null) return;
+        _fileDragAdorner = new FileDragAdorner(BrowserWorkspaceRoot, count, kind);
+        _fileDragAdornerLayer.Add(_fileDragAdorner);
+    }
+
+    private void UpdateFileDragAdorner(int count, FileOperationKind kind)
+    {
+        if (_fileDragAdorner is null) ShowFileDragAdorner(count, kind);
+        else _fileDragAdorner.Update(count, kind);
+    }
+
+    private void ClearFileDragAdorner()
+    {
+        if (_fileDragAdorner is not null) _fileDragAdornerLayer?.Remove(_fileDragAdorner);
+        _fileDragAdorner = null; _fileDragAdornerLayer = null;
     }
 
     private async void BrowserFolderTree_Drop(object sender, System.Windows.DragEventArgs e)
@@ -4699,6 +4729,26 @@ public partial class MainWindow : Window
 
     private sealed record CollectionInsertionLine(TreeViewItem Item, BrowserCollectionDropKind Edge,
         BrowserCollectionInsertionDestination Destination, double? ExplicitY = null, double? ExplicitLeft = null);
+
+    private sealed class FileDragAdorner : System.Windows.Documents.Adorner
+    {
+        private int _count;
+        private FileOperationKind _kind;
+        public FileDragAdorner(UIElement adorned, int count, FileOperationKind kind) : base(adorned)
+        { _count = count; _kind = kind; IsHitTestVisible = false; }
+        public void Update(int count, FileOperationKind kind) { _count = count; _kind = kind; InvalidateVisual(); }
+        protected override void OnRender(DrawingContext drawingContext)
+        {
+            var point = Mouse.GetPosition(AdornedElement);
+            var label = $"{(_kind == FileOperationKind.Copy ? "Copy" : "Move")} {_count} item{(_count == 1 ? "" : "s")}";
+            var text = new FormattedText(label, CultureInfo.CurrentUICulture, System.Windows.FlowDirection.LeftToRight,
+                new Typeface("Segoe UI Semibold"), 13, System.Windows.Media.Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            var rect = new Rect(point.X + 18, point.Y + 16, text.Width + 28, text.Height + 16);
+            drawingContext.DrawRoundedRectangle(new SolidColorBrush(System.Windows.Media.Color.FromArgb(238, 30, 37, 48)),
+                new System.Windows.Media.Pen(new SolidColorBrush(_kind == FileOperationKind.Copy ? System.Windows.Media.Color.FromRgb(86, 170, 255) : System.Windows.Media.Color.FromRgb(228, 184, 90)), 2), rect, 7, 7);
+            drawingContext.DrawText(text, new System.Windows.Point(rect.X + 14, rect.Y + 8));
+        }
+    }
 
     private sealed class CollectionDropAdorner(
         UIElement adornedElement, System.Windows.Media.Brush accent)

@@ -214,6 +214,16 @@ internal sealed class BrowserTreeModel
     public BrowserTreeNode? FindByPath(string absolutePath) => Roots.Select(root => FindByPath(root, absolutePath))
         .FirstOrDefault(node => node is not null);
 
+    public IReadOnlyList<BrowserTreeNode> MaterializedFolders() => Roots.SelectMany(Flatten)
+        .Where(node => node.IsMaterialized && node.AbsolutePath is not null && node.RootId is not null).ToArray();
+
+    private static IEnumerable<BrowserTreeNode> Flatten(BrowserTreeNode node)
+    {
+        yield return node;
+        foreach (var child in node.Children)
+            foreach (var descendant in Flatten(child)) yield return descendant;
+    }
+
     private static BrowserTreeNode? FindByPath(BrowserTreeNode node, string path)
     {
         if (node.AbsolutePath is not null && SamePath(node.AbsolutePath, path)) return node;

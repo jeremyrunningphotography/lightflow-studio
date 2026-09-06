@@ -157,7 +157,7 @@ public sealed class BrowserTreeInteractionRegressionTests
     }
 
     [Fact]
-    public void RecursiveRefreshDebounceTick_SkipsRestartingANavigationThatIsAlreadyLoading()
+    public void MonitoredFolderSynchronization_SkipsCompetingProjectionRefreshWhileNavigationIsLoading()
     {
         // #124: a relevant monitoring event (most commonly the recursive scan's own folder reads, which some
         // drives/watchers — particularly removable/network media — report back as spurious "changed" events)
@@ -165,16 +165,11 @@ public sealed class BrowserTreeInteractionRegressionTests
         // performs a full, current pass over the same scope, and restarting would cancel it mid-walk and
         // silently reset FoldersVisited to zero, making one continuous recursive scan look like it keeps
         // restarting every time a descendant folder is touched.
-        var source = Source();
-        var tickStart = source.IndexOf("_browserRecursiveRefreshDebounceTimer.Tick += (_, _) =>", StringComparison.Ordinal);
-        Assert.True(tickStart >= 0, "_browserRecursiveRefreshDebounceTimer.Tick handler not found in MainWindow.xaml.cs");
-        var tickEnd = source.IndexOf("};", tickStart, StringComparison.Ordinal);
-        var body = source[tickStart..tickEnd];
-
+        var body = MethodBody("private async Task SynchronizeMonitoredFolderAsync");
         var loadingGuard = body.IndexOf("if (BrowserLoadingOverlay.Visibility == Visibility.Visible) return;", StringComparison.Ordinal);
-        var refreshCall = body.IndexOf("_ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());", StringComparison.Ordinal);
+        var refreshCall = body.IndexOf("await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());", StringComparison.Ordinal);
         Assert.True(loadingGuard >= 0 && refreshCall > loadingGuard,
-            "The already-loading guard must run before the refresh it would otherwise restart.");
+            "The already-loading guard must run before an exact-folder projection refresh.");
     }
 
     [Fact]

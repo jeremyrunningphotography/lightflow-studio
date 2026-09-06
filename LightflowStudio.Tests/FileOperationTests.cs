@@ -62,4 +62,19 @@ public sealed class FileOperationTests
     [InlineData("COM10")]
     public void WindowsNamePolicy_AcceptsOrdinaryNames(string name) =>
         Assert.Equal(name, WindowsFileNamePolicy.Validate(name));
+
+    [Fact]
+    public void Planner_CopyInPlaceChoosesFirstDeterministicAvailableSibling()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"lightflow-copy-plan-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var source = Path.Combine(folder, "Clip.mp4"); File.WriteAllText(source, "x");
+            File.WriteAllText(Path.Combine(folder, "Clip (1).mp4"), "x");
+            var intent = FileOperationPlanner.Plan(FileOperationKind.Copy, [new(null, source, 1)], folder);
+            Assert.Equal(Path.Combine(folder, "Clip (2).mp4"), Assert.Single(intent.PlannedDestinations!));
+        }
+        finally { Directory.Delete(folder, true); }
+    }
 }

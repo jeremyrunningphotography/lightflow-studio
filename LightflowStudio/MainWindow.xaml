@@ -979,8 +979,14 @@
         UseLayoutRounding="True" SizeChanged="BrowserGridHost_SizeChanged" MouseLeftButtonDown="BrowserGridHost_MouseLeftButtonDown">
         <Grid Background="Transparent">
          <ItemsControl x:Name="BrowserGridRows" Background="Transparent" Focusable="True" KeyDown="BrowserGridRows_KeyDown"
+          ContextMenuOpening="BrowserGridBackground_ContextMenuOpening"
           AutomationProperties.Name="Media grid"
           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">
+          <ItemsControl.ContextMenu>
+           <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Paste" InputGestureText="Ctrl+V" Click="BrowserBackgroundPaste_Click"/>
+           </ContextMenu>
+          </ItemsControl.ContextMenu>
           <ItemsControl.Template>
            <ControlTemplate TargetType="ItemsControl">
             <!-- #110: named so MainWindow can resolve it via the existing FindDescendantByName visual-tree

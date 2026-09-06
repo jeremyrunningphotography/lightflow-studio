@@ -160,6 +160,35 @@ public sealed class BrowserNavigationTests
     }
 
     [Fact]
+    public async Task RefreshDuringNewFolderLoadTargetsActiveFolderAndCannotRestorePriorScope()
+    {
+        var first = Root("First", @"C:\First");
+        var second = Root("Second", @"C:\Second");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondCalls = 0;
+        var discovery = new FakeDiscovery(async (request, _, _, _) =>
+        {
+            if (request.RootId == second.RootId && Interlocked.Increment(ref secondCalls) == 1)
+            { entered.SetResult(); await release.Task; }
+            return DiscoverySuccess(request);
+        });
+        using var session = Session(new FakeRoots(first, second), discovery, EmptyFolders());
+        await session.NavigateToRootAsync(first.RootId);
+
+        var loadingSecond = session.NavigateToRootAsync(second.RootId);
+        await entered.Task;
+        Assert.Equal(second.RootId, session.ActiveLocation!.RootId);
+        var refreshed = await session.RefreshAsync();
+        release.SetResult();
+
+        Assert.Null(await loadingSecond);
+        Assert.Equal(second.RootId, refreshed!.Location!.RootId);
+        Assert.Equal(second.RootId, session.State.Location!.RootId);
+        Assert.Equal(second.RootId, discovery.Requests[^1].RootId);
+    }
+
+    [Fact]
     public async Task CallerCancellationAndEnumerationFailureDoNotPublishMisleadingFolderContents()
     {
         var first = Root("First", @"C:\First");

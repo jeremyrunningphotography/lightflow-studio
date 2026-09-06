@@ -101,6 +101,9 @@ internal sealed class BrowserNavigationSession(
     private bool _disposed;
 
     public BrowserFolderState State { get; private set; } = BrowserFolderState.Initial;
+    /// <summary>The latest requested/resolved folder, independent of whether its discovery generation has completed.</summary>
+    public BrowserLocation? ActiveLocation { get { lock (_sync) return _activeLocation ?? State.Location; } }
+    private BrowserLocation? _activeLocation;
 
     /// <summary>
     /// #124 (revised): fires as soon as effective recursive mode for the folder being loaded is known —
@@ -175,6 +178,7 @@ internal sealed class BrowserNavigationSession(
                 return CommitFailure(operation.Generation, Map(resolution.Status), resolution.Diagnostic);
             var location = new BrowserLocation(resolution.RootId!.Value, resolution.RootName!, resolution.RootPath!,
                 resolution.RelativeFolder);
+            SetActiveLocation(operation.Generation, location);
             return await LoadAndCommitAsync(operation, location, NavigationKind.New, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -223,7 +227,7 @@ internal sealed class BrowserNavigationSession(
 
     public Task<BrowserFolderState?> RefreshAsync(CancellationToken cancellationToken = default)
     {
-        var current = State.Location;
+        var current = ActiveLocation;
         return current is null ? Task.FromResult<BrowserFolderState?>(State)
             : NavigateResolvedAsync(current.AbsolutePath, NavigationKind.Refresh, cancellationToken);
     }
@@ -281,6 +285,7 @@ internal sealed class BrowserNavigationSession(
                 return CommitFailure(operation.Generation, Map(resolution.Status), resolution.Diagnostic);
             var location = new BrowserLocation(resolution.RootId!.Value, resolution.RootName!, resolution.RootPath!,
                 resolution.RelativeFolder);
+            SetActiveLocation(operation.Generation, location);
             return await LoadAndCommitAsync(operation, location, kind, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (operation.Request.IsCancellationRequested)
@@ -294,7 +299,7 @@ internal sealed class BrowserNavigationSession(
         NavigationKind kind, CancellationToken cancellationToken)
     {
         var operation = Begin(cancellationToken);
-        try { return await LoadAndCommitAsync(operation, location, kind, cancellationToken).ConfigureAwait(false); }
+        try { SetActiveLocation(operation.Generation, location); return await LoadAndCommitAsync(operation, location, kind, cancellationToken).ConfigureAwait(false); }
         catch (OperationCanceledException) when (operation.Request.IsCancellationRequested)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -422,8 +427,14 @@ internal sealed class BrowserNavigationSession(
             }
             State = new(location, status, entries, diagnostic, _back.Count > 0, _forward.Count > 0,
                 ParentPath(location.AbsolutePath) is not null, derivedWork, recursiveMediaEntries, mode, recursiveRoots);
+            _activeLocation = location;
             return State;
         }
+    }
+
+    private void SetActiveLocation(long generation, BrowserLocation location)
+    {
+        lock (_sync) if (!_disposed && generation == _generation) _activeLocation = location;
     }
 
     private BrowserFolderState? CommitFailure(long generation, BrowserFolderStatus status, string? diagnostic)

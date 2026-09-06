@@ -92,25 +92,23 @@ public sealed class BrowserRecursiveScopeRegressionTests
     [Fact]
     public void BrowserMonitoringFolderRefreshed_UsesBrowserScopeForRecursiveRelevanceAndPreservesExactFolderMatchForDirectMode()
     {
-        var body = MethodBody("private void BrowserMonitoring_FolderRefreshed");
+        var body = MethodBody("private async Task SynchronizeMonitoredFolderAsync");
 
-        Assert.Contains("BrowserScopeMode.IncludeSubfolders", body);
-        Assert.Contains("BrowserScope.IsWithinFolderScope(request.RelativeFolder, location.RelativeFolder)", body);
-        Assert.Contains(
-            "!string.Equals(location.RelativeFolder ?? \"\", request.RelativeFolder ?? \"\", StringComparison.OrdinalIgnoreCase)",
-            body);
+        Assert.Contains("state.Mode == BrowserScopeMode.DirectFolder", body);
+        Assert.Contains("BrowserScope.IsWithinFolderScope(relative, location.RelativeFolder)", body);
+        Assert.Contains("string.Equals(location.RelativeFolder, relative, StringComparison.OrdinalIgnoreCase)", body);
+        Assert.Contains("_browserTree.ApplyDirectoryListing", body);
     }
 
     [Fact]
-    public void BrowserMonitoringFolderRefreshed_CoalescesRecursiveRefreshesThroughTheDedicatedDebounceTimerRatherThanRefreshingImmediately()
+    public void BrowserMonitoringFolderRefreshed_TargetsChangedFolderInsteadOfRestartingWholeRecursiveScope()
     {
-        var body = MethodBody("private void BrowserMonitoring_FolderRefreshed");
+        var handler = MethodBody("private void BrowserMonitoring_FolderRefreshed");
+        var body = MethodBody("private async Task SynchronizeMonitoredFolderAsync");
 
-        var recursiveBranch = body.IndexOf("BrowserScopeMode.IncludeSubfolders", StringComparison.Ordinal);
-        var debounceUsage = body.IndexOf("_browserRecursiveRefreshDebounceTimer.Start();", StringComparison.Ordinal);
-        Assert.True(debounceUsage > recursiveBranch, "Recursive relevance must route through the debounce timer, not an immediate refresh.");
-        // Direct mode is unchanged: an immediate refresh call still exists for the exact-folder-match branch.
-        Assert.Contains("_ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());", body);
+        Assert.Contains("SynchronizeMonitoredFolderAsync(request)", handler);
+        Assert.Contains("SynchronizeFileSystemMutationAsync", body);
+        Assert.DoesNotContain("_browserRecursiveRefreshDebounceTimer", body);
     }
 
     [Fact]
@@ -172,10 +170,11 @@ public sealed class BrowserRecursiveScopeRegressionTests
     }
 
     [Fact]
-    public void Closed_StopsTheRecursiveRefreshDebounceTimer()
+    public void Closed_UnsubscribesMonitoringBeforeDisposingBrowserNavigation()
     {
         var body = MethodBody("Closed += (_, _) =>");
-        Assert.Contains("_browserRecursiveRefreshDebounceTimer.Stop();", body);
+        Assert.Contains("monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed", body);
+        Assert.Contains("_browserNavigation.Dispose();", body);
     }
 
     [Fact]

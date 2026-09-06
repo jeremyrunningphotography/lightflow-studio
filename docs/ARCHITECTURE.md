@@ -477,7 +477,7 @@ The planner exposes only the intended final media path and remains side-effect f
 
 Immediately before an item starts, runtime hygiene removes only that exact sibling partial path. A locked or otherwise undeletable stale partial blocks the item instead of allowing FFmpeg to overwrite or mingle with it. Lightflow does not scan arbitrary folders or delete files based on a generic substring. Broader startup cleanup is intentionally deferred because current execution is serial and item-scoped ownership is the safer boundary.
 
-FFmpeg writes directly to the sibling partial in the final destination directory. Because `.lightflow` is deliberately the terminal extension, `FfmpegCommandBuilder` explicitly selects the output muxer from the typed `OutputContainer` (`mp4`, `mov`, or `matroska`) instead of relying on filename inference. FFprobe validates the partial artifact. Only a successful encode and successful validation permit finalization:
+FFmpeg writes directly to the sibling partial in the final destination directory. Because `.lightflow` is deliberately the terminal extension, `FfmpegCommandBuilder` explicitly selects the output muxer from the typed `OutputContainer` (`mp4`, `mov`, or `matroska`) instead of relying on filename inference. At this same typed encode/mux boundary, HEVC-in-MP4 selects the Apple-compatible `hvc1` sample entry and disables synthesis of an inherited `tmcd` track; H.264 and non-MP4 outputs retain their existing behavior. FFprobe validates the partial artifact. Only a successful encode and successful validation permit finalization:
 
 ```text
 planned final path

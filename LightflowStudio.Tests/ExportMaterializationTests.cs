@@ -34,6 +34,23 @@ public sealed class ExportMaterializationTests
         Assert.Equal(RateControlMode.ConstantQuality, first.Encoding.RateControl);
     }
 
+    [Fact]
+    public void SameAsSource_HevcMp4ReceivesSharedAppleCompatibilityPolicy()
+    {
+        var definition = EncodingJobPlanner.Define(
+            Options(new(VideoCodecPolicy.SameAsSource, OutputContainerPolicy.SameAsSource)),
+            [Source("clip.mp4", new("hevc", 3840, 2160, 60, "mp4"))]);
+        var settings = Assert.Single(definition.Items).MaterializedExport!;
+
+        var args = FfmpegCommandBuilder.Encode("clip.mp4", "output.mp4.lightflow", null,
+            RecoveryStrategy.Normal, settings.Resolution, encoding: settings.Encoding);
+
+        Assert.Equal(VideoCodec.Hevc, settings.Encoding.Codec);
+        Assert.Equal(OutputContainer.Mp4, settings.Encoding.Container);
+        Assert.Equal("hvc1", ValueAfter(args, "-tag:v"));
+        Assert.Equal("0", ValueAfter(args, "-write_tmcd"));
+    }
+
     [Theory]
     [InlineData("vp9", "mp4")]
     [InlineData("h264", "avi")]

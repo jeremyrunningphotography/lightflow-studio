@@ -97,6 +97,9 @@ public partial class MainWindow : Window
     /// <summary>The node most recently targeted by a passive (non-interactive) tree reveal, consumed by <see cref="BrowserFolderTree_SelectedItemChanged"/> the first time a matching event arrives. See that method's doc comment.</summary>
     private BrowserTreeNode? _browserTreeRevealedNode;
     private BrowserTreeNode? _browserFolderPointerTarget;
+    private System.Windows.Point _browserFolderDragStart;
+    private BrowserTreeNode? _browserFolderDragNode;
+    private BrowserTreeNode? _browserFileDropTarget;
     private readonly WorkspaceStateService _workspaceState;
     private readonly DispatcherTimer _workspaceSaveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private WindowState _lastNonMinimizedWindowState = WindowState.Normal;
@@ -197,7 +200,9 @@ public partial class MainWindow : Window
         });
         _exportCoordinator = new ExportJobCoordinator(_exportScheduler, _jobHistory);
         _fileOperationExecutor = new FileOperationExecutor(new WindowsFileOperationPlatform(), storage.MediaAssets,
-            storage.BrowserLocations);
+            storage.BrowserLocations, storage.AssetCopies);
+        _fileOperationExecutor.MutationCompleted += (_, mutation) => Dispatcher.BeginInvoke(async () =>
+            await SynchronizeFileSystemMutationAsync(mutation));
         _fileOperationJobs = new FileOperationJobs(_fileOperationExecutor,
             new FileOperationHistoryStore(storage.Locations.FileOperationHistoryPath));
         _fileOperationJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
@@ -957,8 +962,12 @@ public partial class MainWindow : Window
             await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
     }
 
-    private void BrowserFolderTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+    private void BrowserFolderTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
         _browserFolderPointerTarget = BrowserTreeNodeFromElement(e.OriginalSource as DependencyObject);
+        _browserFolderDragNode = _browserFolderPointerTarget;
+        _browserFolderDragStart = e.GetPosition(BrowserFolderTree);
+    }
 
     /// <summary>
     /// #124 (revised): toggles Include Subfolders for whichever folder is currently open, via
@@ -2308,8 +2317,12 @@ public partial class MainWindow : Window
                 if (BrowserFolderTree.IsKeyboardFocusWithin && SelectedFolderOperationSource() is { } folder)
                 {
                     var permanent = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
-                    if (!permanent || ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete this folder?",
-                        "The folder and all contents will be permanently removed.", "It will not go to the Recycle Bin.", "Delete permanently"))
+                    var confirmed = permanent
+                        ? ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete this folder?",
+                            "The folder and all contents will be permanently removed.", "It will not go to the Recycle Bin.", "Delete permanently")
+                        : ConfirmationDialog.Confirm(this, "Move to Recycle Bin", "Move this folder to the Recycle Bin?",
+                            "The folder and all contents will be recycled.", "You can normally restore it from the Windows Recycle Bin.", "Recycle");
+                    if (confirmed)
                         _ = ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, [folder], null);
                 }
                 else _ = DeleteBrowserSelectionAsync(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
@@ -2418,10 +2431,85 @@ public partial class MainWindow : Window
     {
         var sources = await SelectedFileOperationSourcesAsync();
         if (sources.Count == 0) return;
-        if (permanent && !ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete selected items?",
-            $"{sources.Count} item(s) will be permanently removed.", "They will not go to the Recycle Bin and this cannot be undone.",
-            "Delete permanently")) return;
+        var confirmed = permanent
+            ? ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete selected items?",
+                $"{sources.Count} item(s) will be permanently removed.", "They will not go to the Recycle Bin and this cannot be undone.", "Delete permanently")
+            : ConfirmationDialog.Confirm(this, "Move to Recycle Bin", "Move selected items to the Recycle Bin?",
+                $"{sources.Count} item(s) will be recycled.", "You can normally restore them from the Windows Recycle Bin.", "Recycle");
+        if (!confirmed) return;
         await ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, sources, null);
+    }
+
+    private async Task SynchronizeFileSystemMutationAsync(FileSystemMutation mutation)
+    {
+        if (_activeCollectionScope is not null)
+        {
+            await LoadCollectionScopeAsync(_activeCollectionScope.Collection.CollectionId);
+            return;
+        }
+        var state = _lastLoadedBrowserState;
+        if (state?.Location is not { } location) return;
+        if (mutation.IsDirectory && mutation.SourcePath is { } changedFolder &&
+            FileOperationPathSemantics.IsSameOrDescendant(location.AbsolutePath, changedFolder))
+        {
+            var target = mutation.DestinationPath is { } movedFolder
+                ? Path.Combine(movedFolder, Path.GetRelativePath(changedFolder, location.AbsolutePath))
+                : Path.GetDirectoryName(changedFolder);
+            if (target is not null && Directory.Exists(target))
+                await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(target));
+            return;
+        }
+        var affectedParents = new[] { mutation.SourcePath, mutation.DestinationPath }
+            .Where(path => path is not null).Select(path => Path.GetDirectoryName(path!)!).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var inside = affectedParents.Where(path => FileOperationPathSemantics.IsSameOrDescendant(path, location.RootPath)).ToArray();
+        foreach (var parent in inside)
+        {
+            var relative = Path.GetRelativePath(location.RootPath, parent);
+            relative = relative == "." ? "" : MediaPathSemantics.NormalizeRelativePath(relative);
+            var listing = await _storage.MediaFolders.EnumerateAsync(new(location.RootId, relative));
+            if (listing.Succeeded) _browserTree.ApplyDirectoryListing(parent, location.RootPath, listing.Entries);
+        }
+        if (!inside.Any(path => FileOperationPathSemantics.IsSameOrDescendant(path, location.AbsolutePath))) return;
+        if (state.Mode == BrowserScopeMode.DirectFolder)
+        {
+            await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+            return;
+        }
+
+        var direct = await _storage.MediaFolders.EnumerateAsync(new(location.RootId, location.RelativeFolder));
+        if (!direct.Succeeded) return;
+        var candidates = (state.RecursiveMediaEntries ?? []).ToList();
+        var batches = new List<IDerivedWorkBatch>();
+        foreach (var parent in inside.Where(path => FileOperationPathSemantics.IsSameOrDescendant(path, location.AbsolutePath)))
+        {
+            var relative = Path.GetRelativePath(location.RootPath, parent);
+            relative = relative == "." ? "" : MediaPathSemantics.NormalizeRelativePath(relative);
+            candidates.RemoveAll(entry => string.Equals(Path.GetDirectoryName(entry.RelativePath)?.Replace('\\', '/'), relative,
+                StringComparison.OrdinalIgnoreCase));
+            var listing = await _storage.MediaFolders.EnumerateAsync(new(location.RootId, relative));
+            var refresh = await _storage.MediaDiscovery.RefreshAsync(new MediaFolderEnumerationRequest(location.RootId, relative), DerivedWorkPriority.Visible);
+            if (listing.Succeeded) candidates.AddRange(listing.Entries.Where(entry => !entry.IsDirectory));
+            if (refresh.DerivedWork is { } batch) batches.Add(batch);
+        }
+        if (mutation.IsDirectory && mutation.SourcePath is { } oldPath &&
+            FileOperationPathSemantics.IsSameOrDescendant(oldPath, location.AbsolutePath))
+        {
+            var oldRelative = MediaPathSemantics.NormalizeRelativePath(Path.GetRelativePath(location.RootPath, oldPath));
+            candidates.RemoveAll(entry => entry.RelativePath.StartsWith(oldRelative + "/", StringComparison.OrdinalIgnoreCase));
+        }
+        if (mutation.IsDirectory && mutation.DestinationPath is { } newPath && Directory.Exists(newPath) &&
+            FileOperationPathSemantics.IsSameOrDescendant(newPath, location.AbsolutePath))
+        {
+            var newRelative = MediaPathSemantics.NormalizeRelativePath(Path.GetRelativePath(location.RootPath, newPath));
+            var subtree = await _storage.RecursiveMediaDiscovery.DiscoverAsync(new MediaFolderEnumerationRequest(location.RootId, newRelative), DerivedWorkPriority.Visible);
+            if (subtree.Succeeded) candidates.AddRange(subtree.MediaEntries);
+            if (subtree.DerivedWork is { } batch) batches.Add(batch);
+        }
+        var unique = candidates.GroupBy(entry => entry.RelativePathKey, StringComparer.Ordinal).Select(group => group.Last()).ToArray();
+        IDerivedWorkBatch? derived = batches.Count == 0 ? null : batches.Count == 1 ? batches[0] :
+            new AggregateDerivedWorkBatch(new(CatalogReconciliationStatus.Succeeded, location.RootId,
+                location.RelativeFolder, batches.SelectMany(batch => batch.Reconciliation.Items).ToArray(), 0), batches);
+        ApplyBrowserState(state with { Entries = direct.Entries, RecursiveMediaEntries = unique, DerivedWork = derived });
     }
 
     private async Task ExecuteFileOperationAsync(FileOperationKind kind, IReadOnlyList<FileOperationSource> sources, string? destination)
@@ -2437,8 +2525,6 @@ public partial class MainWindow : Window
             var result = await _fileOperationExecutor.ExecuteAsync(intent);
             BrowserStatusText.Text = result.Succeeded ? $"{kind} completed." :
                 $"{kind}: {result.CompletedItems} completed, {result.Failures.Count} failed.";
-            if (_activeCollectionScope is null) await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
-            else await LoadCollectionScopeAsync(_activeCollectionScope.Collection.CollectionId);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         { NoticeDialog.Show(this, "File operation", "The operation could not continue", exception.Message); }
@@ -2448,6 +2534,16 @@ public partial class MainWindow : Window
     private async void BrowserCopy_Click(object sender, RoutedEventArgs e) => await CopyBrowserSelectionToClipboardAsync(FileOperationKind.Copy);
     private async void BrowserPaste_Click(object sender, RoutedEventArgs e) => await PasteBrowserClipboardAsync(CurrentBrowserFolder());
     private async void BrowserDelete_Click(object sender, RoutedEventArgs e) => await DeleteBrowserSelectionAsync(false);
+    private async void BrowserRename_Click(object sender, RoutedEventArgs e)
+    {
+        var sources = await SelectedFileOperationSourcesAsync();
+        if (sources.Count != 1) return;
+        var name = TextEntryDialog.Prompt(this, "Rename media", "Name", Path.GetFileName(sources[0].Path));
+        if (name is null) return;
+        try { await _fileOperationExecutor.RenameAsync(sources[0], name); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        { NoticeDialog.Show(this, "Rename", "The item could not be renamed", ex.Message); }
+    }
 
     private FileOperationSource? SelectedFolderOperationSource() => _browserTree.SelectedNode?.AbsolutePath is { } path
         ? new FileOperationSource(null, path, IsDirectory: true) : null;
@@ -2466,18 +2562,75 @@ public partial class MainWindow : Window
     private async void BrowserFolderPaste_Click(object sender, RoutedEventArgs e) => await PasteBrowserClipboardAsync(_browserTree.SelectedNode?.AbsolutePath);
     private async void BrowserFolderDelete_Click(object sender, RoutedEventArgs e)
     {
-        if (SelectedFolderOperationSource() is { } source) await ExecuteFileOperationAsync(FileOperationKind.Recycle, [source], null);
+        if (SelectedFolderOperationSource() is not { } source || !ConfirmationDialog.Confirm(this, "Move to Recycle Bin",
+            "Move this folder to the Recycle Bin?", "The folder and all contents will be recycled.",
+            "You can normally restore it from the Windows Recycle Bin.", "Recycle")) return;
+        await ExecuteFileOperationAsync(FileOperationKind.Recycle, [source], null);
+    }
+
+    private async void BrowserFolderNew_Click(object sender, RoutedEventArgs e)
+    {
+        if (_browserTree.SelectedNode?.AbsolutePath is not { } parent) return;
+        var name = TextEntryDialog.Prompt(this, "New Folder", "Folder name");
+        if (name is null) return;
+        try { await _fileOperationExecutor.CreateFolderAsync(parent, name); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        { NoticeDialog.Show(this, "New Folder", "The folder could not be created", ex.Message); }
+    }
+
+    private async void BrowserFolderRename_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedFolderOperationSource() is not { } source) return;
+        var name = TextEntryDialog.Prompt(this, "Rename folder", "Name", Path.GetFileName(Path.TrimEndingDirectorySeparator(source.Path)));
+        if (name is null) return;
+        try { await _fileOperationExecutor.RenameAsync(source, name); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        { NoticeDialog.Show(this, "Rename", "The folder could not be renamed", ex.Message); }
+    }
+
+    private void BrowserFolderTree_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _browserFolderDragNode?.AbsolutePath is not { } path) return;
+        var point = e.GetPosition(BrowserFolderTree);
+        if (Math.Abs(point.X - _browserFolderDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(point.Y - _browserFolderDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        var node = _browserFolderDragNode; _browserFolderDragNode = null;
+        var data = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, new[] { path });
+        BrowserStatusText.Text = $"Move folder ‘{node.DisplayName}’ — hold Ctrl to copy";
+        System.Windows.DragDrop.DoDragDrop(BrowserFolderTree, data, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
+        ClearFolderDropFeedback();
     }
 
     private void BrowserFolderTree_DragOver(object sender, System.Windows.DragEventArgs e)
     {
         var node = BrowserFolderDropTarget(e.OriginalSource as DependencyObject);
         var paths = e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[];
+        ClearFolderDropFeedback();
         if (node?.AbsolutePath is null || paths is not { Length: > 0 }) e.Effects = System.Windows.DragDropEffects.None;
-        else e.Effects = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath,
-            Keyboard.Modifiers.HasFlag(ModifierKeys.Control), Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) == FileOperationKind.Copy
-            ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.Move;
+        else
+        {
+            var kind = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath,
+                Keyboard.Modifiers.HasFlag(ModifierKeys.Control), Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+            try
+            {
+                var sources = paths.Select(path => new FileOperationSource(null, path,
+                    File.Exists(path) ? new FileInfo(path).Length : null, Directory.Exists(path))).ToArray();
+                _ = FileOperationPlanner.Plan(kind, sources, node.AbsolutePath);
+                e.Effects = kind == FileOperationKind.Copy ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.Move;
+                node.IsFileDropTarget = true; _browserFileDropTarget = node;
+                BrowserStatusText.Text = $"{kind} {paths.Length} item{(paths.Length == 1 ? "" : "s")} to ‘{node.DisplayName}’";
+            }
+            catch { e.Effects = System.Windows.DragDropEffects.None; node.IsInvalidFileDropTarget = true; _browserFileDropTarget = node;
+                BrowserStatusText.Text = $"Cannot drop {paths.Length} item{(paths.Length == 1 ? "" : "s")} here"; }
+        }
         e.Handled = true;
+    }
+
+    private void BrowserFolderTree_DragLeave(object sender, System.Windows.DragEventArgs e) => ClearFolderDropFeedback();
+    private void ClearFolderDropFeedback()
+    {
+        if (_browserFileDropTarget is not { } node) return;
+        node.IsFileDropTarget = false; node.IsInvalidFileDropTarget = false; _browserFileDropTarget = null;
     }
 
     private async void BrowserFolderTree_Drop(object sender, System.Windows.DragEventArgs e)
@@ -2488,8 +2641,13 @@ public partial class MainWindow : Window
         var kind = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath,
             Keyboard.Modifiers.HasFlag(ModifierKeys.Control), Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
         var selected = (await SelectedFileOperationSourcesAsync()).ToDictionary(source => source.Path, StringComparer.OrdinalIgnoreCase);
-        await ExecuteFileOperationAsync(kind, paths.Select(path => selected.TryGetValue(path, out var source) ? source :
-            new FileOperationSource(null, path, File.Exists(path) ? new FileInfo(path).Length : null, Directory.Exists(path))).ToArray(), node.AbsolutePath);
+        var sources = paths.Select(path => selected.TryGetValue(path, out var source) ? source :
+            new FileOperationSource(null, path, File.Exists(path) ? new FileInfo(path).Length : null, Directory.Exists(path))).ToArray();
+        ClearFolderDropFeedback();
+        if (sources.Any(source => source.IsDirectory) && !ConfirmationDialog.Confirm(this, $"{kind} folder",
+            $"{kind} the selected folder{(sources.Count(source => source.IsDirectory) == 1 ? "" : "s")}?",
+            $"Destination: {node.AbsolutePath}", "The operation will be tracked in Jobs when its cost requires it.", kind.ToString())) return;
+        await ExecuteFileOperationAsync(kind, sources, node.AbsolutePath);
         e.Handled = true;
     }
 

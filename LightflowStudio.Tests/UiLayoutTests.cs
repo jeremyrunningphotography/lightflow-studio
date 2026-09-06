@@ -879,12 +879,28 @@ public class UiLayoutTests
         Assert.Contains(app.Descendants(ns + "Style"), style => (string?)style.Attribute(x + "Key") == "LightflowMenuItemStyle");
         Assert.Equal(
             ["Add to Collection…", "Remove from this Collection", "Rating", "Flag", "Color label", "Keywords",
-                "Export", "Regenerate Previews", "Rename", "Camera LUT", "Creative LUT", "Cut", "Copy", "Paste", "Delete"],
+                "Export", "Regenerate Previews", "Rename…", "Camera LUT", "Creative LUT", "Cut", "Copy", "Paste", "Delete"],
             contextMenu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
         Assert.Equal(["Export…", "Export Subclips…"], contextMenu.Elements(ns + "MenuItem").Single(item => (string?)item.Attribute("Header") == "Export")
             .Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
         Assert.All(contextMenu.Elements(ns + "MenuItem").Where(item =>
             (string?)item.Attribute("Header") is "Camera LUT" or "Creative LUT"), submenu => Assert.True(submenu.HasElements));
+    }
+
+    [Fact]
+    public void BrowserFileOperations_ExposeFolderCommandsAndExplicitDropFeedback()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var tree = Named(document, "BrowserFolderTree");
+        var menu = tree.Element(ns + "TreeView.ContextMenu")!.Element(ns + "ContextMenu")!;
+        Assert.Equal(["New Folder…", "Rename…", "Cut", "Copy", "Paste into folder", "Delete"],
+            menu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")));
+        Assert.Equal("BrowserFolderTree_MouseMove", (string?)tree.Attribute("MouseMove"));
+        Assert.Equal("BrowserFolderTree_DragLeave", (string?)tree.Attribute("DragLeave"));
+        var triggers = tree.Descendants(ns + "DataTrigger").ToArray();
+        Assert.Contains(triggers, trigger => ((string?)trigger.Attribute("Binding"))?.Contains("IsFileDropTarget") == true);
+        Assert.Contains(triggers, trigger => ((string?)trigger.Attribute("Binding"))?.Contains("IsInvalidFileDropTarget") == true);
     }
 
     [Fact]

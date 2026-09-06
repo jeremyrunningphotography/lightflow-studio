@@ -45,4 +45,21 @@ public sealed class FileOperationTests
         Assert.True(FileOperationPathSemantics.IsSameOrDescendant(@"C:\media\day1\selects", @"C:\media\day1"));
         Assert.False(FileOperationPathSemantics.IsSameOrDescendant(@"C:\media\day10", @"C:\media\day1"));
     }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("CON")]
+    [InlineData("con.mov")]
+    [InlineData("bad:name")]
+    [InlineData("trailing.")]
+    [InlineData("two\\parts")]
+    public void WindowsNamePolicy_RejectsUnsafeNames(string name) =>
+        Assert.Throws<ArgumentException>(() => WindowsFileNamePolicy.Validate(name));
+
+    [Theory]
+    [InlineData("New Folder")]
+    [InlineData("renamed clip.mov")]
+    [InlineData("COM10")]
+    public void WindowsNamePolicy_AcceptsOrdinaryNames(string name) =>
+        Assert.Equal(name, WindowsFileNamePolicy.Validate(name));
 }

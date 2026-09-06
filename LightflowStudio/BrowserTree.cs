@@ -10,6 +10,8 @@ internal sealed class BrowserTreeNode : INotifyPropertyChanged
     private bool _isExpanded;
     private bool _isSelected;
     private bool _isRecursiveScope;
+    private bool _isFileDropTarget;
+    private bool _isInvalidFileDropTarget;
 
     public BrowserTreeNode(string displayName, string? absolutePath, BrowserStorageEntry? storage = null,
         bool placeholder = false)
@@ -63,6 +65,8 @@ internal sealed class BrowserTreeNode : INotifyPropertyChanged
     /// <c>DataTrigger</c>s. Never persisted; always recomputed live from the two underlying inputs.
     /// </summary>
     public bool IsFilledFolderIcon => _isSelected || _isRecursiveScope;
+    public bool IsFileDropTarget { get => _isFileDropTarget; set { if (_isFileDropTarget == value) return; _isFileDropTarget = value; OnPropertyChanged(); } }
+    public bool IsInvalidFileDropTarget { get => _isInvalidFileDropTarget; set { if (_isInvalidFileDropTarget == value) return; _isInvalidFileDropTarget = value; OnPropertyChanged(); } }
 
     internal void SetIdentity(Guid rootId, string relativeFolder)
     {
@@ -198,6 +202,25 @@ internal sealed class BrowserTreeModel
     /// <summary>Backfills a tree node's real children (siblings) from an actual folder enumeration.</summary>
     public void ApplyDirectoryListing(BrowserTreeNode node, string rootPath, IReadOnlyList<MediaFolderEntry> entries) =>
         ReplaceDirectories(node, rootPath, entries);
+
+    public bool ApplyDirectoryListing(string absolutePath, string rootPath, IReadOnlyList<MediaFolderEntry> entries)
+    {
+        var node = FindByPath(absolutePath);
+        if (node is null || !node.IsMaterialized && !ReferenceEquals(node, SelectedNode)) return false;
+        ReplaceDirectories(node, rootPath, entries);
+        return true;
+    }
+
+    public BrowserTreeNode? FindByPath(string absolutePath) => Roots.Select(root => FindByPath(root, absolutePath))
+        .FirstOrDefault(node => node is not null);
+
+    private static BrowserTreeNode? FindByPath(BrowserTreeNode node, string path)
+    {
+        if (node.AbsolutePath is not null && SamePath(node.AbsolutePath, path)) return node;
+        foreach (var child in node.Children)
+            if (FindByPath(child, path) is { } found) return found;
+        return null;
+    }
 
     public void RequestSelection(BrowserTreeNode node)
     {

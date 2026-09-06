@@ -549,10 +549,13 @@
         <Grid x:Name="BrowserLocationsSectionContent" Margin="0,6,0,0">
          <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}" AllowDrop="True"
           SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseLeftButtonDown="BrowserFolderTree_PreviewMouseLeftButtonDown"
-          DragOver="BrowserFolderTree_DragOver" Drop="BrowserFolderTree_Drop"
+          MouseMove="BrowserFolderTree_MouseMove" DragOver="BrowserFolderTree_DragOver" DragLeave="BrowserFolderTree_DragLeave" Drop="BrowserFolderTree_Drop"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
           <TreeView.ContextMenu>
            <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="New Folder…" Click="BrowserFolderNew_Click"/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename…" Click="BrowserFolderRename_Click"/>
+            <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Cut" InputGestureText="Ctrl+X" Click="BrowserFolderCut_Click"/>
             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Copy" InputGestureText="Ctrl+C" Click="BrowserFolderCopy_Click"/>
             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Paste into folder" InputGestureText="Ctrl+V" Click="BrowserFolderPaste_Click"/>
@@ -565,6 +568,10 @@
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
             <EventSetter Event="Expanded" Handler="BrowserFolderTreeItem_Expanded"/>
+            <Style.Triggers>
+             <DataTrigger Binding="{Binding IsFileDropTarget}" Value="True"><Setter Property="Background" Value="#443A89FF"/></DataTrigger>
+             <DataTrigger Binding="{Binding IsInvalidFileDropTarget}" Value="True"><Setter Property="Background" Value="#55B44A4A"/></DataTrigger>
+            </Style.Triggers>
            </Style>
           </TreeView.ItemContainerStyle>
           <TreeView.Resources>
@@ -1044,7 +1051,7 @@
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export Subclips…" Click="BrowserContextExportSubclips_Click"/>
                   </MenuItem>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Regenerate Previews" Click="BrowserContextRegenerateThumbnails_Click"/>
-                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename" IsEnabled="False" ToolTip="Media rename is not available yet"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename…" Click="BrowserRename_Click"/>
                   <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Camera LUT" SubmenuOpened="BrowserContextCameraLut_SubmenuOpened">
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Loading…" IsEnabled="False"/>

@@ -5,7 +5,7 @@ using Microsoft.VisualBasic.FileIO;
 
 namespace LightflowStudio;
 
-internal enum FileOperationKind { Copy, Move, Recycle, PermanentDelete }
+internal enum FileOperationKind { Copy, Move, Recycle, PermanentDelete, Rename, CreateFolder }
 internal enum FileOperationExecution { Direct, Job }
 internal enum FileOperationState { Waiting, Running, Completed, CompletedWithFailures, Failed, Cancelled, Interrupted }
 
@@ -14,6 +14,8 @@ internal sealed record FileOperationIntent(Guid OperationId, FileOperationKind K
     IReadOnlyList<FileOperationSource> Sources, string? Destination, DateTimeOffset CreatedUtc,
     long? EstimatedBytes, bool CrossVolume, FileOperationExecution Execution);
 internal sealed record FileOperationFailure(string Path, string Diagnostic);
+internal sealed record FileSystemMutation(FileOperationKind Kind, string? SourcePath, string? DestinationPath,
+    bool IsDirectory, Guid? AssetId = null);
 internal sealed record FileOperationResult(Guid OperationId, FileOperationState State, int CompletedItems,
     long CompletedBytes, IReadOnlyList<FileOperationFailure> Failures, DateTimeOffset CompletedUtc)
 {
@@ -65,6 +67,22 @@ internal static class FileOperationPathSemantics
     }
 }
 
+internal static class WindowsFileNamePolicy
+{
+    private static readonly HashSet<string> Reserved = new(StringComparer.OrdinalIgnoreCase)
+        { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" };
+    public static string Validate(string? value)
+    {
+        var name = value?.Trim() ?? "";
+        if (name.Length == 0) throw new ArgumentException("Enter a name.");
+        if (name is "." or ".." || name.EndsWith('.') || name.EndsWith(' ') ||
+            name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.Contains(Path.DirectorySeparatorChar) ||
+            name.Contains(Path.AltDirectorySeparatorChar)) throw new ArgumentException("The name is not valid on Windows.");
+        if (Reserved.Contains(Path.GetFileNameWithoutExtension(name))) throw new ArgumentException("That name is reserved by Windows.");
+        return name;
+    }
+}
+
 internal static class FileOperationPlanner
 {
     public static FileOperationIntent Plan(FileOperationKind kind, IEnumerable<FileOperationSource> sources,
@@ -108,6 +126,7 @@ internal interface IFileOperationPlatform
     void Move(string source, string destination);
     void Recycle(string path);
     void PermanentlyDelete(string path);
+    void CreateDirectory(string path) => Directory.CreateDirectory(path);
 }
 
 internal sealed class WindowsFileOperationPlatform : IFileOperationPlatform
@@ -151,11 +170,13 @@ internal sealed class WindowsFileOperationPlatform : IFileOperationPlatform
         else if (File.Exists(path)) File.Delete(path);
         else throw new FileNotFoundException("The selected item is unavailable.", path);
     }
+    public void CreateDirectory(string path) => Directory.CreateDirectory(path);
 }
 
 internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMediaAssetService assets,
-    IBrowserLocationResolver locations)
+    IBrowserLocationResolver locations, IAssetCopyDataService? copies = null)
 {
+    public event EventHandler<FileSystemMutation>? MutationCompleted;
     public async Task<FileOperationResult> ExecuteAsync(FileOperationIntent intent,
         IProgress<(int Items, long Bytes, string Current)>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -175,7 +196,8 @@ internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMe
                         { completedBytes += value; progress?.Report((completedItems, completedBytes, source.Path)); }, cancellationToken);
                         else await platform.CopyFileAsync(source.Path, destination!, new Progress<long>(value =>
                         { completedBytes += value; progress?.Report((completedItems, completedBytes, source.Path)); }), cancellationToken);
-                        await ReconcileCopyAsync(destination!, cancellationToken);
+                        if (source.IsDirectory) await ReconcileDirectoryCopyAsync(source.Path, destination!, cancellationToken);
+                        else await ReconcileCopyAsync(source, destination!, cancellationToken);
                         break;
                     case FileOperationKind.Move:
                         var catalogMoves = await CaptureCatalogMovesAsync(source, destination!, cancellationToken);
@@ -205,9 +227,11 @@ internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMe
                         platform.PermanentlyDelete(source.Path);
                         if (source.AssetId is { } deletedId) await assets.MarkMissingAsync([deletedId], cancellationToken).ConfigureAwait(false);
                         break;
+                    default: throw new NotSupportedException($"Unsupported operation: {intent.Kind}");
                 }
                 completedItems++;
                 progress?.Report((completedItems, completedBytes, source.Path));
+                MutationCompleted?.Invoke(this, new(intent.Kind, source.Path, destination, source.IsDirectory, source.AssetId));
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
@@ -218,13 +242,51 @@ internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMe
         return new(intent.OperationId, state, completedItems, completedBytes, failures, DateTimeOffset.UtcNow);
     }
 
-    private async Task ReconcileCopyAsync(string destination, CancellationToken cancellationToken)
+    public async Task RenameAsync(FileOperationSource source, string newName, CancellationToken cancellationToken = default)
+    {
+        var name = WindowsFileNamePolicy.Validate(newName);
+        var destination = Path.Combine(Path.GetDirectoryName(source.Path)!, name);
+        if (File.Exists(destination) || Directory.Exists(destination)) throw new IOException("A sibling already has that name. Nothing was overwritten.");
+        var moves = await CaptureCatalogMovesAsync(source, destination, cancellationToken).ConfigureAwait(false);
+        platform.Move(source.Path, destination);
+        foreach (var move in moves)
+        {
+            var relocation = await assets.RelocateAsync(move.AssetId, move.RootId, move.RelativePath, cancellationToken).ConfigureAwait(false);
+            if (!relocation.Succeeded) throw new IOException(relocation.Diagnostic);
+        }
+        MutationCompleted?.Invoke(this, new(FileOperationKind.Rename, source.Path, destination, source.IsDirectory, source.AssetId));
+    }
+
+    public Task CreateFolderAsync(string parent, string name)
+    {
+        var destination = Path.Combine(parent, WindowsFileNamePolicy.Validate(name));
+        if (File.Exists(destination) || Directory.Exists(destination)) throw new IOException("An item with that name already exists.");
+        platform.CreateDirectory(destination);
+        MutationCompleted?.Invoke(this, new(FileOperationKind.CreateFolder, null, destination, true));
+        return Task.CompletedTask;
+    }
+
+    private async Task ReconcileCopyAsync(FileOperationSource source, string destination, CancellationToken cancellationToken)
     {
         var resolved = await locations.ResolveAsync(Path.GetDirectoryName(destination)!, cancellationToken).ConfigureAwait(false);
         if (!resolved.Succeeded) throw new IOException(resolved.Diagnostic);
         var relative = string.IsNullOrEmpty(resolved.RelativeFolder) ? Path.GetFileName(destination) :
             $"{resolved.RelativeFolder}/{Path.GetFileName(destination)}";
-        await assets.CreateAsync(resolved.RootId!.Value, relative, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var created = await assets.CreateAsync(resolved.RootId!.Value, relative, cancellationToken: cancellationToken).ConfigureAwait(false);
+        if (!created.Succeeded || created.Asset?.Asset is not { } asset) throw new IOException(created.Diagnostic ?? "The copied asset could not be added to the Catalog.");
+        if (source.AssetId is { } sourceId && copies is not null)
+            await copies.CloneAsync(sourceId, asset, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task ReconcileDirectoryCopyAsync(string source, string destination, CancellationToken cancellationToken)
+    {
+        foreach (var asset in await assets.ListAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var resolved = await assets.GetAsync(asset.AssetId, cancellationToken).ConfigureAwait(false);
+            if (resolved?.PhysicalPath is not { } path || !FileOperationPathSemantics.IsSameOrDescendant(path, source)) continue;
+            var copiedPath = Path.Combine(destination, Path.GetRelativePath(source, path));
+            await ReconcileCopyAsync(new(asset.AssetId, path, asset.FileSizeBytes), copiedPath, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task<IReadOnlyList<(Guid AssetId, Guid RootId, string RelativePath)>> CaptureCatalogMovesAsync(

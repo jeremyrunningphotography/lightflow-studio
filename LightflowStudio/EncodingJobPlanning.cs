@@ -17,7 +17,8 @@ internal sealed record EncodingJobOptions(
     EncodingColorMode ColorMode = EncodingColorMode.OriginalOrManual,
     int ParallelExports = EncodingJobConcurrency.Default,
     ExportMaterializationPolicy? MaterializationPolicy = null,
-    NamePartsDefinition? Naming = null);
+    NamePartsDefinition? Naming = null,
+    ExportDestination? Destination = null);
 
 internal static class EncodingJobConcurrency
 {
@@ -121,6 +122,15 @@ internal static class EncodingJobPlanner
             return new(definition, plannedAt ?? DateTimeOffset.Now, [],
                 [new("encoding.parallel-exports", exception.Message, JobIssueSeverity.Error)], JobWorkUnit.Items);
         }
+        if (definition.Options.Destination is { } destination)
+        {
+            try { _ = destination.Normalize(); }
+            catch (Exception exception) when (exception is ArgumentException or NotSupportedException or IOException)
+            {
+                return new(definition, plannedAt ?? DateTimeOffset.Now, [],
+                    [new("encoding.destination", exception.Message, JobIssueSeverity.Error)], JobWorkUnit.Items);
+            }
+        }
         inspectOutput ??= OutputFileSnapshot.Read;
         var issues = new List<JobIssue>();
         if (definition.Items.Count == 0)
@@ -218,6 +228,13 @@ internal static class EncodingJobPlanner
     private static string CreateOutputPath(EncodingJobOptions options, JobItemDefinition item,
         MaterializedExportSettings settings)
     {
+        if (options.Destination is { } destination)
+        {
+            var destinationStem = item.MaterializedName?.Stem
+                ?? Path.GetFileNameWithoutExtension(item.SourceIdentity) + options.FilenameSuffix;
+            return Path.Combine(destination.ResolveDirectory(item.SourceIdentity),
+                destinationStem + EncodingPathPlanner.ContainerExtension(settings.Encoding.Container));
+        }
         if (options.Naming is null)
             return EncodingPathPlanner.CreateJob(options.InputFolder, options.OutputRoot, item.SourceIdentity,
                 settings.Resolution, settings.Encoding.Container, options.FilenameSuffix,

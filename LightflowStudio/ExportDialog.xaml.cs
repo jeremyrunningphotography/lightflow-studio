@@ -26,6 +26,8 @@ public partial class ExportDialog : Window
         System.Windows.Automation.AutomationProperties.SetName(FilesToExportScroll, model.FilesAutomationName);
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
         DestinationText.Text = model.Destination;
+        SpecificFolderRadio.IsChecked = model.DestinationMode == ExportDestinationMode.SpecificFolder;
+        SameFolderRadio.IsChecked = model.DestinationMode == ExportDestinationMode.SameFolderAsOriginal;
         CreateSubfolderCheck.IsChecked = model.CreateSubfolder;
         AddPartCombo.ItemsSource = ExportPresentation.NameParts; AddPartCombo.SelectedIndex = 0;
         SeparatorCombo.ItemsSource = ExportPresentation.Separators; Select(SeparatorCombo, ExportPresentation.Separators, model.Separator);
@@ -142,6 +144,8 @@ public partial class ExportDialog : Window
     private void Configuration_Changed(object sender, SelectionChangedEventArgs e) { if (!_initializing) ReadControls(); }
     private void ReadControls()
     {
+        _model.DestinationMode = SameFolderRadio.IsChecked == true
+            ? ExportDestinationMode.SameFolderAsOriginal : ExportDestinationMode.SpecificFolder;
         _model.Destination = DestinationText.Text; _model.CreateSubfolder = CreateSubfolderCheck.IsChecked == true; _model.SubfolderName = SubfolderText.Text;
         if (SeparatorCombo.SelectedItem is ExportChoice<NamePartSeparator> separator) _model.Separator = separator.Value;
         if (ContainerCombo.SelectedItem is ExportChoice<ExportContainerChoice> container) _model.Container = container.Value;
@@ -168,6 +172,8 @@ public partial class ExportDialog : Window
         NamePartsComposer.ItemsSource = ExportPresentation.Composer(_model.NameParts);
         NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
         PathPreview.ToolTip = OutputExampleBorder.ToolTip = _model.PreviewPath;
+        SpecificFolderPanel.IsEnabled = _model.DestinationMode == ExportDestinationMode.SpecificFolder;
+        SubfolderText.IsEnabled = _model.CreateSubfolder;
         ExtensionPreview.Text = _model.RepresentativeExtension + (_model.HasHeterogeneousExtensions ? "  (varies)" : "");
         ExtensionPreview.ToolTip = _model.ExtensionHelp;
         var cq = _model.Encoding.RateControl == RateControlMode.ConstantQuality;

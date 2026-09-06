@@ -71,6 +71,88 @@ public sealed class ExportDialogModelTests : IDisposable
     }
 
     [Fact]
+    public void SpecificFolder_FlattensCollectionSourcesFromDifferentDirectories()
+    {
+        var firstDirectory = Directory.CreateDirectory(Path.Combine(_root, "Shoot A")).FullName;
+        var secondDirectory = Directory.CreateDirectory(Path.Combine(_root, "Shoot B", "Nested")).FullName;
+        var first = Path.Combine(firstDirectory, "first.mp4");
+        var second = Path.Combine(secondDirectory, "second.mp4");
+        File.WriteAllText(first, "source"); File.WriteAllText(second, "source");
+        var inputs = new[] { Input(first), Input(second) };
+        var model = new ExportDialogModel(new(inputs, [], firstDirectory, IncludeSubfolders: true),
+            new EncodingOptions(), [], [], new FakeResources(), _ => new(false, 0));
+        model.Destination = Path.Combine(_root, "Exports");
+        model.CreateSubfolder = false;
+        Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
+
+        var paths = model.CurrentPlan!.Items.Select(item => item.OutputPaths.Single()).ToArray();
+        Assert.Equal(Path.Combine(_root, "Exports", "first-001.mp4"), paths[0]);
+        Assert.Equal(Path.Combine(_root, "Exports", "second-002.mp4"), paths[1]);
+        Assert.All(paths, path => Assert.DoesNotContain("Shoot", path));
+        Assert.False(model.CurrentPlan.Definition.Options.PreserveFolderStructure);
+    }
+
+    [Fact]
+    public void SameFolderAsOriginal_UsesEachCollectionSourceAndOptionalSubfolder()
+    {
+        var firstDirectory = Directory.CreateDirectory(Path.Combine(_root, "Shoot A")).FullName;
+        var secondDirectory = Directory.CreateDirectory(Path.Combine(_root, "Shoot B")).FullName;
+        var first = Path.Combine(firstDirectory, "first.mp4");
+        var second = Path.Combine(secondDirectory, "second.mp4");
+        File.WriteAllText(first, "source"); File.WriteAllText(second, "source");
+        var model = new ExportDialogModel(new([Input(first), Input(second)], [], firstDirectory, IncludeSubfolders: true),
+            new EncodingOptions(), [], [], new FakeResources(), _ => new(false, 0));
+        model.DestinationMode = ExportDestinationMode.SameFolderAsOriginal;
+        model.SubfolderName = "1080p";
+        Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
+
+        Assert.Equal([
+            Path.Combine(firstDirectory, "1080p", "first-001.mp4"),
+            Path.Combine(secondDirectory, "1080p", "second-002.mp4")],
+            model.CurrentPlan!.Items.Select(item => item.OutputPaths.Single()));
+    }
+
+    [Fact]
+    public async Task AcceptedPlan_SnapshotsResolvedPathsAgainstLaterUiChanges()
+    {
+        var model = CreateModel("clip.mp4");
+        model.Destination = Path.Combine(_root, "Accepted");
+        model.CreateSubfolder = false;
+        Ready(model, Metadata("h264", "mp4"));
+
+        var accepted = await model.MaterializeAcceptedPlanAsync();
+        var acceptedPath = accepted.Items.Single().OutputPaths.Single();
+        model.DestinationMode = ExportDestinationMode.SameFolderAsOriginal;
+        model.CreateSubfolder = true;
+        model.SubfolderName = "Changed";
+
+        Assert.Equal(Path.Combine(_root, "Accepted", "clip-001.mp4"), acceptedPath);
+        Assert.Equal(acceptedPath, accepted.Items.Single().OutputPaths.Single());
+        Assert.NotEqual(acceptedPath, model.CurrentPlan!.Items.Single().OutputPaths.Single());
+    }
+
+    [Fact]
+    public void SpecificFolder_DuplicateFlattenedNamesAreBlockingCollisions()
+    {
+        var firstDirectory = Directory.CreateDirectory(Path.Combine(_root, "One")).FullName;
+        var secondDirectory = Directory.CreateDirectory(Path.Combine(_root, "Two")).FullName;
+        var first = Path.Combine(firstDirectory, "clip.mp4");
+        var second = Path.Combine(secondDirectory, "clip.mp4");
+        File.WriteAllText(first, "source"); File.WriteAllText(second, "source");
+        var model = new ExportDialogModel(new([Input(first), Input(second)], [], firstDirectory, IncludeSubfolders: true),
+            new EncodingOptions(), [], [], new FakeResources(), _ => new(false, 0));
+        model.Destination = Path.Combine(_root, "Exports");
+        model.CreateSubfolder = false;
+        model.NameParts.Clear(); model.AddPart(NamePartKind.OriginalName);
+        Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
+
+        Assert.False(model.CanExport);
+        Assert.Contains(model.CurrentPlan!.Issues, issue => issue.Code == "encoding.output-collision");
+        Assert.All(model.CurrentPlan.Items, item =>
+            Assert.Contains(item.Issues, issue => issue.Code == "encoding.output-collision"));
+    }
+
+    [Fact]
     public void ConditionalAuthorityAndPreflightGateFollowTypedOptions()
     {
         var model = CreateModel("clip.mp4");
@@ -610,6 +692,9 @@ public sealed class ExportDialogModelTests : IDisposable
         var path = Path.Combine(_root, name); File.WriteAllText(path, "source");
         return new([new(Guid.NewGuid(), Guid.NewGuid(), path, name, 6, null)], [], _root);
     }
+
+    private static EncodingHandoffInput Input(string path) => new(Guid.NewGuid(), Guid.NewGuid(), path,
+        Path.GetFileName(path), new FileInfo(path).Length, null);
 
     private static ExportDialogModel Model(EncodingHandoffResult handoff,
         ExportNamingDefault namingDefault = ExportNamingDefault.Ordinary, NamePartsDefinition? restoredNaming = null) =>

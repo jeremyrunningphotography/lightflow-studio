@@ -122,6 +122,40 @@ public sealed class FfmpegCommandBuilderTests
     }
 
     [Fact]
+    public void Encode_HevcMp4UsesAppleCompatibleSampleEntryWithoutTimecodeTrack()
+    {
+        var options = EncodingPresetCatalog.Get(EncodingPreset.EfficientHevc) with
+        {
+            Container = OutputContainer.Mp4
+        };
+
+        var args = FfmpegCommandBuilder.Encode("in.mov", "out.mp4.lightflow", null,
+            RecoveryStrategy.Normal, OutputResolution.Source, encoding: options);
+
+        AssertContainsSequence(args, "-c:v", "hevc_nvenc");
+        AssertContainsSequence(args, "-tag:v", "hvc1");
+        AssertContainsSequence(args, "-write_tmcd", "0");
+        AssertContainsSequence(args, "-f", "mp4", "out.mp4.lightflow");
+    }
+
+    [Theory]
+    [InlineData(VideoCodec.H264, OutputContainer.Mp4)]
+    [InlineData(VideoCodec.Hevc, OutputContainer.Mov)]
+    [InlineData(VideoCodec.Hevc, OutputContainer.Mkv)]
+    internal void Encode_NonHevcMp4OutputsDoNotReceiveAppleMp4CompatibilityArguments(
+        VideoCodec codec, OutputContainer container)
+    {
+        var options = EncodingPresetCatalog.Recommended with { Codec = codec, Container = container };
+
+        var args = FfmpegCommandBuilder.Encode("in.mov", "out.lightflow", null,
+            RecoveryStrategy.Normal, OutputResolution.Source, encoding: options);
+
+        Assert.DoesNotContain("-tag:v", args);
+        Assert.DoesNotContain("hvc1", args);
+        Assert.DoesNotContain("-write_tmcd", args);
+    }
+
+    [Fact]
     public void Encode_VariableBitrateAddsTargetMaximumAndBuffer()
     {
         var options = EncodingPresetCatalog.Recommended with

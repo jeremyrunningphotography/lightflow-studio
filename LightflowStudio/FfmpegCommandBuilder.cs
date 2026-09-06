@@ -57,6 +57,7 @@ internal static class FfmpegCommandBuilder
         args.AddRange(["-pix_fmt", options.PixelFormat == VideoPixelFormat.P010 ? "p010le" : "yuv420p"]);
 
         AddAudio(args, recovery, options, trim);
+        AddContainerCompatibility(args, options);
         if (options.FastStart && options.Container is OutputContainer.Mp4 or OutputContainer.Mov)
             args.AddRange(["-movflags", "+faststart"]);
         args.AddRange(["-progress", "pipe:1", "-nostats", "-f", OutputMuxer(options.Container), output]);
@@ -70,6 +71,17 @@ internal static class FfmpegCommandBuilder
         OutputContainer.Mkv => "matroska",
         _ => throw new ArgumentOutOfRangeException(nameof(container))
     };
+
+    private static void AddContainerCompatibility(List<string> args, EncodingOptions options)
+    {
+        if (options is { Codec: VideoCodec.Hevc, Container: OutputContainer.Mp4 })
+        {
+            // Apple's native media stack expects parameter sets outside HEVC samples (hvc1). The MOV/MP4
+            // muxer can also synthesize a tmcd track from inherited timecode metadata, which Export does not
+            // preserve and which has produced invalid timestamps in real-world source media.
+            args.AddRange(["-tag:v", "hvc1", "-write_tmcd", "0"]);
+        }
+    }
 
     private static void AddRateControl(List<string> args, EncodingOptions options)
     {

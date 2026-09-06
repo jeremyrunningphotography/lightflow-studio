@@ -63,6 +63,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private bool _includeNoSubclipSources;
     private JobPlan<EncodingJobOptions>? _plan;
     private string _destination;
+    private ExportDestinationMode _destinationMode = ExportDestinationMode.SpecificFolder;
     private bool _createSubfolder = true;
     private string _subfolderName = "Exports";
     private NamePartSeparator _separator = NamePartSeparator.Hyphen;
@@ -149,7 +150,22 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         }
     }
     public string PreviewName => Preview(PreviewExtension());
-    public string PreviewPath => string.IsNullOrWhiteSpace(FinalDestination) ? "Choose an output folder" : Path.Combine(FinalDestination, Preview(PreviewExtension()));
+    public string PreviewPath
+    {
+        get
+        {
+            try
+            {
+                var source = ActiveInputs().FirstOrDefault().input?.SourcePath;
+                if (source is null) return "Choose an output folder";
+                return Path.Combine(CurrentDestination().ResolveDirectory(source), Preview(PreviewExtension()));
+            }
+            catch (Exception exception) when (exception is ArgumentException or NotSupportedException or IOException)
+            {
+                return "Choose an output folder";
+            }
+        }
+    }
     public string PreviewDirectory => Path.GetDirectoryName(PreviewPath) ?? "";
     public string PreviewFileName => Path.GetFileName(PreviewPath);
     public string PreviewStem => Path.GetFileNameWithoutExtension(PreviewName);
@@ -165,6 +181,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public bool AudioDetailsAuthoritative => _encoding.AudioMode != AudioEncodingMode.None;
 
     public string Destination { get => _destination; set => Set(ref _destination, value); }
+    public ExportDestinationMode DestinationMode { get => _destinationMode; set => Set(ref _destinationMode, value); }
     public bool CreateSubfolder { get => _createSubfolder; set => Set(ref _createSubfolder, value); }
     public string SubfolderName { get => _subfolderName; set => Set(ref _subfolderName, value); }
     public NamePartSeparator Separator { get => _separator; set => Set(ref _separator, value); }
@@ -176,8 +193,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public bool AdvancedExpanded { get => _advancedExpanded; set => Set(ref _advancedExpanded, value); }
     public ExportLutChoice Camera { get => _camera; set => Set(ref _camera, value); }
     public ExportLutChoice Creative { get => _creative; set => Set(ref _creative, value); }
-    private string FinalDestination => CreateSubfolder && !string.IsNullOrWhiteSpace(SubfolderName)
-        ? Path.Combine(Destination, SubfolderName.Trim()) : Destination;
+    private ExportDestination CurrentDestination() => new(DestinationMode, Destination,
+        CreateSubfolder ? SubfolderName : null);
 
     public void ApplyMetadata(IReadOnlyList<MediaMetadata?> metadata) { _metadata = metadata.ToArray(); Refresh(); }
     public void ApplyResolvedRanges(IReadOnlyList<ResolvedMediaRange?> ranges) { _resolvedRanges = ranges.ToArray(); Refresh(); }
@@ -231,17 +248,23 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private JobPlan<EncodingJobOptions> BuildPlan(ColorStagePolicy? camera = null, ColorStagePolicy? creative = null)
     {
         var naming = new NamePartsDefinition(NameParts.ToArray(), Separator);
-        var options = new EncodingJobOptions(_handoff.InputFolder ?? "", FinalDestination, Resolution,
+        var destination = CurrentDestination();
+        var outputRoot = DestinationMode == ExportDestinationMode.SpecificFolder
+            ? Destination : _handoff.InputFolder ?? "";
+        var options = new EncodingJobOptions(_handoff.InputFolder ?? "", outputRoot, Resolution,
             RecoveryStrategy.Normal, _encoding with
             {
                 Container = Container switch { ExportContainerChoice.Mov => OutputContainer.Mov, ExportContainerChoice.Mkv => OutputContainer.Mkv, _ => OutputContainer.Mp4 },
                 Codec = Codec == ExportCodecChoice.Hevc ? VideoCodec.Hevc : VideoCodec.H264
-            }, null, "", _handoff.IncludeSubfolders, OverwriteExisting, false, _handoff.IncludeSubfolders,
-            EncodingColorMode.Assigned, EncodingJobConcurrency.Default,
-            new(Codec == ExportCodecChoice.SameAsSource ? VideoCodecPolicy.SameAsSource : VideoCodecPolicy.Explicit,
+            }, null, "", PreserveFolderStructure: false, OverwriteExistingFiles: OverwriteExisting,
+            DetailedOutput: false,
+            IncludeSubfolders: _handoff.IncludeSubfolders,
+            ColorMode: EncodingColorMode.Assigned, ParallelExports: EncodingJobConcurrency.Default,
+            MaterializationPolicy: new(Codec == ExportCodecChoice.SameAsSource ? VideoCodecPolicy.SameAsSource : VideoCodecPolicy.Explicit,
                 Container == ExportContainerChoice.SameAsSource ? OutputContainerPolicy.SameAsSource : OutputContainerPolicy.Explicit,
                 EncodingQualityPolicy.Automatic, camera ?? PreviewPolicy(Camera), creative ?? PreviewPolicy(Creative),
-                new(_encoding.AudioBitrateKbps, _encoding.AudioSampleRate, _encoding.AudioChannels)), naming);
+                new(_encoding.AudioBitrateKbps, _encoding.AudioSampleRate, _encoding.AudioChannels)), Naming: naming,
+            Destination: destination);
         var sources = ActiveInputs().Select(value =>
         {
             var (input, index) = value;
@@ -263,7 +286,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         var plan = EncodingJobPlanner.Plan(definition, _inspectOutput, colorResources: _resourceStore);
         var extra = new List<JobIssue>();
         var itemIssues = new Dictionary<int, List<JobIssue>>();
-        if (string.IsNullOrWhiteSpace(Destination) || !Path.IsPathFullyQualified(Destination))
+        if (DestinationMode == ExportDestinationMode.SpecificFolder &&
+            (string.IsNullOrWhiteSpace(Destination) || !Path.IsPathFullyQualified(Destination)))
             extra.Add(new("export.destination", "Choose a valid absolute output folder.", JobIssueSeverity.Error));
         if (CreateSubfolder)
             try { OutputDestinationPlanner.ResolveSubfolderName(Resolution, SubfolderName); }

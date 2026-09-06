@@ -76,6 +76,23 @@ public sealed class ExportModalRegressionTests
     }
 
     [Fact]
+    public void DestinationUsesTwoExplicitModesAndOneIndependentOptionalSubfolder()
+    {
+        var root = FindRepositoryRoot();
+        var xaml = XDocument.Load(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml"));
+        var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
+
+        Assert.Equal("Specific folder", (string?)Named(xaml, "SpecificFolderRadio").Attribute("Content"));
+        Assert.Equal("Same folder as original", (string?)Named(xaml, "SameFolderRadio").Attribute("Content"));
+        Assert.Equal("DestinationMode", (string?)Named(xaml, "SpecificFolderRadio").Attribute("GroupName"));
+        Assert.Equal("DestinationMode", (string?)Named(xaml, "SameFolderRadio").Attribute("GroupName"));
+        Assert.Equal("Create subfolder", (string?)Named(xaml, "CreateSubfolderCheck").Attribute("Content"));
+        Assert.Contains("SpecificFolderPanel.IsEnabled", source);
+        Assert.Contains("SubfolderText.IsEnabled", source);
+        Assert.Contains("ExportDestinationMode.SameFolderAsOriginal", source);
+    }
+
+    [Fact]
     public void BrowserAndPlayerShareModalPathWithoutEncodingWorkspaceNavigation()
     {
         var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));

@@ -65,8 +65,11 @@ internal static class FileOperationPathSemantics
     {
         var child = Path.TrimEndingDirectorySeparator(Path.GetFullPath(candidate));
         var parent = Path.TrimEndingDirectorySeparator(Path.GetFullPath(ancestor));
-        return string.Equals(child, parent, StringComparison.OrdinalIgnoreCase) || child.StartsWith(
-            parent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        var descendantPrefix = Path.EndsInDirectorySeparator(parent)
+            ? parent
+            : parent + Path.DirectorySeparatorChar;
+        return string.Equals(child, parent, StringComparison.OrdinalIgnoreCase) ||
+               child.StartsWith(descendantPrefix, StringComparison.OrdinalIgnoreCase);
     }
 }
 

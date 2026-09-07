@@ -16,14 +16,20 @@ public sealed class FileOperationPresentationRegressionTests
         Assert.Equal("100", (string?)decorator.Attribute("Panel.ZIndex"));
         Assert.Equal("False", (string?)decorator.Attribute("IsHitTestVisible"));
         Assert.Equal("BrowserFileDrag_GiveFeedback", (string?)Named(document, "BrowserFolderTree").Attribute("GiveFeedback"));
-        Assert.Contains(document.Descendants().Where(element => element.Name.LocalName == "Border"),
-            element => (string?)element.Attribute("MouseMove") == "BrowserGridTile_MouseMove" &&
-                       (string?)element.Attribute("GiveFeedback") == "BrowserFileDrag_GiveFeedback");
+        Assert.Equal("BrowserFolderTree_PreviewMouseLeftButtonUp",
+            (string?)Named(document, "BrowserFolderTree").Attribute("PreviewMouseLeftButtonUp"));
+        var workspace = Named(document, "BrowserWorkspaceRoot");
+        Assert.Equal("BrowserWorkspaceRoot_PreviewMouseMove", (string?)workspace.Attribute("PreviewMouseMove"));
+        Assert.Equal("BrowserFileDrag_GiveFeedback", (string?)workspace.Attribute("GiveFeedback"));
 
         var code = File.ReadAllText(Path.Combine(root, "LightflowStudio", "MainWindow.xaml.cs"));
         Assert.Contains("GetAdornerLayer(BrowserFileDragAdornerTarget)", code);
         Assert.Contains("new FileDragAdorner(BrowserFileDragAdornerTarget", code);
+        Assert.Contains("System.Windows.Threading.DispatcherPriority.Render", code);
         Assert.Contains("_fileDragAdorner?.RefreshPosition();", code);
+        Assert.Contains("private void BrowserFolderTree_PreviewMouseLeftButtonUp", code);
+        Assert.Contains("var commitDeferredSelection = ReferenceEquals(tile, _browserAssetPendingSingleSelection);", code);
+        Assert.Contains("_browserAssetDragTile = null;", code);
     }
 
     [Fact]
@@ -34,6 +40,11 @@ public sealed class FileOperationPresentationRegressionTests
         var operations = File.ReadAllText(Path.Combine(root, "LightflowStudio", "FileOperations.cs"));
         Assert.DoesNotContain("MutationCompleted", operations);
         Assert.Contains("await SynchronizeFileSystemMutationsAsync(result.CompletedMutations);", main);
+        Assert.Contains("await RefreshActiveDirectFolderAfterMutationAsync(location);", main);
+        Assert.Contains("ApplyBrowserState(current with", main);
+        Assert.Contains("_fileSystemMutationPresentationDepth++", main);
+        Assert.Contains("finally { _fileSystemMutationPresentationDepth--; }", main);
+        Assert.Contains("_activeCollectionScope is not null || _fileSystemMutationPresentationDepth > 0", main);
         Assert.Contains("synchronizePresentation", operations);
         Assert.Contains("await _synchronizePresentation(result)", operations);
         Assert.True(operations.IndexOf("await _synchronizePresentation(result)", StringComparison.Ordinal) <
@@ -41,10 +52,23 @@ public sealed class FileOperationPresentationRegressionTests
     }
 
     [Fact]
+    public void DerivedWorkCompletionProjectsFinalPreviewBeforeDetachingItsHandler()
+    {
+        var code = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
+        var start = code.IndexOf("private async Task CompleteBrowserDerivedWorkProjectionAsync", StringComparison.Ordinal);
+        var end = code.IndexOf("private async Task ApplyBrowserDerivedWorkResultsAsync", start, StringComparison.Ordinal);
+        var body = code[start..end];
+        Assert.True(body.IndexOf("await batch.Completion", StringComparison.Ordinal) <
+                    body.IndexOf("ApplyBrowserDerivedWorkResultsAsync(batch, generation)", StringComparison.Ordinal));
+        Assert.True(body.IndexOf("ApplyBrowserDerivedWorkResultsAsync(batch, generation)", StringComparison.Ordinal) <
+                    body.IndexOf("batch.ProgressChanged -= handler", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void TileDragResolvesSourcesFromTheComputedDragAssetIds()
     {
         var code = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
-        var start = code.IndexOf("private async void BrowserGridTile_MouseMove", StringComparison.Ordinal);
+        var start = code.IndexOf("private async void BrowserWorkspaceRoot_PreviewMouseMove", StringComparison.Ordinal);
         var end = code.IndexOf("private void BrowserGridTile_DragOver", start, StringComparison.Ordinal);
         var body = code[start..end];
         Assert.Contains("FileOperationSourcesAsync(ids)", body);

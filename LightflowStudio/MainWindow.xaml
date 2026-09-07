@@ -534,7 +534,9 @@
   <TabControl Grid.Column="0" Margin="0,0,14,0" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
    SelectionChanged="MainTabs_SelectionChanged">
    <TabItem>
-    <Grid x:Name="BrowserWorkspaceRoot" Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}" SizeChanged="BrowserWorkspaceRoot_SizeChanged">
+    <Grid x:Name="BrowserWorkspaceRoot" Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}"
+     SizeChanged="BrowserWorkspaceRoot_SizeChanged" PreviewMouseMove="BrowserWorkspaceRoot_PreviewMouseMove"
+     GiveFeedback="BrowserFileDrag_GiveFeedback">
       <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource ShellPanel}">
        <ScrollViewer x:Name="BrowserFolderScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
@@ -549,6 +551,7 @@
         <Grid x:Name="BrowserLocationsSectionContent" Margin="0,6,0,0">
          <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}" AllowDrop="True"
           SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseLeftButtonDown="BrowserFolderTree_PreviewMouseLeftButtonDown"
+          PreviewMouseLeftButtonUp="BrowserFolderTree_PreviewMouseLeftButtonUp"
           MouseMove="BrowserFolderTree_MouseMove" GiveFeedback="BrowserFileDrag_GiveFeedback" DragOver="BrowserFolderTree_DragOver" DragLeave="BrowserFolderTree_DragLeave" Drop="BrowserFolderTree_Drop"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
           <TreeView.ContextMenu>
@@ -1019,7 +1022,7 @@
                     change, including tiles the slider changes while virtualized out of view. -->
                <Border Width="{DynamicResource BrowserTileWidth}" Margin="0,0,12,12" Padding="7" CornerRadius="6" BorderThickness="1" AllowDrop="True"
                 MouseLeftButtonDown="BrowserGridTile_MouseLeftButtonDown" MouseLeftButtonUp="BrowserGridTile_MouseLeftButtonUp" MouseRightButtonDown="BrowserGridTile_MouseRightButtonDown"
-                MouseMove="BrowserGridTile_MouseMove" GiveFeedback="BrowserFileDrag_GiveFeedback" DragOver="BrowserGridTile_DragOver" Drop="BrowserGridTile_Drop"
+                DragOver="BrowserGridTile_DragOver" Drop="BrowserGridTile_Drop"
                 ContextMenuOpening="BrowserGridTile_ContextMenuOpening"
                 ToolTip="{Binding Name}" AutomationProperties.Name="{Binding AutomationLabel}">
                 <Border.ContextMenu>

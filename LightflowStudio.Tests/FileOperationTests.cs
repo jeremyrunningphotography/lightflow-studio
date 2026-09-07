@@ -6,6 +6,16 @@ namespace LightflowStudio.Tests;
 public sealed class FileOperationTests
 {
     [Fact]
+    public void PathContainment_RecognizesDescendantsOfDriveRoots()
+    {
+        var root = Path.GetPathRoot(Path.GetFullPath(Path.GetTempPath()))!;
+        var child = Path.Combine(root, "Lightflow Testing", "folder");
+
+        Assert.True(FileOperationPathSemantics.IsSameOrDescendant(child, root));
+        Assert.True(FileOperationPathSemantics.IsSameOrDescendant(root, root));
+    }
+
+    [Fact]
     public async Task Executor_ReturnsSuccessfulMutationsAsOneCompletionBatch()
     {
         var platform = new FakePlatform();

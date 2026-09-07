@@ -128,6 +128,7 @@ public partial class MainWindow : Window
     private BrowserCollectionNode? _collectionDragNode;
     private System.Windows.Point _browserAssetDragStart;
     private BrowserGridTile? _browserAssetDragTile;
+    private int _fileSystemMutationPresentationDepth;
     private BrowserGridTile? _browserAssetPendingSingleSelection;
     private BrowserCollectionNode? _browserCollectionPointerTarget;
     private bool _browserCollectionKeyboardSelectionPending;
@@ -532,7 +533,7 @@ public partial class MainWindow : Window
 
     private async Task SynchronizeMonitoredFolderAsync(MediaFolderEnumerationRequest request)
     {
-        if (_activeCollectionScope is not null) return;
+        if (_activeCollectionScope is not null || _fileSystemMutationPresentationDepth > 0) return;
         var state = _lastLoadedBrowserState;
         var location = _browserNavigation.ActiveLocation;
         if (state is null || location is null || location.RootId != request.RootId) return;
@@ -960,10 +961,15 @@ public partial class MainWindow : Window
 
     private void BrowserFolderTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        _browserAssetDragTile = null;
+        _browserAssetPendingSingleSelection = null;
         _browserFolderPointerTarget = BrowserTreeNodeFromElement(e.OriginalSource as DependencyObject);
         _browserFolderDragNode = _browserFolderPointerTarget;
         _browserFolderDragStart = e.GetPosition(BrowserFolderTree);
     }
+
+    private void BrowserFolderTree_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
+        _browserFolderDragNode = null;
 
     /// <summary>
     /// #124 (revised): toggles Include Subfolders for whichever folder is currently open, via
@@ -1353,6 +1359,7 @@ public partial class MainWindow : Window
     private void BrowserGridTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
+        _browserFolderDragNode = null;
         _browserAssetPendingSingleSelection = null;
         _browserAssetDragStart = e.GetPosition(BrowserGridRows);
         _browserAssetDragTile = tile;
@@ -1398,7 +1405,7 @@ public partial class MainWindow : Window
         ((MenuItem)menu.Items[8]).IsEnabled = state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled;
     }
 
-    private async void BrowserGridTile_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    private async void BrowserWorkspaceRoot_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed || _browserAssetDragTile is null) return;
         var current = e.GetPosition(BrowserGridRows);
@@ -1415,7 +1422,7 @@ public partial class MainWindow : Window
         data.SetData(typeof(BrowserAssetDragPayload), new BrowserAssetDragPayload(ids));
         data.SetData(System.Windows.DataFormats.FileDrop, sources.Select(source => source.Path).ToArray());
         ShowFileDragAdorner(sources.Count, FileOperationKind.Move);
-        System.Windows.DragDrop.DoDragDrop((DependencyObject)sender, data,
+        System.Windows.DragDrop.DoDragDrop(BrowserGridRows, data,
             System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
         ClearFileDragAdorner();
     }
@@ -1430,10 +1437,11 @@ public partial class MainWindow : Window
 
     private void BrowserGridTile_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile ||
-            !ReferenceEquals(tile, _browserAssetPendingSingleSelection)) return;
+        if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
+        var commitDeferredSelection = ReferenceEquals(tile, _browserAssetPendingSingleSelection);
         _browserAssetPendingSingleSelection = null;
         _browserAssetDragTile = null;
+        if (!commitDeferredSelection) return;
         _browserGrid.SelectSingle(tile.Index);
         UpdateBrowserStatusText();
         e.Handled = true;
@@ -2442,6 +2450,13 @@ public partial class MainWindow : Window
     private async Task SynchronizeFileSystemMutationsAsync(IReadOnlyList<FileSystemMutation> mutations)
     {
         if (mutations.Count == 0) return;
+        _fileSystemMutationPresentationDepth++;
+        try { await SynchronizeFileSystemMutationsCoreAsync(mutations); }
+        finally { _fileSystemMutationPresentationDepth--; }
+    }
+
+    private async Task SynchronizeFileSystemMutationsCoreAsync(IReadOnlyList<FileSystemMutation> mutations)
+    {
         if (_activeCollectionScope is not null)
         {
             await LoadCollectionScopeAsync(_activeCollectionScope.Collection.CollectionId);
@@ -2474,7 +2489,7 @@ public partial class MainWindow : Window
         if (!inside.Any(path => FileOperationPathSemantics.IsSameOrDescendant(path, location.AbsolutePath))) return;
         if (state.Mode == BrowserScopeMode.DirectFolder)
         {
-            await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+            await RefreshActiveDirectFolderAfterMutationAsync(location);
             return;
         }
 
@@ -2514,6 +2529,38 @@ public partial class MainWindow : Window
             new AggregateDerivedWorkBatch(new(CatalogReconciliationStatus.Succeeded, location.RootId,
                 location.RelativeFolder, batches.SelectMany(batch => batch.Reconciliation.Items).ToArray(), 0), batches);
         ApplyBrowserState(state with { Entries = direct.Entries, RecursiveMediaEntries = unique, DerivedWork = derived });
+    }
+
+    /// <summary>
+    /// Materializes a completed filesystem mutation straight into the active direct-folder projection. A
+    /// mutation is already authoritative and must update the actual bound grid before Direct/Job completion
+    /// is reported; routing this through Browser navigation made it compete with watcher navigation and left
+    /// the old rows visible until a later monitoring pass happened to repair them.
+    /// </summary>
+    private async Task RefreshActiveDirectFolderAfterMutationAsync(BrowserLocation expectedLocation)
+    {
+        var generation = _browserUiGeneration;
+        var request = new MediaFolderEnumerationRequest(expectedLocation.RootId,
+            string.IsNullOrEmpty(expectedLocation.RelativeFolder) ? null : expectedLocation.RelativeFolder);
+        var refresh = await _storage.MediaDiscovery.RefreshAsync(request, DerivedWorkPriority.Visible);
+        if (!refresh.Reconciliation.Succeeded) return;
+        var listing = await _storage.MediaFolders.EnumerateAsync(request);
+        if (!listing.Succeeded || generation != _browserUiGeneration || _activeCollectionScope is not null) return;
+        var current = _lastLoadedBrowserState;
+        var active = _browserNavigation.ActiveLocation;
+        if (current?.Location is null || current.Mode != BrowserScopeMode.DirectFolder || active is null ||
+            active.RootId != expectedLocation.RootId ||
+            !string.Equals(active.RelativeFolder, expectedLocation.RelativeFolder, StringComparison.OrdinalIgnoreCase)) return;
+        var status = listing.Entries.Count == 0 ? BrowserFolderStatus.Empty : BrowserFolderStatus.Ready;
+        ApplyBrowserState(current with
+        {
+            Location = expectedLocation with { RelativeFolder = listing.RelativeFolder },
+            Status = status,
+            Entries = listing.Entries,
+            Diagnostic = listing.Diagnostic,
+            DerivedWork = refresh.DerivedWork,
+            RecursiveMediaEntries = null
+        });
     }
 
     private async Task ExecuteFileOperationAsync(FileOperationKind kind, IReadOnlyList<FileOperationSource> sources, string? destination)
@@ -2655,6 +2702,10 @@ public partial class MainWindow : Window
         if (_fileDragAdornerLayer is null) return;
         _fileDragAdorner = new FileDragAdorner(BrowserFileDragAdornerTarget, count, kind);
         _fileDragAdornerLayer.Add(_fileDragAdorner);
+        // DoDragDrop enters a native modal loop immediately after this method returns. Give WPF one Render
+        // priority turn now so the first drag frame contains the label instead of waiting for a dispatcher
+        // pass that may not happen until the pointer is already over (or beyond) the destination tree row.
+        Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
     }
 
     private void UpdateFileDragAdorner(int count, FileOperationKind kind)
@@ -3079,7 +3130,19 @@ public partial class MainWindow : Window
         handler = (_, _) => Dispatcher.BeginInvoke(() => _ = ApplyBrowserDerivedWorkResultsAsync(batch, generation));
         batch.ProgressChanged += handler;
         _ = ApplyBrowserDerivedWorkResultsAsync(batch, generation);
-        _ = batch.Completion.ContinueWith(_ => batch.ProgressChanged -= handler, TaskScheduler.Default);
+        _ = CompleteBrowserDerivedWorkProjectionAsync(batch, generation, handler);
+    }
+
+    private async Task CompleteBrowserDerivedWorkProjectionAsync(IDerivedWorkBatch batch, long generation,
+        EventHandler<DerivedWorkProgress> handler)
+    {
+        try
+        {
+            await batch.Completion.ConfigureAwait(false);
+            await Dispatcher.InvokeAsync(() => ApplyBrowserDerivedWorkResultsAsync(batch, generation)).Task.Unwrap();
+        }
+        catch (OperationCanceledException) { }
+        finally { batch.ProgressChanged -= handler; }
     }
 
     private async Task ApplyBrowserDerivedWorkResultsAsync(IDerivedWorkBatch batch, long generation)

@@ -62,7 +62,7 @@ delivery resolutions from 480p through 4K UHD.
 
 ### Track background work in one Jobs experience
 
-![Lightflow Studio full Jobs workspace showing completed and failed filesystem operations with capability-specific details](docs/assets/readme/jobs-file-operations.jpg)
+![Lightflow Studio full Jobs workspace showing completed and failed filesystem operations with capability-specific details](docs/assets/readme/jobs-file-operations-detail.jpg)
 
 The compact Jobs drawer follows Browser and Player work; the full Jobs workspace brings
 current and saved Jobs together for search, inspection, queue control, retry, and

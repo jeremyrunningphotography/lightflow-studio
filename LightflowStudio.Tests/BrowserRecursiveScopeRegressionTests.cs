@@ -107,7 +107,7 @@ public sealed class BrowserRecursiveScopeRegressionTests
         var body = MethodBody("private async Task SynchronizeMonitoredFolderAsync");
 
         Assert.Contains("SynchronizeMonitoredFolderAsync(request)", handler);
-        Assert.Contains("SynchronizeFileSystemMutationAsync", body);
+        Assert.Contains("SynchronizeFileSystemMutationsAsync", body);
         Assert.DoesNotContain("_browserRecursiveRefreshDebounceTimer", body);
     }
 

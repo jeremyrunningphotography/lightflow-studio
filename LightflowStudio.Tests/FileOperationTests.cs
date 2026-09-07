@@ -6,6 +6,47 @@ namespace LightflowStudio.Tests;
 public sealed class FileOperationTests
 {
     [Fact]
+    public async Task Executor_ReturnsSuccessfulMutationsAsOneCompletionBatch()
+    {
+        var platform = new FakePlatform();
+        var executor = new FileOperationExecutor(platform, null!, null!);
+        var source = new FileOperationSource(null, @"C:\media\clip.mov", 10);
+        var intent = new FileOperationIntent(Guid.NewGuid(), FileOperationKind.Recycle, [source], null,
+            DateTimeOffset.UtcNow, 10, false, FileOperationExecution.Direct);
+
+        var result = await executor.ExecuteAsync(intent);
+
+        var mutation = Assert.Single(result.CompletedMutations);
+        Assert.Equal(FileOperationKind.Recycle, mutation.Kind);
+        Assert.Equal(source.Path, mutation.SourcePath);
+    }
+
+    [Fact]
+    public async Task PromotedJob_DoesNotBecomeTerminalUntilPresentationSynchronizationCompletes()
+    {
+        var temporary = Path.Combine(Path.GetTempPath(), $"lightflow-file-job-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(temporary);
+        try
+        {
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var executor = new FileOperationExecutor(new FakePlatform(), null!, null!);
+            var jobs = new FileOperationJobs(executor, new FileOperationHistoryStore(Path.Combine(temporary, "history.json")),
+                async _ => { entered.TrySetResult(); await release.Task; });
+            var source = new FileOperationSource(null, @"C:\media\clip.mov", 10);
+            var intent = new FileOperationIntent(Guid.NewGuid(), FileOperationKind.Recycle, [source], null,
+                DateTimeOffset.UtcNow, 10, false, FileOperationExecution.Job);
+
+            jobs.Enqueue(intent);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(FileOperationState.Running, Assert.Single(jobs.Jobs).State);
+            release.TrySetResult();
+            await WaitUntilAsync(() => Assert.Single(jobs.Jobs).State == FileOperationState.Completed);
+        }
+        finally { Directory.Delete(temporary, true); }
+    }
+
+    [Fact]
     public void PromotionPolicy_KeepsSmallKnownLocalWorkDirect()
     {
         Assert.Equal(FileOperationExecution.Direct,
@@ -76,5 +117,24 @@ public sealed class FileOperationTests
             Assert.Equal(Path.Combine(folder, "Clip (2).mp4"), Assert.Single(intent.PlannedDestinations!));
         }
         finally { Directory.Delete(folder, true); }
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (!condition())
+        {
+            if (DateTime.UtcNow >= deadline) throw new TimeoutException("The file-operation Job did not reach its terminal state.");
+            await Task.Delay(10);
+        }
+    }
+
+    private sealed class FakePlatform : IFileOperationPlatform
+    {
+        public Task CopyFileAsync(string source, string destination, IProgress<long>? progress,
+            CancellationToken cancellationToken) => Task.CompletedTask;
+        public void Move(string source, string destination) { }
+        public void Recycle(string path) { }
+        public void PermanentlyDelete(string path) { }
     }
 }

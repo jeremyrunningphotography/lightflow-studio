@@ -549,7 +549,7 @@
         <Grid x:Name="BrowserLocationsSectionContent" Margin="0,6,0,0">
          <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}" AllowDrop="True"
           SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseLeftButtonDown="BrowserFolderTree_PreviewMouseLeftButtonDown"
-          MouseMove="BrowserFolderTree_MouseMove" DragOver="BrowserFolderTree_DragOver" DragLeave="BrowserFolderTree_DragLeave" Drop="BrowserFolderTree_Drop"
+          MouseMove="BrowserFolderTree_MouseMove" GiveFeedback="BrowserFileDrag_GiveFeedback" DragOver="BrowserFolderTree_DragOver" DragLeave="BrowserFolderTree_DragLeave" Drop="BrowserFolderTree_Drop"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
           <TreeView.ContextMenu>
            <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
@@ -1019,7 +1019,7 @@
                     change, including tiles the slider changes while virtualized out of view. -->
                <Border Width="{DynamicResource BrowserTileWidth}" Margin="0,0,12,12" Padding="7" CornerRadius="6" BorderThickness="1" AllowDrop="True"
                 MouseLeftButtonDown="BrowserGridTile_MouseLeftButtonDown" MouseLeftButtonUp="BrowserGridTile_MouseLeftButtonUp" MouseRightButtonDown="BrowserGridTile_MouseRightButtonDown"
-                MouseMove="BrowserGridTile_MouseMove" DragOver="BrowserGridTile_DragOver" Drop="BrowserGridTile_Drop"
+                MouseMove="BrowserGridTile_MouseMove" GiveFeedback="BrowserFileDrag_GiveFeedback" DragOver="BrowserGridTile_DragOver" Drop="BrowserGridTile_Drop"
                 ContextMenuOpening="BrowserGridTile_ContextMenuOpening"
                 ToolTip="{Binding Name}" AutomationProperties.Name="{Binding AutomationLabel}">
                 <Border.ContextMenu>
@@ -1193,6 +1193,11 @@
            on MainWindow — this ContentControl only ever hosts it. -->
        <ContentControl Grid.Row="2" x:Name="BrowserPlayerHost" Focusable="False" Visibility="Collapsed"/>
      </Grid>
+     <!-- A dedicated, topmost adorner surface keeps Explorer-style file-drag feedback inside this
+          visible area and independent of whichever scroll/template visual initiated the drag. -->
+     <AdornerDecorator Grid.ColumnSpan="3" Panel.ZIndex="100" IsHitTestVisible="False">
+      <Border x:Name="BrowserFileDragAdornerTarget" Background="Transparent"/>
+     </AdornerDecorator>
     </Grid>
    </TabItem>
    <TabItem Visibility="Collapsed" AutomationProperties.Name="Compatibility export review">

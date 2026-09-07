@@ -202,10 +202,9 @@ public partial class MainWindow : Window
         _exportCoordinator = new ExportJobCoordinator(_exportScheduler, _jobHistory);
         _fileOperationExecutor = new FileOperationExecutor(new WindowsFileOperationPlatform(), storage.MediaAssets,
             storage.BrowserLocations, storage.AssetCopies);
-        _fileOperationExecutor.MutationCompleted += (_, mutation) => Dispatcher.BeginInvoke(async () =>
-            await SynchronizeFileSystemMutationAsync(mutation));
         _fileOperationJobs = new FileOperationJobs(_fileOperationExecutor,
-            new FileOperationHistoryStore(storage.Locations.FileOperationHistoryPath));
+            new FileOperationHistoryStore(storage.Locations.FileOperationHistoryPath), result =>
+                Dispatcher.InvokeAsync(() => SynchronizeFileSystemMutationsAsync(result.CompletedMutations)).Task.Unwrap());
         _fileOperationJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
         _exportCoordinator.Completed += _ => Dispatcher.BeginInvoke(RefreshHistory);
         _exportScheduler.Changed += ExportScheduler_Changed;
@@ -549,8 +548,8 @@ public partial class MainWindow : Window
             return;
         }
         if (!BrowserScope.IsWithinFolderScope(relative, location.RelativeFolder)) return;
-        await SynchronizeFileSystemMutationAsync(new(FileOperationKind.Copy,
-            Path.Combine(absolute, "watcher-change"), null, false));
+        await SynchronizeFileSystemMutationsAsync([new(FileOperationKind.Copy,
+            Path.Combine(absolute, "watcher-change"), null, false)]);
     }
 
     /// <summary>
@@ -1411,7 +1410,7 @@ public partial class MainWindow : Window
         var ids = BrowserAssetDragSelection.AssetIdsForDrag(tile.IsSelected, tile.AssetId,
             _browserGrid.SelectedAssetIdsInBrowserOrder);
         if (ids.Count == 0) return;
-        var sources = await SelectedFileOperationSourcesAsync();
+        var sources = await FileOperationSourcesAsync(ids);
         var data = new System.Windows.DataObject();
         data.SetData(typeof(BrowserAssetDragPayload), new BrowserAssetDragPayload(ids));
         data.SetData(System.Windows.DataFormats.FileDrop, sources.Select(source => source.Path).ToArray());
@@ -2369,15 +2368,16 @@ public partial class MainWindow : Window
     private string? CurrentBrowserFolder() => _browserNavigation.ActiveLocation?.AbsolutePath;
 
     private async Task<IReadOnlyList<FileOperationSource>> SelectedFileOperationSourcesAsync()
+        => await FileOperationSourcesAsync(_browserGrid.SelectedAssetIdsInBrowserOrder);
+
+    private async Task<IReadOnlyList<FileOperationSource>> FileOperationSourcesAsync(IReadOnlyList<Guid> assetIds)
     {
         var sources = new List<FileOperationSource>();
-        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder)
+        foreach (var assetId in assetIds)
         {
-            var resolved = tile.AssetId is { } id ? await _storage.MediaAssets.GetAsync(id) : null;
-            var path = resolved?.PhysicalPath;
-            if (path is null && _lastLoadedBrowserState is { Location: { } location })
-                path = MediaPathSemantics.ResolveContained(location.RootPath, tile.RelativePath);
-            if (path is not null) sources.Add(new(tile.AssetId, path, tile.FileSizeBytes));
+            var resolved = await _storage.MediaAssets.GetAsync(assetId);
+            if (resolved?.PhysicalPath is { } path)
+                sources.Add(new(assetId, path, resolved.Asset.FileSizeBytes));
         }
         return sources;
     }
@@ -2439,8 +2439,9 @@ public partial class MainWindow : Window
         await ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, sources, null);
     }
 
-    private async Task SynchronizeFileSystemMutationAsync(FileSystemMutation mutation)
+    private async Task SynchronizeFileSystemMutationsAsync(IReadOnlyList<FileSystemMutation> mutations)
     {
+        if (mutations.Count == 0) return;
         if (_activeCollectionScope is not null)
         {
             await LoadCollectionScopeAsync(_activeCollectionScope.Collection.CollectionId);
@@ -2448,17 +2449,19 @@ public partial class MainWindow : Window
         }
         var state = _lastLoadedBrowserState;
         if (state?.Location is not { } location) return;
-        if (mutation.IsDirectory && mutation.SourcePath is { } changedFolder &&
-            FileOperationPathSemantics.IsSameOrDescendant(location.AbsolutePath, changedFolder))
+        var scopeMutation = mutations.FirstOrDefault(mutation => mutation.IsDirectory &&
+            mutation.SourcePath is { } sourcePath &&
+            FileOperationPathSemantics.IsSameOrDescendant(location.AbsolutePath, sourcePath));
+        if (scopeMutation is { SourcePath: { } changedFolder })
         {
-            var target = mutation.DestinationPath is { } movedFolder
+            var target = scopeMutation.DestinationPath is { } movedFolder
                 ? Path.Combine(movedFolder, Path.GetRelativePath(changedFolder, location.AbsolutePath))
                 : Path.GetDirectoryName(changedFolder);
             if (target is not null && Directory.Exists(target))
                 await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(target));
             return;
         }
-        var affectedParents = new[] { mutation.SourcePath, mutation.DestinationPath }
+        var affectedParents = mutations.SelectMany(mutation => new[] { mutation.SourcePath, mutation.DestinationPath })
             .Where(path => path is not null).Select(path => Path.GetDirectoryName(path!)!).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var inside = affectedParents.Where(path => FileOperationPathSemantics.IsSameOrDescendant(path, location.RootPath)).ToArray();
         foreach (var parent in inside)
@@ -2490,14 +2493,16 @@ public partial class MainWindow : Window
             if (listing.Succeeded) candidates.AddRange(listing.Entries.Where(entry => !entry.IsDirectory));
             if (refresh.DerivedWork is { } batch) batches.Add(batch);
         }
-        if (mutation.IsDirectory && mutation.SourcePath is { } oldPath &&
-            FileOperationPathSemantics.IsSameOrDescendant(oldPath, location.AbsolutePath))
+        foreach (var oldPath in mutations.Where(mutation => mutation.IsDirectory && mutation.SourcePath is not null)
+                     .Select(mutation => mutation.SourcePath!).Where(path =>
+                         FileOperationPathSemantics.IsSameOrDescendant(path, location.AbsolutePath)))
         {
             var oldRelative = MediaPathSemantics.NormalizeRelativePath(Path.GetRelativePath(location.RootPath, oldPath));
             candidates.RemoveAll(entry => entry.RelativePath.StartsWith(oldRelative + "/", StringComparison.OrdinalIgnoreCase));
         }
-        if (mutation.IsDirectory && mutation.DestinationPath is { } newPath && Directory.Exists(newPath) &&
-            FileOperationPathSemantics.IsSameOrDescendant(newPath, location.AbsolutePath))
+        foreach (var newPath in mutations.Where(mutation => mutation.IsDirectory && mutation.DestinationPath is not null)
+                     .Select(mutation => mutation.DestinationPath!).Where(path => Directory.Exists(path) &&
+                         FileOperationPathSemantics.IsSameOrDescendant(path, location.AbsolutePath)))
         {
             var newRelative = MediaPathSemantics.NormalizeRelativePath(Path.GetRelativePath(location.RootPath, newPath));
             var subtree = await _storage.RecursiveMediaDiscovery.DiscoverAsync(new MediaFolderEnumerationRequest(location.RootId, newRelative), DerivedWorkPriority.Visible);
@@ -2522,6 +2527,7 @@ public partial class MainWindow : Window
                 BrowserStatusText.Text = $"{kind} is tracked in Jobs."; return;
             }
             var result = await _fileOperationExecutor.ExecuteAsync(intent);
+            await SynchronizeFileSystemMutationsAsync(result.CompletedMutations);
             BrowserStatusText.Text = result.Succeeded ? $"{kind} completed." :
                 $"{kind}: {result.CompletedItems} completed, {result.Failures.Count} failed.";
         }
@@ -2547,7 +2553,7 @@ public partial class MainWindow : Window
         if (sources.Count != 1) return;
         var name = TextEntryDialog.Prompt(this, "Rename media", "Name", Path.GetFileName(sources[0].Path));
         if (name is null) return;
-        try { await _fileOperationExecutor.RenameAsync(sources[0], name); }
+        try { await SynchronizeFileSystemMutationsAsync([await _fileOperationExecutor.RenameAsync(sources[0], name)]); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         { NoticeDialog.Show(this, "Rename", "The item could not be renamed", ex.Message); }
     }
@@ -2580,7 +2586,7 @@ public partial class MainWindow : Window
         if (_browserTree.SelectedNode?.AbsolutePath is not { } parent) return;
         var name = TextEntryDialog.Prompt(this, "New Folder", "Folder name");
         if (name is null) return;
-        try { await _fileOperationExecutor.CreateFolderAsync(parent, name); }
+        try { await SynchronizeFileSystemMutationsAsync([await _fileOperationExecutor.CreateFolderAsync(parent, name)]); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         { NoticeDialog.Show(this, "New Folder", "The folder could not be created", ex.Message); }
     }
@@ -2590,7 +2596,7 @@ public partial class MainWindow : Window
         if (SelectedFolderOperationSource() is not { } source) return;
         var name = TextEntryDialog.Prompt(this, "Rename folder", "Name", Path.GetFileName(Path.TrimEndingDirectorySeparator(source.Path)));
         if (name is null) return;
-        try { await _fileOperationExecutor.RenameAsync(source, name); }
+        try { await SynchronizeFileSystemMutationsAsync([await _fileOperationExecutor.RenameAsync(source, name)]); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         { NoticeDialog.Show(this, "Rename", "The folder could not be renamed", ex.Message); }
     }
@@ -2645,9 +2651,9 @@ public partial class MainWindow : Window
     private void ShowFileDragAdorner(int count, FileOperationKind kind)
     {
         ClearFileDragAdorner();
-        _fileDragAdornerLayer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(BrowserWorkspaceRoot);
+        _fileDragAdornerLayer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(BrowserFileDragAdornerTarget);
         if (_fileDragAdornerLayer is null) return;
-        _fileDragAdorner = new FileDragAdorner(BrowserWorkspaceRoot, count, kind);
+        _fileDragAdorner = new FileDragAdorner(BrowserFileDragAdornerTarget, count, kind);
         _fileDragAdornerLayer.Add(_fileDragAdorner);
     }
 
@@ -2662,6 +2668,9 @@ public partial class MainWindow : Window
         if (_fileDragAdorner is not null) _fileDragAdornerLayer?.Remove(_fileDragAdorner);
         _fileDragAdorner = null; _fileDragAdornerLayer = null;
     }
+
+    private void BrowserFileDrag_GiveFeedback(object sender, System.Windows.GiveFeedbackEventArgs e) =>
+        _fileDragAdorner?.RefreshPosition();
 
     private async void BrowserFolderTree_Drop(object sender, System.Windows.DragEventArgs e)
     {
@@ -4737,6 +4746,7 @@ public partial class MainWindow : Window
         public FileDragAdorner(UIElement adorned, int count, FileOperationKind kind) : base(adorned)
         { _count = count; _kind = kind; IsHitTestVisible = false; }
         public void Update(int count, FileOperationKind kind) { _count = count; _kind = kind; InvalidateVisual(); }
+        public void RefreshPosition() => InvalidateVisual();
         protected override void OnRender(DrawingContext drawingContext)
         {
             var point = Mouse.GetPosition(AdornedElement);

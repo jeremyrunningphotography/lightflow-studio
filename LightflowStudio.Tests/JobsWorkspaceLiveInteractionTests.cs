@@ -133,7 +133,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
             await RealizeJobsWorkspaceAsync(window);
             window.HistoryList.SelectedIndex = 0;
             var selected = Assert.IsType<JobsWorkspaceItem>(window.HistoryList.SelectedItem);
-            var details = window.HistoryDetails.Text;
+            var details = window.HistoryDetails.Content;
             var drawerWidth = window.JobsDrawerColumn.Width;
             var browserWidth = window.BrowserNavigationColumn.Width;
             var original = window.FullJobsListColumn.ActualWidth;
@@ -148,7 +148,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
 
             Assert.True(window.FullJobsListColumn.ActualWidth > original);
             Assert.Equal(selected.JobId, Assert.IsType<JobsWorkspaceItem>(window.HistoryList.SelectedItem).JobId);
-            Assert.Equal(details, window.HistoryDetails.Text);
+            Assert.Equal(details, window.HistoryDetails.Content);
             Assert.Equal(drawerWidth, window.JobsDrawerColumn.Width);
             Assert.Equal(browserWidth, window.BrowserNavigationColumn.Width);
             Assert.False(window.FullJobsPaneSplitter.Focusable);

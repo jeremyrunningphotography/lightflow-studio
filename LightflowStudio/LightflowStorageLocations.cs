@@ -9,6 +9,7 @@ internal interface ILightflowStorageLocations
     string StatePath { get; }
     string WorkspaceStatePath { get; }
     string JobHistoryPath { get; }
+    string FileOperationHistoryPath { get; }
     string TrimHistoryPath { get; }
     string OutputIdentityDirectory { get; }
     string CatalogDirectory { get; }
@@ -39,6 +40,7 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
     public required string StatePath { get; init; }
     public required string WorkspaceStatePath { get; init; }
     public required string JobHistoryPath { get; init; }
+    public required string FileOperationHistoryPath { get; init; }
     public string JobRuntimePath => Path.Combine(ApplicationDataDirectory, "jobs-runtime.json");
     public required string TrimHistoryPath { get; init; }
     public required string OutputIdentityDirectory { get; init; }
@@ -80,6 +82,7 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
             StatePath = Path.Combine(applicationData, "state.json"),
             WorkspaceStatePath = Path.Combine(applicationData, "workspace-state.json"),
             JobHistoryPath = Path.Combine(applicationData, "job-history.json"),
+            FileOperationHistoryPath = Path.Combine(applicationData, "file-operation-history.json"),
             TrimHistoryPath = Path.Combine(applicationData, "trim-history.json"),
             OutputIdentityDirectory = Path.Combine(applicationData, "output-identities"),
             CatalogDirectory = catalogDirectory,

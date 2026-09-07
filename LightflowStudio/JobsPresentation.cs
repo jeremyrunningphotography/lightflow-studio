@@ -103,12 +103,65 @@ internal static class JobsPresentation
         };
         var frameRate = encoding.FrameRate > 0 ? $"{encoding.FrameRate:0.###} fps" : "Same as source";
         var issue = job.Errors.FirstOrDefault() ?? job.Warnings.FirstOrDefault();
+        var details = new ExportJobDetailsPresentation(job.OutputPath,
+            $"{EncodingPathPlanner.ResolutionName(settings.Resolution)} · {frameRate}",
+            $"{encoding.Codec} · {encoding.Container}", quality, audio, color);
         return new(job.JobId, job.DisplayName, Glyph(job.State), StateText(job.State), job.ProgressPercent ?? 0,
             job.State == JobState.Running, FormatDuration(job.Elapsed), job.Eta is { } eta ? $"About {FormatDuration(eta)} remaining" : null,
-            job.OutputPath, $"{EncodingPathPlanner.ResolutionName(settings.Resolution)} · {frameRate}",
-            $"{encoding.Codec} · {encoding.Container}", quality, audio, color, issue, expanded,
+            details, issue, expanded,
             job.State == JobState.Queued, job.State == JobState.Paused, job.State == JobState.NeedsAttention,
             !IsTerminal(job.State), job.State == JobState.Queued);
+    }
+
+    public static JobCardPresentation Card(FileOperationJobSnapshot job, bool expanded)
+    {
+        var state = job.State switch
+        {
+            FileOperationState.Waiting => "Waiting", FileOperationState.Running => job.Intent.Kind.ToString(),
+            FileOperationState.CompletedWithFailures => "Completed with warnings", _ => job.State.ToString()
+        };
+        var progress = job.Intent.EstimatedBytes is > 0 ? Math.Clamp(job.CompletedBytes * 100d / job.Intent.EstimatedBytes.Value, 0, 100)
+            : job.Intent.Sources.Count > 0 ? job.CompletedItems * 100d / job.Intent.Sources.Count : 0;
+        var glyph = job.State switch { FileOperationState.Waiting => "○", FileOperationState.Running => "◔",
+            FileOperationState.Completed => "✓", FileOperationState.Cancelled => "×", _ => "!" };
+        var details = FileSystemDetails(job);
+        var completedAt = job.Result?.CompletedUtc ?? DateTimeOffset.UtcNow;
+        var elapsed = completedAt <= job.Intent.CreatedUtc ? TimeSpan.Zero : completedAt - job.Intent.CreatedUtc;
+        return new(job.Intent.OperationId, $"{job.Intent.Kind} {job.Intent.Sources.Count} item{(job.Intent.Sources.Count == 1 ? "" : "s")}",
+            glyph, state, progress, job.State == FileOperationState.Running, FormatDuration(elapsed), null, details,
+            job.Failures.FirstOrDefault()?.Diagnostic, expanded, false, false, false,
+            job.State is FileOperationState.Waiting or FileOperationState.Running, false);
+    }
+
+    public static FileSystemJobDetailsPresentation FileSystemDetails(FileOperationJobSnapshot job)
+    {
+        var total = job.Intent.Sources.Count;
+        var noun = total == 1 ? "item" : "items";
+        var source = total switch
+        {
+            0 => "Source details unavailable",
+            1 => job.Intent.Sources[0].Path,
+            _ => $"{total} selected items · first: {job.Intent.Sources[0].Path}"
+        };
+        var destination = job.Intent.Kind == FileOperationKind.Recycle ? "Windows Recycle Bin"
+            : job.Intent.Destination ?? "Not applicable";
+        var bytes = job.Intent.EstimatedBytes is { } estimated
+            ? $"{job.CompletedBytes:N0} of {estimated:N0} bytes"
+            : $"{job.CompletedBytes:N0} bytes processed";
+        var result = job.State switch
+        {
+            FileOperationState.Waiting => "Waiting to start",
+            FileOperationState.Running => $"{job.CompletedItems} of {total} {noun} completed",
+            FileOperationState.Completed => $"Completed {job.CompletedItems} of {total} {noun}",
+            FileOperationState.CompletedWithFailures => $"Completed {job.CompletedItems} of {total} {noun} with failures",
+            FileOperationState.Cancelled => $"Cancelled after {job.CompletedItems} of {total} {noun}",
+            FileOperationState.Interrupted => $"Interrupted after {job.CompletedItems} of {total} {noun}",
+            _ => $"Failed after {job.CompletedItems} of {total} {noun}"
+        };
+        var failures = string.Join(Environment.NewLine, job.Failures.Select(failure =>
+            $"{failure.Path} — {failure.Diagnostic}"));
+        return new(job.Intent.Kind.ToString(), source, destination,
+            $"{job.CompletedItems} of {total} {noun}", job.CurrentItem ?? "—", bytes, result, failures);
     }
 
     public static void Reconcile(ObservableCollection<JobCardPresentation> cards,
@@ -143,9 +196,16 @@ internal static class JobsPresentation
 
 internal enum JobsBulkAction { None, CancelAll, ClearAll }
 
+internal abstract record JobDetailsPresentation;
+internal sealed record ExportJobDetailsPresentation(string OutputPath, string Video, string Format,
+    string Quality, string Audio, string Color) : JobDetailsPresentation;
+internal sealed record FileSystemJobDetailsPresentation(string Operation, string SourceSummary, string Destination,
+    string ItemProgress, string CurrentItem, string ByteProgress, string ResultSummary,
+    string FailureSummary) : JobDetailsPresentation;
+internal sealed record JobMessageDetailsPresentation(string Text) : JobDetailsPresentation;
+
 internal sealed class JobCardPresentation(Guid jobId, string name, string glyph, string state, double progress,
-    bool showProgress, string elapsed, string? eta, string outputPath, string resolutionAndFrameRate,
-    string codecAndContainer, string quality, string audio, string color, string? issue, bool isExpanded,
+    bool showProgress, string elapsed, string? eta, JobDetailsPresentation details, string? issue, bool isExpanded,
     bool canPause, bool canResume, bool canRetry, bool canCancel, bool canReorder) : INotifyPropertyChanged
 {
     public Guid JobId { get; } = jobId;
@@ -156,12 +216,7 @@ internal sealed class JobCardPresentation(Guid jobId, string name, string glyph,
     public bool ShowProgress { get; private set; } = showProgress;
     public string Elapsed { get; private set; } = elapsed;
     public string? Eta { get; private set; } = eta;
-    public string OutputPath { get; private set; } = outputPath;
-    public string ResolutionAndFrameRate { get; private set; } = resolutionAndFrameRate;
-    public string CodecAndContainer { get; private set; } = codecAndContainer;
-    public string Quality { get; private set; } = quality;
-    public string Audio { get; private set; } = audio;
-    public string Color { get; private set; } = color;
+    public JobDetailsPresentation Details { get; private set; } = details;
     public string? Issue { get; private set; } = issue;
     public bool IsExpanded { get; private set; } = isExpanded;
     public bool CanPause { get; private set; } = canPause;
@@ -178,11 +233,8 @@ internal sealed class JobCardPresentation(Guid jobId, string name, string glyph,
         Set(Name, value.Name, next => Name = next); Set(Glyph, value.Glyph, next => Glyph = next);
         Set(State, value.State, next => State = next); Set(Progress, value.Progress, next => Progress = next);
         Set(ShowProgress, value.ShowProgress, next => ShowProgress = next); Set(Elapsed, value.Elapsed, next => Elapsed = next);
-        Set(Eta, value.Eta, next => Eta = next); Set(OutputPath, value.OutputPath, next => OutputPath = next);
-        Set(ResolutionAndFrameRate, value.ResolutionAndFrameRate, next => ResolutionAndFrameRate = next);
-        Set(CodecAndContainer, value.CodecAndContainer, next => CodecAndContainer = next);
-        Set(Quality, value.Quality, next => Quality = next); Set(Audio, value.Audio, next => Audio = next);
-        Set(Color, value.Color, next => Color = next); Set(Issue, value.Issue, next => Issue = next);
+        Set(Eta, value.Eta, next => Eta = next); Set(Details, value.Details, next => Details = next);
+        Set(Issue, value.Issue, next => Issue = next);
         SetExpanded(value.IsExpanded); Set(CanPause, value.CanPause, next => CanPause = next);
         Set(CanResume, value.CanResume, next => CanResume = next); Set(CanRetry, value.CanRetry, next => CanRetry = next);
         Set(CanCancel, value.CanCancel, next => CanCancel = next); Set(CanReorder, value.CanReorder, next => CanReorder = next);

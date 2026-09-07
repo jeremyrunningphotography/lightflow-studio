@@ -13,6 +13,37 @@
   <local:StringEmptyToVisibilityConverter x:Key="StringEmptyToVisibility"/>
   <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
 
+  <!-- The Jobs shell is shared, but each capability owns its detail vocabulary. Both Jobs surfaces
+       resolve these same typed templates. -->
+  <DataTemplate DataType="{x:Type local:ExportJobDetailsPresentation}">
+   <StackPanel>
+    <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="OUTPUT"/>
+    <Border Margin="0,1,0,4" Padding="5,3" HorizontalAlignment="Stretch" ClipToBounds="True" Background="{StaticResource ShellSurfaceBrush}" CornerRadius="4"><TextBlock Foreground="{StaticResource TextBrush}" FontSize="10" LineHeight="12" Text="{Binding OutputPath}" TextWrapping="Wrap" TextTrimming="None" ToolTip="{Binding OutputPath}"/></Border>
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="VIDEO"/><TextBlock Grid.Column="1" Margin="4,0,6,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding Video}" TextWrapping="Wrap"/>
+     <TextBlock Grid.Column="2" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="FORMAT"/><TextBlock Grid.Column="3" Margin="4,0,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding Format}" TextWrapping="Wrap"/>
+     <TextBlock Grid.Row="1" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="QUALITY"/><TextBlock Grid.Row="1" Grid.Column="1" Margin="4,0,6,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding Quality}" TextWrapping="Wrap"/>
+     <TextBlock Grid.Row="1" Grid.Column="2" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="AUDIO"/><TextBlock Grid.Row="1" Grid.Column="3" Margin="4,0,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding Audio}" TextWrapping="Wrap"/>
+     <TextBlock Grid.Row="2" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="COLOR"/><TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Margin="4,0,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding Color}" TextWrapping="Wrap"/>
+    </Grid>
+   </StackPanel>
+  </DataTemplate>
+  <DataTemplate DataType="{x:Type local:FileSystemJobDetailsPresentation}">
+   <StackPanel>
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="OPERATION"/><TextBlock Grid.Column="1" Margin="7,0,0,2" Foreground="{StaticResource TextBrush}" FontSize="10" FontWeight="SemiBold" Text="{Binding Operation}"/>
+     <TextBlock Grid.Row="1" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="SOURCE"/><TextBlock Grid.Row="1" Grid.Column="1" Margin="7,0,0,2" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding SourceSummary}" TextWrapping="Wrap" ToolTip="{Binding SourceSummary}"/>
+     <TextBlock Grid.Row="2" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="DESTINATION"/><TextBlock Grid.Row="2" Grid.Column="1" Margin="7,0,0,2" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding Destination}" TextWrapping="Wrap" ToolTip="{Binding Destination}"/>
+     <TextBlock Grid.Row="3" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="ITEMS"/><TextBlock Grid.Row="3" Grid.Column="1" Margin="7,0,0,2" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding ItemProgress}"/>
+     <TextBlock Grid.Row="4" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="CURRENT"/><TextBlock Grid.Row="4" Grid.Column="1" Margin="7,0,0,2" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding CurrentItem}" TextWrapping="Wrap" ToolTip="{Binding CurrentItem}"/>
+     <TextBlock Grid.Row="5" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="BYTES"/><TextBlock Grid.Row="5" Grid.Column="1" Margin="7,0,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding ByteProgress}"/>
+    </Grid>
+    <Border Margin="0,5,0,0" Padding="5,3" Background="{StaticResource ShellSurfaceBrush}" CornerRadius="4"><TextBlock Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding ResultSummary}" TextWrapping="Wrap"/></Border>
+    <StackPanel Margin="0,5,0,0"><StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers><DataTrigger Binding="{Binding FailureSummary}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></StackPanel.Style><TextBlock Foreground="{StaticResource WarningBrush}" FontSize="9" Text="FAILURES"/><TextBlock Margin="0,1,0,0" Foreground="{StaticResource WarningBrush}" FontSize="10" Text="{Binding FailureSummary}" TextWrapping="Wrap"/></StackPanel>
+   </StackPanel>
+  </DataTemplate>
+  <DataTemplate DataType="{x:Type local:JobMessageDetailsPresentation}"><TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding Text}" TextWrapping="Wrap"/></DataTemplate>
+
   <!-- Settings is a lightweight utility, but its content needs a stable pattern that can grow without
        returning to one long configuration wall. These resources deliberately stay scoped to MainWindow:
        they define category navigation and preference-section presentation, not a second app-wide UI kit. -->
@@ -534,7 +565,9 @@
   <TabControl Grid.Column="0" Margin="0,0,14,0" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
    SelectionChanged="MainTabs_SelectionChanged">
    <TabItem>
-    <Grid x:Name="BrowserWorkspaceRoot" Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}" SizeChanged="BrowserWorkspaceRoot_SizeChanged">
+    <Grid x:Name="BrowserWorkspaceRoot" Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}"
+     SizeChanged="BrowserWorkspaceRoot_SizeChanged" PreviewMouseMove="BrowserWorkspaceRoot_PreviewMouseMove"
+     GiveFeedback="BrowserFileDrag_GiveFeedback">
       <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource ShellPanel}">
        <ScrollViewer x:Name="BrowserFolderScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
@@ -547,14 +580,32 @@
          <TextBlock Style="{StaticResource SectionTitle}" FontSize="14" Text="Locations"/>
         </ToggleButton>
         <Grid x:Name="BrowserLocationsSectionContent" Margin="0,6,0,0">
-         <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}"
+         <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}" AllowDrop="True"
           SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseLeftButtonDown="BrowserFolderTree_PreviewMouseLeftButtonDown"
+          PreviewMouseLeftButtonUp="BrowserFolderTree_PreviewMouseLeftButtonUp"
+          MouseMove="BrowserFolderTree_MouseMove" GiveFeedback="BrowserFileDrag_GiveFeedback" DragOver="BrowserFolderTree_DragOver" DragLeave="BrowserFolderTree_DragLeave" Drop="BrowserFolderTree_Drop"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+          <TreeView.ContextMenu>
+           <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="New Folder…" Click="BrowserFolderNew_Click"/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename…" Click="BrowserFolderRename_Click"/>
+            <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Cut" InputGestureText="Ctrl+X" Click="BrowserFolderCut_Click"/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Copy" InputGestureText="Ctrl+C" Click="BrowserFolderCopy_Click"/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Paste into folder" InputGestureText="Ctrl+V" Click="BrowserFolderPaste_Click"/>
+            <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Delete" InputGestureText="Delete" Click="BrowserFolderDelete_Click"/>
+           </ContextMenu>
+          </TreeView.ContextMenu>
           <TreeView.ItemContainerStyle>
            <Style TargetType="TreeViewItem" BasedOn="{StaticResource BrowserTreeItemStyle}">
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
             <EventSetter Event="Expanded" Handler="BrowserFolderTreeItem_Expanded"/>
+            <Style.Triggers>
+             <DataTrigger Binding="{Binding IsFileDropTarget}" Value="True"><Setter Property="Background" Value="#443A89FF"/></DataTrigger>
+             <DataTrigger Binding="{Binding IsInvalidFileDropTarget}" Value="True"><Setter Property="Background" Value="#55B44A4A"/></DataTrigger>
+            </Style.Triggers>
            </Style>
           </TreeView.ItemContainerStyle>
           <TreeView.Resources>
@@ -962,8 +1013,14 @@
         UseLayoutRounding="True" SizeChanged="BrowserGridHost_SizeChanged" MouseLeftButtonDown="BrowserGridHost_MouseLeftButtonDown">
         <Grid Background="Transparent">
          <ItemsControl x:Name="BrowserGridRows" Background="Transparent" Focusable="True" KeyDown="BrowserGridRows_KeyDown"
+          ContextMenuOpening="BrowserGridBackground_ContextMenuOpening"
           AutomationProperties.Name="Media grid"
           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">
+          <ItemsControl.ContextMenu>
+           <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Paste" InputGestureText="Ctrl+V" Click="BrowserBackgroundPaste_Click"/>
+           </ContextMenu>
+          </ItemsControl.ContextMenu>
           <ItemsControl.Template>
            <ControlTemplate TargetType="ItemsControl">
             <!-- #110: named so MainWindow can resolve it via the existing FindDescendantByName visual-tree
@@ -996,7 +1053,7 @@
                     change, including tiles the slider changes while virtualized out of view. -->
                <Border Width="{DynamicResource BrowserTileWidth}" Margin="0,0,12,12" Padding="7" CornerRadius="6" BorderThickness="1" AllowDrop="True"
                 MouseLeftButtonDown="BrowserGridTile_MouseLeftButtonDown" MouseLeftButtonUp="BrowserGridTile_MouseLeftButtonUp" MouseRightButtonDown="BrowserGridTile_MouseRightButtonDown"
-                MouseMove="BrowserGridTile_MouseMove" DragOver="BrowserGridTile_DragOver" Drop="BrowserGridTile_Drop"
+                DragOver="BrowserGridTile_DragOver" Drop="BrowserGridTile_Drop"
                 ContextMenuOpening="BrowserGridTile_ContextMenuOpening"
                 ToolTip="{Binding Name}" AutomationProperties.Name="{Binding AutomationLabel}">
                 <Border.ContextMenu>
@@ -1034,7 +1091,7 @@
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export Subclips…" Click="BrowserContextExportSubclips_Click"/>
                   </MenuItem>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Regenerate Previews" Click="BrowserContextRegenerateThumbnails_Click"/>
-                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename" IsEnabled="False" ToolTip="Media rename is not available yet"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename…" Click="BrowserRename_Click"/>
                   <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Camera LUT" SubmenuOpened="BrowserContextCameraLut_SubmenuOpened">
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Loading…" IsEnabled="False"/>
@@ -1042,6 +1099,11 @@
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Creative LUT" SubmenuOpened="BrowserContextCreativeLut_SubmenuOpened">
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Loading…" IsEnabled="False"/>
                   </MenuItem>
+                  <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Cut" InputGestureText="Ctrl+X" Click="BrowserCut_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Copy" InputGestureText="Ctrl+C" Click="BrowserCopy_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Paste" InputGestureText="Ctrl+V" Click="BrowserPaste_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Delete" InputGestureText="Delete" Click="BrowserDelete_Click"/>
                  </ContextMenu>
                 </Border.ContextMenu>
                 <Border.Style>
@@ -1165,6 +1227,11 @@
            on MainWindow — this ContentControl only ever hosts it. -->
        <ContentControl Grid.Row="2" x:Name="BrowserPlayerHost" Focusable="False" Visibility="Collapsed"/>
      </Grid>
+     <!-- A dedicated, topmost adorner surface keeps Explorer-style file-drag feedback inside this
+          visible area and independent of whichever scroll/template visual initiated the drag. -->
+     <AdornerDecorator Grid.ColumnSpan="3" Panel.ZIndex="100" IsHitTestVisible="False">
+      <Border x:Name="BrowserFileDragAdornerTarget" Background="Transparent"/>
+     </AdornerDecorator>
     </Grid>
    </TabItem>
    <TabItem Visibility="Collapsed" AutomationProperties.Name="Compatibility export review">
@@ -1360,7 +1427,7 @@
       <GridSplitter x:Name="FullJobsPaneSplitter" Grid.Row="1" Grid.Column="1" Width="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent" Cursor="SizeWE" Focusable="False" IsTabStop="False" ToolTip="Drag to resize Jobs list and details" AutomationProperties.Name="Resize Jobs list and details"><GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template></GridSplitter>
       <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Card}" Margin="4,0,0,0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
        <TextBlock Style="{StaticResource SectionTitle}" Text="Job details"/>
-       <TextBox Grid.Row="1" x:Name="HistoryDetails" Margin="0,6,0,6" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas" FontSize="12" Text="Select a job to inspect its results."/>
+       <ScrollViewer Grid.Row="1" Margin="0,6,0,6" VerticalScrollBarVisibility="Auto"><ContentControl x:Name="HistoryDetails" Content="{Binding}"/></ScrollViewer>
        <WrapPanel Grid.Row="2" HorizontalAlignment="Right"><Button x:Name="JobsRevealOutputButton" Content="Reveal output" IsEnabled="False" Click="RevealJobOutput_Click"/><Button x:Name="JobsMoveEarlierButton" Content="Earlier" IsEnabled="False" Click="FullJobsMoveEarlier_Click"/><Button x:Name="JobsMoveLaterButton" Content="Later" IsEnabled="False" Click="FullJobsMoveLater_Click"/><Button x:Name="JobsPauseButton" Content="Pause" IsEnabled="False" ToolTip="Hold this Waiting Job before it starts" AutomationProperties.HelpText="Hold this Waiting Job before it starts" Click="FullJobsPause_Click"/><Button x:Name="JobsResumeButton" Content="Resume" IsEnabled="False" ToolTip="Return this individually paused Job to the eligible queue" AutomationProperties.HelpText="Return this individually paused Job to the eligible queue" Click="FullJobsResume_Click"/><Button x:Name="JobsRetryButton" Content="Retry" IsEnabled="False" Click="FullJobsRetry_Click"/><Button x:Name="JobsCancelButton" Style="{StaticResource DangerButton}" Content="Cancel…" IsEnabled="False" Click="FullJobsCancel_Click"/><Button x:Name="HistoryRerunButton" Style="{StaticResource PrimaryButton}" Content="Review &amp; Rerun" IsEnabled="False" Click="RerunHistory_Click"/></WrapPanel>
       </Grid></Border>
      </Grid>
@@ -1472,7 +1539,7 @@
   <GridSplitter Grid.Column="1" x:Name="JobsDrawerSplitter" Width="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent" Cursor="SizeWE" Visibility="Collapsed" ToolTip="Drag to resize Jobs drawer" AutomationProperties.Name="Resize Jobs drawer"><GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template></GridSplitter>
   <Border Grid.Column="2" x:Name="JobsDrawer" Style="{StaticResource DrawerBody}" MinWidth="340" MaxWidth="620" ClipToBounds="True" Visibility="Collapsed">
    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <TextBlock Style="{StaticResource DrawerHeaderText}" Margin="0,0,0,9" Text="JOBS" ToolTip="Current and recent exports" AutomationProperties.HelpText="Current and recent exports"/>
+    <TextBlock Style="{StaticResource DrawerHeaderText}" Margin="0,0,0,9" Text="JOBS" ToolTip="Current and recent Jobs" AutomationProperties.HelpText="Current and recent Jobs"/>
     <Grid Grid.Row="1" Margin="0,0,0,5"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="Active exports" ToolTip="Controls how many exports may execute simultaneously" AutomationProperties.HelpText="Controls how many exports may execute simultaneously"/>
      <ComboBox Grid.Column="1" x:Name="MaximumExportsCombo" Margin="8,0,0,0" Width="58" ToolTip="Maximum exports that may execute simultaneously" AutomationProperties.Name="Active exports" AutomationProperties.HelpText="Controls how many exports may execute simultaneously" SelectedValuePath="Content" SelectionChanged="MaximumExports_SelectionChanged">
       <ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/><ComboBoxItem Content="4"/><ComboBoxItem Content="5"/><ComboBoxItem Content="6"/><ComboBoxItem Content="7"/><ComboBoxItem Content="8"/>
@@ -1486,8 +1553,7 @@
       <Border Grid.Row="1" Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}" Margin="0,3,0,0" Padding="7" MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ListBox}}" HorizontalAlignment="Stretch" ClipToBounds="True" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="6"><StackPanel>
        <ProgressBar Height="4" HorizontalAlignment="Stretch" Maximum="100" Value="{Binding Progress, Mode=OneWay}"/>
        <Grid Margin="0,3,0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="{Binding Elapsed, StringFormat=Elapsed {0}}"/><TextBlock Grid.Column="1" Margin="10,0,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" TextAlignment="Right" Text="{Binding Progress, StringFormat={}{0:0}%}"/></Grid>
-       <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="OUTPUT"/><Border Margin="0,1,0,4" Padding="5,3" HorizontalAlignment="Stretch" ClipToBounds="True" Background="{StaticResource ShellSurfaceBrush}" CornerRadius="4"><TextBlock Foreground="{StaticResource TextBrush}" FontSize="10" LineHeight="12" Text="{Binding OutputPath}" TextWrapping="Wrap" TextTrimming="None" ToolTip="{Binding OutputPath}"/></Border>
-       <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="VIDEO"/><TextBlock Grid.Column="1" Margin="4,0,6,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding ResolutionAndFrameRate}" TextWrapping="Wrap"/><TextBlock Grid.Column="2" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="FORMAT"/><TextBlock Grid.Column="3" Margin="4,0,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding CodecAndContainer}"/><TextBlock Grid.Row="1" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="QUALITY"/><TextBlock Grid.Row="1" Grid.Column="1" Margin="4,0,6,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding Quality}" TextWrapping="Wrap"/><TextBlock Grid.Row="1" Grid.Column="2" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="AUDIO"/><TextBlock Grid.Row="1" Grid.Column="3" Margin="4,0,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding Audio}" TextWrapping="Wrap"/><TextBlock Grid.Row="2" Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="COLOR"/><TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Margin="4,0,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="{Binding Color}" TextWrapping="Wrap"/></Grid>
+       <ContentControl Content="{Binding Details}"/>
        <TextBlock Margin="0,3,0,0" Foreground="{StaticResource WarningBrush}" FontSize="10" Text="{Binding Issue}" TextWrapping="Wrap"/>
        <WrapPanel HorizontalAlignment="Right" Margin="0,4,0,0"><Button Padding="7,2" Content="Pause" Tag="{Binding JobId}" IsEnabled="{Binding CanPause}" Click="JobsPause_Click"/><Button Padding="7,2" Content="Resume" Tag="{Binding JobId}" IsEnabled="{Binding CanResume}" Click="JobsResume_Click"/><Button Padding="7,2" Content="Retry" Tag="{Binding JobId}" IsEnabled="{Binding CanRetry}" Click="JobsRetry_Click"/><Button Padding="7,2" Style="{StaticResource DangerButton}" Content="Cancel…" Tag="{Binding JobId}" IsEnabled="{Binding CanCancel}" AutomationProperties.Name="Cancel this Job" Click="JobsCancel_Click"/></WrapPanel>
       </StackPanel></Border>

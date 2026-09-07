@@ -815,7 +815,8 @@ public class UiLayoutTests
         var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var browse = Named(document, "BrowserBrowseToolbar");
         var actions = Named(document, "BrowserSelectionActionToolbar");
-        var contextMenu = Named(document, "BrowserGridRows").Descendants(ns + "ContextMenu").Single();
+        var contextMenu = Named(document, "BrowserGridRows").Descendants(ns + "ContextMenu").Single(menu =>
+            menu.Descendants(ns + "MenuItem").Any(item => (string?)item.Attribute("Header") == "Add to Collection…"));
         var navigation = Named(document, "BrowserNavigationToolbar");
         var query = Named(document, "BrowserQueryToolbar");
 
@@ -879,11 +880,42 @@ public class UiLayoutTests
         Assert.Contains(app.Descendants(ns + "Style"), style => (string?)style.Attribute(x + "Key") == "LightflowMenuItemStyle");
         Assert.Equal(
             ["Add to Collection…", "Remove from this Collection", "Rating", "Flag", "Color label", "Keywords",
-                "Export", "Regenerate Previews", "Rename", "Camera LUT", "Creative LUT"],
+                "Export", "Regenerate Previews", "Rename…", "Camera LUT", "Creative LUT", "Cut", "Copy", "Paste", "Delete"],
             contextMenu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
         Assert.Equal(["Export…", "Export Subclips…"], contextMenu.Elements(ns + "MenuItem").Single(item => (string?)item.Attribute("Header") == "Export")
             .Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
-        Assert.All(contextMenu.Elements(ns + "MenuItem").TakeLast(2), submenu => Assert.True(submenu.HasElements));
+        Assert.All(contextMenu.Elements(ns + "MenuItem").Where(item =>
+            (string?)item.Attribute("Header") is "Camera LUT" or "Creative LUT"), submenu => Assert.True(submenu.HasElements));
+    }
+
+    [Fact]
+    public void BrowserFileOperations_ExposeFolderCommandsAndExplicitDropFeedback()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var ns = document.Root!.Name.Namespace;
+        var tree = Named(document, "BrowserFolderTree");
+        var menu = tree.Element(ns + "TreeView.ContextMenu")!.Element(ns + "ContextMenu")!;
+        Assert.Equal(["New Folder…", "Rename…", "Cut", "Copy", "Paste into folder", "Delete"],
+            menu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")));
+        Assert.Equal("BrowserFolderTree_MouseMove", (string?)tree.Attribute("MouseMove"));
+        Assert.Equal("BrowserFolderTree_DragLeave", (string?)tree.Attribute("DragLeave"));
+        var triggers = tree.Descendants(ns + "DataTrigger").ToArray();
+        Assert.Contains(triggers, trigger => ((string?)trigger.Attribute("Binding"))?.Contains("IsFileDropTarget") == true);
+        Assert.Contains(triggers, trigger => ((string?)trigger.Attribute("Binding"))?.Contains("IsInvalidFileDropTarget") == true);
+        var backgroundMenu = tree.Document!.Descendants(ns + "ItemsControl").Single(item =>
+            (string?)item.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "BrowserGridRows")
+            .Element(ns + "ItemsControl.ContextMenu")!.Element(ns + "ContextMenu")!;
+        Assert.Equal("Paste", (string?)backgroundMenu.Element(ns + "MenuItem")!.Attribute("Header"));
+        Assert.Equal("BrowserGridBackground_ContextMenuOpening", (string?)Named(document, "BrowserGridRows").Attribute("ContextMenuOpening"));
+    }
+
+    [Fact]
+    public void ConfirmationDialog_DefaultCancelActionNeverLeaksJobsLanguage()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ConfirmationDialog.xaml"));
+        var cancel = Named(document, "CancelButton");
+        Assert.Equal("Cancel", (string?)cancel.Attribute("Content"));
+        Assert.DoesNotContain("Jobs", document.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

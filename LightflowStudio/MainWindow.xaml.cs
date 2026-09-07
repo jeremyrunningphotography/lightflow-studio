@@ -48,6 +48,10 @@ public partial class MainWindow : Window
     private readonly ApplicationJobsRuntime<EncodingJobOptions, EncodingItemResult> _jobsRuntime;
     private readonly GlobalExportScheduler _exportScheduler;
     private readonly ExportJobCoordinator _exportCoordinator;
+    private readonly FileOperationExecutor _fileOperationExecutor;
+    private readonly FileOperationJobs _fileOperationJobs;
+    private FileOperationKind? _lightflowClipboardKind;
+    private IReadOnlyList<FileOperationSource> _lightflowClipboardSources = [];
     private readonly ObservableCollection<JobCardPresentation> _jobsDrawerCards = [];
     private readonly HashSet<Guid> _expandedJobIds = [];
     private readonly HashSet<Guid> _dismissedTerminalJobIds = [];
@@ -93,6 +97,11 @@ public partial class MainWindow : Window
     /// <summary>The node most recently targeted by a passive (non-interactive) tree reveal, consumed by <see cref="BrowserFolderTree_SelectedItemChanged"/> the first time a matching event arrives. See that method's doc comment.</summary>
     private BrowserTreeNode? _browserTreeRevealedNode;
     private BrowserTreeNode? _browserFolderPointerTarget;
+    private System.Windows.Point _browserFolderDragStart;
+    private BrowserTreeNode? _browserFolderDragNode;
+    private BrowserTreeNode? _browserFileDropTarget;
+    private FileDragAdorner? _fileDragAdorner;
+    private System.Windows.Documents.AdornerLayer? _fileDragAdornerLayer;
     private readonly WorkspaceStateService _workspaceState;
     private readonly DispatcherTimer _workspaceSaveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private WindowState _lastNonMinimizedWindowState = WindowState.Normal;
@@ -119,6 +128,7 @@ public partial class MainWindow : Window
     private BrowserCollectionNode? _collectionDragNode;
     private System.Windows.Point _browserAssetDragStart;
     private BrowserGridTile? _browserAssetDragTile;
+    private int _fileSystemMutationPresentationDepth;
     private BrowserGridTile? _browserAssetPendingSingleSelection;
     private BrowserCollectionNode? _browserCollectionPointerTarget;
     private bool _browserCollectionKeyboardSelectionPending;
@@ -131,7 +141,6 @@ public partial class MainWindow : Window
     private readonly BrowserCollectionDragHover _collectionDragHover = new();
     private readonly DispatcherTimer _collectionDragHoverTimer = new() { Interval = BrowserCollectionDragHover.Dwell };
     private bool _synchronizingBrowserScopeMode;
-    private readonly DispatcherTimer _browserRecursiveRefreshDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     /// <summary>Denominator as of the last recursive-progress report, so <see cref="ApplyRecursiveScopeLoadingProgress"/> can tell whether discovery is still actively growing. Reset alongside everything else in <see cref="ResetBrowserLoadingProgress"/>.</summary>
     private int _browserRecursiveProgressLastDiscovered;
     // #124 (revised): every stored Catalog recursive root, as of the most recent navigation — see
@@ -192,6 +201,12 @@ public partial class MainWindow : Window
             { _activityLogFile.TryAppend($"[App] Could not save the Export queue pause policy: {exception.Message}"); }
         });
         _exportCoordinator = new ExportJobCoordinator(_exportScheduler, _jobHistory);
+        _fileOperationExecutor = new FileOperationExecutor(new WindowsFileOperationPlatform(), storage.MediaAssets,
+            storage.BrowserLocations, storage.AssetCopies);
+        _fileOperationJobs = new FileOperationJobs(_fileOperationExecutor,
+            new FileOperationHistoryStore(storage.Locations.FileOperationHistoryPath), result =>
+                Dispatcher.InvokeAsync(() => SynchronizeFileSystemMutationsAsync(result.CompletedMutations)).Task.Unwrap());
+        _fileOperationJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
         _exportCoordinator.Completed += _ => Dispatcher.BeginInvoke(RefreshHistory);
         _exportScheduler.Changed += ExportScheduler_Changed;
         _exportScheduler.SubmissionAccepted += _ => Dispatcher.BeginInvoke(() =>
@@ -227,22 +242,6 @@ public partial class MainWindow : Window
             _browserMetadataResortTimer.Stop();
             _browserGrid.ReapplyQuery();
             UpdateBrowserStatusText();
-        };
-        _browserRecursiveRefreshDebounceTimer.Tick += (_, _) =>
-        {
-            _browserRecursiveRefreshDebounceTimer.Stop();
-            // #124: a relevant monitoring event arriving while a load is already in flight — most commonly the
-            // recursive scan's own folder reads, which some drives/watchers (particularly removable/network
-            // media) report back as spurious "changed" notifications — must never restart it from scratch. The
-            // in-flight load already performs a full, current enumerate+reconcile pass over the same scope and
-            // will reflect this change once it completes; starting a second one here would cancel it mid-walk
-            // (Begin() latest-wins) and silently reset FoldersVisited to zero, making one continuous recursive
-            // scan look like it keeps restarting. Monitoring is a hint only — explicit Refresh stays
-            // authoritative regardless — so it is safe to simply drop a hint that arrives mid-load rather than
-            // rescheduling it.
-            if (_activeCollectionScope is not null) return;
-            if (BrowserLoadingOverlay.Visibility == Visibility.Visible) return;
-            _ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
         };
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
         StateChanged += (_, _) =>
@@ -329,7 +328,6 @@ public partial class MainWindow : Window
             _workspaceSaveTimer.Stop();
             _browserSearchDebounceTimer.Stop();
             _browserMetadataResortTimer.Stop();
-            _browserRecursiveRefreshDebounceTimer.Stop();
             _collectionDragHoverTimer.Stop();
             _browserNavigation.Dispose();
         };
@@ -527,34 +525,33 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// #101's monitoring hint reaches an open Browser view here. Direct mode preserves the exact-folder
-    /// behavior #108 established. #124 recursive mode additionally treats any descendant folder inside the
-    /// active base scope as relevant (via <see cref="BrowserScope.IsWithinFolderScope"/>) — unrelated
-    /// sibling/ancestor/other-root events are still ignored. Because a burst of filesystem activity across
-    /// many descendant folders can raise several <see cref="IMediaRootMonitoringService.FolderRefreshed"/>
-    /// events in quick succession, and each one would otherwise re-run the entire recursive scope, relevant
-    /// recursive events are coalesced through <see cref="_browserRecursiveRefreshDebounceTimer"/> into a
-    /// single authoritative refresh rather than one per event — a refresh-storm guard on top of #101's own
-    /// per-folder debounce, using the same debounce convention. Either way this is a hint only: explicit
-    /// Refresh remains authoritative regardless.
+    /// #101's already-debounced monitoring hint updates the exact materialized folder and, when it intersects
+    /// the active Browser scope, incrementally reconciles that projection without restarting a recursive walk.
     /// </summary>
     private void BrowserMonitoring_FolderRefreshed(object? sender, MediaFolderEnumerationRequest request) =>
-        Dispatcher.BeginInvoke(() =>
+        Dispatcher.BeginInvoke(async () => await SynchronizeMonitoredFolderAsync(request));
+
+    private async Task SynchronizeMonitoredFolderAsync(MediaFolderEnumerationRequest request)
+    {
+        if (_activeCollectionScope is not null || _fileSystemMutationPresentationDepth > 0) return;
+        var state = _lastLoadedBrowserState;
+        var location = _browserNavigation.ActiveLocation;
+        if (state is null || location is null || location.RootId != request.RootId) return;
+        var relative = request.RelativeFolder ?? "";
+        var absolute = relative.Length == 0 ? location.RootPath : MediaPathSemantics.ResolveContained(location.RootPath, relative);
+        var listing = await _storage.MediaFolders.EnumerateAsync(new(request.RootId, relative));
+        if (listing.Succeeded) _browserTree.ApplyDirectoryListing(absolute, location.RootPath, listing.Entries);
+        if (BrowserLoadingOverlay.Visibility == Visibility.Visible) return;
+        if (state.Mode == BrowserScopeMode.DirectFolder)
         {
-            if (_activeCollectionScope is not null) return;
-            var location = _browserNavigation.State.Location;
-            if (location is null || location.RootId != request.RootId) return;
-            if (_browserNavigation.State.Mode == BrowserScopeMode.IncludeSubfolders)
-            {
-                if (!BrowserScope.IsWithinFolderScope(request.RelativeFolder, location.RelativeFolder)) return;
-                _browserRecursiveRefreshDebounceTimer.Stop();
-                _browserRecursiveRefreshDebounceTimer.Start();
-                return;
-            }
-            if (!string.Equals(location.RelativeFolder ?? "", request.RelativeFolder ?? "", StringComparison.OrdinalIgnoreCase))
-                return;
-            _ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
-        });
+            if (string.Equals(location.RelativeFolder, relative, StringComparison.OrdinalIgnoreCase))
+                await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+            return;
+        }
+        if (!BrowserScope.IsWithinFolderScope(relative, location.RelativeFolder)) return;
+        await SynchronizeFileSystemMutationsAsync([new(FileOperationKind.Copy,
+            Path.Combine(absolute, "watcher-change"), null, false)]);
+    }
 
     /// <summary>
     /// Selecting a row is the one action that changes Browser scope/contents. <see cref="_browserTreeRevealedNode"/>
@@ -945,11 +942,34 @@ public partial class MainWindow : Window
         if (_activeCollectionScope is { } collection)
             await LoadCollectionScopeAsync(collection.Collection.CollectionId);
         else
+        {
             await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+            await RefreshMaterializedFolderTreeAsync();
+        }
     }
 
-    private void BrowserFolderTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+    private async Task RefreshMaterializedFolderTreeAsync()
+    {
+        foreach (var node in _browserTree.MaterializedFolders())
+        {
+            var listing = await _storage.MediaFolders.EnumerateAsync(new(node.RootId!.Value, node.RelativeFolder));
+            var root = await _storage.MediaRoots.GetAsync(node.RootId.Value);
+            if (listing.Succeeded && node.AbsolutePath is { } path && root?.PhysicalPath is { } rootPath)
+                _browserTree.ApplyDirectoryListing(path, rootPath, listing.Entries);
+        }
+    }
+
+    private void BrowserFolderTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _browserAssetDragTile = null;
+        _browserAssetPendingSingleSelection = null;
         _browserFolderPointerTarget = BrowserTreeNodeFromElement(e.OriginalSource as DependencyObject);
+        _browserFolderDragNode = _browserFolderPointerTarget;
+        _browserFolderDragStart = e.GetPosition(BrowserFolderTree);
+    }
+
+    private void BrowserFolderTree_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
+        _browserFolderDragNode = null;
 
     /// <summary>
     /// #124 (revised): toggles Include Subfolders for whichever folder is currently open, via
@@ -1339,6 +1359,7 @@ public partial class MainWindow : Window
     private void BrowserGridTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
+        _browserFolderDragNode = null;
         _browserAssetPendingSingleSelection = null;
         _browserAssetDragStart = e.GetPosition(BrowserGridRows);
         _browserAssetDragTile = tile;
@@ -1384,7 +1405,7 @@ public partial class MainWindow : Window
         ((MenuItem)menu.Items[8]).IsEnabled = state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled;
     }
 
-    private void BrowserGridTile_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    private async void BrowserWorkspaceRoot_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed || _browserAssetDragTile is null) return;
         var current = e.GetPosition(BrowserGridRows);
@@ -1396,8 +1417,14 @@ public partial class MainWindow : Window
         var ids = BrowserAssetDragSelection.AssetIdsForDrag(tile.IsSelected, tile.AssetId,
             _browserGrid.SelectedAssetIdsInBrowserOrder);
         if (ids.Count == 0) return;
-        System.Windows.DragDrop.DoDragDrop((DependencyObject)sender, new BrowserAssetDragPayload(ids),
+        var sources = await FileOperationSourcesAsync(ids);
+        var data = new System.Windows.DataObject();
+        data.SetData(typeof(BrowserAssetDragPayload), new BrowserAssetDragPayload(ids));
+        data.SetData(System.Windows.DataFormats.FileDrop, sources.Select(source => source.Path).ToArray());
+        ShowFileDragAdorner(sources.Count, FileOperationKind.Move, tile.ThumbnailPath, tile.CategoryGlyph);
+        System.Windows.DragDrop.DoDragDrop(BrowserGridRows, data,
             System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
+        ClearFileDragAdorner();
     }
 
     private void BrowserGridTile_DragOver(object sender, System.Windows.DragEventArgs e)
@@ -1410,10 +1437,11 @@ public partial class MainWindow : Window
 
     private void BrowserGridTile_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile ||
-            !ReferenceEquals(tile, _browserAssetPendingSingleSelection)) return;
+        if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
+        var commitDeferredSelection = ReferenceEquals(tile, _browserAssetPendingSingleSelection);
         _browserAssetPendingSingleSelection = null;
         _browserAssetDragTile = null;
+        if (!commitDeferredSelection) return;
         _browserGrid.SelectSingle(tile.Index);
         UpdateBrowserStatusText();
         e.Handled = true;
@@ -2282,6 +2310,31 @@ public partial class MainWindow : Window
             return;
         }
         var inputOwner = e.OriginalSource as DependencyObject;
+        if (_browserPresentation == BrowserPresentationMode.Grid && MainTabs.SelectedIndex == 0 &&
+            !PlayerViewerHost.IsTextEntryControl(inputOwner))
+        {
+            var control = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+            if (control && e.Key == Key.X) { e.Handled = true; _ = CopyBrowserSelectionToClipboardAsync(FileOperationKind.Move); return; }
+            if (control && e.Key == Key.C) { e.Handled = true; _ = CopyBrowserSelectionToClipboardAsync(FileOperationKind.Copy); return; }
+            if (control && e.Key == Key.V) { e.Handled = true; _ = PasteBrowserClipboardAsync(CurrentBrowserFolder()); return; }
+            if (e.Key == Key.Delete)
+            {
+                e.Handled = true;
+                if (BrowserFolderTree.IsKeyboardFocusWithin && SelectedFolderOperationSource() is { } folder)
+                {
+                    var permanent = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+                    var confirmed = permanent
+                        ? ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete this folder?",
+                            "The folder and all contents will be permanently removed.", "It will not go to the Recycle Bin.", "Delete permanently")
+                        : ConfirmationDialog.Confirm(this, "Move to Recycle Bin", "Move this folder to the Recycle Bin?",
+                            "The folder and all contents will be recycled.", "You can normally restore it from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep folder");
+                    if (confirmed)
+                        _ = ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, [folder], null);
+                }
+                else _ = DeleteBrowserSelectionAsync(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+                return;
+            }
+        }
         if (_browserPresentation == BrowserPresentationMode.Grid &&
             MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home) &&
             !PlayerViewerHost.IsTextEntryControl(inputOwner))
@@ -2318,6 +2371,416 @@ public partial class MainWindow : Window
     {
         if (!PlayerOwnsShortcutContext() || !_playerViewerHost!.TryHandleShortcutKeyUp(e.Key)) return;
         e.Handled = true;
+    }
+
+    private string? CurrentBrowserFolder() => _browserNavigation.ActiveLocation?.AbsolutePath;
+
+    private async Task<IReadOnlyList<FileOperationSource>> SelectedFileOperationSourcesAsync()
+        => await FileOperationSourcesAsync(_browserGrid.SelectedAssetIdsInBrowserOrder);
+
+    private async Task<IReadOnlyList<FileOperationSource>> FileOperationSourcesAsync(IReadOnlyList<Guid> assetIds)
+    {
+        var sources = new List<FileOperationSource>();
+        foreach (var assetId in assetIds)
+        {
+            var resolved = await _storage.MediaAssets.GetAsync(assetId);
+            if (resolved?.PhysicalPath is { } path)
+                sources.Add(new(assetId, path, resolved.Asset.FileSizeBytes));
+        }
+        return sources;
+    }
+
+    private async Task CopyBrowserSelectionToClipboardAsync(FileOperationKind kind)
+    {
+        var sources = await SelectedFileOperationSourcesAsync();
+        if (sources.Count == 0) return;
+        var data = new System.Windows.DataObject();
+        data.SetData(System.Windows.DataFormats.FileDrop, sources.Select(source => source.Path).ToArray());
+        data.SetData("Preferred DropEffect", new MemoryStream(BitConverter.GetBytes(kind == FileOperationKind.Move ? 2 : 1)));
+        data.SetData("LightflowStudio.FileOperation", kind.ToString());
+        System.Windows.Clipboard.SetDataObject(data, true);
+        _lightflowClipboardKind = kind;
+        _lightflowClipboardSources = sources;
+        BrowserStatusText.Text = $"{(kind == FileOperationKind.Move ? "Cut" : "Copied")} {sources.Count} item(s).";
+    }
+
+    private async Task PasteBrowserClipboardAsync(string? destination)
+    {
+        if (string.IsNullOrWhiteSpace(destination) || !System.Windows.Clipboard.ContainsFileDropList()) return;
+        var paths = System.Windows.Clipboard.GetFileDropList().Cast<string>().ToArray();
+        var parsed = FileOperationKind.Copy;
+        var isOwned = System.Windows.Clipboard.GetData("LightflowStudio.FileOperation") is string owned &&
+            Enum.TryParse(owned, out parsed);
+        var kind = isOwned ? parsed : ClipboardPreferredKind();
+        var known = (isOwned ? _lightflowClipboardSources : await SelectedFileOperationSourcesAsync())
+            .ToDictionary(source => source.Path, StringComparer.OrdinalIgnoreCase);
+        var sources = paths.Select(path => known.TryGetValue(path, out var source) ? source :
+            new FileOperationSource(null, path, File.Exists(path) ? new FileInfo(path).Length : null, Directory.Exists(path))).ToArray();
+        await ExecuteFileOperationAsync(kind, sources, destination);
+        if (kind == FileOperationKind.Move) { System.Windows.Clipboard.Clear(); _lightflowClipboardKind = null; _lightflowClipboardSources = []; }
+    }
+
+    private static FileOperationKind ClipboardPreferredKind()
+    {
+        try
+        {
+            if (System.Windows.Clipboard.GetData("Preferred DropEffect") is MemoryStream stream)
+            {
+                stream.Position = 0; Span<byte> bytes = stackalloc byte[4];
+                if (stream.Read(bytes) == 4 && (BitConverter.ToInt32(bytes) & 2) != 0) return FileOperationKind.Move;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or System.Runtime.InteropServices.COMException) { }
+        return FileOperationKind.Copy;
+    }
+
+    private async Task DeleteBrowserSelectionAsync(bool permanent)
+    {
+        var sources = await SelectedFileOperationSourcesAsync();
+        if (sources.Count == 0) return;
+        var confirmed = permanent
+            ? ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete selected items?",
+                $"{sources.Count} item(s) will be permanently removed.", "They will not go to the Recycle Bin and this cannot be undone.", "Delete permanently")
+            : ConfirmationDialog.Confirm(this, "Move to Recycle Bin", "Move selected items to the Recycle Bin?",
+                $"{sources.Count} item(s) will be recycled.", "You can normally restore them from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep files");
+        if (!confirmed) return;
+        await ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, sources, null);
+    }
+
+    private async Task SynchronizeFileSystemMutationsAsync(IReadOnlyList<FileSystemMutation> mutations)
+    {
+        if (mutations.Count == 0) return;
+        _fileSystemMutationPresentationDepth++;
+        try { await SynchronizeFileSystemMutationsCoreAsync(mutations); }
+        finally { _fileSystemMutationPresentationDepth--; }
+    }
+
+    private async Task SynchronizeFileSystemMutationsCoreAsync(IReadOnlyList<FileSystemMutation> mutations)
+    {
+        if (_activeCollectionScope is not null)
+        {
+            await LoadCollectionScopeAsync(_activeCollectionScope.Collection.CollectionId);
+            return;
+        }
+        var state = _lastLoadedBrowserState;
+        if (state?.Location is not { } location) return;
+        var scopeMutation = mutations.FirstOrDefault(mutation => mutation.IsDirectory &&
+            mutation.SourcePath is { } sourcePath &&
+            FileOperationPathSemantics.IsSameOrDescendant(location.AbsolutePath, sourcePath));
+        if (scopeMutation is { SourcePath: { } changedFolder })
+        {
+            var target = scopeMutation.DestinationPath is { } movedFolder
+                ? Path.Combine(movedFolder, Path.GetRelativePath(changedFolder, location.AbsolutePath))
+                : Path.GetDirectoryName(changedFolder);
+            if (target is not null && Directory.Exists(target))
+                await RunBrowserNavigationAsync(() => _browserNavigation.NavigateToPathAsync(target));
+            return;
+        }
+        var affectedParents = mutations.SelectMany(mutation => new[] { mutation.SourcePath, mutation.DestinationPath })
+            .Where(path => path is not null).Select(path => Path.GetDirectoryName(path!)!).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var inside = affectedParents.Where(path => FileOperationPathSemantics.IsSameOrDescendant(path, location.RootPath)).ToArray();
+        foreach (var parent in inside)
+        {
+            var relative = Path.GetRelativePath(location.RootPath, parent);
+            relative = relative == "." ? "" : MediaPathSemantics.NormalizeRelativePath(relative);
+            var listing = await _storage.MediaFolders.EnumerateAsync(new(location.RootId, relative));
+            if (listing.Succeeded) _browserTree.ApplyDirectoryListing(parent, location.RootPath, listing.Entries);
+        }
+        if (!inside.Any(path => FileOperationPathSemantics.IsSameOrDescendant(path, location.AbsolutePath))) return;
+        if (state.Mode == BrowserScopeMode.DirectFolder)
+        {
+            await RefreshActiveDirectFolderAfterMutationAsync(location);
+            return;
+        }
+
+        var direct = await _storage.MediaFolders.EnumerateAsync(new(location.RootId, location.RelativeFolder));
+        if (!direct.Succeeded) return;
+        var candidates = (state.RecursiveMediaEntries ?? []).ToList();
+        var batches = new List<IDerivedWorkBatch>();
+        foreach (var parent in inside.Where(path => FileOperationPathSemantics.IsSameOrDescendant(path, location.AbsolutePath)))
+        {
+            var relative = Path.GetRelativePath(location.RootPath, parent);
+            relative = relative == "." ? "" : MediaPathSemantics.NormalizeRelativePath(relative);
+            candidates.RemoveAll(entry => string.Equals(Path.GetDirectoryName(entry.RelativePath)?.Replace('\\', '/'), relative,
+                StringComparison.OrdinalIgnoreCase));
+            var listing = await _storage.MediaFolders.EnumerateAsync(new(location.RootId, relative));
+            var refresh = await _storage.MediaDiscovery.RefreshAsync(new MediaFolderEnumerationRequest(location.RootId, relative), DerivedWorkPriority.Visible);
+            if (listing.Succeeded) candidates.AddRange(listing.Entries.Where(entry => !entry.IsDirectory));
+            if (refresh.DerivedWork is { } batch) batches.Add(batch);
+        }
+        foreach (var oldPath in mutations.Where(mutation => mutation.IsDirectory && mutation.SourcePath is not null)
+                     .Select(mutation => mutation.SourcePath!).Where(path =>
+                         FileOperationPathSemantics.IsSameOrDescendant(path, location.AbsolutePath)))
+        {
+            var oldRelative = MediaPathSemantics.NormalizeRelativePath(Path.GetRelativePath(location.RootPath, oldPath));
+            candidates.RemoveAll(entry => entry.RelativePath.StartsWith(oldRelative + "/", StringComparison.OrdinalIgnoreCase));
+        }
+        foreach (var newPath in mutations.Where(mutation => mutation.IsDirectory && mutation.DestinationPath is not null)
+                     .Select(mutation => mutation.DestinationPath!).Where(path => Directory.Exists(path) &&
+                         FileOperationPathSemantics.IsSameOrDescendant(path, location.AbsolutePath)))
+        {
+            var newRelative = MediaPathSemantics.NormalizeRelativePath(Path.GetRelativePath(location.RootPath, newPath));
+            var subtree = await _storage.RecursiveMediaDiscovery.DiscoverAsync(new MediaFolderEnumerationRequest(location.RootId, newRelative), DerivedWorkPriority.Visible);
+            if (subtree.Succeeded) candidates.AddRange(subtree.MediaEntries);
+            if (subtree.DerivedWork is { } batch) batches.Add(batch);
+        }
+        var unique = candidates.GroupBy(entry => entry.RelativePathKey, StringComparer.Ordinal).Select(group => group.Last()).ToArray();
+        IDerivedWorkBatch? derived = batches.Count == 0 ? null : batches.Count == 1 ? batches[0] :
+            new AggregateDerivedWorkBatch(new(CatalogReconciliationStatus.Succeeded, location.RootId,
+                location.RelativeFolder, batches.SelectMany(batch => batch.Reconciliation.Items).ToArray(), 0), batches);
+        ApplyBrowserState(state with { Entries = direct.Entries, RecursiveMediaEntries = unique, DerivedWork = derived });
+    }
+
+    /// <summary>
+    /// Materializes a completed filesystem mutation straight into the active direct-folder projection. A
+    /// mutation is already authoritative and must update the actual bound grid before Direct/Job completion
+    /// is reported; routing this through Browser navigation made it compete with watcher navigation and left
+    /// the old rows visible until a later monitoring pass happened to repair them.
+    /// </summary>
+    private async Task RefreshActiveDirectFolderAfterMutationAsync(BrowserLocation expectedLocation)
+    {
+        var generation = _browserUiGeneration;
+        var request = new MediaFolderEnumerationRequest(expectedLocation.RootId,
+            string.IsNullOrEmpty(expectedLocation.RelativeFolder) ? null : expectedLocation.RelativeFolder);
+        var refresh = await _storage.MediaDiscovery.RefreshAsync(request, DerivedWorkPriority.Visible);
+        if (!refresh.Reconciliation.Succeeded) return;
+        var listing = await _storage.MediaFolders.EnumerateAsync(request);
+        if (!listing.Succeeded || generation != _browserUiGeneration || _activeCollectionScope is not null) return;
+        var current = _lastLoadedBrowserState;
+        var active = _browserNavigation.ActiveLocation;
+        if (current?.Location is null || current.Mode != BrowserScopeMode.DirectFolder || active is null ||
+            active.RootId != expectedLocation.RootId ||
+            !string.Equals(active.RelativeFolder, expectedLocation.RelativeFolder, StringComparison.OrdinalIgnoreCase)) return;
+        var status = listing.Entries.Count == 0 ? BrowserFolderStatus.Empty : BrowserFolderStatus.Ready;
+        ApplyBrowserState(current with
+        {
+            Location = expectedLocation with { RelativeFolder = listing.RelativeFolder },
+            Status = status,
+            Entries = listing.Entries,
+            Diagnostic = listing.Diagnostic,
+            DerivedWork = refresh.DerivedWork,
+            RecursiveMediaEntries = null
+        });
+    }
+
+    private async Task ExecuteFileOperationAsync(FileOperationKind kind, IReadOnlyList<FileOperationSource> sources, string? destination)
+    {
+        try
+        {
+            var intent = await Task.Run(() => FileOperationPlanner.Plan(kind, sources, destination));
+            if (intent.Execution == FileOperationExecution.Job)
+            {
+                _fileOperationJobs.Enqueue(intent); OpenJobsDrawer();
+                BrowserStatusText.Text = $"{kind} is tracked in Jobs."; return;
+            }
+            var result = await _fileOperationExecutor.ExecuteAsync(intent);
+            await SynchronizeFileSystemMutationsAsync(result.CompletedMutations);
+            BrowserStatusText.Text = result.Succeeded ? $"{kind} completed." :
+                $"{kind}: {result.CompletedItems} completed, {result.Failures.Count} failed.";
+            if (result.Failures.Count > 0)
+            {
+                var heading = result.CompletedItems == 0
+                    ? "The operation could not continue"
+                    : "Some items could not be processed";
+                var diagnostic = string.Join(Environment.NewLine + Environment.NewLine,
+                    result.Failures.Select(failure => $"{Path.GetFileName(failure.Path)}: {failure.Diagnostic}"));
+                NoticeDialog.Show(this, "File operation", heading, diagnostic);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        { NoticeDialog.Show(this, "File operation", "The operation could not continue", exception.Message); }
+    }
+
+    private async void BrowserCut_Click(object sender, RoutedEventArgs e) => await CopyBrowserSelectionToClipboardAsync(FileOperationKind.Move);
+    private async void BrowserCopy_Click(object sender, RoutedEventArgs e) => await CopyBrowserSelectionToClipboardAsync(FileOperationKind.Copy);
+    private async void BrowserPaste_Click(object sender, RoutedEventArgs e) => await PasteBrowserClipboardAsync(CurrentBrowserFolder());
+    private async void BrowserBackgroundPaste_Click(object sender, RoutedEventArgs e) =>
+        await PasteBrowserClipboardAsync(_browserNavigation.ActiveLocation?.AbsolutePath);
+    private void BrowserGridBackground_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (BrowserGridRows.ContextMenu?.Items[0] is MenuItem paste)
+            paste.IsEnabled = _activeCollectionScope is null && _browserNavigation.ActiveLocation is not null &&
+                System.Windows.Clipboard.ContainsFileDropList();
+    }
+    private async void BrowserDelete_Click(object sender, RoutedEventArgs e) => await DeleteBrowserSelectionAsync(false);
+    private async void BrowserRename_Click(object sender, RoutedEventArgs e)
+    {
+        var sources = await SelectedFileOperationSourcesAsync();
+        if (sources.Count != 1) return;
+        var name = TextEntryDialog.Prompt(this, "Rename media", "Name", Path.GetFileName(sources[0].Path));
+        if (name is null) return;
+        try { await SynchronizeFileSystemMutationsAsync([await _fileOperationExecutor.RenameAsync(sources[0], name)]); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        { NoticeDialog.Show(this, "Rename", "The item could not be renamed", ex.Message); }
+    }
+
+    private FileOperationSource? SelectedFolderOperationSource() => _browserTree.SelectedNode?.AbsolutePath is { } path
+        ? new FileOperationSource(null, path, IsDirectory: true) : null;
+    private void CopySelectedFolderToClipboard(FileOperationKind kind)
+    {
+        if (SelectedFolderOperationSource() is not { } source) return;
+        var data = new System.Windows.DataObject();
+        data.SetData(System.Windows.DataFormats.FileDrop, new[] { source.Path });
+        data.SetData("Preferred DropEffect", new MemoryStream(BitConverter.GetBytes(kind == FileOperationKind.Move ? 2 : 1)));
+        data.SetData("LightflowStudio.FileOperation", kind.ToString());
+        System.Windows.Clipboard.SetDataObject(data, true); _lightflowClipboardKind = kind;
+        _lightflowClipboardSources = [source];
+    }
+    private void BrowserFolderCut_Click(object sender, RoutedEventArgs e) => CopySelectedFolderToClipboard(FileOperationKind.Move);
+    private void BrowserFolderCopy_Click(object sender, RoutedEventArgs e) => CopySelectedFolderToClipboard(FileOperationKind.Copy);
+    private async void BrowserFolderPaste_Click(object sender, RoutedEventArgs e) => await PasteBrowserClipboardAsync(_browserTree.SelectedNode?.AbsolutePath);
+    private async void BrowserFolderDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedFolderOperationSource() is not { } source || !ConfirmationDialog.Confirm(this, "Move to Recycle Bin",
+            "Move this folder to the Recycle Bin?", "The folder and all contents will be recycled.",
+            "You can normally restore it from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep folder")) return;
+        await ExecuteFileOperationAsync(FileOperationKind.Recycle, [source], null);
+    }
+
+    private async void BrowserFolderNew_Click(object sender, RoutedEventArgs e)
+    {
+        if (_browserTree.SelectedNode?.AbsolutePath is not { } parent) return;
+        var name = TextEntryDialog.Prompt(this, "New Folder", "Folder name");
+        if (name is null) return;
+        try { await SynchronizeFileSystemMutationsAsync([await _fileOperationExecutor.CreateFolderAsync(parent, name)]); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        { NoticeDialog.Show(this, "New Folder", "The folder could not be created", ex.Message); }
+    }
+
+    private async void BrowserFolderRename_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedFolderOperationSource() is not { } source) return;
+        var name = TextEntryDialog.Prompt(this, "Rename folder", "Name", Path.GetFileName(Path.TrimEndingDirectorySeparator(source.Path)));
+        if (name is null) return;
+        try { await SynchronizeFileSystemMutationsAsync([await _fileOperationExecutor.RenameAsync(source, name)]); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        { NoticeDialog.Show(this, "Rename", "The folder could not be renamed", ex.Message); }
+    }
+
+    private void BrowserFolderTree_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _browserFolderDragNode?.AbsolutePath is not { } path) return;
+        var point = e.GetPosition(BrowserFolderTree);
+        if (Math.Abs(point.X - _browserFolderDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(point.Y - _browserFolderDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        var node = _browserFolderDragNode; _browserFolderDragNode = null;
+        var data = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, new[] { path });
+        BrowserStatusText.Text = $"Move folder ‘{node.DisplayName}’ — hold Ctrl to copy";
+        ShowFileDragAdorner(1, FileOperationKind.Move, null, "\uE8B7");
+        System.Windows.DragDrop.DoDragDrop(BrowserFolderTree, data, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
+        ClearFolderDropFeedback(); ClearFileDragAdorner();
+    }
+
+    private void BrowserFolderTree_DragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        var node = BrowserFolderDropTarget(e.OriginalSource as DependencyObject);
+        var paths = e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[];
+        ClearFolderDropFeedback(false);
+        if (node?.AbsolutePath is null || paths is not { Length: > 0 })
+        {
+            e.Effects = System.Windows.DragDropEffects.None;
+            _fileDragAdorner?.UpdateTargetState(FileDragTargetState.Invalid);
+        }
+        else
+        {
+            var defaultKind = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath, false, false);
+            var kind = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath,
+                Keyboard.Modifiers.HasFlag(ModifierKeys.Control), Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+            try
+            {
+                var sources = paths.Select(path => new FileOperationSource(null, path,
+                    File.Exists(path) ? new FileInfo(path).Length : null, Directory.Exists(path))).ToArray();
+                _ = FileOperationPlanner.Plan(kind, sources, node.AbsolutePath);
+                UpdateFileDragAdorner(paths.Length, kind, FileDragTargetState.Valid, defaultKind);
+                e.Effects = kind == FileOperationKind.Copy ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.Move;
+                node.IsFileDropTarget = true; _browserFileDropTarget = node;
+                BrowserStatusText.Text = $"{kind} {paths.Length} item{(paths.Length == 1 ? "" : "s")} to ‘{node.DisplayName}’";
+            }
+            catch { UpdateFileDragAdorner(paths.Length, kind, FileDragTargetState.Invalid, defaultKind);
+                e.Effects = System.Windows.DragDropEffects.None; node.IsInvalidFileDropTarget = true; _browserFileDropTarget = node;
+                BrowserStatusText.Text = $"Cannot drop {paths.Length} item{(paths.Length == 1 ? "" : "s")} here"; }
+        }
+        e.Handled = true;
+    }
+
+    private void BrowserFolderTree_DragLeave(object sender, System.Windows.DragEventArgs e) => ClearFolderDropFeedback();
+    private void ClearFolderDropFeedback(bool resetDragVisual = true)
+    {
+        if (_browserFileDropTarget is { } node)
+        {
+            node.IsFileDropTarget = false; node.IsInvalidFileDropTarget = false; _browserFileDropTarget = null;
+        }
+        if (resetDragVisual) _fileDragAdorner?.UpdateTargetState(FileDragTargetState.Pending);
+    }
+
+    private void ShowFileDragAdorner(int count, FileOperationKind kind, string? thumbnailPath = null,
+        string fallbackGlyph = "\uE8B7")
+    {
+        ClearFileDragAdorner();
+        _fileDragAdornerLayer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(BrowserFileDragAdornerTarget);
+        if (_fileDragAdornerLayer is null) return;
+        _fileDragAdorner = new FileDragAdorner(BrowserFileDragAdornerTarget, count, kind,
+            thumbnailPath, fallbackGlyph);
+        _fileDragAdornerLayer.Add(_fileDragAdorner);
+        // DoDragDrop enters a native modal loop immediately after this method returns. Give WPF one Render
+        // priority turn now so the first drag frame contains the label instead of waiting for a dispatcher
+        // pass that may not happen until the pointer is already over (or beyond) the destination tree row.
+        Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+    }
+
+    private void UpdateFileDragAdorner(int count, FileOperationKind kind, FileDragTargetState targetState,
+        FileOperationKind? defaultKind = null)
+    {
+        if (_fileDragAdorner is null) ShowFileDragAdorner(count, kind);
+        _fileDragAdorner?.Update(count, kind, targetState, defaultKind);
+    }
+
+    private void ClearFileDragAdorner()
+    {
+        if (_fileDragAdorner is not null) _fileDragAdornerLayer?.Remove(_fileDragAdorner);
+        _fileDragAdorner = null; _fileDragAdornerLayer = null;
+    }
+
+    private void BrowserFileDrag_GiveFeedback(object sender, System.Windows.GiveFeedbackEventArgs e)
+    {
+        if (_fileDragAdorner is not { } adorner) return;
+        adorner.UpdateForModifiers(Keyboard.Modifiers);
+        adorner.RefreshPosition();
+        var cursor = Forms.Cursor.Position;
+        var point = BrowserWorkspaceRoot.PointFromScreen(new System.Windows.Point(cursor.X, cursor.Y));
+        if (point.X < 0 || point.Y < 0 || point.X > BrowserWorkspaceRoot.ActualWidth ||
+            point.Y > BrowserWorkspaceRoot.ActualHeight) return;
+        e.UseDefaultCursors = false;
+        Mouse.SetCursor(System.Windows.Input.Cursors.Arrow);
+        e.Handled = true;
+    }
+
+    private async void BrowserFolderTree_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        var node = BrowserFolderDropTarget(e.OriginalSource as DependencyObject);
+        var paths = e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[];
+        if (node?.AbsolutePath is null || paths is not { Length: > 0 }) return;
+        var kind = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath,
+            Keyboard.Modifiers.HasFlag(ModifierKeys.Control), Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+        var selected = (await SelectedFileOperationSourcesAsync()).ToDictionary(source => source.Path, StringComparer.OrdinalIgnoreCase);
+        var sources = paths.Select(path => selected.TryGetValue(path, out var source) ? source :
+            new FileOperationSource(null, path, File.Exists(path) ? new FileInfo(path).Length : null, Directory.Exists(path))).ToArray();
+        ClearFolderDropFeedback();
+        if (sources.Any(source => source.IsDirectory) && !ConfirmationDialog.Confirm(this, $"{kind} folder",
+            $"{kind} the selected folder{(sources.Count(source => source.IsDirectory) == 1 ? "" : "s")}?",
+            $"Destination: {node.AbsolutePath}", "The operation will be tracked in Jobs when its cost requires it.", kind.ToString())) return;
+        await ExecuteFileOperationAsync(kind, sources, node.AbsolutePath);
+        e.Handled = true;
+    }
+
+    private static BrowserTreeNode? BrowserFolderDropTarget(DependencyObject? element)
+    {
+        while (element is not null)
+        {
+            if (element is FrameworkElement { DataContext: BrowserTreeNode node }) return node;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return null;
     }
 
     private bool PlayerOwnsShortcutContext() =>
@@ -2699,7 +3162,19 @@ public partial class MainWindow : Window
         handler = (_, _) => Dispatcher.BeginInvoke(() => _ = ApplyBrowserDerivedWorkResultsAsync(batch, generation));
         batch.ProgressChanged += handler;
         _ = ApplyBrowserDerivedWorkResultsAsync(batch, generation);
-        _ = batch.Completion.ContinueWith(_ => batch.ProgressChanged -= handler, TaskScheduler.Default);
+        _ = CompleteBrowserDerivedWorkProjectionAsync(batch, generation, handler);
+    }
+
+    private async Task CompleteBrowserDerivedWorkProjectionAsync(IDerivedWorkBatch batch, long generation,
+        EventHandler<DerivedWorkProgress> handler)
+    {
+        try
+        {
+            await batch.Completion.ConfigureAwait(false);
+            await Dispatcher.InvokeAsync(() => ApplyBrowserDerivedWorkResultsAsync(batch, generation)).Task.Unwrap();
+        }
+        catch (OperationCanceledException) { }
+        finally { batch.ProgressChanged -= handler; }
     }
 
     private async Task ApplyBrowserDerivedWorkResultsAsync(IDerivedWorkBatch batch, long generation)
@@ -4081,8 +4556,11 @@ public partial class MainWindow : Window
             ClearCollectionDropFeedback();
             var assetTarget = CollectionTreeItemAtHeader(e.GetPosition(BrowserCollectionTree))?.DataContext as BrowserCollectionNode;
             ClearAssetCollectionDropTargets();
-            if (BrowserCollectionMembershipInteraction.CanDrop(assets, assetTarget)) assetTarget!.IsAssetDropTarget = true;
-            e.Effects = BrowserCollectionMembershipInteraction.CanDrop(assets, assetTarget)
+            var canDrop = BrowserCollectionMembershipInteraction.CanDrop(assets, assetTarget);
+            if (canDrop) assetTarget!.IsAssetDropTarget = true;
+            _fileDragAdorner?.Update(assets.AssetIds.Count, FileOperationKind.Copy,
+                canDrop ? FileDragTargetState.AddToCollection : FileDragTargetState.Invalid);
+            e.Effects = canDrop
                 ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
             e.Handled = true;
             return;
@@ -4129,6 +4607,7 @@ public partial class MainWindow : Window
         CancelCollectionDragHover();
         ClearCollectionDropFeedback();
         ClearAssetCollectionDropTargets();
+        _fileDragAdorner?.UpdateTargetState(FileDragTargetState.Pending);
     }
     private async void BrowserCollectionTree_Drop(object sender, System.Windows.DragEventArgs e)
     {
@@ -4358,6 +4837,148 @@ public partial class MainWindow : Window
 
     private sealed record CollectionInsertionLine(TreeViewItem Item, BrowserCollectionDropKind Edge,
         BrowserCollectionInsertionDestination Destination, double? ExplicitY = null, double? ExplicitLeft = null);
+
+    private enum FileDragTargetState { Pending, Valid, Invalid, AddToCollection }
+
+    private sealed class FileDragAdorner : System.Windows.Documents.Adorner
+    {
+        private int _count;
+        private FileOperationKind _kind;
+        private FileOperationKind _defaultKind;
+        private FileDragTargetState _targetState;
+        private readonly ImageSource? _thumbnail;
+        private readonly string _fallbackGlyph;
+
+        public FileDragAdorner(UIElement adorned, int count, FileOperationKind kind,
+            string? thumbnailPath, string fallbackGlyph) : base(adorned)
+        {
+            _count = count;
+            _kind = kind;
+            _defaultKind = kind;
+            _fallbackGlyph = fallbackGlyph;
+            _thumbnail = LoadThumbnail(thumbnailPath);
+            IsHitTestVisible = false;
+        }
+
+        public void Update(int count, FileOperationKind kind, FileDragTargetState targetState,
+            FileOperationKind? defaultKind = null)
+        {
+            _count = count; _kind = kind; _defaultKind = defaultKind ?? _defaultKind;
+            _targetState = targetState; InvalidateVisual();
+        }
+        public void UpdateTargetState(FileDragTargetState targetState)
+        { _targetState = targetState; InvalidateVisual(); }
+        public void UpdateForModifiers(ModifierKeys modifiers)
+        {
+            if (_targetState == FileDragTargetState.AddToCollection) return;
+            var next = modifiers.HasFlag(ModifierKeys.Control) && !modifiers.HasFlag(ModifierKeys.Shift)
+                ? FileOperationKind.Copy
+                : modifiers.HasFlag(ModifierKeys.Shift) && !modifiers.HasFlag(ModifierKeys.Control)
+                    ? FileOperationKind.Move : _defaultKind;
+            if (next == _kind) return;
+            _kind = next;
+            InvalidateVisual();
+        }
+        public void RefreshPosition() => InvalidateVisual();
+        protected override void OnRender(DrawingContext drawingContext)
+        {
+            var cursor = Forms.Cursor.Position;
+            var point = AdornedElement.PointFromScreen(new System.Windows.Point(cursor.X, cursor.Y));
+            const double previewWidth = 92;
+            const double previewHeight = 60;
+            const double cardWidth = 232;
+            const double cardHeight = 76;
+            var x = Math.Clamp(point.X + 22, 8, Math.Max(8, AdornedElement.RenderSize.Width - cardWidth - 8));
+            var y = Math.Clamp(point.Y + 18, 8, Math.Max(8, AdornedElement.RenderSize.Height - cardHeight - 8));
+            var origin = new System.Windows.Point(x, y);
+            var accent = new SolidColorBrush(_targetState switch
+            {
+                FileDragTargetState.Invalid => System.Windows.Media.Color.FromRgb(232, 93, 93),
+                FileDragTargetState.AddToCollection => System.Windows.Media.Color.FromRgb(166, 118, 255),
+                _ when _kind == FileOperationKind.Copy => System.Windows.Media.Color.FromRgb(86, 170, 255),
+                _ => System.Windows.Media.Color.FromRgb(228, 184, 90)
+            });
+            accent.Freeze();
+            var surface = new SolidColorBrush(System.Windows.Media.Color.FromArgb(248, 25, 31, 42));
+            surface.Freeze();
+            var mutedSurface = new SolidColorBrush(System.Windows.Media.Color.FromRgb(43, 51, 65));
+            mutedSurface.Freeze();
+
+            var layers = Math.Min(_count, 3);
+            for (var layer = layers - 1; layer >= 1; layer--)
+            {
+                var stacked = new Rect(origin.X + layer * 5, origin.Y + layer * 5,
+                    previewWidth, previewHeight);
+                drawingContext.DrawRoundedRectangle(mutedSurface,
+                    new System.Windows.Media.Pen(accent, 1.5), stacked, 6, 6);
+            }
+
+            var preview = new Rect(origin.X, origin.Y, previewWidth, previewHeight);
+            drawingContext.DrawRoundedRectangle(surface, new System.Windows.Media.Pen(accent, 2), preview, 6, 6);
+            if (_thumbnail is not null)
+            {
+                drawingContext.PushClip(new RectangleGeometry(new Rect(preview.X + 3, preview.Y + 3,
+                    preview.Width - 6, preview.Height - 6), 4, 4));
+                drawingContext.DrawImage(_thumbnail, new Rect(preview.X + 3, preview.Y + 3,
+                    preview.Width - 6, preview.Height - 6));
+                drawingContext.Pop();
+            }
+            else
+            {
+                var glyph = Text(_fallbackGlyph, "Segoe Fluent Icons, Segoe MDL2 Assets", 25,
+                    System.Windows.Media.Brushes.White);
+                drawingContext.DrawText(glyph, new System.Windows.Point(
+                    preview.X + (preview.Width - glyph.Width) / 2,
+                    preview.Y + (preview.Height - glyph.Height) / 2));
+            }
+
+            var action = _targetState switch
+            {
+                FileDragTargetState.Invalid => "CAN'T DROP",
+                FileDragTargetState.AddToCollection => "ADD TO COLLECTION",
+                _ when _kind == FileOperationKind.Copy => "COPY",
+                _ => "MOVE"
+            };
+            var actionText = Text(action, "Segoe UI Semibold", 13, System.Windows.Media.Brushes.White);
+            var itemText = Text($"{_count} item{(_count == 1 ? "" : "s")}", "Segoe UI", 11,
+                new SolidColorBrush(System.Windows.Media.Color.FromRgb(202, 210, 222)));
+            var actionRect = new Rect(preview.Right - 13, origin.Y + 10,
+                Math.Max(102, Math.Max(actionText.Width, itemText.Width) + 24), 48);
+            drawingContext.DrawRoundedRectangle(surface, new System.Windows.Media.Pen(accent, 2), actionRect, 7, 7);
+            drawingContext.DrawText(actionText, new System.Windows.Point(actionRect.X + 12, actionRect.Y + 7));
+            drawingContext.DrawText(itemText, new System.Windows.Point(actionRect.X + 12, actionRect.Y + 26));
+
+            // Keep the quantity above the overlapping action panel so a multi-item drag never obscures
+            // the most important part of its compact stacked-card representation.
+            var countText = Text(_count.ToString(CultureInfo.InvariantCulture), "Segoe UI Semibold", 12,
+                System.Windows.Media.Brushes.White);
+            var countRect = new Rect(preview.Right - countText.Width - 16, preview.Y + 7,
+                countText.Width + 12, countText.Height + 6);
+            drawingContext.DrawRoundedRectangle(accent, null, countRect, 9, 9);
+            drawingContext.DrawText(countText, new System.Windows.Point(countRect.X + 6, countRect.Y + 3));
+        }
+
+        private FormattedText Text(string value, string family, double size, System.Windows.Media.Brush brush) =>
+            new(value, CultureInfo.CurrentUICulture, System.Windows.FlowDirection.LeftToRight,
+                new Typeface(family), size, brush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+
+        private static ImageSource? LoadThumbnail(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
+            try
+            {
+                var image = new System.Windows.Media.Imaging.BitmapImage();
+                image.BeginInit();
+                image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                image.DecodePixelWidth = 160;
+                image.UriSource = new Uri(path, UriKind.Absolute);
+                image.EndInit();
+                image.Freeze();
+                return image;
+            }
+            catch { return null; }
+        }
+    }
 
     private sealed class CollectionDropAdorner(
         UIElement adornedElement, System.Windows.Media.Brush accent)
@@ -5231,7 +5852,10 @@ public partial class MainWindow : Window
         var focusedJobId = FocusedJobsWorkspaceItem()?.JobId;
         var filter = (JobsWorkspaceFilter)Math.Clamp(JobsFilter?.SelectedIndex ?? 0, 0, 7);
         var projected = JobsWorkspacePresentation.Project(_exportScheduler.Jobs, _durableHistoryRecords,
-            JobsSearchText?.Text, filter, _deletedFullJobsTerminalJobIds);
+                JobsSearchText?.Text, filter, _deletedFullJobsTerminalJobIds)
+            .Concat(JobsWorkspacePresentation.ProjectFileOperations(_fileOperationJobs.Jobs, _fileOperationJobs.History,
+                JobsSearchText?.Text, filter)).OrderBy(item => JobsPresentation.IsTerminal(item.State) ? 1 : 0)
+            .ThenByDescending(item => item.SortTime).ToArray();
         FullJobsMaximumExports.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         ReconcileJobsWorkspace(projected);
         HistoryEmptyText.Visibility = _historyRecords.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -5299,8 +5923,9 @@ public partial class MainWindow : Window
     {
         var selection = CurrentJobsSelection();
         var item = selection.IsSingle ? selection.Items[0] : null;
-        HistoryDetails.Text = selection.Items.Count > 1 ? $"{selection.Items.Count} Jobs selected. Actions apply only when every selected Job is eligible."
-            : item?.Details ?? "Select a job to inspect its results.";
+        HistoryDetails.Content = selection.Items.Count > 1
+            ? new JobMessageDetailsPresentation($"{selection.Items.Count} Jobs selected. Actions apply only when every selected Job is eligible.")
+            : item?.DetailPresentation ?? new JobMessageDetailsPresentation("Select a job to inspect its results.");
         HistoryRerunButton.IsEnabled = item?.CanReviewAndRerun == true;
         JobsPauseButton.IsEnabled = selection.CanPause;
         JobsResumeButton.IsEnabled = selection.CanResume;
@@ -5383,7 +6008,9 @@ public partial class MainWindow : Window
         if (ConfirmationDialog.Confirm(this, selection.IsSingle ? "Cancel Export Job" : "Cancel Selected Export Jobs",
                 selection.IsSingle ? $"Cancel {single!.Name}?" : $"Cancel all {intended.Count} selected Jobs?",
                 "Incomplete output uses the existing cleanup policy.", single?.OutputPath, selection.IsSingle ? "Cancel Job" : "Cancel selected"))
-            foreach (var id in intended) _exportScheduler.Cancel(id);
+            foreach (var id in intended)
+                if (_fileOperationJobs.Jobs.Any(job => job.Intent.OperationId == id)) _fileOperationJobs.Cancel(id);
+                else _exportScheduler.Cancel(id);
     }
 
     private void JobsBackToBrowser_Click(object sender, RoutedEventArgs e) =>
@@ -5696,10 +6323,13 @@ public partial class MainWindow : Window
     {
         if (JobsStatusButton is null) return;
         var queuePaused = _exportScheduler.IsQueuePaused;
-        JobsStatusButton.Content = JobsPresentation.StatusText(jobs, queuePaused);
+        var fileJobs = _fileOperationJobs.Jobs;
+        var activeFileJobs = fileJobs.Count(job => job.State is FileOperationState.Waiting or FileOperationState.Running);
+        JobsStatusButton.Content = activeFileJobs == 0 ? JobsPresentation.StatusText(jobs, queuePaused)
+            : $"{JobsPresentation.StatusText(jobs, queuePaused)} · {activeFileJobs} file {(activeFileJobs == 1 ? "operation" : "operations")}";
         AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs workspace.");
         JobsStatusButton.ToolTip = "Open full Jobs workspace";
-        var activeCount = jobs.Count(job => !JobsPresentation.IsTerminal(job.State));
+        var activeCount = jobs.Count(job => !JobsPresentation.IsTerminal(job.State)) + activeFileJobs;
         JobsDrawerPullButton.Tag = activeCount > 0 ? "Active" : "Idle";
         JobsDrawerPullCount.Text = activeCount.ToString();
         JobsDrawerPullCount.Visibility = activeCount > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -5719,8 +6349,8 @@ public partial class MainWindow : Window
         AutomationProperties.SetName(JobsCancelAllButton, cancelAll
             ? $"Cancel all {cancellableCount} active Jobs"
             : clearableCount > 0 ? $"Clear all {clearableCount} dismissible Jobs from drawer" : "Clear all, no Jobs to clear");
-        var cards = visibleJobs
-            .Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId))).ToList();
+        var cards = visibleJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId)))
+            .Concat(fileJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.Intent.OperationId)))).ToList();
         JobsPresentation.Reconcile(_jobsDrawerCards, cards);
         if (MainTabs?.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
     }
@@ -5854,6 +6484,15 @@ public partial class MainWindow : Window
     private void JobsCancel_Click(object sender, RoutedEventArgs e)
     {
         if (JobIdFrom(sender) is not { } id) return;
+        var fileJob = _fileOperationJobs.Jobs.FirstOrDefault(snapshot => snapshot.Intent.OperationId == id &&
+            snapshot.State is FileOperationState.Waiting or FileOperationState.Running);
+        if (fileJob is not null)
+        {
+            if (ConfirmationDialog.Confirm(this, "Cancel file operation", "Cancel this file operation?",
+                "Completed items remain completed and will be reported truthfully.", fileJob.CurrentItem, "Cancel Job"))
+                _fileOperationJobs.Cancel(id);
+            return;
+        }
         var job = _exportScheduler.Jobs.FirstOrDefault(snapshot => snapshot.JobId == id && !JobsPresentation.IsTerminal(snapshot.State));
         if (job is null) return;
         if (ConfirmationDialog.Confirm(this, "Cancel Export Job", "Cancel this Export Job?",
@@ -5871,7 +6510,9 @@ public partial class MainWindow : Window
             if (!ConfirmationDialog.Confirm(this, "Cancel all Export Jobs", $"Cancel all {intended.Count} active {noun}?",
                 "Needs-attention and terminal Jobs are unaffected. Incomplete outputs use the existing cleanup policy.",
                 null, "Cancel all")) return;
-            foreach (var id in intended) _exportScheduler.Cancel(id);
+            foreach (var id in intended)
+                if (_fileOperationJobs.Jobs.Any(job => job.Intent.OperationId == id)) _fileOperationJobs.Cancel(id);
+                else _exportScheduler.Cancel(id);
             return;
         }
         foreach (var job in JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds)

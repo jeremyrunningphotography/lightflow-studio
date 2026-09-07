@@ -48,8 +48,82 @@ public sealed class JobsPresentationTests
         Assert.True(card.IsExpanded);
         Assert.True(card.CanPause);
         Assert.True(card.CanReorder);
-        Assert.Contains("1080p", card.ResolutionAndFrameRate);
-        Assert.Contains("H264", card.CodecAndContainer);
+        var details = Assert.IsType<ExportJobDetailsPresentation>(card.Details);
+        Assert.Contains("1080p", details.Video);
+        Assert.Contains("H264", details.Format);
+    }
+
+    [Theory]
+    [InlineData((int)FileOperationKind.Copy)]
+    [InlineData((int)FileOperationKind.Move)]
+    public void PromotedFolderJobs_UseFilesystemDetails(int kindValue)
+    {
+        var kind = (FileOperationKind)kindValue;
+        var source = new FileOperationSource(null, @"C:\media\folder", null, true);
+        var intent = new FileOperationIntent(Guid.NewGuid(), kind, [source], @"C:\destination",
+            DateTimeOffset.UtcNow.AddSeconds(-2), null, false, FileOperationExecution.Job);
+        var snapshot = new FileOperationJobSnapshot(intent, FileOperationState.Running, 0, 2048,
+            source.Path, []);
+
+        var card = JobsPresentation.Card(snapshot, true);
+        var details = Assert.IsType<FileSystemJobDetailsPresentation>(card.Details);
+
+        Assert.Equal(kind.ToString(), details.Operation);
+        Assert.Equal(source.Path, details.SourceSummary);
+        Assert.Equal(@"C:\destination", details.Destination);
+        Assert.Equal("0 of 1 item", details.ItemProgress);
+        Assert.Equal(source.Path, details.CurrentItem);
+        Assert.Contains("2,048 bytes", details.ByteProgress);
+    }
+
+    [Fact]
+    public void PromotedMultiFileJob_UsesOneFilesystemModelInDrawerAndFullJobs()
+    {
+        var sources = new[]
+        {
+            new FileOperationSource(Guid.NewGuid(), @"C:\media\one.mov", 100),
+            new FileOperationSource(Guid.NewGuid(), @"C:\media\two.mov", 200),
+            new FileOperationSource(Guid.NewGuid(), @"C:\media\three.mov", 300)
+        };
+        var intent = new FileOperationIntent(Guid.NewGuid(), FileOperationKind.Copy, sources, @"C:\destination",
+            DateTimeOffset.UtcNow.AddSeconds(-3), 600, false, FileOperationExecution.Job);
+        var snapshot = new FileOperationJobSnapshot(intent, FileOperationState.Running, 1, 100,
+            sources[1].Path, []);
+
+        var drawer = Assert.IsType<FileSystemJobDetailsPresentation>(JobsPresentation.Card(snapshot, true).Details);
+        var workspace = Assert.IsType<FileSystemJobDetailsPresentation>(Assert.Single(
+            JobsWorkspacePresentation.ProjectFileOperations([snapshot], [])).DetailPresentation);
+
+        Assert.Equal(drawer, workspace);
+        Assert.Equal("1 of 3 items", drawer.ItemProgress);
+        Assert.Contains("3 selected items", drawer.SourceSummary);
+        Assert.Equal("100 of 600 bytes", drawer.ByteProgress);
+    }
+
+    [Fact]
+    public void CapabilityTemplates_KeepExportRowsOutOfFilesystemDetailsAndServeBothJobsSurfaces()
+    {
+        var document = DrawerDocument();
+        var templates = document.Descendants().Where(element => element.Name.LocalName == "DataTemplate").ToList();
+        var export = templates.Single(element => ((string?)element.Attribute("DataType"))?.Contains(
+            "ExportJobDetailsPresentation", StringComparison.Ordinal) == true);
+        var filesystem = templates.Single(element => ((string?)element.Attribute("DataType"))?.Contains(
+            "FileSystemJobDetailsPresentation", StringComparison.Ordinal) == true);
+        var exportLabels = export.Descendants().Select(element => (string?)element.Attribute("Text")).ToHashSet();
+        var filesystemLabels = filesystem.Descendants().Select(element => (string?)element.Attribute("Text")).ToHashSet();
+
+        Assert.All(new[] { "VIDEO", "FORMAT", "QUALITY", "AUDIO", "COLOR" }, label =>
+        {
+            Assert.Contains(label, exportLabels);
+            Assert.DoesNotContain(label, filesystemLabels);
+        });
+        Assert.All(new[] { "OPERATION", "SOURCE", "DESTINATION", "ITEMS", "CURRENT", "BYTES" },
+            label => Assert.Contains(label, filesystemLabels));
+        var drawerContent = Named(document, "JobsDrawerList").Descendants().Single(element =>
+            element.Name.LocalName == "ContentControl" && (string?)element.Attribute("Content") == "{Binding Details}");
+        var fullContent = Named(document, "HistoryDetails");
+        Assert.Equal("ContentControl", drawerContent.Name.LocalName);
+        Assert.Equal("ContentControl", fullContent.Name.LocalName);
     }
 
     [Fact]
@@ -92,7 +166,7 @@ public sealed class JobsPresentationTests
     {
         var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
             .Single(element => element.Name.LocalName == "DataTemplate");
-        var path = template.Descendants().Single(element => (string?)element.Attribute("Text") == "{Binding OutputPath}");
+        var path = DrawerDocument().Descendants().Single(element => (string?)element.Attribute("Text") == "{Binding OutputPath}");
         var progress = template.Descendants().Single(element => element.Name.LocalName == "ProgressBar");
         var percentage = template.Descendants().Single(element => ((string?)element.Attribute("Text"))?.Contains("Progress, StringFormat", StringComparison.Ordinal) == true);
         var timingGrid = percentage.Parent!;
@@ -138,7 +212,7 @@ public sealed class JobsPresentationTests
 
         var source = MainWindowSource();
         Assert.Contains("JobsPresentation.BulkCancellableJobs(jobs).Select(job => job.JobId).ToList()", source);
-        Assert.Contains("foreach (var id in intended) _exportScheduler.Cancel(id);", source);
+        Assert.Contains("else _exportScheduler.Cancel(id);", source);
         Assert.Contains("Cancel all {intended.Count} active", source);
         Assert.Contains("job.OutputPath", source);
 

@@ -1421,7 +1421,7 @@ public partial class MainWindow : Window
         var data = new System.Windows.DataObject();
         data.SetData(typeof(BrowserAssetDragPayload), new BrowserAssetDragPayload(ids));
         data.SetData(System.Windows.DataFormats.FileDrop, sources.Select(source => source.Path).ToArray());
-        ShowFileDragAdorner(sources.Count, FileOperationKind.Move);
+        ShowFileDragAdorner(sources.Count, FileOperationKind.Move, tile.ThumbnailPath, tile.CategoryGlyph);
         System.Windows.DragDrop.DoDragDrop(BrowserGridRows, data,
             System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
         ClearFileDragAdorner();
@@ -2666,7 +2666,7 @@ public partial class MainWindow : Window
         var node = _browserFolderDragNode; _browserFolderDragNode = null;
         var data = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, new[] { path });
         BrowserStatusText.Text = $"Move folder ‘{node.DisplayName}’ — hold Ctrl to copy";
-        ShowFileDragAdorner(1, FileOperationKind.Move);
+        ShowFileDragAdorner(1, FileOperationKind.Move, null, "\uE8B7");
         System.Windows.DragDrop.DoDragDrop(BrowserFolderTree, data, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
         ClearFolderDropFeedback(); ClearFileDragAdorner();
     }
@@ -2675,41 +2675,52 @@ public partial class MainWindow : Window
     {
         var node = BrowserFolderDropTarget(e.OriginalSource as DependencyObject);
         var paths = e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[];
-        ClearFolderDropFeedback();
-        if (node?.AbsolutePath is null || paths is not { Length: > 0 }) e.Effects = System.Windows.DragDropEffects.None;
+        ClearFolderDropFeedback(false);
+        if (node?.AbsolutePath is null || paths is not { Length: > 0 })
+        {
+            e.Effects = System.Windows.DragDropEffects.None;
+            _fileDragAdorner?.UpdateTargetState(FileDragTargetState.Invalid);
+        }
         else
         {
+            var defaultKind = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath, false, false);
             var kind = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath,
                 Keyboard.Modifiers.HasFlag(ModifierKeys.Control), Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
-            UpdateFileDragAdorner(paths.Length, kind);
             try
             {
                 var sources = paths.Select(path => new FileOperationSource(null, path,
                     File.Exists(path) ? new FileInfo(path).Length : null, Directory.Exists(path))).ToArray();
                 _ = FileOperationPlanner.Plan(kind, sources, node.AbsolutePath);
+                UpdateFileDragAdorner(paths.Length, kind, FileDragTargetState.Valid, defaultKind);
                 e.Effects = kind == FileOperationKind.Copy ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.Move;
                 node.IsFileDropTarget = true; _browserFileDropTarget = node;
                 BrowserStatusText.Text = $"{kind} {paths.Length} item{(paths.Length == 1 ? "" : "s")} to ‘{node.DisplayName}’";
             }
-            catch { e.Effects = System.Windows.DragDropEffects.None; node.IsInvalidFileDropTarget = true; _browserFileDropTarget = node;
+            catch { UpdateFileDragAdorner(paths.Length, kind, FileDragTargetState.Invalid, defaultKind);
+                e.Effects = System.Windows.DragDropEffects.None; node.IsInvalidFileDropTarget = true; _browserFileDropTarget = node;
                 BrowserStatusText.Text = $"Cannot drop {paths.Length} item{(paths.Length == 1 ? "" : "s")} here"; }
         }
         e.Handled = true;
     }
 
     private void BrowserFolderTree_DragLeave(object sender, System.Windows.DragEventArgs e) => ClearFolderDropFeedback();
-    private void ClearFolderDropFeedback()
+    private void ClearFolderDropFeedback(bool resetDragVisual = true)
     {
-        if (_browserFileDropTarget is not { } node) return;
-        node.IsFileDropTarget = false; node.IsInvalidFileDropTarget = false; _browserFileDropTarget = null;
+        if (_browserFileDropTarget is { } node)
+        {
+            node.IsFileDropTarget = false; node.IsInvalidFileDropTarget = false; _browserFileDropTarget = null;
+        }
+        if (resetDragVisual) _fileDragAdorner?.UpdateTargetState(FileDragTargetState.Pending);
     }
 
-    private void ShowFileDragAdorner(int count, FileOperationKind kind)
+    private void ShowFileDragAdorner(int count, FileOperationKind kind, string? thumbnailPath = null,
+        string fallbackGlyph = "\uE8B7")
     {
         ClearFileDragAdorner();
         _fileDragAdornerLayer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(BrowserFileDragAdornerTarget);
         if (_fileDragAdornerLayer is null) return;
-        _fileDragAdorner = new FileDragAdorner(BrowserFileDragAdornerTarget, count, kind);
+        _fileDragAdorner = new FileDragAdorner(BrowserFileDragAdornerTarget, count, kind,
+            thumbnailPath, fallbackGlyph);
         _fileDragAdornerLayer.Add(_fileDragAdorner);
         // DoDragDrop enters a native modal loop immediately after this method returns. Give WPF one Render
         // priority turn now so the first drag frame contains the label instead of waiting for a dispatcher
@@ -2717,10 +2728,11 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
     }
 
-    private void UpdateFileDragAdorner(int count, FileOperationKind kind)
+    private void UpdateFileDragAdorner(int count, FileOperationKind kind, FileDragTargetState targetState,
+        FileOperationKind? defaultKind = null)
     {
         if (_fileDragAdorner is null) ShowFileDragAdorner(count, kind);
-        else _fileDragAdorner.Update(count, kind);
+        _fileDragAdorner?.Update(count, kind, targetState, defaultKind);
     }
 
     private void ClearFileDragAdorner()
@@ -2729,8 +2741,19 @@ public partial class MainWindow : Window
         _fileDragAdorner = null; _fileDragAdornerLayer = null;
     }
 
-    private void BrowserFileDrag_GiveFeedback(object sender, System.Windows.GiveFeedbackEventArgs e) =>
-        _fileDragAdorner?.RefreshPosition();
+    private void BrowserFileDrag_GiveFeedback(object sender, System.Windows.GiveFeedbackEventArgs e)
+    {
+        if (_fileDragAdorner is not { } adorner) return;
+        adorner.UpdateForModifiers(Keyboard.Modifiers);
+        adorner.RefreshPosition();
+        var cursor = Forms.Cursor.Position;
+        var point = BrowserWorkspaceRoot.PointFromScreen(new System.Windows.Point(cursor.X, cursor.Y));
+        if (point.X < 0 || point.Y < 0 || point.X > BrowserWorkspaceRoot.ActualWidth ||
+            point.Y > BrowserWorkspaceRoot.ActualHeight) return;
+        e.UseDefaultCursors = false;
+        Mouse.SetCursor(System.Windows.Input.Cursors.Arrow);
+        e.Handled = true;
+    }
 
     private async void BrowserFolderTree_Drop(object sender, System.Windows.DragEventArgs e)
     {
@@ -4533,8 +4556,11 @@ public partial class MainWindow : Window
             ClearCollectionDropFeedback();
             var assetTarget = CollectionTreeItemAtHeader(e.GetPosition(BrowserCollectionTree))?.DataContext as BrowserCollectionNode;
             ClearAssetCollectionDropTargets();
-            if (BrowserCollectionMembershipInteraction.CanDrop(assets, assetTarget)) assetTarget!.IsAssetDropTarget = true;
-            e.Effects = BrowserCollectionMembershipInteraction.CanDrop(assets, assetTarget)
+            var canDrop = BrowserCollectionMembershipInteraction.CanDrop(assets, assetTarget);
+            if (canDrop) assetTarget!.IsAssetDropTarget = true;
+            _fileDragAdorner?.Update(assets.AssetIds.Count, FileOperationKind.Copy,
+                canDrop ? FileDragTargetState.AddToCollection : FileDragTargetState.Invalid);
+            e.Effects = canDrop
                 ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
             e.Handled = true;
             return;
@@ -4581,6 +4607,7 @@ public partial class MainWindow : Window
         CancelCollectionDragHover();
         ClearCollectionDropFeedback();
         ClearAssetCollectionDropTargets();
+        _fileDragAdorner?.UpdateTargetState(FileDragTargetState.Pending);
     }
     private async void BrowserCollectionTree_Drop(object sender, System.Windows.DragEventArgs e)
     {
@@ -4811,24 +4838,145 @@ public partial class MainWindow : Window
     private sealed record CollectionInsertionLine(TreeViewItem Item, BrowserCollectionDropKind Edge,
         BrowserCollectionInsertionDestination Destination, double? ExplicitY = null, double? ExplicitLeft = null);
 
+    private enum FileDragTargetState { Pending, Valid, Invalid, AddToCollection }
+
     private sealed class FileDragAdorner : System.Windows.Documents.Adorner
     {
         private int _count;
         private FileOperationKind _kind;
-        public FileDragAdorner(UIElement adorned, int count, FileOperationKind kind) : base(adorned)
-        { _count = count; _kind = kind; IsHitTestVisible = false; }
-        public void Update(int count, FileOperationKind kind) { _count = count; _kind = kind; InvalidateVisual(); }
+        private FileOperationKind _defaultKind;
+        private FileDragTargetState _targetState;
+        private readonly ImageSource? _thumbnail;
+        private readonly string _fallbackGlyph;
+
+        public FileDragAdorner(UIElement adorned, int count, FileOperationKind kind,
+            string? thumbnailPath, string fallbackGlyph) : base(adorned)
+        {
+            _count = count;
+            _kind = kind;
+            _defaultKind = kind;
+            _fallbackGlyph = fallbackGlyph;
+            _thumbnail = LoadThumbnail(thumbnailPath);
+            IsHitTestVisible = false;
+        }
+
+        public void Update(int count, FileOperationKind kind, FileDragTargetState targetState,
+            FileOperationKind? defaultKind = null)
+        {
+            _count = count; _kind = kind; _defaultKind = defaultKind ?? _defaultKind;
+            _targetState = targetState; InvalidateVisual();
+        }
+        public void UpdateTargetState(FileDragTargetState targetState)
+        { _targetState = targetState; InvalidateVisual(); }
+        public void UpdateForModifiers(ModifierKeys modifiers)
+        {
+            if (_targetState == FileDragTargetState.AddToCollection) return;
+            var next = modifiers.HasFlag(ModifierKeys.Control) && !modifiers.HasFlag(ModifierKeys.Shift)
+                ? FileOperationKind.Copy
+                : modifiers.HasFlag(ModifierKeys.Shift) && !modifiers.HasFlag(ModifierKeys.Control)
+                    ? FileOperationKind.Move : _defaultKind;
+            if (next == _kind) return;
+            _kind = next;
+            InvalidateVisual();
+        }
         public void RefreshPosition() => InvalidateVisual();
         protected override void OnRender(DrawingContext drawingContext)
         {
-            var point = Mouse.GetPosition(AdornedElement);
-            var label = $"{(_kind == FileOperationKind.Copy ? "Copy" : "Move")} {_count} item{(_count == 1 ? "" : "s")}";
-            var text = new FormattedText(label, CultureInfo.CurrentUICulture, System.Windows.FlowDirection.LeftToRight,
-                new Typeface("Segoe UI Semibold"), 13, System.Windows.Media.Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip);
-            var rect = new Rect(point.X + 18, point.Y + 16, text.Width + 28, text.Height + 16);
-            drawingContext.DrawRoundedRectangle(new SolidColorBrush(System.Windows.Media.Color.FromArgb(238, 30, 37, 48)),
-                new System.Windows.Media.Pen(new SolidColorBrush(_kind == FileOperationKind.Copy ? System.Windows.Media.Color.FromRgb(86, 170, 255) : System.Windows.Media.Color.FromRgb(228, 184, 90)), 2), rect, 7, 7);
-            drawingContext.DrawText(text, new System.Windows.Point(rect.X + 14, rect.Y + 8));
+            var cursor = Forms.Cursor.Position;
+            var point = AdornedElement.PointFromScreen(new System.Windows.Point(cursor.X, cursor.Y));
+            const double previewWidth = 92;
+            const double previewHeight = 60;
+            const double cardWidth = 232;
+            const double cardHeight = 76;
+            var x = Math.Clamp(point.X + 22, 8, Math.Max(8, AdornedElement.RenderSize.Width - cardWidth - 8));
+            var y = Math.Clamp(point.Y + 18, 8, Math.Max(8, AdornedElement.RenderSize.Height - cardHeight - 8));
+            var origin = new System.Windows.Point(x, y);
+            var accent = new SolidColorBrush(_targetState switch
+            {
+                FileDragTargetState.Invalid => System.Windows.Media.Color.FromRgb(232, 93, 93),
+                FileDragTargetState.AddToCollection => System.Windows.Media.Color.FromRgb(166, 118, 255),
+                _ when _kind == FileOperationKind.Copy => System.Windows.Media.Color.FromRgb(86, 170, 255),
+                _ => System.Windows.Media.Color.FromRgb(228, 184, 90)
+            });
+            accent.Freeze();
+            var surface = new SolidColorBrush(System.Windows.Media.Color.FromArgb(248, 25, 31, 42));
+            surface.Freeze();
+            var mutedSurface = new SolidColorBrush(System.Windows.Media.Color.FromRgb(43, 51, 65));
+            mutedSurface.Freeze();
+
+            var layers = Math.Min(_count, 3);
+            for (var layer = layers - 1; layer >= 1; layer--)
+            {
+                var stacked = new Rect(origin.X + layer * 5, origin.Y + layer * 5,
+                    previewWidth, previewHeight);
+                drawingContext.DrawRoundedRectangle(mutedSurface,
+                    new System.Windows.Media.Pen(accent, 1.5), stacked, 6, 6);
+            }
+
+            var preview = new Rect(origin.X, origin.Y, previewWidth, previewHeight);
+            drawingContext.DrawRoundedRectangle(surface, new System.Windows.Media.Pen(accent, 2), preview, 6, 6);
+            if (_thumbnail is not null)
+            {
+                drawingContext.PushClip(new RectangleGeometry(new Rect(preview.X + 3, preview.Y + 3,
+                    preview.Width - 6, preview.Height - 6), 4, 4));
+                drawingContext.DrawImage(_thumbnail, new Rect(preview.X + 3, preview.Y + 3,
+                    preview.Width - 6, preview.Height - 6));
+                drawingContext.Pop();
+            }
+            else
+            {
+                var glyph = Text(_fallbackGlyph, "Segoe Fluent Icons, Segoe MDL2 Assets", 25,
+                    System.Windows.Media.Brushes.White);
+                drawingContext.DrawText(glyph, new System.Windows.Point(
+                    preview.X + (preview.Width - glyph.Width) / 2,
+                    preview.Y + (preview.Height - glyph.Height) / 2));
+            }
+
+            var action = _targetState switch
+            {
+                FileDragTargetState.Invalid => "CAN'T DROP",
+                FileDragTargetState.AddToCollection => "ADD TO COLLECTION",
+                _ when _kind == FileOperationKind.Copy => "COPY",
+                _ => "MOVE"
+            };
+            var actionText = Text(action, "Segoe UI Semibold", 13, System.Windows.Media.Brushes.White);
+            var itemText = Text($"{_count} item{(_count == 1 ? "" : "s")}", "Segoe UI", 11,
+                new SolidColorBrush(System.Windows.Media.Color.FromRgb(202, 210, 222)));
+            var actionRect = new Rect(preview.Right - 13, origin.Y + 10,
+                Math.Max(102, Math.Max(actionText.Width, itemText.Width) + 24), 48);
+            drawingContext.DrawRoundedRectangle(surface, new System.Windows.Media.Pen(accent, 2), actionRect, 7, 7);
+            drawingContext.DrawText(actionText, new System.Windows.Point(actionRect.X + 12, actionRect.Y + 7));
+            drawingContext.DrawText(itemText, new System.Windows.Point(actionRect.X + 12, actionRect.Y + 26));
+
+            // Keep the quantity above the overlapping action panel so a multi-item drag never obscures
+            // the most important part of its compact stacked-card representation.
+            var countText = Text(_count.ToString(CultureInfo.InvariantCulture), "Segoe UI Semibold", 12,
+                System.Windows.Media.Brushes.White);
+            var countRect = new Rect(preview.Right - countText.Width - 16, preview.Y + 7,
+                countText.Width + 12, countText.Height + 6);
+            drawingContext.DrawRoundedRectangle(accent, null, countRect, 9, 9);
+            drawingContext.DrawText(countText, new System.Windows.Point(countRect.X + 6, countRect.Y + 3));
+        }
+
+        private FormattedText Text(string value, string family, double size, System.Windows.Media.Brush brush) =>
+            new(value, CultureInfo.CurrentUICulture, System.Windows.FlowDirection.LeftToRight,
+                new Typeface(family), size, brush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+
+        private static ImageSource? LoadThumbnail(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
+            try
+            {
+                var image = new System.Windows.Media.Imaging.BitmapImage();
+                image.BeginInit();
+                image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                image.DecodePixelWidth = 160;
+                image.UriSource = new Uri(path, UriKind.Absolute);
+                image.EndInit();
+                image.Freeze();
+                return image;
+            }
+            catch { return null; }
         }
     }
 

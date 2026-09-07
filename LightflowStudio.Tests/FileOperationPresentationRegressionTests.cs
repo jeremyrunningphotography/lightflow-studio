@@ -25,8 +25,14 @@ public sealed class FileOperationPresentationRegressionTests
         var code = File.ReadAllText(Path.Combine(root, "LightflowStudio", "MainWindow.xaml.cs"));
         Assert.Contains("GetAdornerLayer(BrowserFileDragAdornerTarget)", code);
         Assert.Contains("new FileDragAdorner(BrowserFileDragAdornerTarget", code);
+        Assert.Contains("tile.ThumbnailPath, tile.CategoryGlyph", code);
+        Assert.Contains("var layers = Math.Min(_count, 3);", code);
+        Assert.Contains("FileDragTargetState.AddToCollection => \"ADD TO COLLECTION\"", code);
+        Assert.Contains("FileDragTargetState.Invalid => \"CAN'T DROP\"", code);
+        Assert.Contains("var cursor = Forms.Cursor.Position;", code);
+        Assert.Contains("e.UseDefaultCursors = false;", code);
         Assert.Contains("System.Windows.Threading.DispatcherPriority.Render", code);
-        Assert.Contains("_fileDragAdorner?.RefreshPosition();", code);
+        Assert.Contains("adorner.RefreshPosition();", code);
         Assert.Contains("private void BrowserFolderTree_PreviewMouseLeftButtonUp", code);
         Assert.Contains("var commitDeferredSelection = ReferenceEquals(tile, _browserAssetPendingSingleSelection);", code);
         Assert.Contains("_browserAssetDragTile = null;", code);

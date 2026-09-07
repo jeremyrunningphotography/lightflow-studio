@@ -297,10 +297,14 @@ internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMe
         if (!resolved.Succeeded) throw new IOException(resolved.Diagnostic);
         var relative = string.IsNullOrEmpty(resolved.RelativeFolder) ? Path.GetFileName(destination) :
             $"{resolved.RelativeFolder}/{Path.GetFileName(destination)}";
-        var created = await assets.CreateAsync(resolved.RootId!.Value, relative, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var sourceAsset = source.AssetId is { } sourceId
+            ? await assets.GetAsync(sourceId, cancellationToken).ConfigureAwait(false)
+            : null;
+        var created = await assets.CreateAsync(resolved.RootId!.Value, relative,
+            sourceAsset?.Asset.MediaType ?? "unknown", cancellationToken).ConfigureAwait(false);
         if (!created.Succeeded || created.Asset?.Asset is not { } asset) throw new IOException(created.Diagnostic ?? "The copied asset could not be added to the Catalog.");
-        if (source.AssetId is { } sourceId && copies is not null)
-            await copies.CloneAsync(sourceId, asset, cancellationToken).ConfigureAwait(false);
+        if (source.AssetId is { } clonedSourceId && copies is not null)
+            await copies.CloneAsync(clonedSourceId, asset, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task ReconcileDirectoryCopyAsync(string source, string destination, CancellationToken cancellationToken)

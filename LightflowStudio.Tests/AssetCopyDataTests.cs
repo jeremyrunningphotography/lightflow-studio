@@ -18,9 +18,7 @@ public sealed class AssetCopyDataTests : IDisposable
             var media = Path.Combine(_temporary, "media"); Directory.CreateDirectory(media);
             var root = (await storage.MediaRoots.CreateAsync("Media", media)).Root!;
             await File.WriteAllTextAsync(Path.Combine(media, "source.mp4"), "source");
-            await File.WriteAllTextAsync(Path.Combine(media, "copy.mp4"), "source");
             var source = (await storage.MediaAssets.CreateAsync(root.RootId, "source.mp4", "video")).Asset!.Asset;
-            var copy = (await storage.MediaAssets.CreateAsync(root.RootId, "copy.mp4", "video")).Asset!.Asset;
             await storage.AssetClassifications.SaveAsync(new(source.AssetId, 4, AssetFlag.Picked, AssetColorLabel.Blue,
                 ["client", "select"], 0));
             await storage.Previews!.ObserveSourceAsync(source.AssetId, new(source.FileSizeBytes, source.LastWriteUtcTicks,
@@ -30,7 +28,16 @@ public sealed class AssetCopyDataTests : IDisposable
             var preferred = await storage.PreferredPreviewFrames.SetAsync(source.AssetId,
                 new(TimeSpan.FromSeconds(17)), TimeSpan.FromMinutes(1));
 
-            await storage.AssetCopies.CloneAsync(source.AssetId, copy);
+            var copiesFolder = Path.Combine(media, "copies"); Directory.CreateDirectory(copiesFolder);
+            var executor = new FileOperationExecutor(new WindowsFileOperationPlatform(), storage.MediaAssets,
+                storage.BrowserLocations, storage.AssetCopies);
+            var intent = FileOperationPlanner.Plan(FileOperationKind.Copy,
+                [new(source.AssetId, Path.Combine(media, "source.mp4"), source.FileSizeBytes)], copiesFolder);
+            var copyResult = await executor.ExecuteAsync(intent);
+            Assert.True(copyResult.Succeeded);
+            var copy = (await storage.MediaAssets.FindAsync(root.RootId, "copies/source.mp4"))!.Asset;
+            Assert.NotEqual(source.AssetId, copy.AssetId);
+            Assert.Equal("video", copy.MediaType);
 
             var states = await storage.BrowserAssetStates.GetQueryStatesAsync([source.AssetId, copy.AssetId]);
             Assert.Equal(4, states[copy.AssetId].Classification!.Rating);
@@ -47,6 +54,14 @@ public sealed class AssetCopyDataTests : IDisposable
                 Assert.Equal(ThumbnailGenerationStatus.Succeeded,
                     (await thumbnails.GenerateAsync(new(copy.AssetId, ForceRefresh: true))).Status);
             Assert.Equal(preferred.Position, renderer.Position);
+            await storage.PreferredPreviewFrames.SetAsync(source.AssetId,
+                new(TimeSpan.FromSeconds(23)), TimeSpan.FromMinutes(1));
+            Assert.Equal(preferred.Position,
+                (await storage.PreferredPreviewFrames.GetAsync(copy.AssetId))!.Position);
+            await storage.PreferredPreviewFrames.SetAsync(copy.AssetId,
+                new(TimeSpan.FromSeconds(31)), TimeSpan.FromMinutes(1));
+            Assert.Equal(TimeSpan.FromSeconds(23),
+                (await storage.PreferredPreviewFrames.GetAsync(source.AssetId))!.Position);
 
             await storage.AssetClassifications.SaveAsync(states[source.AssetId].Classification! with { Rating = 1 });
             states = await storage.BrowserAssetStates.GetQueryStatesAsync([source.AssetId, copy.AssetId]);

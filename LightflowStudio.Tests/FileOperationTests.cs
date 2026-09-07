@@ -115,6 +115,65 @@ public sealed class FileOperationTests
         Assert.Equal(name, WindowsFileNamePolicy.Validate(name));
 
     [Fact]
+    public void RecyclePolicy_RejectsMappedNetworkDriveBeforeMutation()
+    {
+        var exception = Assert.Throws<NotSupportedException>(() =>
+            WindowsRecyclePolicy.EnsureRecoverableLocation(@"J:\media\clip.mov", _ => DriveType.Network));
+
+        Assert.Equal(WindowsRecyclePolicy.UnsupportedLocationDiagnostic, exception.Message);
+    }
+
+    [Fact]
+    public void RecyclePolicy_RejectsUncPathWithoutConsultingDriveResolver()
+    {
+        var resolverCalled = false;
+
+        var exception = Assert.Throws<NotSupportedException>(() =>
+            WindowsRecyclePolicy.EnsureRecoverableLocation(@"\\server\share\clip.mov", _ =>
+            {
+                resolverCalled = true;
+                return DriveType.Fixed;
+            }));
+
+        Assert.False(resolverCalled);
+        Assert.Equal(WindowsRecyclePolicy.UnsupportedLocationDiagnostic, exception.Message);
+    }
+
+    [Fact]
+    public void RecyclePolicy_AllowsLocalDrive()
+    {
+        var observedRoot = "";
+
+        WindowsRecyclePolicy.EnsureRecoverableLocation(@"C:\media\clip.mov", root =>
+        {
+            observedRoot = root;
+            return DriveType.Fixed;
+        });
+
+        Assert.Equal(@"C:\", observedRoot);
+    }
+
+    [Fact]
+    public void WindowsPlatform_NetworkRecycleRefusalLeavesItemIntactAndDoesNotChangePermanentDelete()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"lightflow-network-recycle-{Guid.NewGuid():N}.tmp");
+        File.WriteAllText(path, "disposable");
+        var platform = new WindowsFileOperationPlatform(_ => DriveType.Network);
+        try
+        {
+            Assert.Throws<NotSupportedException>(() => platform.Recycle(path));
+            Assert.True(File.Exists(path));
+
+            platform.PermanentlyDelete(path);
+            Assert.False(File.Exists(path));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void Planner_CopyInPlaceChoosesFirstDeterministicAvailableSibling()
     {
         var folder = Path.Combine(Path.GetTempPath(), $"lightflow-copy-plan-{Guid.NewGuid():N}");

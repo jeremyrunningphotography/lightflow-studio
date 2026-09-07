@@ -156,7 +156,28 @@ internal interface IFileOperationPlatform
     void CreateDirectory(string path) => Directory.CreateDirectory(path);
 }
 
-internal sealed class WindowsFileOperationPlatform : IFileOperationPlatform
+internal static class WindowsRecyclePolicy
+{
+    internal const string UnsupportedLocationDiagnostic =
+        "Windows cannot guarantee recoverable Recycle Bin behavior for network locations. No files were deleted. Use Delete permanently (Shift+Delete) only if intended.";
+
+    public static void EnsureRecoverableLocation(string path, Func<string, DriveType>? driveTypeResolver = null)
+    {
+        var fullPath = Path.GetFullPath(path);
+        if (fullPath.StartsWith(@"\\", StringComparison.Ordinal))
+            throw new NotSupportedException(UnsupportedLocationDiagnostic);
+
+        var root = Path.GetPathRoot(fullPath);
+        if (string.IsNullOrWhiteSpace(root))
+            throw new NotSupportedException("Windows cannot determine a recoverable Recycle Bin for this location. No files were deleted.");
+
+        var driveType = (driveTypeResolver ?? (value => new DriveInfo(value).DriveType))(root);
+        if (driveType == DriveType.Network)
+            throw new NotSupportedException(UnsupportedLocationDiagnostic);
+    }
+}
+
+internal sealed class WindowsFileOperationPlatform(Func<string, DriveType>? driveTypeResolver = null) : IFileOperationPlatform
 {
     public async Task CopyFileAsync(string source, string destination, IProgress<long>? progress,
         CancellationToken cancellationToken)
@@ -186,6 +207,7 @@ internal sealed class WindowsFileOperationPlatform : IFileOperationPlatform
 
     public void Recycle(string path)
     {
+        WindowsRecyclePolicy.EnsureRecoverableLocation(path, driveTypeResolver);
         if (Directory.Exists(path)) FileSystem.DeleteDirectory(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
         else if (File.Exists(path)) FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
         else throw new FileNotFoundException("The selected item is unavailable.", path);

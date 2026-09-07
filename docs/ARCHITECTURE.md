@@ -1,5 +1,34 @@
 # Architecture
 
+## Contextual Right Panel and Inspector (#223)
+
+Home owns one reusable `ContextualRightPanel` beside the live Browser/Player center. Surfaces register a stable key,
+title, and retained content control. `WorkspaceLayoutState` persists open state, preferred width (280–600 DIPs), and
+active surface; responsive clamping preserves that preference when Jobs or a narrow window temporarily reduces space.
+Opening, closing, or resizing the panel never rebuilds Browser or Player. Jobs remains global and independent. The
+existing Subclips drawer and its Jobs coordination remain intact; #225 owns migration into the new host.
+
+`MainWindow.Inspector` adapts the authoritative Browser selected tiles or `PlayerViewerHost.CurrentAsset` into immutable
+inspection inputs. Current-asset notifications publish transitions without a second Player context. Video activation
+from Inspector uses the same Browser-to-Player path, central host, playback coordinator, and lease. The panel presents
+cached still/video Preview images through the existing WIC orientation/decode helper, never source probing or another
+decoder. Player retains responsibility for its presented image/video.
+
+`MediaInspectorService` reads #70 `IPreviewStoreService` normalized/raw snapshots and `IAssetClassificationStore`.
+It reads selections in batches of 128 and aggregates off the dispatcher into one row per field. Missing/not-applicable
+counts and known size/video-duration coverage prevent partial data from appearing complete. It does not schedule
+probes, write Catalog data, or build a multi-asset raw matrix. Existing discovery/derived-work completion invalidates
+the view. Missing, stale, failed, and offline source states remain explicit, and cached artifacts can be retained offline.
+
+Single-source raw metadata uses provider identity plus escaped JSON pointer paths, searched by provider/path/value.
+The surface states its 10,000-field display bound. Friendly groups reflect the existing normalized contract; no
+Location/Creator data is invented where #70 does not supply it. Catalog classification is a separately labeled read-only
+group. Metadata export (#224), descriptive editing (#216), and richer analysis (#207) remain separate work.
+
+Hydration is cancellable, debounced, and generation-guarded, including cached-image completion. Hiding the panel
+retires pending work. Inspector focus prevents shell Browser file actions and Player shortcuts from consuming its
+text/navigation keys. The close action returns focus to the Inspector toggle; Ctrl+I toggles the panel in Home.
+
 ## Current platform
 
 - Native Windows desktop application

@@ -46,6 +46,9 @@ internal sealed record WorkspaceLayoutState
     public double? BrowserLocationsPaneWidth { get; init; }
     public double? JobsDrawerWidth { get; init; }
     public double? FullJobsListPaneWidth { get; init; }
+    public double? RightPanelWidth { get; init; }
+    public bool RightPanelOpen { get; init; }
+    public string? RightPanelActiveSurface { get; init; }
 
     /// <summary>
     /// #125: the Browser's chosen thumbnail-size level, persisted as a plain index into
@@ -75,6 +78,8 @@ internal sealed record WorkspaceState
     public const double MaxJobsDrawerWidth = 620;
     public const double MinFullJobsListPaneWidth = 340;
     public const double MaxFullJobsListPaneWidth = 720;
+    public const double MinRightPanelWidth = 280;
+    public const double MaxRightPanelWidth = 600;
 
     public int Version { get; init; } = CurrentVersion;
     public WorkspaceBrowserLocationState? Browser { get; init; }
@@ -141,7 +146,10 @@ internal sealed record WorkspaceState
             ? mode : (int?)null;
         var collectionId = layout.BrowserCollectionId is { } id && id != Guid.Empty ? id : (Guid?)null;
         var expandedSets = (layout.BrowserExpandedCollectionSetIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
-        return layout with { BrowserLocationsPaneWidth = paneWidth, JobsDrawerWidth = jobsDrawerWidth,
+        return layout with { RightPanelWidth = layout.RightPanelWidth is { } rightWidth && double.IsFinite(rightWidth)
+                ? Math.Clamp(rightWidth, MinRightPanelWidth, MaxRightPanelWidth) : null,
+            RightPanelActiveSurface = layout.RightPanelActiveSurface == "inspector" ? "inspector" : null,
+            BrowserLocationsPaneWidth = paneWidth, JobsDrawerWidth = jobsDrawerWidth,
             FullJobsListPaneWidth = fullJobsListPaneWidth,
             BrowserThumbnailSizeLevel = thumbnailSizeLevel, BrowserViewMode = browserViewMode,
             BrowserCollectionId = collectionId, BrowserExpandedCollectionSetIds = expandedSets };
@@ -233,6 +241,10 @@ internal sealed class WorkspaceStateService
 
     public void SetJobsDrawerWidth(double width) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { JobsDrawerWidth = width } };
+
+    public void SetRightPanel(double width, bool open, string activeSurface) =>
+        _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with
+        { RightPanelWidth = width, RightPanelOpen = open, RightPanelActiveSurface = activeSurface } };
 
     public void SetFullJobsListPaneWidth(double width) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { FullJobsListPaneWidth = width } };

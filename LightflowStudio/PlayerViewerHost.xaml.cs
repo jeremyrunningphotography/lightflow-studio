@@ -115,6 +115,7 @@ public partial class PlayerViewerHost : UserControl
     internal event EventHandler<PlayerViewerSubclipsExportRequestedEventArgs>? ExportSelectedSubclipsRequested;
     internal event EventHandler<SubclipsDrawerStateRequestedEventArgs>? SubclipsDrawerStateRequested;
     internal PlayerViewerAsset? CurrentAsset => _currentAsset;
+    internal event EventHandler? CurrentAssetChanged;
     internal IReadOnlySet<Guid> SelectedSubclipIds =>
         SubclipsList.SelectedItems.Cast<SubclipPanelItem>().Select(item => item.SubclipId).ToHashSet();
     internal Guid? ActiveSubclipId => _selectedSubclipId;
@@ -146,6 +147,7 @@ public partial class PlayerViewerHost : UserControl
         if (generation != _generation) return;
 
         _currentAsset = asset;
+        CurrentAssetChanged?.Invoke(this, EventArgs.Empty);
         await LoadClassificationAsync(asset.AssetId, generation, token).ConfigureAwait(true);
         ResetSubclipWork();
         SubclipsPanel.Visibility = Visibility.Collapsed;
@@ -203,6 +205,7 @@ public partial class PlayerViewerHost : UserControl
         await ReleaseCurrentAsync().ConfigureAwait(true);
         if (generation != _generation) return;
         _currentAsset = null;
+        CurrentAssetChanged?.Invoke(this, EventArgs.Empty);
         AssetNameText.Text = "";
         SetStatus(null);
     }
@@ -276,7 +279,7 @@ public partial class PlayerViewerHost : UserControl
         SetStatus(null);
     }
 
-    private static BitmapSource DecodeImage(string absolutePath)
+    internal static BitmapSource DecodeImage(string absolutePath)
     {
         using var stream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read,
             FileShare.ReadWrite | FileShare.Delete, 64 * 1024, FileOptions.SequentialScan);

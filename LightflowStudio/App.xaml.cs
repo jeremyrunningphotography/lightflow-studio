@@ -6,6 +6,14 @@ namespace LightflowStudio;
 
 public partial class App : System.Windows.Application
 {
+    private readonly bool _runStartup = true;
+    public App() { }
+    // Resource-only bootstrap for live WPF tests; avoids opening real user storage or the instance mutex.
+    internal App(bool runStartup, ActivityLogFile activityLog)
+    {
+        _runStartup = runStartup;
+        ActivityLog = activityLog;
+    }
     private readonly UnexpectedInterfaceErrorGate _unexpectedInterfaceErrorGate = new();
     private IApplicationInstanceCoordinator? _applicationInstance;
     internal static ActivityLogFile ActivityLog { get; private set; } = null!;
@@ -15,6 +23,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (!_runStartup) return;
         var migrationCopySwitch = Array.IndexOf(e.Args, CatalogPackageRuntimeVerifier.MigrationCopyCommandLineSwitch);
         if (migrationCopySwitch >= 0)
         {

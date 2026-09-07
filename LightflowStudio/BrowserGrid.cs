@@ -525,8 +525,9 @@ internal sealed class BrowserGridModel
         get
         {
             var selected = _selection.Snapshot();
+            var visible = _visibleTiles.ToHashSet();
             return _visibleTiles.Where(tile => selected.Contains(tile.Key))
-                .Concat(_allTiles.Where(tile => selected.Contains(tile.Key) && !_visibleTiles.Contains(tile)))
+                .Concat(_allTiles.Where(tile => selected.Contains(tile.Key) && !visible.Contains(tile)))
                 .ToArray();
         }
     }

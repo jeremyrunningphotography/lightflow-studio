@@ -40,6 +40,8 @@ public sealed class FileOperationPresentationRegressionTests
         var operations = File.ReadAllText(Path.Combine(root, "LightflowStudio", "FileOperations.cs"));
         Assert.DoesNotContain("MutationCompleted", operations);
         Assert.Contains("await SynchronizeFileSystemMutationsAsync(result.CompletedMutations);", main);
+        Assert.Contains("result.Failures.Select(failure =>", main);
+        Assert.Contains("NoticeDialog.Show(this, \"File operation\", heading, diagnostic);", main);
         Assert.Contains("await RefreshActiveDirectFolderAfterMutationAsync(location);", main);
         Assert.Contains("ApplyBrowserState(current with", main);
         Assert.Contains("_fileSystemMutationPresentationDepth++", main);

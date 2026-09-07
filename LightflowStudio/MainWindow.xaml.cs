@@ -2577,6 +2577,15 @@ public partial class MainWindow : Window
             await SynchronizeFileSystemMutationsAsync(result.CompletedMutations);
             BrowserStatusText.Text = result.Succeeded ? $"{kind} completed." :
                 $"{kind}: {result.CompletedItems} completed, {result.Failures.Count} failed.";
+            if (result.Failures.Count > 0)
+            {
+                var heading = result.CompletedItems == 0
+                    ? "The operation could not continue"
+                    : "Some items could not be processed";
+                var diagnostic = string.Join(Environment.NewLine + Environment.NewLine,
+                    result.Failures.Select(failure => $"{Path.GetFileName(failure.Path)}: {failure.Diagnostic}"));
+                NoticeDialog.Show(this, "File operation", heading, diagnostic);
+            }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         { NoticeDialog.Show(this, "File operation", "The operation could not continue", exception.Message); }

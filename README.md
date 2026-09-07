@@ -9,7 +9,7 @@ giving up control over their originals.
 
 Current version: **0.39.0** · [Download the latest Windows release](https://github.com/jeremyrunningphotography/lightflow-studio/releases/latest)
 
-![Lightflow Studio Browser showing event media with ratings, labels, flags, saved ranges, Subclips, and Color state](docs/media items/readme/browser-overview.jpg)
+![Lightflow Studio Browser showing event media with ratings, labels, flags, saved ranges, Subclips, and Color state](docs/assets/readme/browser-overview.jpg)
 
 The Browser is Lightflow's home. Browse real folders or custom Collections, search and filter
 media, change thumbnail density, and see useful Catalog state directly on each media item.
@@ -33,9 +33,9 @@ Subclips, and applied Color state without hiding the media itself.
 
 ### Review footage and shape useful ranges
 
-![Lightflow Studio Player with an active range, Camera and Creative color LUTs, and two saved Subclips](docs/media items/readme/player-color-subclips.jpg)
+![Lightflow Studio Player with an active range, Camera and Creative color LUTs, and two saved Subclips](docs/assets/readme/player-color-subclips.jpg)
 
-Open an media item directly from the Browser to review it in the Player. Frame stepping,
+Open a media item directly from the Browser to review it in the Player. Frame stepping,
 playback, a precise timeline, In/Out points, ratings, labels, and picks keep review work
 close to the image. Camera and Creative LUT stages can be evaluated together, while
 durable Subclips turn useful ranges into named, reusable Catalog objects that can be
@@ -43,7 +43,7 @@ reviewed or exported independently.
 
 ### Configure an export, then get back to work
 
-![Lightflow Studio Export dialog showing destination modes, naming, Color, In/Out, and encoding settings](docs/media items/readme/export-workflow.jpg)
+![Lightflow Studio Export dialog showing destination modes, naming, Color, In/Out, and encoding settings](docs/assets/readme/export-workflow.jpg)
 
 The focused Export dialog makes output intent explicit before work enters the queue:
 
@@ -63,7 +63,7 @@ delivery resolutions from 480p through 4K UHD.
 
 ### Track background work in one Jobs experience
 
-![Lightflow Studio full Jobs workspace showing completed and failed filesystem operations with capability-specific details](docs/media items/readme/jobs-file-operations-detail.jpg)
+![Lightflow Studio full Jobs workspace showing completed and failed filesystem operations with capability-specific details](docs/assets/readme/jobs-file-operations-detail.jpg)
 
 The compact Jobs drawer follows Browser and Player work; the full Jobs workspace brings
 current and saved Jobs together for search, inspection, queue control, retry, and
@@ -75,16 +75,13 @@ item progress, byte progress, failures, and final result.
 
 Lightflow also includes:
 
-- media details for resolution, frame rate, duration, size, codec, and
-  audio, plus warning badges for outliers;
+- generated Previews with user-selectable thumbnail density and preferred poster frames;
+- full-resolution screengrabs from paused video;
 - configurable `.cube` Camera and Creative LUT libraries;
-- FFmpeg/FFprobe and NVIDIA encoder readiness checks;
-- full decode verification with CSV reporting;
-- lossless MP4 rewrapping, 1080p editing proxies, and contact sheets;
-- Normal, salvage-audio-and-video, and video-only recovery modes;
+- Catalog backup and recovery, plus relocatable and quota-managed Preview storage;
+- bundled FFmpeg/FFprobe and NVIDIA encoder readiness checks;
 - persistent activity logging and safe `.lightflow` partial outputs;
-- named encoding presets with recommended defaults and advanced overrides;
-- an experimental Premiere Pro V1 timeline clip exporter.
+- configurable export defaults with advanced encoding overrides.
 
 Lightflow is local-first: media stays on your computer unless an explicit future
 publishing capability says otherwise. The Catalog stores durable user work such as
@@ -147,38 +144,6 @@ ffmpeg\
     ffprobe.exe
 ```
 
-## Encoding presets and recovery
-
-Lightflow ships with four starting presets:
-
-- **Recommended:** H.264 NVENC, P7, constant quality 18, full-resolution multipass,
-  adaptive quantization, and source audio copy.
-- **Maximum Quality:** 10-bit HEVC, constant quality 16, full-resolution multipass,
-  and high-bitrate AAC.
-- **Fast Preview:** H.264 P4, constant quality 25, quarter-resolution multipass, and
-  lightweight AAC.
-- **Efficient HEVC:** HEVC P6, constant quality 21, full-resolution multipass, and AAC.
-
-Advanced settings cover codec, container, NVENC preset and tuning, rate control,
-quality/bitrates, multipass, adaptive quantization, pixel format, frame rate,
-deinterlacing, audio, and fast-start behavior. Invalid combinations are rejected before
-settings are saved or Jobs begin. CPU, AMD AMF, and Intel Quick Sync backends are reserved
-for future releases; only NVIDIA NVENC is currently enabled for encoding.
-
-4K output is 3840×2160 with aspect-preserving scale and letterbox or pillarbox padding
-when required. Contact sheets sample one frame every ten seconds and use the first 16
-samples.
-
-Recovery modes are explicit:
-
-- **Normal** retains all audio streams with stream copy where the operation allows it.
-- **Salvage audio + video** discards corrupt packets where possible, rebuilds timestamps,
-  uses the first optional audio stream, and re-encodes it to AAC with async resampling.
-- **Video only** processes the primary video stream without audio.
-
-FFmpeg cannot reconstruct absent data. Salvage output may still contain frozen,
-duplicated, skipped, silent, or visibly corrupted sections.
-
 ## Safety and diagnostics
 
 - Sources are never silently overwritten. Output collisions are validated before work
@@ -188,8 +153,8 @@ duplicated, skipped, silent, or visibly corrupted sections.
 - Specific-folder exports use exactly the chosen folder as their base. Same-folder exports
   resolve independently beside each source. An optional subfolder is appended to either;
   source hierarchy is never recreated implicitly.
-- The rotating `activity.log` records invoked FFmpeg/FFprobe commands, full tool output,
-  application errors, and batch lifecycle details even when the live log UI is collapsed.
+- The rotating `activity.log` records export and dependency diagnostics, invoked
+  FFmpeg/FFprobe commands, tool output, and application errors.
 - Settings, recent UI state, logs, and other local application data live under
   `%LOCALAPPDATA%\Jeremy Running Photography\Lightflow Studio`.
 - Release packages include the exact LGPL FFmpeg build documented in
@@ -220,8 +185,3 @@ succeed. The complete installer build requires
 [Inno Setup 6](https://jrsoftware.org/isdl.php); the release script downloads and verifies
 the FFmpeg package pinned in `dependencies/ffmpeg.json` and carries its license, source,
 and build records into both distributions.
-
-The optional Premiere helper is documented in
-[`PremiereHelper/README.txt`](PremiereHelper/README.txt). Adobe has changed Premiere
-scripting support over time, so treat it as experimental and test it on a duplicate
-project; an Adobe Media Encoder `.epr` preset is required.

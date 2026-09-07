@@ -9,10 +9,10 @@ giving up control over their originals.
 
 Current version: **0.39.0** · [Download the latest Windows release](https://github.com/jeremyrunningphotography/lightflow-studio/releases/latest)
 
-![Lightflow Studio Browser showing event media with ratings, labels, flags, saved ranges, Subclips, and Color state](docs/assets/readme/browser-overview.jpg)
+![Lightflow Studio Browser showing event media with ratings, labels, flags, saved ranges, Subclips, and Color state](docs/media items/readme/browser-overview.jpg)
 
-The Browser is Lightflow's home. Browse real folders or Collections, search and filter
-media, change thumbnail density, and see useful Catalog state directly on each asset.
+The Browser is Lightflow's home. Browse real folders or custom Collections, search and filter
+media, change thumbnail density, and see useful Catalog state directly on each media item.
 The view above combines star ratings, color labels, picks, working ranges, saved
 Subclips, and applied Color state without hiding the media itself.
 
@@ -22,20 +22,20 @@ Subclips, and applied Color state without hiding the media itself.
 
 - Browse folders and managed Media Roots with Back, Forward, Up, Refresh, and optional
   subfolder inclusion.
-- Organize assets into Collections and Collection Sets without changing the filesystem.
+- Organize media items into Collections and Collection Sets across folders without changing the filesystem.
 - Filter by media type, search, sort, and switch between clean Preview, detailed Info,
   and compact Hybrid thumbnail presentations.
 - Use Explorer-style Cut, Copy, Paste, Move, Rename, New Folder, and safe Delete. Moves
-  preserve Lightflow identity; copies become independent Catalog assets; ordinary Delete
+  preserve Lightflow identity; copies become independent Catalog media items; ordinary Delete
   uses the Windows Recycle Bin.
 - Let larger or uncertain filesystem operations promote automatically into background
   Jobs while small operations stay immediate.
 
 ### Review footage and shape useful ranges
 
-![Lightflow Studio Player with an active range, Camera and Creative LUTs, and two saved Subclips](docs/assets/readme/player-color-subclips.jpg)
+![Lightflow Studio Player with an active range, Camera and Creative color LUTs, and two saved Subclips](docs/media items/readme/player-color-subclips.jpg)
 
-Open an asset directly from the Browser to review it in the Player. Frame stepping,
+Open an media item directly from the Browser to review it in the Player. Frame stepping,
 playback, a precise timeline, In/Out points, ratings, labels, and picks keep review work
 close to the image. Camera and Creative LUT stages can be evaluated together, while
 durable Subclips turn useful ranges into named, reusable Catalog objects that can be
@@ -43,17 +43,18 @@ reviewed or exported independently.
 
 ### Configure an export, then get back to work
 
-![Lightflow Studio Export dialog showing destination modes, naming, Color, In/Out, and encoding settings](docs/assets/readme/export-workflow.jpg)
+![Lightflow Studio Export dialog showing destination modes, naming, Color, In/Out, and encoding settings](docs/media items/readme/export-workflow.jpg)
 
 The focused Export dialog makes output intent explicit before work enters the queue:
 
 - export to one specific folder or beside each original;
 - add an optional subfolder in either destination mode;
-- build deterministic filenames and detect collisions before execution;
-- export whole assets or current In/Out ranges;
-- preserve per-asset Camera and Creative Color choices;
+- build filenames and detect collisions before execution;
+- export whole media items or current In/Out ranges;
+- create new exports from subclips;
+- preserve per-media item Camera and Creative Color choices;
 - choose source-aware or explicit format, codec, resolution, frame rate, quality, and
-  audio settings, with advanced controls available when needed.
+  audio settings, with advanced encoding controls available when needed.
 
 Each file becomes an independent immutable Job, so mixed batches retain their resolved
 source settings and destinations even after the Export window closes. Lightflow supports
@@ -62,7 +63,7 @@ delivery resolutions from 480p through 4K UHD.
 
 ### Track background work in one Jobs experience
 
-![Lightflow Studio full Jobs workspace showing completed and failed filesystem operations with capability-specific details](docs/assets/readme/jobs-file-operations-detail.jpg)
+![Lightflow Studio full Jobs workspace showing completed and failed filesystem operations with capability-specific details](docs/media items/readme/jobs-file-operations-detail.jpg)
 
 The compact Jobs drawer follows Browser and Player work; the full Jobs workspace brings
 current and saved Jobs together for search, inspection, queue control, retry, and
@@ -74,7 +75,7 @@ item progress, byte progress, failures, and final result.
 
 Lightflow also includes:
 
-- asynchronous media details for resolution, frame rate, duration, size, codec, and
+- media details for resolution, frame rate, duration, size, codec, and
   audio, plus warning badges for outliers;
 - configurable `.cube` Camera and Creative LUT libraries;
 - FFmpeg/FFprobe and NVIDIA encoder readiness checks;

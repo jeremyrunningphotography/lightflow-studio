@@ -5923,8 +5923,9 @@ public partial class MainWindow : Window
     {
         var selection = CurrentJobsSelection();
         var item = selection.IsSingle ? selection.Items[0] : null;
-        HistoryDetails.Text = selection.Items.Count > 1 ? $"{selection.Items.Count} Jobs selected. Actions apply only when every selected Job is eligible."
-            : item?.Details ?? "Select a job to inspect its results.";
+        HistoryDetails.Content = selection.Items.Count > 1
+            ? new JobMessageDetailsPresentation($"{selection.Items.Count} Jobs selected. Actions apply only when every selected Job is eligible.")
+            : item?.DetailPresentation ?? new JobMessageDetailsPresentation("Select a job to inspect its results.");
         HistoryRerunButton.IsEnabled = item?.CanReviewAndRerun == true;
         JobsPauseButton.IsEnabled = selection.CanPause;
         JobsResumeButton.IsEnabled = selection.CanResume;

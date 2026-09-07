@@ -7,7 +7,8 @@ internal enum JobsWorkspaceFilter { All, Active, Waiting, Paused, NeedsAttention
 internal sealed record JobsWorkspaceItem(
     Guid JobId, Guid? HistoryRecordId, EncodingJobHistoryRecord? HistoryRecord, bool SchedulerOwned, bool IsLegacyProjection,
     string Name, string Capability, JobState State, double? Progress, string Timing, string SourcePath,
-    string OutputPath, string Issue, string Details, DateTimeOffset SortTime, long QueueOrder)
+    string OutputPath, string Issue, string Details, DateTimeOffset SortTime, long QueueOrder,
+    JobDetailsPresentation? DetailPresentation = null)
 {
     public string StateText => JobsPresentation.StateText(State);
     public bool IsCurrent => SchedulerOwned;
@@ -70,7 +71,8 @@ internal static class JobsWorkspacePresentation
             $"{job.Intent.Kind} {job.Intent.Sources.Count} item(s)", "File operation", state, progress,
             job.Result?.CompletedUtc.ToLocalTime().ToString("MMM d, HH:mm") ?? "Active",
             job.Intent.Sources.FirstOrDefault()?.Path ?? "", job.Intent.Destination ?? "",
-            job.Failures.FirstOrDefault()?.Diagnostic ?? "", detail, job.Result?.CompletedUtc ?? job.Intent.CreatedUtc, long.MaxValue);
+            job.Failures.FirstOrDefault()?.Diagnostic ?? "", detail, job.Result?.CompletedUtc ?? job.Intent.CreatedUtc,
+            long.MaxValue, JobsPresentation.FileSystemDetails(job));
     }
     public static IReadOnlyList<JobsWorkspaceItem> Project(IReadOnlyList<ExportJobSnapshot> current,
         IReadOnlyList<EncodingJobHistoryRecord> history, string? search = null,
@@ -135,10 +137,11 @@ internal static class JobsWorkspacePresentation
         AppendMaterialized(details, job.Definition.PlanItem.Definition);
         details.AddRange(job.Warnings.Select(value => $"Warning: {value}"));
         details.AddRange(job.Errors.Select(value => $"Error: {value}"));
+        var cardDetails = JobsPresentation.Card(job, false).Details;
         return new(job.JobId, history?.JobId, history, true, false, job.DisplayName, "Export", job.State, job.ProgressPercent,
             job.State == JobState.Running && job.Eta is { } eta ? $"ETA {eta:hh\\:mm\\:ss}" : CompactTimestamp(job.Definition.AcceptedAt),
             source, job.OutputPath, job.Errors.FirstOrDefault() ?? job.Warnings.FirstOrDefault() ?? "",
-            string.Join(Environment.NewLine, details), job.StartedAt ?? job.Definition.AcceptedAt, job.QueueOrder);
+            string.Join(Environment.NewLine, details), job.StartedAt ?? job.Definition.AcceptedAt, job.QueueOrder, cardDetails);
     }
 
     private static IEnumerable<JobsWorkspaceItem> FromHistory(EncodingJobHistoryRecord record)
@@ -149,11 +152,32 @@ internal static class JobsWorkspacePresentation
             var result = record.Result.Items.FirstOrDefault(value => value.ItemId == item.Definition.Id);
             var output = result?.OutputPaths.FirstOrDefault() ?? item.OutputPaths.FirstOrDefault() ?? "";
             var state = result?.State ?? record.State;
+            var export = item.Definition.MaterializedExport
+                ?? EncodingJobPlanner.LegacySettings(record.Definition.Options, item.Definition);
+            var encoding = export.Encoding;
+            var frameRate = encoding.FrameRate > 0 ? $"{encoding.FrameRate:0.###} fps" : "Same as source";
+            var quality = encoding.RateControl switch
+            {
+                RateControlMode.ConstantQuality => $"Constant quality {encoding.Quality}",
+                RateControlMode.VariableBitrate => $"Variable bitrate {encoding.TargetBitrateMbps}–{encoding.MaxBitrateMbps} Mbps",
+                _ => $"Constant bitrate {encoding.TargetBitrateMbps} Mbps"
+            };
+            var audio = export.Audio.Mode switch
+            {
+                MaterializedAudioMode.SourceCopyPreferred => "Copy source when compatible",
+                MaterializedAudioMode.EncodedAac => $"AAC {export.Audio.Fallback?.BitrateKbps ?? encoding.AudioBitrateKbps} kbps",
+                _ => "None"
+            };
+            var color = export.Color is { ColorEnabled: true } pipeline
+                ? string.Join(" → ", pipeline.OrderedPipeline.Select(value => value.DisplayName)) : "Original";
+            var detailPresentation = new ExportJobDetailsPresentation(output,
+                $"{EncodingPathPlanner.ResolutionName(export.Resolution)} · {frameRate}",
+                $"{encoding.Codec} · {encoding.Container}", quality, audio, color);
             yield return new(item.Definition.Id, record.JobId, record, false, legacy,
                 Path.GetFileName(output.Length == 0 ? item.Definition.SourceIdentity : output), "Export", state, 100,
                 CompactTimestamp(record.CompletedAt), item.Definition.SourceIdentity, output,
                 result?.Errors.FirstOrDefault() ?? result?.Warnings.FirstOrDefault() ?? "",
-                record.DetailDisplay, record.CompletedAt, long.MaxValue);
+                record.DetailDisplay, record.CompletedAt, long.MaxValue, detailPresentation);
         }
     }
 

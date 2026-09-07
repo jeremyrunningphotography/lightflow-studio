@@ -17,8 +17,10 @@ Lightflow Studio is evolving from a video-focused application into a capability-
 Browser filesystem operations introduced by #206 use immutable `FileOperationIntent` and terminal
 `FileOperationResult` records. One centralized `FileOperationPromotionPolicy` decides whether an ordinary operation
 executes directly or appears in Jobs; command semantics do not change at that boundary. Promoted filesystem work
-projects into the same Jobs drawer through capability-neutral card/lifecycle vocabulary, while typed filesystem
-intent stays separate from Export definitions, FFmpeg scheduling, and Encoding history. A small active-intent
+projects into the same Jobs drawer through capability-neutral card/lifecycle vocabulary. Each card carries a typed
+capability detail projection: Export and filesystem DataTemplates are selected by that type in both the drawer and
+full Jobs workspace, so filesystem work cannot fall through an Export-shaped detail body. Typed filesystem intent
+stays separate from Export definitions, FFmpeg scheduling, and Encoding history. A small active-intent
 checkpoint becomes an explicit Interrupted provenance record on restart; transfers are never claimed to have resumed.
 
 `WindowsFileOperationPlatform` contains Recycle Bin mechanics; normal Delete never falls back to permanent deletion.

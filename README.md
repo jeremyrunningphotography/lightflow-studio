@@ -1,53 +1,111 @@
-# Lightflow Studio — Native Windows
+# Lightflow Studio
 
-**Video processing and workflow tools by Jeremy Running Photography.**
+**A native Windows media workbench for photographers and videographers.**
 
-Current version: **0.39.0**
+Lightflow Studio brings browsing, review, color, Subclips, export, background Jobs,
+and practical file operations into one calm desktop workflow. It is built for people
+who need to move quickly through large folders without opening a full editing suite—or
+giving up control over their originals.
 
-Lightflow Studio is a native C#/.NET 8 WPF desktop application for preparing, processing, inspecting, and recovering video media.
+Current version: **0.39.0** · [Download the latest Windows release](https://github.com/jeremyrunningphotography/lightflow-studio/releases/latest)
 
-## Features
+![Lightflow Studio Browser showing event media with ratings, labels, flags, saved ranges, Subclips, and Color state](docs/assets/readme/browser-overview.jpg)
 
-- Filesystem-first Browser with familiar storage locations, stable Catalog identity, authoritative refresh, and Back/Forward/Up history
-- Folder batch encoding with a collapsed per-file picker, allowing individual videos to be skipped before a batch begins
-- Flexible batch destinations: source folders, named subfolders, or a specific output folder
-- Asynchronous file details with resolution, frame rate, duration, size, codec/audio tooltips, and warning badges for media outliers
-- Configurable `.cube` LUT library with a friendly selection dropdown
-- Dedicated Settings tab for default folders, FFmpeg, batch preferences, and advanced encoding controls
-- Built-in encoding readiness check for FFmpeg, FFprobe, and NVIDIA H.264/HEVC support
-- Self-contained Windows installer and portable package with a verified, pinned FFmpeg build
-- Named encoding presets with recommended-default restoration and custom overrides
-- NVIDIA NVENC H.264/HEVC with quality, bitrate, tuning, multipass, AQ, 8/10-bit, frame-rate, deinterlace, audio, and container controls
-- Branded dark-studio interface with card-based workflows and a multi-size Windows application icon
-- 480p, 720p, 1080p, 1440p, 4K UHD, or source-resolution output
-- High-quality NVIDIA NVENC H.264 (`p7`, full-resolution multipass, adaptive quantization)
-- Normal, salvage, and video-only recovery modes
-- Per-file progress, overall progress, and estimated time remaining
-- Collapsible Activity Log that stays out of the way until needed
-- Remembers the most recently selected LUT and records batch lifecycle summaries
-- Protects active encodes with finish-current, close-now, and keep-running close options
-- Optional recursive processing and resume/skip support
-- FFprobe metadata inspection
-- Full decode verification with a CSV report
-- Lossless MP4 rewrapping, 1080p editing proxies, and contact sheets
-- Experimental Premiere Pro V1 timeline clip exporter
-- Accepts a folder path on the command line for future Explorer integration
+The Browser is Lightflow's home. Browse real folders or custom Collections, search and filter
+media, change thumbnail density, and see useful Catalog state directly on each media item.
+The view above combines star ratings, color labels, picks, working ranges, saved
+Subclips, and applied Color state without hiding the media itself.
 
-## Requirements
+## Browse, review, act
 
-- Windows 10/11, 64-bit
-- NVIDIA GPU and current NVIDIA driver for NVENC encoding
-- .NET 8 SDK only when building from source
+### Organize media without losing context
 
-The installer and portable release include FFmpeg and FFprobe. Users do not need to install .NET, the .NET SDK, or FFmpeg separately.
+- Browse folders and managed Media Roots with Back, Forward, Up, Refresh, and optional
+  subfolder inclusion.
+- Organize media items into Collections and Collection Sets across folders without changing the filesystem.
+- Filter by media type, search, sort, and switch between clean Preview, detailed Info,
+  and compact Hybrid thumbnail presentations.
+- Use Explorer-style Cut, Copy, Paste, Move, Rename, New Folder, and safe Delete. Moves
+  preserve Lightflow identity; copies become independent Catalog media items; ordinary Delete
+  uses the Windows Recycle Bin.
+- Let larger or uncertain filesystem operations promote automatically into background
+  Jobs while small operations stay immediate.
 
-For development builds, the app searches for FFmpeg in this order:
+### Review footage and shape useful ranges
 
-1. A location selected in **Settings**
-2. `ffmpeg\bin\ffmpeg.exe` beside the published application
-3. Windows `PATH`
+![Lightflow Studio Player with an active range, Camera and Creative color LUTs, and two saved Subclips](docs/assets/readme/player-color-subclips.jpg)
+
+Open a media item directly from the Browser to review it in the Player. Frame stepping,
+playback, a precise timeline, In/Out points, ratings, labels, and picks keep review work
+close to the image. Camera and Creative LUT stages can be evaluated together, while
+durable Subclips turn useful ranges into named, reusable Catalog objects that can be
+reviewed or exported independently.
+
+### Configure an export, then get back to work
+
+![Lightflow Studio Export dialog showing destination modes, naming, Color, In/Out, and encoding settings](docs/assets/readme/export-workflow.jpg)
+
+The focused Export dialog makes output intent explicit before work enters the queue:
+
+- export to one specific folder or beside each original;
+- add an optional subfolder in either destination mode;
+- build filenames and detect collisions before execution;
+- export whole media items or current In/Out ranges;
+- create new exports from subclips;
+- preserve per-media item Camera and Creative Color choices;
+- choose source-aware or explicit format, codec, resolution, frame rate, quality, and
+  audio settings, with advanced encoding controls available when needed.
+
+Each file becomes an independent immutable Job, so mixed batches retain their resolved
+source settings and destinations even after the Export window closes. Lightflow supports
+NVIDIA NVENC H.264 and HEVC—including Apple-compatible `hvc1` HEVC in MP4—at source or
+delivery resolutions from 480p through 4K UHD.
+
+### Track background work in one Jobs experience
+
+![Lightflow Studio full Jobs workspace showing completed and failed filesystem operations with capability-specific details](docs/assets/readme/jobs-file-operations-detail.jpg)
+
+The compact Jobs drawer follows Browser and Player work; the full Jobs workspace brings
+current and saved Jobs together for search, inspection, queue control, retry, and
+Review & Rerun. Details remain capability-aware: exports retain media settings and output
+provenance, while filesystem Jobs report their operation, source summary, destination,
+item progress, byte progress, failures, and final result.
+
+## More tools for real media folders
+
+Lightflow also includes:
+
+- generated Previews with user-selectable thumbnail density and preferred poster frames;
+- full-resolution screengrabs from paused video;
+- configurable `.cube` Camera and Creative LUT libraries;
+- Catalog backup and recovery, plus relocatable and quota-managed Preview storage;
+- bundled FFmpeg/FFprobe and NVIDIA encoder readiness checks;
+- persistent activity logging and safe `.lightflow` partial outputs;
+- configurable export defaults with advanced encoding overrides.
+
+Lightflow is local-first: media stays on your computer unless an explicit future
+publishing capability says otherwise. The Catalog stores durable user work such as
+ratings, labels, Color assignments, ranges, Collections, and Subclips; rebuildable
+Previews remain separate.
+
+## Install and run
+
+Lightflow Studio supports 64-bit Windows 10 and Windows 11. Download the installer or
+portable ZIP from the [latest release](https://github.com/jeremyrunningphotography/lightflow-studio/releases/latest).
+
+Release packages are self-contained and include a pinned, verified FFmpeg/FFprobe build.
+You do not need to install .NET, the .NET SDK, or FFmpeg separately. NVENC export requires
+a supported NVIDIA GPU and current NVIDIA driver; the Browser, Catalog, Player, and other
+non-encoding workflows do not require the .NET SDK.
+
+The installer is per-machine, requests normal UAC elevation, and installs under
+`Program Files` by default. Catalogs, Previews, settings, Jobs/History records, logs, and
+other mutable data remain in Lightflow's user-data locations. The portable package is
+independent of installer registration.
 
 ## Build from source
+
+The desktop application is written in C# on .NET 8 and WPF.
 
 Install the .NET 8 SDK:
 
@@ -55,71 +113,28 @@ Install the .NET 8 SDK:
 winget install Microsoft.DotNet.SDK.8
 ```
 
-Open PowerShell in this folder, then run:
+From the repository root:
 
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File .\build.ps1
-```
-
-Run the unit test suite with:
-
-```powershell
 dotnet test .\LightflowStudio.Tests\LightflowStudio.Tests.csproj
 ```
 
-## Versioning releases
+For development builds, Lightflow searches for FFmpeg in this order:
 
-Lightflow Studio follows semantic versioning: patch releases contain fixes and polish, minor releases add backward-compatible features, and major releases mark breaking changes or major stable milestones.
+1. The location selected in **Settings**
+2. `ffmpeg\bin\ffmpeg.exe` beside the application
+3. Windows `PATH`
 
-Change the product version from the repository root before preparing a release:
-
-```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\set-version.ps1 -Version 0.4.0
-```
-
-This updates the authoritative build version and every source-controlled place where the current version is displayed. Automated tests fail if those values drift apart.
-
-For the complete Windows installer, portable ZIP, and SHA-256 checksums, install [Inno Setup 6](https://jrsoftware.org/isdl.php) and run:
-
-```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1
-```
-
-Release artifacts are placed in `dist`. The build script downloads the exact FFmpeg package pinned in `dependencies\ffmpeg.json`, verifies its SHA-256, and includes its license, source, and build records in both distributions.
-
-The Windows installer is a per-machine package: it requests normal UAC elevation and installs to `{Program Files}\Lightflow Studio` by default. Application binaries and bundled dependencies live there; Catalogs, Previews, settings, history, logs, and other mutable data remain in Lightflow's separately managed user-data locations. The portable ZIP remains independent of installer registration.
-
-Pull requests and pushes to `main` run the complete test suite before the packaging job can begin. A semantic version tag such as `vX.Y.Z` publishes the validated installer, portable ZIP, and checksums to a GitHub release.
-
-## Encoding presets and advanced options
-
-Lightflow Studio ships with four named starting points:
-
-- **Recommended:** H.264 NVENC, P7, constant quality 18, full-resolution multipass, spatial/temporal AQ, and source audio copy.
-- **Maximum Quality:** 10-bit HEVC, constant quality 16, full-resolution multipass, and high-bitrate AAC.
-- **Fast Preview:** H.264 P4, constant quality 25, quarter-resolution multipass, and lightweight AAC.
-- **Efficient HEVC:** HEVC P6, constant quality 21, full-resolution multipass, and AAC.
-
-Settings can customize the codec, container, NVENC preset, tuning, rate-control mode, quality or bitrates, multipass, adaptive quantization, pixel format, frame rate, deinterlacing, audio encoding, sample rate, channels, and fast-start behavior. Invalid combinations are rejected before settings are saved or encoding begins.
-
-The internal settings model reserves CPU, AMD AMF, and Intel Quick Sync backends for future releases. Only NVIDIA NVENC is enabled in this version.
-
-## FFmpeg setup for source builds
-
-Install through Windows Package Manager:
+Install a development FFmpeg build with Windows Package Manager if needed:
 
 ```powershell
 winget install Gyan.FFmpeg
-```
-
-Open a new PowerShell window and verify:
-
-```powershell
 ffmpeg -version
 ffmpeg -hide_banner -encoders | Select-String "h264_nvenc|hevc_nvenc"
 ```
 
-Alternatively, place `ffmpeg.exe` and `ffprobe.exe` under:
+Alternatively, place the tools beside a published development build:
 
 ```text
 LightflowStudio.exe
@@ -129,25 +144,44 @@ ffmpeg\
     ffprobe.exe
 ```
 
-## Recovery modes
+## Safety and diagnostics
 
-- **Normal:** retains all audio streams with stream copy.
-- **Salvage audio + video:** discards corrupt packets where possible, rebuilds timestamps, uses the first optional audio stream, and re-encodes it to AAC with async resampling.
-- **Video only:** processes the primary video stream and produces no audio.
+- Sources are never silently overwritten. Output collisions are validated before work
+  starts.
+- Active exports write to `filename.ext.lightflow`; the final media filename is created
+  or replaced only after FFmpeg succeeds and Lightflow validates the result.
+- Specific-folder exports use exactly the chosen folder as their base. Same-folder exports
+  resolve independently beside each source. An optional subfolder is appended to either;
+  source hierarchy is never recreated implicitly.
+- The rotating `activity.log` records export and dependency diagnostics, invoked
+  FFmpeg/FFprobe commands, tool output, and application errors.
+- Settings, recent UI state, logs, and other local application data live under
+  `%LOCALAPPDATA%\Jeremy Running Photography\Lightflow Studio`.
+- Release packages include the exact LGPL FFmpeg build documented in
+  [`dependencies/ffmpeg.json`](dependencies/ffmpeg.json) and
+  [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
-FFmpeg cannot reconstruct absent media data. Salvage output may contain frozen, duplicated, skipped, silent, or visibly corrupted sections.
+## Project documentation
 
-## Premiere helper
+- [Documentation index](docs/README.md)
+- [Product vision](docs/PRODUCT_VISION.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [UI guidelines](docs/UI_GUIDELINES.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Release planning](docs/RELEASE_PLAN.md)
+- [File Organization capability](docs/capabilities/FILE_ORGANIZATION.md)
+- [Video Processing capability](docs/capabilities/VIDEO_PROCESSING.md)
 
-See `PremiereHelper\README.txt`. Adobe has changed Premiere scripting support over time, so treat this helper as experimental and test it on a duplicate project. An Adobe Media Encoder `.epr` preset is required.
+Lightflow Studio follows semantic versioning. To prepare a version locally:
 
-## Notes
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\set-version.ps1 -Version 0.40.0
+powershell.exe -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1
+```
 
-- Batch output can remain beside each source with a customizable filename suffix, go into a named subfolder, or use a specific destination. Source-relative folders are preserved.
-- Active encodes are written beside their destination as `filename.ext.lightflow`. The normal media filename is created or replaced only after FFmpeg succeeds and Lightflow validates the completed partial output. Interrupted artifacts remain visibly incomplete and are safely cleaned when that exact output is retried.
-- The LUT dropdown defaults to `J:\Photography\LUTs`. Choose another LUT folder in Settings, or use **Refresh** after adding LUT files to the current folder.
-- Application defaults are saved in `settings.json`, while the most recently used batch choices are remembered separately in `state.json` under `%LOCALAPPDATA%\Jeremy Running Photography\Lightflow Studio`.
-- An always-on activity log is written to `activity.log` in the same folder — every batch and Tools-tab FFmpeg/FFprobe invocation, its full output, application errors, and unhandled exceptions are recorded there regardless of the in-app Activity Log panel or the **Show encoding details** setting, which only control what is mirrored live in the UI. The log rotates at 5 MB and keeps 3 prior files (`activity.log.1`–`.3`).
-- 4K output is 3840×2160 with aspect-preserving scale and letterbox/pillarbox padding when required.
-- Contact sheets sample one frame every ten seconds and use the first 16 samples.
-- Release packages include the exact verified LGPL FFmpeg build documented in `dependencies\ffmpeg.json` and `THIRD-PARTY-NOTICES.md`.
+Release artifacts are placed in `dist`. Tags named `vX.Y.Z` publish the validated
+installer, portable ZIP, and SHA-256 checksums after the test and packaging workflows
+succeed. The complete installer build requires
+[Inno Setup 6](https://jrsoftware.org/isdl.php); the release script downloads and verifies
+the FFmpeg package pinned in `dependencies/ffmpeg.json` and carries its license, source,
+and build records into both distributions.

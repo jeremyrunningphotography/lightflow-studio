@@ -429,6 +429,12 @@ internal sealed class BrowserGridSelection
 {
     private readonly HashSet<string> _selected = new(StringComparer.Ordinal);
 
+    public BrowserGridSelection Copy()
+    {
+        var copy = new BrowserGridSelection { AnchorIndex = AnchorIndex };
+        copy._selected.UnionWith(_selected);
+        return copy;
+    }
     public int? AnchorIndex { get; private set; }
     public bool IsSelected(string key) => _selected.Contains(key);
     public IReadOnlySet<string> Snapshot() => new HashSet<string>(_selected, StringComparer.Ordinal);
@@ -491,7 +497,8 @@ internal sealed class BrowserGridModel
     private List<BrowserGridTile> _allTiles = [];
     private List<BrowserGridTile> _visibleTiles = [];
     private readonly Dictionary<Guid, BrowserGridTile> _tilesByAsset = [];
-    private readonly BrowserGridSelection _selection = new();
+    private BrowserGridSelection _selection = new();
+    internal Func<bool>? SelectionChanging { get; set; }
     private int _columns = 1;
 
     public ObservableCollection<BrowserGridRow> Rows { get; } = [];
@@ -718,32 +725,32 @@ internal sealed class BrowserGridModel
         Rebuild();
     }
 
-    public void SelectSingle(int index) => ApplySelectionChange(() =>
+    public bool SelectSingle(int index) => ApplySelectionChange(selection =>
     {
         if (index < 0 || index >= _visibleTiles.Count) return;
-        _selection.SelectSingle(_visibleTiles[index].Key, index);
+        selection.SelectSingle(_visibleTiles[index].Key, index);
     });
 
-    public void ToggleCtrl(int index) => ApplySelectionChange(() =>
+    public bool ToggleCtrl(int index) => ApplySelectionChange(selection =>
     {
         if (index < 0 || index >= _visibleTiles.Count) return;
-        _selection.ToggleCtrl(_visibleTiles[index].Key, index);
+        selection.ToggleCtrl(_visibleTiles[index].Key, index);
     });
 
-    public void SelectRange(int index) => ApplySelectionChange(() =>
+    public bool SelectRange(int index) => ApplySelectionChange(selection =>
     {
         if (index < 0 || index >= _visibleTiles.Count) return;
-        var anchor = _selection.AnchorIndex ?? index;
+        var anchor = selection.AnchorIndex ?? index;
         var low = Math.Min(anchor, index);
         var high = Math.Max(anchor, index);
         var keys = _visibleTiles.Skip(low).Take(high - low + 1).Select(tile => tile.Key).ToArray();
-        _selection.SelectRange(keys);
+        selection.SelectRange(keys);
     });
 
     /// <summary>Selects every currently visible item, replacing any prior selection — matching Ctrl+A over the active filtered/searched view.</summary>
-    public void SelectAll() => ApplySelectionChange(() => _selection.SelectAll(_visibleTiles.Select(tile => tile.Key)));
+    public bool SelectAll() => ApplySelectionChange(selection => selection.SelectAll(_visibleTiles.Select(tile => tile.Key)));
 
-    public void ClearSelection() => ApplySelectionChange(_selection.Clear);
+    public bool ClearSelection() => ApplySelectionChange(selection => selection.Clear());
 
     public void ApplyManualOrder(IReadOnlyList<Guid> assetIds)
     {
@@ -755,12 +762,15 @@ internal sealed class BrowserGridModel
         RecomputeVisible();
     }
 
-    private void ApplySelectionChange(Action mutate)
+    private bool ApplySelectionChange(Action<BrowserGridSelection> mutate)
     {
         var before = _selection.Snapshot();
-        mutate();
-        var after = _selection.Snapshot();
-        if (before.SetEquals(after)) return;
+        var proposed = _selection.Copy();
+        mutate(proposed);
+        var after = proposed.Snapshot();
+        if (before.SetEquals(after)) { _selection = proposed; return true; }
+        if (SelectionChanging?.Invoke() == false) return false;
+        _selection = proposed;
         // Synced against the full master set, not just the visible projection, so an item hidden by the
         // current filter still carries the correct IsSelected flag if/when the filter later reveals it again.
         foreach (var tile in _allTiles)
@@ -768,6 +778,7 @@ internal sealed class BrowserGridModel
             var selected = after.Contains(tile.Key);
             if (tile.IsSelected != selected) tile.IsSelected = selected;
         }
+        return true;
     }
 
     private void RecomputeVisible()

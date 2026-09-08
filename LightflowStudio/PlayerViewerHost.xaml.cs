@@ -126,6 +126,8 @@ public partial class PlayerViewerHost : UserControl
     internal System.Windows.Controls.MenuItem ExportAllSubclipsMenuItem => SubclipsContent.ExportAllSubclipsMenuItem;
     internal PlayerViewerAsset? CurrentAsset => _currentAsset;
     internal event EventHandler? CurrentAssetChanged;
+    internal Func<bool>? ContextChanging { get; set; }
+    internal Func<IDisposable?>? SuspendContextEditing { get; set; }
     internal IReadOnlySet<Guid> SelectedSubclipIds =>
         SubclipsList.SelectedItems.Cast<SubclipPanelItem>().Select(item => item.SubclipId).ToHashSet();
     internal Guid? ActiveSubclipId => _selectedSubclipId;
@@ -139,6 +141,8 @@ public partial class PlayerViewerHost : UserControl
     internal async Task OpenAsync(PlayerViewerAsset asset, MediaPathResolution resolution, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(asset);
+        if (_currentAsset != asset && ContextChanging?.Invoke() == false) return;
+        using var editing = SuspendContextEditing?.Invoke();
         var generation = ++_generation;
         _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseStarted);
         try { await ReleaseCurrentAsync().ConfigureAwait(true); }
@@ -209,6 +213,8 @@ public partial class PlayerViewerHost : UserControl
     /// </summary>
     internal async Task CloseAsync()
     {
+        if (_currentAsset is not null && ContextChanging?.Invoke() == false) return;
+        using var editing = SuspendContextEditing?.Invoke();
         var generation = ++_generation;
         await ReleaseCurrentAsync().ConfigureAwait(true);
         if (generation != _generation) return;

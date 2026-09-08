@@ -18,6 +18,7 @@ public partial class MainWindow
         _inspector = new MediaInspectorView();
         _inspector.Initialize(() => new MediaInspectorService(_storage.Previews, _storage.AssetClassifications,
             _storage.Locations.PreviewsDirectory), _storage.AssetDescriptions);
+        _browserGrid.SelectionChanging = () => _browserPresentation == BrowserPresentationMode.PlayerViewer || TryLeaveInspectorContext();
         _inspector.OpenPlayerRequested += (_, _) =>
         {
             if (_browserPresentation != BrowserPresentationMode.Grid) return;
@@ -39,6 +40,8 @@ public partial class MainWindow
         HomeRightPanel.SelectSurface(layout?.RightPanelActiveSurface);
         SetRightPanelOpen(layout?.RightPanelOpen == true);
     }
+
+    private bool TryLeaveInspectorContext() => _inspector?.TryLeaveContext() ?? true;
 
     private void UpdateInspectorContext(bool force = false)
     {

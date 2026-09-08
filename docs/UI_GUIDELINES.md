@@ -17,19 +17,21 @@
 
 - The existing Inspector groups editable Lightflow descriptions separately from read-only source metadata
   and Catalog classification. Creator and credit overrides are labeled explicitly.
-- Each descriptive field shows a common value, Not set, or Mixed values and supports direct editing without
+- Each descriptive field shows its current value, an empty editor, or Mixed values, with no Catalog-provenance helper labels, and supports direct editing without
   intent dropdowns. Untouched fields are omitted; changed text sets a field, and intentionally emptied text
   clears it. Reverting a common value is a no-op. Mixed fields stay untouched on focus/render; typing then
   deleting is an intentional mixed-field clear.
-- Apply confirms only actual valid changes, summarizes the selection and fields, and commits atomically.
+- Single-asset Apply saves immediately. Multi-asset Apply confirms actual valid changes, summarizes the selection and fields, and commits atomically.
   Reload confirms only when it would discard dirty edits. Cancel preserves edits; no-op actions never prompt.
 - Caption/description and notes support multiline Unicode text with top-aligned content and normal padding.
   Single-line fields size to their content height and scroll long lines horizontally without clipped glyphs.
   Preserve entered whitespace; line-ending presentation changes alone do not dirty an untouched field.
-- Drafts survive Preview refresh, sorting, and panel/tab switches. Changing selected assets or Browser/Player
-  context discards unapplied edits with a persistent warning in the fixed Inspector header. Consecutive
-  selection/Viewer transitions cannot erase it. Apply captures its original targets; later navigation cannot
-  redirect it. Reload values discards drafts after confirmation, including after a revision conflict.
+- Drafts survive Preview refresh, sorting, and panel/tab switches. Before changing selected assets or Browser/Player
+  context, one warning offers Cancel, Apply changes, and Discard changes / Continue. Cancel preserves the draft
+  and original context; Apply saves before resuming the requested action, without a second confirmation;
+  Discard continues without saving. Failed Apply aborts navigation and preserves the draft and error in the
+  original context. Controls are suspended while an approved transition is pending. Reload values discards
+  drafts after confirmation, including after a revision conflict.
 - Use normal keyboard-accessible controls within the existing panel scroll area. Focus loss never saves.
 
 ## Design goal

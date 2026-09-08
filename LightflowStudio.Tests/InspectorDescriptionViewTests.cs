@@ -32,6 +32,8 @@ public sealed class InspectorDescriptionViewTests
             view.UpdateLayout();
             var editor = Assert.IsType<InspectorDescriptionEditor>(view.DescriptionSection.DataContext);
             Assert.Equal(5, editor.Fields.Count);
+            Assert.DoesNotContain(Descendants<TextBlock>(view.DescriptionSection),
+                block => block.Text is "Not set" or "Catalog value" or "Common value");
             Assert.Empty(Descendants<ComboBox>(view.DescriptionSection));
             var text = Descendants<TextBox>(view.DescriptionSection).ToArray();
             Assert.Equal(5, text.Length);

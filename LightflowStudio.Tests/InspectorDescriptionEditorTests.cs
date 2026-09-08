@@ -35,8 +35,8 @@ public sealed class InspectorDescriptionEditorTests
         var title = editor.Fields.Single(f => f.Field == AssetDescriptionField.Title);
         var notes = editor.Fields.Single(f => f.Field == AssetDescriptionField.Notes);
         Assert.True(title.IsMixed); Assert.Equal("", title.Text); Assert.False(title.IsDirty);
-        Assert.Equal("Common value", notes.ValueState);
-        Assert.Equal("Not set", editor.Fields.Single(f => f.Field == AssetDescriptionField.CreatorOverride).ValueState);
+        Assert.Equal("", notes.ValueState);
+        Assert.Equal("", editor.Fields.Single(f => f.Field == AssetDescriptionField.CreatorOverride).ValueState);
         Assert.False(editor.CanApply);
         await editor.ApplyAsync(); Assert.Null(store.AppliedPatch);
         title.Text = " 新しい 🎬 ";
@@ -54,7 +54,7 @@ public sealed class InspectorDescriptionEditorTests
     }
 
     [Fact]
-    public async Task SameContextPreservesDraft_ChangedSelectionAndPlayerTransitionDiscardIt()
+    public async Task SameContextPreservesDraft_UnapprovedContextChangeCannotDiscardIt()
     {
         var a = Guid.NewGuid(); var b = Guid.NewGuid();
         using var editor = new InspectorDescriptionEditor(new TestDescriptionStore(), _ => true);
@@ -64,11 +64,15 @@ public sealed class InspectorDescriptionEditorTests
         await editor.SetContextAsync([a], false);
         Assert.True(editor.HasDraft); Assert.Equal("draft", editor.Fields[0].Text);
         await editor.SetContextAsync([b], false);
+        Assert.True(editor.HasDraft); Assert.Equal("draft", editor.Fields[0].Text);
+        Assert.True(await editor.ResolveTransitionAsync(DescriptionTransitionChoice.Discard));
+        await editor.SetContextAsync([b], false);
         Assert.False(editor.HasDraft); Assert.Contains("discarded", editor.Status);
         await editor.SetContextAsync([b], true);
         Assert.Contains("discarded", editor.Status); // Selection then Viewer transition must not erase feedback.
         editor.Fields[0].Text = "another draft";
         Assert.DoesNotContain("discarded", editor.Status);
+        Assert.True(await editor.ResolveTransitionAsync(DescriptionTransitionChoice.Discard));
         await editor.SetContextAsync([b], false);
         Assert.False(editor.HasDraft); Assert.Contains("discarded", editor.Status);
         await editor.SetContextAsync([b, null], false);
@@ -76,7 +80,7 @@ public sealed class InspectorDescriptionEditorTests
     }
 
     [Fact]
-    public async Task InFlightSaveKeepsCapturedTargets_AndDoesNotReplaceNewContextFields()
+    public async Task InFlightSaveKeepsCapturedTargets_AndBlocksContextReplacement()
     {
         var a = Guid.NewGuid(); var b = Guid.NewGuid();
         var store = new TestDescriptionStore { SaveStarted = new(), SaveRelease = new(), Values = new() { [b] = new(b, "B") } };
@@ -87,10 +91,13 @@ public sealed class InspectorDescriptionEditorTests
         Assert.False(editor.CanApply);
         await editor.SetContextAsync([b], false);
         Assert.False(editor.CanEdit);
+        Assert.Equal("A", editor.Fields[0].Text);
+        Assert.False(await editor.ResolveTransitionAsync(DescriptionTransitionChoice.Discard));
         store.SaveRelease.SetResult(); await saving;
         Assert.Equal(a, Assert.Single(store.AppliedTargets!).Key);
+        await editor.SetContextAsync([b], false);
         Assert.Equal("B", editor.Fields[0].Text);
-        Assert.True(editor.CanEdit); Assert.Contains("previous", editor.Status);
+        Assert.True(editor.CanEdit);
     }
 
     [Fact]
@@ -164,10 +171,15 @@ public sealed class InspectorDescriptionEditorTests
         await editor.ApplyAsync(); Assert.Empty(requests); Assert.Null(store.AppliedPatch);
         editor.Fields[0].Text = "changed";
         await editor.ApplyAsync();
+        Assert.Empty(requests); Assert.False(editor.HasDraft);
+        Assert.Equal("changed", Assert.Single(store.AppliedPatch!.Values).Value);
+        await editor.SetContextAsync([id, Guid.NewGuid()], false);
+        store.AppliedPatch = null;
+        editor.Fields[0].Text = "bulk";
+        await editor.ApplyAsync();
         Assert.True(Assert.Single(requests).IsApply); Assert.True(editor.HasDraft); Assert.Null(store.AppliedPatch);
         accept = true; await editor.ApplyAsync();
-        Assert.Equal(2, requests.Count); Assert.Equal(1, requests[1].AssetCount); Assert.Equal(["Title"], requests[1].Fields);
-        Assert.Equal("changed", Assert.Single(store.AppliedPatch!.Values).Value);
+        Assert.Equal(2, requests.Count); Assert.Equal(2, requests[1].AssetCount); Assert.Equal(["Title"], requests[1].Fields);
     }
 
     [Fact]
@@ -183,6 +195,7 @@ public sealed class InspectorDescriptionEditorTests
         accept = true; await editor.ReloadAsync(); Assert.False(editor.HasDraft);
         await editor.ReloadAsync(); Assert.Equal(2, requests.Count);
         editor.Fields[0].Text = "draft";
+        await editor.ResolveTransitionAsync(DescriptionTransitionChoice.Discard);
         await editor.SetContextAsync([], false); Assert.Contains("discarded", editor.Status);
     }
 
@@ -200,11 +213,12 @@ public sealed class InspectorDescriptionEditorTests
             return true;
         }))
         {
-            await editor.SetContextAsync([a], false);
+            await editor.SetContextAsync([a, Guid.NewGuid()], false);
             editor.Fields[0].Text = "invalid\nTitle";
             await editor.ApplyAsync(); Assert.Equal(0, calls);
             editor.Fields[0].Text = "valid";
-            await editor.ApplyAsync(); Assert.Equal(1, calls); Assert.Null(store.AppliedPatch);
+            await editor.ApplyAsync(); Assert.Equal(1, calls); Assert.Equal(2, store.AppliedTargets!.Count);
+            Assert.Contains(a, store.AppliedTargets.Keys); Assert.DoesNotContain(b, store.AppliedTargets.Keys);
             Assert.False(editor.HasDraft);
         }
     }

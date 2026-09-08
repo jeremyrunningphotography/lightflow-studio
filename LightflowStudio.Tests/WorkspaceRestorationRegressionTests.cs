@@ -74,7 +74,10 @@ public sealed class WorkspaceRestorationRegressionTests
         var applyBody = source[applyStart..applyEnd];
 
         Assert.Contains("_workspaceState.SetBrowserLocation(", applyBody);
-        Assert.DoesNotContain("SelectedKeys", applyBody);
+        // Selection may be read by the dirty-edit navigation guard, but must never be persisted.
+        var persistStart = applyBody.IndexOf("_workspaceState.SetBrowserLocation(", StringComparison.Ordinal);
+        var persistEnd = applyBody.IndexOf(';', persistStart);
+        Assert.DoesNotContain("SelectedKeys", applyBody[persistStart..persistEnd]);
         Assert.DoesNotContain("SelectSingle", applyBody);
     }
 

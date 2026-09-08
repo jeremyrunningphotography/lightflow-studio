@@ -15,15 +15,29 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     private bool _reading;
     private bool _refreshAgain;
     private InspectorDescriptionEditor? _descriptions;
+    private bool _transitionPending;
     internal Func<DescriptionConfirmation, bool>? ConfirmDescriptions { get; set; }
+    internal Func<InspectorDescriptionEditor, bool>? ConfirmTransition { get; set; }
+    internal bool TryLeaveContext()
+    {
+        if (_descriptions is null) return true;
+        if (_transitionPending || !_descriptions.CanLeaveContext) return false;
+        if (!_descriptions.HasDraft) return true;
+        _transitionPending = true;
+        try { return ConfirmTransition?.Invoke(_descriptions)
+            ?? ConfirmationDialog.ConfirmTransition(Window.GetWindow(this), _descriptions); }
+        finally { _transitionPending = false; }
+    }
     internal event EventHandler? OpenPlayerRequested;
     internal Func<Task>? OpenFolder { get; set; }
     internal bool IsPlayerContext => _playerContext;
+    internal IDisposable? SuspendEditing() => _descriptions?.SuspendEditing();
 
     public MediaInspectorView() => InitializeComponent();
     internal void Initialize(Func<MediaInspectorService> service, IAssetDescriptionStore descriptions)
     {
         _service = service;
+        _descriptions?.Dispose();
         _descriptions = new(descriptions, request => ConfirmDescriptions?.Invoke(request) ?? ConfirmDescriptionChanges(request));
         DescriptionSection.DataContext = _descriptions;
     }
@@ -35,6 +49,9 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
             // Derived-work notifications must not continuously cancel a large, unchanged selection.
             if (_reading) { _refreshAgain = true; return; }
         }
+        if (_descriptions?.HasDraft == true &&
+            (player != _playerContext || !context.Select(a => a.AssetId).ToHashSet().SetEquals(_context.Select(a => a.AssetId))))
+            return; // A missed caller guard must never silently destroy a draft.
         _context = context;
         _playerContext = player;
         if (_descriptions is not null) _ = _descriptions.SetContextAsync(context.Select(a => a.AssetId), player);

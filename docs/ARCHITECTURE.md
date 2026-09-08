@@ -718,14 +718,17 @@ The delivered `MediaInspectorView` consumes this service through `InspectorDescr
 transient drafts over the existing Browser/Player context. Fields are directly editable with common/unset/mixed
 presentation and no intent dropdowns. Only actual text changes enter the patch; reverting a common value is a
 no-op. A mixed field remains untouched on rendering/focus; typing replaces it, and typing then deleting explicitly
-clears it. Multiline line-ending differences alone do not mark an untouched value dirty. Apply confirms only a
-valid nonempty patch, naming the asset count and dirty fields; cancel/no-op does not write. Reload confirms only
+clears it. Current/common values and empty editors have no redundant provenance helper labels.
+Multiline line-ending differences alone do not mark an untouched value dirty. Single-asset Apply saves directly;
+multi-asset Apply confirms a valid nonempty patch, naming the asset count and dirty fields; cancel/no-op does not write. Reload confirms only
 when dirty edits would be discarded, and cancellation retains the draft. Both confirmation paths guard against
 reentrancy/context changes while the modal is open. Same-selection Preview refresh, sorting, and panel/tab
-visibility changes retain drafts. A different selection or Browser/Player context discards unapplied drafts
-with a persistent notice in the fixed Inspector header. Chained context changes cannot erase that notice;
-a new edit or explicit Apply/Reload clears it. Context continues to
-track while the panel is closed. In-flight Apply cannot retarget new selection, and late reads cannot replace
+visibility changes retain drafts. Selection and Browser/Player context owners guard transitions before mutating
+state. One warning offers Cancel, Apply changes, or Discard changes / Continue. Apply keeps the modal open
+while awaiting the existing transaction, then resumes the original action only on success, without a second
+bulk confirmation. Failure returns to the original context with the draft and error preserved. Pending
+transitions suspend editing; in-flight saves block context replacement. Context continues to track while the
+panel is closed. In-flight Apply cannot retarget new selection, and late reads cannot replace
 newer editor state. Conflicts retain the draft and disable retry until explicit Reload values discards it.
 No focus-loss writes, independent selection model, Browser editor, or additional Right Panel surface is added.
 

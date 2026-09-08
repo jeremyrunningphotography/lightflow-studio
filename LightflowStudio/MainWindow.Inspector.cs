@@ -8,6 +8,7 @@ namespace LightflowStudio;
 public partial class MainWindow
 {
     private MediaInspectorView? _inspector;
+    private CompactJobsView _compactJobsView = null!;
     private bool _rightPanelOpen;
     private double _rightPanelPreferredWidth = 360;
     private readonly DispatcherTimer _inspectorRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
@@ -24,6 +25,8 @@ public partial class MainWindow
             if (selected.Count == 1) _ = OpenBrowserPlayerViewerAsync(selected[0]);
         };
         HomeRightPanel.AddSurface("inspector", "Inspector", _inspector);
+        _compactJobsView = new CompactJobsView(this);
+        HomeRightPanel.AddGlobalSurface("jobs", "Jobs", _compactJobsView);
         _inspector.OpenFolder = OpenInspectorFolderAsync;
         HomeRightPanel.ActiveSurfaceChanged += (_, _) => ScheduleRightPanelSave();
         _inspectorRefreshTimer.Tick += (_, _) =>

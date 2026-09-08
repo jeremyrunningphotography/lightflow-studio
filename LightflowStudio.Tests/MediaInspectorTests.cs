@@ -99,13 +99,13 @@ public sealed class MediaInspectorTests
     [Fact]
     public void Layout_ToleratesOldState_ClampsWidth_AndMergesWithoutLosingOtherPanels()
     {
-        var service = new WorkspaceStateService("unused", new() { Layout = new() { JobsDrawerWidth = 450, BrowserLocationsPaneWidth = 300 } });
+        var service = new WorkspaceStateService("unused", new() { Layout = new() { FullJobsListPaneWidth = 450, BrowserLocationsPaneWidth = 300 } });
         service.SetRightPanel(420, true, "inspector");
         var normalized = WorkspaceState.Normalize(service.Current);
         Assert.Equal(420, normalized.Layout!.RightPanelWidth);
         Assert.True(normalized.Layout.RightPanelOpen);
         Assert.Equal("inspector", normalized.Layout.RightPanelActiveSurface);
-        Assert.Equal(450, normalized.Layout.JobsDrawerWidth);
+        Assert.Equal(450, normalized.Layout.FullJobsListPaneWidth);
         Assert.Equal(300, normalized.Layout.BrowserLocationsPaneWidth);
         Assert.Equal(600, WorkspaceState.Normalize(new() { Layout = new() { RightPanelWidth = 900 } }).Layout!.RightPanelWidth);
         Assert.Null(WorkspaceState.Normalize(new() { Layout = new() { RightPanelWidth = double.NaN } }).Layout!.RightPanelWidth);

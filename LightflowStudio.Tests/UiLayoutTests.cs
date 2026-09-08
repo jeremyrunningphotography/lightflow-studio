@@ -994,7 +994,7 @@ public class UiLayoutTests
         var shellGrid = document.Root.Element(ns + "Grid")!;
 
         Assert.Equal("2", (string?)menuButton.Attribute("Grid.Column"));
-        Assert.Equal("0", (string?)Named(document, "MainTabs").Attribute("Grid.Column"));
+        Assert.Null((string?)Named(document, "MainTabs").Attribute("Grid.Column"));
         Assert.Equal("1", (string?)Named(document, "MainTabs").Parent!.Attribute("Grid.Row"));
         Assert.Null(shellGrid.Element(ns + "Grid.ColumnDefinitions"));
         Assert.DoesNotContain(menuButton.Parent!.Descendants(), element =>

@@ -9,6 +9,12 @@ public partial class ContextualRightPanel : System.Windows.Controls.UserControl
     public ContextualRightPanel() => InitializeComponent();
     internal event EventHandler? ActiveSurfaceChanged;
     private bool _selectingFallback;
+    private readonly HashSet<string> _globalSurfaces = [];
+    internal void AddGlobalSurface(string key, string title, FrameworkElement content)
+    {
+        _globalSurfaces.Add(key);
+        AddSurface(key, title, content);
+    }
     internal string PreferredSurface { get; private set; } = "inspector";
     internal string ActiveSurface => (SurfaceTabs.SelectedItem as TabItem)?.Tag as string ?? "inspector";
     internal void AddSurface(string key, string title, FrameworkElement content, bool available = true)
@@ -26,6 +32,7 @@ public partial class ContextualRightPanel : System.Windows.Controls.UserControl
     }
     internal void SetSurfaceAvailable(string key, bool available)
     {
+        if (_globalSurfaces.Contains(key)) return;
         var tab = SurfaceTabs.Items.Cast<TabItem>().FirstOrDefault(t => Equals(t.Tag, key));
         if (tab is null) return;
         tab.Visibility = available ? Visibility.Visible : Visibility.Collapsed;

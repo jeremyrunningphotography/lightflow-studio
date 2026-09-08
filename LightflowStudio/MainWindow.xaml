@@ -568,8 +568,7 @@
   </Border>
 
   <Grid Grid.Row="1">
-  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition x:Name="JobsDrawerSplitterColumn" Width="0"/><ColumnDefinition x:Name="JobsDrawerColumn" Width="0" MaxWidth="620"/></Grid.ColumnDefinitions>
-  <TabControl Grid.Column="0" Margin="0,0,14,0" x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
+  <TabControl x:Name="MainTabs" Style="{StaticResource ContentOnlyTabs}" SelectedIndex="0" KeyboardNavigation.TabNavigation="Local"
    SelectionChanged="MainTabs_SelectionChanged">
    <TabItem>
     <Grid x:Name="BrowserWorkspaceRoot" Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}"
@@ -1237,9 +1236,9 @@
      <!-- A dedicated, topmost adorner surface keeps Explorer-style file-drag feedback inside this
           visible area and independent of whichever scroll/template visual initiated the drag. -->
      <GridSplitter Grid.Column="3" x:Name="RightPanelSplitter" Width="8" HorizontalAlignment="Stretch" Visibility="Collapsed"
-      ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" ShowsPreview="True" DragCompleted="RightPanelSplitter_DragCompleted"
+      ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent" Cursor="SizeWE" DragCompleted="RightPanelSplitter_DragCompleted"
       AutomationProperties.Name="Resize Right Panel" AutomationProperties.HelpText="Use Left and Right arrow keys to resize" Focusable="True" PreviewKeyDown="RightPanelSplitter_PreviewKeyDown">
-      <GridSplitter.Style><Style TargetType="GridSplitter"><Setter Property="Background" Value="Transparent"/><Style.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Background" Value="{StaticResource ShellFocusBrush}"/></Trigger></Style.Triggers></Style></GridSplitter.Style>
+      <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template>
      </GridSplitter>
      <local:ContextualRightPanel Grid.Column="4" x:Name="HomeRightPanel" Visibility="Collapsed" MinWidth="0"/>
      <AdornerDecorator Grid.ColumnSpan="3" Panel.ZIndex="100" IsHitTestVisible="False">
@@ -1545,35 +1544,7 @@
     </Border></Grid>
    </TabItem>
   </TabControl>
-  <StackPanel Grid.Column="0" x:Name="JobsDrawerPullHost" HorizontalAlignment="Right" VerticalAlignment="Center">
-   <Button x:Name="JobsDrawerPullButton" Style="{StaticResource DrawerPullButton}" Tag="Idle" ToolTip="Open Jobs drawer" AutomationProperties.Name="Open Jobs drawer" Click="JobsDrawerPull_Click"><StackPanel HorizontalAlignment="Center"><TextBlock x:Name="JobsDrawerPullChevron" HorizontalAlignment="Center" FontSize="15" Text="‹"/><TextBlock Margin="0,4,0,0" HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="10" Text="Jobs"><TextBlock.LayoutTransform><RotateTransform Angle="90"/></TextBlock.LayoutTransform></TextBlock><TextBlock x:Name="JobsDrawerPullCount" Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="10" Visibility="Collapsed"/></StackPanel></Button>
-  </StackPanel>
-  <GridSplitter Grid.Column="1" x:Name="JobsDrawerSplitter" Width="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent" Cursor="SizeWE" Visibility="Collapsed" ToolTip="Drag to resize Jobs drawer" AutomationProperties.Name="Resize Jobs drawer"><GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template></GridSplitter>
-  <Border Grid.Column="2" x:Name="JobsDrawer" Style="{StaticResource DrawerBody}" MinWidth="340" MaxWidth="620" ClipToBounds="True" Visibility="Collapsed">
-   <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <TextBlock Style="{StaticResource DrawerHeaderText}" Margin="0,0,0,9" Text="JOBS" ToolTip="Current and recent Jobs" AutomationProperties.HelpText="Current and recent Jobs"/>
-    <Grid Grid.Row="1" Margin="0,0,0,5"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="Active exports" ToolTip="Controls how many exports may execute simultaneously" AutomationProperties.HelpText="Controls how many exports may execute simultaneously"/>
-     <ComboBox Grid.Column="1" x:Name="MaximumExportsCombo" Margin="8,0,0,0" Width="58" ToolTip="Maximum exports that may execute simultaneously" AutomationProperties.Name="Active exports" AutomationProperties.HelpText="Controls how many exports may execute simultaneously" SelectedValuePath="Content" SelectionChanged="MaximumExports_SelectionChanged">
-      <ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/><ComboBoxItem Content="4"/><ComboBoxItem Content="5"/><ComboBoxItem Content="6"/><ComboBoxItem Content="7"/><ComboBoxItem Content="8"/>
-     </ComboBox><Button Grid.Column="2" x:Name="JobsQueueGateButton" Margin="8,0,0,0" Padding="7,3" MinWidth="88" Content="Pause Queue" ToolTip="Hold queued Jobs; running exports continue" AutomationProperties.Name="Pause Queue" AutomationProperties.HelpText="Hold queued Jobs before they start. Running exports continue." Click="JobsQueueGate_Click"/><Button Grid.Column="3" x:Name="JobsCancelAllButton" Margin="8,0,0,0" Padding="7,3" MinWidth="65" Style="{StaticResource DangerButton}" Content="Clear all" IsEnabled="False" ToolTip="No Jobs to clear" AutomationProperties.Name="Clear all, no Jobs to clear" Click="JobsCancelAll_Click"/></Grid>
-    <ListBox Grid.Row="2" x:Name="JobsDrawerList" Padding="0,0,16,0" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
-     <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="IsTabStop" Value="False"/></Style></ListBox.ItemContainerStyle>
-     <ListBox.ItemTemplate><DataTemplate><Border Style="{StaticResource DrawerCard}" Margin="0,0,0,7"><Grid ClipToBounds="True"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-      <Grid MinHeight="30"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="0"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="27"/><ColumnDefinition Width="*" MinWidth="0"/></Grid.ColumnDefinitions><Button Grid.Column="0" Style="{StaticResource JobsRowHeaderButtonStyle}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Tag="{Binding JobId}" AutomationProperties.Name="{Binding Name, StringFormat=Toggle details for {0}}" AutomationProperties.HelpText="Toggle expanded Job details" AutomationProperties.ItemStatus="{Binding IsExpanded, StringFormat=Expanded: {0}}" Click="JobExpansionToggle_Click"><Grid Width="12" Height="14"><TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="15" Text="›" Visibility="{Binding IsExpanded, Converter={StaticResource InverseBoolToVisibility}}"/><TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource ShellFocusBrush}" FontSize="13" Text="⌄" Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}"/></Grid></Button><local:JobsRadialProgress Grid.Column="1" Width="21" Height="21" VerticalAlignment="Center" Progress="{Binding Progress, Mode=OneWay}" State="{Binding State, Mode=OneWay}" AutomationProperties.Name="{Binding State, Mode=OneWay}"/><StackPanel Grid.Column="2" VerticalAlignment="Center"><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" FontSize="12" LineHeight="14" Text="{Binding Name}" TextTrimming="CharacterEllipsis"/><TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="10" LineHeight="12" TextTrimming="CharacterEllipsis"><Run Text="{Binding State, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding Eta, Mode=OneWay}"/></TextBlock></StackPanel></Grid>
-       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0" Visibility="{Binding CanReorder, Converter={StaticResource BoolToVisibility}}"><Button Width="22" Height="22" Padding="0" Margin="0,0,2,0" FontSize="10" Content="↑" Tag="{Binding JobId}" IsEnabled="{Binding CanReorder}" ToolTip="Move waiting Job earlier" AutomationProperties.Name="Move waiting Job earlier" Click="JobsMoveUp_Click"/><Button Width="22" Height="22" Padding="0" Margin="0" FontSize="10" Content="↓" Tag="{Binding JobId}" IsEnabled="{Binding CanReorder}" ToolTip="Move waiting Job later" AutomationProperties.Name="Move waiting Job later" Click="JobsMoveDown_Click"/></StackPanel>
-      </Grid>
-      <Border Grid.Row="1" Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}" Margin="0,3,0,0" Padding="7" MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ListBox}}" HorizontalAlignment="Stretch" ClipToBounds="True" Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="6"><StackPanel>
-       <ProgressBar Height="4" HorizontalAlignment="Stretch" Maximum="100" Value="{Binding Progress, Mode=OneWay}"/>
-       <Grid Margin="0,3,0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="{Binding Elapsed, StringFormat=Elapsed {0}}"/><TextBlock Grid.Column="1" Margin="10,0,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" TextAlignment="Right" Text="{Binding Progress, StringFormat={}{0:0}%}"/></Grid>
-       <ContentControl Content="{Binding Details}"/>
-       <TextBlock Margin="0,3,0,0" Foreground="{StaticResource WarningBrush}" FontSize="10" Text="{Binding Issue}" TextWrapping="Wrap"/>
-       <WrapPanel HorizontalAlignment="Right" Margin="0,4,0,0"><Button Padding="7,2" Content="Pause" Tag="{Binding JobId}" IsEnabled="{Binding CanPause}" Click="JobsPause_Click"/><Button Padding="7,2" Content="Resume" Tag="{Binding JobId}" IsEnabled="{Binding CanResume}" Click="JobsResume_Click"/><Button Padding="7,2" Content="Retry" Tag="{Binding JobId}" IsEnabled="{Binding CanRetry}" Click="JobsRetry_Click"/><Button Padding="7,2" Style="{StaticResource DangerButton}" Content="Cancel…" Tag="{Binding JobId}" IsEnabled="{Binding CanCancel}" AutomationProperties.Name="Cancel this Job" Click="JobsCancel_Click"/></WrapPanel>
-      </StackPanel></Border>
-     </Grid></Border></DataTemplate></ListBox.ItemTemplate>
-    </ListBox>
-    <TextBlock Grid.Row="3" Margin="0,8,16,0" HorizontalAlignment="Right" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="Saved Jobs remain available in the full Jobs view"/>
-   </Grid>
-  </Border>
+
   </Grid>
 
   <!--

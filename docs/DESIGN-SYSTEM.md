@@ -43,20 +43,20 @@ Body text should remain readable against every dark surface. Muted text is for s
 
 ## Workspace composition
 
-One right-panel icon in Home (also Ctrl+I) opens and closes the contextual Right Panel, with checked-state feedback,
+One right-panel icon in Home (also Ctrl+I) opens and closes the shared Right Panel, with checked-state feedback,
 a keyboard-reachable splitter, persisted width, and the shell's complete rounded border. The host offers retained
 surfaces, beginning with Inspector. The filename leads directly into cached Preview and normalized metadata; raw
 provider browsing and redundant Browser/Player/available labels are omitted. Ordinary hydration stays quiet; only
 materially slow retrieval and persistent pending/offline/error states need text. Catalog organization is separately
 labeled, and multi-selection uses common/mixed/missing values with partial aggregate coverage. A folder icon beside
 Relative path opens the containing folder in Explorer. Cached posters stay visible during Player context and follow
-preferred-frame regeneration. Open in Player uses the existing central presentation. Global Jobs remains independent
+preferred-frame regeneration. Open in Player uses the existing central presentation. Global Jobs is an independently owned peer tab,
 and Subclips is a contextual peer tab for Catalog-backed Player videos. Its existing cards and compact actions fill
 the shared width without an inner drawer border or redundant title. Switching surfaces and closing/reopening retain
 current-video selection; asset changes clear it. Saved Subclips and creation reveal the Subclips tab automatically.
 Outside applicable Player context the tab is hidden, with Inspector as the fallback; the preferred tab is remembered.
 
-The permanent shell treats Browser/Player as Home. It has no permanent module strip or peer capability rail. Focused actions and owned modals configure work from media context; the bottom status affordance enters secondary full Jobs; the right-edge pull independently controls the compact drawer; and a restrained upper-right gear menu exposes only application utilities such as Settings and About. Back actions restore the already-live Home content. Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
+The permanent shell treats Browser/Player as Home. It has no permanent module strip or peer capability rail. Focused actions and owned modals configure work from media context; the bottom status affordance enters secondary full Jobs; the shared Right Panel Jobs tab exposes compact global activity; and a restrained upper-right gear menu exposes only application utilities such as Settings and About. Back actions restore the already-live Home content. Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
 
 Settings uses a compact left category list and one scrollable contextual page rather than a permanent workspace rail
 or one long stack of unrelated cards. General, Color, Export, Storage, and Tools are stable conceptual homes; future
@@ -80,7 +80,10 @@ same stretching, maximum-width content strategy so switching pages does not chan
 
 Subclips is a contextual peer of Inspector in the shared Right Panel. Player supplies one retained presentation control, while the shell owns generic tab availability and shared width/open state. Cards retain quiet posters, readable semantic names, exact range/duration text, desktop multi-selection, double-click quick review, and keyboard-reachable rename/delete actions; missing posters retain a deterministic media glyph. Catalog ordering is In timestamp ascending, then stable SubclipId.
 
-The global Jobs right-edge pull remains in its shell-owned host, separate from contextual surfaces. `DrawerPullButton` supplies its DPI-scaled size, typography, focus, and active chrome. The Jobs body keeps `DrawerBody`, compact `DrawerHeaderText`, and `DrawerCard`; contextual Subclips uses the Right Panel chrome. Destructive actions reuse `DangerButton`, and compact semantic actions use explicit vector geometry when font fallback would be ambiguous.
+Global Jobs is a presentation peer of Inspector/Subclips in the shared Right Panel. It keeps compact `DrawerCard`
+rows and existing status, disclosure, lifecycle, and concurrency controls; no nested drawer border or redundant
+Jobs title is retained. Queue controls occupy two rows to fit the shared minimum width, with Show all Jobs below
+the virtualized list. The host owns the only toggle, border, width, and resize boundary.
 
 The Browser owns a resizable filesystem-oriented Locations panel and uses the remaining width for the current folder. Its 280-pixel initial width can be adjusted between sensible bounds through an invisible eight-pixel boundary whose resize cursor provides the interaction feedback; the width remains in place for the current window session. Deep hierarchies scroll horizontally instead of colliding with disclosure, icon, or scrollbar chrome. Familiar drives and mapped/removable storage are primary entry points; managed Media Roots appear as pinned libraries rather than setup prerequisites. The left pane is the single owner of folder hierarchy and selection. Its compact Back/Forward/Up/Refresh toolbar and editable path field remain synchronized with that hierarchy. The center is reserved for files/media in the selected folder and does not repeat child folders. Online state is reinforced with text as well as color; unavailable storage remains visible so the workspace can explain what happened. Loading and empty/error states occupy the media canvas without replacing navigation context.
 
@@ -106,15 +109,14 @@ The drawer's disclosure controls use the same quiet transparent-button, raised-h
 the rest of the shell rather than native WPF expander chrome. Its resize boundary remains visually empty, with only
 the `SizeWE` cursor revealing the interaction. Destructive Jobs confirmations use Lightflow's dark card/window chrome
 and explicit default/cancel actions instead of native message-box styling.
-Jobs navigation and drawer access use distinct affordances: the bottom status action opens the full Jobs destination,
-while a narrow vertical right-edge pull tab toggles the compact drawer. The tab uses subdued shell chrome when idle,
-orange emphasis/count for active work, directional carets, and the standard keyboard-focus border; no duplicate close
-button appears inside the drawer.
+The bottom status action and compact Show all Jobs button open the full Jobs destination. The shared panel
+Jobs tab is always available in Browser/Player. One checked right-panel toggle opens and closes the entire host;
+there is no Jobs-specific pull, caret/count gutter, or duplicate close button.
 
-When the Jobs drawer reduces Browser width, Browser remains contained rather than clipped at the drawer boundary.
+When the shared Right Panel reduces Browser width, Browser remains contained rather than clipped at the panel boundary.
 The Locations preference is temporarily constrained only when necessary, navigation/address keeps group integrity,
 refinement moves through deliberate grouped rows, and selection Color/Export actions adapt independently. Removing
-space must never let a child minimum arrange Browser content beneath the drawer; Player and Grid use the same bounded
+space must never let a child minimum arrange Browser content beneath the panel; Player and Grid use the same bounded
 media cell and resize in place.
 
 Selection actions use compact purpose-built transparent button chrome. Camera and Creative are action-picker

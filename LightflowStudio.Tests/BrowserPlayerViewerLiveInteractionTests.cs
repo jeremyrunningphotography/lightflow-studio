@@ -43,7 +43,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Inspector_PreservesHomeAndPlayerContext_ResizesAndRestores_WithIndependentJobs()
+    public async Task Inspector_PreservesHomeAndPlayerContext_ResizesAndRestores_WithGlobalJobs()
     {
         await StaDispatcher.RunAsync(async () =>
         {
@@ -86,7 +86,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 RaiseMouseLeftButtonDown(element!, 2);
                 await WaitUntilAsync(() => inspector.IsPlayerContext && inspector.TitleText.Text == tile.Name, "Player Inspector context");
                 var player = Assert.IsType<PlayerViewerHost>(window.BrowserPlayerHost.Content);
-                var subclipsTab = Assert.IsType<TabItem>(window.HomeRightPanel.SurfaceTabs.Items[1]);
+                var subclipsTab = window.HomeRightPanel.SurfaceTabs.Items.Cast<TabItem>().Single(tab => Equals(tab.Tag, "subclips"));
                 Assert.Equal(Visibility.Collapsed, subclipsTab.Visibility); // Still image context.
                 var stillAsset = player.CurrentAsset!;
                 var missingVideo = stillAsset with { Kind = MediaPresentationKind.Video };
@@ -103,14 +103,14 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 Assert.Equal("inspector", window.HomeRightPanel.ActiveSurface);
                 Assert.Equal("subclips", window.HomeRightPanel.PreferredSurface);
                 window.HomeRightPanel.SelectSurface("inspector");
-                RaiseClick(window.JobsDrawerPullButton);
+                window.OpenJobsPanel();
                 window.Width = 1120; window.UpdateLayout();
                 Assert.True(window.HomeRightPanel.IsVisible);
-                Assert.True(window.JobsDrawer.IsVisible);
+                Assert.Equal("jobs", window.HomeRightPanel.ActiveSurface);
                 Assert.Same(player, window.BrowserPlayerHost.Content);
                 AssertContained(window.HomeRightPanel, window.BrowserWorkspaceRoot);
                 Assert.True(window.BrowserCenter.ActualWidth >= 200);
-                RaiseClick(window.JobsDrawerPullButton);
+                window.HomeRightPanel.SelectSurface("inspector");
                 RaiseClick(player.BackButton);
                 await WaitUntilAsync(() => !inspector.IsPlayerContext, "return context");
                 Assert.True(tile.IsSelected);
@@ -178,21 +178,22 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 await WaitUntilAsync(() => host.CurrentAsset?.Name == "photo.jpg", "the Viewer to finish opening the photo");
                 Assert.Equal(ExpectedSelectionActionRow(window), Grid.GetRow(window.BrowserSelectionActionToolbar));
 
-                RaiseClick(window.JobsDrawerPullButton);
+                window.OpenJobsPanel();
                 window.UpdateLayout();
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                 window.UpdateLayout();
-                Assert.Equal(Visibility.Visible, window.JobsDrawer.Visibility);
+                Assert.Equal(Visibility.Visible, window.HomeRightPanel.Visibility);
                 Assert.Equal("photo.jpg", host.CurrentAsset?.Name);
                 Assert.Equal(4, Grid.GetRow(window.BrowserSelectionActionToolbar));
                 AssertContained(window.BrowserPlayerHost, window.BrowserCenter);
-                window.JobsDrawerColumn.Width = new GridLength(610);
+                window.RightPanelColumn.Width = new GridLength(600);
                 window.UpdateLayout();
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                 window.UpdateLayout();
                 Assert.Equal("photo.jpg", host.CurrentAsset?.Name);
                 AssertContained(window.BrowserPlayerHost, window.BrowserCenter);
-                RaiseClick(window.JobsDrawerPullButton);
+                window.RightPanelToggle.IsChecked = false;
+                RaiseClick(window.RightPanelToggle);
                 window.UpdateLayout();
                 Assert.Equal("photo.jpg", host.CurrentAsset?.Name);
                 Assert.Equal(ExpectedSelectionActionRow(window), Grid.GetRow(window.BrowserSelectionActionToolbar));

@@ -44,7 +44,6 @@ internal sealed record WorkspaceWindowState
 internal sealed record WorkspaceLayoutState
 {
     public double? BrowserLocationsPaneWidth { get; init; }
-    public double? JobsDrawerWidth { get; init; }
     public double? FullJobsListPaneWidth { get; init; }
     public double? RightPanelWidth { get; init; }
     public bool RightPanelOpen { get; init; }
@@ -74,8 +73,6 @@ internal sealed record WorkspaceState
     // Mirrors MainWindow.xaml's BrowserNavigationColumn MinWidth/MaxWidth.
     public const double MinLocationsPaneWidth = 220;
     public const double MaxLocationsPaneWidth = 520;
-    public const double MinJobsDrawerWidth = 340;
-    public const double MaxJobsDrawerWidth = 620;
     public const double MinFullJobsListPaneWidth = 340;
     public const double MaxFullJobsListPaneWidth = 720;
     public const double MinRightPanelWidth = 280;
@@ -131,9 +128,6 @@ internal sealed record WorkspaceState
         var paneWidth = layout.BrowserLocationsPaneWidth is { } width && double.IsFinite(width)
             ? Math.Clamp(width, MinLocationsPaneWidth, MaxLocationsPaneWidth)
             : (double?)null;
-        var jobsDrawerWidth = layout.JobsDrawerWidth is { } drawerWidth && double.IsFinite(drawerWidth)
-            ? Math.Clamp(drawerWidth, MinJobsDrawerWidth, MaxJobsDrawerWidth)
-            : (double?)null;
         var fullJobsListPaneWidth = layout.FullJobsListPaneWidth is { } listWidth && double.IsFinite(listWidth)
             ? Math.Clamp(listWidth, MinFullJobsListPaneWidth, MaxFullJobsListPaneWidth)
             : (double?)null;
@@ -148,8 +142,8 @@ internal sealed record WorkspaceState
         var expandedSets = (layout.BrowserExpandedCollectionSetIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
         return layout with { RightPanelWidth = layout.RightPanelWidth is { } rightWidth && double.IsFinite(rightWidth)
                 ? Math.Clamp(rightWidth, MinRightPanelWidth, MaxRightPanelWidth) : null,
-            RightPanelActiveSurface = layout.RightPanelActiveSurface is "inspector" or "subclips" ? layout.RightPanelActiveSurface : null,
-            BrowserLocationsPaneWidth = paneWidth, JobsDrawerWidth = jobsDrawerWidth,
+            RightPanelActiveSurface = layout.RightPanelActiveSurface is "inspector" or "subclips" or "jobs" ? layout.RightPanelActiveSurface : null,
+            BrowserLocationsPaneWidth = paneWidth,
             FullJobsListPaneWidth = fullJobsListPaneWidth,
             BrowserThumbnailSizeLevel = thumbnailSizeLevel, BrowserViewMode = browserViewMode,
             BrowserCollectionId = collectionId, BrowserExpandedCollectionSetIds = expandedSets };
@@ -238,9 +232,6 @@ internal sealed class WorkspaceStateService
     // recently, since SaveWorkspaceState calls both setters back-to-back at the same shutdown/debounce point.
     public void SetBrowserLocationsPaneWidth(double width) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { BrowserLocationsPaneWidth = width } };
-
-    public void SetJobsDrawerWidth(double width) =>
-        _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { JobsDrawerWidth = width } };
 
     public void SetRightPanel(double width, bool open, string activeSurface) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with

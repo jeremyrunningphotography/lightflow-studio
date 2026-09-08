@@ -15,6 +15,7 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     private bool _reading;
     private bool _refreshAgain;
     private InspectorDescriptionEditor? _descriptions;
+    internal Func<DescriptionConfirmation, bool>? ConfirmDescriptions { get; set; }
     internal event EventHandler? OpenPlayerRequested;
     internal Func<Task>? OpenFolder { get; set; }
     internal bool IsPlayerContext => _playerContext;
@@ -23,7 +24,7 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     internal void Initialize(Func<MediaInspectorService> service, IAssetDescriptionStore descriptions)
     {
         _service = service;
-        _descriptions = new(descriptions);
+        _descriptions = new(descriptions, request => ConfirmDescriptions?.Invoke(request) ?? ConfirmDescriptionChanges(request));
         DescriptionSection.DataContext = _descriptions;
     }
     internal void SetContext(IReadOnlyList<InspectorAsset> context, bool player, bool force = false)
@@ -127,6 +128,12 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     { if (_descriptions is not null) await _descriptions.ApplyAsync(); }
     private async void ReloadDescriptions_Click(object sender, RoutedEventArgs e)
     { if (_descriptions is not null) await _descriptions.ReloadAsync(); }
+    private bool ConfirmDescriptionChanges(DescriptionConfirmation request) => ConfirmationDialog.Confirm(
+        Window.GetWindow(this), request.IsApply ? "Apply descriptions" : "Reload descriptions",
+        request.IsApply ? "Apply descriptive changes?" : "Discard unapplied edits?",
+        request.IsApply ? $"Change descriptive Catalog data for {request.AssetCount:N0} selected asset(s)."
+            : "Reloading Catalog values will discard your unapplied descriptive edits.",
+        string.Join(", ", request.Fields), request.IsApply ? "Apply changes" : "Discard and reload", "Keep editing");
     private void Inspector_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e) => _ = RefreshAsync();
     public void Dispose()
     {

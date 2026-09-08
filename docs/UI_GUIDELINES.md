@@ -17,14 +17,19 @@
 
 - The existing Inspector groups editable Lightflow descriptions separately from read-only source metadata
   and Catalog classification. Creator and credit overrides are labeled explicitly.
-- Each descriptive field shows a common value, Not set, or Mixed values. Leave unchanged is the initial
-  operation for every field. Set enables editing; Clear removes only that Catalog field. One Apply action
-  names the affected selection count and commits the chosen operations together.
-- Caption/description and notes support multiline Unicode text. Preserve entered whitespace. An empty Set
-  asks the user to choose Clear; untouched mixed editors never write a blank to the selection.
+- Each descriptive field shows a common value, Not set, or Mixed values and supports direct editing without
+  intent dropdowns. Untouched fields are omitted; changed text sets a field, and intentionally emptied text
+  clears it. Reverting a common value is a no-op. Mixed fields stay untouched on focus/render; typing then
+  deleting is an intentional mixed-field clear.
+- Apply confirms only actual valid changes, summarizes the selection and fields, and commits atomically.
+  Reload confirms only when it would discard dirty edits. Cancel preserves edits; no-op actions never prompt.
+- Caption/description and notes support multiline Unicode text with top-aligned content and normal padding.
+  Single-line fields size to their content height and scroll long lines horizontally without clipped glyphs.
+  Preserve entered whitespace; line-ending presentation changes alone do not dirty an untouched field.
 - Drafts survive Preview refresh, sorting, and panel/tab switches. Changing selected assets or Browser/Player
-  context discards unapplied edits with feedback. Apply captures its original targets; later navigation cannot
-  redirect it. Reload values explicitly discards drafts, including after a revision conflict.
+  context discards unapplied edits with a persistent warning in the fixed Inspector header. Consecutive
+  selection/Viewer transitions cannot erase it. Apply captures its original targets; later navigation cannot
+  redirect it. Reload values discards drafts after confirmation, including after a revision conflict.
 - Use normal keyboard-accessible controls within the existing panel scroll area. Focus loss never saves.
 
 ## Design goal

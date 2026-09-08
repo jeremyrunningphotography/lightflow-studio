@@ -16,8 +16,10 @@ public sealed class InspectorDescriptionViewTests
     {
         TestWpfApplication.EnsureLoaded();
         var a = Guid.NewGuid(); var b = Guid.NewGuid();
-        var store = new TestDescriptionStore { Values = new() { [a] = new(a, "First"), [b] = new(b, "Second") } };
+        var store = new TestDescriptionStore { Values = new() { [a] = new(a, "First", Notes: "common"), [b] = new(b, "Second", Notes: "common") } };
         using var view = new MediaInspectorView();
+        var requests = new List<DescriptionConfirmation>();
+        view.ConfirmDescriptions = request => { requests.Add(request); return true; };
         view.Initialize(() => new MediaInspectorService(null, new Classifications(), Path.GetTempPath()), store);
         var window = new Window { Content = view, Width = 320, Height = 760, Left = -32000, Top = -32000,
             WindowStartupLocation = WindowStartupLocation.Manual, ShowInTaskbar = false };
@@ -30,18 +32,17 @@ public sealed class InspectorDescriptionViewTests
             view.UpdateLayout();
             var editor = Assert.IsType<InspectorDescriptionEditor>(view.DescriptionSection.DataContext);
             Assert.Equal(5, editor.Fields.Count);
-            var combos = Descendants<ComboBox>(view.DescriptionSection).ToArray();
+            Assert.Empty(Descendants<ComboBox>(view.DescriptionSection));
             var text = Descendants<TextBox>(view.DescriptionSection).ToArray();
-            Assert.Equal(5, combos.Length); Assert.Equal(5, text.Length);
-            Assert.All(combos, combo => Assert.Equal(3, combo.Items.Count));
-            Assert.True(text[0].IsReadOnly); Assert.Equal("", text[0].Text);
-            combos[0].SelectedValue = DescriptionEditOperation.Set;
+            Assert.Equal(5, text.Length);
             Assert.False(text[0].IsReadOnly);
+            text[0].Focus(); text[0].SelectAll();
+            Assert.False(editor.HasDraft);
+            await editor.ApplyAsync(); Assert.Empty(requests); Assert.Null(store.AppliedPatch);
             text[0].Text = "作者 🎬";
-            combos[1].SelectedValue = DescriptionEditOperation.Set;
             Assert.True(text[1].AcceptsReturn); Assert.False(text[0].AcceptsReturn);
             text[1].Text = "First line\r\n第二行";
-            combos[2].SelectedValue = DescriptionEditOperation.Clear;
+            text[2].Text = "";
             Assert.True(editor.CanApply);
             view.SetContext(selection, false, force: true);
             await view.RefreshAsync();
@@ -51,15 +52,39 @@ public sealed class InspectorDescriptionViewTests
             var apply = Descendants<Button>(view.DescriptionSection).Single(button => Equals(button.Content, "Apply to 2 assets"));
             Assert.True(apply.IsEnabled);
             apply.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Assert.True(Assert.Single(requests).IsApply);
             Assert.Equal("作者 🎬", store.AppliedPatch!.Values[AssetDescriptionField.Title]);
             Assert.Equal("First line\r\n第二行", store.AppliedPatch.Values[AssetDescriptionField.Description]);
             Assert.Null(store.AppliedPatch.Values[AssetDescriptionField.Notes]);
             Assert.False(editor.HasDraft);
-            window.Width = 260; view.UpdateLayout();
-            foreach (var control in Descendants<ComboBox>(view.DescriptionSection).Cast<FrameworkElement>().Concat(Descendants<TextBox>(view.DescriptionSection)))
+            Assert.Contains("Saved", view.DescriptionStatus.Text);
+            Assert.DoesNotContain(view.DescriptionStatus, Descendants<TextBlock>(view.DescriptionSection));
+            foreach (var width in new[] { 260d, 600d })
             {
-                var bounds = control.TransformToAncestor(view).TransformBounds(new Rect(control.RenderSize));
-                Assert.True(bounds.Left >= 0 && bounds.Right <= view.ActualWidth + 1, $"Editor clips horizontally: {bounds}");
+                window.Width = width; view.UpdateLayout();
+                var editors = Descendants<TextBox>(view.DescriptionSection).ToArray();
+                foreach (var control in editors)
+                {
+                    control.Text = control.AcceptsReturn ? "Top line\r\nNext line" : "Agj 作者 Title with a long line " + new string('W', 50);
+                    control.UpdateLayout();
+                    var bounds = control.TransformToAncestor(view).TransformBounds(new Rect(control.RenderSize));
+                    Assert.True(bounds.Left >= 0 && bounds.Right <= view.ActualWidth + 1, $"Editor clips horizontally: {bounds}");
+                    Assert.Equal(VerticalAlignment.Top, control.VerticalContentAlignment);
+                    var content = Assert.IsType<ScrollViewer>(control.Template.FindName("PART_ContentHost", control));
+                    var firstCharacter = control.GetRectFromCharacterIndex(0);
+                    var hostBounds = content.TransformToAncestor(control).TransformBounds(new Rect(content.RenderSize));
+                    Assert.True(firstCharacter.Top >= hostBounds.Top - 1 && firstCharacter.Bottom <= hostBounds.Bottom + 1,
+                        $"Text is vertically clipped: {firstCharacter} inside {hostBounds}");
+                    Assert.InRange(firstCharacter.Top - hostBounds.Top, 0, control.Padding.Top + 1);
+                    if (!control.AcceptsReturn)
+                    {
+                        Assert.True(double.IsNaN(control.Height));
+                        Assert.Equal(TextWrapping.NoWrap, control.TextWrapping);
+                        control.Focus(); control.CaretIndex = control.Text.Length;
+                        control.ScrollToHorizontalOffset(control.ExtentWidth); control.UpdateLayout();
+                        Assert.True(control.HorizontalOffset > 0);
+                    }
+                }
             }
         }
         finally { window.Close(); }

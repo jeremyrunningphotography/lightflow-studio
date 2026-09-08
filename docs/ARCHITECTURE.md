@@ -700,7 +700,8 @@ Issue #82 does not add discovery scanning, derived media metadata, thumbnails, b
 Catalog migration 13 adds `MediaAssetDescriptions`, an optional one-to-one row keyed by stable `AssetId` with
 nullable `Title`, `Description`, `Notes`, `CreatorOverride`, and `CreditOverride`, plus `Revision`, `CreatedUtc`,
 and `UpdatedUtc`. These are precious authored values, never copied from normalized/raw source metadata in
-Previews. Null means no authored value (or no override); empty Set is rejected in favor of explicit Clear.
+Previews. Null means no authored value (or no override); the store rejects empty strings, and the direct editor
+maps an intentionally emptied dirty field to null.
 Whitespace and Unicode are preserved. Description and Notes accept multiline text; the other fields are
 single-line. Clearing an override never deletes source-recorded information. The current normalized source
 contract does not supply creator/credit fields; Inspector does not fabricate them or add a probe.
@@ -714,10 +715,16 @@ backup/restore protect this table without special recovery logic. Relocation/roo
 the existing copy-intent transaction clones descriptions to a new independently mutable asset.
 
 The delivered `MediaInspectorView` consumes this service through `InspectorDescriptionEditor`, which owns only
-transient drafts over the existing Browser/Player context. Per-field common/unset/mixed presentation starts at
-Leave unchanged; Set enables text entry, Clear is explicit, and one Apply action commits chosen fields to the
-captured selection. Same-selection Preview refresh, sorting, and panel/tab visibility changes retain drafts.
-A different selection or Browser/Player context discards unapplied drafts with feedback. Context continues to
+transient drafts over the existing Browser/Player context. Fields are directly editable with common/unset/mixed
+presentation and no intent dropdowns. Only actual text changes enter the patch; reverting a common value is a
+no-op. A mixed field remains untouched on rendering/focus; typing replaces it, and typing then deleting explicitly
+clears it. Multiline line-ending differences alone do not mark an untouched value dirty. Apply confirms only a
+valid nonempty patch, naming the asset count and dirty fields; cancel/no-op does not write. Reload confirms only
+when dirty edits would be discarded, and cancellation retains the draft. Both confirmation paths guard against
+reentrancy/context changes while the modal is open. Same-selection Preview refresh, sorting, and panel/tab
+visibility changes retain drafts. A different selection or Browser/Player context discards unapplied drafts
+with a persistent notice in the fixed Inspector header. Chained context changes cannot erase that notice;
+a new edit or explicit Apply/Reload clears it. Context continues to
 track while the panel is closed. In-flight Apply cannot retarget new selection, and late reads cannot replace
 newer editor state. Conflicts retain the draft and disable retry until explicit Reload values discards it.
 No focus-loss writes, independent selection model, Browser editor, or additional Right Panel surface is added.

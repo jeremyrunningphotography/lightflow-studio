@@ -13,6 +13,20 @@
   states record count, statuses, time span, provenance/rerun loss, legacy record indivisibility, and output safety.
 - Drawer clearing remains transient presentation cleanup and must never imply durable History deletion.
 
+## Inspector descriptions
+
+- The existing Inspector groups editable Lightflow descriptions separately from read-only source metadata
+  and Catalog classification. Creator and credit overrides are labeled explicitly.
+- Each descriptive field shows a common value, Not set, or Mixed values. Leave unchanged is the initial
+  operation for every field. Set enables editing; Clear removes only that Catalog field. One Apply action
+  names the affected selection count and commits the chosen operations together.
+- Caption/description and notes support multiline Unicode text. Preserve entered whitespace. An empty Set
+  asks the user to choose Clear; untouched mixed editors never write a blank to the selection.
+- Drafts survive Preview refresh, sorting, and panel/tab switches. Changing selected assets or Browser/Player
+  context discards unapplied edits with feedback. Apply captures its original targets; later navigation cannot
+  redirect it. Reload values explicitly discards drafts, including after a revision conflict.
+- Use normal keyboard-accessible controls within the existing panel scroll area. Focus loss never saves.
+
 ## Design goal
 
 Lightflow Studio should feel like a calm professional workbench: powerful, clear, and

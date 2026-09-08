@@ -24,7 +24,8 @@ internal static class CatalogMigrations
         new(9, "Durable preferred Browser Preview frame timestamps", ApplyVersion9),
         new(10, "Durable Collections, Collection Sets, and membership", ApplyVersion10),
         new(11, "Mixed Collection hierarchy sibling order", ApplyVersion11),
-        new(12, "Durable asset ratings, flags, color labels, and keywords", ApplyVersion12)
+        new(12, "Durable asset ratings, flags, color labels, and keywords", ApplyVersion12),
+        new(13, "Creator-authored asset descriptions and overrides", ApplyVersion13)
     ];
 
     private static void ApplyVersion1(
@@ -537,6 +538,21 @@ internal static class CatalogMigrations
             CREATE INDEX IX_MediaAssetKeywords_Keyword ON MediaAssetKeywords (Keyword COLLATE NOCASE, AssetId);
             """);
     }
+
+    private static void ApplyVersion13(SqliteConnection connection, SqliteTransaction transaction,
+        CatalogMigrationContext context) => Execute(connection, transaction, """
+            CREATE TABLE MediaAssetDescriptions (
+                AssetId TEXT NOT NULL PRIMARY KEY REFERENCES MediaAssets(AssetId) ON DELETE CASCADE,
+                Title TEXT NULL CHECK (Title IS NULL OR length(Title) > 0),
+                Description TEXT NULL CHECK (Description IS NULL OR length(Description) > 0),
+                Notes TEXT NULL CHECK (Notes IS NULL OR length(Notes) > 0),
+                CreatorOverride TEXT NULL CHECK (CreatorOverride IS NULL OR length(CreatorOverride) > 0),
+                CreditOverride TEXT NULL CHECK (CreditOverride IS NULL OR length(CreditOverride) > 0),
+                Revision INTEGER NOT NULL CHECK (Revision > 0),
+                CreatedUtc TEXT NOT NULL CHECK (length(CreatedUtc) = 28),
+                UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28)
+            );
+            """);
 
     private static void Execute(SqliteConnection connection, SqliteTransaction transaction, string sql)
     {

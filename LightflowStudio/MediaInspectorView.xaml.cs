@@ -14,12 +14,18 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     private InspectorSnapshot? _snapshot;
     private bool _reading;
     private bool _refreshAgain;
+    private InspectorDescriptionEditor? _descriptions;
     internal event EventHandler? OpenPlayerRequested;
     internal Func<Task>? OpenFolder { get; set; }
     internal bool IsPlayerContext => _playerContext;
 
     public MediaInspectorView() => InitializeComponent();
-    internal void Initialize(Func<MediaInspectorService> service) => _service = service;
+    internal void Initialize(Func<MediaInspectorService> service, IAssetDescriptionStore descriptions)
+    {
+        _service = service;
+        _descriptions = new(descriptions);
+        DescriptionSection.DataContext = _descriptions;
+    }
     internal void SetContext(IReadOnlyList<InspectorAsset> context, bool player, bool force = false)
     {
         if (player == _playerContext && context.SequenceEqual(_context))
@@ -30,6 +36,7 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
         }
         _context = context;
         _playerContext = player;
+        if (_descriptions is not null) _ = _descriptions.SetContextAsync(context.Select(a => a.AssetId), player);
         _ = RefreshAsync();
     }
     internal Task RefreshAsync() => HydrateAsync();
@@ -116,9 +123,14 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
         }
     }
     private void OpenPlayer_Click(object sender, RoutedEventArgs e) => OpenPlayerRequested?.Invoke(this, EventArgs.Empty);
+    private async void ApplyDescriptions_Click(object sender, RoutedEventArgs e)
+    { if (_descriptions is not null) await _descriptions.ApplyAsync(); }
+    private async void ReloadDescriptions_Click(object sender, RoutedEventArgs e)
+    { if (_descriptions is not null) await _descriptions.ReloadAsync(); }
     private void Inspector_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e) => _ = RefreshAsync();
     public void Dispose()
     {
+        _descriptions?.Dispose();
         ++_generation;
         _hydration?.Cancel();
         _hydration?.Dispose();

@@ -112,6 +112,8 @@ public sealed class MediaAssetTests : IDisposable
         var (root, oldPath) = await fixture.AddRootWithFileAsync("Originals", "day/clip.mp4", "source");
         var created = await fixture.Assets.CreateAsync(root.RootId, "day/clip.mp4", "video");
         var newRoot = Directory.CreateDirectory(Path.Combine(_temporary, "remapped")).FullName;
+        await fixture.Descriptions.ApplyAsync(new Dictionary<Guid, long> { [created.Asset!.Asset.AssetId] = 0 },
+            new(new Dictionary<AssetDescriptionField, string?> { [AssetDescriptionField.Notes] = "Creator notes survive remap" }));
         var newPath = Path.Combine(newRoot, "day", "clip.mp4");
         Directory.CreateDirectory(Path.GetDirectoryName(newPath)!);
         File.Copy(oldPath, newPath);
@@ -123,6 +125,7 @@ public sealed class MediaAssetTests : IDisposable
         Assert.Equal(root.RootId, remapped.Asset.RootId);
         Assert.Equal("day/clip.mp4", remapped.Asset.RelativePath);
         Assert.Equal(newPath, remapped.PhysicalPath);
+        Assert.Equal("Creator notes survive remap", (await fixture.Descriptions.GetAsync([remapped.Asset.AssetId]))[remapped.Asset.AssetId].Notes);
     }
 
     [Fact]
@@ -239,6 +242,7 @@ public sealed class MediaAssetTests : IDisposable
         public MediaRootService Roots { get; private set; } = null!;
         public CatalogMediaAssetRepository Repository { get; private set; } = null!;
         public MediaAssetService Assets { get; private set; } = null!;
+        public IAssetDescriptionStore Descriptions => new CatalogAssetDescriptionStore(() => _session);
 
         public static async Task<Fixture> CreateAsync(string temporary)
         {

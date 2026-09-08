@@ -33,7 +33,7 @@ public sealed class MediaInspectorHydrationTests
             await store.SetArtifactAsync(id, PreviewArtifactKind.Thumbnail, new(1, PreviewComponentState.Current, "poster.png", VisualIdentity: "frame-1"));
             var catalog = new DelayedCatalog(); catalog.Release.TrySetResult();
             using var view = new MediaInspectorView();
-            view.Initialize(() => new MediaInspectorService(store, catalog, root));
+            view.Initialize(() => new MediaInspectorService(store, catalog, root), new TestDescriptionStore());
             var window = new Window { Content = view, Width = 400, Height = 720, Left = -32000, Top = -32000,
                 WindowStartupLocation = WindowStartupLocation.Manual, ShowInTaskbar = false };
             try
@@ -89,7 +89,7 @@ public sealed class MediaInspectorHydrationTests
         TestWpfApplication.EnsureLoaded();
         var catalog = new DelayedCatalog();
         using var view = new MediaInspectorView();
-        view.Initialize(() => new MediaInspectorService(null, catalog, Path.GetTempPath()));
+        view.Initialize(() => new MediaInspectorService(null, catalog, Path.GetTempPath()), new TestDescriptionStore());
         var window = new Window { Content = view, Width = 380, Height = 720, Left = -32000, Top = -32000,
             WindowStartupLocation = WindowStartupLocation.Manual, ShowInTaskbar = false };
         try
@@ -119,7 +119,7 @@ public sealed class MediaInspectorHydrationTests
         TestWpfApplication.EnsureLoaded();
         var catalog = new DelayedCatalog();
         using var view = new MediaInspectorView();
-        view.Initialize(() => new MediaInspectorService(null, catalog, Path.GetTempPath()));
+        view.Initialize(() => new MediaInspectorService(null, catalog, Path.GetTempPath()), new TestDescriptionStore());
         var window = new Window { Content = view, Width = 380, Height = 720, Left = -32000, Top = -32000,
             WindowStartupLocation = WindowStartupLocation.Manual, ShowInTaskbar = false };
         try

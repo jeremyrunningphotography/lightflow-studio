@@ -280,8 +280,8 @@ public sealed class CatalogCollectionsTests : IAsyncLifetime
 
         var migrated = await new CatalogDatabaseService(locations, backup).OpenExistingAsync();
 
-        Assert.Equal([(9, 12)], backup.Requests);
-        Assert.Equal(12, migrated.SchemaVersion);
+        Assert.Equal([(9, CatalogMigrations.All[^1].Version)], backup.Requests);
+        Assert.Equal(CatalogMigrations.All[^1].Version, migrated.SchemaVersion);
         Assert.Equal(3L, Scalar(migrated.Session!, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('CollectionSets','Collections','CollectionAssets');"));
         await migrated.Session!.DisposeAsync();
     }
@@ -316,7 +316,7 @@ public sealed class CatalogCollectionsTests : IAsyncLifetime
         var migrated = await new CatalogDatabaseService(locations, backup).OpenExistingAsync();
         var collections = new CatalogCollectionOrganizationService(() => migrated.Session);
 
-        Assert.Equal([(10, 12)], backup.Requests);
+        Assert.Equal([(10, CatalogMigrations.All[^1].Version)], backup.Requests);
         Assert.Equal([0, 1], (await collections.ListSetsAsync()).Select(item => item.Ordinal));
         Assert.Equal([2, 3], (await collections.ListCollectionsAsync()).Select(item => item.Ordinal));
         Assert.Equal(0, Assert.Single(await collections.ListSetsAsync(rootSetA)).Ordinal);

@@ -17,7 +17,7 @@ public partial class MainWindow
     {
         _inspector = new MediaInspectorView();
         _inspector.Initialize(() => new MediaInspectorService(_storage.Previews, _storage.AssetClassifications,
-            _storage.Locations.PreviewsDirectory));
+            _storage.Locations.PreviewsDirectory), _storage.AssetDescriptions);
         _inspector.OpenPlayerRequested += (_, _) =>
         {
             if (_browserPresentation != BrowserPresentationMode.Grid) return;
@@ -42,7 +42,7 @@ public partial class MainWindow
 
     private void UpdateInspectorContext(bool force = false)
     {
-        if (_inspector is null || !_rightPanelOpen) return;
+        if (_inspector is null) return;
         var player = _browserPresentation == BrowserPresentationMode.PlayerViewer;
         IReadOnlyList<InspectorAsset> context = player
             ? _playerViewerHost?.CurrentAsset is { } asset

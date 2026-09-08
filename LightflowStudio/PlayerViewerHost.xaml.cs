@@ -53,7 +53,6 @@ public partial class PlayerViewerHost : UserControl
     private Guid? _selectedSubclipId;
     private readonly ObservableCollection<SubclipPanelItem> _subclipItems = [];
     private CancellationTokenSource? _subclipWorkCts;
-    private bool _subclipsDrawerOpen;
     private bool _stopAtOutDuringPlayback;
     private bool _stoppingAtOut;
     private MediaDecodedFrame? _retainedSteppedFrame;
@@ -99,6 +98,7 @@ public partial class PlayerViewerHost : UserControl
         _preferredPreviewFrames = preferredPreviewFrames;
         _classifications = classifications;
         InitializeComponent();
+        SubclipsContent = new SubclipsView(this);
         SubclipsList.DataContext = _subclipItems;
     }
 
@@ -113,7 +113,17 @@ public partial class PlayerViewerHost : UserControl
     internal event EventHandler<AssetClassification>? ClassificationChanged;
     internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
     internal event EventHandler<PlayerViewerSubclipsExportRequestedEventArgs>? ExportSelectedSubclipsRequested;
-    internal event EventHandler<SubclipsDrawerStateRequestedEventArgs>? SubclipsDrawerStateRequested;
+    internal event EventHandler? SubclipsRevealRequested;
+    internal SubclipsView SubclipsContent { get; }
+    internal System.Windows.Controls.Border SubclipsPanel => SubclipsContent.SubclipsPanel;
+    internal System.Windows.Controls.Button AddSubclipButton => SubclipsContent.AddSubclipButton;
+    internal System.Windows.Controls.ListBox SubclipsList => SubclipsContent.SubclipsList;
+    internal System.Windows.Controls.TextBlock SubclipsEmptyText => SubclipsContent.SubclipsEmptyText;
+    internal System.Windows.Controls.Button DeleteSelectedSubclipsButton => SubclipsContent.DeleteSelectedSubclipsButton;
+    internal System.Windows.Controls.Button ExportSubclipsButton => SubclipsContent.ExportSubclipsButton;
+    internal System.Windows.Controls.ContextMenu ExportSubclipsMenu => SubclipsContent.ExportSubclipsMenu;
+    internal System.Windows.Controls.MenuItem ExportSelectedSubclipsMenuItem => SubclipsContent.ExportSelectedSubclipsMenuItem;
+    internal System.Windows.Controls.MenuItem ExportAllSubclipsMenuItem => SubclipsContent.ExportAllSubclipsMenuItem;
     internal PlayerViewerAsset? CurrentAsset => _currentAsset;
     internal event EventHandler? CurrentAssetChanged;
     internal IReadOnlySet<Guid> SelectedSubclipIds =>
@@ -130,7 +140,6 @@ public partial class PlayerViewerHost : UserControl
     {
         ArgumentNullException.ThrowIfNull(asset);
         var generation = ++_generation;
-        if (_subclipsDrawerOpen) RequestSubclipsDrawer(open: false);
         _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseStarted);
         try { await ReleaseCurrentAsync().ConfigureAwait(true); }
         catch (Exception exception)
@@ -146,11 +155,10 @@ public partial class PlayerViewerHost : UserControl
         _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseCompleted);
         if (generation != _generation) return;
 
+        ResetSubclipWork();
         _currentAsset = asset;
         CurrentAssetChanged?.Invoke(this, EventArgs.Empty);
         await LoadClassificationAsync(asset.AssetId, generation, token).ConfigureAwait(true);
-        ResetSubclipWork();
-        SubclipsPanel.Visibility = Visibility.Collapsed;
         AddSubclipButton.IsEnabled = false;
         if (asset.Kind == MediaPresentationKind.Video && asset.AssetId is Guid subclipAssetId)
             await LoadSubclipsAsync(subclipAssetId, generation, _subclipWorkCts!.Token).ConfigureAwait(true);
@@ -325,8 +333,6 @@ public partial class PlayerViewerHost : UserControl
         _subclipWorkCts?.Dispose();
         _subclipWorkCts = null;
         _subclipItems.Clear();
-        SubclipsPanel.Visibility = Visibility.Collapsed;
-        _subclipsDrawerOpen = false;
         _stopAtOutDuringPlayback = false;
         _stoppingAtOut = false;
         _retainedSteppedFrame = null;
@@ -933,7 +939,7 @@ public partial class PlayerViewerHost : UserControl
                 SubclipsList.SelectedItem = item;
                 SubclipsList.ScrollIntoView(item);
             }
-            RequestSubclipsDrawer(open: true);
+            SubclipsRevealRequested?.Invoke(this, EventArgs.Empty);
             SubclipStateChanged?.Invoke(this, new(assetId, hasSubclips: true));
             SetStatus(result.Created ? $"{subclip.Name} created." : null);
         }
@@ -1133,7 +1139,7 @@ public partial class PlayerViewerHost : UserControl
                 _ = LoadPosterAsync(item, generation, token);
             }
             UpdateSubclipEmptyState();
-            if (subclips.Count > 0) RequestSubclipsDrawer(open: true);
+            if (subclips.Count > 0) SubclipsRevealRequested?.Invoke(this, EventArgs.Empty);
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)
@@ -1170,30 +1176,18 @@ public partial class PlayerViewerHost : UserControl
         ExportAllSubclipsMenuItem.IsEnabled = hasSubclips;
     }
 
-    internal void SetSubclipsDrawerOpen(bool open)
-    {
-        _subclipsDrawerOpen = open && _currentAsset is { Kind: MediaPresentationKind.Video, AssetId: not null };
-        SubclipsPanel.Visibility = _subclipsDrawerOpen ? Visibility.Visible : Visibility.Collapsed;
-    }
+    internal void AddSubclip_Click(object sender, RoutedEventArgs e) => CreateSubclip();
 
-    private void RequestSubclipsDrawer(bool open)
-    {
-        if (SubclipsDrawerStateRequested is null) SetSubclipsDrawerOpen(open);
-        else SubclipsDrawerStateRequested.Invoke(this, new(open));
-    }
-
-    private void AddSubclip_Click(object sender, RoutedEventArgs e) => CreateSubclip();
-
-    private void ExportSubclips_Click(object sender, RoutedEventArgs e)
+    internal void ExportSubclips_Click(object sender, RoutedEventArgs e)
     {
         ExportSubclipsMenu.PlacementTarget = ExportSubclipsButton;
         ExportSubclipsMenu.IsOpen = true;
     }
 
-    private void ExportSelectedSubclips_Click(object sender, RoutedEventArgs e) =>
+    internal void ExportSelectedSubclips_Click(object sender, RoutedEventArgs e) =>
         RequestSubclipExport(selectedOnly: true);
 
-    private void ExportAllSubclips_Click(object sender, RoutedEventArgs e) =>
+    internal void ExportAllSubclips_Click(object sender, RoutedEventArgs e) =>
         RequestSubclipExport(selectedOnly: false);
 
     private void RequestSubclipExport(bool selectedOnly)
@@ -1209,7 +1203,7 @@ public partial class PlayerViewerHost : UserControl
             new PlayerViewerSubclipsExportRequestedEventArgs(assetId, selected));
     }
 
-    private void SubclipsPanel_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    internal void SubclipsPanel_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         var source = e.OriginalSource as DependencyObject;
         if (FindVisualAncestor<System.Windows.Controls.ListBoxItem>(source) is not null ||
@@ -1220,7 +1214,7 @@ public partial class PlayerViewerHost : UserControl
         SubclipsList.UnselectAll();
     }
 
-    private async void SubclipsList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    internal async void SubclipsList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         foreach (var item in _subclipItems) item.IsSelected = SubclipsList.SelectedItems.Contains(item);
         DeleteSelectedSubclipsButton.IsEnabled = SubclipsList.SelectedItems.Count > 0;
@@ -1246,7 +1240,7 @@ public partial class PlayerViewerHost : UserControl
         catch (Exception exception) { SetStatus(exception.Message); }
     }
 
-    private async void SubclipsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    internal async void SubclipsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (FindVisualAncestor<System.Windows.Controls.Primitives.ButtonBase>(e.OriginalSource as DependencyObject) is not null ||
             FindVisualAncestor<System.Windows.Controls.Primitives.TextBoxBase>(e.OriginalSource as DependencyObject) is not null)
@@ -1275,7 +1269,7 @@ public partial class PlayerViewerHost : UserControl
         UpdateRangePresentation();
     }
 
-    private void RenameSubclip_Click(object sender, RoutedEventArgs e)
+    internal void RenameSubclip_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not SubclipPanelItem item) return;
         item.IsEditing = true;
@@ -1286,13 +1280,13 @@ public partial class PlayerViewerHost : UserControl
         }, System.Windows.Threading.DispatcherPriority.Input);
     }
 
-    private async void SubclipName_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    internal async void SubclipName_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
         if (sender is System.Windows.Controls.TextBox { DataContext: SubclipPanelItem item } editor && item.IsEditing)
             await CommitRenameAsync(item, editor.Text).ConfigureAwait(true);
     }
 
-    private async void SubclipName_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    internal async void SubclipName_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (sender is not System.Windows.Controls.TextBox { DataContext: SubclipPanelItem item } editor) return;
         if (e.Key == Key.Escape) { e.Handled = true; editor.Text = item.Name; item.IsEditing = false; Focus(); return; }
@@ -1322,7 +1316,7 @@ public partial class PlayerViewerHost : UserControl
         catch (Exception exception) { SetStatus($"Rename failed: {exception.Message}"); }
     }
 
-    private async void DeleteSubclip_Click(object sender, RoutedEventArgs e)
+    internal async void DeleteSubclip_Click(object sender, RoutedEventArgs e)
     {
         if (_subclips is null || (sender as FrameworkElement)?.Tag is not SubclipPanelItem item) return;
         try
@@ -1347,7 +1341,7 @@ public partial class PlayerViewerHost : UserControl
         catch (Exception exception) { SetStatus($"Delete failed: {exception.Message}"); }
     }
 
-    private async void DeleteSelectedSubclips_Click(object sender, RoutedEventArgs e)
+    internal async void DeleteSelectedSubclips_Click(object sender, RoutedEventArgs e)
     {
         if (_subclips is null || _currentAsset?.AssetId is not Guid assetId) return;
         var selected = SubclipsList.SelectedItems.Cast<SubclipPanelItem>().ToArray();
@@ -1614,9 +1608,4 @@ internal sealed class SubclipStateChangedEventArgs(Guid assetId, bool hasSubclip
 {
     public Guid AssetId { get; } = assetId;
     public bool HasSubclips { get; } = hasSubclips;
-}
-
-internal sealed class SubclipsDrawerStateRequestedEventArgs(bool open) : EventArgs
-{
-    public bool Open { get; } = open;
 }

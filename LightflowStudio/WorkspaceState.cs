@@ -148,7 +148,7 @@ internal sealed record WorkspaceState
         var expandedSets = (layout.BrowserExpandedCollectionSetIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
         return layout with { RightPanelWidth = layout.RightPanelWidth is { } rightWidth && double.IsFinite(rightWidth)
                 ? Math.Clamp(rightWidth, MinRightPanelWidth, MaxRightPanelWidth) : null,
-            RightPanelActiveSurface = layout.RightPanelActiveSurface == "inspector" ? "inspector" : null,
+            RightPanelActiveSurface = layout.RightPanelActiveSurface is "inspector" or "subclips" ? layout.RightPanelActiveSurface : null,
             BrowserLocationsPaneWidth = paneWidth, JobsDrawerWidth = jobsDrawerWidth,
             FullJobsListPaneWidth = fullJobsListPaneWidth,
             BrowserThumbnailSizeLevel = thumbnailSizeLevel, BrowserViewMode = browserViewMode,

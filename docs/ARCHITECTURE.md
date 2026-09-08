@@ -1,12 +1,21 @@
 # Architecture
 
-## Contextual Right Panel and Inspector (#223)
+## Contextual Right Panel, Inspector, and Subclips (#223 / #225)
 
 Home owns one reusable `ContextualRightPanel` beside the live Browser/Player center. Surfaces register a stable key,
 title, and retained content control. `WorkspaceLayoutState` persists open state, preferred width (280–600 DIPs), and
 active surface; responsive clamping preserves that preference when Jobs or a narrow window temporarily reduces space.
-Opening, closing, or resizing the panel never rebuilds Browser or Player. Jobs remains global and independent. The
-existing Subclips drawer and its Jobs coordination remain intact; #225 owns migration into the new host.
+Opening, closing, or resizing the panel never rebuilds Browser or Player. Jobs remains global and independent.
+Subclips registers one retained `SubclipsView` through the same host seam. Generic surface availability hides the tab
+outside a Catalog-backed Player video and falls back to Inspector without overwriting the preferred surface.
+Opening a video with saved Subclips or creating/revealing one selects Subclips and opens the shared panel; empty
+videos preserve the shared panel's open state. Switching tabs or closing the panel preserves current-asset selection
+and review; changing assets retires them through Player's existing cancellation/generation lifecycle.
+
+`SubclipsView` reuses the existing cards, posters, inline rename, extended selection, and action controls. Its event
+forwarding returns commands to `PlayerViewerHost`, which retains the existing Catalog, Preview, playback/range,
+and typed Export handoffs. The view and generic host own no domain services. The old fixed-width Player column,
+Subclips pull, visibility flag, drawer-state event, and Jobs/Subclips mutual-exclusion coordinator are removed.
 
 `MainWindow.Inspector` adapts the authoritative Browser selected tiles or `PlayerViewerHost.CurrentAsset` into immutable
 inspection inputs. Current-asset notifications publish transitions without a second Player context. Video activation
@@ -109,7 +118,7 @@ mutexes, pipes, or WPF types into durable domain state or feature services.
 - **Presentation does not become application logic.** WPF may collect choices and present state, while reusable behavior lives behind typed services and contracts where practical.
 - **Filesystem identity is logical, not OS-path identity.** Stable `RootId + relative path` and `AssetId` semantics remain authoritative. Absolute Windows paths are runtime resolution details rather than durable asset identity.
 - **Subclips snapshot working ranges.** The Catalog's single `MediaAssetRanges` primary row remains mutable per-asset review intent. A durable `Subclip` copies an explicit saved In and Out into its own stable `SubclipId`, keyed only to `AssetId`, with an independent name. Exact `(AssetId, InTicks, OutTicks)` uniqueness is enforced by the Catalog service and database. Legacy `Ordinal` storage and typed reorder compatibility remain intact for migration/history safety, but current-product presentation and Export order is authoritative In timestamp ascending, then stable `SubclipId`; no schema rewrite is needed for that policy. Revision-checked mutations reject stale changes. Paths, output planning, Jobs, and Preview pixels never enter Subclip identity.
-- **Subclip review remains transient.** The Player keeps a desktop-style selected-ID set for management/future Export handoff plus one active Subclip review target layered over the existing playback range policy; activation seeks to its authoritative In and supplies its Out only while playback is armed. Double-click uses that same decoder and boundary path to seek and play immediately. Neither selection writes the asset's mutable working range or saved Subclips. The shell owns the contextual pull and its single `RightDrawerKind` coordinator makes Jobs and Player Subclips bodies mutually exclusive while applicable pulls remain reachable; closed/retired Subclips consumes no media column width. Posters are bounded, cancellable Preview work cached beneath the configured Previews root by observed source identity, stable `SubclipId`, generator version, and exact In ticks. Rename therefore reuses pixels, while source or In identity changes rebuild them.
+- **Subclip review remains transient.** The Player keeps a desktop-style selected-ID set for management/future Export handoff plus one active Subclip review target layered over the existing playback range policy; activation seeks to its authoritative In and supplies its Out only while playback is armed. Double-click uses that same decoder and boundary path to seek and play immediately. Neither selection writes the asset's mutable working range or saved Subclips. The shell hosts the retained Subclips view beside Inspector in one contextual Right Panel; Jobs remains independent, and only the shared panel owns width and open state. Posters are bounded, cancellable Preview work cached beneath the configured Previews root by observed source identity, stable `SubclipId`, generator version, and exact In ticks. Rename therefore reuses pixels, while source or In identity changes rebuild them.
 - **Platform-specific dependencies are isolated and documented.** Adding a Windows-only dependency or API requires recording the boundary that owns it, the shared contract it implements, whether durable state depends on it, and what another platform would need to replace.
 - **Portability is a design constraint, not a current product commitment.** Do not slow the Windows product with speculative duplicate implementations or premature abstraction. The architectural smell test is: *Could this platform-specific implementation be replaced without changing Lightflow's durable product semantics or migrating user intent?*
 

@@ -86,6 +86,23 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 RaiseMouseLeftButtonDown(element!, 2);
                 await WaitUntilAsync(() => inspector.IsPlayerContext && inspector.TitleText.Text == tile.Name, "Player Inspector context");
                 var player = Assert.IsType<PlayerViewerHost>(window.BrowserPlayerHost.Content);
+                var subclipsTab = Assert.IsType<TabItem>(window.HomeRightPanel.SurfaceTabs.Items[1]);
+                Assert.Equal(Visibility.Collapsed, subclipsTab.Visibility); // Still image context.
+                var stillAsset = player.CurrentAsset!;
+                var missingVideo = stillAsset with { Kind = MediaPresentationKind.Video };
+                await player.OpenAsync(missingVideo, new(stillAsset.RootId, stillAsset.RelativePath,
+                    stillAsset.RelativePath, null, MediaRootAvailability.Unavailable, false));
+                Assert.Equal(Visibility.Visible, subclipsTab.Visibility);
+                Assert.Same(player.SubclipsContent, subclipsTab.Content);
+                window.HomeRightPanel.SelectSurface("subclips");
+                Assert.Equal("subclips", window.HomeRightPanel.ActiveSurface);
+                // Even unavailable media has its truthful Catalog context; a non-Catalog video does not.
+                await player.OpenAsync(missingVideo with { AssetId = null }, new(stillAsset.RootId, stillAsset.RelativePath,
+                    stillAsset.RelativePath, null, MediaRootAvailability.Unavailable, false));
+                Assert.Equal(Visibility.Collapsed, subclipsTab.Visibility);
+                Assert.Equal("inspector", window.HomeRightPanel.ActiveSurface);
+                Assert.Equal("subclips", window.HomeRightPanel.PreferredSurface);
+                window.HomeRightPanel.SelectSurface("inspector");
                 RaiseClick(window.JobsDrawerPullButton);
                 window.Width = 1120; window.UpdateLayout();
                 Assert.True(window.HomeRightPanel.IsVisible);

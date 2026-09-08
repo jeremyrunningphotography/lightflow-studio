@@ -43,6 +43,16 @@ Body text should remain readable against every dark surface. Muted text is for s
 
 ## Workspace composition
 
+One right-panel icon in Home (also Ctrl+I) opens and closes the contextual Right Panel, with checked-state feedback,
+a keyboard-reachable splitter, persisted width, and the shell's complete rounded border. The host offers retained
+surfaces, beginning with Inspector. The filename leads directly into cached Preview and normalized metadata; raw
+provider browsing and redundant Browser/Player/available labels are omitted. Ordinary hydration stays quiet; only
+materially slow retrieval and persistent pending/offline/error states need text. Catalog organization is separately
+labeled, and multi-selection uses common/mixed/missing values with partial aggregate coverage. A folder icon beside
+Relative path opens the containing folder in Explorer. Cached posters stay visible during Player context and follow
+preferred-frame regeneration. Open in Player uses the existing central presentation. Global Jobs remains independent
+and the current Subclips drawer remains until #225.
+
 The permanent shell treats Browser/Player as Home. It has no permanent module strip or peer capability rail. Focused actions and owned modals configure work from media context; the bottom status affordance enters secondary full Jobs; the right-edge pull independently controls the compact drawer; and a restrained upper-right gear menu exposes only application utilities such as Settings and About. Back actions restore the already-live Home content. Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
 
 Settings uses a compact left category list and one scrollable contextual page rather than a permanent workspace rail

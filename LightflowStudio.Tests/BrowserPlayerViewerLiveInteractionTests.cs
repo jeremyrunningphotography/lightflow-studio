@@ -43,6 +43,72 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Inspector_PreservesHomeAndPlayerContext_ResizesAndRestores_WithIndependentJobs()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var startup = await LightflowStorageCoordinator.StartAsync(_appDataRoot);
+            var storage = startup.Coordinator!;
+            await storage.MediaRoots.CreateAsync("Library", _mediaRoot);
+            var window = NewOffscreenWindow(storage, startup);
+            window.Width = 1440;
+            try
+            {
+                window.Show();
+                await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0, "storage");
+                window.BrowserCurrentPath.Text = _mediaRoot;
+                RaiseClick(window.BrowserGoButton);
+                await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible && window.BrowserGridRows.Items.Count > 0, "media");
+                var tile = await WaitForTileAsync(window);
+                window.RightPanelToggle.IsChecked = true;
+                RaiseClick(window.RightPanelToggle);
+                window.UpdateLayout();
+                var inspector = Assert.IsType<MediaInspectorView>(((TabItem)window.HomeRightPanel.SurfaceTabs.SelectedItem).Content);
+                Assert.Contains("Select media", inspector.TitleText.Text);
+                var element = FindElementByDataContext(window.BrowserGridRows, tile!);
+                RaiseMouseLeftButtonDown(element!, 1);
+                await WaitUntilAsync(() => inspector.FieldGroups.ItemsSource is not null && inspector.TitleText.Text == tile!.Name, "Inspector");
+                Assert.True(window.RightPanelColumn.ActualWidth >= 280);
+                var rows = window.BrowserGridRows.ItemsSource;
+                window.RightPanelColumn.Width = new GridLength(410);
+                window.RightPanelSplitter.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(50, 0, false)
+                { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragCompletedEvent });
+                window.RightPanelToggle.IsChecked = false; RaiseClick(window.RightPanelToggle);
+                window.UpdateLayout();
+                Assert.Equal(0, window.RightPanelColumn.ActualWidth);
+                window.RightPanelToggle.IsChecked = true; RaiseClick(window.RightPanelToggle);
+                window.UpdateLayout();
+                Assert.InRange(window.RightPanelColumn.ActualWidth, 409, 411);
+                Assert.Same(rows, window.BrowserGridRows.ItemsSource);
+                Assert.True(tile!.IsSelected);
+                element = FindElementByDataContext(window.BrowserGridRows, tile);
+                RaiseMouseLeftButtonDown(element!, 2);
+                await WaitUntilAsync(() => inspector.IsPlayerContext && inspector.TitleText.Text == tile.Name, "Player Inspector context");
+                var player = Assert.IsType<PlayerViewerHost>(window.BrowserPlayerHost.Content);
+                RaiseClick(window.JobsDrawerPullButton);
+                window.Width = 1120; window.UpdateLayout();
+                Assert.True(window.HomeRightPanel.IsVisible);
+                Assert.True(window.JobsDrawer.IsVisible);
+                Assert.Same(player, window.BrowserPlayerHost.Content);
+                AssertContained(window.HomeRightPanel, window.BrowserWorkspaceRoot);
+                Assert.True(window.BrowserCenter.ActualWidth >= 200);
+                RaiseClick(window.JobsDrawerPullButton);
+                RaiseClick(player.BackButton);
+                await WaitUntilAsync(() => !inspector.IsPlayerContext, "return context");
+                Assert.True(tile.IsSelected);
+                Assert.Same(rows, window.BrowserGridRows.ItemsSource);
+                window.Close();
+                var saved = WorkspaceStateStore.Load(storage.Locations.WorkspaceStatePath);
+                Assert.True(saved.Layout!.RightPanelOpen);
+                Assert.Equal("inspector", saved.Layout.RightPanelActiveSurface);
+                Assert.InRange(saved.Layout.RightPanelWidth!.Value, 409, 411);
+            }
+            finally { window.Close(); await storage.DisposeAsync(); }
+        });
+    }
+
+    [Fact]
     public async Task DoubleClickThenEscape_OpensTheViewerAndReturnsToTheSameBrowserContext()
     {
         await StaDispatcher.RunAsync(async () =>

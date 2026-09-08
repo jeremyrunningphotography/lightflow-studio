@@ -218,6 +218,7 @@ public partial class MainWindow : Window
         InitializeBrowserQuickFilterButtons();
         SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
+        InitializeRightPanel();
         _storage.ThumbnailActivity.Changed += (_, change) => Dispatcher.BeginInvoke(() =>
             _browserGrid.ApplyThumbnailGenerating(change.AssetId, change.IsGenerating));
         if (_workspaceState.Current.Browser is { } savedBrowserLocation) ShowBrowserRestoringState(savedBrowserLocation);
@@ -316,6 +317,8 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _inspectorRefreshTimer.Stop();
+            _inspector?.Dispose();
             _exportCoordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
             _activeJobExecutor?.TerminateAll();
             _browserEncodingHandoffCts?.Cancel();
@@ -463,6 +466,7 @@ public partial class MainWindow : Window
                 IsMaximized = _lastNonMinimizedWindowState == WindowState.Maximized
             });
         _workspaceState.SetBrowserLocationsPaneWidth(_browserLocationsPreferredWidth);
+        _workspaceState.SetRightPanel(_rightPanelPreferredWidth, _rightPanelOpen, HomeRightPanel.ActiveSurface);
         if (JobsDrawer.Visibility == Visibility.Visible) _jobsDrawerWidth = JobsDrawerColumn.ActualWidth;
         _workspaceState.SetJobsDrawerWidth(_jobsDrawerWidth);
         _workspaceState.SetFullJobsListPaneWidth(FullJobsListColumn.ActualWidth);
@@ -1698,6 +1702,7 @@ public partial class MainWindow : Window
 
     private void ApplyCompletedPreview(PreviewRegenerationCompleted completed)
     {
+        InvalidateInspector();
         if (completed.Result.Succeeded && completed.Result.ThumbnailPath is { } path)
             _browserGrid.ApplyThumbnail(completed.AssetId, path);
     }
@@ -1774,6 +1779,7 @@ public partial class MainWindow : Window
             preferredPreviewFrames: _storage.PreferredPreviewFrames,
             classifications: _storage.AssetClassifications);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
+        _playerViewerHost.CurrentAssetChanged += (_, _) => UpdateInspectorContext();
         _playerViewerHost.ExportRequested += PlayerViewerHost_ExportRequested;
         _playerViewerHost.ExportSelectedSubclipsRequested += PlayerViewerHost_ExportSelectedSubclipsRequested;
         _playerViewerHost.SubclipsDrawerStateRequested += (_, request) =>
@@ -1791,6 +1797,7 @@ public partial class MainWindow : Window
             _ = RegeneratePreferredFrameThumbnailAsync(change.AssetId);
         _playerViewerHost.ClassificationChanged += (_, change) =>
         {
+            InvalidateInspector();
             var revision = ++_browserAssetStateRevision;
             _browserAssetStateRevisions[change.AssetId] = revision;
             _browserGrid.ApplyClassification(change);
@@ -1875,6 +1882,7 @@ public partial class MainWindow : Window
     private void SetBrowserPresentationMode(BrowserPresentationMode mode)
     {
         _browserPresentation = mode;
+        UpdateInspectorContext();
         BrowserGridHost.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
         BrowserPlayerHost.Visibility = mode == BrowserPresentationMode.PlayerViewer ? Visibility.Visible : Visibility.Collapsed;
         // #110: the query toolbar (Subfolders, All/Images/RAW/Video, Search, Filter, Sort) describes/manipulates
@@ -2303,6 +2311,16 @@ public partial class MainWindow : Window
     /// <summary>Ctrl+F focuses the Browser search box, but only while the Browser workspace is showing an open, filterable location.</summary>
     private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (MainTabs.SelectedIndex == 0 && e.Key == Key.I && Keyboard.Modifiers == ModifierKeys.Control &&
+            !PlayerViewerHost.IsTextEntryControl(e.OriginalSource as DependencyObject))
+        {
+            SetRightPanelOpen(!_rightPanelOpen);
+            RightPanelToggle.Focus();
+            e.Handled = true;
+            return;
+        }
+        // Inspector text, tabs, and navigation must not trigger Browser file actions or Player shortcuts.
+        if (HomeRightPanel.IsKeyboardFocusWithin || RightPanelSplitter.IsKeyboardFocusWithin) return;
         if (PlayerOwnsShortcutContext() && _playerViewerHost!.TryHandleShortcut(
                 e.Key, e.OriginalSource as DependencyObject))
         {
@@ -2884,6 +2902,7 @@ public partial class MainWindow : Window
     private async Task CommitBrowserClassificationAsync(AssetClassification value)
     {
         await _storage.AssetClassifications.SaveAsync(value).ConfigureAwait(true);
+        InvalidateInspector();
         var revision = ++_browserAssetStateRevision;
         _browserAssetStateRevisions[value.AssetId] = revision;
         _browserGrid.ApplyClassification(value);
@@ -2899,6 +2918,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void UpdateBrowserStatusText()
     {
+        UpdateInspectorContext();
         var progress = _activeBrowserDerivedWorkBatch?.Progress;
         var isGenerating = progress?.Status == DerivedWorkBatchStatus.Running;
         var remaining = progress is null ? 0 : progress.Pending + progress.Running;
@@ -3025,8 +3045,10 @@ public partial class MainWindow : Window
         {
             const double temporaryMinimumLocationsWidth = 140;
             const double minimumUsefulCenterWidth = 220;
+            ApplyRightPanelLayout();
+            var panelWidth = RightPanelColumn.Width.Value + RightPanelSplitterColumn.Width.Value;
             var maximumLocationsWidth = Math.Max(temporaryMinimumLocationsWidth,
-                BrowserWorkspaceRoot.ActualWidth - BrowserNavigationSplitter.ActualWidth - minimumUsefulCenterWidth);
+                BrowserWorkspaceRoot.ActualWidth - panelWidth - BrowserNavigationSplitter.ActualWidth - minimumUsefulCenterWidth);
             var constrained = maximumLocationsWidth < WorkspaceState.MinLocationsPaneWidth;
             BrowserNavigationColumn.MinWidth = constrained
                 ? temporaryMinimumLocationsWidth
@@ -3036,7 +3058,7 @@ public partial class MainWindow : Window
             if (Math.Abs(BrowserNavigationColumn.Width.Value - effectiveLocationsWidth) > 0.5)
                 BrowserNavigationColumn.Width = new GridLength(effectiveLocationsWidth);
 
-            var centerWidth = Math.Max(0, BrowserWorkspaceRoot.ActualWidth - effectiveLocationsWidth - BrowserNavigationSplitter.ActualWidth);
+            var centerWidth = Math.Max(0, BrowserWorkspaceRoot.ActualWidth - panelWidth - effectiveLocationsWidth - BrowserNavigationSplitter.ActualWidth);
             var compactLocationChrome = centerWidth < 380;
             BrowserBackButton.Width = compactLocationChrome ? 26 : 38;
             BrowserForwardButton.Width = compactLocationChrome ? 26 : 38;
@@ -3087,6 +3109,7 @@ public partial class MainWindow : Window
     {
         if (!ReferenceEquals(e.Source, MainTabs)) return;
         SyncBrowserStatusBarVisibility();
+        if (RightPanelToggle is not null) RightPanelToggle.Visibility = MainTabs.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
         UpdateSubclipsPullVisibility();
         // #110: switching to another workspace while a video is open in the Player/Viewer must not leave it
         // silently playing audio in a hidden tab. This pauses rather than returning to Grid — switching tabs
@@ -3172,6 +3195,7 @@ public partial class MainWindow : Window
         {
             await batch.Completion.ConfigureAwait(false);
             await Dispatcher.InvokeAsync(() => ApplyBrowserDerivedWorkResultsAsync(batch, generation)).Task.Unwrap();
+            await Dispatcher.InvokeAsync(InvalidateInspector);
         }
         catch (OperationCanceledException) { }
         finally { batch.ProgressChanged -= handler; }
@@ -3189,6 +3213,7 @@ public partial class MainWindow : Window
         IReadOnlyDictionary<Guid, PreviewRecord> records;
         try { records = await previews.GetManyAsync(pendingThumbnails.Union(pendingMetadata).ToArray()).ConfigureAwait(true); }
         catch { return; }
+        if (records.Count > 0) InvalidateInspector();
 
         foreach (var assetId in pendingThumbnails.Union(pendingMetadata))
         {

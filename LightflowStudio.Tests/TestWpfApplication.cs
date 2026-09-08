@@ -24,6 +24,9 @@ internal static class TestWpfApplication
 {
     private static readonly object Gate = new();
 
+    // Application queues OnStartup even without Run/Main. If this fixture is first constructed on the
+    // live dispatcher, the production override would open real user storage and own the instance mutex.
+
     public static void EnsureLoaded()
     {
         if (System.Windows.Application.Current is not null) return;
@@ -32,7 +35,9 @@ internal static class TestWpfApplication
             if (System.Windows.Application.Current is not null) return;
             try
             {
-                var app = new App { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
+                var app = new App(runStartup: false,
+                    new ActivityLogFile(Path.Combine(Path.GetTempPath(), $"lightflow-wpf-tests-{Environment.ProcessId}.log")))
+                    { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
                 app.InitializeComponent();
             }
             catch (InvalidOperationException)

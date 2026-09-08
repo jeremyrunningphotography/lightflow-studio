@@ -30,7 +30,7 @@ public sealed class WorkspaceStateStoreTests : IDisposable
             Browser = new() { RootId = rootId, RelativeFolder = "Trips/Iceland", LastResolvedAbsolutePath = @"D:\Trips\Iceland",
                 IncludeSubfolders = true },
             Window = new() { Width = 1500, Height = 950, Left = 40, Top = 20, IsMaximized = true },
-            Layout = new() { BrowserLocationsPaneWidth = 300, JobsDrawerWidth = 440, FullJobsListPaneWidth = 510,
+            Layout = new() { BrowserLocationsPaneWidth = 300, RightPanelWidth = 440, FullJobsListPaneWidth = 510,
                 BrowserCollectionId = Guid.NewGuid(), BrowserExpandedCollectionSetIds = [Guid.NewGuid(), Guid.NewGuid()],
                 BrowserLocationsSectionExpanded = false, BrowserCollectionsSectionExpanded = true }
         };
@@ -48,7 +48,7 @@ public sealed class WorkspaceStateStoreTests : IDisposable
         Assert.Equal(20, loaded.Window.Top);
         Assert.True(loaded.Window.IsMaximized);
         Assert.Equal(300, loaded.Layout!.BrowserLocationsPaneWidth);
-        Assert.Equal(440, loaded.Layout.JobsDrawerWidth);
+        Assert.Equal(440, loaded.Layout.RightPanelWidth);
         Assert.Equal(510, loaded.Layout.FullJobsListPaneWidth);
         Assert.Equal(state.Layout.BrowserCollectionId, loaded.Layout.BrowserCollectionId);
         Assert.Equal(state.Layout.BrowserExpandedCollectionSetIds, loaded.Layout.BrowserExpandedCollectionSetIds);
@@ -203,13 +203,13 @@ public sealed class WorkspaceStateNormalizationTests
     }
 
     [Theory]
-    [InlineData(100, WorkspaceState.MinJobsDrawerWidth)]
-    [InlineData(9000, WorkspaceState.MaxJobsDrawerWidth)]
+    [InlineData(100, WorkspaceState.MinRightPanelWidth)]
+    [InlineData(9000, WorkspaceState.MaxRightPanelWidth)]
     [InlineData(440, 440)]
-    public void Normalize_ClampsJobsDrawerWidthToItsSupportedRange(double saved, double expected)
+    public void Normalize_ClampsRightPanelWidthToItsSupportedRange(double saved, double expected)
     {
-        var state = new WorkspaceState { Layout = new() { JobsDrawerWidth = saved } };
-        Assert.Equal(expected, WorkspaceState.Normalize(state).Layout!.JobsDrawerWidth);
+        var state = new WorkspaceState { Layout = new() { RightPanelWidth = saved } };
+        Assert.Equal(expected, WorkspaceState.Normalize(state).Layout!.RightPanelWidth);
     }
 
     [Theory]

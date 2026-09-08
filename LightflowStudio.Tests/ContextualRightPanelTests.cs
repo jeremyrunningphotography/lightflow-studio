@@ -49,10 +49,42 @@ public sealed class ContextualRightPanelTests
     }
 
     [Fact]
-    public void WorkspaceAcceptsSubclipsPreferenceAndRejectsUnknownSurface()
+    public async Task GlobalJobsSurvivesContextChangesAndRetainsLiveContentAcrossTabs()
     {
-        var state = new WorkspaceState { Layout = new() { RightPanelActiveSurface = "subclips" } };
-        Assert.Equal("subclips", WorkspaceState.Normalize(state).Layout!.RightPanelActiveSurface);
+        await StaDispatcher.RunAsync(() =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var panel = new ContextualRightPanel();
+            var jobs = new System.Collections.ObjectModel.ObservableCollection<string> { "Waiting" };
+            var list = new ListBox { ItemsSource = jobs };
+            panel.AddSurface("inspector", "Inspector", new Border());
+            panel.AddSurface("subclips", "Subclips", new Border(), available: false);
+            panel.AddGlobalSurface("jobs", "Jobs", list);
+            panel.SelectSurface("jobs");
+            for (var i = 0; i < 5; i++)
+            {
+                panel.SetSurfaceAvailable("subclips", i % 2 == 0);
+                panel.SetSurfaceAvailable("jobs", false);
+                Assert.Equal("jobs", panel.ActiveSurface);
+                panel.SelectSurface("inspector");
+                jobs[0] = $"Progress {i}";
+                panel.Visibility = Visibility.Collapsed;
+                panel.Visibility = Visibility.Visible;
+                panel.SelectSurface("jobs");
+                Assert.Same(list, ((TabItem)panel.SurfaceTabs.SelectedItem).Content);
+                Assert.Equal($"Progress {i}", list.Items[0]);
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    [Theory]
+    [InlineData("subclips")]
+    [InlineData("jobs")]
+    public void WorkspaceAcceptsKnownPreferenceAndRejectsUnknownSurface(string surface)
+    {
+        var state = new WorkspaceState { Layout = new() { RightPanelActiveSurface = surface } };
+        Assert.Equal(surface, WorkspaceState.Normalize(state).Layout!.RightPanelActiveSurface);
         Assert.Null(WorkspaceState.Normalize(state with { Layout = new() { RightPanelActiveSurface = "unknown" } }).Layout!.RightPanelActiveSurface);
     }
 }

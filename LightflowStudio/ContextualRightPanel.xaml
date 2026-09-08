@@ -1,9 +1,9 @@
 <UserControl x:Class="LightflowStudio.ContextualRightPanel"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- AutomationProperties.Name="Contextual Right Panel">
+ AutomationProperties.Name="Right Panel">
  <Border Style="{DynamicResource ShellPanel}" Padding="4">
    <TabControl x:Name="SurfaceTabs" Background="Transparent" Foreground="{DynamicResource TextBrush}" BorderThickness="0" Padding="0" ItemContainerStyle="{DynamicResource ContextualTab}"
-    AutomationProperties.Name="Contextual surfaces" SelectionChanged="Tabs_SelectionChanged"/>
+    AutomationProperties.Name="Panel surfaces" SelectionChanged="Tabs_SelectionChanged"/>
  </Border>
 </UserControl>

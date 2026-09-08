@@ -10,7 +10,7 @@ namespace LightflowStudio.Tests;
 public sealed class JobsWorkspaceLiveInteractionTests
 {
     [Fact]
-    public async Task StatusJobs_ActivatesEmptyWorkspaceAndDrawerRemainsIndependent()
+    public async Task StatusJobs_ActivatesEmptyWorkspaceAndCompactJobsSharesQueueControls()
     {
         await RunAsync(seedHistoryCount: 0, async window =>
         {
@@ -20,23 +20,24 @@ public sealed class JobsWorkspaceLiveInteractionTests
 
             Assert.Equal(ShellDestinationSelection.Index(ShellDestination.Jobs), window.MainTabs.SelectedIndex);
             Assert.True(window.IsVisible);
-            Assert.Equal(Visibility.Collapsed, window.JobsDrawer.Visibility);
+            Assert.Equal(Visibility.Collapsed, window.HomeRightPanel.Visibility);
 
             RaiseClick(window.FullJobsQueueGateButton);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert.Equal("Resume Queue", window.FullJobsQueueGateButton.Content);
-            Assert.Equal("Resume Queue", window.JobsQueueGateButton.Content);
+            Assert.Equal("Resume Queue", CompactJobs(window).JobsQueueGateButton.Content);
             Assert.Contains("Queue paused", window.JobsStatusButton.Content.ToString());
             Assert.Same(window.FindResource("ShellSelectionBrush"), window.FullJobsQueueGateButton.Background);
 
-            RaiseClick(window.JobsDrawerPullButton);
-            Assert.Equal(Visibility.Visible, window.JobsDrawer.Visibility);
-            RaiseClick(window.JobsQueueGateButton);
+            RaiseClick(window.JobsBackToBrowserButton);
+            ToggleJobsPanel(window);
+            Assert.Equal(Visibility.Visible, window.HomeRightPanel.Visibility);
+            RaiseClick(CompactJobs(window).JobsQueueGateButton);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert.Equal("Pause Queue", window.FullJobsQueueGateButton.Content);
             Assert.DoesNotContain("Queue paused", window.JobsStatusButton.Content.ToString());
-            RaiseClick(window.JobsDrawerPullButton);
-            Assert.Equal(Visibility.Collapsed, window.JobsDrawer.Visibility);
+            ToggleJobsPanel(window);
+            Assert.Equal(Visibility.Collapsed, window.HomeRightPanel.Visibility);
         });
     }
 
@@ -134,7 +135,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
             window.HistoryList.SelectedIndex = 0;
             var selected = Assert.IsType<JobsWorkspaceItem>(window.HistoryList.SelectedItem);
             var details = window.HistoryDetails.Content;
-            var drawerWidth = window.JobsDrawerColumn.Width;
+            var panelWidth = window.RightPanelColumn.Width;
             var browserWidth = window.BrowserNavigationColumn.Width;
             var original = window.FullJobsListColumn.ActualWidth;
 
@@ -149,7 +150,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
             Assert.True(window.FullJobsListColumn.ActualWidth > original);
             Assert.Equal(selected.JobId, Assert.IsType<JobsWorkspaceItem>(window.HistoryList.SelectedItem).JobId);
             Assert.Equal(details, window.HistoryDetails.Content);
-            Assert.Equal(drawerWidth, window.JobsDrawerColumn.Width);
+            Assert.Equal(panelWidth, window.RightPanelColumn.Width);
             Assert.Equal(browserWidth, window.BrowserNavigationColumn.Width);
             Assert.False(window.FullJobsPaneSplitter.Focusable);
             Assert.True(VirtualizingPanel.GetIsVirtualizing(window.HistoryList));
@@ -177,7 +178,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
     }
 
     [Fact]
-    public async Task DrawerConsumesWidthAndBrowserGroupsReflowWithoutLosingWideLocationsPreference()
+    public async Task SharedPanelConsumesWidthAndBrowserGroupsReflowWithoutLosingWideLocationsPreference()
     {
         await RunAsync(seedHistoryCount: 0, async window =>
         {
@@ -188,10 +189,10 @@ public sealed class JobsWorkspaceLiveInteractionTests
             Assert.Equal(2, Grid.GetRow(window.BrowserQueryToolbar));
             Assert.Equal(4, Grid.GetRow(window.BrowserSelectionActionToolbar));
 
-            RaiseClick(window.JobsDrawerPullButton);
+            ToggleJobsPanel(window);
             await RealizeJobsWorkspaceAsync(window);
-            Assert.Equal(Visibility.Visible, window.JobsDrawer.Visibility);
-            Assert.Equal(380, window.JobsDrawerColumn.ActualWidth, 1);
+            Assert.Equal(Visibility.Visible, window.HomeRightPanel.Visibility);
+            Assert.Equal(380, window.RightPanelColumn.ActualWidth, 1);
             Assert.True(window.BrowserNavigationColumn.ActualWidth < 520);
             Assert.Equal(0, Grid.GetRow(window.BrowserNavigationToolbar));
             Assert.Equal(2, Grid.GetRow(window.BrowserQueryToolbar));
@@ -202,9 +203,11 @@ public sealed class JobsWorkspaceLiveInteractionTests
             AssertContained(window.BrowserGridHost, window.BrowserCenter);
             AssertContained(playerHost, window.BrowserCenter);
 
-            foreach (var drawerWidth in new[] { 340d, 380d, 610d })
+            foreach (var panelWidth in new[] { 340d, 380d, 600d })
             {
-                window.JobsDrawerColumn.Width = new GridLength(drawerWidth);
+                window.RightPanelColumn.Width = new GridLength(panelWidth);
+                window.RightPanelSplitter.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(0, 0, false)
+                    { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragCompletedEvent });
                 window.UpdateLayout();
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                 window.UpdateLayout();
@@ -221,14 +224,14 @@ public sealed class JobsWorkspaceLiveInteractionTests
                 AssertContained(window.BrowserExportButton, window.BrowserSelectionActionToolbar);
             }
 
-            RaiseClick(window.JobsDrawerPullButton);
+            ToggleJobsPanel(window);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             window.UpdateLayout();
-            Assert.Equal(Visibility.Collapsed, window.JobsDrawer.Visibility);
+            Assert.Equal(Visibility.Collapsed, window.HomeRightPanel.Visibility);
             Assert.Equal(520, window.BrowserNavigationColumn.ActualWidth, 1);
             AssertContained(window.BrowserCenter, window.BrowserWorkspaceRoot);
             Assert.Same(playerHost, window.BrowserPlayerHost);
-        }, persistedLocationsWidth: 520, persistedDrawerWidth: 380, windowWidth: 1120);
+        }, persistedLocationsWidth: 520, persistedPanelWidth: 380, windowWidth: 1120);
     }
 
     [Fact]
@@ -260,7 +263,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
             }
             AssertRow2ControlHeights(window);
 
-            RaiseClick(window.JobsDrawerPullButton);
+            ToggleJobsPanel(window);
             await RealizeJobsWorkspaceAsync(window);
             Assert.Equal(2, Grid.GetRow(window.BrowserQueryToolbar));
             Assert.Equal(4, Grid.GetRow(window.BrowserSelectionActionToolbar));
@@ -274,19 +277,84 @@ public sealed class JobsWorkspaceLiveInteractionTests
             AssertContained(window.BrowserSelectionActionToolbar, window.BrowserBrowseToolbar);
             AssertContained(window.BrowserGridHost, window.BrowserCenter);
 
-            RaiseClick(window.JobsDrawerPullButton);
+            ToggleJobsPanel(window);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             window.UpdateLayout();
             var endsWide = UsesCombinedLowerRow(window);
             Assert.Equal(ExpectedSelectionActionRow(window), Grid.GetRow(window.BrowserSelectionActionToolbar));
             Assert.Equal(endsWide ? 1 : 0, Grid.GetColumn(window.BrowserSelectionActionToolbar));
             Assert.Equal(endsWide ? 1 : 2, Grid.GetColumnSpan(window.BrowserSelectionActionToolbar));
-        }, persistedLocationsWidth: 280, persistedDrawerWidth: 380, windowWidth: 1800);
+        }, persistedLocationsWidth: 280, persistedPanelWidth: 380, windowWidth: 1800);
+    }
+
+    [Fact]
+    public async Task CompactJobsRetainsCardsWhileHiddenAndUsesSharedWidthWithoutClippingControls()
+    {
+        await RunAsync(0, async window =>
+        {
+            await RealizeJobsWorkspaceAsync(window);
+            var view = CompactJobs(window);
+            var apply = typeof(MainWindow).GetMethod("ApplyJobsPresentation", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var queued = Snapshot(1, JobState.Queued);
+            apply.Invoke(window, new object[] { new[] { queued } });
+            window.OpenJobsPanel();
+            await RealizeJobsWorkspaceAsync(window);
+            var card = Assert.IsType<JobCardPresentation>(Assert.Single(view.CompactJobsList.Items));
+            window.JobExpansionToggle_Click(new Button { Tag = queued.JobId }, new RoutedEventArgs());
+            Assert.True(card.IsExpanded);
+            window.HomeRightPanel.SelectSurface("inspector");
+            apply.Invoke(window, new object[] { new[] { queued with { State = JobState.Running, ProgressPercent = 42 } } });
+            Assert.Equal("inspector", window.HomeRightPanel.ActiveSurface);
+            Assert.Same(card, Assert.Single(view.CompactJobsList.Items));
+            Assert.Equal(42, card.Progress);
+            Assert.True(card.IsExpanded);
+            window.HomeRightPanel.SelectSurface("jobs");
+            window.RightPanelColumn.Width = new GridLength(280);
+            window.RightPanelSplitter.RaiseEvent(new System.Windows.Controls.Primitives.DragCompletedEventArgs(0, 0, false)
+                { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragCompletedEvent });
+            await RealizeJobsWorkspaceAsync(window);
+            AssertContained(view.MaximumExportsCombo, view);
+            AssertContained(view.JobsQueueGateButton, view);
+            AssertContained(view.JobsCancelAllButton, view);
+            ToggleJobsPanel(window);
+            apply.Invoke(window, new object[] { new[] { queued with { State = JobState.Completed, ProgressPercent = 100 } } });
+            Assert.Equal(Visibility.Collapsed, window.HomeRightPanel.Visibility);
+            Assert.Equal("Completed", card.State);
+            Assert.True(card.IsExpanded);
+            window.OpenJobsPanel();
+            Assert.Same(view, ((TabItem)window.HomeRightPanel.SurfaceTabs.SelectedItem).Content);
+            Assert.Same(card, Assert.Single(view.CompactJobsList.Items));
+        });
+    }
+
+    private static ExportJobSnapshot Snapshot(int order, JobState state)
+    {
+        var item = new JobItemDefinition(Guid.NewGuid(), $@"C:\input-{order}.mp4", 100, new MediaRange(TimeSpan.FromMinutes(1)));
+        var options = new EncodingJobOptions(@"C:\", @"C:\out", OutputResolution.FullHd, RecoveryStrategy.Normal,
+            new EncodingOptions(), null, "", false, true, false);
+        var plan = new JobPlanItem(item, [$@"C:\out\output-{order}.mp4"], JobPlanDisposition.Process,
+            JobWorkEstimate.Determinate(JobWorkUnit.MediaDuration, 60), []);
+        var definition = new ExportJobDefinition(item.Id, Guid.NewGuid(), order, DateTimeOffset.Now, options, plan);
+        return new(definition, state, state == JobState.Running ? 42 : null, DateTimeOffset.Now,
+            JobsPresentation.IsTerminal(state) ? DateTimeOffset.Now.AddMinutes(order) : null,
+            TimeSpan.FromSeconds(12), state == JobState.Running ? TimeSpan.FromSeconds(20) : null, [], [], null);
+    }
+
+    private static CompactJobsView CompactJobs(MainWindow window) => (CompactJobsView)window.HomeRightPanel.SurfaceTabs.Items.Cast<TabItem>().Single(tab => Equals(tab.Tag, "jobs")).Content;
+
+    private static void ToggleJobsPanel(MainWindow window)
+    {
+        if (window.HomeRightPanel.Visibility == Visibility.Visible)
+        {
+            window.RightPanelToggle.IsChecked = false;
+            RaiseClick(window.RightPanelToggle);
+        }
+        else window.OpenJobsPanel();
     }
 
     private static async Task RunAsync(int seedHistoryCount, Func<MainWindow, Task> body,
         double? persistedJobsListWidth = null, double? persistedLocationsWidth = null,
-        double? persistedDrawerWidth = null, double? windowWidth = null)
+        double? persistedPanelWidth = null, double? windowWidth = null)
     {
         var root = Path.Combine(Path.GetTempPath(), $"lightflow-jobs-live-{Guid.NewGuid():N}");
         await StaDispatcher.RunAsync(async () =>
@@ -295,10 +363,10 @@ public sealed class JobsWorkspaceLiveInteractionTests
             var startup = await LightflowStorageCoordinator.StartAsync(root);
             Assert.True(startup.IsReady, startup.Diagnostic);
             var storage = startup.Coordinator!;
-            if (persistedJobsListWidth is not null || persistedLocationsWidth is not null || persistedDrawerWidth is not null)
+            if (persistedJobsListWidth is not null || persistedLocationsWidth is not null || persistedPanelWidth is not null)
                 WorkspaceStateStore.Save(storage.Locations.WorkspaceStatePath,
                     new WorkspaceState { Layout = new() { FullJobsListPaneWidth = persistedJobsListWidth,
-                        BrowserLocationsPaneWidth = persistedLocationsWidth, JobsDrawerWidth = persistedDrawerWidth } });
+                        BrowserLocationsPaneWidth = persistedLocationsWidth, RightPanelWidth = persistedPanelWidth } });
             var history = new JobHistoryStore(storage.Locations.JobHistoryPath);
             for (var index = 0; index < seedHistoryCount; index++) history.Add(HistoryRecord());
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic)

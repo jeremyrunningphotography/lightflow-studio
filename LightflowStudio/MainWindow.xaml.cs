@@ -50,12 +50,11 @@ public partial class MainWindow : Window
     private readonly FileOperationJobs _fileOperationJobs;
     private FileOperationKind? _lightflowClipboardKind;
     private IReadOnlyList<FileOperationSource> _lightflowClipboardSources = [];
-    private readonly ObservableCollection<JobCardPresentation> _jobsDrawerCards = [];
+    private readonly ObservableCollection<JobCardPresentation> _compactJobsCards = [];
     private readonly HashSet<Guid> _expandedJobIds = [];
     private readonly HashSet<Guid> _dismissedTerminalJobIds = [];
     private readonly HashSet<Guid> _deletedFullJobsTerminalJobIds = [];
     private int _jobsPresentationPending;
-    private double _jobsDrawerWidth = 380;
     private double _browserLocationsPreferredWidth = 280;
     private bool _applyingBrowserResponsiveLayout;
     private JobRuntime<EncodingJobOptions, EncodingItemResult>? _activeJobRuntime;
@@ -207,7 +206,7 @@ public partial class MainWindow : Window
         _exportScheduler.Changed += ExportScheduler_Changed;
         _exportScheduler.SubmissionAccepted += _ => Dispatcher.BeginInvoke(() =>
         {
-            OpenJobsDrawer();
+            OpenJobsPanel();
         });
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
@@ -263,7 +262,7 @@ public partial class MainWindow : Window
                 }
                 BatchFileList.ItemsSource = _batchFiles;
                 HistoryList.ItemsSource = _historyRecords;
-                JobsDrawerList.ItemsSource = _jobsDrawerCards;
+                _compactJobsView.CompactJobsList.ItemsSource = _compactJobsCards;
                 MediaRootsList.ItemsSource = _mediaRoots;
                 BrowserFolderTree.ItemsSource = _browserTree.Roots;
                 BrowserCollectionTree.ItemsSource = _browserCollectionTree.Roots;
@@ -359,8 +358,6 @@ public partial class MainWindow : Window
             _browserLocationsPreferredWidth = paneWidth;
             BrowserNavigationColumn.Width = new GridLength(paneWidth);
         }
-        if (_workspaceState.Current.Layout?.JobsDrawerWidth is { } drawerWidth)
-            _jobsDrawerWidth = drawerWidth;
         if (_workspaceState.Current.Layout?.FullJobsListPaneWidth is { } jobsListWidth)
             FullJobsListColumn.Width = new GridLength(jobsListWidth);
 
@@ -463,8 +460,6 @@ public partial class MainWindow : Window
             });
         _workspaceState.SetBrowserLocationsPaneWidth(_browserLocationsPreferredWidth);
         _workspaceState.SetRightPanel(_rightPanelPreferredWidth, _rightPanelOpen, HomeRightPanel.PreferredSurface);
-        if (JobsDrawer.Visibility == Visibility.Visible) _jobsDrawerWidth = JobsDrawerColumn.ActualWidth;
-        _workspaceState.SetJobsDrawerWidth(_jobsDrawerWidth);
         _workspaceState.SetFullJobsListPaneWidth(FullJobsListColumn.ActualWidth);
         _workspaceState.SetBrowserThumbnailSizeLevel((int)_browserThumbnailSize);
         _workspaceState.SetBrowserCollectionState(_activeCollectionScope?.Collection.CollectionId,
@@ -2592,7 +2587,7 @@ public partial class MainWindow : Window
             var intent = await Task.Run(() => FileOperationPlanner.Plan(kind, sources, destination));
             if (intent.Execution == FileOperationExecution.Job)
             {
-                _fileOperationJobs.Enqueue(intent); OpenJobsDrawer();
+                _fileOperationJobs.Enqueue(intent); OpenJobsPanel();
                 BrowserStatusText.Text = $"{kind} is tracked in Jobs."; return;
             }
             var result = await _fileOperationExecutor.ExecuteAsync(intent);
@@ -6356,89 +6351,55 @@ public partial class MainWindow : Window
             : $"{JobsPresentation.StatusText(jobs, queuePaused)} · {activeFileJobs} file {(activeFileJobs == 1 ? "operation" : "operations")}";
         AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs workspace.");
         JobsStatusButton.ToolTip = "Open full Jobs workspace";
-        var activeCount = jobs.Count(job => !JobsPresentation.IsTerminal(job.State)) + activeFileJobs;
-        JobsDrawerPullButton.Tag = activeCount > 0 ? "Active" : "Idle";
-        JobsDrawerPullCount.Text = activeCount.ToString();
-        JobsDrawerPullCount.Visibility = activeCount > 0 ? Visibility.Visible : Visibility.Collapsed;
-        MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
+        _compactJobsView.MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         ApplyQueueGatePresentation(FullJobsQueueGateButton, queuePaused);
-        ApplyQueueGatePresentation(JobsQueueGateButton, queuePaused);
+        ApplyQueueGatePresentation(_compactJobsView.JobsQueueGateButton, queuePaused);
         var visibleJobs = JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds);
         var cancellableCount = JobsPresentation.BulkCancellableJobs(jobs).Count;
         var clearableCount = visibleJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State));
         var bulkAction = JobsPresentation.BulkAction(visibleJobs);
         var cancelAll = bulkAction == JobsBulkAction.CancelAll;
-        JobsCancelAllButton.Content = cancelAll ? "Cancel all" : "Clear all";
-        JobsCancelAllButton.IsEnabled = bulkAction != JobsBulkAction.None;
-        JobsCancelAllButton.ToolTip = cancelAll
+        _compactJobsView.JobsCancelAllButton.Content = cancelAll ? "Cancel all" : "Clear all";
+        _compactJobsView.JobsCancelAllButton.IsEnabled = bulkAction != JobsBulkAction.None;
+        _compactJobsView.JobsCancelAllButton.ToolTip = cancelAll
             ? $"Cancel {cancellableCount} active Jobs"
-            : clearableCount > 0 ? $"Remove {clearableCount} Jobs from this drawer only" : "No Jobs to clear";
-        AutomationProperties.SetName(JobsCancelAllButton, cancelAll
+            : clearableCount > 0 ? $"Remove {clearableCount} Jobs from this panel only" : "No Jobs to clear";
+        AutomationProperties.SetName(_compactJobsView.JobsCancelAllButton, cancelAll
             ? $"Cancel all {cancellableCount} active Jobs"
-            : clearableCount > 0 ? $"Clear all {clearableCount} dismissible Jobs from drawer" : "Clear all, no Jobs to clear");
+            : clearableCount > 0 ? $"Clear all {clearableCount} dismissible Jobs from panel" : "Clear all, no Jobs to clear");
         var cards = visibleJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId)))
             .Concat(fileJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.Intent.OperationId)))).ToList();
-        JobsPresentation.Reconcile(_jobsDrawerCards, cards);
+        JobsPresentation.Reconcile(_compactJobsCards, cards);
         if (MainTabs?.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
     }
 
-    private void JobsStatus_Click(object sender, RoutedEventArgs e)
+    internal void JobsStatus_Click(object sender, RoutedEventArgs e)
     {
         MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs);
     }
 
-    private void OpenJobsDrawer()
+    internal void OpenJobsPanel()
     {
-        if (JobsDrawer is null) return;
-        JobsDrawerColumn.MinWidth = WorkspaceState.MinJobsDrawerWidth;
-        JobsDrawerColumn.Width = new GridLength(_jobsDrawerWidth);
-        JobsDrawerSplitterColumn.Width = new GridLength(8);
-        JobsDrawerSplitter.Visibility = Visibility.Visible;
-        JobsDrawer.Visibility = Visibility.Visible;
-        JobsDrawerPullChevron.Text = "›";
-        JobsDrawerPullButton.ToolTip = "Close Jobs drawer";
-        AutomationProperties.SetName(JobsDrawerPullButton, "Close Jobs drawer");
+        HomeRightPanel.SelectSurface("jobs");
+        SetRightPanelOpen(true);
     }
 
-    private void CloseJobsDrawer(bool manual)
-    {
-        ApplyJobsDrawerClosed();
-    }
-
-    private void ApplyJobsDrawerClosed()
-    {
-        if (JobsDrawer.Visibility == Visibility.Visible) _jobsDrawerWidth = JobsDrawerColumn.ActualWidth;
-        JobsDrawer.Visibility = Visibility.Collapsed;
-        JobsDrawerSplitter.Visibility = Visibility.Collapsed;
-        JobsDrawerSplitterColumn.Width = new GridLength(0);
-        JobsDrawerColumn.MinWidth = 0;
-        JobsDrawerColumn.Width = new GridLength(0);
-        JobsDrawerPullChevron.Text = "‹";
-        JobsDrawerPullButton.ToolTip = "Open Jobs drawer";
-        AutomationProperties.SetName(JobsDrawerPullButton, "Open Jobs drawer");
-    }
-
-    private void JobsDrawerPull_Click(object sender, RoutedEventArgs e)
-    {
-        if (JobsDrawer.Visibility == Visibility.Visible) CloseJobsDrawer(true); else OpenJobsDrawer();
-    }
-
-    private void JobExpansionToggle_Click(object sender, RoutedEventArgs e)
+    internal void JobExpansionToggle_Click(object sender, RoutedEventArgs e)
     {
         if (JobIdFrom(sender) is not { } id) return;
         var expanded = _expandedJobIds.Add(id);
         if (!expanded) _expandedJobIds.Remove(id);
-        _jobsDrawerCards.FirstOrDefault(card => card.JobId == id)?.SetExpanded(expanded);
+        _compactJobsCards.FirstOrDefault(card => card.JobId == id)?.SetExpanded(expanded);
     }
 
-    private void MaximumExports_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    internal void MaximumExports_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var maximum = (MaximumExportsCombo?.SelectedIndex ?? -1) + EncodingJobConcurrency.Minimum;
+        var maximum = (_compactJobsView.MaximumExportsCombo?.SelectedIndex ?? -1) + EncodingJobConcurrency.Minimum;
         if (maximum >= EncodingJobConcurrency.Minimum && maximum != _exportScheduler.MaxSimultaneousExports)
             _exportScheduler.MaxSimultaneousExports = maximum;
     }
 
-    private void JobsQueueGate_Click(object sender, RoutedEventArgs e)
+    internal void JobsQueueGate_Click(object sender, RoutedEventArgs e)
     {
         if (_exportScheduler.IsQueuePaused) _exportScheduler.ResumeQueue();
         else _exportScheduler.PauseQueue();
@@ -6468,12 +6429,12 @@ public partial class MainWindow : Window
     }
 
     private Guid? JobIdFrom(object sender) => (sender as FrameworkElement)?.Tag is Guid id ? id : null;
-    private void JobsPause_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.Pause(id); }
-    private void JobsResume_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.Resume(id); }
-    private void JobsRetry_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.RetryNeedsAttention(id); }
-    private void JobsMoveUp_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.MoveWaiting(id, -1); }
-    private void JobsMoveDown_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.MoveWaiting(id, 1); }
-    private void JobsCancel_Click(object sender, RoutedEventArgs e)
+    internal void JobsPause_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.Pause(id); }
+    internal void JobsResume_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.Resume(id); }
+    internal void JobsRetry_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.RetryNeedsAttention(id); }
+    internal void JobsMoveUp_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.MoveWaiting(id, -1); }
+    internal void JobsMoveDown_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.MoveWaiting(id, 1); }
+    internal void JobsCancel_Click(object sender, RoutedEventArgs e)
     {
         if (JobIdFrom(sender) is not { } id) return;
         var fileJob = _fileOperationJobs.Jobs.FirstOrDefault(snapshot => snapshot.Intent.OperationId == id &&
@@ -6492,7 +6453,7 @@ public partial class MainWindow : Window
             _exportScheduler.Cancel(id);
     }
 
-    private void JobsCancelAll_Click(object sender, RoutedEventArgs e)
+    internal void JobsCancelAll_Click(object sender, RoutedEventArgs e)
     {
         var jobs = _exportScheduler.Jobs;
         var intended = JobsPresentation.BulkCancellableJobs(jobs).Select(job => job.JobId).ToList();

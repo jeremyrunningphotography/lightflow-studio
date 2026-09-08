@@ -125,7 +125,7 @@ public sealed class SubclipsPresentationRegressionTests
     }
 
     [Fact]
-    public void SubclipsUsesSharedSurfaceAndJobsKeepsIndependentDrawer()
+    public void SubclipsAndGlobalJobsUseSharedHostWithoutDrawer()
     {
         var shell = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
         var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
@@ -135,8 +135,8 @@ public sealed class SubclipsPresentationRegressionTests
         Assert.DoesNotContain("SubclipsPanel", player);
         Assert.Contains("HomeRightPanel.AddSurface(\"subclips\"", source);
         Assert.Contains("SubclipsRevealRequested", source);
-        Assert.DoesNotContain("HomeRightPanel", Body(source, "private void OpenJobsDrawer"));
-        Assert.Contains("JobsDrawerPullButton", shell);
+        Assert.Contains("HomeRightPanel", Body(source, "internal void OpenJobsPanel"));
+        Assert.DoesNotContain("JobsDrawer", shell);
     }
 
     [Fact]

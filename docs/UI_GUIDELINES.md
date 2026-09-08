@@ -2,8 +2,8 @@
 
 ## Jobs surfaces
 
-- The bottom status-bar Jobs affordance always navigates to the secondary full Jobs destination. The right-edge pull
-  exclusively opens and closes the compact Jobs drawer, and Back restores the already-live Browser/Player home.
+- The bottom status-bar Jobs affordance always navigates to the secondary full Jobs destination. The shared Right Panel
+  Jobs tab presents compact global activity, and Back restores the already-live Browser/Player home.
 - The full workspace combines scheduler-current and durable historical per-file Jobs in a virtualized list + details
   layout. Search and status filters apply across both sources; waiting order and concurrency controls call the one
   global scheduler.
@@ -22,7 +22,7 @@ deliberately less intimidating than the tools it wraps.
 
 Browser/Player is Home, not a tab in a permanent module strip. Invoke capabilities as focused actions or modals from
 the media context. Full Jobs is the only secondary operational destination and is entered from the bottom status
-affordance. Keep the compact Jobs drawer independent. Put rare application utilities—currently Settings and About—
+affordance. Compact Jobs shares the Right Panel with contextual Inspector/Subclips while retaining global ownership. Put rare application utilities—currently Settings and About—
 behind the lightweight upper-right application menu; do not turn that menu into a capability launcher.
 
 ## Standard tool layout
@@ -155,7 +155,7 @@ every independently materialized Job is admitted to the global queue; synchronou
 modal. Future Jobs surfaces consume one stable row per media export, not nested submission/batch cards.
 
 The canonical full Jobs entry lives in the global bottom status bar and always routes to the secondary full Jobs destination.
-A separate persistent right-edge pull tab toggles the compact drawer without
-navigating away from Browser or Player; the drawer consumes shell width rather than covering media content. Rows expose filename, textual state, ETA, and a
+The shared Right Panel Jobs tab is always available in Browser/Player, even with no selection.
+The single panel toggle and resize boundary apply to all surfaces; the panel consumes layout width. Rows expose filename, textual state, ETA, and a
 shape-plus-color radial state at a glance. Expansion reveals the complete output path and materialized settings.
 Waiting reorder always updates scheduler order and includes explicit keyboard-focusable earlier/later buttons.

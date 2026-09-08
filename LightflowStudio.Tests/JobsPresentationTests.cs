@@ -21,7 +21,7 @@ public sealed class JobsPresentationTests
         Assert.Equal("Jobs · 2 exporting · 8 waiting", JobsPresentation.StatusText(jobs));
         Assert.Equal("Jobs · Queue paused · 2 exporting · 8 waiting", JobsPresentation.StatusText(jobs, true));
         Assert.Equal("Jobs · Queue paused", JobsPresentation.StatusText([], true));
-        var statusHandler = MethodBody(MainWindowSource(), "private void JobsStatus_Click");
+        var statusHandler = MethodBody(MainWindowSource(), "internal void JobsStatus_Click");
         Assert.Contains("ShellDestination.Jobs", statusHandler);
         Assert.DoesNotContain("Compatibility", statusHandler);
         Assert.DoesNotContain("OpenJobsDrawer", statusHandler);
@@ -119,7 +119,7 @@ public sealed class JobsPresentationTests
         });
         Assert.All(new[] { "OPERATION", "SOURCE", "DESTINATION", "ITEMS", "CURRENT", "BYTES" },
             label => Assert.Contains(label, filesystemLabels));
-        var drawerContent = Named(document, "JobsDrawerList").Descendants().Single(element =>
+        var drawerContent = Named(document, "CompactJobsList").Descendants().Single(element =>
             element.Name.LocalName == "ContentControl" && (string?)element.Attribute("Content") == "{Binding Details}");
         var fullContent = Named(document, "HistoryDetails");
         Assert.Equal("ContentControl", drawerContent.Name.LocalName);
@@ -143,16 +143,16 @@ public sealed class JobsPresentationTests
     public void DrawerRows_AreDenseAndReorderButtonsRemainCompactFocusTargets()
     {
         var document = DrawerDocument();
-        var drawer = Named(document, "JobsDrawer");
-        var list = Named(document, "JobsDrawerList");
+        var drawer = Named(document, "CompactJobsList");
+        var list = Named(document, "CompactJobsList");
         var template = list.Descendants().Single(element => element.Name.LocalName == "DataTemplate");
         var card = template.Elements().Single(element => element.Name.LocalName == "Border");
         var reorder = template.Descendants().Where(element => element.Name.LocalName == "Button" &&
             ((string?)element.Attribute("AutomationProperties.Name"))?.StartsWith("Move waiting Job", StringComparison.Ordinal) == true).ToList();
 
         Assert.Null(drawer.Attribute("Width"));
-        Assert.Equal(WorkspaceState.MinJobsDrawerWidth.ToString(), (string?)drawer.Attribute("MinWidth"));
-        Assert.Equal("620", (string?)drawer.Attribute("MaxWidth"));
+        Assert.Null(drawer.Attribute("MinWidth"));
+        Assert.Null(drawer.Attribute("MaxWidth"));
         Assert.Equal("0,0,16,0", (string?)list.Attribute("Padding"));
         Assert.Equal("{StaticResource DrawerCard}", (string?)card.Attribute("Style"));
         Assert.Equal("0,0,0,7", (string?)card.Attribute("Margin"));
@@ -164,7 +164,7 @@ public sealed class JobsPresentationTests
     [Fact]
     public void ExpandedCard_PreservesFullPathAndUsesOneProgressValueWithoutTimingOverlap()
     {
-        var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+        var template = Named(DrawerDocument(), "CompactJobsList").Descendants()
             .Single(element => element.Name.LocalName == "DataTemplate");
         var path = DrawerDocument().Descendants().Single(element => (string?)element.Attribute("Text") == "{Binding OutputPath}");
         var progress = template.Descendants().Single(element => element.Name.LocalName == "ProgressBar");
@@ -182,7 +182,7 @@ public sealed class JobsPresentationTests
     [Fact]
     public void Expansion_UsesDedicatedAccessibleCommandAndNeverUnloadLifecycleEvents()
     {
-        var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+        var template = Named(DrawerDocument(), "CompactJobsList").Descendants()
             .Single(element => element.Name.LocalName == "DataTemplate");
         var toggle = template.Descendants().Single(element => (string?)element.Attribute("Click") == "JobExpansionToggle_Click");
         var detail = template.Descendants().Single(element => element.Name.LocalName == "Border" &&
@@ -263,25 +263,18 @@ public sealed class JobsPresentationTests
     }
 
     [Fact]
-    public void DrawerResize_UsesCleanBoundaryHitTargetAndColumnOwnedBounds()
+    public void JobsUsesSharedPanelResizeAndRetiresDedicatedState()
     {
         var document = DrawerDocument();
-        var splitter = Named(document, "JobsDrawerSplitter");
-        var column = Named(document, "JobsDrawerColumn");
-        var list = Named(document, "JobsDrawerList");
-
+        var splitter = Named(document, "RightPanelSplitter");
         Assert.Equal("8", (string?)splitter.Attribute("Width"));
-        Assert.Equal("Transparent", (string?)splitter.Attribute("Background"));
-        Assert.Equal("SizeWE", (string?)splitter.Attribute("Cursor"));
-        Assert.DoesNotContain(splitter.Descendants(), element => element.Name.LocalName is "Thumb" or "Path" or "Ellipse");
-        Assert.Equal("620", (string?)column.Attribute("MaxWidth"));
-        Assert.Equal(WorkspaceState.MinJobsDrawerWidth.ToString(), (string?)Named(document, "JobsDrawer").Attribute("MinWidth"));
-        Assert.Equal("Disabled", (string?)list.Attribute("ScrollViewer.HorizontalScrollBarVisibility"));
-        Assert.Contains("SetJobsDrawerWidth(_jobsDrawerWidth)", MainWindowSource());
+        Assert.Equal("PreviousAndNext", (string?)splitter.Attribute("ResizeBehavior"));
+        Assert.DoesNotContain("JobsDrawer", MainWindowSource());
+        Assert.Contains("SetRightPanel(_rightPanelPreferredWidth", MainWindowSource());
     }
 
     [Fact]
-    public void DrawerHeader_UsesCompactActiveExportsLabelAndKeepsControlsOnOneLine()
+    public void CompactHeader_KeepsConcurrencyAndQueueControlsUsableAtSharedPanelWidths()
     {
         var document = DrawerDocument();
         var combo = Named(document, "MaximumExportsCombo");
@@ -291,16 +284,16 @@ public sealed class JobsPresentationTests
         Assert.Contains(header.Elements(), element => (string?)element.Attribute("Text") == "Active exports");
         Assert.DoesNotContain(header.Descendants(), element => (string?)element.Attribute("Text") == "Maximum simultaneous exports");
         Assert.Equal("1", (string?)combo.Attribute("Grid.Column"));
-        Assert.Equal("3", (string?)button.Attribute("Grid.Column"));
+        Assert.Equal("WrapPanel", button.Parent!.Name.LocalName);
         Assert.Equal("65", (string?)button.Attribute("MinWidth"));
         Assert.Contains("simultaneously", (string?)combo.Attribute("ToolTip"));
-        Assert.Equal(340, WorkspaceState.MinJobsDrawerWidth);
+        Assert.Equal(280, WorkspaceState.MinRightPanelWidth);
     }
 
     [Fact]
     public void DisclosureAndTerminalRows_UseLightflowStateAndHideWaitingControls()
     {
-        var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+        var template = Named(DrawerDocument(), "CompactJobsList").Descendants()
             .Single(element => element.Name.LocalName == "DataTemplate");
         var carets = template.Descendants().Where(element => (string?)element.Attribute("Text") is "›" or "⌄").ToList();
         var reorder = template.Descendants().Single(element => ((string?)element.Attribute("Visibility"))?.Contains("CanReorder", StringComparison.Ordinal) == true);
@@ -315,7 +308,7 @@ public sealed class JobsPresentationTests
     [Fact]
     public void DisclosureGutter_IsFullHeightAndStopsBeforeIndependentRowTargets()
     {
-        var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+        var template = Named(DrawerDocument(), "CompactJobsList").Descendants()
             .Single(element => element.Name.LocalName == "DataTemplate");
         var toggle = template.Descendants().Single(element =>
             (string?)element.Attribute("Click") == "JobExpansionToggle_Click");
@@ -357,8 +350,8 @@ public sealed class JobsPresentationTests
 
         var source = MainWindowSource();
         var apply = MethodBody(source, "private void ApplyJobsPresentation");
-        Assert.Contains("JobsPresentation.Reconcile(_jobsDrawerCards, cards)", apply);
-        Assert.DoesNotContain("_jobsDrawerCards.Clear", apply);
+        Assert.Contains("JobsPresentation.Reconcile(_compactJobsCards, cards)", apply);
+        Assert.DoesNotContain("_compactJobsCards.Clear", apply);
     }
 
     [Fact]
@@ -391,7 +384,7 @@ public sealed class JobsPresentationTests
     [Fact]
     public void DrawerBindingsAreExplicitOneWayForStableReadOnlyPresentationProperties()
     {
-        var template = Named(DrawerDocument(), "JobsDrawerList").Descendants()
+        var template = Named(DrawerDocument(), "CompactJobsList").Descendants()
             .Single(element => element.Name.LocalName == "DataTemplate");
         var radial = template.Descendants()
             .Single(element => element.Name.LocalName == "JobsRadialProgress");
@@ -473,51 +466,26 @@ public sealed class JobsPresentationTests
     }
 
     [Fact]
-    public void DrawerPullOwnsToggleAndShellColumnsPushMainContent()
+    public void SubmissionRevealsJobsThroughSharedPanelWithoutProgressReopeningIt()
     {
-        var document = DrawerDocument();
-        var pull = Named(document, "JobsDrawerPullButton");
-        var switcher = Named(document, "JobsDrawerPullHost");
-        var main = Named(document, "MainTabs");
-        var drawer = Named(document, "JobsDrawer");
-        var splitter = Named(document, "JobsDrawerSplitter");
         var source = MainWindowSource();
-
-        Assert.Equal("JobsDrawerPull_Click", (string?)pull.Attribute("Click"));
-        Assert.Equal(switcher, pull.Parent);
-        Assert.Equal("Right", (string?)switcher.Attribute("HorizontalAlignment"));
-        Assert.Equal("Center", (string?)switcher.Attribute("VerticalAlignment"));
-        Assert.Equal("0,0,14,0", (string?)main.Attribute("Margin"));
-        Assert.Equal("2", (string?)drawer.Attribute("Grid.Column"));
-        Assert.Equal("1", (string?)splitter.Attribute("Grid.Column"));
-        Assert.Equal("PreviousAndNext", (string?)splitter.Attribute("ResizeBehavior"));
-        Assert.DoesNotContain(document.Descendants(), element =>
-            (string?)element.Attribute("Click") == "JobsDrawerClose_Click");
-        Assert.Contains("OpenJobsDrawer", MethodBody(source, "private void JobsDrawerPull_Click"));
-        Assert.Contains("CloseJobsDrawer(true)", MethodBody(source, "private void JobsDrawerPull_Click"));
+        var reveal = MethodBody(source, "internal void OpenJobsPanel");
+        Assert.Contains("HomeRightPanel.SelectSurface(\"jobs\")", reveal);
+        Assert.Contains("SetRightPanelOpen(true)", reveal);
+        Assert.DoesNotContain("MainTabs", reveal);
         var acceptedStart = source.IndexOf("_exportScheduler.SubmissionAccepted", StringComparison.Ordinal);
         var acceptedEnd = source.IndexOf("_workspaceState =", acceptedStart, StringComparison.Ordinal);
-        var accepted = source[acceptedStart..acceptedEnd];
-        Assert.Equal(1, accepted.Split("OpenJobsDrawer();", StringSplitOptions.None).Length - 1);
-        Assert.DoesNotContain("OpenJobsDrawer", MethodBody(source, "private void ExportScheduler_Changed"));
+        Assert.Contains("OpenJobsPanel();", source[acceptedStart..acceptedEnd]);
+        Assert.DoesNotContain("OpenJobsPanel", MethodBody(source, "private void ExportScheduler_Changed"));
     }
 
     [Fact]
-    public void DrawerPullLabelReadsFromRightEdgeWithoutChangingItsInteractionContract()
+    public void ObsoletePullAndBodyStylesAreRemoved()
     {
-        var document = DrawerDocument();
-        var pull = Named(document, "JobsDrawerPullButton");
-        var label = pull.Descendants().Single(element => (string?)element.Attribute("Text") == "Jobs");
-        var rotation = label.Descendants().Single(element => element.Name.LocalName == "RotateTransform");
-
-        Assert.Equal("90", (string?)rotation.Attribute("Angle"));
-        Assert.Equal("DrawerPullButton", ((string?)pull.Attribute("Style"))?.Split(' ').Last().TrimEnd('}'));
-        Assert.Equal("JobsDrawerPull_Click", (string?)pull.Attribute("Click"));
-        var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
-        var style = app.Descendants().Single(element =>
-            (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "DrawerPullButton");
-        Assert.Contains(style.Descendants(), element => (string?)element.Attribute("Property") == "Width" && (string?)element.Attribute("Value") == "28");
-        Assert.Contains(style.Descendants(), element => (string?)element.Attribute("Property") == "Height" && (string?)element.Attribute("Value") == "96");
+        var app = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
+        Assert.DoesNotContain("DrawerPullButton", app);
+        Assert.DoesNotContain("DrawerBody", app);
+        Assert.DoesNotContain(DrawerDocument().Descendants(), element => ((string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")))?.StartsWith("JobsDrawer") == true);
     }
 
     [Fact]
@@ -555,7 +523,7 @@ public sealed class JobsPresentationTests
             Assert.Contains("running exports continue", (string?)button.Attribute("ToolTip"), StringComparison.OrdinalIgnoreCase);
             Assert.Equal("Pause Queue", (string?)button.Attribute("AutomationProperties.Name"));
         }
-        Assert.Contains("IsQueuePaused", MethodBody(MainWindowSource(), "private void JobsQueueGate_Click"));
+        Assert.Contains("IsQueuePaused", MethodBody(MainWindowSource(), "internal void JobsQueueGate_Click"));
         Assert.NotEqual(JobsRadialProgress.StateColor("Exporting"), JobsRadialProgress.StateColor("Waiting"));
     }
 
@@ -608,7 +576,7 @@ public sealed class JobsPresentationTests
         Assert.Equal([waiting.JobId], JobsPresentation.VisibleJobs([completed, waiting], new HashSet<Guid> { completed.JobId }).Select(job => job.JobId));
         var source = MainWindowSource();
         Assert.Contains("_dismissedTerminalJobIds.Add(job.JobId)", source);
-        var bulk = MethodBody(source, "private void JobsCancelAll_Click");
+        var bulk = MethodBody(source, "internal void JobsCancelAll_Click");
         Assert.Contains("IsDismissibleDrawerRow", bulk);
         Assert.DoesNotContain("_jobHistory", bulk);
         Assert.DoesNotContain(DrawerDocument().Descendants(), element => (string?)element.Attribute("Content") == "Clear finished");
@@ -618,8 +586,8 @@ public sealed class JobsPresentationTests
     public void JobsConfirmations_UseReusableDarkDialogInsteadOfNativeMessageBox()
     {
         var source = MainWindowSource();
-        var cancel = MethodBody(source, "private void JobsCancel_Click");
-        var cancelAll = MethodBody(source, "private void JobsCancelAll_Click");
+        var cancel = MethodBody(source, "internal void JobsCancel_Click");
+        var cancelAll = MethodBody(source, "internal void JobsCancelAll_Click");
         var dialog = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "ConfirmationDialog.xaml"));
 
         Assert.Contains("ConfirmationDialog.Confirm", cancel);
@@ -789,7 +757,12 @@ public sealed class JobsPresentationTests
         Assert.Empty(JobsWorkspacePresentation.SurvivingSelection(selected, []));
     }
 
-    private static XDocument DrawerDocument() => XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+    private static XDocument DrawerDocument()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        document.Root!.Add(XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "CompactJobsView.xaml")).Root);
+        return document;
+    }
     private static string MainWindowSource() => File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
     private static string MethodBody(string source, string signature)
     {

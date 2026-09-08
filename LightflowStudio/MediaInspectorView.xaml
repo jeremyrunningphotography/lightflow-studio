@@ -5,13 +5,17 @@
  <DockPanel Margin="12,8">
   <StackPanel DockPanel.Dock="Top">
    <TextBlock x:Name="TitleText" Text="Select media to inspect" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5"/>
-   <TextBlock x:Name="StatusText" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite"/>
+   <TextBlock x:Name="StatusText" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite">
+    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style>
+   </TextBlock>
    <Button x:Name="OpenPlayerButton" Content="Open in Player" HorizontalAlignment="Left" Visibility="Collapsed" Click="OpenPlayer_Click"/>
   </StackPanel>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
      <StackPanel>
       <Image x:Name="PreviewImage" MaxHeight="260" Stretch="Uniform" Margin="0,8" AutomationProperties.Name="Cached media Preview"/>
-      <TextBlock x:Name="PreviewStatus" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" FontSize="11"/>
+      <TextBlock x:Name="PreviewStatus" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" FontSize="11">
+       <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style>
+      </TextBlock>
       <ItemsControl x:Name="FieldGroups">
        <ItemsControl.ItemTemplate>
         <DataTemplate>

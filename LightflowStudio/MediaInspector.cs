@@ -7,27 +7,23 @@ namespace LightflowStudio;
 // Immutable inputs copied from the current Home context, never a second selection model.
 internal sealed record InspectorAsset(Guid? AssetId, string Name, string RelativePath, MediaPresentationKind Kind,
     long? FileSizeBytes = null);
-internal sealed record InspectorField(string Group, string Name, string Value, string? ComparisonValue = null);
-internal sealed record InspectorRawField(string Source, string Path, string Value);
+internal sealed record InspectorField(string Group, string Name, string Value, string? ComparisonValue = null, bool CanOpenFolder = false);
 internal sealed record InspectorSnapshot(string Title, string Status, IReadOnlyList<InspectorField> Fields,
-    IReadOnlyList<InspectorRawField> Raw, string? PreviewPath, bool RawTruncated = false);
+    string? PreviewPath);
 
-/// <summary>Read-only projection of #70 and Catalog contracts. Work and intermediate raw snapshots are batched
+/// <summary>Read-only projection of #70 and Catalog contracts. Store reads are batched
 /// off the UI thread; the multi-selection result has one row per supported field, independent of selection size.</summary>
 internal sealed class MediaInspectorService(IPreviewStoreService? previews, IAssetClassificationStore classifications,
     string previewsDirectory)
 {
     internal const int BatchSize = 128;
-    internal const int MaximumRawFields = 10000;
 
     public Task<InspectorSnapshot> ReadAsync(IReadOnlyList<InspectorAsset> assets, CancellationToken token) =>
         Task.Run(async () =>
         {
             var summary = new Dictionary<(string Group, string Name), FieldSummary>();
             var states = new Dictionary<string, int>();
-            var raw = new List<InspectorRawField>();
             string? previewPath = null;
-            var rawTruncated = false;
             decimal totalSize = 0;
             double totalDuration = 0;
             int sizeCount = 0, durationCount = 0, videoCount = 0;
@@ -50,7 +46,7 @@ internal sealed class MediaInspectorService(IPreviewStoreService? previews, IAss
                         catch (JsonException) { state = "Metadata could not be read"; }
                         if (metadata is null) state = "Metadata could not be read";
                     }
-                    states[state] = states.GetValueOrDefault(state) + 1;
+                    if (state.Length > 0) states[state] = states.GetValueOrDefault(state) + 1;
                     var size = metadata?.FileSizeBytes ?? asset.FileSizeBytes;
                     if (size is >= 0) { totalSize += size.Value; sizeCount++; }
                     if (asset.Kind == MediaPresentationKind.Video)
@@ -69,19 +65,18 @@ internal sealed class MediaInspectorService(IPreviewStoreService? previews, IAss
                     if (assets.Count == 1 && record is not null)
                     {
                         // A retained offline Preview is still useful; metadata freshness is stated separately.
-                        var relative = record.StandardPreviewState == PreviewComponentState.Current
-                            ? record.StandardPreviewRelativePath : record.ThumbnailRelativePath;
+                        // #205 regenerates the Browser thumbnail with preferred-frame/color identity.
+                        // A video's standard Preview can still represent the older automatic frame.
+                        var relative = asset.Kind == MediaPresentationKind.Video
+                            ? record.ThumbnailRelativePath ?? record.StandardPreviewRelativePath
+                            : record.StandardPreviewState == PreviewComponentState.Current
+                                ? record.StandardPreviewRelativePath : record.ThumbnailRelativePath;
                         previewPath = ResolvePreviewPath(previewsDirectory, relative);
-                        if (record.RawMetadataJson is { } rawJson)
-                        {
-                            try { raw = FlattenRaw(rawJson, null, token, out rawTruncated); }
-                            catch (JsonException) { states["Raw snapshot could not be read"] = 1; }
-                        }
                     }
                 }
             }
             var fields = summary.Select(pair => new InspectorField(pair.Key.Group, pair.Key.Name,
-                pair.Value.Describe(assets.Count))).ToList();
+                pair.Value.Describe(assets.Count), CanOpenFolder: assets.Count == 1 && pair.Key.Name == "Relative path")).ToList();
             if (assets.Count > 1)
             {
                 fields.InsertRange(0, new[] {
@@ -91,7 +86,7 @@ internal sealed class MediaInspectorService(IPreviewStoreService? previews, IAss
             }
             return new InspectorSnapshot(assets.Count == 1 ? assets[0].Name : $"{assets.Count:N0} selected assets",
                 string.Join(" · ", states.Select(p => assets.Count == 1 ? p.Key : $"{p.Value:N0} {p.Key.ToLowerInvariant()}")),
-                fields, raw, previewPath, rawTruncated);
+                fields, previewPath);
         }, token);
 
     internal static string MetadataState(PreviewRecord? record) => record switch
@@ -102,7 +97,7 @@ internal sealed class MediaInspectorService(IPreviewStoreService? previews, IAss
         { MetadataState: PreviewComponentState.Failed } => "Metadata failed",
         { MetadataState: PreviewComponentState.Stale } => "Metadata stale · awaiting refresh",
         { MetadataState: PreviewComponentState.Missing } => "Metadata pending",
-        _ => "Metadata available"
+        _ => ""
     };
 
     private static IEnumerable<InspectorField> Fields(InspectorAsset asset, DerivedMediaMetadata? m, AssetClassification? c)
@@ -193,42 +188,4 @@ internal sealed class MediaInspectorService(IPreviewStoreService? previews, IAss
         return path.StartsWith(basePath, StringComparison.OrdinalIgnoreCase) ? path : null;
     }
 
-    internal static List<InspectorRawField> FlattenRaw(string json, string? source, CancellationToken token, out bool truncated)
-    {
-        using var document = JsonDocument.Parse(json);
-        // #70 has two snapshot shapes. RAW Browser category alone does not identify the provider.
-        source ??= document.RootElement.ValueKind == JsonValueKind.Object &&
-            (document.RootElement.TryGetProperty("streams", out _) || document.RootElement.TryGetProperty("format", out _))
-            ? "FFprobe" : "WIC";
-        var result = new List<InspectorRawField>();
-        var limit = false;
-        void Visit(JsonElement element, string path)
-        {
-            token.ThrowIfCancellationRequested();
-            if (result.Count >= MaximumRawFields) { limit = true; return; }
-            if (element.ValueKind == JsonValueKind.Object)
-                foreach (var property in element.EnumerateObject())
-                {
-                    Visit(property.Value, path + "/" + property.Name.Replace("~", "~0").Replace("/", "~1"));
-                    if (limit) break;
-                }
-            else if (element.ValueKind == JsonValueKind.Array)
-            {
-                var index = 0;
-                foreach (var item in element.EnumerateArray())
-                {
-                    Visit(item, path + "/" + index++);
-                    if (limit) break;
-                }
-            }
-            else result.Add(new(source, path, element.ValueKind == JsonValueKind.String ? element.GetString() ?? "" : element.GetRawText()));
-        }
-        Visit(document.RootElement, "");
-        truncated = limit;
-        return result;
-    }
-
-    internal static IReadOnlyList<InspectorRawField> SearchRaw(IReadOnlyList<InspectorRawField> rows, string query) =>
-        rows.Where(r => r.Source.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-            r.Path.Contains(query, StringComparison.OrdinalIgnoreCase) || r.Value.Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
 }

@@ -4,18 +4,14 @@
  Foreground="{DynamicResource TextBrush}" AutomationProperties.Name="Media Inspector" IsVisibleChanged="Inspector_IsVisibleChanged">
  <DockPanel Margin="12,8">
   <StackPanel DockPanel.Dock="Top">
-   <TextBlock x:Name="ContextText" Foreground="{DynamicResource MutedTextBrush}" FontSize="11"/>
    <TextBlock x:Name="TitleText" Text="Select media to inspect" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5"/>
    <TextBlock x:Name="StatusText" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite"/>
    <Button x:Name="OpenPlayerButton" Content="Open in Player" HorizontalAlignment="Left" Visibility="Collapsed" Click="OpenPlayer_Click"/>
   </StackPanel>
-  <TabControl x:Name="MetadataTabs" Background="Transparent" Foreground="{DynamicResource TextBrush}" BorderThickness="0" Padding="0" ItemContainerStyle="{DynamicResource ContextualTab}" AutomationProperties.Name="Inspector metadata views">
-   <TabItem Header="Overview">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
      <StackPanel>
       <Image x:Name="PreviewImage" MaxHeight="260" Stretch="Uniform" Margin="0,8" AutomationProperties.Name="Cached media Preview"/>
       <TextBlock x:Name="PreviewStatus" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" FontSize="11"/>
-      <TextBlock Text="Recorded source metadata and your Lightflow Catalog organization are shown separately." Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,8"/>
       <ItemsControl x:Name="FieldGroups">
        <ItemsControl.ItemTemplate>
         <DataTemplate>
@@ -25,9 +21,13 @@
            <ItemsControl.ItemTemplate>
             <DataTemplate>
              <Grid Margin="0,3">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="100"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="100"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
               <TextBlock Text="{Binding Name}" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
               <TextBox Grid.Column="1" Text="{Binding Value, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" Padding="0" Margin="4,0,0,0" AutomationProperties.Name="{Binding Name}"/>
+              <Button Grid.Column="2" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Content="&#xE8B7;" Width="26" Height="26" Padding="3" Margin="5,0,0,0" VerticalAlignment="Top"
+               ToolTip="Open containing folder in Windows Explorer" AutomationProperties.Name="Open containing folder in Windows Explorer" Click="OpenFolder_Click">
+               <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding CanOpenFolder}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style>
+              </Button>
              </Grid>
             </DataTemplate>
            </ItemsControl.ItemTemplate>
@@ -38,25 +38,5 @@
       </ItemsControl>
      </StackPanel>
     </ScrollViewer>
-   </TabItem>
-   <TabItem Header="Raw metadata">
-    <DockPanel>
-     <TextBox DockPanel.Dock="Top" x:Name="RawSearch" Margin="0,8,0,6" ToolTip="Search provider, namespace/path, or value" AutomationProperties.Name="Search raw metadata" TextChanged="RawSearch_Changed"/>
-     <TextBlock DockPanel.Dock="Top" x:Name="RawStatus" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,0,0,6"/>
-     <ListBox x:Name="RawRows" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource TextBrush}" HorizontalContentAlignment="Stretch"
-      ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" AutomationProperties.Name="Raw metadata results">
-      <ListBox.ItemTemplate>
-       <DataTemplate>
-        <StackPanel Margin="0,4">
-         <TextBlock Text="{Binding Source}" Foreground="{DynamicResource MutedTextBrush}" FontSize="10"/>
-         <TextBlock Text="{Binding Path}" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" FontWeight="SemiBold" FontSize="11"/>
-         <TextBox Text="{Binding Value, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Background="Transparent" BorderThickness="0" Padding="0" Margin="0,3" AutomationProperties.Name="{Binding Path}"/>
-        </StackPanel>
-       </DataTemplate>
-      </ListBox.ItemTemplate>
-     </ListBox>
-    </DockPanel>
-   </TabItem>
-  </TabControl>
  </DockPanel>
 </UserControl>

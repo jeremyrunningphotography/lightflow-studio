@@ -12,22 +12,29 @@ existing Subclips drawer and its Jobs coordination remain intact; #225 owns migr
 inspection inputs. Current-asset notifications publish transitions without a second Player context. Video activation
 from Inspector uses the same Browser-to-Player path, central host, playback coordinator, and lease. The panel presents
 cached still/video Preview images through the existing WIC orientation/decode helper, never source probing or another
-decoder. Player retains responsibility for its presented image/video.
+decoder. Inspector retains that cached image during Player context; Player owns the actual video presentation.
+Video inspection prefers the Browser thumbnail because #205 preferred-frame/color regeneration publishes that artifact,
+while a standard Preview may still show the automatic frame. Existing regeneration completion invalidates Inspector,
+which reads the committed path again and decodes fresh bytes; it owns no poster intent or additional playback lease.
+The Relative path folder action resolves the current root/relative path through `IMediaRootService` at action time,
+then passes only the containing directory to Explorer. Offline/unavailable folders produce an actionable message.
 
-`MediaInspectorService` reads #70 `IPreviewStoreService` normalized/raw snapshots and `IAssetClassificationStore`.
+`MediaInspectorService` reads #70 `IPreviewStoreService` normalized snapshots and `IAssetClassificationStore`.
 It reads selections in batches of 128 and aggregates off the dispatcher into one row per field. Missing/not-applicable
 counts and known size/video-duration coverage prevent partial data from appearing complete. It does not schedule
 probes, write Catalog data, or build a multi-asset raw matrix. Existing discovery/derived-work completion invalidates
 the view. Missing, stale, failed, and offline source states remain explicit, and cached artifacts can be retained offline.
 
-Single-source raw metadata uses provider identity plus escaped JSON pointer paths, searched by provider/path/value.
-The surface states its 10,000-field display bound. Friendly groups reflect the existing normalized contract; no
-Location/Creator data is invented where #70 does not supply it. Catalog classification is a separately labeled read-only
-group. Metadata export (#224), descriptive editing (#216), and richer analysis (#207) remain separate work.
+The Inspector does not parse or display raw provider metadata. The underlying #70 raw contracts are retained for
+other consumers. Friendly groups reflect the existing normalized contract; no Location/Creator data is invented where
+#70 does not supply it. Catalog classification is a separately labeled read-only group. Metadata export (#224),
+descriptive editing (#216), and richer analysis (#207) remain separate work.
 
 Hydration is cancellable, debounced, and generation-guarded, including cached-image completion. Hiding the panel
 retires pending work. Inspector focus prevents shell Browser file actions and Player shortcuts from consuming its
-text/navigation keys. The close action returns focus to the Inspector toggle; Ctrl+I toggles the panel in Home.
+text/navigation keys. One right-panel icon toggles open/closed state, also available through Ctrl+I in Home.
+Normal hydration has no status chatter; loading text appears only after 750 ms, and durable pending/error states remain
+explicit. Same-asset refreshes retain the displayed Preview while generation checks reject obsolete results.
 
 ## Current platform
 

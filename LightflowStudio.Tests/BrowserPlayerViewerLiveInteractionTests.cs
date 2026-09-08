@@ -68,7 +68,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 Assert.Contains("Select media", inspector.TitleText.Text);
                 var element = FindElementByDataContext(window.BrowserGridRows, tile!);
                 RaiseMouseLeftButtonDown(element!, 1);
-                await WaitUntilAsync(() => inspector.StatusText.Text != "Loading metadata…" && inspector.TitleText.Text == tile!.Name, "Inspector");
+                await WaitUntilAsync(() => inspector.FieldGroups.ItemsSource is not null && inspector.TitleText.Text == tile!.Name, "Inspector");
                 Assert.True(window.RightPanelColumn.ActualWidth >= 280);
                 var rows = window.BrowserGridRows.ItemsSource;
                 window.RightPanelColumn.Width = new GridLength(410);
@@ -84,7 +84,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 Assert.True(tile!.IsSelected);
                 element = FindElementByDataContext(window.BrowserGridRows, tile);
                 RaiseMouseLeftButtonDown(element!, 2);
-                await WaitUntilAsync(() => inspector.ContextText.Text == "PLAYER" && inspector.TitleText.Text == tile.Name, "Player Inspector context");
+                await WaitUntilAsync(() => inspector.IsPlayerContext && inspector.TitleText.Text == tile.Name, "Player Inspector context");
                 var player = Assert.IsType<PlayerViewerHost>(window.BrowserPlayerHost.Content);
                 RaiseClick(window.JobsDrawerPullButton);
                 window.Width = 1120; window.UpdateLayout();
@@ -95,7 +95,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 Assert.True(window.BrowserCenter.ActualWidth >= 200);
                 RaiseClick(window.JobsDrawerPullButton);
                 RaiseClick(player.BackButton);
-                await WaitUntilAsync(() => inspector.ContextText.Text == "BROWSER SELECTION", "return context");
+                await WaitUntilAsync(() => !inspector.IsPlayerContext, "return context");
                 Assert.True(tile.IsSelected);
                 Assert.Same(rows, window.BrowserGridRows.ItemsSource);
                 window.Close();

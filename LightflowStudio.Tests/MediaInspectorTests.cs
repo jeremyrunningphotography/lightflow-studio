@@ -6,6 +6,19 @@ namespace LightflowStudio.Tests;
 
 public sealed class MediaInspectorTests
 {
+    [Fact]
+    public void FolderAction_LaunchesExplorerWithOnlyTheContainingDirectory()
+    {
+        var resolution = new MediaPathResolution(Guid.NewGuid(), "shoot/clip.mp4", "shoot/clip.mp4",
+            @"C:\Media library\shoot\clip.mp4", MediaRootAvailability.Online, true);
+        var start = MainWindow.InspectorFolderStartInfo(resolution);
+        Assert.Equal("explorer.exe", start.FileName);
+        Assert.Equal(@"C:\Media library\shoot", Assert.Single(start.ArgumentList));
+        Assert.True(start.UseShellExecute);
+        Assert.Throws<DirectoryNotFoundException>(() => MainWindow.InspectorFolderStartInfo(
+            resolution with { PhysicalPath = null, RootAvailability = MediaRootAvailability.Unavailable }));
+    }
+
     private sealed class Classifications : IAssetClassificationStore
     {
         internal int LargestBatch;
@@ -40,7 +53,7 @@ public sealed class MediaInspectorTests
                 new(video, "movie.mov", "movie.mov", MediaPresentationKind.Video, 2048),
                 new(pending, "pending.mov", "pending.mov", MediaPresentationKind.Video) };
             var result = await reader.ReadAsync(assets, default);
-            Assert.Empty(result.Raw);
+            Assert.DoesNotContain(result.Fields, f => f.CanOpenFolder);
             Assert.Contains(result.Fields, f => f.Name == "Total size" && f.Value.Contains("2 of 3"));
             Assert.Contains(result.Fields, f => f.Name == "Video duration" && f.Value.Contains("00:01:01.25") && f.Value.Contains("1 of 2"));
             Assert.Contains(result.Fields, f => f.Name == "Media type" && f.Value == "Mixed values");
@@ -48,7 +61,9 @@ public sealed class MediaInspectorTests
             Assert.Contains(result.Fields, f => f.Group == "Lightflow Catalog" && f.Name == "Rating" && f.Value.Contains("common"));
             var single = await reader.ReadAsync([assets[0]], default);
             Assert.Contains(single.Fields, f => f.Group == "Lens" && f.Value == "RF 50mm");
-            Assert.Equal("WIC", Assert.Single(single.Raw).Source);
+            Assert.Empty(single.Status);
+            Assert.True(Assert.Single(single.Fields, f => f.Name == "Relative path").CanOpenFolder);
+            Assert.Contains("Canon", (await store.GetAsync(image))!.RawMetadataJson);
             await store.SetSourceAvailabilityAsync(image, PreviewSourceAvailability.Missing);
             Assert.Contains("Source missing", (await reader.ReadAsync([assets[0]], default)).Status);
             await store.SetMetadataAsync(video, new(1, PreviewComponentState.Failed));
@@ -66,23 +81,9 @@ public sealed class MediaInspectorTests
         var result = await service.ReadAsync(assets, default);
         Assert.InRange(catalog.LargestBatch, 1, MediaInspectorService.BatchSize);
         Assert.InRange(result.Fields.Count, 1, 40);
-        Assert.Empty(result.Raw);
+
         using var canceled = new CancellationTokenSource(); canceled.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.ReadAsync(assets, canceled.Token));
-    }
-
-    [Fact]
-    public void RawSnapshot_PreservesProviderAndNamespacePaths_SearchesValues_AndBoundsRows()
-    {
-        var rows = MediaInspectorService.FlattenRaw("{\"streams\":[{\"tags\":{\"a/b\":\"Camera One\"}}],\"format\":{\"tags\":{\"a/b\":null}}}", "FFprobe", default, out var truncated);
-        Assert.False(truncated);
-        Assert.Equal("/streams/0/tags/a~1b", rows[0].Path);
-        Assert.Equal("/format/tags/a~1b", rows[1].Path);
-        Assert.Single(MediaInspectorService.SearchRaw(rows, "CAMERA"));
-        Assert.Equal(2, MediaInspectorService.SearchRaw(rows, "ffprobe").Count);
-        var large = JsonSerializer.Serialize(Enumerable.Range(0, 20000));
-        Assert.Equal(10000, MediaInspectorService.FlattenRaw(large, "FFprobe", default, out truncated).Count);
-        Assert.True(truncated);
     }
 
     [Fact]
@@ -93,7 +94,6 @@ public sealed class MediaInspectorTests
         summary.Add("29.97 fps", "29.97002");
         Assert.Equal("Mixed values", summary.Describe(2));
         Assert.Equal("00:01:00", MediaInspectorService.Seconds(59.99995));
-        Assert.Equal("FFprobe", Assert.Single(MediaInspectorService.FlattenRaw("{\"streams\":[{\"width\":10}]}", null, default, out _)).Source);
     }
 
     [Fact]

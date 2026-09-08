@@ -24,7 +24,7 @@ public partial class MainWindow
             if (selected.Count == 1) _ = OpenBrowserPlayerViewerAsync(selected[0]);
         };
         HomeRightPanel.AddSurface("inspector", "Inspector", _inspector);
-        HomeRightPanel.CloseRequested += (_, _) => { SetRightPanelOpen(false); RightPanelToggle.Focus(); };
+        _inspector.OpenFolder = OpenInspectorFolderAsync;
         HomeRightPanel.ActiveSurfaceChanged += (_, _) => ScheduleRightPanelSave();
         _inspectorRefreshTimer.Tick += (_, _) =>
         {
@@ -53,6 +53,34 @@ public partial class MainWindow
     {
         if (!_rightPanelOpen || _inspectorRefreshTimer.IsEnabled) return;
         _inspectorRefreshTimer.Start();
+    }
+
+    private async Task OpenInspectorFolderAsync()
+    {
+        // Resolve at action time through the same root mapping as Browser/Player; never persist an absolute identity.
+        Guid rootId;
+        string relativePath;
+        if (_browserPresentation == BrowserPresentationMode.PlayerViewer && _playerViewerHost?.CurrentAsset is { } asset)
+        { rootId = asset.RootId; relativePath = asset.RelativePath; }
+        else if (_browserGrid.SelectedTilesInBrowserOrder is { Count: 1 } selected)
+        { rootId = selected[0].RootId; relativePath = selected[0].RelativePath; }
+        else return;
+        var resolved = await _storage.MediaRoots.ResolveAsync(rootId, relativePath);
+        var start = InspectorFolderStartInfo(resolved);
+        if (!await Task.Run(() => System.IO.Directory.Exists(start.ArgumentList[0])))
+            throw new System.IO.DirectoryNotFoundException("The containing folder is unavailable.");
+        System.Diagnostics.Process.Start(start);
+    }
+
+    internal static System.Diagnostics.ProcessStartInfo InspectorFolderStartInfo(MediaPathResolution resolved)
+    {
+        if (resolved.RootAvailability != MediaRootAvailability.Online || resolved.PhysicalPath is null)
+            throw new System.IO.DirectoryNotFoundException("The containing folder is unavailable. Connect the media root and try again.");
+        var folder = System.IO.Path.GetDirectoryName(resolved.PhysicalPath)
+            ?? throw new System.IO.DirectoryNotFoundException("The containing folder is unavailable.");
+        var start = new System.Diagnostics.ProcessStartInfo("explorer.exe") { UseShellExecute = true };
+        start.ArgumentList.Add(folder);
+        return start;
     }
 
     private void RightPanelToggle_Click(object sender, RoutedEventArgs e) => SetRightPanelOpen(RightPanelToggle.IsChecked == true);

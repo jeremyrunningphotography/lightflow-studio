@@ -546,8 +546,13 @@
       <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="JEREMY RUNNING PHOTOGRAPHY"/>
      </StackPanel>
     </StackPanel>
-    <ToggleButton Grid.Column="1" x:Name="RightPanelToggle" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Content="Inspector" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0" Padding="12,7"
-     ToolTip="Open or close Inspector (Ctrl+I)" AutomationProperties.Name="Inspector Right Panel" Click="RightPanelToggle_Click"/>
+    <ToggleButton Grid.Column="1" x:Name="RightPanelToggle" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Width="36" Height="36" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0" Padding="8"
+     ToolTip="Toggle Right Panel — Inspector (Ctrl+I)" AutomationProperties.Name="Toggle Right Panel" Click="RightPanelToggle_Click">
+     <Grid Width="18" Height="16" IsHitTestVisible="False">
+      <Border BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" BorderThickness="1.5" CornerRadius="2"/>
+      <Border Width="6" HorizontalAlignment="Right" Margin="0,2,2,2" Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Opacity="0.75"/>
+     </Grid>
+    </ToggleButton>
     <Button Grid.Column="2" x:Name="ApplicationMenuButton" Width="36" Height="36" Padding="0" Margin="8,0,0,0"
      VerticalAlignment="Center" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Content="&#xE713;"
      ToolTip="Application menu" AutomationProperties.Name="Application menu" AutomationProperties.HelpText="Open Settings or About"

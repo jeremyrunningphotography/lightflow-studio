@@ -7,6 +7,7 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
 {
     private Func<MediaInspectorService>? _service;
     private IReadOnlyList<InspectorAsset> _context = [];
+    private IReadOnlyList<InspectorAsset> _displayedContext = [];
     private bool _playerContext;
     private CancellationTokenSource? _hydration;
     private long _generation;
@@ -14,6 +15,8 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     private bool _reading;
     private bool _refreshAgain;
     internal event EventHandler? OpenPlayerRequested;
+    internal Func<Task>? OpenFolder { get; set; }
+    internal bool IsPlayerContext => _playerContext;
 
     public MediaInspectorView() => InitializeComponent();
     internal void Initialize(Func<MediaInspectorService> service) => _service = service;
@@ -41,18 +44,21 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
         _hydration = new();
         var token = _hydration.Token;
         _snapshot = null;
-        PreviewImage.Source = null;
+        if (!_context.Select(a => (a.AssetId, a.RelativePath, a.Kind))
+            .SequenceEqual(_displayedContext.Select(a => (a.AssetId, a.RelativePath, a.Kind))))
+        {
+            PreviewImage.Source = null;
+            FieldGroups.ItemsSource = null;
+        }
+        _displayedContext = _context;
         PreviewStatus.Text = "";
-        FieldGroups.ItemsSource = null;
-        RawRows.ItemsSource = null;
-        RawStatus.Text = "";
-        ContextText.Text = _playerContext ? "PLAYER" : "BROWSER SELECTION";
         OpenPlayerButton.Visibility = !_playerContext && _context.Count == 1 && _context[0].Kind == MediaPresentationKind.Video
             ? Visibility.Visible : Visibility.Collapsed;
         TitleText.Text = _context.Count == 1 ? _context[0].Name : _context.Count > 1 ? $"{_context.Count:N0} selected assets" : "Select media to inspect";
-        StatusText.Text = _context.Count == 0 ? "Select one or more Browser assets, or open media in Player." : "Loading metadata…";
+        StatusText.Text = _context.Count == 0 ? "Select one or more Browser assets, or open media in Player." : "";
         if (_context.Count == 0 || !IsVisible || _service is null) return;
         _reading = true;
+        _ = ShowSlowLoadingAsync(generation, token);
         try
         {
             // A short cancellable debounce prevents a rapid key-repeat from queueing store reads.
@@ -63,16 +69,15 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
             TitleText.Text = snapshot.Title;
             StatusText.Text = snapshot.Status;
             FieldGroups.ItemsSource = snapshot.Fields.GroupBy(f => f.Group).ToArray();
-            ApplyRawSearch();
             if (_context.Count == 1)
             {
-                PreviewStatus.Text = _playerContext ? "Media is presented in Player." : "Cached Preview unavailable or pending.";
-                if (!_playerContext && snapshot.PreviewPath is { } path)
+                PreviewStatus.Text = snapshot.PreviewPath is null ? "Cached Preview unavailable or pending." : "";
+                if (snapshot.PreviewPath is { } path)
                 {
                     var bitmap = await Task.Run(() => PlayerViewerHost.DecodeImage(path), token);
                     if (generation != _generation || token.IsCancellationRequested) return;
                     PreviewImage.Source = bitmap;
-                    PreviewStatus.Text = "Cached Preview";
+                    PreviewStatus.Text = "";
                 }
             }
         }
@@ -92,17 +97,24 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
             }
         }
     }
-    private void ApplyRawSearch()
+    private async Task ShowSlowLoadingAsync(long generation, CancellationToken token)
     {
-        if (_snapshot is null) return;
-        var matches = MediaInspectorService.SearchRaw(_snapshot.Raw, RawSearch.Text.Trim());
-        RawRows.ItemsSource = matches;
-        RawStatus.Text = _context.Count > 1 ? "Select one asset to search its raw provider snapshot." :
-            _snapshot.Raw.Count == 0 ? "No raw provider snapshot available." :
-            $"{matches.Count:N0} of {_snapshot.Raw.Count:N0} fields · provider / namespace path" +
-            (_snapshot.RawTruncated ? " · first 10,000 fields shown" : "");
+        try
+        {
+            await Task.Delay(750, token);
+            if (generation == _generation && _reading && _snapshot is null) StatusText.Text = "Loading metadata…";
+        }
+        catch (OperationCanceledException) { }
     }
-    private void RawSearch_Changed(object sender, TextChangedEventArgs e) => ApplyRawSearch();
+    private async void OpenFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var generation = _generation;
+        try { if (OpenFolder is not null) await OpenFolder(); }
+        catch (Exception exception)
+        {
+            if (generation == _generation) StatusText.Text = $"Could not open folder: {exception.Message}";
+        }
+    }
     private void OpenPlayer_Click(object sender, RoutedEventArgs e) => OpenPlayerRequested?.Invoke(this, EventArgs.Empty);
     private void Inspector_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e) => _ = RefreshAsync();
     public void Dispose()

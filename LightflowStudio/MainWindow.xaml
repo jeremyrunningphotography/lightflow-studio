@@ -1236,9 +1236,9 @@
      <!-- A dedicated, topmost adorner surface keeps Explorer-style file-drag feedback inside this
           visible area and independent of whichever scroll/template visual initiated the drag. -->
      <GridSplitter Grid.Column="3" x:Name="RightPanelSplitter" Width="8" HorizontalAlignment="Stretch" Visibility="Collapsed"
-      ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" ShowsPreview="True" DragCompleted="RightPanelSplitter_DragCompleted"
+      ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent" Cursor="SizeWE" DragCompleted="RightPanelSplitter_DragCompleted"
       AutomationProperties.Name="Resize Right Panel" AutomationProperties.HelpText="Use Left and Right arrow keys to resize" Focusable="True" PreviewKeyDown="RightPanelSplitter_PreviewKeyDown">
-      <GridSplitter.Style><Style TargetType="GridSplitter"><Setter Property="Background" Value="Transparent"/><Style.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Background" Value="{StaticResource ShellFocusBrush}"/></Trigger></Style.Triggers></Style></GridSplitter.Style>
+      <GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template>
      </GridSplitter>
      <local:ContextualRightPanel Grid.Column="4" x:Name="HomeRightPanel" Visibility="Collapsed" MinWidth="0"/>
      <AdornerDecorator Grid.ColumnSpan="3" Panel.ZIndex="100" IsHitTestVisible="False">

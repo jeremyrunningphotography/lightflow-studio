@@ -477,7 +477,7 @@ public sealed class JobsPresentationTests
     {
         var document = DrawerDocument();
         var pull = Named(document, "JobsDrawerPullButton");
-        var switcher = Named(document, "RightDrawerPullSwitcher");
+        var switcher = Named(document, "JobsDrawerPullHost");
         var main = Named(document, "MainTabs");
         var drawer = Named(document, "JobsDrawer");
         var splitter = Named(document, "JobsDrawerSplitter");

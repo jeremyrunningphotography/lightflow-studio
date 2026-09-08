@@ -547,7 +547,7 @@
      </StackPanel>
     </StackPanel>
     <ToggleButton Grid.Column="1" x:Name="RightPanelToggle" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Width="36" Height="36" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0" Padding="8"
-     ToolTip="Toggle Right Panel — Inspector (Ctrl+I)" AutomationProperties.Name="Toggle Right Panel" Click="RightPanelToggle_Click">
+     ToolTip="Toggle Right Panel (Ctrl+I)" AutomationProperties.Name="Toggle Right Panel" Click="RightPanelToggle_Click">
      <Grid Width="18" Height="16" IsHitTestVisible="False">
       <Border BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" BorderThickness="1.5" CornerRadius="2"/>
       <Border Width="6" HorizontalAlignment="Right" Margin="0,2,2,2" Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Opacity="0.75"/>
@@ -1545,9 +1545,8 @@
     </Border></Grid>
    </TabItem>
   </TabControl>
-  <StackPanel Grid.Column="0" x:Name="RightDrawerPullSwitcher" HorizontalAlignment="Right" VerticalAlignment="Center">
+  <StackPanel Grid.Column="0" x:Name="JobsDrawerPullHost" HorizontalAlignment="Right" VerticalAlignment="Center">
    <Button x:Name="JobsDrawerPullButton" Style="{StaticResource DrawerPullButton}" Tag="Idle" ToolTip="Open Jobs drawer" AutomationProperties.Name="Open Jobs drawer" Click="JobsDrawerPull_Click"><StackPanel HorizontalAlignment="Center"><TextBlock x:Name="JobsDrawerPullChevron" HorizontalAlignment="Center" FontSize="15" Text="‹"/><TextBlock Margin="0,4,0,0" HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="10" Text="Jobs"><TextBlock.LayoutTransform><RotateTransform Angle="90"/></TextBlock.LayoutTransform></TextBlock><TextBlock x:Name="JobsDrawerPullCount" Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="10" Visibility="Collapsed"/></StackPanel></Button>
-   <Button x:Name="SubclipsDrawerPullButton" Style="{StaticResource DrawerPullButton}" Margin="0,8,0,0" Visibility="Collapsed" ToolTip="Open Subclips drawer" AutomationProperties.Name="Open Subclips drawer" Click="SubclipsDrawerPull_Click"><StackPanel HorizontalAlignment="Center"><TextBlock x:Name="SubclipsDrawerPullChevron" HorizontalAlignment="Center" FontSize="15" Text="‹"/><TextBlock Margin="0,4,0,0" HorizontalAlignment="Center" FontWeight="SemiBold" FontSize="10" Text="Subclips"><TextBlock.LayoutTransform><RotateTransform Angle="90"/></TextBlock.LayoutTransform></TextBlock></StackPanel></Button>
   </StackPanel>
   <GridSplitter Grid.Column="1" x:Name="JobsDrawerSplitter" Width="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent" Cursor="SizeWE" Visibility="Collapsed" ToolTip="Drag to resize Jobs drawer" AutomationProperties.Name="Resize Jobs drawer"><GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Grid Background="Transparent"/></ControlTemplate></GridSplitter.Template></GridSplitter>
   <Border Grid.Column="2" x:Name="JobsDrawer" Style="{StaticResource DrawerBody}" MinWidth="340" MaxWidth="620" ClipToBounds="True" Visibility="Collapsed">

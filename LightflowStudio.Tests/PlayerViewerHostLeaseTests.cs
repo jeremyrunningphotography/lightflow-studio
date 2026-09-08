@@ -571,7 +571,7 @@ public sealed class PlayerViewerHostLeaseTests
             var range = new MediaRange(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(50));
             var store = new FakeRangeStore(range);
             var host = new PlayerViewerHost(coordinator, store, subclips);
-            var window = new Window { Content = host };
+            var window = CreateSubclipWindow(host);
             window.Show();
 
             await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, assetId),
@@ -579,17 +579,30 @@ public sealed class PlayerViewerHostLeaseTests
 
             Assert.Equal(2, host.SubclipsList.Items.Count);
             Assert.Equal("Earlier take", ((SubclipPanelItem)host.SubclipsList.Items[0]).Name);
-            Assert.Equal(Visibility.Visible, host.SubclipsPanel.Visibility);
-            host.SetSubclipsDrawerOpen(false);
-            Assert.Equal(Visibility.Collapsed, host.SubclipsPanel.Visibility);
-            host.SetSubclipsDrawerOpen(true);
-            Assert.Equal(Visibility.Visible, host.SubclipsPanel.Visibility);
+            Assert.Equal(Visibility.Visible, PanelFor(window).Visibility);
+            PanelFor(window).Visibility = Visibility.Collapsed;
+            Assert.Equal(Visibility.Collapsed, PanelFor(window).Visibility);
+            PanelFor(window).Visibility = Visibility.Visible;
+            Assert.Equal(Visibility.Visible, PanelFor(window).Visibility);
             host.SubclipsList.SelectedItems.Add(host.SubclipsList.Items[0]);
             host.SubclipsList.SelectedItems.Add(host.SubclipsList.Items[1]);
             await WaitUntilAsync(() => backend.SeekPositions.Contains(TimeSpan.FromSeconds(30)), "Subclip In seek");
             Assert.Equal(0, store.SaveCount);
             Assert.Equal(2, host.SelectedSubclipIds.Count);
             Assert.Equal(subclips.Items[0].SubclipId, host.ActiveSubclipId);
+            var selectedIds = host.SelectedSubclipIds.Order().ToArray();
+            var seekCountBeforeTabs = backend.SeekPositions.Count;
+            for (var i = 0; i < 4; i++)
+            {
+                PanelFor(window).SelectSurface("inspector");
+                PanelFor(window).SelectSurface("subclips");
+                PanelFor(window).Visibility = Visibility.Collapsed;
+                PanelFor(window).Visibility = Visibility.Visible;
+            }
+            Assert.Equal(selectedIds, host.SelectedSubclipIds.Order());
+            Assert.Equal(subclips.Items[0].SubclipId, host.ActiveSubclipId);
+            Assert.Equal(seekCountBeforeTabs, backend.SeekPositions.Count);
+            Assert.Equal(0, store.SaveCount);
             Assert.Equal("00:00:30.000", host.InTimeButton.Content);
             Assert.Equal("00:00:35.000", host.OutTimeButton.Content);
             Assert.True(host.ReviewRangeIndicator.HasActiveTrim);
@@ -639,7 +652,7 @@ public sealed class PlayerViewerHostLeaseTests
     }
 
     [Fact]
-    public async Task VideoWithoutSubclips_ShowsPullWithoutReservingDrawerWidthUntilCreateOpensIt()
+    public async Task VideoWithoutSubclips_DoesNotRevealPanelUntilCreate()
     {
         await StaDispatcher.RunAsync(async () =>
         {
@@ -652,18 +665,18 @@ public sealed class PlayerViewerHostLeaseTests
                 TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2))), subclips);
             var stateChanges = new List<SubclipStateChangedEventArgs>();
             host.SubclipStateChanged += (_, change) => stateChanges.Add(change);
-            var window = new Window { Content = host };
+            var window = CreateSubclipWindow(host);
             window.Show();
             await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, assetId),
                 new(Guid.NewGuid(), "clip.mp4", "clip.mp4", Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
 
             Assert.True(host.AddSubclipButton.IsEnabled);
-            Assert.Equal(Visibility.Collapsed, host.SubclipsPanel.Visibility);
-            Assert.Equal(0, host.SubclipsPanel.ActualWidth);
+            Assert.Equal(Visibility.Collapsed, PanelFor(window).Visibility);
+            Assert.False(host.SubclipsContent.IsVisible);
             Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
             await WaitUntilAsync(() => host.SubclipsList.Items.Count == 1, "created Subclip");
             Assert.Contains(stateChanges, change => change.AssetId == assetId && change.HasSubclips);
-            Assert.Equal(Visibility.Visible, host.SubclipsPanel.Visibility);
+            Assert.Equal(Visibility.Visible, PanelFor(window).Visibility);
             var existingId = ((SubclipPanelItem)host.SubclipsList.Items[0]).SubclipId;
             Key(host, window, System.Windows.Input.Key.S, UIElement.PreviewKeyDownEvent);
             await WaitUntilAsync(() => subclips.CreateCount == 2, "duplicate Subclip result");
@@ -685,7 +698,7 @@ public sealed class PlayerViewerHostLeaseTests
             var store = new FakeRangeStore(null);
             var subclips = new FakeSubclipService();
             var host = new PlayerViewerHost(coordinator, store, subclips);
-            var window = new Window { Content = host };
+            var window = CreateSubclipWindow(host);
             window.Show();
             await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, Guid.NewGuid()),
                 new(Guid.NewGuid(), "clip.mp4", "clip.mp4", Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
@@ -701,9 +714,9 @@ public sealed class PlayerViewerHostLeaseTests
             Assert.Equal(TimeSpan.FromSeconds(10), store.SavedRange?.In);
             Assert.True(host.AddSubclipButton.IsEnabled);
 
-            host.SetSubclipsDrawerOpen(true);
-            host.SetSubclipsDrawerOpen(false);
-            host.SetSubclipsDrawerOpen(true);
+            PanelFor(window).Visibility = Visibility.Visible;
+            PanelFor(window).Visibility = Visibility.Collapsed;
+            PanelFor(window).Visibility = Visibility.Visible;
             var drawerChrome = new System.Windows.Controls.Button();
             var playCallsBeforeDrawer = backend.PlayCallCount;
             var pauseCallsBeforeDrawer = backend.PauseCallCount;
@@ -752,11 +765,11 @@ public sealed class PlayerViewerHostLeaseTests
             subclips.Items.Add(saved);
             var store = new FakeRangeStore(new(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(50)));
             var host = new PlayerViewerHost(coordinator, store, subclips);
-            var window = new Window { Content = host };
+            var window = CreateSubclipWindow(host);
             window.Show();
             await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, assetId),
                 new(Guid.NewGuid(), "clip.mp4", "clip.mp4", Path.GetFullPath("clip.mp4"), MediaRootAvailability.Online, true));
-            host.UpdateLayout();
+            window.UpdateLayout();
             var container = (System.Windows.Controls.ListBoxItem)host.SubclipsList.ItemContainerGenerator.ContainerFromIndex(0);
             host.SubclipsList.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
                 System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
@@ -785,7 +798,7 @@ public sealed class PlayerViewerHostLeaseTests
             var store = new FakeRangeStore(range);
             var subclips = new FakeSubclipService();
             var host = new PlayerViewerHost(coordinator, store, subclips);
-            var window = new Window { Content = host };
+            var window = CreateSubclipWindow(host);
             window.Show();
             var assetId = Guid.NewGuid();
             await host.OpenAsync(new(Guid.NewGuid(), "clip.mp4", "clip.mp4", "clip.mp4", MediaPresentationKind.Video, assetId),
@@ -924,6 +937,28 @@ public sealed class PlayerViewerHostLeaseTests
             await WaitUntilAsync(() => backend.PlayCallCount == 1, "playback start");
             await WaitUntilAsync(() => !host.SetPreviewFrameButton.IsEnabled, "playing Preview-frame disablement");
         });
+    }
+
+    private static ContextualRightPanel PanelFor(Window window) =>
+        (ContextualRightPanel)((System.Windows.Controls.Grid)window.Content).Children[1];
+
+    private static Window CreateSubclipWindow(PlayerViewerHost host)
+    {
+        var panel = new ContextualRightPanel { Visibility = Visibility.Collapsed };
+        panel.AddSurface("inspector", "Inspector", new System.Windows.Controls.Border());
+        panel.AddSurface("subclips", "Subclips", host.SubclipsContent);
+        host.SubclipsRevealRequested += (_, _) =>
+        {
+            panel.SelectSurface("subclips");
+            panel.Visibility = Visibility.Visible;
+        };
+        var layout = new System.Windows.Controls.Grid();
+        layout.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
+        layout.ColumnDefinitions.Add(new() { Width = new GridLength(360) });
+        layout.Children.Add(host);
+        layout.Children.Add(panel);
+        System.Windows.Controls.Grid.SetColumn(panel, 1);
+        return new Window { Content = layout, Width = 1000, Height = 700 };
     }
 
     private static void Space(PlayerViewerHost host, Window window) => host.RaiseEvent(

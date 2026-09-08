@@ -55,6 +55,10 @@ public partial class MainWindow
         _inspectorRefreshTimer.Start();
     }
 
+    private void UpdateSubclipsSurfaceAvailability() => HomeRightPanel.SetSurfaceAvailable("subclips",
+        _browserPresentation == BrowserPresentationMode.PlayerViewer &&
+        _playerViewerHost?.CurrentAsset is { Kind: MediaPresentationKind.Video, AssetId: not null });
+
     private async Task OpenInspectorFolderAsync()
     {
         // Resolve at action time through the same root mapping as Browser/Player; never persist an absolute identity.

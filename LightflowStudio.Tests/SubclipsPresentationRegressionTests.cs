@@ -3,14 +3,13 @@ using Xunit;
 
 namespace LightflowStudio.Tests;
 
-public sealed class SubclipDrawerRegressionTests
+public sealed class SubclipsPresentationRegressionTests
 {
     [Fact]
-    public void DrawerPresentation_HasFocusedHeaderCompactFooterAndExtendedSelection()
+    public void PanelPresentation_ReusesCompactActionsAndExtendedSelection()
     {
-        var document = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml"));
+        var document = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "SubclipsView.xaml"));
         var shell = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
-        var pull = Named(shell, "SubclipsDrawerPullButton");
         var panel = Named(document, "SubclipsPanel");
         var list = Named(document, "SubclipsList");
         var exportButton = Named(document, "ExportSubclipsButton");
@@ -18,11 +17,8 @@ public sealed class SubclipDrawerRegressionTests
         var exportAll = Named(document, "ExportAllSubclipsMenuItem");
         var delete = Named(document, "DeleteSelectedSubclipsButton");
         var actionBar = Named(document, "SubclipsActionBar");
-        var title = document.Descendants().Single(element => (string?)element.Attribute("Text") == "SUBCLIPS");
         var names = document.Descendants().Where(element => (string?)element.Attribute("Text") == "{Binding Name}").ToArray();
 
-        Assert.Equal("Collapsed", (string?)pull.Attribute("Visibility"));
-        Assert.Equal("Collapsed", (string?)panel.Attribute("Visibility"));
         Assert.Equal("Extended", (string?)list.Attribute("SelectionMode"));
         Assert.Equal("False", (string?)exportSelected.Attribute("IsEnabled"));
         Assert.Equal("Export selected Subclips", (string?)exportSelected.Attribute("AutomationProperties.Name"));
@@ -33,14 +29,9 @@ public sealed class SubclipDrawerRegressionTests
         Assert.Equal("2", (string?)actionBar.Attribute("Grid.Row"));
         Assert.Equal("0,8,0,0", (string?)actionBar.Attribute("Margin"));
         Assert.Equal("SubclipsPanel_PreviewMouseLeftButtonDown", (string?)panel.Attribute("PreviewMouseLeftButtonDown"));
-        Assert.Equal("Saved ranges for this source", (string?)title.Attribute("ToolTip"));
-        var header = title.Parent!;
-        Assert.Equal(["SUBCLIPS"], header.Elements().Where(element => element.Name.LocalName == "TextBlock")
-            .Select(element => (string?)element.Attribute("Text")));
-        Assert.Equal(["+ Subclip"], header.Elements().Where(element => element.Name.LocalName == "Button")
-            .Select(element => (string?)element.Attribute("Content")));
-        Assert.DoesNotContain(document.Descendants(), element =>
-            (string?)element.Attribute("Text") == "Saved ranges for this source" && !ReferenceEquals(element, title));
+        Assert.Null(panel.Attribute("Width"));
+        Assert.Null(panel.Attribute("Visibility"));
+        Assert.DoesNotContain(document.Descendants(), element => (string?)element.Attribute("Text") == "SUBCLIPS");
         Assert.Contains(names, element => ((string?)element.Attribute("Foreground"))?.Contains("TextBrush") == true);
         Assert.All(names, element => Assert.NotEqual("Black", (string?)element.Attribute("Foreground")));
         Assert.DoesNotContain(document.Descendants(), element =>
@@ -52,8 +43,8 @@ public sealed class SubclipDrawerRegressionTests
     {
         var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
         var request = Body(source, "private void RequestSubclipExport");
-        var background = Body(source, "private void SubclipsPanel_PreviewMouseLeftButtonDown");
-        var delete = Body(source, "private async void DeleteSelectedSubclips_Click");
+        var background = Body(source, "internal void SubclipsPanel_PreviewMouseLeftButtonDown");
+        var delete = Body(source, "internal async void DeleteSelectedSubclips_Click");
 
         Assert.Contains("!selectedOnly || selectedIds.Contains(item.SubclipId)", request);
         Assert.Contains("_subclipItems.Where", request);
@@ -102,12 +93,12 @@ public sealed class SubclipDrawerRegressionTests
     [Fact]
     public void PlayerExportLaunchersShareOrangeOutlineStyleWithoutStylingUnrelatedControls()
     {
-        var player = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml"));
+        var player = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "SubclipsView.xaml"));
         var app = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "App.xaml"));
         var style = app.Descendants().Single(element =>
             (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "ExportLaunchButton");
 
-        Assert.Equal("{StaticResource ExportLaunchButton}", (string?)Named(player, "ExportButton").Attribute("Style"));
+        Assert.Equal("{StaticResource ExportLaunchButton}", (string?)Named(XDocument.Load(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml")), "ExportButton").Attribute("Style"));
         Assert.Equal("{StaticResource ExportLaunchButton}", (string?)Named(player, "ExportSubclipsButton").Attribute("Style"));
         Assert.Contains(style.Elements(), setter => (string?)setter.Attribute("Property") == "BorderBrush" &&
             (string?)setter.Attribute("Value") == "{StaticResource OrangeBrush}");
@@ -134,49 +125,24 @@ public sealed class SubclipDrawerRegressionTests
     }
 
     [Fact]
-    public void ShellCoordinator_IsSingleAuthorityForJobsAndSubclipsMutualExclusion()
+    public void SubclipsUsesSharedSurfaceAndJobsKeepsIndependentDrawer()
     {
+        var shell = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
         var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
-        var coordinator = Body(source, "private void SetRightDrawer");
-        var jobsOpen = Body(source, "private void OpenJobsDrawer");
-
-        Assert.Contains("RightDrawerKind", coordinator);
-        Assert.Contains("SetSubclipsDrawerOpen(drawer == RightDrawerKind.Subclips)", coordinator);
-        Assert.Contains("drawer != RightDrawerKind.Jobs", coordinator);
-        Assert.Contains("SetRightDrawer(RightDrawerKind.Jobs)", jobsOpen);
-        Assert.Contains("SetRightDrawer(request.Open ? RightDrawerKind.Subclips : RightDrawerKind.None)", source);
-        Assert.Contains("SetSubclipsContextAvailable", source);
-        Assert.Contains("_subclipsContextAvailable && homeActive", source);
-        Assert.Contains("SubclipsDrawerPull_Click", source);
-    }
-
-    [Fact]
-    public void DrawerPullsShareOneDpiSafeSwitcherAndDrawerVocabulary()
-    {
-        var shell = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml"));
-        var player = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml"));
-        var app = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "App.xaml"));
-        var switcher = Named(shell, "RightDrawerPullSwitcher");
-        var jobsPull = Named(shell, "JobsDrawerPullButton");
-        var subclipsPull = Named(shell, "SubclipsDrawerPullButton");
-
-        Assert.Equal(switcher, jobsPull.Parent);
-        Assert.Equal(switcher, subclipsPull.Parent);
-        Assert.Equal("{StaticResource DrawerPullButton}", (string?)jobsPull.Attribute("Style"));
-        Assert.Equal("{StaticResource DrawerPullButton}", (string?)subclipsPull.Attribute("Style"));
-        Assert.Equal("0,8,0,0", (string?)subclipsPull.Attribute("Margin"));
-        Assert.Null(jobsPull.Attribute("VerticalAlignment"));
-        Assert.Null(subclipsPull.Attribute("VerticalAlignment"));
-        Assert.Equal("{StaticResource DrawerBody}", (string?)Named(shell, "JobsDrawer").Attribute("Style"));
-        Assert.Equal("{StaticResource DrawerBody}", (string?)Named(player, "SubclipsPanel").Attribute("Style"));
-        Assert.Contains(app.Descendants(), element =>
-            (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "DrawerCard");
+        var player = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml"));
+        Assert.DoesNotContain("SubclipsDrawer", shell + source);
+        Assert.DoesNotContain("RightDrawerKind", source);
+        Assert.DoesNotContain("SubclipsPanel", player);
+        Assert.Contains("HomeRightPanel.AddSurface(\"subclips\"", source);
+        Assert.Contains("SubclipsRevealRequested", source);
+        Assert.DoesNotContain("HomeRightPanel", Body(source, "private void OpenJobsDrawer"));
+        Assert.Contains("JobsDrawerPullButton", shell);
     }
 
     [Fact]
     public void BulkDeleteIsDestructiveAndNameRowUsesPersistentVectorRenameAffordance()
     {
-        var player = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml"));
+        var player = XDocument.Load(Path.Combine(Root(), "LightflowStudio", "SubclipsView.xaml"));
         var delete = Named(player, "DeleteSelectedSubclipsButton");
         var nameRow = Named(player, "SubclipNameRow");
         var name = Named(player, "SubclipNameText");
@@ -201,8 +167,8 @@ public sealed class SubclipDrawerRegressionTests
             ((string?)element.Attribute("AutomationProperties.Name"))?.StartsWith("Move Subclip", StringComparison.Ordinal) == true);
 
         var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
-        var begin = Body(source, "private void RenameSubclip_Click");
-        var key = Body(source, "private async void SubclipName_KeyDown");
+        var begin = Body(source, "internal void RenameSubclip_Click");
+        var key = Body(source, "internal async void SubclipName_KeyDown");
         var commit = Body(source, "private async Task CommitRenameAsync");
         var shortcuts = Body(source, "private void PlayerViewerHost_PreviewKeyDown");
         var shortcutPolicy = Body(source, "internal bool TryHandleShortcut");

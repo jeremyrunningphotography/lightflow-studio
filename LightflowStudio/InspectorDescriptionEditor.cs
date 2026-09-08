@@ -27,6 +27,15 @@ internal sealed class InspectorDescriptionField : InspectorObservable
         _ => Field.ToString()
     };
     public bool Multiline => Field is AssetDescriptionField.Description or AssetDescriptionField.Notes;
+    public string Placeholder => Field switch
+    {
+        AssetDescriptionField.Title => "Add a title…",
+        AssetDescriptionField.Description => "Add a caption…",
+        AssetDescriptionField.Notes => "Anything to remember?",
+        AssetDescriptionField.CreatorOverride => "Who created this?",
+        AssetDescriptionField.CreditOverride => "Who should get credit?",
+        _ => ""
+    };
     public bool IsMixed { get; }
     private readonly string _valueState;
     public string ValueState => IsDirty ? Text.Length == 0 ? "Will clear on Apply" : "Edited · not applied" : _valueState;

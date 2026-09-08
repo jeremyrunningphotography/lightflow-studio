@@ -33,6 +33,8 @@
   original context. Controls are suspended while an approved transition is pending. Reload values discards
   drafts after confirmation, including after a revision conflict.
 - Use normal keyboard-accessible controls within the existing panel scroll area. Focus loss never saves.
+- Unapplied edits turn the field label orange instead of adding a status line. Preserve the mixed hint's
+  space while editing to avoid layout shifts. Empty non-mixed editors show casual, display-only placeholders.
 
 ## Design goal
 

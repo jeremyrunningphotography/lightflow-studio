@@ -572,7 +572,7 @@
    SelectionChanged="MainTabs_SelectionChanged">
    <TabItem>
     <Grid x:Name="BrowserWorkspaceRoot" Background="{StaticResource ShellCanvasBrush}" Margin="{StaticResource ShellWorkspacePadding}"
-     SizeChanged="BrowserWorkspaceRoot_SizeChanged" PreviewMouseMove="BrowserWorkspaceRoot_PreviewMouseMove"
+     SizeChanged="BrowserWorkspaceRoot_SizeChanged"
      GiveFeedback="BrowserFileDrag_GiveFeedback">
       <Grid.ColumnDefinitions><ColumnDefinition x:Name="BrowserNavigationColumn" Width="280" MinWidth="220" MaxWidth="520"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/><ColumnDefinition x:Name="RightPanelSplitterColumn" Width="0"/><ColumnDefinition x:Name="RightPanelColumn" Width="0"/></Grid.ColumnDefinitions>
       <Border Style="{StaticResource ShellPanel}">
@@ -1019,6 +1019,7 @@
         UseLayoutRounding="True" SizeChanged="BrowserGridHost_SizeChanged" MouseLeftButtonDown="BrowserGridHost_MouseLeftButtonDown">
         <Grid Background="Transparent">
          <ItemsControl x:Name="BrowserGridRows" Background="Transparent" Focusable="True" KeyDown="BrowserGridRows_KeyDown"
+          PreviewMouseMove="BrowserGridRows_PreviewMouseMove"
           ContextMenuOpening="BrowserGridBackground_ContextMenuOpening"
           AutomationProperties.Name="Media grid"
           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">

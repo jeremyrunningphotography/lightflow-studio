@@ -19,7 +19,8 @@ public sealed class FileOperationPresentationRegressionTests
         Assert.Equal("BrowserFolderTree_PreviewMouseLeftButtonUp",
             (string?)Named(document, "BrowserFolderTree").Attribute("PreviewMouseLeftButtonUp"));
         var workspace = Named(document, "BrowserWorkspaceRoot");
-        Assert.Equal("BrowserWorkspaceRoot_PreviewMouseMove", (string?)workspace.Attribute("PreviewMouseMove"));
+        Assert.Null(workspace.Attribute("PreviewMouseMove"));
+        Assert.Equal("BrowserGridRows_PreviewMouseMove", (string?)Named(document, "BrowserGridRows").Attribute("PreviewMouseMove"));
         Assert.Equal("BrowserFileDrag_GiveFeedback", (string?)workspace.Attribute("GiveFeedback"));
 
         var code = File.ReadAllText(Path.Combine(root, "LightflowStudio", "MainWindow.xaml.cs"));
@@ -76,7 +77,7 @@ public sealed class FileOperationPresentationRegressionTests
     public void TileDragResolvesSourcesFromTheComputedDragAssetIds()
     {
         var code = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
-        var start = code.IndexOf("private async void BrowserWorkspaceRoot_PreviewMouseMove", StringComparison.Ordinal);
+        var start = code.IndexOf("private async void BrowserGridRows_PreviewMouseMove", StringComparison.Ordinal);
         var end = code.IndexOf("private void BrowserGridTile_DragOver", start, StringComparison.Ordinal);
         var body = code[start..end];
         Assert.Contains("FileOperationSourcesAsync(ids)", body);

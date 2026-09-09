@@ -123,6 +123,7 @@ public partial class MainWindow : Window
     private BrowserCollectionNode? _collectionDragNode;
     private System.Windows.Point _browserAssetDragStart;
     private BrowserGridTile? _browserAssetDragTile;
+    private long _browserAssetGestureGeneration;
     private int _fileSystemMutationPresentationDepth;
     private BrowserGridTile? _browserAssetPendingSingleSelection;
     private BrowserCollectionNode? _browserCollectionPointerTarget;
@@ -215,6 +216,11 @@ public partial class MainWindow : Window
         InitializeBrowserQuickFilterButtons();
         SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
+        // End stale tile gestures even when release is handled by chrome or lands outside the tile.
+        AddHandler(Mouse.PreviewMouseDownEvent, new MouseButtonEventHandler((_, _) => ResetBrowserAssetGesture()), true);
+        AddHandler(Mouse.MouseUpEvent, new MouseButtonEventHandler((_, _) => ResetBrowserAssetGesture()), true);
+        BrowserGridRows.LostMouseCapture += (_, _) => ResetBrowserAssetGesture();
+        Deactivated += (_, _) => ResetBrowserAssetGesture();
         InitializeRightPanel();
         _storage.ThumbnailActivity.Changed += (_, change) => Dispatcher.BeginInvoke(() =>
             _browserGrid.ApplyThumbnailGenerating(change.AssetId, change.IsGenerating));
@@ -314,6 +320,7 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            ResetBrowserAssetGesture();
             _inspectorRefreshTimer.Stop();
             _inspector?.Dispose();
             _exportCoordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -978,8 +985,7 @@ public partial class MainWindow : Window
 
     private void BrowserFolderTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        _browserAssetDragTile = null;
-        _browserAssetPendingSingleSelection = null;
+        ResetBrowserAssetGesture();
         _browserFolderPointerTarget = BrowserTreeNodeFromElement(e.OriginalSource as DependencyObject);
         _browserFolderDragNode = _browserFolderPointerTarget;
         _browserFolderDragStart = e.GetPosition(BrowserFolderTree);
@@ -1446,6 +1452,8 @@ public partial class MainWindow : Window
 
     private void BrowserGridTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        ResetBrowserAssetGesture();
+        if (_browserPresentation != BrowserPresentationMode.Grid) return;
         if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
         _browserFolderDragNode = null;
         _browserAssetPendingSingleSelection = null;
@@ -1493,26 +1501,57 @@ public partial class MainWindow : Window
         ((MenuItem)menu.Items[8]).IsEnabled = state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled;
     }
 
-    private async void BrowserWorkspaceRoot_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    private void ResetBrowserAssetGesture()
     {
-        if (e.LeftButton != MouseButtonState.Pressed || _browserAssetDragTile is null) return;
-        var current = e.GetPosition(BrowserGridRows);
-        if (Math.Abs(current.X - _browserAssetDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
-            Math.Abs(current.Y - _browserAssetDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
-        var tile = _browserAssetDragTile;
+        _browserAssetGestureGeneration++;
         _browserAssetDragTile = null;
+        _browserAssetDragStart = default;
         _browserAssetPendingSingleSelection = null;
+    }
+
+    // The tile gesture owns no mouse capture. Do not release capture belonging to a Player control.
+    // Taking an origin consumes it once; the generation also invalidates asynchronous source resolution.
+    internal BrowserGridTile? TakeBrowserAssetDrag(System.Windows.Point current, MouseButtonState leftButton)
+    {
+        if (_browserPresentation != BrowserPresentationMode.Grid || leftButton != MouseButtonState.Pressed)
+        {
+            ResetBrowserAssetGesture();
+            return null;
+        }
+        if (_browserAssetDragTile is null) return null;
+        if (Math.Abs(current.X - _browserAssetDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - _browserAssetDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return null;
+        var tile = _browserAssetDragTile;
+        ResetBrowserAssetGesture();
+        return tile;
+    }
+
+    internal bool IsBrowserAssetDragCurrent(long generation, MouseButtonState leftButton) =>
+        generation == _browserAssetGestureGeneration && _browserPresentation == BrowserPresentationMode.Grid &&
+        leftButton == MouseButtonState.Pressed;
+
+    private async void BrowserGridRows_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        var tile = TakeBrowserAssetDrag(e.GetPosition(BrowserGridRows), e.LeftButton);
+        if (tile is null) return;
+        var generation = _browserAssetGestureGeneration;
         var ids = BrowserAssetDragSelection.AssetIdsForDrag(tile.IsSelected, tile.AssetId,
             _browserGrid.SelectedAssetIdsInBrowserOrder);
         if (ids.Count == 0) return;
         var sources = await FileOperationSourcesAsync(ids);
+        if (!IsBrowserAssetDragCurrent(generation, Mouse.LeftButton)) return;
         var data = new System.Windows.DataObject();
         data.SetData(typeof(BrowserAssetDragPayload), new BrowserAssetDragPayload(ids));
         data.SetData(System.Windows.DataFormats.FileDrop, sources.Select(source => source.Path).ToArray());
-        ShowFileDragAdorner(sources.Count, FileOperationKind.Move, tile.ThumbnailPath, tile.CategoryGlyph);
-        System.Windows.DragDrop.DoDragDrop(BrowserGridRows, data,
-            System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
-        ClearFileDragAdorner();
+        try
+        {
+            ShowFileDragAdorner(sources.Count, FileOperationKind.Move, tile.ThumbnailPath, tile.CategoryGlyph);
+            // Rendering the first adornment pumps the dispatcher; presentation/input may have changed again.
+            if (!IsBrowserAssetDragCurrent(generation, Mouse.LeftButton)) return;
+            System.Windows.DragDrop.DoDragDrop(BrowserGridRows, data,
+                System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
+        }
+        finally { ClearFileDragAdorner(); ResetBrowserAssetGesture(); }
     }
 
     private void BrowserGridTile_DragOver(object sender, System.Windows.DragEventArgs e)
@@ -1527,8 +1566,7 @@ public partial class MainWindow : Window
     {
         if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
         var commitDeferredSelection = ReferenceEquals(tile, _browserAssetPendingSingleSelection);
-        _browserAssetPendingSingleSelection = null;
-        _browserAssetDragTile = null;
+        ResetBrowserAssetGesture();
         if (!commitDeferredSelection) return;
         _browserGrid.SelectSingle(tile.Index);
         UpdateBrowserStatusText();
@@ -1977,6 +2015,7 @@ public partial class MainWindow : Window
 
     private void SetBrowserPresentationMode(BrowserPresentationMode mode)
     {
+        ResetBrowserAssetGesture();
         _browserPresentation = mode;
         UpdateInspectorContext();
         BrowserGridHost.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;

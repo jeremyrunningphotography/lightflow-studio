@@ -86,6 +86,20 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 RaiseMouseLeftButtonDown(element!, 2);
                 await WaitUntilAsync(() => inspector.IsPlayerContext && inspector.TitleText.Text == tile.Name, "Player Inspector context");
                 var player = Assert.IsType<PlayerViewerHost>(window.BrowserPlayerHost.Content);
+                var homeContent = window.Content;
+                var selectedAsset = player.CurrentAsset;
+                window.Opacity = 0;
+                player.ToggleFullscreen();
+                Assert.Same(player, window.Content);
+                Assert.True(player.IsFullscreen);
+                Assert.True(player.TryHandleShortcut(Key.Escape, player));
+                Assert.Same(homeContent, window.Content);
+                Assert.Same(player, window.BrowserPlayerHost.Content);
+                Assert.Same(selectedAsset, player.CurrentAsset);
+                Assert.True(tile.IsSelected);
+                Assert.Same(rows, window.BrowserGridRows.ItemsSource);
+                window.Opacity = 1;
+
                 var subclipsTab = window.HomeRightPanel.SurfaceTabs.Items.Cast<TabItem>().Single(tab => Equals(tab.Tag, "subclips"));
                 Assert.Equal(Visibility.Collapsed, subclipsTab.Visibility); // Still image context.
                 var stillAsset = player.CurrentAsset!;

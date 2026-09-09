@@ -98,6 +98,7 @@ public partial class PlayerViewerHost : UserControl
         _preferredPreviewFrames = preferredPreviewFrames;
         _classifications = classifications;
         InitializeComponent();
+        InitializeReviewControls();
         SubclipsContent = new SubclipsView(this);
         SubclipsList.DataContext = _subclipItems;
     }
@@ -255,6 +256,8 @@ public partial class PlayerViewerHost : UserControl
             // not the shared playback/backend path or its authoritative decoded-timestamp semantics.
             _mediaView = new MediaPlaybackView(service);
             VideoHost.Children.Add(_mediaView);
+            _mediaView.Loaded += MediaView_Loaded;
+            InitializeSourceReview(info.Width, info.Height, info.FrameRate);
             _openMilestone?.Invoke(PlayerOpenMilestone.PresentationSurfaceCreated);
             UpdateFromSnapshot(service.Snapshot);
             SetTransportEnabled(true);
@@ -290,6 +293,7 @@ public partial class PlayerViewerHost : UserControl
         if (generation != _generation) return;
         ImageSurface.Source = bitmap;
         ImageSurface.Visibility = Visibility.Visible;
+        InitializeSourceReview(bitmap.PixelWidth, bitmap.PixelHeight, 0);
         SetStatus(null);
     }
 
@@ -314,6 +318,7 @@ public partial class PlayerViewerHost : UserControl
         // FrameStepQueue's own doc comment — there is no way to abort it), and MediaPlaybackService's existing
         // cancel-on-close/generation handling governs what happens when the close below reaches it.
         _frameStepQueue.Reset();
+        ResetReviewPresentation();
         _service?.SetColorPipeline(null, false);
         var mediaView = _mediaView;
         _mediaView = null;
@@ -640,8 +645,14 @@ public partial class PlayerViewerHost : UserControl
         MuteButton.ToolTip = muted ? "Unmute" : "Mute";
     }
 
-    private void Playback_StateChanged(object? sender, MediaPlaybackSnapshot snapshot) =>
-        Dispatcher.BeginInvoke(() => HandleStateChanged(snapshot));
+    private void Playback_StateChanged(object? sender, MediaPlaybackSnapshot snapshot)
+    {
+        var generation = _generation;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (generation == _generation && ReferenceEquals(sender, _service)) HandleStateChanged(snapshot);
+        });
+    }
 
     /// <summary>
     /// <see cref="MediaPlaybackCoordinator"/> allows only one active session at a time: a different consumer
@@ -661,6 +672,7 @@ public partial class PlayerViewerHost : UserControl
             return;
         }
         UpdateFromSnapshot(snapshot);
+        if (TryLoop(snapshot)) return;
         if (snapshot.State == MediaPlaybackState.Playing && snapshot.DisplayedTimestamp is { } displayed &&
             ReviewRangePlaybackPolicy.HasReachedArmedOutBoundary(ActivePlaybackRange, _stopAtOutDuringPlayback, displayed.Position) &&
             !_stoppingAtOut)
@@ -1449,6 +1461,7 @@ public partial class PlayerViewerHost : UserControl
                 _service.SetColorPipeline(_colorPipeline, true);
                 return true;
             case Key.Escape:
+                if (IsFullscreen) { ExitFullscreen(); return true; }
                 BackRequested?.Invoke(this, EventArgs.Empty);
                 return true;
             case Key.Space:

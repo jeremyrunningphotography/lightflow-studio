@@ -6671,6 +6671,7 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
+        _playerViewerHost?.ExitFullscreen();
         if (!TryLeaveInspectorContext()) { e.Cancel = true; return; }
         SaveBatchState();
         SaveWorkspaceState();

@@ -135,13 +135,19 @@
       <TextBlock VerticalAlignment="Center" Text="Back"/>
      </StackPanel>
     </Button>
+    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+     <ComboBox x:Name="ZoomChoice" Width="82" Margin="4,0" SelectionChanged="ZoomChoice_Changed" ToolTip="Display zoom (Ctrl+wheel); drag to pan" AutomationProperties.Name="Display zoom">
+      <ComboBoxItem Content="Fit"/><ComboBoxItem Content="50%"/><ComboBoxItem Content="100%"/><ComboBoxItem Content="200%"/><ComboBoxItem Content="400%"/>
+     </ComboBox>
+     <Button x:Name="FullscreenButton" Content="Full Screen" Click="Fullscreen_Click" ToolTip="Full Screen (double-click media); Esc to return"/>
+    </StackPanel>
     <TextBlock x:Name="AssetNameText" DockPanel.Dock="Left" Margin="14,0,0,0" VerticalAlignment="Center"
      Foreground="{StaticResource TextBrush}" FontSize="13" TextTrimming="CharacterEllipsis"/>
    </DockPanel>
 
    <!-- The one authoritative background for the media surface, matching BrowserGridHost's own single-source-of-
         background convention so no seam can appear between this and the surrounding chrome. -->
-   <Grid Grid.Row="1" Grid.Column="0" x:Name="MediaSurfaceHost" Background="Black">
+   <Grid Grid.Row="1" Grid.Column="0" x:Name="MediaSurfaceHost" Background="Black" ClipToBounds="True" SizeChanged="MediaViewport_SizeChanged">
     <Grid x:Name="VideoHost"/>
     <Image x:Name="SteppedFrameSurface" Stretch="Uniform" IsHitTestVisible="False" Visibility="Collapsed"/>
     <Image x:Name="ImageSurface" Stretch="Uniform" Visibility="Collapsed"/>
@@ -152,7 +158,14 @@
    <Border Grid.Row="2" Grid.Column="0" x:Name="TransportBar" Margin="6,0,6,6" Padding="7,5,7,5" Visibility="Collapsed"
     Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
     <Grid>
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <WrapPanel Grid.Row="5" HorizontalAlignment="Center" Margin="0,5,0,0">
+      <CheckBox x:Name="LoopChoice" Content="Loop" VerticalAlignment="Center" Margin="5,0,14,0"/>
+      <TextBlock Text="Speed" VerticalAlignment="Center" Margin="0,0,5,0"/>
+      <ComboBox x:Name="SpeedChoice" Width="72" SelectionChanged="ReviewOptions_Changed" AutomationProperties.Name="Playback speed" ToolTip="Change elapsed-time playback speed; audio follows the selected speed"/>
+      <TextBlock Text="Frame Rate Preview" VerticalAlignment="Center" Margin="14,0,5,0"/>
+      <ComboBox x:Name="CadenceChoiceBox" Width="106" SelectionChanged="ReviewOptions_Changed" AutomationProperties.Name="Frame Rate Preview" ToolTip="Preview lower frame-rate cadence independently of playback speed"/>
+     </WrapPanel>
      <Grid x:Name="ColorSurface" Margin="1,0,1,4" HorizontalAlignment="Stretch">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <StackPanel x:Name="PlayerColorGroup" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">

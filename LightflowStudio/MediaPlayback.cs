@@ -46,6 +46,7 @@ internal sealed record MediaPlaybackSourceInfo(
     bool UsesHardwareDecode)
 {
     public MediaPlaybackOpenMetrics? OpenMetrics { get; init; }
+    public double FrameRate { get; init; }
 }
 
 internal sealed record MediaPlaybackSnapshot(
@@ -67,18 +68,23 @@ internal sealed class MediaPlaybackPresentation : IDisposable
     private readonly Action<FrameworkElement> _release;
     private readonly Func<CancellationToken, Task<MediaDecodedFrame>> _captureFrame;
     private FrameworkElement? _surface;
+    private readonly Func<FrameworkElement, FrameworkElement> _inputSurface;
 
     public MediaPlaybackPresentation(
         FrameworkElement surface,
         Action<FrameworkElement> release,
-        Func<CancellationToken, Task<MediaDecodedFrame>> captureFrame)
+        Func<CancellationToken, Task<MediaDecodedFrame>> captureFrame,
+        Func<FrameworkElement, FrameworkElement>? inputSurface = null)
     {
         _surface = surface;
+        _inputSurface = inputSurface ?? (value => value);
         _release = release;
         _captureFrame = captureFrame;
     }
 
     public FrameworkElement Surface => _surface ?? throw new ObjectDisposedException(nameof(MediaPlaybackPresentation));
+
+    public FrameworkElement InputSurface => _inputSurface(Surface);
 
     public Task<MediaDecodedFrame> CaptureFrameAsync(CancellationToken token = default)
     {
@@ -115,6 +121,8 @@ internal interface IMediaPlaybackService : IAsyncDisposable
     Task StepBackwardAsync(CancellationToken token = default);
     Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token = default);
     void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass) { }
+    Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default) => Task.CompletedTask;
+    void SetViewport(ViewerViewport viewport) { }
 
 }
 
@@ -131,6 +139,8 @@ internal interface IMediaPlaybackBackend : IAsyncDisposable
     bool Mute { get; set; }
 
     FrameworkElement CreatePresentationSurface();
+    FrameworkElement GetInputSurface(FrameworkElement surface) => surface;
+    event EventHandler? Ended { add { } remove { } }
     void ReleasePresentationSurface(FrameworkElement surface);
     void CancelPending();
     Task<PlaybackBackendOpened> OpenAsync(string sourcePath, CancellationToken token);
@@ -143,4 +153,6 @@ internal interface IMediaPlaybackBackend : IAsyncDisposable
     Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token);
     Task<MediaDecodedFrame> CapturePresentedFrameAsync(CancellationToken token);
     void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass) { }
+    Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default) => Task.CompletedTask;
+    void SetViewport(ViewerViewport viewport) { }
 }

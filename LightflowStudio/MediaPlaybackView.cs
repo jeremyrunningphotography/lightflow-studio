@@ -14,6 +14,8 @@ internal sealed class MediaPlaybackView : ContentControl, IDisposable
         Focusable = true;
     }
 
+    internal System.Windows.FrameworkElement InputSurface => _presentation!.InputSurface;
+
     public Task<MediaDecodedFrame> CaptureFrameAsync(CancellationToken token = default) =>
         (_presentation ?? throw new ObjectDisposedException(nameof(MediaPlaybackView))).CaptureFrameAsync(token);
 

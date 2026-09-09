@@ -51,7 +51,7 @@ internal sealed class FfmpegAudioPlayback : IAsyncDisposable
         }
     }
 
-    public async Task StartAsync(string sourcePath, int streamIndex, TimeSpan position, CancellationToken token)
+    public async Task StartAsync(string sourcePath, int streamIndex, TimeSpan position, CancellationToken token, double speed = 1)
     {
         await StopAsync().ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
@@ -71,6 +71,7 @@ internal sealed class FfmpegAudioPlayback : IAsyncDisposable
             "-hide_banner", "-loglevel", "error", "-nostdin",
             "-ss", position.TotalSeconds.ToString("0.#######", System.Globalization.CultureInfo.InvariantCulture),
             "-i", sourcePath, "-map", $"0:{streamIndex}", "-vn", "-sn", "-dn",
+            "-af", new PlaybackReviewOptions(speed).AudioTempoFilter,
             "-ac", Channels.ToString(), "-ar", SampleRate.ToString(), "-f", "s16le", "pipe:1"
         }) start.ArgumentList.Add(argument);
 

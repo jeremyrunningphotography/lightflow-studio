@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Threading;
 
 namespace LightflowStudio;
 
@@ -15,7 +14,7 @@ internal sealed class PlayerSurfaceInput : IDisposable
     private readonly Func<Key, DependencyObject?, bool> _key;
     private readonly Func<Key, bool> _keyUp;
     private readonly Action? _pointerMoved;
-    private readonly DispatcherTimer _single;
+
     private System.Windows.Point? _origin;
     private System.Windows.Point _previous;
     private bool _dragged;
@@ -28,9 +27,6 @@ internal sealed class PlayerSurfaceInput : IDisposable
         _surface = surface; _click = click; _fullscreen = fullscreen; _pan = pan;
         _zoom = zoom; _key = key; _keyUp = keyUp;
         _pointerMoved = pointerMoved;
-        _single = new DispatcherTimer(DispatcherPriority.Input, surface.Dispatcher)
-        { Interval = TimeSpan.FromMilliseconds(System.Windows.Forms.SystemInformation.DoubleClickTime) };
-        _single.Tick += Single;
         surface.PreviewMouseLeftButtonDown += Down;
         surface.PreviewMouseLeftButtonUp += Up;
         surface.PreviewMouseMove += Move;
@@ -55,7 +51,6 @@ internal sealed class PlayerSurfaceInput : IDisposable
         _origin = _previous = point;
         _dragged = false;
         _double = clickCount == 2;
-        if (_double) _single.Stop();
     }
 
     private void Move(object sender, System.Windows.Input.MouseEventArgs e)
@@ -80,7 +75,6 @@ internal sealed class PlayerSurfaceInput : IDisposable
         if (!_dragged && Math.Abs(point.X - origin.X) < SystemParameters.MinimumHorizontalDragDistance &&
             Math.Abs(point.Y - origin.Y) < SystemParameters.MinimumVerticalDragDistance) return false;
         _dragged = true;
-        _single.Stop();
         _pan(point.X - _previous.X, point.Y - _previous.Y);
         _previous = point;
         return true;
@@ -102,10 +96,9 @@ internal sealed class PlayerSurfaceInput : IDisposable
         _surface.ReleaseMouseCapture();
         if (!click) return;
         if (fullscreen) _fullscreen();
-        else _single.Start();
+        else _click();
     }
 
-    private void Single(object? sender, EventArgs e) { _single.Stop(); _click(); }
     private void Lost(object sender, System.Windows.Input.MouseEventArgs e) => _origin = null;
     private void Wheel(object sender, MouseWheelEventArgs e)
     {
@@ -120,11 +113,10 @@ internal sealed class PlayerSurfaceInput : IDisposable
     private void KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
     { if (!e.Handled) e.Handled = _keyUp(e.Key); }
     private void Unloaded(object sender, RoutedEventArgs e) => Cancel();
-    internal void Cancel() { _single.Stop(); _origin = null; if (_surface.IsMouseCaptured) _surface.ReleaseMouseCapture(); }
+    internal void Cancel() { _origin = null; if (_surface.IsMouseCaptured) _surface.ReleaseMouseCapture(); }
     public void Dispose()
     {
         Cancel();
-        _single.Tick -= Single;
         _surface.PreviewMouseLeftButtonDown -= Down;
         _surface.PreviewMouseLeftButtonUp -= Up;
         _surface.PreviewMouseMove -= Move;

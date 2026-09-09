@@ -87,17 +87,32 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 await WaitUntilAsync(() => inspector.IsPlayerContext && inspector.TitleText.Text == tile.Name, "Player Inspector context");
                 var player = Assert.IsType<PlayerViewerHost>(window.BrowserPlayerHost.Content);
                 var homeContent = window.Content;
+                var shellUnloads = 0;
+                ((FrameworkElement)homeContent).Unloaded += (_, _) => shellUnloads++;
                 var selectedAsset = player.CurrentAsset;
                 window.Opacity = 0;
-                player.ToggleFullscreen();
-                Assert.Same(player, window.Content);
-                Assert.True(player.IsFullscreen);
-                Assert.True(player.TryHandleShortcut(Key.Escape, player));
-                Assert.Same(homeContent, window.Content);
-                Assert.Same(player, window.BrowserPlayerHost.Content);
-                Assert.Same(selectedAsset, player.CurrentAsset);
-                Assert.True(tile.IsSelected);
-                Assert.Same(rows, window.BrowserGridRows.ItemsSource);
+                window.UpdateLayout();
+                var normalSize = new System.Windows.Size(window.ActualWidth, window.ActualHeight);
+                var normalPlayerSize = new System.Windows.Size(player.ActualWidth, player.ActualHeight);
+                for (var cycle = 0; cycle < 3; cycle++)
+                {
+                    player.ToggleFullscreen();
+                    await Task.Delay(100);
+                    window.UpdateLayout();
+                    Assert.Same(homeContent, window.Content);
+                    Assert.True(player.IsFullscreen);
+                    Assert.True(player.TryHandleShortcut(Key.Escape, player));
+                    await Task.Delay(100);
+                    window.UpdateLayout();
+                    Assert.Equal(normalSize, new System.Windows.Size(window.ActualWidth, window.ActualHeight));
+                    Assert.Equal(normalPlayerSize, new System.Windows.Size(player.ActualWidth, player.ActualHeight));
+                    Assert.Equal(0, shellUnloads);
+                    Assert.Same(homeContent, window.Content);
+                    Assert.Same(player, window.BrowserPlayerHost.Content);
+                    Assert.Same(selectedAsset, player.CurrentAsset);
+                    Assert.True(tile.IsSelected);
+                    Assert.Same(rows, window.BrowserGridRows.ItemsSource);
+                }
                 window.Opacity = 1;
 
                 var subclipsTab = window.HomeRightPanel.SurfaceTabs.Items.Cast<TabItem>().Single(tab => Equals(tab.Tag, "subclips"));

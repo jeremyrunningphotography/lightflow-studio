@@ -7,6 +7,41 @@ namespace LightflowStudio.Tests;
 public sealed partial class PlayerViewerHostLeaseTests
 {
     [Fact]
+    public async Task LiveReviewChange_ReconcilesEndReachedDuringReconfiguration()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var backend = new FakeBackend();
+            await using var service = new MediaPlaybackService(backend);
+            await service.OpenAsync(Path.GetFullPath("clip.mp4"));
+            await service.PlayAsync();
+            backend.ReviewOptionsApplied = () => { backend.HasEnded = true; backend.End(); };
+            await service.SetReviewOptionsAsync(new(4));
+            Assert.Equal(MediaPlaybackState.Ended, service.Snapshot.State);
+        });
+    }
+
+    [Fact]
+    public async Task SurfaceClick_ExecutesOnRelease_SecondClickOnlyChangesFullscreen()
+    {
+        await StaDispatcher.RunAsync(() =>
+        {
+            var surface = new System.Windows.Controls.Border();
+            var clicks = 0; var fullscreen = 0;
+            using var input = new PlayerSurfaceInput(surface, () => clicks++, () => fullscreen++,
+                (_, _) => { }, _ => { }, (_, _) => false, _ => false);
+            input.BeginGesture(new(10, 10), 1);
+            input.EndGesture();
+            Assert.Equal(1, clicks);
+            input.BeginGesture(new(10, 10), 2);
+            input.EndGesture();
+            Assert.Equal(1, clicks);
+            Assert.Equal(1, fullscreen);
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
     public async Task FullscreenOverlays_AppearThenRecede_AndFirstEntryHintDoesNotRepeat()
     {
         await StaDispatcher.RunAsync(async () =>
@@ -26,9 +61,13 @@ public sealed partial class PlayerViewerHostLeaseTests
                 Assert.Equal(Visibility.Visible, overlay.ExitButton.Visibility);
                 Assert.Equal(Visibility.Visible, overlay.Feedback.Visibility);
                 var playGeometry = overlay.Feedback.Data.ToString();
+                await Task.Delay(600); // The earlier glyph is already fading.
                 overlay.ShowPlayback(false);
                 Assert.NotEqual(playGeometry, overlay.Feedback.Data.ToString());
-                await Task.Delay(1100);
+                await Task.Delay(300); // Earlier fade completion must not hide this newer glyph.
+                Assert.Equal(Visibility.Visible, overlay.Feedback.Visibility);
+                Assert.Equal(0.65, overlay.Feedback.Opacity, 2);
+                await Task.Delay(800);
                 Assert.Equal(Visibility.Collapsed, overlay.Feedback.Visibility);
                 await Task.Delay(2000);
                 Assert.Equal(Visibility.Collapsed, overlay.ExitButton.Visibility);
@@ -62,9 +101,9 @@ public sealed partial class PlayerViewerHostLeaseTests
             Assert.True(input.MoveGesture(new(60, 10), true));
             input.EndGesture();
             input.BeginGesture(new(10, 10), 1);
-            input.EndGesture();
             input.Cancel();
-            await Task.Delay(System.Windows.Forms.SystemInformation.DoubleClickTime + 50);
+            input.EndGesture();
+            await Task.CompletedTask;
             Assert.Equal(100, distance);
             Assert.Equal(0, clicks);
             Assert.Equal(0, fullscreen);
@@ -161,7 +200,7 @@ public sealed partial class PlayerViewerHostLeaseTests
                 Assert.Equal(Visibility.Collapsed, host.TransportBar.Visibility);
                 Assert.InRange(Math.Abs(host.MediaSurfaceHost.ActualHeight - host.ActualHeight), 0, 1);
                 Assert.InRange(Math.Abs(host.MediaSurfaceHost.ActualWidth - host.ActualWidth), 0, 1);
-                Assert.Same(host, window.Content);
+                Assert.Same(originalContent, window.Content);
                 Assert.Same(asset, host.CurrentAsset);
                 Assert.Equal(Visibility.Visible, host.MediaSurfaceHost.Children.OfType<PlayerFullscreenOverlay>().Single().Hint.Visibility);
                 Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.Escape, host));
@@ -211,27 +250,29 @@ public sealed partial class PlayerViewerHostLeaseTests
                     { RoutedEvent = UIElement.PreviewMouseLeftButtonUpEvent });
                 }
                 Click(host.MediaSurfaceHost);
-                await WaitUntilAsync(() => backend.PlayCallCount == 1, "surface play");
+                Assert.Equal(1, backend.PlayCallCount);
                 Click(host.MediaSurfaceHost);
-                await WaitUntilAsync(() => backend.PauseCallCount == 1, "surface pause");
+                Assert.Equal(1, backend.PauseCallCount);
+                var seeks = backend.SeekPositions.Count;
+                Click(host.PositionSlider);
+                Assert.Equal(seeks + 1, backend.SeekPositions.Count);
+                Assert.Equal(1, backend.PlayCallCount);
                 var originalContent = window.Content;
                 window.Opacity = 0;
                 Click(host.MediaSurfaceHost);
                 Click(host.MediaSurfaceHost, 2);
                 Assert.True(host.IsFullscreen);
-                await Task.Delay(System.Windows.Forms.SystemInformation.DoubleClickTime + 50);
-                Assert.Equal(1, backend.PlayCallCount);
+                Assert.Equal(2, backend.PlayCallCount);
                 Assert.Equal(1, backend.PauseCallCount);
                 host.TryHandleShortcut(System.Windows.Input.Key.Escape, host);
                 Assert.Same(originalContent, window.Content);
                 Click(host.SpeedChoice);
-                await Task.Delay(System.Windows.Forms.SystemInformation.DoubleClickTime + 50);
-                Assert.Equal(1, backend.PlayCallCount);
+                Assert.Equal(2, backend.PlayCallCount);
                 Assert.Equal(1, backend.PauseCallCount);
                 Click(host.MediaSurfaceHost);
+                Assert.Equal(2, backend.PauseCallCount);
                 await host.CloseAsync();
-                await Task.Delay(System.Windows.Forms.SystemInformation.DoubleClickTime + 50);
-                Assert.Equal(1, backend.PlayCallCount);
+                Assert.Equal(2, backend.PlayCallCount);
             }
             finally { await host.CloseAsync(); window.Close(); }
         });

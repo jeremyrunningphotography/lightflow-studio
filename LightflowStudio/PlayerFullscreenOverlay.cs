@@ -16,6 +16,8 @@ internal sealed class PlayerFullscreenOverlay : Grid
     internal Button ExitButton { get; }
     internal TextBlock Hint { get; }
     internal System.Windows.Shapes.Path Feedback { get; }
+    private readonly Dictionary<UIElement, System.Windows.Threading.DispatcherTimer> _holds = new();
+    private readonly Dictionary<UIElement, long> _versions = new();
     internal PlayerFullscreenOverlay(Action exit)
     {
         Background = Brushes.Transparent;
@@ -48,17 +50,32 @@ internal sealed class PlayerFullscreenOverlay : Grid
         Feedback.Data = Geometry.Parse(playing ? "M0,0 L0,80 L65,40 Z" : "M0,0 H25 V80 H0 Z M45,0 H70 V80 H45 Z");
         Show(Feedback, 0.45, 0.65);
     }
-    private static void Show(UIElement element, double hold, double opacity = 1)
+    private void Show(UIElement element, double hold, double opacity = 1)
     {
+        if (_holds.Remove(element, out var previous)) previous.Stop();
+        var version = _versions.GetValueOrDefault(element) + 1;
+        _versions[element] = version;
+        element.BeginAnimation(OpacityProperty, null);
         element.Visibility = Visibility.Visible;
         element.Opacity = opacity;
-        var animation = new DoubleAnimation(opacity, 0, TimeSpan.FromSeconds(0.4)) { BeginTime = TimeSpan.FromSeconds(hold) };
-        animation.Completed += (_, _) => element.Visibility = Visibility.Collapsed;
-        element.BeginAnimation(OpacityProperty, animation, HandoffBehavior.SnapshotAndReplace);
+        // Hold time begins after the completed action, independently of WPF's last render tick.
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(hold) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (_versions[element] != version) return;
+            var animation = new DoubleAnimation(opacity, 0, TimeSpan.FromSeconds(0.4));
+            animation.Completed += (_, _) => { if (_versions[element] == version) element.Visibility = Visibility.Collapsed; };
+            element.BeginAnimation(OpacityProperty, animation, HandoffBehavior.SnapshotAndReplace);
+        };
+        _holds[element] = timer;
+        timer.Start();
     }
     internal void Reset()
     {
-        foreach (UIElement child in Children) { child.BeginAnimation(OpacityProperty, null); child.Visibility = Visibility.Collapsed; }
+        foreach (var timer in _holds.Values) timer.Stop();
+        _holds.Clear();
+        foreach (UIElement child in Children) { _versions[child] = _versions.GetValueOrDefault(child) + 1; child.BeginAnimation(OpacityProperty, null); child.Visibility = Visibility.Collapsed; }
     }
 }
 

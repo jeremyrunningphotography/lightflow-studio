@@ -146,6 +146,7 @@ internal interface IMediaPlaybackBackend : IAsyncDisposable
     FrameworkElement GetInputSurface(FrameworkElement surface) => surface;
     bool SetPresentationOverlay(FrameworkElement surface, FrameworkElement? content) => false;
     event EventHandler? Ended { add { } remove { } }
+    bool HasEnded => false;
     void ReleasePresentationSurface(FrameworkElement surface);
     void CancelPending();
     Task<PlaybackBackendOpened> OpenAsync(string sourcePath, CancellationToken token);
@@ -153,6 +154,7 @@ internal interface IMediaPlaybackBackend : IAsyncDisposable
     Task PlayAsync(CancellationToken token);
     Task PauseAsync(CancellationToken token);
     Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token);
+    Task<MediaPresentationTimestamp> PrepareSeekAsync(TimeSpan position, bool resume, CancellationToken token) => SeekAsync(position, token);
     Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token);
     Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token);
     Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token);

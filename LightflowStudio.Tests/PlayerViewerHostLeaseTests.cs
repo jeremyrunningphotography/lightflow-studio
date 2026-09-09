@@ -992,7 +992,9 @@ public sealed partial class PlayerViewerHostLeaseTests
         public void End() => Ended?.Invoke(this, EventArgs.Empty);
         public PlaybackReviewOptions Options { get; private set; } = new();
         public ViewerViewport Viewport { get; private set; } = new();
-        public Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default) { Options = options; return Task.CompletedTask; }
+        public bool HasEnded { get; set; }
+        public Action? ReviewOptionsApplied { get; set; }
+        public Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default) { Options = options; ReviewOptionsApplied?.Invoke(); return Task.CompletedTask; }
         public void SetViewport(ViewerViewport viewport) => Viewport = viewport;
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
         public int Volume { get; set; } = 100;

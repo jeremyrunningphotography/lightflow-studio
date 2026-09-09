@@ -10,7 +10,8 @@ internal sealed class PlayerFullscreenPresentation : IDisposable
     private readonly Window _window;
     private readonly FrameworkElement _player;
     private readonly Action _restoreParent;
-    private readonly object _content;
+    private readonly Grid _root;
+    private readonly ContentControl _layer;
     private readonly WindowStyle _style;
     private readonly ResizeMode _resize;
     private readonly WindowState _state;
@@ -20,7 +21,7 @@ internal sealed class PlayerFullscreenPresentation : IDisposable
     {
         _player = player;
         _window = Window.GetWindow(player) ?? throw new InvalidOperationException("Player is not hosted in a window.");
-        _content = _window.Content;
+        _root = _window.Content as Grid ?? throw new InvalidOperationException("Fullscreen requires a root Grid.");
         _style = _window.WindowStyle; _resize = _window.ResizeMode; _state = _window.WindowState;
         if (player.Parent is ContentControl contentHost)
         {
@@ -34,7 +35,15 @@ internal sealed class PlayerFullscreenPresentation : IDisposable
             panel.Children.Remove(player);
         }
         else throw new InvalidOperationException("Player requires a content or panel host.");
-        _window.Content = player;
+        // Keep the shell and its layout/loaded lifetime attached. Only the same Player moves
+        // into a root-spanning presentation slot, with its own attached properties untouched.
+        _layer = new ContentControl { Content = player,
+            HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Stretch };
+        Grid.SetRowSpan(_layer, Math.Max(1, _root.RowDefinitions.Count));
+        Grid.SetColumnSpan(_layer, Math.Max(1, _root.ColumnDefinitions.Count));
+        Panel.SetZIndex(_layer, int.MaxValue);
+        _root.Children.Add(_layer);
         _window.WindowState = WindowState.Normal;
         _window.WindowStyle = WindowStyle.None;
         _window.ResizeMode = ResizeMode.NoResize;
@@ -46,12 +55,12 @@ internal sealed class PlayerFullscreenPresentation : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _window.Content = null;
-        _restoreParent();
-        _window.Content = _content;
+        _layer.Content = null;
+        _root.Children.Remove(_layer);
         _window.WindowState = WindowState.Normal;
         _window.WindowStyle = _style; _window.ResizeMode = _resize;
         _window.WindowState = _state;
+        _restoreParent();
         _player.Focus();
     }
 }

@@ -42,7 +42,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
     {
         options.Validate();
         EnsureLoaded();
-        return RunSerializedAsync(BeginSourceOperation(token), ct => _backend.SetReviewOptionsAsync(options, ct), suppressFrames: true);
+        return RunSerializedAsync(BeginSourceOperation(token), ct => _backend.SetReviewOptionsAsync(options, ct), suppressFrames: true, reconcileEnd: true);
     }
 
     private void Backend_Ended(object? sender, EventArgs args)
@@ -70,7 +70,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
         Publish(Snapshot with { State = MediaPlaybackState.Seeking, Error = null });
         return RunTimestampOperationAsync(
             operation,
-            backendToken => _backend.SeekAsync(position, backendToken),
+            backendToken => _backend.PrepareSeekAsync(position, resume, backendToken),
             timestamp => Snapshot with
             {
                 State = resume ? MediaPlaybackState.Playing : MediaPlaybackState.Paused,
@@ -197,7 +197,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
         }
     }
 
-    private async Task RunSerializedAsync(PlaybackOperation operation, Func<CancellationToken, Task> action, bool suppressFrames = false)
+    private async Task RunSerializedAsync(PlaybackOperation operation, Func<CancellationToken, Task> action, bool suppressFrames = false, bool reconcileEnd = false)
     {
         await _operations.WaitAsync(operation.Token).ConfigureAwait(false);
         try
@@ -206,6 +206,9 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
             ActivateBackendOperation(operation, suppressFrames);
             await action(operation.Token).ConfigureAwait(false);
             EnsureCurrent(operation);
+            // A live speed change can reach EOF while its audio restart suppresses notifications.
+            if (reconcileEnd && _backend.HasEnded && Snapshot.State == MediaPlaybackState.Playing)
+                Publish(Snapshot with { State = MediaPlaybackState.Ended });
         }
         catch (OperationCanceledException) when (!IsCurrent(operation) || operation.Token.IsCancellationRequested) { }
         finally { Volatile.Write(ref _suppressActiveBackendFrames, 0); _operations.Release(); }

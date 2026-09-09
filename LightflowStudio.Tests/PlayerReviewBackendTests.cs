@@ -6,6 +6,52 @@ namespace LightflowStudio.Tests;
 public sealed partial class FlyleafPlaybackIntegrationTests
 {
     [Fact]
+    public async Task ReviewReconfiguration_Diagnostic_PreservesSourceAndPlaybackState()
+    {
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()!;
+        var fixture = Path.Combine(_root, "interaction-latency.mkv");
+        Run(Path.Combine(dependencies, "ffmpeg.exe"), "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=60000/1001:duration=8",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=8", "-c:v", "libopenh264", "-c:a", "pcm_s16le", fixture);
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var backend = new FlyleafPlaybackBackend(dependencies, () => new RecordingAudioOutput());
+            await using var service = new MediaPlaybackService(backend);
+            await service.OpenAsync(fixture);
+            var source = service.SourceInfo;
+            using var presentation = service.CreatePresentation();
+            var window = new System.Windows.Window { Content = presentation.Surface, Width = 800, Height = 500,
+                Left = -32000, ShowActivated = false, ShowInTaskbar = false };
+            window.Show();
+            try
+            {
+                await service.PlayAsync();
+                await Task.Delay(300);
+                foreach (var options in new[] { new PlaybackReviewOptions(2), new PlaybackReviewOptions(2, 1, new(25, 1)), new PlaybackReviewOptions() })
+                {
+                    var seeksBefore = backend.NativeSeekCount;
+                    var timer = Stopwatch.StartNew();
+                    await service.SetReviewOptionsAsync(options);
+                    Console.WriteLine($"RECONFIG {options}: {timer.Elapsed.TotalMilliseconds:0}ms");
+                    Assert.Equal(MediaPlaybackState.Playing, service.Snapshot.State);
+                    Assert.Same(source, service.SourceInfo);
+                    Assert.Equal(options == new PlaybackReviewOptions(2) ? 0 : 1, backend.NativeSeekCount - seeksBefore);
+                }
+                var seekCount = backend.NativeSeekCount;
+                var seek = Stopwatch.StartNew();
+                await service.SeekAsync(TimeSpan.FromSeconds(2));
+                Console.WriteLine($"SEEK: {seek.Elapsed.TotalMilliseconds:0}ms");
+                Assert.Equal(1, backend.NativeSeekCount - seekCount);
+                var pause = Stopwatch.StartNew();
+                await service.PauseAsync();
+                Console.WriteLine($"PAUSE: {pause.Elapsed.TotalMilliseconds:0}ms");
+            }
+            finally { window.Content = null; window.Close(); }
+        });
+    }
+
+    [Fact]
     public async Task NonDivisorCadence_SelectsRealSourceFramesWithoutChangingClock_AndPauseRestoresInspection()
     {
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()!;
@@ -83,12 +129,14 @@ public sealed partial class FlyleafPlaybackIntegrationTests
         });
     }
 
-    [Fact]
-    public async Task NativeReviewFullscreen_RetainsSurfaceSourceAndNaturalEndNotification()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NativeReviewFullscreen_RetainsSurfaceSourceAndNaturalEndNotification(bool playing)
     {
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()!;
         var fixture = Path.Combine(_root, "native-review.mkv");
-        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, 1);
+        GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, 12);
         await StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
@@ -100,6 +148,7 @@ public sealed partial class FlyleafPlaybackIntegrationTests
             var window = new System.Windows.Window { Content = layout, Width = 1000, Height = 700,
                 Left = -32000, ShowActivated = false, ShowInTaskbar = false, Opacity = 0 };
             window.Show();
+            if (playing) window.WindowState = System.Windows.WindowState.Maximized;
             try
             {
                 var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mkv", "clip.mkv", "clip.mkv", MediaPresentationKind.Video);
@@ -108,22 +157,42 @@ public sealed partial class FlyleafPlaybackIntegrationTests
                 var view = Assert.IsType<MediaPlaybackView>(host.VideoHost.Children[0]);
                 var input = view.InputSurface;
                 var info = service!.SourceInfo;
-                host.ToggleFullscreen();
-                await Task.Delay(100);
-                Assert.Same(input, view.InputSurface);
-                Assert.Same(info, service.SourceInfo);
-                var nativeHost = Assert.IsType<FlyleafLib.Controls.WPF.FlyleafHost>(view.Content);
-                Assert.IsType<PlayerFullscreenOverlay>(nativeHost.Overlay.Content);
-                Assert.Equal(System.Windows.Visibility.Collapsed, host.TransportBar.Visibility);
-                host.ExitFullscreen();
-                await Task.Delay(100);
-                Assert.Same(input, view.InputSurface);
-                Assert.Same(layout, window.Content);
+                var size = host.RenderSize;
+                if (playing) await service.PlayAsync();
+                for (var cycle = 0; cycle < 3; cycle++)
+                {
+                    Console.WriteLine($"CYCLE {cycle} ENTER");
+                    host.ToggleFullscreen();
+                    await Task.Delay(100);
+                    Assert.Same(input, view.InputSurface);
+                    Assert.Same(info, service.SourceInfo);
+                    var nativeHost = Assert.IsType<FlyleafLib.Controls.WPF.FlyleafHost>(view.Content);
+                    Assert.IsType<PlayerFullscreenOverlay>(nativeHost.Overlay.Content);
+                    Assert.Equal(System.Windows.Visibility.Collapsed, host.TransportBar.Visibility);
+                    if (cycle == 0) host.TryHandleShortcut(System.Windows.Input.Key.Escape, host);
+                    else if (cycle == 1) ((PlayerFullscreenOverlay)nativeHost.Overlay.Content).ExitButton.RaiseEvent(
+                        new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                    else host.ToggleFullscreen();
+                    Console.WriteLine($"CYCLE {cycle} EXIT");
+                    await Task.Delay(100);
+                    Assert.Same(input, view.InputSurface);
+                    Assert.Same(layout, window.Content);
+                    window.UpdateLayout();
+                    Console.WriteLine($"CYCLE {cycle} SIZE {host.RenderSize} expected={size} native={((System.Windows.Window)input).ActualWidth} view={view.ActualWidth}");
+                    Assert.Equal(size, host.RenderSize);
+                    Assert.InRange(Math.Abs(((System.Windows.Window)input).ActualWidth - view.ActualWidth), 0, 2);
+                    Assert.Equal(playing ? MediaPlaybackState.Playing : MediaPlaybackState.Paused, service.Snapshot.State);
+                }
                 var ended = false;
                 service.StateChanged += (_, snapshot) => ended |= snapshot.State == MediaPlaybackState.Ended;
+                await service.SeekAsync(TimeSpan.FromSeconds(10));
                 await service.SetReviewOptionsAsync(new(4));
                 await service.PlayAsync();
                 await WaitUntilAsync(() => ended, "native end-of-source event");
+                await host.OpenAsync(asset with { Name = "next clip" }, new(asset.RootId, asset.RelativePath, asset.Key, fixture, MediaRootAvailability.Online, true));
+                window.UpdateLayout();
+                Assert.Equal(size, host.RenderSize);
+                Assert.False(host.IsFullscreen);
             }
             finally { await host.CloseAsync(); window.Close(); }
         });
@@ -190,8 +259,10 @@ public sealed partial class FlyleafPlaybackIntegrationTests
                     Assert.InRange(position.TotalSeconds / elapsed, speed * 0.5, speed * 1.5);
                     var steps = frames.Zip(frames.Skip(1), (a, b) => b - a).Where(delta => delta > 0.002).ToArray();
                     Assert.NotEmpty(steps);
-                    // Decoded timestamps are milliseconds in Matroska; each visible step is five 120fps frames.
-                    Assert.All(steps, delta => Assert.InRange(delta, 0.040, 0.084));
+                    // Matroska quantizes to milliseconds. The display can miss a presentation under
+                    // load, but every observed gap must remain a multiple of five source frames.
+                    Assert.Contains(steps, delta => Math.Abs(delta - 5d / 120) < 0.0011);
+                    Assert.All(steps, delta => Assert.InRange(Math.Abs(delta - Math.Round(delta * 120 / 5) * 5 / 120), 0, 0.0011));
                     await service.SeekAsync(TimeSpan.FromSeconds(1));
                     var before = service.Snapshot.DisplayedTimestamp!.Position;
                     await service.StepForwardAsync();

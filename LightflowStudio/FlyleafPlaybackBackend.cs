@@ -31,6 +31,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     private string? _sourcePath;
     private int? _audioStreamIndex;
     private int _suppressPresentationEvents;
+    private PlaybackReviewOptions _reviewOptions = new();
+    public event EventHandler? Ended;
 
     public FlyleafPlaybackBackend(
         string? ffmpegPath = null,
@@ -95,6 +97,63 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         });
     }
 
+    public FrameworkElement GetInputSurface(FrameworkElement surface)
+    {
+        if (surface is not FlyleafHost host) return surface;
+        // Only consumers that claim the native input seam replace Flyleaf's default bindings.
+        // Trim and other presentation consumers keep their existing behavior.
+        host.KeyBindings = AvailableWindows.None;
+        host.MouseBindings = AvailableWindows.None;
+        host.OpenOnDrop = AvailableWindows.None;
+        host.ToggleFullScreenOnDoubleClick = AvailableWindows.None;
+        return host.Surface ?? surface;
+    }
+
+    public void SetViewport(ViewerViewport viewport) => RunOnUi(() =>
+    {
+        if (_player is not { } player) return;
+        player.Config.Video.Zoom = viewport.Zoom * 100;
+        player.Config.Video.PanXOffset = viewport.PanX;
+        player.Config.Video.PanYOffset = viewport.PanY;
+        player.RequestRender();
+    });
+
+    public bool SetPresentationOverlay(FrameworkElement surface, FrameworkElement? content) => RunOnUi(() =>
+    {
+        if (surface is not FlyleafHost host) return false;
+        // Flyleaf's content seam uses its existing transparent overlay HWND above the renderer.
+        host.Content = content;
+        // WPF layered child HWNDs can lose their compositor channel when their native
+        // video parent is resized/reparented. This applies only to the tiny WPF overlay;
+        // Flyleaf's D3D video renderer remains hardware accelerated.
+        if (host.Overlay is { } overlay && PresentationSource.FromVisual(overlay) is System.Windows.Interop.HwndSource source)
+            source.CompositionTarget.RenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+        return true;
+    });
+
+    public async Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default)
+    {
+        options.Validate();
+        var player = RequirePlayer();
+        var (playing, position) = RunOnUi(() => (player.IsPlaying, TimeSpan.FromTicks(player.CurTime)));
+        if (options == _reviewOptions) return;
+        var cadenceChanged = options.FrameDivisor != _reviewOptions.FrameDivisor || options.TargetRate != _reviewOptions.TargetRate;
+        if (!cadenceChanged)
+        {
+            _reviewOptions = options;
+            // Flyleaf already supports live speed changes; do not seek/pause the source for this.
+            RunOnUi(() => { player.Speed = options.Speed; if (playing) ConfigureCadence(player, true); });
+            if (playing && _sourcePath is { } path && _audioStreamIndex is { } index)
+                await _audio.StartAsync(path, index, RunOnUi(() => TimeSpan.FromTicks(player.CurTime)), token, options.Speed).ConfigureAwait(false);
+            return;
+        }
+        await StopPlaybackAsync(player, token).ConfigureAwait(false);
+        _reviewOptions = options;
+        RunOnUi(() => { player.Speed = options.Speed; ConfigureCadence(player, playing); });
+        await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
+        if (playing) await PlayAsync(token).ConfigureAwait(false);
+    }
+
     public void ReleasePresentationSurface(FrameworkElement surface)
     {
         if (surface is not FlyleafHost host) return;
@@ -125,6 +184,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         _audioStreamIndex = null;
         await ClosePlayerAsync().ConfigureAwait(false);
 
+        _reviewOptions = new();
+        _cadencePrepared = false;
         var player = RunOnUi(CreatePlayer);
         _player = player;
         RunOnUi(() => { if (_host is not null) _host.Player = player; });
@@ -160,13 +221,14 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             sourcePath,
             TimeSpan.FromTicks(player.Duration),
             TimeSpan.FromTicks(Math.Max(0, selectedVideo?.StartTime ?? 0)),
-            player.Video.Width,
-            player.Video.Height,
+            (int)(selectedVideo?.Width ?? 0),
+            (int)(selectedVideo?.Height ?? 0),
             audioStreams,
             _audioStreamIndex,
             player.Video.VideoAcceleration)
         {
-            OpenMetrics = new(sourceOpenTimer.Elapsed, firstFrameTimer.Elapsed, totalTimer.Elapsed)
+            OpenMetrics = new(sourceOpenTimer.Elapsed, firstFrameTimer.Elapsed, totalTimer.Elapsed),
+            FrameRate = selectedVideo?.FPS ?? 0
         };
         Trace.WriteLine(
             $"Playback open {Path.GetFileName(sourcePath)}: source={sourceOpenTimer.Elapsed.TotalMilliseconds:n0}ms, " +
@@ -187,13 +249,20 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     {
         token.ThrowIfCancellationRequested();
         var player = RequirePlayer();
+        if (!_cadencePrepared && (_reviewOptions.FrameDivisor > 1 || _reviewOptions.TargetRate is not null))
+        {
+            var position = RunOnUi(() => TimeSpan.FromTicks(player.CurTime));
+            RunOnUi(() => ConfigureCadence(player, preview: true));
+            await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
+        }
         if (_sourcePath is { } sourcePath && _audioStreamIndex is { } streamIndex)
         {
             try
             {
                 var position = RunOnUi(() => TimeSpan.FromTicks(player.CurTime));
-                await _audio.StartAsync(sourcePath, streamIndex, position, token).ConfigureAwait(false);
+                await _audio.StartAsync(sourcePath, streamIndex, position, token, _reviewOptions.Speed).ConfigureAwait(false);
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch (Exception exception)
             {
                 Failed?.Invoke(this, new MediaPlaybackError(
@@ -202,21 +271,54 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
                     exception.Message));
             }
         }
+        token.ThrowIfCancellationRequested();
         RunOnUi(player.Play);
     }
 
     public async Task PauseAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        RunOnUi(() => RequirePlayer().Pause());
+        var player = RequirePlayer();
+        var position = RunOnUi(() => { player.Pause(); return TimeSpan.FromTicks(player.CurTime); });
+        await _audio.StopAsync().ConfigureAwait(false);
+        if (RunOnUi(() => player.Config.Video.MaxOutputFps != double.MaxValue || player.Config.Video.FrameSelection is not null))
+        {
+            RunOnUi(() => ConfigureCadence(player, preview: false));
+            await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
+        }
+    }
+
+    private bool _cadencePrepared;
+    public bool HasEnded => RunOnUi(() => _player?.Status == Status.Ended);
+    internal int NativeSeekCount { get; private set; }
+    private async Task StopPlaybackAsync(Player player, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        RunOnUi(player.Pause);
         await _audio.StopAsync().ConfigureAwait(false);
     }
 
+    private void ConfigureCadence(Player player, bool preview)
+    {
+        _cadencePrepared = preview;
+        player.Config.Video.FrameSelection = preview && _reviewOptions.FrameDivisor == 1 && _reviewOptions.TargetRate is { } rate
+            ? new RationalCadenceSelector(rate).Select : null;
+        player.Config.Video.MaxOutputFps = preview
+            ? _reviewOptions.OutputThreshold(player.VideoDecoder.VideoStream.FPS) : double.MaxValue;
+        // The pinned config property has no change notification. Refresh the decoder's derived selector
+        // while paused, then flush queued frames by seeking. Player.Speed/the elapsed-time clock is unchanged.
+        player.VideoDecoder.Speed = _reviewOptions.Speed == 1 ? 0.5 : 1;
+        player.VideoDecoder.Speed = _reviewOptions.Speed;
+    }
+
     public async Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token)
+        => await PrepareSeekAsync(position, false, token).ConfigureAwait(false);
+
+    public async Task<MediaPresentationTimestamp> PrepareSeekAsync(TimeSpan position, bool resume, CancellationToken token)
     {
         var player = RequirePlayer();
-        RunOnUi(player.Pause);
-        await _audio.StopAsync().ConfigureAwait(false);
+        await StopPlaybackAsync(player, token).ConfigureAwait(false);
+        RunOnUi(() => ConfigureCadence(player, resume));
         return await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
     }
 
@@ -353,6 +455,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         config.Player.SeekAccurate = true;
         config.Player.UICurTime = UIRefreshType.PerFrame;
         config.Video.VideoAcceleration = true;
+        config.Video.MaxOutputFps = double.MaxValue;
         config.Video.PostProcessorFactory = _postProcessorFactory;
         if (_videoProcessor is not null) config.Video.VideoProcessor = _videoProcessor.Value;
         // Flyleaf remains the video/PTS engine. Its audio decoder/output path is disabled because the shared
@@ -366,6 +469,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     internal void RequestRender() => RunOnUi(() => RequirePlayer().RequestRender());
 
     internal VideoProcessors ActiveVideoProcessor => RunOnUi(() => RequirePlayer().Renderer.VideoProcessor);
+    internal (double Width, double Height) RenderedViewport => RunOnUi(() =>
+        ((double)RequirePlayer().Renderer.Viewport.Width, (double)RequirePlayer().Renderer.Viewport.Height));
 
     private async Task ClosePlayerAsync()
     {
@@ -384,6 +489,12 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
     private void Player_PropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
+        if (args.PropertyName == nameof(Player.Status) && sender is Player endedPlayer &&
+            ReferenceEquals(endedPlayer, _player) && endedPlayer.Status == FlyleafLib.MediaPlayer.Status.Ended)
+        {
+            Ended?.Invoke(this, EventArgs.Empty);
+            return;
+        }
         if (args.PropertyName != nameof(Player.CurTime) || sender is not Player player ||
             !ReferenceEquals(player, _player) || Volatile.Read(ref _suppressPresentationEvents) > 0) return;
         FramePresented?.Invoke(this, Timestamp(player.CurTime));
@@ -410,6 +521,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
     private async Task<MediaPresentationTimestamp> SeekPlayerAsync(Player player, TimeSpan position, CancellationToken token)
     {
+        NativeSeekCount++;
         var clamped = Math.Clamp(position.TotalMilliseconds, 0, TimeSpan.FromTicks(player.Duration).TotalMilliseconds);
         var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         EventHandler<int>? handler = null;

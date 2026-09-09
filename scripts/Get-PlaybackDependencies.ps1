@@ -54,6 +54,8 @@ Version: $($manifest.version)
 Variant: $($manifest.variant)
 License: $($manifest.license)
 Binary package: $($manifest.downloadUrl)
+Original upstream package: $(if ($manifest.originalDownloadUrl) { $manifest.originalDownloadUrl } else { $manifest.downloadUrl })
+Original upstream release: $($manifest.releaseTag)
 Verified SHA-256: $actualHash
 Corresponding FFmpeg source: $($manifest.sourceUrl)
 Build scripts and configuration: $($manifest.buildProjectUrl)

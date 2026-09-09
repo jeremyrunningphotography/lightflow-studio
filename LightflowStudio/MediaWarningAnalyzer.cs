@@ -2,7 +2,7 @@ namespace LightflowStudio;
 
 internal static class MediaWarningAnalyzer
 {
-    private static readonly double[] StandardFrameRates = [23.976, 24, 25, 29.97, 30, 50, 59.94, 60];
+    private static readonly double[] StandardFrameRates = MediaFrameRate.Canonical.Select(rate => rate.DisplayValue).ToArray();
     private const double FrameRateTolerance = 0.02;
 
     public static bool IsStandardFrameRate(double frameRate) =>

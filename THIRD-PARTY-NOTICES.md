@@ -23,13 +23,14 @@ those components.
 
 ## Playback components
 
-Interactive video playback uses the modified FlyleafLib 3.11.2-lightflow.1 package and
+Interactive video playback uses the modified FlyleafLib 3.11.2-lightflow.3 package and
 Flyleaf.FFmpeg.Bindings 9.0.0. Both packages are licensed under the GNU Lesser
 General Public License, version 3.0 or later. The modified package is based on
 upstream Flyleaf v3.11.2 (`64cee8bf3749590c98b6b6d416e2f590e4e890cf`)
-and adds only a generic renderer-owned GPU video post-process extension.
+and adds a generic renderer-owned GPU video post-process extension, an optional decoded-PTS frame-selection callback,
+and a D3D snapshot correction that excludes viewport zoom/pan cropping.
 
-- Modified Flyleaf corresponding source: <https://github.com/jeremysrunning/Flyleaf/tree/6789799a5b29dfd126e1094e847f46cfa9b9be0a>
+- Modified Flyleaf corresponding source: <https://github.com/jeremysrunning/Flyleaf/tree/a9ca2937a95952790efa87b94f56cd735024d52c>
 - Upstream Flyleaf source: <https://github.com/SuRGeoNix/Flyleaf/tree/v3.11.2>
 - Generic upstream contribution: <https://github.com/SuRGeoNix/Flyleaf/pull/719>
 - Flyleaf FFmpeg bindings source: <https://github.com/SuRGeoNix/Flyleaf.FFmpeg.Generator>
@@ -37,7 +38,7 @@ and adds only a generic renderer-owned GPU video post-process extension.
 The exact source commit, package SHA-256, and package version are recorded in
 `flyleaf-package.json` in the distribution and `dependencies/flyleaf.json` in
 the source repository. `scripts/Build-FlyleafPackage.ps1` checks out that exact
-public commit, rebuilds the package, and verifies the byte-for-byte package hash.
+published commit, rebuilds the package, and verifies the byte-for-byte package hash.
 
 Flyleaf uses dynamically loaded FFmpeg shared libraries. Lightflow distributes
 the pinned BtbN `lgpl-shared` build recorded in
@@ -46,6 +47,12 @@ same FFmpeg source revision recorded there, and its exact archive checksum,
 corresponding FFmpeg source, and BtbN build scripts are documented in
 `playback/ffmpeg/SOURCE-AND-LICENSE.txt`. GPL and nonfree BtbN variants are not
 used.
+
+The original BtbN playback archive became unavailable. Lightflow mirrors the exact
+previously verified archive in its `dependency-ffmpeg-9.0.1-6-g9d4ca21220` release;
+the SHA-256 remains unchanged and was verified before upload and after download.
+The manifest preserves `originalDownloadUrl`, the original upstream release tag,
+source revision, build project, and license alongside the mirror download URL.
 
 Flyleaf also depends on the Vortice.Windows and SharpGen.Runtime projects,
 distributed under the MIT License:

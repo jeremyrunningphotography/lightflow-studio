@@ -10,9 +10,9 @@
       },
       "FlyleafLib": {
         "type": "Direct",
-        "requested": "[3.11.2-lightflow.1, 3.11.2-lightflow.1]",
-        "resolved": "3.11.2-lightflow.1",
-        "contentHash": "9jQdZx+el/+x3XqJYJxaVjA/6CSDYqZaUfu52OquY1ZTHG1Z3aEGS2jD+O4xnYXuzXNp5LGb33WNR8PDCqFNLQ==",
+        "requested": "[3.11.2-lightflow.3, 3.11.2-lightflow.3]",
+        "resolved": "3.11.2-lightflow.3",
+        "contentHash": "Olj/KlSrW1Ei38epTQ0JbiaUZ28KnTNBJoidCK/Dit7LgehK+KNyE1WPyobZcLWqdzxNoKKdom2eSWhuP/sM+A==",
         "dependencies": {
           "Flyleaf.FFmpeg.Bindings": "9.0.0",
           "Vortice.D3DCompiler": "3.8.3",

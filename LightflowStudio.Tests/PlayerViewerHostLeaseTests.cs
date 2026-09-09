@@ -11,7 +11,7 @@ namespace LightflowStudio.Tests;
 /// asset — rather than silently leaving stale transport controls enabled over a source that no longer exists.
 /// </summary>
 [Collection("STA dispatcher tests")]
-public sealed class PlayerViewerHostLeaseTests
+public sealed partial class PlayerViewerHostLeaseTests
 {
     [Fact]
     public async Task OpeningManyAssetsUsesCachedLutsWithoutAnyDiscoveryRefresh()
@@ -986,7 +986,16 @@ public sealed class PlayerViewerHostLeaseTests
         public List<TimeSpan> SeekPositions { get; } = [];
         public int PlayCallCount { get; private set; }
         public int PauseCallCount { get; private set; }
-        public event EventHandler<MediaPresentationTimestamp>? FramePresented { add { } remove { } }
+        public event EventHandler<MediaPresentationTimestamp>? FramePresented;
+        public void Present(double seconds) => FramePresented?.Invoke(this, new(TimeSpan.FromSeconds(seconds)));
+        public event EventHandler? Ended;
+        public void End() => Ended?.Invoke(this, EventArgs.Empty);
+        public PlaybackReviewOptions Options { get; private set; } = new();
+        public ViewerViewport Viewport { get; private set; } = new();
+        public bool HasEnded { get; set; }
+        public Action? ReviewOptionsApplied { get; set; }
+        public Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default) { Options = options; ReviewOptionsApplied?.Invoke(); return Task.CompletedTask; }
+        public void SetViewport(ViewerViewport viewport) => Viewport = viewport;
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
         public int Volume { get; set; } = 100;
         public bool Mute { get; set; }
@@ -1007,11 +1016,12 @@ public sealed class PlayerViewerHostLeaseTests
         public void CancelPending() { }
         public Task<PlaybackBackendOpened> OpenAsync(string sourcePath, CancellationToken token)
         {
+            Options = new();
             PipelineAtOpen = ColorCalls.LastOrDefault().Pipeline;
             BypassAtOpen = ColorCalls.LastOrDefault().Bypass;
             OpenPresentationOperations.Add("open");
             var audioStreams = hasAudio ? new[] { new MediaAudioStreamInfo(0, null, null, 2, true) } : [];
-            var source = new MediaPlaybackSourceInfo(sourcePath, duration ?? TimeSpan.FromSeconds(60), TimeSpan.Zero, 1920, 1080, audioStreams, hasAudio ? 0 : null, false);
+            var source = new MediaPlaybackSourceInfo(sourcePath, duration ?? TimeSpan.FromSeconds(60), TimeSpan.Zero, 1920, 1080, audioStreams, hasAudio ? 0 : null, false) { FrameRate = 120 };
             return Task.FromResult(new PlaybackBackendOpened(source, new(TimeSpan.Zero)));
         }
         public Task CloseAsync(CancellationToken token) => Task.CompletedTask;

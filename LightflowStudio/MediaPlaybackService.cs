@@ -21,6 +21,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
         _backend = backend;
         _backend.FramePresented += Backend_FramePresented;
         _backend.Failed += Backend_Failed;
+        _backend.Ended += Backend_Ended;
     }
 
     public MediaPlaybackSnapshot Snapshot { get; private set; } = new(MediaPlaybackState.Empty, null, null, null);
@@ -33,7 +34,24 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
     public void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass) => _backend.SetColorPipeline(pipeline, bypass);
 
     public MediaPlaybackPresentation CreatePresentation() =>
-        new(_backend.CreatePresentationSurface(), _backend.ReleasePresentationSurface, _backend.CapturePresentedFrameAsync);
+        new(_backend.CreatePresentationSurface(), _backend.ReleasePresentationSurface, _backend.CapturePresentedFrameAsync, _backend.GetInputSurface, _backend.SetPresentationOverlay);
+
+    public void SetViewport(ViewerViewport viewport) => _backend.SetViewport(viewport);
+
+    public Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default)
+    {
+        options.Validate();
+        EnsureLoaded();
+        return RunSerializedAsync(BeginSourceOperation(token), ct => _backend.SetReviewOptionsAsync(options, ct), suppressFrames: true, reconcileEnd: true);
+    }
+
+    private void Backend_Ended(object? sender, EventArgs args)
+    {
+        if (!_disposed && Snapshot.State == MediaPlaybackState.Playing &&
+            Volatile.Read(ref _suppressActiveBackendFrames) == 0 &&
+            Volatile.Read(ref _activeBackendOperation) == Interlocked.Read(ref _operationGeneration))
+            Publish(Snapshot with { State = MediaPlaybackState.Ended });
+    }
 
     public Task OpenAsync(string sourcePath, CancellationToken token = default)
     {
@@ -52,7 +70,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
         Publish(Snapshot with { State = MediaPlaybackState.Seeking, Error = null });
         return RunTimestampOperationAsync(
             operation,
-            backendToken => _backend.SeekAsync(position, backendToken),
+            backendToken => _backend.PrepareSeekAsync(position, resume, backendToken),
             timestamp => Snapshot with
             {
                 State = resume ? MediaPlaybackState.Playing : MediaPlaybackState.Paused,
@@ -179,18 +197,21 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
         }
     }
 
-    private async Task RunSerializedAsync(PlaybackOperation operation, Func<CancellationToken, Task> action)
+    private async Task RunSerializedAsync(PlaybackOperation operation, Func<CancellationToken, Task> action, bool suppressFrames = false, bool reconcileEnd = false)
     {
         await _operations.WaitAsync(operation.Token).ConfigureAwait(false);
         try
         {
             EnsureCurrent(operation);
-            ActivateBackendOperation(operation);
+            ActivateBackendOperation(operation, suppressFrames);
             await action(operation.Token).ConfigureAwait(false);
             EnsureCurrent(operation);
+            // A live speed change can reach EOF while its audio restart suppresses notifications.
+            if (reconcileEnd && _backend.HasEnded && Snapshot.State == MediaPlaybackState.Playing)
+                Publish(Snapshot with { State = MediaPlaybackState.Ended });
         }
         catch (OperationCanceledException) when (!IsCurrent(operation) || operation.Token.IsCancellationRequested) { }
-        finally { _operations.Release(); }
+        finally { Volatile.Write(ref _suppressActiveBackendFrames, 0); _operations.Release(); }
     }
 
     private PlaybackOperation BeginSourceTransition(CancellationToken callerToken)
@@ -305,6 +326,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
         }
         _backend.FramePresented -= Backend_FramePresented;
         _backend.Failed -= Backend_Failed;
+        _backend.Ended -= Backend_Ended;
         await _backend.DisposeAsync().ConfigureAwait(false);
         _latestOperation?.Dispose();
         _sourceLifetime.Dispose();

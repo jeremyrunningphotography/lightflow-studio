@@ -7,7 +7,7 @@ using Xunit;
 namespace LightflowStudio.Tests;
 
 [Collection("STA dispatcher tests")]
-public sealed class FlyleafPlaybackIntegrationTests : IDisposable
+public sealed partial class FlyleafPlaybackIntegrationTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-playback-integration-").FullName;
 

@@ -36,8 +36,8 @@
       },
       "FlyleafLib": {
         "type": "Transitive",
-        "resolved": "3.11.2-lightflow.1",
-        "contentHash": "9jQdZx+el/+x3XqJYJxaVjA/6CSDYqZaUfu52OquY1ZTHG1Z3aEGS2jD+O4xnYXuzXNp5LGb33WNR8PDCqFNLQ==",
+        "resolved": "3.11.2-lightflow.3",
+        "contentHash": "Olj/KlSrW1Ei38epTQ0JbiaUZ28KnTNBJoidCK/Dit7LgehK+KNyE1WPyobZcLWqdzxNoKKdom2eSWhuP/sM+A==",
         "dependencies": {
           "Flyleaf.FFmpeg.Bindings": "9.0.0",
           "Vortice.D3DCompiler": "3.8.3",
@@ -313,7 +313,7 @@
         "type": "Project",
         "dependencies": {
           "Flyleaf.FFmpeg.Bindings": "[9.0.0, )",
-          "FlyleafLib": "[3.11.2-lightflow.1, 3.11.2-lightflow.1]",
+          "FlyleafLib": "[3.11.2-lightflow.3, 3.11.2-lightflow.3]",
           "Microsoft.Data.Sqlite": "[8.0.29, 8.0.29]",
           "NAudio.WinMM": "[2.3.0, )"
         }

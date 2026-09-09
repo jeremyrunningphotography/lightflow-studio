@@ -695,6 +695,48 @@ Source fingerprint version 1 is SHA-256 over a domain/version marker, file lengt
 
 Issue #82 does not add discovery scanning, derived media metadata, thumbnails, browser UI, or relocation/reconciliation. Those remain later Catalog capabilities.
 
+### Creator-authored descriptions (#216)
+
+Catalog migration 13 adds `MediaAssetDescriptions`, an optional one-to-one row keyed by stable `AssetId` with
+nullable `Title`, `Description`, `Notes`, `CreatorOverride`, and `CreditOverride`, plus `Revision`, `CreatedUtc`,
+and `UpdatedUtc`. These are precious authored values, never copied from normalized/raw source metadata in
+Previews. Null means no authored value (or no override); the store rejects empty strings, and the direct editor
+maps an intentionally emptied dirty field to null.
+Whitespace and Unicode are preserved. Description and Notes accept multiline text; the other fields are
+single-line. Clearing an override never deletes source-recorded information. The current normalized source
+contract does not supply creator/credit fields; Inspector does not fabricate them or add a probe.
+
+`IAssetDescriptionStore` owns bounded AssetId reads and field patches. Reads use a coherent SQLite snapshot;
+patches omit unchanged fields and represent explicit Clear as null. Apply captures targets and expected
+revisions, checks each asset under one write transaction, and acknowledges only after commit. Missing assets,
+revision conflicts, cancellation before commit, or write failures roll back the entire selection. Cleared rows
+retain their revision to detect stale editors. Existing SQLite runtime, pre-migration backup, and whole-Catalog
+backup/restore protect this table without special recovery logic. Relocation/root remapping retain AssetId;
+the existing copy-intent transaction clones descriptions to a new independently mutable asset.
+
+The delivered `MediaInspectorView` consumes this service through `InspectorDescriptionEditor`, which owns only
+transient drafts over the existing Browser/Player context. Fields are directly editable with common/unset/mixed
+presentation and no intent dropdowns. Only actual text changes enter the patch; reverting a common value is a
+no-op. A mixed field remains untouched on rendering/focus; typing replaces it, and typing then deleting explicitly
+clears it. Current/common values and empty editors have no redundant provenance helper labels.
+Multiline line-ending differences alone do not mark an untouched value dirty. Single-asset Apply saves directly;
+multi-asset Apply confirms a valid nonempty patch, naming the asset count and dirty fields; cancel/no-op does not write. Reload confirms only
+when dirty edits would be discarded, and cancellation retains the draft. Both confirmation paths guard against
+reentrancy/context changes while the modal is open. Same-selection Preview refresh, sorting, and panel/tab
+visibility changes retain drafts. Selection and Browser/Player context owners guard transitions before mutating
+state. One warning offers Cancel, Apply changes, or Discard changes / Continue. Apply keeps the modal open
+while awaiting the existing transaction, then resumes the original action only on success, without a second
+bulk confirmation. Failure returns to the original context with the draft and error preserved. Pending
+transitions suspend editing; in-flight saves block context replacement. Context continues to track while the
+panel is closed. In-flight Apply cannot retarget new selection, and late reads cannot replace
+newer editor state. Conflicts retain the draft and disable retry until explicit Reload values discards it.
+No focus-loss writes, independent selection model, Browser editor, or additional Right Panel surface is added.
+
+Query compatibility uses named typed fields and batched reads indexed by the existing AssetId primary-key
+pattern. Future description predicates should extend the existing resident Catalog projection and
+`BrowserQuery` engine. This issue adds no FTS index, duplicate search architecture, or Browser text-query
+behavior; source metadata and authored overrides remain separate query facts.
+
 ### Media classification and folder enumeration
 
 `IMediaTypeRegistry` is the centralized Lightflow-owned classification boundary for discovery. The default registry is an ordered classifier chain whose initial provider recognizes ordinary still images, camera RAW images, video, audio, and unknown/unsupported files by case-insensitive extension. Callers receive Lightflow-owned categories and format keys rather than extension lists. The classification context also carries optional declared-content-type and header evidence, and additional classifiers can precede the extension provider, allowing future decisions to use stronger evidence without changing discovery/browser contracts.

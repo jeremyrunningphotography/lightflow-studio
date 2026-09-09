@@ -125,6 +125,90 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
         });
     }
 
+    [Theory]
+    [InlineData("browser", 0, false)]
+    [InlineData("browser", 1, false)]
+    [InlineData("browser", 2, false)]
+    [InlineData("browser", 1, true)]
+    [InlineData("close", 0, false)]
+    [InlineData("close", 1, false)]
+    [InlineData("close", 2, false)]
+    [InlineData("close", 1, true)]
+    [InlineData("asset", 0, false)]
+    [InlineData("asset", 1, false)]
+    [InlineData("asset", 2, false)]
+    [InlineData("asset", 1, true)]
+    public Task DirtyInspectorTransition_RealDialogResumesOrAbortsOriginalAction(string transition, int choice, bool fail) =>
+        StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            CreateTestJpeg(Path.Combine(_mediaRoot, "second.jpg"));
+            var startup = await LightflowStorageCoordinator.StartAsync(_appDataRoot);
+            var storage = startup.Coordinator!;
+            await storage.MediaRoots.CreateAsync("Library", _mediaRoot);
+            var window = NewOffscreenWindow(storage, startup);
+            window.Width = 1440;
+            MediaInspectorView? inspector = null;
+            try
+            {
+                window.Show();
+                await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0, "storage");
+                window.BrowserCurrentPath.Text = _mediaRoot; RaiseClick(window.BrowserGoButton);
+                await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible && window.BrowserGridRows.Items.Count > 0, "media");
+                var first = (await WaitForTileAsync(window))!;
+                var second = window.BrowserGridRows.Items.Cast<BrowserGridRow>().SelectMany(row => row.Tiles)
+                    .First(tile => tile.Key != first.Key);
+                window.RightPanelToggle.IsChecked = true; RaiseClick(window.RightPanelToggle);
+                inspector = Assert.IsType<MediaInspectorView>(((TabItem)window.HomeRightPanel.SurfaceTabs.SelectedItem).Content);
+                RaiseMouseLeftButtonDown(FindElementByDataContext(window.BrowserGridRows, first)!, transition == "browser" ? 1 : 2);
+                await WaitUntilAsync(() => inspector.IsPlayerContext == (transition != "browser") &&
+                    inspector.DescriptionSection.DataContext is InspectorDescriptionEditor { CanEdit: true }, "editable context");
+                var store = new TestDescriptionStore { Failure = fail ? new IOException("test disk full") : null };
+                // Replace only persistence to inject a deterministic failed write; navigation and modal are real WPF.
+                inspector.Initialize(() => new MediaInspectorService(storage.Previews, storage.AssetClassifications,
+                    storage.Locations.PreviewsDirectory), store);
+                var editor = (InspectorDescriptionEditor)inspector.DescriptionSection.DataContext;
+                await editor.SetContextAsync([first.AssetId], transition != "browser");
+                editor.Fields[0].Text = "draft";
+                var dialogs = 0;
+                inspector.ConfirmDescriptions = _ => throw new InvalidOperationException("Navigation must not open a second Apply confirmation.");
+                inspector.ConfirmTransition = pending =>
+                {
+                    dialogs++;
+                    window.Dispatcher.BeginInvoke(() =>
+                    {
+                        Assert.False(inspector.TryLeaveContext()); // Background refresh cannot nest another warning.
+                        var dialog = Application.Current.Windows.OfType<ConfirmationDialog>().Single();
+                        RaiseClick(choice == 0 ? dialog.CancelButton : choice == 1 ? dialog.ConfirmButton : dialog.DiscardButton);
+                    });
+                    return ConfirmationDialog.ConfirmTransition(window, pending);
+                };
+                var player = window.BrowserPlayerHost.Content as PlayerViewerHost;
+                var original = player?.CurrentAsset;
+                if (transition == "browser")
+                    RaiseMouseLeftButtonDown(FindElementByDataContext(window.BrowserGridRows, second)!, 1);
+                else if (transition == "close") RaiseClick(player!.BackButton);
+                else await player!.OpenAsync(original! with { AssetId = second.AssetId, Name = second.Name, RelativePath = second.RelativePath },
+                    new(second.RootId, second.RelativePath, second.Key, null, MediaRootAvailability.Unavailable, false));
+                var continued = choice != 0 && !fail;
+                await WaitUntilAsync(() => dialogs == 1 && (continued ? !editor.HasDraft : editor.HasDraft), "transition result");
+                Assert.Equal(1, dialogs);
+                if (transition == "browser") { Assert.Equal(continued, second.IsSelected); Assert.Equal(!continued, first.IsSelected); }
+                else if (transition == "close") Assert.Equal(!continued, inspector.IsPlayerContext);
+                else Assert.Equal(continued ? second.AssetId : first.AssetId, player!.CurrentAsset!.AssetId);
+                if (!continued) { Assert.Same(editor, inspector.DescriptionSection.DataContext); Assert.Equal("draft", editor.Fields[0].Text); }
+                if (choice == 1) Assert.Equal(first.AssetId, Assert.Single(store.AppliedTargets!).Key);
+                else Assert.Null(store.AppliedPatch);
+                if (fail) Assert.Contains("test disk full", editor.Status);
+            }
+            finally
+            {
+                if (inspector?.DescriptionSection.DataContext is InspectorDescriptionEditor editor)
+                    await editor.ResolveTransitionAsync(DescriptionTransitionChoice.Discard);
+                window.Close(); await storage.DisposeAsync();
+            }
+        });
+
     [Fact]
     public async Task DoubleClickThenEscape_OpensTheViewerAndReturnsToTheSameBrowserContext()
     {

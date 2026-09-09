@@ -8,6 +8,10 @@
    <TextBlock x:Name="StatusText" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite">
     <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style>
    </TextBlock>
+   <TextBlock x:Name="DescriptionStatus" DataContext="{Binding DataContext, ElementName=DescriptionSection}" Text="{Binding Status}"
+              TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}" AutomationProperties.LiveSetting="Polite" FontSize="11" Margin="0,0,0,4">
+    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style>
+   </TextBlock>
    <Button x:Name="OpenPlayerButton" Content="Open in Player" HorizontalAlignment="Left" Visibility="Collapsed" Click="OpenPlayer_Click"/>
   </StackPanel>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -16,6 +20,74 @@
       <TextBlock x:Name="PreviewStatus" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" FontSize="11">
        <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style>
       </TextBlock>
+      <StackPanel x:Name="DescriptionSection" Margin="0,12,0,8">
+       <TextBlock Text="Lightflow descriptions" FontWeight="SemiBold" Margin="0,0,0,4"/>
+       <TextBlock Text="Edit your Catalog information, then Apply. Source metadata stays unchanged. Before changing media, choose whether to apply or discard unapplied edits."
+                  Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" FontSize="11"/>
+       <ItemsControl ItemsSource="{Binding Fields}" IsEnabled="{Binding CanEdit}">
+        <ItemsControl.ItemTemplate>
+         <DataTemplate>
+          <StackPanel Margin="0,10,0,0">
+           <TextBlock Text="{Binding Label}" Margin="0,0,0,3">
+            <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
+             <DataTrigger Binding="{Binding IsDirty}" Value="True"><Setter Property="Foreground" Value="{DynamicResource OrangeBrush}"/></DataTrigger>
+            </Style.Triggers></Style></TextBlock.Style>
+           </TextBlock>
+           <TextBlock Text="Mixed values · type to replace" TextWrapping="Wrap" Margin="0,0,0,4" Foreground="{DynamicResource MutedTextBrush}" FontSize="11">
+            <TextBlock.Style><Style TargetType="TextBlock">
+             <Setter Property="Visibility" Value="Collapsed"/>
+             <Style.Triggers>
+              <DataTrigger Binding="{Binding IsMixed}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+              <!-- Keep the mixed hint's space while editing so the controls never jump. -->
+              <DataTrigger Binding="{Binding IsDirty}" Value="True"><Setter Property="Opacity" Value="0"/></DataTrigger>
+             </Style.Triggers>
+            </Style></TextBlock.Style>
+           </TextBlock>
+           <Grid>
+           <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="{Binding Multiline}"
+                    AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding ValueState}">
+            <TextBox.Style>
+             <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+              <Setter Property="Margin" Value="0"/>
+              <Setter Property="Padding" Value="8,5"/>
+              <Setter Property="MinHeight" Value="34"/>
+              <Setter Property="VerticalContentAlignment" Value="Top"/>
+              <Setter Property="TextWrapping" Value="NoWrap"/>
+              <Setter Property="HorizontalScrollBarVisibility" Value="Hidden"/>
+              <Setter Property="VerticalScrollBarVisibility" Value="Disabled"/>
+              <Style.Triggers>
+               <DataTrigger Binding="{Binding Multiline}" Value="True">
+                <Setter Property="Height" Value="96"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+                <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+               </DataTrigger>
+              </Style.Triggers>
+             </Style>
+            </TextBox.Style>
+           </TextBox>
+           <TextBlock Text="{Binding Placeholder}" IsHitTestVisible="False" Focusable="False"
+                      Foreground="{DynamicResource MutedTextBrush}" Margin="18,10,18,0"
+                      VerticalAlignment="Top" TextTrimming="CharacterEllipsis">
+            <TextBlock.Style><Style TargetType="TextBlock">
+             <Setter Property="Visibility" Value="Collapsed"/>
+             <Style.Triggers>
+              <DataTrigger Binding="{Binding Text}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+              <DataTrigger Binding="{Binding IsMixed}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+             </Style.Triggers>
+            </Style></TextBlock.Style>
+           </TextBlock>
+           </Grid>
+          </StackPanel>
+         </DataTemplate>
+        </ItemsControl.ItemTemplate>
+       </ItemsControl>
+       <WrapPanel Margin="0,10,0,0">
+        <Button Content="{Binding ApplyLabel}" IsEnabled="{Binding CanApply}" Click="ApplyDescriptions_Click" Margin="0,0,6,4"/>
+        <Button Content="Reload values" IsEnabled="{Binding CanReload}" Click="ReloadDescriptions_Click" Margin="0,0,0,4"
+                ToolTip="Reload Catalog values and discard unapplied changes"/>
+       </WrapPanel>
+      </StackPanel>
       <ItemsControl x:Name="FieldGroups">
        <ItemsControl.ItemTemplate>
         <DataTemplate>

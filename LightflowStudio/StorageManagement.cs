@@ -106,6 +106,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         AssetColors = new CatalogAssetColorStore(() => _catalogSession, LutCache);
         BrowserAssetStates = new CatalogBrowserAssetStateStore(() => _catalogSession);
         AssetClassifications = new CatalogAssetClassificationStore(() => _catalogSession);
+        AssetDescriptions = new CatalogAssetDescriptionStore(() => _catalogSession);
         AssetCopies = new AssetCopyDataService(() => _catalogSession, previews);
         ThumbnailActivity = new ThumbnailGenerationActivity();
         DerivedWork = CreateDerivedWorkScheduler();
@@ -131,6 +132,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public IPreferredPreviewFrameStore PreferredPreviewFrames { get; }
     public IBrowserAssetStateStore BrowserAssetStates { get; }
     public IAssetClassificationStore AssetClassifications { get; }
+    public IAssetDescriptionStore AssetDescriptions { get; }
     public IAssetCopyDataService AssetCopies { get; }
     public ILutLibrary Luts { get; }
     public ILutLibraryCache LutCache { get; }

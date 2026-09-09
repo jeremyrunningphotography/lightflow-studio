@@ -12,6 +12,7 @@
    </Border>
    <StackPanel Grid.Row="3" Margin="0,8,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
     <Button x:Name="CancelButton" IsCancel="True" Content="Cancel" Click="Cancel_Click"/>
+    <Button x:Name="DiscardButton" Visibility="Collapsed" Content="Discard changes / Continue" Click="Discard_Click"/>
     <Button x:Name="ConfirmButton" IsDefault="True" Style="{StaticResource DangerButton}" Content="Confirm" Click="Confirm_Click"/>
    </StackPanel>
   </Grid>

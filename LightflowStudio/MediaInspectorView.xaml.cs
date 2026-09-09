@@ -14,12 +14,33 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     private InspectorSnapshot? _snapshot;
     private bool _reading;
     private bool _refreshAgain;
+    private InspectorDescriptionEditor? _descriptions;
+    private bool _transitionPending;
+    internal Func<DescriptionConfirmation, bool>? ConfirmDescriptions { get; set; }
+    internal Func<InspectorDescriptionEditor, bool>? ConfirmTransition { get; set; }
+    internal bool TryLeaveContext()
+    {
+        if (_descriptions is null) return true;
+        if (_transitionPending || !_descriptions.CanLeaveContext) return false;
+        if (!_descriptions.HasDraft) return true;
+        _transitionPending = true;
+        try { return ConfirmTransition?.Invoke(_descriptions)
+            ?? ConfirmationDialog.ConfirmTransition(Window.GetWindow(this), _descriptions); }
+        finally { _transitionPending = false; }
+    }
     internal event EventHandler? OpenPlayerRequested;
     internal Func<Task>? OpenFolder { get; set; }
     internal bool IsPlayerContext => _playerContext;
+    internal IDisposable? SuspendEditing() => _descriptions?.SuspendEditing();
 
     public MediaInspectorView() => InitializeComponent();
-    internal void Initialize(Func<MediaInspectorService> service) => _service = service;
+    internal void Initialize(Func<MediaInspectorService> service, IAssetDescriptionStore descriptions)
+    {
+        _service = service;
+        _descriptions?.Dispose();
+        _descriptions = new(descriptions, request => ConfirmDescriptions?.Invoke(request) ?? ConfirmDescriptionChanges(request));
+        DescriptionSection.DataContext = _descriptions;
+    }
     internal void SetContext(IReadOnlyList<InspectorAsset> context, bool player, bool force = false)
     {
         if (player == _playerContext && context.SequenceEqual(_context))
@@ -28,8 +49,12 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
             // Derived-work notifications must not continuously cancel a large, unchanged selection.
             if (_reading) { _refreshAgain = true; return; }
         }
+        if (_descriptions?.HasDraft == true &&
+            (player != _playerContext || !context.Select(a => a.AssetId).ToHashSet().SetEquals(_context.Select(a => a.AssetId))))
+            return; // A missed caller guard must never silently destroy a draft.
         _context = context;
         _playerContext = player;
+        if (_descriptions is not null) _ = _descriptions.SetContextAsync(context.Select(a => a.AssetId), player);
         _ = RefreshAsync();
     }
     internal Task RefreshAsync() => HydrateAsync();
@@ -116,9 +141,20 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
         }
     }
     private void OpenPlayer_Click(object sender, RoutedEventArgs e) => OpenPlayerRequested?.Invoke(this, EventArgs.Empty);
+    private async void ApplyDescriptions_Click(object sender, RoutedEventArgs e)
+    { if (_descriptions is not null) await _descriptions.ApplyAsync(); }
+    private async void ReloadDescriptions_Click(object sender, RoutedEventArgs e)
+    { if (_descriptions is not null) await _descriptions.ReloadAsync(); }
+    private bool ConfirmDescriptionChanges(DescriptionConfirmation request) => ConfirmationDialog.Confirm(
+        Window.GetWindow(this), request.IsApply ? "Apply descriptions" : "Reload descriptions",
+        request.IsApply ? "Apply descriptive changes?" : "Discard unapplied edits?",
+        request.IsApply ? $"Change descriptive Catalog data for {request.AssetCount:N0} selected asset(s)."
+            : "Reloading Catalog values will discard your unapplied descriptive edits.",
+        string.Join(", ", request.Fields), request.IsApply ? "Apply changes" : "Discard and reload", "Keep editing");
     private void Inspector_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e) => _ = RefreshAsync();
     public void Dispose()
     {
+        _descriptions?.Dispose();
         ++_generation;
         _hydration?.Cancel();
         _hydration?.Dispose();

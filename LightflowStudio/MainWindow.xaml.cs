@@ -1008,6 +1008,8 @@ public partial class MainWindow : Window
     private async Task RunBrowserNavigationAsync(Func<Task<BrowserFolderState?>> navigate,
         BrowserScopeMode? scopeModeOverride = null)
     {
+        if (!TryLeaveInspectorContext()) { RestoreLoadedBrowserSelection(); return; }
+        using var editing = _inspector?.SuspendEditing();
         var generation = ++_browserUiGeneration;
         ShowBrowserLoadingState((scopeModeOverride ?? _browserNavigation.State.Mode) == BrowserScopeMode.IncludeSubfolders
             ? "Scanning folder and subfolders…" : "Loading folder…");
@@ -1073,6 +1075,13 @@ public partial class MainWindow : Window
 
     private void ApplyBrowserState(BrowserFolderState state)
     {
+        var incomingScope = state.Location is { } incoming
+            ? $"folder:{incoming.RootId:D}:{incoming.RelativeFolder}:{state.Mode}" : null;
+        var incomingKeys = (state.RecursiveMediaEntries ?? state.Entries).Where(BrowserGridModel.IsPresentable)
+            .Select(entry => entry.RelativePathKey).ToHashSet(StringComparer.Ordinal);
+        if ((incomingScope != _browserScopeIdentity ||
+            (_browserPresentation == BrowserPresentationMode.Grid && !_browserGrid.SelectedKeys.IsSubsetOf(incomingKeys))) &&
+            !TryLeaveInspectorContext()) return;
         ActivateFolderScopeSelection();
         _activeCollectionScope = null;
         BrowserCurrentPath.IsReadOnly = false;
@@ -1362,7 +1371,7 @@ public partial class MainWindow : Window
         // regardless of an incidental modifier key still down from the first click.
         if (e.ClickCount >= 2)
         {
-            _browserGrid.SelectSingle(tile.Index);
+            if (!_browserGrid.SelectSingle(tile.Index)) { e.Handled = true; return; }
             UpdateBrowserStatusText();
             e.Handled = true;
             _ = OpenBrowserPlayerViewerAsync(tile);
@@ -1736,6 +1745,8 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task OpenBrowserPlayerViewerAsync(BrowserGridTile tile)
     {
+        if (!TryLeaveInspectorContext()) return;
+        using var editing = _inspector?.SuspendEditing();
         var generation = _browserUiGeneration;
         var asset = new PlayerViewerAsset(tile.RootId, tile.RelativePath, tile.Key, tile.Name,
             MediaPresentationClassification.KindFor(tile.Category), tile.AssetId);
@@ -1769,6 +1780,8 @@ public partial class MainWindow : Window
             preferredPreviewFrames: _storage.PreferredPreviewFrames,
             classifications: _storage.AssetClassifications);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
+        _playerViewerHost.ContextChanging = TryLeaveInspectorContext;
+        _playerViewerHost.SuspendContextEditing = () => _inspector?.SuspendEditing();
         HomeRightPanel.AddSurface("subclips", "Subclips", _playerViewerHost.SubclipsContent, available: false);
         _playerViewerHost.CurrentAssetChanged += (_, _) =>
         {
@@ -1919,8 +1932,9 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task ReturnToBrowserGridAsync(bool restoreScrollOffset = true, bool focusGrid = true)
     {
-        HomeRightPanel.SetSurfaceAvailable("subclips", false);
         if (_browserPresentation != BrowserPresentationMode.PlayerViewer) return;
+        if (!TryLeaveInspectorContext()) return;
+        HomeRightPanel.SetSurfaceAvailable("subclips", false);
         var playerViewerHost = _playerViewerHost;
         SetBrowserPresentationMode(BrowserPresentationMode.Grid);
         if (restoreScrollOffset) RestoreBrowserGridScrollOffset();
@@ -4207,6 +4221,8 @@ public partial class MainWindow : Window
 
     private async Task LoadCollectionScopeAsync(Guid collectionId)
     {
+        if (!TryLeaveInspectorContext()) { RestoreLoadedBrowserSelection(); return; }
+        using var editing = _inspector?.SuspendEditing();
         _collectionScopeCts?.Cancel();
         _collectionScopeCts?.Dispose();
         var request = _collectionScopeCts = new CancellationTokenSource();
@@ -6476,6 +6492,7 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
+        if (!TryLeaveInspectorContext()) { e.Cancel = true; return; }
         SaveBatchState();
         SaveWorkspaceState();
         _previewMaintenanceCts?.Cancel();

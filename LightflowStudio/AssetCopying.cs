@@ -48,6 +48,7 @@ internal sealed class AssetCopyDataService(Func<CatalogDatabaseSession?> session
         Execute(connection, transaction, "INSERT INTO MediaAssetPreferredFrames (AssetId,PositionTicks,Revision,CreatedUtc,UpdatedUtc) SELECT $destination,PositionTicks,Revision,$now,$now FROM MediaAssetPreferredFrames WHERE AssetId=$source", oldId, newId, now);
         Execute(connection, transaction, "INSERT INTO MediaAssetClassifications (AssetId,Rating,Flag,ColorLabel,Revision,CreatedUtc,UpdatedUtc) SELECT $destination,Rating,Flag,ColorLabel,Revision,$now,$now FROM MediaAssetClassifications WHERE AssetId=$source", oldId, newId, now);
         Execute(connection, transaction, "INSERT INTO MediaAssetKeywords (AssetId,Keyword,Ordinal,CreatedUtc) SELECT $destination,Keyword,Ordinal,$now FROM MediaAssetKeywords WHERE AssetId=$source", oldId, newId, now);
+        Execute(connection, transaction, "INSERT INTO MediaAssetDescriptions (AssetId,Title,Description,Notes,CreatorOverride,CreditOverride,Revision,CreatedUtc,UpdatedUtc) SELECT $destination,Title,Description,Notes,CreatorOverride,CreditOverride,1,$now,$now FROM MediaAssetDescriptions WHERE AssetId=$source", oldId, newId, now);
 
         using (var memberships = connection.CreateCommand())
         {

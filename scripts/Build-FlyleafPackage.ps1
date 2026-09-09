@@ -62,8 +62,11 @@ try {
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     dotnet restore (Join-Path $workingRoot "FlyleafLib\FlyleafLib.csproj") -p:TargetFramework=net8.0-windows
     if ($LASTEXITCODE -ne 0) { throw "Flyleaf package restore failed." }
+    # Keep debug metadata identical for local and public clones of the same pin.
+    # The accepted package was built without GitHub-specific SourceLink metadata.
     dotnet pack (Join-Path $workingRoot "FlyleafLib\FlyleafLib.csproj") -c Release --no-restore `
         -p:TargetFrameworks=net8.0-windows -p:RepositoryCommit=$($manifest.sourceCommit) `
+        -p:EnableSourceLink=false `
         -p:ContinuousIntegrationBuild=true "-p:PathMap=$workingRoot=/_/Flyleaf" -o $OutputDirectory
     if ($LASTEXITCODE -ne 0) { throw "Flyleaf package build failed." }
 

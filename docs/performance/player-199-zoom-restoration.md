@@ -44,3 +44,20 @@ Focused playback, Home context, and packaging checks: 36 passed. TRX evidence is
 Final full Release suite: **1,808 passed, zero failures/skips**. The first full run
 passed 1,807 checks and caught a fixed-delay assumption in the new stepping test.
 The test now waits for the settled predecessor timestamp; the full rerun passed.
+
+## Accepted dependency publication
+
+Jeremy accepted `84680d7` hands-on and authorized publication and merge once ready.
+The pinned Flyleaf source is now public. Its package remains byte-for-byte unchanged.
+The public-clone rebuild initially added GitHub SourceLink debug metadata; the rebuild
+script now disables that remote-dependent metadata and reproduces the exact accepted
+SHA-256 `578ca4a55b87dd435a109ca4b170fbc16a35d02f6e3ca3a63a3d4270b68850e5`.
+
+Upstream removed the pinned BtbN FFmpeg playback download. With Jeremy's explicit
+authorization, the unchanged archive is mirrored in the Lightflow dependency release
+`dependency-ffmpeg-9.0.1-6-g9d4ca21220`. Its SHA-256 was verified before upload and
+after an independent public download:
+`138fe84aa6e4836920f615704115d7ecf4cfbfc20f9a3d5c60f27c1e604fc12b`.
+The manifest keeps the original download URL, upstream release, source, build project,
+variant, and license. An empty-cache run of the dependency preparation script passed.
+There is no FFmpeg upgrade, package replacement, or Player behavior change.

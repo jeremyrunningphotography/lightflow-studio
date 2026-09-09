@@ -32,6 +32,10 @@ public partial class MainWindow : Window
     private readonly LightflowStorageCoordinator _storage;
     private readonly StorageStartupStatus _storageStartupStatus;
     private readonly string? _storageDiagnostic;
+    private readonly TaskCompletionSource<bool> _startupCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    // Loaded/ItemsSource can be visible before its asynchronous initialization reaches history/restoration.
+    // Completion covers that handler; independently scheduled location/Preview work retains its own lifetime.
+    internal Task<bool> StartupCompletion => _startupCompletion.Task;
     private AppSettings _settings = new();
     private AppState _state = new();
     private Process? _activeEncodingProcess;
@@ -309,6 +313,7 @@ public partial class MainWindow : Window
                     SettingsMessage.Text = _storage.PreviewDiagnostic;
                 else if (_storage.RecoveryDiagnostic is not null)
                     SettingsMessage.Text = _storage.RecoveryDiagnostic;
+                _startupCompletion.TrySetResult(true);
             }
             catch (Exception exception)
             {
@@ -316,6 +321,7 @@ public partial class MainWindow : Window
                 BrowserEmptyTitle.Text = "Storage locations could not be loaded";
                 BrowserEmptyMessage.Text = $"Lightflow remains available. Details were written to {_activityLogFile.Path}.";
                 BrowserEmptyState.Visibility = Visibility.Visible;
+                _startupCompletion.TrySetResult(false);
             }
         };
         Closed += (_, _) =>

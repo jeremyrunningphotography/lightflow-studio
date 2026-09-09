@@ -518,7 +518,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
             try
             {
                 window.Show();
-                await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0, "storage");
+                Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)), "Window startup failed.");
                 window.BrowserCurrentPath.Text = _mediaRoot;
                 RaiseClick(window.BrowserGoButton);
                 await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&

@@ -69,7 +69,8 @@ public sealed class BrowserCatalogPresentationLiveTests(ITestOutputHelper output
             try
             {
                 window.Show();
-                await Until(() => window.BrowserFolderTree.Items.Count > 0);
+                Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)), "Window startup failed.");
+                Assert.NotEmpty(window.BrowserFolderTree.Items);
                 var clock = Stopwatch.StartNew();
                 var loading = Navigate(media);
                 await Until(() => window.BrowserLoadingOverlay.Visibility == Visibility.Collapsed && grid.TotalCount == 200 &&

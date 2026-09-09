@@ -10,6 +10,58 @@ namespace LightflowStudio.Tests;
 public sealed class JobsWorkspaceLiveInteractionTests
 {
     [Fact]
+    public Task StartupCompletion_WaitsForHistoryAfterEarlyItemsSourceBinding() => StaDispatcher.RunAsync(async () =>
+    {
+        TestWpfApplication.EnsureLoaded();
+        var root = Path.Combine(Path.GetTempPath(), $"lightflow-startup-gate-{Guid.NewGuid():N}");
+        var startup = await LightflowStorageCoordinator.StartAsync(root);
+        var storage = startup.Coordinator!;
+        new JobHistoryStore(storage.Locations.JobHistoryPath).Add(HistoryRecord());
+        var gate = new GatedBrowserStorageProvider(storage.BrowserStorage);
+        // Replace only the fixture's storage enumeration, holding startup at its real first asynchronous boundary.
+        typeof(LightflowStorageCoordinator).GetField("<BrowserStorage>k__BackingField",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(storage, gate);
+        var window = new MainWindow(storage, startup.Status, startup.Diagnostic)
+            { Left = -32000, Top = -32000, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual };
+        try
+        {
+            Assert.False(window.StartupCompletion.IsCompleted);
+            window.Show();
+            await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.True(window.IsLoaded);
+            Assert.NotNull(window.HistoryList.ItemsSource);
+            Assert.Empty(window.HistoryList.Items);
+            Assert.False(window.StartupCompletion.IsCompleted);
+            gate.Release.TrySetResult();
+            Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)));
+            Assert.IsType<JobsWorkspaceItem>(Assert.Single(window.HistoryList.Items));
+        }
+        finally
+        {
+            gate.Release.TrySetResult();
+            try { await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)); }
+            finally
+            {
+                window.Close();
+                await storage.DisposeAsync();
+                try { Directory.Delete(root, true); } catch (IOException) { }
+            }
+        }
+    });
+
+    private sealed class GatedBrowserStorageProvider(IBrowserStorageProvider inner) : IBrowserStorageProvider
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<IReadOnlyList<BrowserStorageEntry>> ListAsync(CancellationToken cancellationToken = default)
+        {
+            Entered.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            return await inner.ListAsync(cancellationToken);
+        }
+    }
+
+    [Fact]
     public async Task StatusJobs_ActivatesEmptyWorkspaceAndCompactJobsSharesQueueControls()
     {
         await RunAsync(seedHistoryCount: 0, async window =>
@@ -380,7 +432,8 @@ public sealed class JobsWorkspaceLiveInteractionTests
             try
             {
                 window.Show();
-                await WaitUntilAsync(() => window.IsLoaded && window.HistoryList.ItemsSource is not null);
+                Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)), "Window startup failed.");
+                Assert.Equal(seedHistoryCount, window.HistoryList.Items.Count);
                 await body(window);
             }
             finally

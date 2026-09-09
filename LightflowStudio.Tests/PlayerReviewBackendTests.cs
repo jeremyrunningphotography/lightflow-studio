@@ -102,12 +102,14 @@ public sealed partial class FlyleafPlaybackIntegrationTests
     {
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()!;
         var fixture = Path.Combine(_root, "zoom.mkv");
-        GenerateH264Fixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, 2);
+        Run(Path.Combine(dependencies, "ffmpeg.exe"), "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "testsrc2=size=1920x1440:rate=30:duration=3", "-c:v", "libopenh264", fixture);
         await StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
             var backend = new FlyleafPlaybackBackend(dependencies);
-            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            MediaPlaybackService? service = null;
+            await using var coordinator = new MediaPlaybackCoordinator(() => service = new MediaPlaybackService(backend));
             var host = new PlayerViewerHost(coordinator);
             var layout = new System.Windows.Controls.Grid(); layout.Children.Add(host);
             var window = new System.Windows.Window { Content = layout, Width = 1100, Height = 800, Left = -32000, ShowActivated = false, ShowInTaskbar = false };
@@ -116,14 +118,34 @@ public sealed partial class FlyleafPlaybackIntegrationTests
             {
                 var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mkv", "clip.mkv", "clip.mkv", MediaPresentationKind.Video);
                 await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key, fixture, MediaRootAvailability.Online, true));
+                await service!.SeekAsync(TimeSpan.FromSeconds(2));
                 await Task.Delay(200);
                 var fit = backend.RenderedViewport;
+                var view = Assert.IsType<MediaPlaybackView>(host.VideoHost.Children[0]);
+                var fullFrame = await view.CaptureFrameAsync();
                 host.ZoomChoice.SelectedIndex = 2;
                 await Task.Delay(200);
                 var actual = backend.RenderedViewport;
                 Console.WriteLine($"ZOOM renderer={backend.ActiveVideoProcessor} fit={fit} actual100={actual}");
                 Assert.NotEqual(fit, actual);
-                Assert.InRange(actual.Width, 638, 642);
+                Assert.InRange(actual.Width, 1918, 1922);
+                host.PanViewport(90, 40);
+                await Task.Delay(150);
+                var zoomedCapture = await view.CaptureFrameAsync();
+                Assert.Equal(fullFrame.BgraPixels, zoomedCapture.BgraPixels);
+                for (var step = 0; step < 3; step++)
+                {
+                    var prior = host.SteppedFrameSurface.Source;
+                    var timestamp = service.Snapshot.DisplayedTimestamp!.Position;
+                    host.PreviousFrameButton.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                    await WaitUntilAsync(() => host.SteppedFrameSurface.Source is not null && !ReferenceEquals(prior, host.SteppedFrameSurface.Source), "retained frame");
+                    await WaitUntilAsync(() => service.Snapshot.DisplayedTimestamp!.Position < timestamp, "settled predecessor timestamp");
+                    host.PanViewport(15, 10);
+                    await Task.Delay(150);
+                    Console.WriteLine($"STEP {step} media={host.MediaSurfaceHost.RenderSize} retained={host.SteppedFrameSurface.RenderSize} viewport={backend.RenderedViewport} transform={host.SteppedFrameSurface.RenderTransform.Value}");
+                    Assert.InRange(backend.RenderedViewport.Width, 1918, 1922);
+                    Assert.InRange(host.SteppedFrameSurface.ActualWidth * host.SteppedFrameSurface.RenderTransform.Value.M11, 1918, 1922);
+                }
             }
             finally { await host.CloseAsync(); window.Close(); }
         });
@@ -180,6 +202,13 @@ public sealed partial class FlyleafPlaybackIntegrationTests
                     window.UpdateLayout();
                     Console.WriteLine($"CYCLE {cycle} SIZE {host.RenderSize} expected={size} native={((System.Windows.Window)input).ActualWidth} view={view.ActualWidth}");
                     Assert.Equal(size, host.RenderSize);
+                    Assert.Equal(System.Windows.Visibility.Visible, host.PlayerHeader.Visibility);
+                    Assert.Equal(System.Windows.Visibility.Visible, host.TransportBar.Visibility);
+                    var expectedOrigin = view.PointToScreen(new System.Windows.Point());
+                    var actualOrigin = input.PointToScreen(new System.Windows.Point());
+                    Console.WriteLine($"NATIVE origin={actualOrigin} expected={expectedOrigin} size={input.RenderSize} expected={view.RenderSize}");
+                    Assert.InRange(Math.Abs(actualOrigin.Y - expectedOrigin.Y), 0, 2);
+                    Assert.InRange(Math.Abs(input.ActualHeight - view.ActualHeight), 0, 2);
                     Assert.InRange(Math.Abs(((System.Windows.Window)input).ActualWidth - view.ActualWidth), 0, 2);
                     Assert.Equal(playing ? MediaPlaybackState.Playing : MediaPlaybackState.Paused, service.Snapshot.State);
                 }

@@ -132,10 +132,24 @@ public partial class PlayerViewerHost
         _mediaView?.SetOverlay(null);
         if (_fullscreenOverlay is { } overlay) MediaSurfaceHost.Children.Remove(overlay);
         _fullscreenOverlay = null;
-        PlayerHeader.Visibility = Visibility.Visible; TransportBar.Visibility = _savedTransportVisibility;
-        PlayerBorder.BorderThickness = _savedBorderThickness; PlayerBorder.Margin = _savedBorderMargin; Margin = _savedPlayerMargin;
-        PlayerBorder.CornerRadius = _savedCornerRadius;
-        fullscreen?.Dispose();
+        // Hide the native child together with WPF while changing the window and parent.
+        // Restore chrome only in the normal host, then arrange before showing either surface.
+        // Otherwise HWND resize/show notifications can expose the fullscreen rectangle over
+        // controls whose WPF Visibility has already been restored.
+        var visibility = Visibility;
+        Visibility = Visibility.Hidden;
+        try
+        {
+            fullscreen.Dispose();
+            PlayerHeader.Visibility = Visibility.Visible; TransportBar.Visibility = _savedTransportVisibility;
+            PlayerBorder.BorderThickness = _savedBorderThickness; PlayerBorder.Margin = _savedBorderMargin; Margin = _savedPlayerMargin;
+            PlayerBorder.CornerRadius = _savedCornerRadius;
+            System.Windows.Window.GetWindow(this)?.UpdateLayout();
+        }
+        finally { Visibility = visibility; }
+        UpdateLayout();
+        ApplyViewport();
+        Focus();
     }
 
     private bool TryLoop(MediaPlaybackSnapshot snapshot)

@@ -33,7 +33,7 @@ foreach ($relativePath in $requiredFiles) {
 }
 
 $thirdPartyNotices = Get-Content -LiteralPath (Join-Path $packageRoot "THIRD-PARTY-NOTICES.md") -Raw
-$requiredNoticeMarkers = @("FlyleafLib 3.11.2-lightflow.2", "172300873b19ec6f544337c5be9619c85fe421b0", "Microsoft.Data.Sqlite 8.0.29", "SQLitePCLRaw 2.1.6", "sqlite.org/copyright")
+$requiredNoticeMarkers = @("FlyleafLib 3.11.2-lightflow.3", "a9ca2937a95952790efa87b94f56cd735024d52c", "Microsoft.Data.Sqlite 8.0.29", "SQLitePCLRaw 2.1.6", "sqlite.org/copyright")
 foreach ($marker in $requiredNoticeMarkers) {
     if ($thirdPartyNotices.IndexOf($marker, [StringComparison]::Ordinal) -lt 0) {
         throw "Staged third-party notices are missing the Catalog database dependency: $marker"

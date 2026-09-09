@@ -180,7 +180,7 @@ internal sealed class BrowserTreeModel
 
         var current = EnsurePath(root, state.Location.AbsolutePath, state.Location.RootId, state.Location.RootPath);
         Select(current);
-        ReplaceDirectories(current, state.Location.RootPath, state.Entries);
+        if (!state.IsRevalidating) ReplaceDirectories(current, state.Location.RootPath, state.Entries);
         return state.Entries.Where(entry => !entry.IsDirectory).ToArray();
     }
 

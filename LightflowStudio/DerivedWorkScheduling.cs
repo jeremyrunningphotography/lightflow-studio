@@ -100,6 +100,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
     private readonly IThumbnailGenerationService _thumbnails;
     private readonly IPreviewOperationCoordinator? _operations;
     private readonly IAssetColorStore? _colors;
+    private readonly Func<string, bool>? _artifactExists;
     private readonly bool _ownsGenerators;
     private readonly object _sync = new();
     private readonly Queue<QueueEntry> _visible = new();
@@ -114,7 +115,8 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
     public DerivedWorkScheduler(IMediaAssetService assets, IPreviewStoreService previews,
         IDerivedMediaMetadataService metadata, IThumbnailGenerationService thumbnails,
         int maximumConcurrency = 2, bool ownsGenerators = false,
-        IPreviewOperationCoordinator? operations = null, IAssetColorStore? colors = null)
+        IPreviewOperationCoordinator? operations = null, IAssetColorStore? colors = null,
+        Func<string, bool>? artifactExists = null)
     {
         if (maximumConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maximumConcurrency));
         _assets = assets;
@@ -123,6 +125,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
         _thumbnails = thumbnails;
         _operations = operations;
         _colors = colors;
+        _artifactExists = artifactExists;
         _ownsGenerators = ownsGenerators;
         _workers = Enumerable.Range(0, maximumConcurrency)
             .Select(_ => Task.Run(WorkerAsync))
@@ -268,6 +271,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
         }
         var needsThumbnail = supportsThumbnail && (!sameSource || preview!.ThumbnailState != PreviewComponentState.Current ||
             preview.ThumbnailGeneratorVersion != ThumbnailGenerationService.CurrentGeneratorVersion ||
+            preview.ThumbnailRelativePath is null || _artifactExists?.Invoke(preview.ThumbnailRelativePath) == false ||
             !string.Equals(preview.ThumbnailVisualIdentity ?? PreviewVisualIdentity.Original, visualIdentity, StringComparison.Ordinal));
 
         var metadata = DerivedWorkComponentOutcome.NotNeeded;

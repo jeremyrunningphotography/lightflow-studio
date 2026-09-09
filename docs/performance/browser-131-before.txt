@@ -1,0 +1,9 @@
+normal,cold,navigation=333.2,models=3.3,query=0.3,previewRead=7.6,catalog.read=0.7,filesystem.enumeration=4.1,reconciliation=324.0
+normal,same-session,navigation=286.8,models=0.2,query=0.1,previewRead=2.9,catalog.read=0.8,filesystem.enumeration=0.9,reconciliation=285.5,source.observation=280.8
+normal,restart,navigation=297.4,models=0.1,query=0.0,previewRead=2.5,catalog.read=0.5,filesystem.enumeration=0.7,reconciliation=296.3,source.observation=293.4
+large,cold,navigation=1765.5,models=0.4,query=0.3,previewRead=8.3,catalog.read=1.7,filesystem.enumeration=11.0,reconciliation=1772.1
+large,same-session,navigation=1540.9,models=0.3,query=0.2,previewRead=7.4,catalog.read=2.8,filesystem.enumeration=2.2,reconciliation=1538.2,source.observation=1529.9
+large,restart,navigation=1602.6,models=0.5,query=0.3,previewRead=11.2,catalog.read=2.7,filesystem.enumeration=2.1,reconciliation=1597.8,source.observation=1589.7
+recursive,cold,navigation=1597.4,models=0.5,query=0.3,previewRead=7.7,catalog.read=69.4,filesystem.enumeration=14.4,reconciliation=5483.0
+recursive,same-session,navigation=1473.2,models=0.5,query=0.3,previewRead=7.3,catalog.read=82.8,filesystem.enumeration=4.6,reconciliation=5266.4,source.observation=5176.1
+recursive,restart,navigation=1867.5,models=0.4,query=0.2,previewRead=7.4,catalog.read=71.5,filesystem.enumeration=6.8,reconciliation=7076.1,source.observation=6994.9

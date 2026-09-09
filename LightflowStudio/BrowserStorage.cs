@@ -193,6 +193,7 @@ internal sealed class BrowserLocationResolver(IMediaRootService roots, IBrowserL
     public async Task<BrowserLocationResolution> ResolveAsync(string absoluteFolder,
         CancellationToken cancellationToken = default)
     {
+        using var timing = BrowserPerformance.Measure("location.resolve");
         string folder;
         try { folder = MediaPathSemantics.NormalizeRootPath(absoluteFolder); }
         catch (ArgumentException exception) { return new(BrowserLocationResolutionStatus.InvalidPath, Diagnostic: exception.Message); }

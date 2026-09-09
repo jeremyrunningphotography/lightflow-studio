@@ -95,8 +95,24 @@ internal sealed class SampledSourceFingerprintService : ISourceFingerprintServic
     }
 }
 
+internal static class MediaAssetScope
+{
+    public static bool Contains(MediaAsset asset, Guid rootId, string folder, bool recursive)
+    {
+        if (asset.RootId != rootId) return false;
+        var prefix = string.IsNullOrEmpty(folder) ? "" : MediaPathSemantics.RelativePathKey(folder) + "/";
+        return asset.RelativePathKey.StartsWith(prefix, StringComparison.Ordinal) &&
+            (recursive || !asset.RelativePathKey[prefix.Length..].Contains('/'));
+    }
+
+}
+
 internal interface IMediaAssetRepository
 {
+    async Task<IReadOnlyList<MediaAsset>> ListScopeAsync(Guid rootId, string folder, bool recursive,
+        CancellationToken cancellationToken = default) =>
+        (await ListAsync(cancellationToken).ConfigureAwait(false)).Where(asset =>
+            MediaAssetScope.Contains(asset, rootId, folder, recursive)).ToArray();
     Task<MediaAsset?> GetAsync(Guid assetId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default);
     Task<MediaAsset?> FindAsync(Guid rootId, string relativePathKey, CancellationToken cancellationToken = default);
@@ -112,6 +128,27 @@ internal interface IMediaAssetRepository
 
 internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> session) : IMediaAssetRepository
 {
+    public Task<IReadOnlyList<MediaAsset>> ListScopeAsync(Guid rootId, string folder, bool recursive,
+        CancellationToken cancellationToken = default) => RunAsync<IReadOnlyList<MediaAsset>>(() =>
+    {
+        using var timing = BrowserPerformance.Measure("catalog.scope");
+        var prefix = string.IsNullOrEmpty(folder) ? "" : MediaPathSemantics.RelativePathKey(folder) + "/";
+        using var connection = RequireSession().OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = SelectSql + " WHERE RootId=$root" +
+            (prefix.Length == 0 ? "" : " AND RelativePathKey >= $prefix AND RelativePathKey < $end") + """
+             AND ($recursive=1 OR instr(substr(RelativePathKey, length($prefix)+1), '/')=0)
+             ORDER BY RelativePathKey;
+            """;
+        command.Parameters.AddWithValue("$root", rootId.ToString("D"));
+        command.Parameters.AddWithValue("$prefix", prefix);
+        command.Parameters.AddWithValue("$end", prefix.Length == 0 ? "" : prefix[..^1] + "0");
+        command.Parameters.AddWithValue("$recursive", recursive ? 1 : 0);
+        using var reader = command.ExecuteReader();
+        var result = new List<MediaAsset>();
+        while (reader.Read()) { cancellationToken.ThrowIfCancellationRequested(); result.Add(Read(reader)); }
+        return result;
+    }, cancellationToken);
     public Task<MediaAsset?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) => RunAsync(() =>
     {
         using var connection = RequireSession().OpenConnection();
@@ -296,6 +333,10 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
 
 internal interface IMediaAssetService
 {
+    async Task<IReadOnlyList<MediaAsset>> ListScopeAsync(Guid rootId, string folder, bool recursive,
+        CancellationToken cancellationToken = default) =>
+        (await ListAsync(cancellationToken).ConfigureAwait(false)).Where(asset =>
+            MediaAssetScope.Contains(asset, rootId, folder, recursive)).ToArray();
     Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown",
         CancellationToken cancellationToken = default);
     Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default);
@@ -311,6 +352,8 @@ internal interface IMediaAssetService
 internal sealed class MediaAssetService(IMediaAssetRepository repository, IMediaRootService roots,
     ISourceFingerprintService fingerprints) : IMediaAssetService
 {
+    public Task<IReadOnlyList<MediaAsset>> ListScopeAsync(Guid rootId, string folder, bool recursive,
+        CancellationToken cancellationToken = default) => repository.ListScopeAsync(rootId, folder, recursive, cancellationToken);
     public async Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown",
         CancellationToken cancellationToken = default)
     {

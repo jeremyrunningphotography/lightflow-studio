@@ -1,5 +1,35 @@
 # Architecture
 
+## Catalog-backed Browser revisits (#131)
+
+`BrowserNavigationSession` can now present a provisional Catalog snapshot before its existing authoritative
+filesystem reconciliation completes. This updates the earlier filesystem-first presentation ordering below;
+filesystem discovery remains the eventual source authority. The provider-neutral Media Asset service exposes
+a RootId + relative-folder query, implemented with the Catalog's root/path index. Direct and Include Subfolders
+scopes use that same query and the same Browser model, query/filter/sort, selection and Preview hydration.
+
+`KnownContentAvailable` carries an explicitly `IsRevalidating` folder state. The grid shows known media and a
+“Checking for changes” status; artifacts must match the stored Catalog source identity, component state and
+generator version. It does not claim that source files have been revalidated. Cold/empty Catalog scopes continue
+to await discovery; there is no invented folder-completeness cache. Root availability checks still precede
+presentation and offline observations never delete retained Catalog/Preview data.
+
+The same request then runs the existing direct reconciliation or bounded recursive discovery, committing its
+final state as a refresh without adding history twice. Missing files disappear, changed source observations
+invalidate old derived presentation, and surviving selection/query remain intact. Reconciliation identity is
+carried independently of the optional derived-work batch. A Current Preview row with a missing physical
+thumbnail is repaired by the existing scheduler/generator boundary. Freshly generated thumbnails replace
+provisional ones once; overlapping progress notifications share one hydration operation.
+
+Initial, final, scope and progress delivery are generation/cancellation guarded, including after dispatcher
+queueing and Preview reads. A delayed tree reveal may focus only the still-selected node, since WPF focus itself
+can trigger navigation. Watcher hints during initial loading/revalidation are coalesced and replayed through
+authoritative refresh after completion, including saved-location restoration. Failed validation remains visibly
+unverified and retryable. No second Catalog, Preview, Browser query or recursive discovery pipeline is created.
+
+Opt-in `LightflowStudio.Browser` activities expose path-free stage durations without production log spam.
+See [the investigation and measured evidence](performance/browser-131.md) for methods, limitations and scenarios.
+
 ## Shared Right Panel: Inspector, Subclips, and global Jobs (#223 / #225 / #238)
 
 Home owns one reusable `ContextualRightPanel` beside the live Browser/Player center. Surfaces register a stable key,

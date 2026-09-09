@@ -10,6 +10,15 @@ internal enum PreviewComponentState { Missing, Current, Stale, Failed }
 internal enum PreviewSourceAvailability { Unknown, Available, Missing, Unavailable }
 internal enum PreviewArtifactKind { Thumbnail, StandardPreview }
 
+internal static class PreviewArtifactFiles
+{
+    public static bool Exists(string previewsDirectory, string relativePath)
+    {
+        try { return File.Exists(MediaPathSemantics.ResolveContained(previewsDirectory, relativePath)); }
+        catch (ArgumentException) { return false; }
+    }
+}
+
 internal static class PreviewVisualIdentity
 {
     public const string Original = "lightflow-preview-original-v1";

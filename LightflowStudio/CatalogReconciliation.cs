@@ -54,10 +54,12 @@ internal sealed class CatalogReconciliationService(
     public async Task<CatalogReconciliationResult> ReconcileAsync(MediaFolderEnumerationRequest request,
         CancellationToken cancellationToken = default)
     {
+        using var timing = BrowserPerformance.Measure("reconciliation");
         var folder = request.RelativeFolder?.Trim() ?? string.Empty;
         MediaFolderEnumerationResult enumeration;
         try
         {
+            using var enumerationTiming = BrowserPerformance.Measure("filesystem.enumeration");
             enumeration = await folders.EnumerateAsync(request, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -77,9 +79,8 @@ internal sealed class CatalogReconciliationService(
         IReadOnlyList<MediaAsset> existing;
         try
         {
-            existing = (await assets.ListAsync(cancellationToken).ConfigureAwait(false))
-                .Where(asset => asset.RootId == request.RootId && IsDirectChild(asset.RelativePath, folder))
-                .ToArray();
+            using var catalogTiming = BrowserPerformance.Measure("catalog.read");
+            existing = await assets.ListScopeAsync(request.RootId, folder, false, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -115,6 +116,7 @@ internal sealed class CatalogReconciliationService(
                     continue;
                 }
 
+                using var observationTiming = BrowserPerformance.Measure("source.observation");
                 var observed = await assets.ObserveAsync(prior.AssetId, cancellationToken).ConfigureAwait(false);
                 if (!observed.Succeeded || observed.Asset is null)
                     return Failed(request, folder, changes, unsupportedCount, observed.Diagnostic);
@@ -152,19 +154,6 @@ internal sealed class CatalogReconciliationService(
         return new(CatalogReconciliationStatus.Succeeded, request.RootId, folder, changes,
             unsupportedCount);
     }
-
-    private static bool IsDirectChild(string relativePath, string folder)
-    {
-        var parent = Path.GetDirectoryName(relativePath.Replace('/', Path.DirectorySeparatorChar)) ?? string.Empty;
-        var normalizedParent = string.IsNullOrEmpty(parent)
-            ? string.Empty
-            : MediaPathSemantics.NormalizeRelativePath(parent);
-        return string.Equals(FolderKey(normalizedParent), FolderKey(folder), StringComparison.Ordinal);
-    }
-
-    private static string FolderKey(string folder) => string.IsNullOrEmpty(folder)
-        ? string.Empty
-        : MediaPathSemantics.RelativePathKey(folder);
 
     private static string MediaTypeName(MediaTypeCategory category) => category switch
     {

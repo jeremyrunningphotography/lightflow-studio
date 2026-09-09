@@ -489,6 +489,12 @@ internal sealed class BrowserGridSelection
 /// </summary>
 internal sealed class BrowserGridModel
 {
+    public void InvalidateChangedAssets(IReadOnlyList<CatalogReconciliationItem> items)
+    {
+        var changed = items.Where(item => item.Status == CatalogReconciliationItemStatus.Changed)
+            .Select(item => item.AssetId).ToHashSet();
+        _allTiles.RemoveAll(tile => tile.AssetId is { } id && changed.Contains(id));
+    }
     // The full presentable set for the current scope (identity/thumbnail/metadata home). Never reordered or
     // filtered directly — that projection is _visibleTiles, recomputed from this master list plus the
     // current query. Keeping both means a sort/filter/search change is pure re-projection over already-owned
@@ -577,12 +583,16 @@ internal sealed class BrowserGridModel
     /// </summary>
     public void Populate(IReadOnlyList<MediaFolderEntry> entries)
     {
+        using var timing = BrowserPerformance.Measure("grid.populate");
         var existingByKey = _allTiles.ToDictionary(tile => tile.Key, StringComparer.Ordinal);
         var desired = new List<BrowserGridTile>(entries.Count);
         foreach (var entry in entries)
         {
             if (!IsPresentable(entry)) continue;
-            var tile = existingByKey.TryGetValue(entry.RelativePathKey, out var prior) ? prior : new BrowserGridTile(entry, desired.Count);
+            var tile = existingByKey.TryGetValue(entry.StableKey ?? entry.RelativePathKey, out var prior) &&
+                prior.RootId == entry.RootId && prior.FileSizeBytes == entry.FileSizeBytes &&
+                prior.ModifiedUtc == entry.LastWriteUtc && prior.IsAvailable == entry.IsAvailable
+                ? prior : new BrowserGridTile(entry, desired.Count);
             tile.ManualOrdinal = desired.Count;
             tile.SetViewMode(ViewMode);
             desired.Add(tile);
@@ -783,6 +793,7 @@ internal sealed class BrowserGridModel
 
     private void RecomputeVisible()
     {
+        using var timing = BrowserPerformance.Measure("query.project");
         _visibleTiles = BrowserQueryEngine.Apply(_allTiles, Query).ToList();
         for (var index = 0; index < _visibleTiles.Count; index++) _visibleTiles[index].Index = index;
         Rebuild();
@@ -817,11 +828,14 @@ internal static class BrowserDerivedWorkProjection
     /// and <see cref="DerivedWorkComponentOutcome.Canceled"/> have no thumbnail to fetch.
     /// </summary>
     public static IReadOnlyList<Guid> AssetsNeedingThumbnailLookup(
-        IReadOnlyList<DerivedWorkItemResult> results, Func<Guid, bool> alreadyHasThumbnail) =>
+        IReadOnlyList<DerivedWorkItemResult> results, Func<Guid, bool> alreadyHasThumbnail,
+        IReadOnlySet<Guid>? appliedGenerated = null) =>
         results.Where(result => result.Thumbnail is DerivedWorkComponentOutcome.Succeeded or
             DerivedWorkComponentOutcome.Current or DerivedWorkComponentOutcome.NotNeeded)
+            .Where(result => !alreadyHasThumbnail(result.AssetId) ||
+                (result.Thumbnail == DerivedWorkComponentOutcome.Succeeded && appliedGenerated is not null &&
+                    !appliedGenerated.Contains(result.AssetId)))
             .Select(result => result.AssetId)
-            .Where(assetId => !alreadyHasThumbnail(assetId))
             .Distinct()
             .ToArray();
 

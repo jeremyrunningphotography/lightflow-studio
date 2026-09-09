@@ -573,7 +573,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         var thumbnails = ThumbnailGenerationFactory.Create(MediaAssets, Previews, Locations, Settings,
             null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity, PreferredPreviewFrames);
         return new DerivedWorkScheduler(MediaAssets, Previews, metadata, thumbnails,
-            ownsGenerators: true, operations: _previewOperations, colors: AssetColors);
+            ownsGenerators: true, operations: _previewOperations, colors: AssetColors,
+            artifactExists: relative => PreviewArtifactFiles.Exists(Locations.PreviewsDirectory, relative));
     }
 
     private async Task DisposeDerivedWorkSchedulerAsync()

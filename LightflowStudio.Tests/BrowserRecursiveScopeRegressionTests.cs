@@ -224,7 +224,9 @@ public sealed class BrowserRecursiveScopeRegressionTests
     public void BrowserNavigationRecursiveScopeProgressChanged_MarshalsToTheUiThreadBeforeTouchingTheProgressBar()
     {
         var body = MethodBody("private void BrowserNavigation_RecursiveScopeProgressChanged");
-        Assert.Contains("Dispatcher.BeginInvoke(() => ApplyRecursiveScopeLoadingProgress(progress));", body);
+        Assert.Contains("Dispatcher.BeginInvoke(() =>", body);
+        Assert.Contains("IsCurrentGeneration(progress.NavigationGeneration)", body);
+        Assert.Contains("ApplyRecursiveScopeLoadingProgress(progress);", body);
     }
 
     [Fact]

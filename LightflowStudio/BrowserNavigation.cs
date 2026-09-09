@@ -20,7 +20,7 @@ internal sealed record BrowserLocation(
 /// well before the (potentially slow) media discovery <see cref="BrowserNavigationSession"/> runs afterward.
 /// </summary>
 internal sealed record BrowserEffectiveScope(BrowserLocation Location, BrowserScopeMode Mode,
-    IReadOnlyList<BrowserRecursiveRoot> RecursiveRoots);
+    IReadOnlyList<BrowserRecursiveRoot> RecursiveRoots, long NavigationGeneration = 0);
 
 internal enum BrowserFolderStatus
 {
@@ -58,7 +58,11 @@ internal sealed record BrowserFolderState(
     // Every stored Catalog recursive root, as of this navigation — reused by MainWindow to sync Locations
     // tree iconography without a second Catalog round-trip. Empty for states committed before any root list
     // was ever fetched (e.g. an early RootNotFound/RootUnavailable failure).
-    IReadOnlyList<BrowserRecursiveRoot>? RecursiveRoots = null)
+    IReadOnlyList<BrowserRecursiveRoot>? RecursiveRoots = null,
+    bool IsRevalidating = false,
+    long NavigationGeneration = 0,
+    IReadOnlyList<MediaAsset>? CatalogAssets = null,
+    CatalogReconciliationResult? Reconciliation = null)
 {
     public static BrowserFolderState Initial { get; } = new(null, BrowserFolderStatus.Empty, [],
         "Choose a storage location to begin browsing.", false, false, false);
@@ -80,8 +84,8 @@ internal sealed class SynchronousProgress<T>(Action<T> callback) : IProgress<T>
 }
 
 /// <summary>
-/// UI-independent filesystem-first navigation session. Absolute paths are resolved to stable logical roots
-/// before the existing authoritative discovery and contained enumeration services run.
+/// UI-independent navigation session. Known Catalog media can be presented provisionally before the existing
+/// authoritative discovery and contained enumeration services reconcile the same navigation generation.
 /// </summary>
 internal sealed class BrowserNavigationSession(
     IMediaRootService roots,
@@ -89,7 +93,9 @@ internal sealed class BrowserNavigationSession(
     IMediaDiscoveryRefreshService discovery,
     IMediaFolderEnumerator folders,
     IBrowserRecursiveRootService recursiveRoots,
-    IRecursiveMediaDiscoveryService? recursiveDiscovery = null) : IDisposable
+    IRecursiveMediaDiscoveryService? recursiveDiscovery = null,
+    IMediaAssetService? assets = null,
+    IMediaTypeRegistry? mediaTypes = null) : IDisposable
 {
     private readonly IRecursiveMediaDiscoveryService _recursiveDiscovery =
         recursiveDiscovery ?? new RecursiveMediaDiscoveryService(folders, discovery);
@@ -99,6 +105,21 @@ internal sealed class BrowserNavigationSession(
     private CancellationTokenSource? _activeRequest;
     private long _generation;
     private bool _disposed;
+    private long _knownContentGeneration;
+
+    public event EventHandler<BrowserFolderState>? KnownContentAvailable;
+    public bool CanPresentKnownContent(BrowserFolderState state)
+    {
+        lock (_sync) return IsCurrent(state) && ReferenceEquals(State, state) &&
+            _knownContentGeneration == state.NavigationGeneration;
+    }
+    public bool IsCurrent(BrowserFolderState state)
+        => IsCurrentGeneration(state.NavigationGeneration);
+    public bool IsCurrentGeneration(long generation)
+    {
+        lock (_sync) return !_disposed && generation == _generation &&
+            _activeRequest?.IsCancellationRequested == false;
+    }
 
     public BrowserFolderState State { get; private set; } = BrowserFolderState.Initial;
     /// <summary>The latest requested/resolved folder, independent of whether its discovery generation has completed.</summary>
@@ -164,16 +185,16 @@ internal sealed class BrowserNavigationSession(
         var operation = Begin(cancellationToken);
         try
         {
-            var root = await roots.GetAsync(rootId, operation.Request.Token).ConfigureAwait(false);
-            operation.Request.Token.ThrowIfCancellationRequested();
+            var root = await roots.GetAsync(rootId, operation.Token).ConfigureAwait(false);
+            operation.Token.ThrowIfCancellationRequested();
             if (root is null)
                 return CommitFailure(operation.Generation, BrowserFolderStatus.RootNotFound,
                     "This managed location no longer exists.");
             if (root.Availability != MediaRootAvailability.Online || string.IsNullOrWhiteSpace(root.PhysicalPath))
                 return CommitFailure(operation.Generation, BrowserFolderStatus.RootUnavailable, root.Diagnostic ??
                     "This managed location is not available on this computer.");
-            var resolution = await locations.ResolveAsync(root.PhysicalPath, operation.Request.Token).ConfigureAwait(false);
-            operation.Request.Token.ThrowIfCancellationRequested();
+            var resolution = await locations.ResolveAsync(root.PhysicalPath, operation.Token).ConfigureAwait(false);
+            operation.Token.ThrowIfCancellationRequested();
             if (!resolution.Succeeded)
                 return CommitFailure(operation.Generation, Map(resolution.Status), resolution.Diagnostic);
             var location = new BrowserLocation(resolution.RootId!.Value, resolution.RootName!, resolution.RootPath!,
@@ -261,9 +282,9 @@ internal sealed class BrowserNavigationSession(
         try
         {
             if (enabled)
-                await recursiveRoots.EnableAsync(current.RootId, current.RelativeFolder, operation.Request.Token).ConfigureAwait(false);
+                await recursiveRoots.EnableAsync(current.RootId, current.RelativeFolder, operation.Token).ConfigureAwait(false);
             else
-                await recursiveRoots.DisableAsync(current.RootId, current.RelativeFolder, operation.Request.Token).ConfigureAwait(false);
+                await recursiveRoots.DisableAsync(current.RootId, current.RelativeFolder, operation.Token).ConfigureAwait(false);
             return await LoadAndCommitAsync(operation, current, NavigationKind.Refresh, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (operation.Request.IsCancellationRequested)
@@ -279,8 +300,8 @@ internal sealed class BrowserNavigationSession(
         var operation = Begin(cancellationToken);
         try
         {
-            var resolution = await locations.ResolveAsync(absoluteFolder, operation.Request.Token).ConfigureAwait(false);
-            operation.Request.Token.ThrowIfCancellationRequested();
+            var resolution = await locations.ResolveAsync(absoluteFolder, operation.Token).ConfigureAwait(false);
+            operation.Token.ThrowIfCancellationRequested();
             if (!resolution.Succeeded)
                 return CommitFailure(operation.Generation, Map(resolution.Status), resolution.Diagnostic);
             var location = new BrowserLocation(resolution.RootId!.Value, resolution.RootName!, resolution.RootPath!,
@@ -310,10 +331,11 @@ internal sealed class BrowserNavigationSession(
     private async Task<BrowserFolderState?> LoadAndCommitAsync(Operation operation, BrowserLocation location,
         NavigationKind kind, CancellationToken callerToken)
     {
+        using var timing = BrowserPerformance.Measure("navigation.load");
         try
         {
-            var root = await roots.GetAsync(location.RootId, operation.Request.Token).ConfigureAwait(false);
-            operation.Request.Token.ThrowIfCancellationRequested();
+            var root = await roots.GetAsync(location.RootId, operation.Token).ConfigureAwait(false);
+            operation.Token.ThrowIfCancellationRequested();
             if (root is null)
                 return Commit(operation.Generation, location, kind, BrowserFolderStatus.RootNotFound, [],
                     "This location's Catalog identity no longer exists.");
@@ -326,12 +348,31 @@ internal sealed class BrowserNavigationSession(
             // this location — never a manually toggled field. The fetched list is also carried on the
             // committed state (see BrowserFolderState.RecursiveRoots) so MainWindow can sync Locations-tree
             // iconography from the same round-trip rather than querying the Catalog a second time.
-            var recursiveRootList = await recursiveRoots.ListAsync(operation.Request.Token).ConfigureAwait(false);
-            operation.Request.Token.ThrowIfCancellationRequested();
+            var recursiveRootList = await recursiveRoots.ListAsync(operation.Token).ConfigureAwait(false);
+            operation.Token.ThrowIfCancellationRequested();
             var mode = BrowserRecursiveRootLogic.IsEffectivelyRecursive(recursiveRootList, location.RootId, location.RelativeFolder)
                 ? BrowserScopeMode.IncludeSubfolders
                 : BrowserScopeMode.DirectFolder;
             RaiseEffectiveScopeDetermined(operation.Generation, new(location, mode, recursiveRootList));
+
+            if (assets is not null)
+            {
+                var known = await assets.ListScopeAsync(location.RootId, location.RelativeFolder,
+                    mode == BrowserScopeMode.IncludeSubfolders, operation.Token).ConfigureAwait(false);
+                operation.Token.ThrowIfCancellationRequested();
+                var entries = BrowserCatalogScope.Entries(known, mediaTypes ?? MediaTypeRegistry.CreateDefault());
+                if (entries.Count > 0)
+                {
+                    var provisional = Commit(operation.Generation, location, kind, BrowserFolderStatus.Ready,
+                        mode == BrowserScopeMode.DirectFolder ? entries : [], "Showing known media • Checking for changes…",
+                        recursiveMediaEntries: mode == BrowserScopeMode.IncludeSubfolders ? entries : null,
+                        mode: mode, recursiveRoots: recursiveRootList, isRevalidating: true, catalogAssets: known);
+                    if (provisional is null) return null;
+                    KnownContentAvailable?.Invoke(this, provisional);
+                    // Initial presentation commits history exactly once; reconciliation replaces that scope.
+                    kind = NavigationKind.Refresh;
+                }
+            }
 
             if (mode == BrowserScopeMode.IncludeSubfolders)
             {
@@ -339,8 +380,8 @@ internal sealed class BrowserNavigationSession(
                     reported => RaiseRecursiveScopeProgress(operation.Generation, reported));
                 var recursive = await _recursiveDiscovery.DiscoverAsync(
                     new(location.RootId, EmptyToNull(location.RelativeFolder)), DerivedWorkPriority.Visible,
-                    operation.Request.Token, operation.Request.Token, progressReporter).ConfigureAwait(false);
-                operation.Request.Token.ThrowIfCancellationRequested();
+                    operation.Token, operation.Token, progressReporter).ConfigureAwait(false);
+                operation.Token.ThrowIfCancellationRequested();
                 if (!recursive.Succeeded)
                     return Commit(operation.Generation, location, kind, Map(recursive.Status), [],
                         recursive.Diagnostic, mode: mode, recursiveRoots: recursiveRootList);
@@ -348,33 +389,33 @@ internal sealed class BrowserNavigationSession(
                 // Still needed for the Locations tree's direct-child folder listing, which always reflects
                 // direct children regardless of scope mode — see BrowserFolderState.RecursiveMediaEntries.
                 var directListing = await folders.EnumerateAsync(
-                    new(location.RootId, EmptyToNull(location.RelativeFolder)), operation.Request.Token).ConfigureAwait(false);
-                operation.Request.Token.ThrowIfCancellationRequested();
+                    new(location.RootId, EmptyToNull(location.RelativeFolder)), operation.Token).ConfigureAwait(false);
+                operation.Token.ThrowIfCancellationRequested();
                 return Commit(operation.Generation, location with { RelativeFolder = recursive.RelativeFolder }, kind,
                     directListing.Succeeded
                         ? recursive.MediaEntries.Count == 0 ? BrowserFolderStatus.Empty : BrowserFolderStatus.Ready
                         : Map(directListing.Status),
                     directListing.Succeeded ? directListing.Entries : [],
                     directListing.Diagnostic ?? recursive.Diagnostic, recursive.DerivedWork,
-                    recursive.MediaEntries, mode, recursiveRootList);
+                    recursive.MediaEntries, mode, recursiveRootList, reconciliation: recursive.Reconciliation);
             }
 
             var authoritative = await discovery.RefreshAsync(
                 new(location.RootId, EmptyToNull(location.RelativeFolder)), DerivedWorkPriority.Visible,
-                operation.Request.Token, operation.Request.Token).ConfigureAwait(false);
-            operation.Request.Token.ThrowIfCancellationRequested();
+                operation.Token, operation.Token).ConfigureAwait(false);
+            operation.Token.ThrowIfCancellationRequested();
             if (!authoritative.Reconciliation.Succeeded)
                 return Commit(operation.Generation, location, kind, Map(authoritative.Reconciliation.Status), [],
                     authoritative.Diagnostic ?? authoritative.Reconciliation.Diagnostic, mode: mode, recursiveRoots: recursiveRootList);
 
             var listing = await folders.EnumerateAsync(
-                new(location.RootId, EmptyToNull(location.RelativeFolder)), operation.Request.Token).ConfigureAwait(false);
-            operation.Request.Token.ThrowIfCancellationRequested();
+                new(location.RootId, EmptyToNull(location.RelativeFolder)), operation.Token).ConfigureAwait(false);
+            operation.Token.ThrowIfCancellationRequested();
             return Commit(operation.Generation, location with { RelativeFolder = listing.RelativeFolder }, kind,
                 listing.Succeeded
                     ? listing.Entries.Count == 0 ? BrowserFolderStatus.Empty : BrowserFolderStatus.Ready
                     : Map(listing.Status), listing.Entries, listing.Diagnostic, authoritative.DerivedWork,
-                mode: mode, recursiveRoots: recursiveRootList);
+                mode: mode, recursiveRoots: recursiveRootList, reconciliation: authoritative.Reconciliation);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -401,11 +442,13 @@ internal sealed class BrowserNavigationSession(
         BrowserFolderStatus status, IReadOnlyList<MediaFolderEntry> entries, string? diagnostic,
         IDerivedWorkBatch? derivedWork = null, IReadOnlyList<MediaFolderEntry>? recursiveMediaEntries = null,
         BrowserScopeMode mode = BrowserScopeMode.DirectFolder,
-        IReadOnlyList<BrowserRecursiveRoot>? recursiveRoots = null)
+        IReadOnlyList<BrowserRecursiveRoot>? recursiveRoots = null, bool isRevalidating = false,
+        IReadOnlyList<MediaAsset>? catalogAssets = null, CatalogReconciliationResult? reconciliation = null)
     {
         lock (_sync)
         {
-            if (_disposed || generation != _generation) return null;
+            if (_disposed || generation != _generation || _activeRequest?.IsCancellationRequested == true) return null;
+            _knownContentGeneration = isRevalidating ? generation : 0;
             if (status is not (BrowserFolderStatus.Ready or BrowserFolderStatus.Empty))
                 return new(location, status, [], diagnostic, State.CanGoBack, State.CanGoForward,
                     State.CanGoUp, Mode: mode, RecursiveRoots: recursiveRoots);
@@ -426,7 +469,8 @@ internal sealed class BrowserNavigationSession(
                     break;
             }
             State = new(location, status, entries, diagnostic, _back.Count > 0, _forward.Count > 0,
-                ParentPath(location.AbsolutePath) is not null, derivedWork, recursiveMediaEntries, mode, recursiveRoots);
+                ParentPath(location.AbsolutePath) is not null, derivedWork, recursiveMediaEntries, mode, recursiveRoots,
+                isRevalidating, generation, catalogAssets, reconciliation);
             _activeLocation = location;
             return State;
         }
@@ -450,14 +494,14 @@ internal sealed class BrowserNavigationSession(
     private void RaiseEffectiveScopeDetermined(long generation, BrowserEffectiveScope scope)
     {
         lock (_sync) { if (_disposed || generation != _generation) return; }
-        EffectiveScopeDetermined?.Invoke(this, scope);
+        EffectiveScopeDetermined?.Invoke(this, scope with { NavigationGeneration = generation });
     }
 
     /// <summary>Drops a progress report from any walk that is no longer the current generation before it can reach subscribers.</summary>
     private void RaiseRecursiveScopeProgress(long generation, RecursiveScopeProgress progress)
     {
         lock (_sync) { if (_disposed || generation != _generation) return; }
-        RecursiveScopeProgressChanged?.Invoke(this, progress);
+        RecursiveScopeProgressChanged?.Invoke(this, progress with { NavigationGeneration = generation });
     }
 
     private static string? EmptyToNull(string value) => value.Length == 0 ? null : value;
@@ -514,6 +558,9 @@ internal sealed class BrowserNavigationSession(
         }
     }
 
-    private sealed record Operation(CancellationTokenSource Request, long Generation);
+    private sealed record Operation(CancellationTokenSource Request, long Generation)
+    {
+        public CancellationToken Token { get; } = Request.Token;
+    }
     private enum NavigationKind { New, Back, Forward, Refresh }
 }

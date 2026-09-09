@@ -64,7 +64,7 @@ public sealed class FileOperationPresentationRegressionTests
     {
         var code = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
         var start = code.IndexOf("private async Task CompleteBrowserDerivedWorkProjectionAsync", StringComparison.Ordinal);
-        var end = code.IndexOf("private async Task ApplyBrowserDerivedWorkResultsAsync", start, StringComparison.Ordinal);
+        var end = code.IndexOf("private Task ApplyBrowserDerivedWorkResultsAsync", start, StringComparison.Ordinal);
         var body = code[start..end];
         Assert.True(body.IndexOf("await batch.Completion", StringComparison.Ordinal) <
                     body.IndexOf("ApplyBrowserDerivedWorkResultsAsync(batch, generation)", StringComparison.Ordinal));

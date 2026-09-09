@@ -276,7 +276,7 @@ public sealed class BrowserQueryRegressionTests
     public void ApplyBrowserDerivedWorkResultsAsync_OnlyCoalescesAResortWhenTheActiveSortDependsOnMetadata()
     {
         var source = Source();
-        var methodStart = source.IndexOf("private async Task ApplyBrowserDerivedWorkResultsAsync", StringComparison.Ordinal);
+        var methodStart = source.IndexOf("private async Task ApplyBrowserPreviewRecordsAsync", StringComparison.Ordinal);
         var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
         var body = source[methodStart..methodEnd];
 

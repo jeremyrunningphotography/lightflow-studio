@@ -6,6 +6,19 @@ namespace LightflowStudio.Tests;
 public sealed class DerivedWorkSchedulingTests
 {
     [Fact]
+    public async Task CurrentRecordWithMissingArtifactRepairsOnlyThumbnail()
+    {
+        var asset = Asset("image");
+        var metadata = new FakeMetadata();
+        var thumbnails = new FakeThumbnails();
+        await using var scheduler = new DerivedWorkScheduler(new FakeAssets(asset),
+            new FakePreviews(CurrentPreview(asset.Asset)), metadata, thumbnails, artifactExists: _ => false);
+        var batch = Schedule(scheduler, Reconciliation((asset.Asset.AssetId, CatalogReconciliationItemStatus.Unchanged)));
+        await batch.Completion;
+        Assert.Empty(metadata.Calls);
+        Assert.Single(thumbnails.Calls);
+    }
+    [Fact]
     public async Task NewAndChangedAssetsScheduleOnlyNeededMetadataAndThumbnails()
     {
         var first = Asset("video");

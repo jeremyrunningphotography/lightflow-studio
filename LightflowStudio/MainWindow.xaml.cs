@@ -164,9 +164,11 @@ public partial class MainWindow : Window
         _storageStartupStatus = storageStartupStatus;
         _storageDiagnostic = storageDiagnostic;
         _browserNavigation = new BrowserNavigationSession(storage.MediaRoots, storage.BrowserLocations,
-            storage.MediaDiscovery, storage.MediaFolders, storage.BrowserRecursiveRoots, storage.RecursiveMediaDiscovery);
+            storage.MediaDiscovery, storage.MediaFolders, storage.BrowserRecursiveRoots, storage.RecursiveMediaDiscovery,
+            storage.MediaAssets, storage.MediaTypes);
         _browserNavigation.EffectiveScopeDetermined += BrowserNavigation_EffectiveScopeDetermined;
         _browserNavigation.RecursiveScopeProgressChanged += BrowserNavigation_RecursiveScopeProgressChanged;
+        _browserNavigation.KnownContentAvailable += BrowserNavigation_KnownContentAvailable;
         _browserCollectionScopes = new(storage.Collections, storage.MediaAssets, storage.MediaRoots, storage.MediaTypes, () => storage.DerivedWork);
         _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
         _jobHistory = new JobHistoryStore(storage.Locations.JobHistoryPath);
@@ -323,6 +325,7 @@ public partial class MainWindow : Window
             if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
             _browserNavigation.RecursiveScopeProgressChanged -= BrowserNavigation_RecursiveScopeProgressChanged;
             _browserNavigation.EffectiveScopeDetermined -= BrowserNavigation_EffectiveScopeDetermined;
+            _browserNavigation.KnownContentAvailable -= BrowserNavigation_KnownContentAvailable;
             _workspaceSaveTimer.Stop();
             _browserSearchDebounceTimer.Stop();
             _browserMetadataResortTimer.Stop();
@@ -479,6 +482,9 @@ public partial class MainWindow : Window
     {
         if (saved is null) return;
         var generation = ++_browserUiGeneration;
+        _browserNavigationInFlightGeneration = generation;
+        _browserRefreshPending = false;
+        _browserValidationFailure = null;
         // Already showing from ShowBrowserRestoringState (called before Loaded even fires); re-asserted
         // here so this method stays correct regardless of what state the canvas was left in beforehand.
         BrowserLoadingOverlay.Visibility = Visibility.Visible;
@@ -515,7 +521,11 @@ public partial class MainWindow : Window
         }
         finally
         {
-            if (generation == _browserUiGeneration) BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+            if (generation == _browserUiGeneration)
+            {
+                BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+                FinishBrowserRevalidation(generation);
+            }
         }
     }
 
@@ -529,12 +539,21 @@ public partial class MainWindow : Window
     private async Task SynchronizeMonitoredFolderAsync(MediaFolderEnumerationRequest request)
     {
         if (_activeCollectionScope is not null || _fileSystemMutationPresentationDepth > 0) return;
-        var state = _lastLoadedBrowserState;
         var location = _browserNavigation.ActiveLocation;
-        if (state is null || location is null || location.RootId != request.RootId) return;
+        if (location is null || location.RootId != request.RootId) return;
+        if (_browserNavigationInFlightGeneration != 0 && _browserNavigationInFlightGeneration == _browserUiGeneration)
+        {
+            if (BrowserScope.IsWithinFolderScope(request.RelativeFolder, location.RelativeFolder))
+                _browserRefreshPending = true;
+            return;
+        }
+        var state = _lastLoadedBrowserState;
+        var generation = _browserUiGeneration;
+        if (state is null) return;
         var relative = request.RelativeFolder ?? "";
         var absolute = relative.Length == 0 ? location.RootPath : MediaPathSemantics.ResolveContained(location.RootPath, relative);
         var listing = await _storage.MediaFolders.EnumerateAsync(new(request.RootId, relative));
+        if (generation != _browserUiGeneration || _activeCollectionScope is not null) return;
         if (listing.Succeeded) _browserTree.ApplyDirectoryListing(absolute, location.RootPath, listing.Entries);
         if (BrowserLoadingOverlay.Visibility == Visibility.Visible) return;
         if (state.Mode == BrowserScopeMode.DirectFolder)
@@ -734,6 +753,9 @@ public partial class MainWindow : Window
         const double disclosureAndIconWidth = 44;
         _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
+            // A delayed reveal must not focus an old row: WPF focus itself raises selection/navigation.
+            if (!ReferenceEquals(_browserTree.SelectedNode, node) ||
+                _browserScopeSelection.Active == BrowserScopeSelectionKind.Collection) return;
             var container = FindBrowserTreeItem(BrowserFolderTree, node);
             if (container is null) return;
             // Programmatic selection only sets IsSelected (the background fill); the focus-ring outline is a
@@ -996,6 +1018,31 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private long _browserNavigationInFlightGeneration;
+    private bool _browserRefreshPending;
+    private string? _browserValidationFailure;
+
+    private void BrowserNavigation_KnownContentAvailable(object? sender, BrowserFolderState state)
+    {
+        var generation = _browserUiGeneration;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (generation != _browserUiGeneration || !_browserNavigation.CanPresentKnownContent(state) ||
+                _browserScopeSelection.Active == BrowserScopeSelectionKind.Collection) return;
+            ApplyBrowserState(state);
+            BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+            _ = ApplyKnownBrowserPreviewsAsync(state, generation);
+        });
+    }
+
+    private async Task ApplyKnownBrowserPreviewsAsync(BrowserFolderState state, long generation)
+    {
+        var ids = (state.RecursiveMediaEntries ?? state.Entries).Where(entry => entry.AssetId is not null)
+            .Select(entry => entry.AssetId!.Value).ToHashSet();
+        await ApplyBrowserPreviewRecordsAsync(ids, ids, generation, () =>
+            ReferenceEquals(_lastLoadedBrowserState, state) && _browserNavigation.IsCurrent(state), state.CatalogAssets);
+    }
+
     /// <summary>
     /// Drives one navigation/scope operation through the shared loading-overlay/generation machinery.
     /// <paramref name="scopeModeOverride"/> lets a caller that is about to *change* the scope mode (the
@@ -1008,9 +1055,13 @@ public partial class MainWindow : Window
     private async Task RunBrowserNavigationAsync(Func<Task<BrowserFolderState?>> navigate,
         BrowserScopeMode? scopeModeOverride = null)
     {
+        using var timing = BrowserPerformance.Measure("ui.navigation");
         if (!TryLeaveInspectorContext()) { RestoreLoadedBrowserSelection(); return; }
         using var editing = _inspector?.SuspendEditing();
         var generation = ++_browserUiGeneration;
+        _browserNavigationInFlightGeneration = generation;
+        _browserValidationFailure = null;
+        _browserRefreshPending = false;
         ShowBrowserLoadingState((scopeModeOverride ?? _browserNavigation.State.Mode) == BrowserScopeMode.IncludeSubfolders
             ? "Scanning folder and subfolders…" : "Loading folder…");
         try
@@ -1021,7 +1072,12 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException)
         {
-            if (generation == _browserUiGeneration) RestoreLoadedBrowserSelection();
+            if (generation == _browserUiGeneration)
+            {
+                RestoreLoadedBrowserSelection();
+                _browserValidationFailure = "Known media • Verification canceled. Refresh to retry.";
+                UpdateBrowserStatusText();
+            }
         }
         catch (Exception exception)
         {
@@ -1034,20 +1090,35 @@ public partial class MainWindow : Window
         finally
         {
             if (generation == _browserUiGeneration)
+            {
                 BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+                FinishBrowserRevalidation(generation);
+            }
         }
     }
 
     /// <summary>
-    /// #124: <see cref="BrowserNavigationSession.RecursiveScopeProgressChanged"/> is generation-gated at the
-    /// source — a report from a superseded recursive walk (mode toggled off, a different folder opened, the
-    /// session disposed) never reaches this handler at all — so no additional staleness check is needed here;
-    /// this only ever applies progress for whichever recursive walk is still actually current. Marshaled onto
-    /// the UI thread like every other cross-thread signal in this file, since the event can fire from a
-    /// background/thread-pool continuation inside the recursive walk.
+    /// Checks the originating navigation generation again after the dispatcher delay, so queued progress
+    /// cannot reach a newer folder even if it was current when the service emitted it.
     /// </summary>
     private void BrowserNavigation_RecursiveScopeProgressChanged(object? sender, RecursiveScopeProgress progress) =>
-        Dispatcher.BeginInvoke(() => ApplyRecursiveScopeLoadingProgress(progress));
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_browserNavigation.IsCurrentGeneration(progress.NavigationGeneration) && _activeCollectionScope is null)
+                ApplyRecursiveScopeLoadingProgress(progress);
+        });
+
+    private void FinishBrowserRevalidation(long generation)
+    {
+        _browserNavigationInFlightGeneration = 0;
+        if (!_browserRefreshPending) return;
+        _browserRefreshPending = false;
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (generation == _browserUiGeneration && _activeCollectionScope is null)
+                _ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+        });
+    }
 
     /// <summary>
     /// Applies one live recursive-walk progress report to the shared loading progress bar. Stays indeterminate
@@ -1075,6 +1146,7 @@ public partial class MainWindow : Window
 
     private void ApplyBrowserState(BrowserFolderState state)
     {
+        using var timing = BrowserPerformance.Measure("ui.apply");
         var incomingScope = state.Location is { } incoming
             ? $"folder:{incoming.RootId:D}:{incoming.RelativeFolder}:{state.Mode}" : null;
         var incomingKeys = (state.RecursiveMediaEntries ?? state.Entries).Where(BrowserGridModel.IsPresentable)
@@ -1125,16 +1197,22 @@ public partial class MainWindow : Window
         // #124: the tree always synchronizes against direct children (state.Entries, via Synchronize above);
         // the grid's candidate set additionally expands to every descendant folder's media while recursive
         // scope is active. See BrowserFolderState.RecursiveMediaEntries.
+        var reconciliation = state.Reconciliation ?? state.DerivedWork?.Reconciliation;
+        if (reconciliation is not null) _browserGrid.InvalidateChangedAssets(reconciliation.Items);
         _browserGrid.Populate(state.RecursiveMediaEntries ?? directFiles);
         UpdateBrowserGridColumns();
+        if (reconciliation is not null) _browserGrid.ApplyAssetIdentities(reconciliation.Items);
         if (state.DerivedWork is { } batch)
         {
-            _browserGrid.ApplyAssetIdentities(batch.Reconciliation.Items);
             foreach (var item in batch.Reconciliation.Items)
                 _browserGrid.ApplyThumbnailGenerating(item.AssetId, _storage.ThumbnailActivity.IsGenerating(item.AssetId));
         }
         if (state.DerivedWork is { } stateBatch)
             _ = LoadBrowserAssetStatesAsync(stateBatch.Reconciliation.Items, _browserUiGeneration, _browserAssetStateRevision);
+        else if (state.CatalogAssets is { } known)
+            _ = LoadBrowserAssetStatesAsync(known.Select(asset => new CatalogReconciliationItem(
+                asset.AssetId, asset.RelativePath, CatalogReconciliationItemStatus.Unchanged)).ToArray(),
+                _browserUiGeneration, _browserAssetStateRevision);
         AttachBrowserDerivedWork(state.DerivedWork, _browserUiGeneration);
         AuditBrowserVisualIdentitiesAfterLutInitialization();
         BrowserCurrentPath.Text = state.Location?.DisplayPath ?? "";
@@ -1267,6 +1345,7 @@ public partial class MainWindow : Window
     private void BrowserNavigation_EffectiveScopeDetermined(object? sender, BrowserEffectiveScope scope) =>
         Dispatcher.BeginInvoke(() =>
         {
+            if (!_browserNavigation.IsCurrentGeneration(scope.NavigationGeneration)) return;
             if (_browserScopeSelection.Active == BrowserScopeSelectionKind.Collection) return;
             _browserRecursiveRoots = scope.RecursiveRoots;
             SyncBrowserTreeRecursiveIcons();
@@ -1277,6 +1356,11 @@ public partial class MainWindow : Window
 
     private void ApplyBrowserNavigationFailure(BrowserFolderState failure)
     {
+        if (_lastLoadedBrowserState?.IsRevalidating == true)
+        {
+            _browserValidationFailure = "Known media • Could not verify changes. Refresh to retry.";
+            UpdateBrowserStatusText();
+        }
         RestoreLoadedBrowserSelection();
         SyncBrowserScopeToggle();
         // Unlike ShowBrowserLoadingState's hide (a new scope is being fetched, so the old one is no longer
@@ -2939,6 +3023,8 @@ public partial class MainWindow : Window
             _browserGrid.SelectedKeys.Count, _browserGrid.SelectedTotalSizeBytes, isGenerating, remaining);
         if (_activeCollectionScope is { UnavailableCount: > 0 } scope)
             BrowserStatusText.Text += $" • {scope.UnavailableCount} unavailable";
+        if (_lastLoadedBrowserState?.IsRevalidating == true && _activeCollectionScope is null)
+            BrowserStatusText.Text += " • " + (_browserValidationFailure ?? "Known media • Checking for changes…");
         UpdateBrowserSelectionActions();
     }
 
@@ -3191,6 +3277,7 @@ public partial class MainWindow : Window
         // Assigned unconditionally (including null) so a folder with nothing scheduled never keeps showing
         // "Generating previews…" left over from whichever folder was open before it.
         _activeBrowserDerivedWorkBatch = batch;
+        _browserAppliedGeneratedThumbnails.Clear();
         if (batch is null) return;
         EventHandler<DerivedWorkProgress> handler = null!;
         handler = (_, _) => Dispatcher.BeginInvoke(() => _ = ApplyBrowserDerivedWorkResultsAsync(batch, generation));
@@ -3212,35 +3299,82 @@ public partial class MainWindow : Window
         finally { batch.ProgressChanged -= handler; }
     }
 
-    private async Task ApplyBrowserDerivedWorkResultsAsync(IDerivedWorkBatch batch, long generation)
+    private IDerivedWorkBatch? _browserPreviewProjectionBatch;
+    private Task _browserPreviewProjectionTask = Task.CompletedTask;
+    private readonly HashSet<Guid> _browserAppliedGeneratedThumbnails = [];
+
+    private Task ApplyBrowserDerivedWorkResultsAsync(IDerivedWorkBatch batch, long generation)
     {
-        if (generation != _browserUiGeneration || _storage.Previews is not { } previews) return;
+        if (generation != _browserUiGeneration || !ReferenceEquals(_activeBrowserDerivedWorkBatch, batch))
+            return Task.CompletedTask;
+        if (ReferenceEquals(_browserPreviewProjectionBatch, batch) && !_browserPreviewProjectionTask.IsCompleted)
+            return _browserPreviewProjectionTask;
+        _browserPreviewProjectionBatch = batch;
+        return _browserPreviewProjectionTask = ProjectBrowserDerivedWorkAsync(batch, generation);
+    }
+
+    private async Task ProjectBrowserDerivedWorkAsync(IDerivedWorkBatch batch, long generation)
+    {
+        int observed;
+        do
+        {
+            observed = batch.Results.Count;
+            await ApplyBrowserDerivedWorkSnapshotAsync(batch, generation);
+        } while (generation == _browserUiGeneration && ReferenceEquals(_activeBrowserDerivedWorkBatch, batch) &&
+            observed != batch.Results.Count);
+    }
+
+    private async Task ApplyBrowserDerivedWorkSnapshotAsync(IDerivedWorkBatch batch, long generation)
+    {
+        if (generation != _browserUiGeneration || !ReferenceEquals(_activeBrowserDerivedWorkBatch, batch)) return;
         var pendingThumbnails = new HashSet<Guid>(
-            BrowserDerivedWorkProjection.AssetsNeedingThumbnailLookup(batch.Results, _browserGrid.HasThumbnail));
+            BrowserDerivedWorkProjection.AssetsNeedingThumbnailLookup(batch.Results, _browserGrid.HasThumbnail,
+                _browserAppliedGeneratedThumbnails));
         var pendingMetadata = new HashSet<Guid>(
             BrowserDerivedWorkProjection.AssetsNeedingMetadataLookup(batch.Results, _browserGrid.HasMetadataApplied));
+        await ApplyBrowserPreviewRecordsAsync(pendingThumbnails, pendingMetadata, generation,
+            () => ReferenceEquals(_activeBrowserDerivedWorkBatch, batch),
+            thumbnailApplied: id => _browserAppliedGeneratedThumbnails.Add(id));
+    }
+
+    private async Task ApplyBrowserPreviewRecordsAsync(HashSet<Guid> pendingThumbnails, HashSet<Guid> pendingMetadata,
+        long generation, Func<bool> isCurrent, IReadOnlyList<MediaAsset>? catalogAssets = null,
+        Action<Guid>? thumbnailApplied = null)
+    {
+        if (generation != _browserUiGeneration || !isCurrent() || _storage.Previews is not { } previews) return;
+        using var timing = BrowserPerformance.Measure("preview.hydration");
         var sortRelevantMetadataChanged = false;
 
         IReadOnlyDictionary<Guid, PreviewRecord> records;
         try { records = await previews.GetManyAsync(pendingThumbnails.Union(pendingMetadata).ToArray()).ConfigureAwait(true); }
         catch { return; }
+        if (generation != _browserUiGeneration || !isCurrent()) return;
+        var sources = catalogAssets?.ToDictionary(asset => asset.AssetId);
         if (records.Count > 0) InvalidateInspector();
 
         foreach (var assetId in pendingThumbnails.Union(pendingMetadata))
         {
-            if (generation != _browserUiGeneration) return;
+            if (generation != _browserUiGeneration || !isCurrent()) return;
             if (generation != _browserUiGeneration || !records.TryGetValue(assetId, out var record)) continue;
+            if (sources is not null && (!sources.TryGetValue(assetId, out var source) ||
+                !BrowserPreviewReuse.Matches(source, record))) continue;
 
             if (pendingThumbnails.Contains(assetId) && record.ThumbnailRelativePath is not null &&
+                (sources is null || record.ThumbnailGeneratorVersion == ThumbnailGenerationService.CurrentGeneratorVersion) &&
                 record.ThumbnailState == PreviewComponentState.Current)
             {
                 string? absolute = null;
                 try { absolute = MediaPathSemantics.ResolveContained(_storage.Locations.PreviewsDirectory, record.ThumbnailRelativePath); }
                 catch { /* leave the placeholder; a later refresh may resolve a valid path */ }
-                if (absolute is not null && File.Exists(absolute)) _browserGrid.ApplyThumbnail(assetId, absolute);
+                if (absolute is not null && File.Exists(absolute))
+                {
+                    _browserGrid.ApplyThumbnail(assetId, absolute);
+                    thumbnailApplied?.Invoke(assetId);
+                }
             }
 
-            if (pendingMetadata.Contains(assetId) && record.MetadataState == PreviewComponentState.Current)
+            if (pendingMetadata.Contains(assetId) && record.MetadataState == PreviewComponentState.Current &&
+                (sources is null || record.MetadataProbeVersion == DerivedMediaMetadataService.CurrentProbeVersion))
             {
                 var metadata = BrowserQueryEngine.ExtractMetadata(record.MetadataJson);
                 if (_browserGrid.ApplyMetadata(assetId, metadata)) sortRelevantMetadataChanged = true;

@@ -61,7 +61,8 @@ internal sealed record RecursiveScopeResult(
     string RelativeFolder,
     IReadOnlyList<MediaFolderEntry> MediaEntries,
     IDerivedWorkBatch? DerivedWork,
-    string? Diagnostic = null)
+    string? Diagnostic = null,
+    CatalogReconciliationResult? Reconciliation = null)
 {
     public bool Succeeded => Status == CatalogReconciliationStatus.Succeeded;
 }
@@ -76,7 +77,8 @@ internal sealed record RecursiveScopeResult(
 /// same honest denominator a caller like <c>MainWindow</c> can present as determinate progress once it has
 /// enough data to be meaningful.
 /// </summary>
-internal readonly record struct RecursiveScopeProgress(int FoldersDiscovered, int FoldersVisited);
+internal readonly record struct RecursiveScopeProgress(int FoldersDiscovered, int FoldersVisited,
+    long NavigationGeneration = 0);
 
 internal interface IRecursiveMediaDiscoveryService
 {
@@ -139,7 +141,7 @@ internal sealed class RecursiveMediaDiscoveryService(
         var batches = state.DerivedWorkBatches;
         var derivedWork = batches.Count == 0 ? null : new AggregateDerivedWorkBatch(reconciliation, batches);
         return new(CatalogReconciliationStatus.Succeeded, baseRequest.RootId, baseFolder, state.MediaEntries,
-            derivedWork, diagnostic);
+            derivedWork, diagnostic, reconciliation);
     }
 
     /// <summary>

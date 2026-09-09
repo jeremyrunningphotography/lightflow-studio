@@ -1,0 +1,3 @@
+200 cached items: first bound/decoded viewport 220.9 ms.
+Same-window revisit: first bound/decoded viewport 169.1 ms.
+Same-window blocking control: first bound/decoded viewport 633.1 ms.

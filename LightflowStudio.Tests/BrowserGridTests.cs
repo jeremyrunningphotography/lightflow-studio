@@ -1173,7 +1173,7 @@ public sealed class BrowserGridTests
     private static MediaFolderEntry Video(Guid rootId, string name) => File(rootId, name, MediaTypeCategory.Video);
 
     private static MediaFolderEntry File(Guid rootId, string name, MediaTypeCategory category) =>
-        new(rootId, name, name.ToUpperInvariant(), name, false, new(category), 10, DateTimeOffset.UtcNow);
+        new(rootId, name, name.ToUpperInvariant(), name, false, new(category), 10, DateTimeOffset.UnixEpoch);
 
     private static MediaFolderEntry SizedImage(Guid rootId, string name, long sizeBytes) =>
         SizedFile(rootId, name, MediaTypeCategory.StillImage, sizeBytes);

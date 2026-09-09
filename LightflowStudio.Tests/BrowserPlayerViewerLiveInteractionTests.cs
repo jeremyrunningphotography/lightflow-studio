@@ -379,6 +379,163 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 yield return childText;
     }
 
+    [Fact]
+    public Task AssetDragBoundary_FirstPlayerPointerRoutesAndRepeatedEntriesNeverNeedPriming() =>
+        WithDragBoundaryWindowAsync(async (window, tile) =>
+        {
+            var controls = new[] { "ExportButton", "PreviousFrameButton", "PlayPauseButton", "NextFrameButton",
+                "ScreengrabButton", "SetPreviewFrameButton", "SetInButton", "SetOutButton" };
+            var rows = window.BrowserGridRows.ItemsSource;
+            var gridMoves = 0;
+            window.BrowserGridRows.AddHandler(Mouse.PreviewMouseMoveEvent,
+                new MouseEventHandler((_, _) => gridMoves++), true);
+            foreach (var name in controls)
+            {
+                var border = FindElementByDataContext(window.BrowserGridRows, tile)!;
+                RaiseMouseLeftButtonDown(border, 1);
+                Assert.Same(tile, window.TakeBrowserAssetDrag(FarFromDragOrigin(window), MouseButtonState.Pressed));
+                // Double-click arms another origin and hides the tile before its mouse-up arrives.
+                RaiseMouseLeftButtonDown(border, 2);
+                await WaitUntilAsync(() => GetPresentationMode(window) == BrowserPresentationMode.PlayerViewer, "Player");
+                Assert.Null(DragField<BrowserGridTile?>(window, "_browserAssetDragTile"));
+                Assert.Equal(default, DragField<Point>(window, "_browserAssetDragStart"));
+                Assert.Null(DragField<BrowserGridTile?>(window, "_browserAssetPendingSingleSelection"));
+                var player = Assert.IsType<PlayerViewerHost>(window.BrowserPlayerHost.Content);
+                var control = Assert.IsAssignableFrom<UIElement>(player.FindName(name));
+                // Routed input, not OS mouse injection. Actual video action effects are covered by the
+                // Player lease/command tests; this still-image fixture exercises their shared input route.
+                var down = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                    { RoutedEvent = Mouse.PreviewMouseDownEvent };
+                control.RaiseEvent(down);
+                Assert.False(down.Handled);
+                for (var click = 0; click < 2; click++)
+                {
+                    var move = new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.PreviewMouseMoveEvent };
+                    control.RaiseEvent(move);
+                    Assert.False(move.Handled);
+                    Assert.Null(window.TakeBrowserAssetDrag(new Point(10000, 10000), MouseButtonState.Pressed));
+                }
+                Assert.Equal(0, gridMoves);
+                Assert.Null(DragField<object?>(window, "_fileDragAdorner"));
+                RaiseClick(player.BackButton);
+                await WaitUntilAsync(() => GetPresentationMode(window) == BrowserPresentationMode.Grid, "Browser");
+                Assert.True(tile.IsSelected);
+                Assert.Same(rows, window.BrowserGridRows.ItemsSource);
+                Assert.False(window.BrowserGridRows.IsMouseCaptureWithin);
+                RaiseMouseLeftButtonDown(border, 1);
+                Assert.Same(tile, window.TakeBrowserAssetDrag(FarFromDragOrigin(window), MouseButtonState.Pressed));
+            }
+        });
+
+    [Fact]
+    public Task AssetDragBoundary_ThresholdReleaseHandledChromeAndAsyncGeneration() =>
+        WithDragBoundaryWindowAsync((window, tile) =>
+        {
+            var border = FindElementByDataContext(window.BrowserGridRows, tile)!;
+            RaiseMouseLeftButtonDown(border, 1);
+            var origin = DragField<Point>(window, "_browserAssetDragStart");
+            Assert.Null(window.TakeBrowserAssetDrag(origin, MouseButtonState.Pressed));
+            Assert.Same(tile, window.TakeBrowserAssetDrag(FarFromDragOrigin(window), MouseButtonState.Pressed));
+            var generation = DragField<long>(window, "_browserAssetGestureGeneration");
+            Assert.True(window.IsBrowserAssetDragCurrent(generation, MouseButtonState.Pressed));
+            Assert.False(window.IsBrowserAssetDragCurrent(generation, MouseButtonState.Released));
+            Assert.Null(window.TakeBrowserAssetDrag(new Point(10000, 10000), MouseButtonState.Pressed));
+
+            // A release handled outside the tile still invalidates a pending asynchronous drag.
+            window.BrowserGoButton.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                { RoutedEvent = Mouse.MouseUpEvent, Handled = true });
+            Assert.False(window.IsBrowserAssetDragCurrent(generation, MouseButtonState.Pressed));
+            RaiseMouseLeftButtonDown(border, 1);
+            Assert.Null(window.TakeBrowserAssetDrag(FarFromDragOrigin(window), MouseButtonState.Released));
+            Assert.Null(window.TakeBrowserAssetDrag(new Point(10000, 10000), MouseButtonState.Pressed));
+
+            // Even a fast round trip cannot revalidate source resolution started in the old presentation.
+            RaiseMouseLeftButtonDown(border, 1);
+            Assert.Same(tile, window.TakeBrowserAssetDrag(FarFromDragOrigin(window), MouseButtonState.Pressed));
+            generation = DragField<long>(window, "_browserAssetGestureGeneration");
+            var setMode = typeof(MainWindow).GetMethod("SetBrowserPresentationMode",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            for (var i = 0; i < 20; i++)
+            {
+                setMode.Invoke(window, [BrowserPresentationMode.PlayerViewer]);
+                Assert.Null(window.TakeBrowserAssetDrag(new Point(10000, 10000), MouseButtonState.Pressed));
+                setMode.Invoke(window, [BrowserPresentationMode.Grid]);
+            }
+            Assert.False(window.IsBrowserAssetDragCurrent(generation, MouseButtonState.Pressed));
+            RaiseMouseLeftButtonDown(border, 1);
+            window.BrowserGoButton.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                { RoutedEvent = Mouse.PreviewMouseDownEvent, Handled = true });
+            Assert.Null(window.TakeBrowserAssetDrag(new Point(10000, 10000), MouseButtonState.Pressed));
+            RaiseMouseLeftButtonDown(border, 1);
+            Assert.Same(tile, window.TakeBrowserAssetDrag(FarFromDragOrigin(window), MouseButtonState.Pressed));
+            Assert.True(tile.IsSelected);
+            Assert.False(window.BrowserGridRows.IsMouseCaptureWithin);
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task AssetDragBoundary_DeferredSelectionAndCaptureLossRetireOnlyGestureState() =>
+        WithDragBoundaryWindowAsync((window, tile) =>
+        {
+            var grid = DragField<BrowserGridModel>(window, "_browserGrid");
+            var other = grid.Tiles.First(candidate => candidate.Key != tile.Key);
+            var border = FindElementByDataContext(window.BrowserGridRows, tile)!;
+            RaiseMouseLeftButtonDown(border, 1);
+            grid.ToggleCtrl(other.Index);
+            RaiseMouseLeftButtonDown(border, 1);
+            Assert.Same(tile, DragField<BrowserGridTile?>(window, "_browserAssetPendingSingleSelection"));
+            Assert.Equal(2, grid.SelectedKeys.Count);
+            // Real WPF MouseUp routing must commit the deferred selection before window cleanup.
+            border.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                { RoutedEvent = Mouse.MouseUpEvent });
+            Assert.Single(grid.SelectedKeys);
+            Assert.True(tile.IsSelected);
+            Assert.Null(DragField<BrowserGridTile?>(window, "_browserAssetPendingSingleSelection"));
+
+            grid.ToggleCtrl(other.Index);
+            RaiseMouseLeftButtonDown(border, 1);
+            window.BrowserGridRows.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0)
+                { RoutedEvent = Mouse.LostMouseCaptureEvent });
+            Assert.Null(window.TakeBrowserAssetDrag(new Point(10000, 10000), MouseButtonState.Pressed));
+            Assert.Null(DragField<BrowserGridTile?>(window, "_browserAssetPendingSingleSelection"));
+            Assert.Equal(2, grid.SelectedKeys.Count);
+            RaiseMouseLeftButtonDown(border, 1);
+            Assert.Same(tile, window.TakeBrowserAssetDrag(FarFromDragOrigin(window), MouseButtonState.Pressed));
+            Assert.Equal(2, BrowserAssetDragSelection.AssetIdsForDrag(tile.IsSelected, tile.AssetId,
+                grid.SelectedAssetIdsInBrowserOrder).Count);
+            return Task.CompletedTask;
+        });
+
+    private Task WithDragBoundaryWindowAsync(Func<MainWindow, BrowserGridTile, Task> test) =>
+        StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            CreateTestJpeg(Path.Combine(_mediaRoot, "other.jpg"));
+            var startup = await LightflowStorageCoordinator.StartAsync(_appDataRoot);
+            var storage = startup.Coordinator!;
+            await storage.MediaRoots.CreateAsync("Library", _mediaRoot);
+            var window = NewOffscreenWindow(storage, startup);
+            try
+            {
+                window.Show();
+                Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)), "Window startup failed.");
+                window.BrowserCurrentPath.Text = _mediaRoot;
+                RaiseClick(window.BrowserGoButton);
+                await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    window.BrowserGridRows.Items.Count > 0, "media");
+                var tile = (await WaitForTileAsync(window))!;
+                await test(window, tile);
+            }
+            finally { window.Close(); await storage.DisposeAsync(); }
+        });
+
+    private static T DragField<T>(MainWindow window, string name) => (T)typeof(MainWindow)
+        .GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(window)!;
+
+    private static Point FarFromDragOrigin(MainWindow window) =>
+        DragField<Point>(window, "_browserAssetDragStart") + new Vector(
+            SystemParameters.MinimumHorizontalDragDistance + 1, SystemParameters.MinimumVerticalDragDistance + 1);
+
     private static async Task<BrowserGridTile?> WaitForTileAsync(MainWindow window)
     {
         await WaitUntilAsync(() => window.BrowserGridRows.Items.Count > 0, "the grid to populate a row");

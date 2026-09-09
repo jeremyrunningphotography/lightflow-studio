@@ -1,6 +1,7 @@
 param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot "..\dependencies\nuget"),
-    [switch]$SkipChecksumValidation
+    [switch]$SkipChecksumValidation,
+    [string]$SourceDirectory
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,7 +50,8 @@ function Normalize-ZipArchive([string]$Path) {
 }
 
 try {
-    git clone --no-checkout $manifest.sourceRepository $workingRoot
+    $cloneSource = if ($SourceDirectory) { [IO.Path]::GetFullPath($SourceDirectory) } else { $manifest.sourceRepository }
+    git clone --no-checkout $cloneSource $workingRoot
     if ($LASTEXITCODE -ne 0) { throw "Flyleaf source clone failed." }
     git -C $workingRoot checkout --detach $manifest.sourceCommit
     if ($LASTEXITCODE -ne 0) { throw "Flyleaf source commit checkout failed." }
@@ -75,6 +77,12 @@ try {
 }
 finally {
     if (Test-Path -LiteralPath $workingRoot) {
+        $resolvedRoot = [IO.Path]::GetFullPath($workingRoot)
+        $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+        if (-not $resolvedRoot.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase) -or
+            -not ([IO.Path]::GetFileName($resolvedRoot)).StartsWith('lightflow-flyleaf-')) {
+            throw "Refusing to remove an unexpected source directory: $resolvedRoot"
+        }
         Remove-Item -LiteralPath $workingRoot -Recurse -Force
     }
 }

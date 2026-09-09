@@ -6,6 +6,84 @@ namespace LightflowStudio.Tests;
 public sealed partial class FlyleafPlaybackIntegrationTests
 {
     [Fact]
+    public async Task NonDivisorCadence_SelectsRealSourceFramesWithoutChangingClock_AndPauseRestoresInspection()
+    {
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()!;
+        var fixture = Path.Combine(_root, "fractional-cadence.mkv");
+        Run(Path.Combine(dependencies, "ffmpeg.exe"), "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=60000/1001:duration=6", "-c:v", "ffv1", fixture);
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            await using var backend = new FlyleafPlaybackBackend(dependencies);
+            await using var service = new MediaPlaybackService(backend);
+            await service.OpenAsync(fixture);
+            using var presentation = service.CreatePresentation();
+            var window = new System.Windows.Window { Content = presentation.Surface, Width = 320, Height = 200,
+                Left = -32000, ShowActivated = false, ShowInTaskbar = false };
+            window.Show();
+            try
+            {
+                foreach (var speed in new[] { 0.5, 1, 2 })
+                {
+                    await service.SeekAsync(TimeSpan.Zero);
+                    await service.SetReviewOptionsAsync(new(speed, 1, new MediaFrameRate(25, 1)));
+                    var frames = new List<double>();
+                    void Frame(object? sender, MediaPresentationTimestamp timestamp) => frames.Add(timestamp.Position.TotalSeconds);
+                    service.FramePresented += Frame;
+                    await service.PlayAsync();
+                    var timer = Stopwatch.StartNew();
+                    await Task.Delay(1200);
+                    var elapsed = timer.Elapsed.TotalSeconds;
+                    service.FramePresented -= Frame;
+                    Assert.InRange(service.Snapshot.DisplayedTimestamp!.Position.TotalSeconds / elapsed, speed * 0.7, speed * 1.3);
+                    var steps = frames.Zip(frames.Skip(1), (a, b) => b - a).Where(delta => delta > 0.002).ToArray();
+                    Assert.Contains(steps, delta => delta > 0.045 && delta < 0.055);
+                    Assert.All(steps, delta => Assert.InRange(delta, 0.032, 0.101));
+                    await service.PauseAsync();
+                    await service.SeekAsync(TimeSpan.FromSeconds(1));
+                    var before = service.Snapshot.DisplayedTimestamp!.Position;
+                    await service.StepForwardAsync();
+                    Assert.InRange((service.Snapshot.DisplayedTimestamp!.Position - before).TotalSeconds, 0.015, 0.018);
+                }
+            }
+            finally { window.Content = null; window.Close(); }
+        });
+    }
+
+    [Fact]
+    public async Task ZoomDropdown_ChangesActualNativeRendererViewport()
+    {
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()!;
+        var fixture = Path.Combine(_root, "zoom.mkv");
+        GenerateH264Fixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, 2);
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FlyleafPlaybackBackend(dependencies);
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var host = new PlayerViewerHost(coordinator);
+            var layout = new System.Windows.Controls.Grid(); layout.Children.Add(host);
+            var window = new System.Windows.Window { Content = layout, Width = 1100, Height = 800, Left = -32000, ShowActivated = false, ShowInTaskbar = false };
+            window.Show();
+            try
+            {
+                var asset = new PlayerViewerAsset(Guid.NewGuid(), "clip.mkv", "clip.mkv", "clip.mkv", MediaPresentationKind.Video);
+                await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key, fixture, MediaRootAvailability.Online, true));
+                await Task.Delay(200);
+                var fit = backend.RenderedViewport;
+                host.ZoomChoice.SelectedIndex = 2;
+                await Task.Delay(200);
+                var actual = backend.RenderedViewport;
+                Console.WriteLine($"ZOOM renderer={backend.ActiveVideoProcessor} fit={fit} actual100={actual}");
+                Assert.NotEqual(fit, actual);
+                Assert.InRange(actual.Width, 638, 642);
+            }
+            finally { await host.CloseAsync(); window.Close(); }
+        });
+    }
+
+    [Fact]
     public async Task NativeReviewFullscreen_RetainsSurfaceSourceAndNaturalEndNotification()
     {
         var dependencies = PlaybackDependencyLocator.FindSharedLibraries()!;
@@ -34,6 +112,9 @@ public sealed partial class FlyleafPlaybackIntegrationTests
                 await Task.Delay(100);
                 Assert.Same(input, view.InputSurface);
                 Assert.Same(info, service.SourceInfo);
+                var nativeHost = Assert.IsType<FlyleafLib.Controls.WPF.FlyleafHost>(view.Content);
+                Assert.IsType<PlayerFullscreenOverlay>(nativeHost.Overlay.Content);
+                Assert.Equal(System.Windows.Visibility.Collapsed, host.TransportBar.Visibility);
                 host.ExitFullscreen();
                 await Task.Delay(100);
                 Assert.Same(input, view.InputSurface);

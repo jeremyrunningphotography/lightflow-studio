@@ -1,8 +1,8 @@
 # Player review controls: backend evidence and acceptance
 
 Starting main: `5fdbd825c60b4a960fcf66f48c233ceba2c57f39` (merged #245).
-Flyleaf source inspected: `6789799a5b29dfd126e1094e847f46cfa9b9be0a`, the exact
-`dependencies/flyleaf.json` pin. No dependency upgrade or private fork change is required.
+Flyleaf source: `172300873b19ec6f544337c5be9619c85fe421b0`, the exact
+`dependencies/flyleaf.json` pin for 3.11.2-lightflow.2. This adds an optional decoded-PTS selector to the existing pinned fork. Source publication is pending approval; local rebuilds use `-SourceDirectory artifacts/validation/flyleaf-199`. The normalized package SHA-256 is recorded in the manifest.
 
 ## Speed and audio
 
@@ -46,13 +46,15 @@ chosen divisor bucket and accounts for speed, so changing speed does not change 
 fraction of source frames is selected. The decoder-derived selector is refreshed while
 paused and queued frames are flushed with the existing seek path.
 
-Choices are exact integer-divisor conversions from actual stream FPS. Integer and
-1000/1001 families stay distinct: 120 offers 60/30/24; 119.880… offers
-59.940…/29.970…/23.976…; 60 offers 30; 50 offers 25. Non-divisor choices are omitted.
-Source uses unthinned presentation rather than Flyleaf's default 60 fps limiter.
-Nominal-FPS VFR input cannot promise a uniform target cadence; selection still drops
-every Nth decoded frame using real PTS. No synthetic frames or Export conversion occur.
-
+Choices come from shared canonical rational definitions, filtered below the actual detected
+source FPS. Source includes its detected rate, e.g. `Source (59.94)`, and uses unthinned
+presentation. For 59.94, lower choices include 50, 30, 29.97, 25, 24, and 23.976.
+The existing divisor selector remains unchanged where applicable. Non-divisor conversions
+use the optional synchronous decoded-PTS callback before renderer plane preparation.
+It selects the first actual source frame in each exact rational target-time slot, preserving
+source timestamps and the existing playback clock/audio path. A new selector is created
+on playback restart/seek. No timer-driven presentation, synthetic frame, or Export change
+is introduced. VFR gaps remain source gaps; uniform target cadence is not promised.
 The real-backend test checks every-fifth-frame PTS spacing at all six speeds, source
 reset, and adjacent 120 fps stepping after pause. Pausing restores full-frame inspection;
 cadence applies during playback. This avoids losing source frames during In/Out placement,
@@ -83,15 +85,20 @@ initiation and transition invalidation are unchanged.
 Fullscreen temporarily puts the existing Player control in the existing Window's content
 slot, retaining the shell and original parent in memory. Exit restores the same shell,
 window style/resize/state and Player parent. No source reopen, new window, playback lease,
-or Right Panel model is created. Closing restores normal window presentation before
-workspace geometry is saved. Controls remain visible for accessibility; idle hiding is
-not implemented.
+or Right Panel model is created. The existing Flyleaf overlay HWND hosts video overlays; still/retained frames use the same WPF overlay in their media grid. Closing restores normal window presentation before
+workspace geometry is saved. Normal header and transport chrome are collapsed, with
+border/margin space removed so media owns the viewport. The first-entry Esc hint fades
+after 2.5 seconds. Pointer movement reveals the accessible upper-right Exit Full Screen
+button, which fades after 2 seconds of inactivity. Play/Pause displays a centered
+translucent glyph for 0.45 seconds, then fades over 0.4 seconds.
 
 Fit/50%/100%/200%/400% use viewport and source pixel dimensions plus WPF DPI. Video uses
-Flyleaf's renderer viewport; still and retained frames use equivalent WPF transforms.
+Flyleaf's renderer viewport; still and retained frames use equivalent WPF transforms. The original defect read Flyleaf UI-facing width/height before those properties were populated, leaving zero source dimensions and causing zoom to return early. Source geometry now comes from the decoded video stream. A real H.264 renderer test verifies Fit differs from 100%, and 100% renders the 640-pixel source at 640 pixels.
 Dragging pans within the image overflow and Ctrl+wheel selects zoom levels. Fit resets pan.
 Zoom is centered, not pointer-centered. Non-square-pixel/rotation/display-driver details
 remain visual acceptance limitations of the existing presentation paths.
+
+Loop (circling-arrows toggle), value-only Speed, and compact fps choices are centered in the same responsive grid row as Set In/Out, above main transport. Zoom stays in its original header location; fullscreen uses diagonal vector arrows.
 
 Hands-on scenarios using the packaged executable:
 
@@ -111,6 +118,20 @@ Hands-on scenarios using the packaged executable:
 No computer-control skill, OS input injection, or simulated hands-on acceptance is used.
 
 ## Automated validation
+
+Hands-on refinements: full Release suite passed 1,804 tests with zero failures/skips.
+Focused native/WPF/rational tests passed 24 tests, plus the non-divisor real-backend
+test at 0.5×/1×/2×. Tests cover actual renderer zoom, media-only fullscreen dimensions,
+same native surface/source, overlay lifecycle, gesture suppression, canonical rate
+population, exact fractions, preserved divisor speed behavior, and source-frame inspection.
+The dependency package is reproducible from its pinned local source; public source
+publication and the refreshed Draft PR code are pending approval. Jeremy's visual
+acceptance remains outstanding. The following results describe the earlier baseline.
+
+The final pinned-package Release focused group passed 39/39. Its first run saw one
+native divisor test exceed the allowed frame gap (0.125 seconds) while a package build
+ran concurrently; the unchanged focused group passed when run without that build.
+Both TRX results are retained in `artifacts/validation/199-refine-final*`.
 
 The full Release suite passed 1,789 tests with zero skips on two complete runs.
 The first full run had one intermittent pre-existing Browser recursive-folder fixture

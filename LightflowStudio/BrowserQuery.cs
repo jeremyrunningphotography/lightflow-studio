@@ -13,7 +13,7 @@ internal enum BrowserNumberComparison { GreaterThanOrEqual, LessThan, LessThanOr
 internal static class BrowserFrameRate
 {
     internal const double StandardRateRelativeTolerance = 0.005;
-    private static readonly double[] StandardRates = [23.976, 24, 25, 29.97, 30, 50, 59.94, 60];
+    private static readonly double[] StandardRates = MediaFrameRate.Canonical.Select(rate => rate.DisplayValue).ToArray();
 
     public static double? Canonicalize(double? observed)
     {

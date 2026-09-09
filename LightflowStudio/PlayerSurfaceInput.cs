@@ -14,6 +14,7 @@ internal sealed class PlayerSurfaceInput : IDisposable
     private readonly Action<int> _zoom;
     private readonly Func<Key, DependencyObject?, bool> _key;
     private readonly Func<Key, bool> _keyUp;
+    private readonly Action? _pointerMoved;
     private readonly DispatcherTimer _single;
     private System.Windows.Point? _origin;
     private System.Windows.Point _previous;
@@ -22,10 +23,11 @@ internal sealed class PlayerSurfaceInput : IDisposable
 
     internal PlayerSurfaceInput(FrameworkElement surface, Action click, Action fullscreen,
         Action<double, double> pan, Action<int> zoom,
-        Func<Key, DependencyObject?, bool> key, Func<Key, bool> keyUp)
+        Func<Key, DependencyObject?, bool> key, Func<Key, bool> keyUp, Action? pointerMoved = null)
     {
         _surface = surface; _click = click; _fullscreen = fullscreen; _pan = pan;
         _zoom = zoom; _key = key; _keyUp = keyUp;
+        _pointerMoved = pointerMoved;
         _single = new DispatcherTimer(DispatcherPriority.Input, surface.Dispatcher)
         { Interval = TimeSpan.FromMilliseconds(System.Windows.Forms.SystemInformation.DoubleClickTime) };
         _single.Tick += Single;
@@ -41,6 +43,7 @@ internal sealed class PlayerSurfaceInput : IDisposable
 
     private void Down(object sender, MouseButtonEventArgs e)
     {
+        if (e.Handled || IsControl(e.OriginalSource as DependencyObject)) return;
         e.Handled = true;
         _surface.Focus();
         BeginGesture(e.GetPosition(_surface), e.ClickCount);
@@ -57,7 +60,18 @@ internal sealed class PlayerSurfaceInput : IDisposable
 
     private void Move(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        _pointerMoved?.Invoke();
         if (MoveGesture(e.GetPosition(_surface), e.LeftButton == MouseButtonState.Pressed)) e.Handled = true;
+    }
+
+    private static bool IsControl(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is System.Windows.Controls.Primitives.ButtonBase) return true;
+            source = source is System.Windows.Media.Visual ? System.Windows.Media.VisualTreeHelper.GetParent(source) : null;
+        }
+        return false;
     }
 
     internal bool MoveGesture(System.Windows.Point point, bool leftPressed)

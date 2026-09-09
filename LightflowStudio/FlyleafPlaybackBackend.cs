@@ -118,6 +118,14 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         player.RequestRender();
     });
 
+    public bool SetPresentationOverlay(FrameworkElement surface, FrameworkElement? content) => RunOnUi(() =>
+    {
+        if (surface is not FlyleafHost host) return false;
+        // Flyleaf's content seam uses its existing transparent overlay HWND above the renderer.
+        host.Content = content;
+        return true;
+    });
+
     public async Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default)
     {
         options.Validate();
@@ -196,8 +204,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             sourcePath,
             TimeSpan.FromTicks(player.Duration),
             TimeSpan.FromTicks(Math.Max(0, selectedVideo?.StartTime ?? 0)),
-            player.Video.Width,
-            player.Video.Height,
+            (int)(selectedVideo?.Width ?? 0),
+            (int)(selectedVideo?.Height ?? 0),
             audioStreams,
             _audioStreamIndex,
             player.Video.VideoAcceleration)
@@ -224,7 +232,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     {
         token.ThrowIfCancellationRequested();
         var player = RequirePlayer();
-        if (_reviewOptions.FrameDivisor > 1)
+        if (_reviewOptions.FrameDivisor > 1 || _reviewOptions.TargetRate is not null)
         {
             var position = RunOnUi(() => TimeSpan.FromTicks(player.CurTime));
             RunOnUi(() => ConfigureCadence(player, preview: true));
@@ -256,7 +264,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         var player = RequirePlayer();
         var position = RunOnUi(() => { player.Pause(); return TimeSpan.FromTicks(player.CurTime); });
         await _audio.StopAsync().ConfigureAwait(false);
-        if (RunOnUi(() => player.Config.Video.MaxOutputFps != double.MaxValue))
+        if (RunOnUi(() => player.Config.Video.MaxOutputFps != double.MaxValue || player.Config.Video.FrameSelection is not null))
         {
             RunOnUi(() => ConfigureCadence(player, preview: false));
             await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
@@ -265,6 +273,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
     private void ConfigureCadence(Player player, bool preview)
     {
+        player.Config.Video.FrameSelection = preview && _reviewOptions.FrameDivisor == 1 && _reviewOptions.TargetRate is { } rate
+            ? new RationalCadenceSelector(rate).Select : null;
         player.Config.Video.MaxOutputFps = preview
             ? _reviewOptions.OutputThreshold(player.VideoDecoder.VideoStream.FPS) : double.MaxValue;
         // The pinned config property has no change notification. Refresh the decoder's derived selector
@@ -427,6 +437,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
     internal void RequestRender() => RunOnUi(() => RequirePlayer().RequestRender());
 
     internal VideoProcessors ActiveVideoProcessor => RunOnUi(() => RequirePlayer().Renderer.VideoProcessor);
+    internal (double Width, double Height) RenderedViewport => RunOnUi(() =>
+        ((double)RequirePlayer().Renderer.Viewport.Width, (double)RequirePlayer().Renderer.Viewport.Height));
 
     private async Task ClosePlayerAsync()
     {

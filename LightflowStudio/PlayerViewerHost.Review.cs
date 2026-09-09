@@ -10,6 +10,12 @@ public partial class PlayerViewerHost
     private PlayerSurfaceInput? _nativeInput;
     private PlayerSurfaceInput? _wpfInput;
     private PlayerFullscreenPresentation? _fullscreen;
+    private PlayerFullscreenOverlay? _fullscreenOverlay;
+    private PlayerSurfaceInput? _overlayInput;
+    private bool _shownFullscreenHint;
+    private Visibility _savedTransportVisibility;
+    private Thickness _savedBorderThickness, _savedBorderMargin, _savedPlayerMargin;
+    private CornerRadius _savedCornerRadius;
     private int _pixelWidth, _pixelHeight;
     private double? _pixelZoom;
     private double _panX, _panY;
@@ -25,11 +31,13 @@ public partial class PlayerViewerHost
         ZoomChoice.SelectedIndex = 0;
         _updatingReview = false;
         _wpfInput = CreateSurfaceInput(MediaSurfaceHost);
+        FullscreenButton.Content = PlayerFullscreenOverlay.Icon(PlayerFullscreenOverlay.Outward);
     }
 
     private PlayerSurfaceInput CreateSurfaceInput(FrameworkElement surface) => new(surface,
         () => { if (_service is not null && PositionSlider.IsEnabled) PlayPause_Click(this, new RoutedEventArgs()); },
-        ToggleFullscreen, PanViewport, ZoomViewport, TryHandleShortcut, TryHandleShortcutKeyUp);
+        ToggleFullscreen, PanViewport, ZoomViewport, TryHandleShortcut, TryHandleShortcutKeyUp,
+        () => { if (IsFullscreen) _fullscreenOverlay?.PointerMoved(); });
 
     private void MediaView_Loaded(object sender, RoutedEventArgs e)
     {
@@ -40,6 +48,7 @@ public partial class PlayerViewerHost
             if (view is null || !ReferenceEquals(view, _mediaView) || !view.IsLoaded) return;
             _nativeInput?.Dispose();
             _nativeInput = CreateSurfaceInput(view.InputSurface);
+            if (IsFullscreen) AttachFullscreenOverlay();
             ApplyViewport();
         });
     }
@@ -79,7 +88,8 @@ public partial class PlayerViewerHost
         try
         {
             RestoreLiveVideoSurface();
-            await service.SetReviewOptionsAsync(new(PlaybackReviewOptions.Speeds[SpeedChoice.SelectedIndex], cadence.Divisor));
+            await service.SetReviewOptionsAsync(new(PlaybackReviewOptions.Speeds[SpeedChoice.SelectedIndex], cadence.Divisor,
+                cadence.Divisor == 1 ? cadence.Rate : null));
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) { if (generation == _generation) SetStatus(exception.Message); }
@@ -91,14 +101,41 @@ public partial class PlayerViewerHost
         _nativeInput?.Cancel(); _wpfInput?.Cancel();
         if (IsFullscreen) { ExitFullscreen(); return; }
         if (_currentAsset is null) return;
+        _savedTransportVisibility = TransportBar.Visibility;
+        _savedBorderThickness = PlayerBorder.BorderThickness; _savedBorderMargin = PlayerBorder.Margin;
+        _savedPlayerMargin = Margin;
+        _savedCornerRadius = PlayerBorder.CornerRadius;
+        PlayerHeader.Visibility = TransportBar.Visibility = Visibility.Collapsed;
+        PlayerBorder.BorderThickness = PlayerBorder.Margin = Margin = new Thickness(0);
+        PlayerBorder.CornerRadius = new CornerRadius(0);
         _fullscreen = new PlayerFullscreenPresentation(this);
-        FullscreenButton.Content = "Exit Full Screen";
+        _fullscreenOverlay = new PlayerFullscreenOverlay(ExitFullscreen);
+        AttachFullscreenOverlay();
+        _fullscreenOverlay.Enter(!_shownFullscreenHint);
+        _shownFullscreenHint = true;
+    }
+    private void AttachFullscreenOverlay()
+    {
+        if (_fullscreenOverlay is not { } overlay) return;
+        _mediaView?.SetOverlay(null);
+        MediaSurfaceHost.Children.Remove(overlay);
+        _overlayInput?.Dispose(); _overlayInput = null;
+        if (VideoHost.Visibility == Visibility.Visible && _mediaView?.SetOverlay(overlay) == true) _overlayInput = CreateSurfaceInput(overlay);
+        else MediaSurfaceHost.Children.Add(overlay);
     }
     internal void ExitFullscreen()
     {
         var fullscreen = _fullscreen; _fullscreen = null;
+        if (fullscreen is null) return;
+        _overlayInput?.Dispose(); _overlayInput = null;
+        _fullscreenOverlay?.Reset();
+        _mediaView?.SetOverlay(null);
+        if (_fullscreenOverlay is { } overlay) MediaSurfaceHost.Children.Remove(overlay);
+        _fullscreenOverlay = null;
+        PlayerHeader.Visibility = Visibility.Visible; TransportBar.Visibility = _savedTransportVisibility;
+        PlayerBorder.BorderThickness = _savedBorderThickness; PlayerBorder.Margin = _savedBorderMargin; Margin = _savedPlayerMargin;
+        PlayerBorder.CornerRadius = _savedCornerRadius;
         fullscreen?.Dispose();
-        FullscreenButton.Content = "Full Screen";
     }
 
     private bool TryLoop(MediaPlaybackSnapshot snapshot)

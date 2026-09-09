@@ -764,6 +764,7 @@ public partial class PlayerViewerHost : UserControl
                 _stopAtOutDuringPlayback = ReviewRangePlaybackPolicy.ShouldArmOutBoundary(ActivePlaybackRange, position);
                 await _service.PlayAsync();
             }
+            if (IsFullscreen) _fullscreenOverlay?.ShowPlayback(_service.Snapshot.State == MediaPlaybackState.Playing);
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) { SetStatus(exception.Message); }
@@ -826,6 +827,7 @@ public partial class PlayerViewerHost : UserControl
             SteppedFrameSurface.Source = ToBitmapSource(current);
             SteppedFrameSurface.Visibility = Visibility.Visible;
             VideoHost.Visibility = Visibility.Hidden;
+            if (IsFullscreen) AttachFullscreenOverlay();
 
             // Flyleaf presents through a child HWND, so a WPF element cannot cover its reconstruction.
             // Complete the handoff to the retained bitmap before asking the backend to move at all.
@@ -1123,6 +1125,7 @@ public partial class PlayerViewerHost : UserControl
     {
         VideoHost.Visibility = Visibility.Visible;
         SteppedFrameSurface.Visibility = Visibility.Collapsed;
+        if (IsFullscreen) AttachFullscreenOverlay();
         SteppedFrameSurface.Source = null;
         _retainedSteppedFrame = null;
     }

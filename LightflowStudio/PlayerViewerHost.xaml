@@ -116,12 +116,12 @@
    <Style.Triggers><DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True"><Setter Property="Width" Value="16"/><Setter Property="Height" Value="16"/><Setter Property="Stroke" Value="{StaticResource TextBrush}"/><Setter Property="StrokeThickness" Value="2"/></DataTrigger></Style.Triggers>
   </Style>
  </UserControl.Resources>
- <Border Style="{StaticResource ShellPanel}" Background="#07090D" Padding="0" ClipToBounds="True">
+ <Border x:Name="PlayerBorder" Style="{StaticResource ShellPanel}" Background="#07090D" Padding="0" ClipToBounds="True">
   <Grid>
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
 
-   <DockPanel Grid.Row="0" Grid.Column="0" Margin="6,5,6,4">
+   <DockPanel x:Name="PlayerHeader" Grid.Row="0" Grid.Column="0" Margin="6,5,6,4">
     <Button x:Name="BackButton" DockPanel.Dock="Left" Padding="10,6" Click="BackButton_Click"
      ToolTip="Back to Browser (Esc)" AutomationProperties.Name="Back to Browser">
      <!-- A horizontal StackPanel top-aligns its children by default rather than stretching them, and the
@@ -139,7 +139,7 @@
      <ComboBox x:Name="ZoomChoice" Width="82" Margin="4,0" SelectionChanged="ZoomChoice_Changed" ToolTip="Display zoom (Ctrl+wheel); drag to pan" AutomationProperties.Name="Display zoom">
       <ComboBoxItem Content="Fit"/><ComboBoxItem Content="50%"/><ComboBoxItem Content="100%"/><ComboBoxItem Content="200%"/><ComboBoxItem Content="400%"/>
      </ComboBox>
-     <Button x:Name="FullscreenButton" Content="Full Screen" Click="Fullscreen_Click" ToolTip="Full Screen (double-click media); Esc to return"/>
+     <Button x:Name="FullscreenButton" AutomationProperties.Name="Full Screen" Click="Fullscreen_Click" ToolTip="Full Screen (double-click media); Esc to return"/>
     </StackPanel>
     <TextBlock x:Name="AssetNameText" DockPanel.Dock="Left" Margin="14,0,0,0" VerticalAlignment="Center"
      Foreground="{StaticResource TextBrush}" FontSize="13" TextTrimming="CharacterEllipsis"/>
@@ -158,14 +158,7 @@
    <Border Grid.Row="2" Grid.Column="0" x:Name="TransportBar" Margin="6,0,6,6" Padding="7,5,7,5" Visibility="Collapsed"
     Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
     <Grid>
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <WrapPanel Grid.Row="5" HorizontalAlignment="Center" Margin="0,5,0,0">
-      <CheckBox x:Name="LoopChoice" Content="Loop" VerticalAlignment="Center" Margin="5,0,14,0"/>
-      <TextBlock Text="Speed" VerticalAlignment="Center" Margin="0,0,5,0"/>
-      <ComboBox x:Name="SpeedChoice" Width="72" SelectionChanged="ReviewOptions_Changed" AutomationProperties.Name="Playback speed" ToolTip="Change elapsed-time playback speed; audio follows the selected speed"/>
-      <TextBlock Text="Frame Rate Preview" VerticalAlignment="Center" Margin="14,0,5,0"/>
-      <ComboBox x:Name="CadenceChoiceBox" Width="106" SelectionChanged="ReviewOptions_Changed" AutomationProperties.Name="Frame Rate Preview" ToolTip="Preview lower frame-rate cadence independently of playback speed"/>
-     </WrapPanel>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid x:Name="ColorSurface" Margin="1,0,1,4" HorizontalAlignment="Stretch">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <StackPanel x:Name="PlayerColorGroup" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
@@ -207,8 +200,18 @@
        ValueChanged="PositionSlider_ValueChanged" PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
        IsEnabled="False" ToolTip="Full source timeline: click anywhere to seek, or drag the playhead"/>
      </Grid>
-     <Grid Grid.Row="3" Margin="2,4,2,0">
+     <Grid x:Name="RangeReviewRow" Grid.Row="3" Margin="2,4,2,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel x:Name="ReviewControlGroup" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+       <ToggleButton x:Name="LoopChoice" Style="{StaticResource PlayerClassificationChoice}" ToolTip="Loop playback" AutomationProperties.Name="Loop playback" Margin="0,0,6,0">
+        <Path Width="20" Height="20" Stretch="Uniform" StrokeThickness="1.6" Data="M3,9 A8,8 0 0 1 18,5 L18,1 M18,5 L14,5 M21,15 A8,8 0 0 1 6,19 L6,23 M6,19 L10,19">
+         <Path.Style><Style TargetType="Path"><Setter Property="Stroke" Value="{StaticResource MutedTextBrush}"/><Style.Triggers><DataTrigger Binding="{Binding IsChecked, ElementName=LoopChoice}" Value="True"><Setter Property="Stroke" Value="{StaticResource OrangeBrush}"/></DataTrigger></Style.Triggers></Style></Path.Style>
+        </Path>
+       </ToggleButton>
+       <ComboBox x:Name="SpeedChoice" Width="72" Height="26" SelectionChanged="ReviewOptions_Changed" AutomationProperties.Name="Playback speed" ToolTip="Playback speed; audio follows the selected speed"/>
+       <TextBlock Text="fps" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="10,0,5,0"/>
+       <ComboBox x:Name="CadenceChoiceBox" Width="132" Height="26" SelectionChanged="ReviewOptions_Changed" AutomationProperties.Name="Frame Rate Preview" ToolTip="Preview lower frame-rate cadence independently of playback speed"/>
+      </StackPanel>
       <StackPanel Orientation="Horizontal">
        <Button x:Name="SetInButton" Style="{StaticResource RangeSetButton}" Content="Set In" Click="SetIn_Click" IsEnabled="False" ToolTip="Set In to the displayed frame (I)" AutomationProperties.Name="Set In"/>
        <Button x:Name="InTimeButton" Style="{StaticResource RangeTimestampLink}" Click="InTime_Click" Visibility="Collapsed" ToolTip="Seek to saved In frame" AutomationProperties.Name="Seek to saved In frame"/>

@@ -69,15 +69,18 @@ internal sealed class MediaPlaybackPresentation : IDisposable
     private readonly Func<CancellationToken, Task<MediaDecodedFrame>> _captureFrame;
     private FrameworkElement? _surface;
     private readonly Func<FrameworkElement, FrameworkElement> _inputSurface;
+    private readonly Func<FrameworkElement, FrameworkElement?, bool>? _setOverlay;
 
     public MediaPlaybackPresentation(
         FrameworkElement surface,
         Action<FrameworkElement> release,
         Func<CancellationToken, Task<MediaDecodedFrame>> captureFrame,
-        Func<FrameworkElement, FrameworkElement>? inputSurface = null)
+        Func<FrameworkElement, FrameworkElement>? inputSurface = null,
+        Func<FrameworkElement, FrameworkElement?, bool>? setOverlay = null)
     {
         _surface = surface;
         _inputSurface = inputSurface ?? (value => value);
+        _setOverlay = setOverlay;
         _release = release;
         _captureFrame = captureFrame;
     }
@@ -85,6 +88,7 @@ internal sealed class MediaPlaybackPresentation : IDisposable
     public FrameworkElement Surface => _surface ?? throw new ObjectDisposedException(nameof(MediaPlaybackPresentation));
 
     public FrameworkElement InputSurface => _inputSurface(Surface);
+    public bool SetOverlay(FrameworkElement? content) => _setOverlay?.Invoke(Surface, content) ?? false;
 
     public Task<MediaDecodedFrame> CaptureFrameAsync(CancellationToken token = default)
     {
@@ -140,6 +144,7 @@ internal interface IMediaPlaybackBackend : IAsyncDisposable
 
     FrameworkElement CreatePresentationSurface();
     FrameworkElement GetInputSurface(FrameworkElement surface) => surface;
+    bool SetPresentationOverlay(FrameworkElement surface, FrameworkElement? content) => false;
     event EventHandler? Ended { add { } remove { } }
     void ReleasePresentationSurface(FrameworkElement surface);
     void CancelPending();

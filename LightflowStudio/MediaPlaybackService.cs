@@ -34,7 +34,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
     public void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass) => _backend.SetColorPipeline(pipeline, bypass);
 
     public MediaPlaybackPresentation CreatePresentation() =>
-        new(_backend.CreatePresentationSurface(), _backend.ReleasePresentationSurface, _backend.CapturePresentedFrameAsync, _backend.GetInputSurface);
+        new(_backend.CreatePresentationSurface(), _backend.ReleasePresentationSurface, _backend.CapturePresentedFrameAsync, _backend.GetInputSurface, _backend.SetPresentationOverlay);
 
     public void SetViewport(ViewerViewport viewport) => _backend.SetViewport(viewport);
 

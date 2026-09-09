@@ -23,13 +23,13 @@ those components.
 
 ## Playback components
 
-Interactive video playback uses the modified FlyleafLib 3.11.2-lightflow.1 package and
+Interactive video playback uses the modified FlyleafLib 3.11.2-lightflow.2 package and
 Flyleaf.FFmpeg.Bindings 9.0.0. Both packages are licensed under the GNU Lesser
 General Public License, version 3.0 or later. The modified package is based on
 upstream Flyleaf v3.11.2 (`64cee8bf3749590c98b6b6d416e2f590e4e890cf`)
-and adds only a generic renderer-owned GPU video post-process extension.
+and adds a generic renderer-owned GPU video post-process extension and an optional decoded-PTS frame-selection callback.
 
-- Modified Flyleaf corresponding source: <https://github.com/jeremysrunning/Flyleaf/tree/6789799a5b29dfd126e1094e847f46cfa9b9be0a>
+- Modified Flyleaf corresponding source (publication pending approval for this local review build): <https://github.com/jeremysrunning/Flyleaf/tree/172300873b19ec6f544337c5be9619c85fe421b0>
 - Upstream Flyleaf source: <https://github.com/SuRGeoNix/Flyleaf/tree/v3.11.2>
 - Generic upstream contribution: <https://github.com/SuRGeoNix/Flyleaf/pull/719>
 - Flyleaf FFmpeg bindings source: <https://github.com/SuRGeoNix/Flyleaf.FFmpeg.Generator>

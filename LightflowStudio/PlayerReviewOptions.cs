@@ -2,12 +2,13 @@ using System.Globalization;
 
 namespace LightflowStudio;
 
-internal sealed record PlaybackReviewOptions(double Speed = 1, int FrameDivisor = 1)
+internal sealed record PlaybackReviewOptions(double Speed = 1, int FrameDivisor = 1, MediaFrameRate? TargetRate = null)
 {
     internal static readonly double[] Speeds = [0.125, 0.25, 0.5, 1, 2, 4];
     internal void Validate()
     {
-        if (!Speeds.Contains(Speed) || FrameDivisor < 1 || FrameDivisor > 16)
+        if (!Speeds.Contains(Speed) || FrameDivisor < 1 || FrameDivisor > 16 ||
+            TargetRate is { } rate && (rate.Numerator <= 0 || rate.Denominator <= 0))
             throw new ArgumentOutOfRangeException(nameof(PlaybackReviewOptions));
     }
 
@@ -27,19 +28,21 @@ internal sealed record PlaybackReviewOptions(double Speed = 1, int FrameDivisor 
     }
 }
 
-internal sealed record CadenceChoice(string Label, int Divisor)
+internal sealed record CadenceChoice(string Label, int Divisor, MediaFrameRate? Rate = null)
 {
     public override string ToString() => Label;
     internal static IReadOnlyList<CadenceChoice> ForSource(double fps)
     {
-        var choices = new List<CadenceChoice> { new("Source", 1) };
+        var choices = new List<CadenceChoice> { new(double.IsFinite(fps) && fps > 0
+            ? $"Source ({fps.ToString("0.###", CultureInfo.InvariantCulture)})" : "Source (unknown)", 1) };
         if (!double.IsFinite(fps) || fps <= 0) return choices;
-        // Keep integer and 1000/1001 families distinct; do not use Browser display buckets.
-        foreach (var target in new[] { 60d, 60000d / 1001, 50, 30, 30000d / 1001, 25, 24, 24000d / 1001 })
+        foreach (var rate in MediaFrameRate.Canonical.Reverse())
         {
+            var target = rate.Value;
+            if (target >= fps || Math.Abs(target - fps) < 0.0001) continue;
             var divisor = (int)Math.Round(fps / target);
-            if (divisor is < 2 or > 16 || Math.Abs(fps / divisor - target) > target * 0.0001) continue;
-            choices.Add(new($"{target:0.###} fps", divisor));
+            if (divisor is < 2 or > 16 || Math.Abs(fps / divisor - target) > target * 0.0001) divisor = 1;
+            choices.Add(new(rate.ToString(), divisor, rate));
         }
         return choices;
     }

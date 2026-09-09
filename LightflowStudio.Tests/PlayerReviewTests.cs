@@ -7,6 +7,45 @@ namespace LightflowStudio.Tests;
 public sealed partial class PlayerViewerHostLeaseTests
 {
     [Fact]
+    public async Task FullscreenOverlays_AppearThenRecede_AndFirstEntryHintDoesNotRepeat()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var exits = 0;
+            var overlay = new PlayerFullscreenOverlay(() => exits++);
+            var window = new Window { Content = overlay, Width = 600, Height = 400, Left = -32000, ShowActivated = false };
+            window.Show();
+            try
+            {
+                overlay.Enter(true);
+                Assert.Equal(Visibility.Visible, overlay.Hint.Visibility);
+                Assert.Equal(Visibility.Collapsed, overlay.ExitButton.Visibility);
+                overlay.PointerMoved();
+                overlay.ShowPlayback(true);
+                Assert.Equal(Visibility.Visible, overlay.ExitButton.Visibility);
+                Assert.Equal(Visibility.Visible, overlay.Feedback.Visibility);
+                var playGeometry = overlay.Feedback.Data.ToString();
+                overlay.ShowPlayback(false);
+                Assert.NotEqual(playGeometry, overlay.Feedback.Data.ToString());
+                await Task.Delay(1100);
+                Assert.Equal(Visibility.Collapsed, overlay.Feedback.Visibility);
+                await Task.Delay(2000);
+                Assert.Equal(Visibility.Collapsed, overlay.ExitButton.Visibility);
+                Assert.Equal(Visibility.Collapsed, overlay.Hint.Visibility);
+                overlay.Enter(false);
+                Assert.Equal(Visibility.Collapsed, overlay.Hint.Visibility);
+                overlay.PointerMoved();
+                overlay.ExitButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.Equal(1, exits);
+                overlay.Reset();
+                Assert.Equal(Visibility.Collapsed, overlay.ExitButton.Visibility);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Fact]
     public async Task SurfacePanAndCaptureCancellation_SuppressClickAndFullscreen()
     {
         await StaDispatcher.RunAsync(async () =>
@@ -101,7 +140,7 @@ public sealed partial class PlayerViewerHostLeaseTests
                 await host.OpenAsync(asset, resolution);
                 window.UpdateLayout();
                 host.SpeedChoice.SelectedIndex = 5;
-                host.CadenceChoiceBox.SelectedIndex = 3;
+                host.CadenceChoiceBox.SelectedItem = host.CadenceChoiceBox.Items.Cast<CadenceChoice>().Single(choice => choice.Label == "24");
                 Assert.Equal(new PlaybackReviewOptions(4, 5), backend.Options);
                 host.ZoomChoice.SelectedIndex = 2;
                 Assert.True(backend.Viewport.Zoom > 1);
@@ -116,12 +155,25 @@ public sealed partial class PlayerViewerHostLeaseTests
                 var originalContent = window.Content;
                 var opens = backend.OpenPresentationOperations.Count(value => value == "open");
                 host.ToggleFullscreen();
+                window.UpdateLayout();
                 Assert.True(host.IsFullscreen);
+                Assert.Equal(Visibility.Collapsed, host.PlayerHeader.Visibility);
+                Assert.Equal(Visibility.Collapsed, host.TransportBar.Visibility);
+                Assert.InRange(Math.Abs(host.MediaSurfaceHost.ActualHeight - host.ActualHeight), 0, 1);
+                Assert.InRange(Math.Abs(host.MediaSurfaceHost.ActualWidth - host.ActualWidth), 0, 1);
                 Assert.Same(host, window.Content);
                 Assert.Same(asset, host.CurrentAsset);
+                Assert.Equal(Visibility.Visible, host.MediaSurfaceHost.Children.OfType<PlayerFullscreenOverlay>().Single().Hint.Visibility);
                 Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.Escape, host));
                 Assert.False(host.IsFullscreen);
+                Assert.Equal(Visibility.Visible, host.PlayerHeader.Visibility);
+                Assert.Equal(Visibility.Visible, host.TransportBar.Visibility);
+                Assert.Same(host.RangeReviewRow, host.ReviewControlGroup.Parent);
+                Assert.Equal(1, System.Windows.Controls.Grid.GetColumn(host.ReviewControlGroup));
                 Assert.Same(originalContent, window.Content);
+                host.ToggleFullscreen();
+                Assert.Equal(Visibility.Collapsed, host.MediaSurfaceHost.Children.OfType<PlayerFullscreenOverlay>().Single().Hint.Visibility);
+                host.ExitFullscreen();
                 Assert.Equal(opens, backend.OpenPresentationOperations.Count(value => value == "open"));
                 Assert.Equal(new PlaybackReviewOptions(4, 5), backend.Options);
                 await host.OpenAsync(asset with { Name = "next" }, resolution);
@@ -189,24 +241,42 @@ public sealed partial class PlayerViewerHostLeaseTests
 public sealed class CadenceChoiceTests
 {
     [Theory]
-    [InlineData(120, "Source|60 fps|30 fps|24 fps")]
-    [InlineData(60, "Source|30 fps")]
-    [InlineData(50, "Source|25 fps")]
-    [InlineData(24, "Source")]
-    [InlineData(0, "Source")]
-    public void Choices_OnlyAdvertiseRealDivisors(double fps, string labels) =>
+    [InlineData(120, "Source (120)|60|59.94|50|30|29.97|25|24|23.976")]
+    [InlineData(60, "Source (60)|59.94|50|30|29.97|25|24|23.976")]
+    [InlineData(59.94, "Source (59.94)|50|30|29.97|25|24|23.976")]
+    [InlineData(50, "Source (50)|30|29.97|25|24|23.976")]
+    [InlineData(24, "Source (24)|23.976")]
+    [InlineData(0, "Source (unknown)")]
+    public void Choices_UseCanonicalLowerRates(double fps, string labels) =>
         Assert.Equal(labels, string.Join('|', CadenceChoice.ForSource(fps).Select(value => value.Label)));
 
     [Fact]
     public void FractionalFamilyAndSpeedRemainIndependent()
     {
         var choices = CadenceChoice.ForSource(120000d / 1001);
-        Assert.Equal("Source|59.94 fps|29.97 fps|23.976 fps", string.Join('|', choices.Select(value => value.Label)));
+        Assert.Equal(new MediaFrameRate(30000, 1001), choices.Single(choice => choice.Label == "29.97").Rate);
         foreach (var speed in PlaybackReviewOptions.Speeds)
-        foreach (var choice in choices.Skip(1))
+        foreach (var choice in choices.Where(choice => choice.Divisor > 1))
         {
             var options = new PlaybackReviewOptions(speed, choice.Divisor);
             Assert.Equal(choice.Divisor, Math.Ceiling(speed * (120000d / 1001) / (options.OutputThreshold(120000d / 1001) + 1)));
         }
+    }
+
+    [Theory]
+    [InlineData(23.5)] [InlineData(24)] [InlineData(29.97)] [InlineData(59.94)] [InlineData(119.88)]
+    public void Choices_NeverExceedSource(double source) => Assert.All(CadenceChoice.ForSource(source).Skip(1),
+        choice => Assert.True(choice.Rate!.Value.Value <= source));
+
+    [Theory]
+    [InlineData(50, 1)] [InlineData(30, 1)] [InlineData(30000, 1001)] [InlineData(25, 1)] [InlineData(24, 1)] [InlineData(24000, 1001)]
+    public void RationalSelection_UsesSourceTimeAndRetainsCanonicalFraction(int numerator, int denominator)
+    {
+        var rate = new MediaFrameRate(numerator, denominator);
+        var selector = new RationalCadenceSelector(rate);
+        var selected = Enumerable.Range(0, 600).Select(i => (long)Math.Round(i * TimeSpan.TicksPerSecond * 1001d / 60000))
+            .Where(selector.Select).ToArray();
+        Assert.InRange(selected.Length, (int)(10.01 * rate.Value) - 1, (int)(10.01 * rate.Value) + 1);
+        Assert.Equal(selected.Distinct().Count(), selected.Length);
     }
 }

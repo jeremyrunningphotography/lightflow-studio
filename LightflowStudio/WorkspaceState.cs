@@ -68,7 +68,7 @@ internal sealed record WorkspaceLayoutState
 /// <summary>Versioned, tolerant root document for per-user/per-machine workspace UI state. Never Catalog or Preview data.</summary>
 internal sealed record WorkspaceState
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     // Mirrors MainWindow.xaml's BrowserNavigationColumn MinWidth/MaxWidth.
     public const double MinLocationsPaneWidth = 220;
@@ -82,6 +82,7 @@ internal sealed record WorkspaceState
     public WorkspaceBrowserLocationState? Browser { get; init; }
     public WorkspaceWindowState? Window { get; init; }
     public WorkspaceLayoutState? Layout { get; init; }
+    public WorkspaceContinuationState? Continuation { get; init; }
 
     public static WorkspaceState Empty { get; } = new();
 
@@ -94,7 +95,8 @@ internal sealed record WorkspaceState
             Version = CurrentVersion,
             Browser = NormalizeBrowser(state.Browser),
             Window = NormalizeWindow(state.Window),
-            Layout = NormalizeLayout(state.Layout)
+            Layout = NormalizeLayout(state.Layout),
+            Continuation = WorkspaceContinuationState.Normalize(state.Continuation)
         };
     }
 
@@ -103,7 +105,7 @@ internal sealed record WorkspaceState
         if (browser is null || browser.RootId == Guid.Empty) return null;
         try
         {
-            var relative = browser.RelativeFolder.Length == 0
+            var relative = string.IsNullOrEmpty(browser.RelativeFolder)
                 ? ""
                 : MediaPathSemantics.NormalizeRelativePath(browser.RelativeFolder);
             return browser with { RelativeFolder = relative };
@@ -158,7 +160,29 @@ internal static class WorkspaceStateStore
         try
         {
             if (!File.Exists(path)) return WorkspaceState.Empty;
-            return WorkspaceState.Normalize(JsonSerializer.Deserialize<WorkspaceState>(File.ReadAllText(path)));
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return WorkspaceState.Empty;
+            // Recover sections independently: malformed Player data must not discard a valid Browser.
+            var continuation = ReadSection<WorkspaceContinuationState>(root, "Continuation");
+            if (continuation is null && root.TryGetProperty("Continuation", out var saved) && saved.ValueKind == JsonValueKind.Object)
+                continuation = new()
+                {
+                    Query = ReadSection<BrowserQuery>(saved, "Query") ?? BrowserQuery.Default,
+                    Grid = ReadSection<WorkspaceGridState>(saved, "Grid") ?? new(),
+                    ExpandedFolders = ReadSection<List<WorkspaceBrowserLocationState>>(saved, "ExpandedFolders") ?? [],
+                    QueryLocked = ReadSection<bool?>(saved, "QueryLocked") == true,
+                    TreeVerticalOffset = ReadSection<double?>(saved, "TreeVerticalOffset") ?? 0,
+                    TreeHorizontalOffset = ReadSection<double?>(saved, "TreeHorizontalOffset") ?? 0,
+                    Player = ReadSection<WorkspacePlayerState>(saved, "Player")
+                };
+            return WorkspaceState.Normalize(new()
+            {
+                Browser = ReadSection<WorkspaceBrowserLocationState>(root, "Browser"),
+                Window = ReadSection<WorkspaceWindowState>(root, "Window"),
+                Layout = ReadSection<WorkspaceLayoutState>(root, "Layout"),
+                Continuation = continuation
+            });
         }
         catch (JsonException)
         {
@@ -172,6 +196,13 @@ internal static class WorkspaceStateStore
         {
             return WorkspaceState.Empty;
         }
+    }
+
+    private static T? ReadSection<T>(JsonElement root, string name)
+    {
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(name, out var section)) return default;
+        try { return section.Deserialize<T>(); }
+        catch (JsonException) { return default; }
     }
 
     public static void Save(string path, WorkspaceState state)
@@ -212,6 +243,9 @@ internal sealed class WorkspaceStateService
     }
 
     public WorkspaceState Current => _current;
+
+    public void SetContinuation(WorkspaceContinuationState state) =>
+        _current = _current with { Continuation = state };
 
     public void SetBrowserLocation(Guid rootId, string relativeFolder, string? lastResolvedAbsolutePath) =>
         _current = _current with

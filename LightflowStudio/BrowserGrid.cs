@@ -480,6 +480,13 @@ internal sealed class BrowserGridSelection
     /// next Shift+click; the selected items themselves remain exactly as they were.
     /// </summary>
     public void ResetAnchor() => AnchorIndex = null;
+
+    internal void Restore(IEnumerable<string> keys, int? anchor)
+    {
+        _selected.Clear();
+        _selected.UnionWith(keys);
+        AnchorIndex = anchor;
+    }
 }
 
 /// <summary>
@@ -513,11 +520,26 @@ internal sealed class BrowserGridModel
     public IReadOnlyList<BrowserGridTile> Tiles => _visibleTiles;
 
     public int TotalCount => _allTiles.Count;
+    internal IReadOnlyList<Guid> ScopeAssetIds => _allTiles.Where(tile => tile.AssetId is not null)
+        .Select(tile => tile.AssetId!.Value).ToArray();
     public IReadOnlyList<BrowserGridTile> AdvancedFilterContextTiles =>
         BrowserQueryEngine.ApplyAdvancedFilterContext(_allTiles, Query);
     public int VisibleCount => _visibleTiles.Count;
     public BrowserQuery Query { get; private set; } = BrowserQuery.Default;
     public IReadOnlySet<string> SelectedKeys => _selection.Snapshot();
+
+    internal Guid? SelectionAnchorAssetId => _selection.AnchorIndex is { } index && index >= 0 && index < _visibleTiles.Count
+        ? _visibleTiles[index].AssetId : null;
+
+    internal void RestoreWorkspaceSelection(WorkspaceGridState saved)
+    {
+        var ids = saved.SelectedAssetIds.ToHashSet();
+        var surviving = _visibleTiles.Where(tile => tile.AssetId is { } id && ids.Contains(id)).ToArray();
+        var anchor = _visibleTiles.FindIndex(tile => tile.AssetId == saved.AnchorAssetId);
+        if (anchor < 0 && surviving.Length > 0) anchor = surviving[0].Index;
+        _selection.Restore(surviving.Select(tile => tile.Key), anchor >= 0 ? anchor : null);
+        foreach (var tile in _allTiles) tile.IsSelected = _selection.IsSelected(tile.Key);
+    }
 
     /// <summary>Selected assets in the Browser's current deterministic projection order.</summary>
     public IReadOnlyList<Guid> SelectedAssetIdsInBrowserOrder

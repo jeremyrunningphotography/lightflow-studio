@@ -139,7 +139,8 @@ public partial class PlayerViewerHost : UserControl
     /// only the most recently requested open can ever publish UI state, matching the same latest-request-wins
     /// discipline the underlying playback engine already applies to its own operations.
     /// </summary>
-    internal async Task OpenAsync(PlayerViewerAsset asset, MediaPathResolution resolution, CancellationToken token = default)
+    internal async Task OpenAsync(PlayerViewerAsset asset, MediaPathResolution resolution, CancellationToken token = default,
+        WorkspacePlayerState? continuation = null)
     {
         ArgumentNullException.ThrowIfNull(asset);
         if (_currentAsset != asset && ContextChanging?.Invoke() == false) return;
@@ -158,16 +159,17 @@ public partial class PlayerViewerHost : UserControl
             SetStatus(exception.Message);
         }
         _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseCompleted);
-        if (generation != _generation) return;
+        if (generation != _generation || token.IsCancellationRequested) return;
 
         ResetSubclipWork();
         _currentAsset = asset;
         CurrentAssetChanged?.Invoke(this, EventArgs.Empty);
         await LoadClassificationAsync(asset.AssetId, generation, token).ConfigureAwait(true);
+        if (generation != _generation || token.IsCancellationRequested) return;
         AddSubclipButton.IsEnabled = false;
         if (asset.Kind == MediaPresentationKind.Video && asset.AssetId is Guid subclipAssetId)
             await LoadSubclipsAsync(subclipAssetId, generation, _subclipWorkCts!.Token).ConfigureAwait(true);
-        if (generation != _generation) return;
+        if (generation != _generation || token.IsCancellationRequested) return;
         SetExportEnabled(false);
         AssetNameText.Text = asset.Name;
         SetScreengrabFeedback(null);
@@ -176,16 +178,18 @@ public partial class PlayerViewerHost : UserControl
         if (resolution.PhysicalPath is null || !resolution.Exists)
         {
             SetStatus(resolution.Diagnostic ?? "This file is unavailable.");
-            Focus();
+            if (continuation is null && !token.IsCancellationRequested) Focus();
             return;
         }
 
         try
         {
             if (asset.Kind == MediaPresentationKind.Video)
-                await OpenVideoAsync(resolution.PhysicalPath, generation, token).ConfigureAwait(true);
+                await OpenVideoAsync(resolution.PhysicalPath, generation, token, continuation).ConfigureAwait(true);
             else
                 await OpenImageAsync(resolution.PhysicalPath, generation, token).ConfigureAwait(true);
+            if (generation == _generation && !token.IsCancellationRequested && asset.Kind == MediaPresentationKind.Image && continuation is not null)
+                ApplyWorkspaceReview(continuation);
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)
@@ -200,7 +204,7 @@ public partial class PlayerViewerHost : UserControl
         }
         finally
         {
-            if (generation == _generation) Focus();
+            if (generation == _generation && !token.IsCancellationRequested && continuation is null) Focus();
         }
     }
 
@@ -225,7 +229,7 @@ public partial class PlayerViewerHost : UserControl
         SetStatus(null);
     }
 
-    private async Task OpenVideoAsync(string absolutePath, long generation, CancellationToken token)
+    private async Task OpenVideoAsync(string absolutePath, long generation, CancellationToken token, WorkspacePlayerState? continuation = null)
     {
         var playback = new MediaPlaybackLeaseSession(_coordinator);
         _openMilestone?.Invoke(PlayerOpenMilestone.PlaybackBackendOpenStarted);
@@ -247,17 +251,30 @@ public partial class PlayerViewerHost : UserControl
             if (generation != _generation) return;
             _reviewRange = restoredRange;
             UpdateRangePresentation();
-            if (_reviewRange?.In is { } savedIn)
+            if (continuation is not null)
+            {
+                await service.PauseAsync(token).ConfigureAwait(true);
+                await service.SeekAsync(continuation.PositionFor(info.Duration), token).ConfigureAwait(true);
+            }
+            else if (_reviewRange?.In is { } savedIn)
                 await service.SeekAsync(savedIn, token).ConfigureAwait(true);
-            if (generation != _generation) return;
+            if (generation != _generation || token.IsCancellationRequested) return;
             // Attach the native presentation only after the optional saved-In seek has settled. Creating it
             // earlier lets Flyleaf's already-open default/source-start frame become visible before the seek,
             // producing a brief flash. The player remains paused throughout; this changes presentation order,
             // not the shared playback/backend path or its authoritative decoded-timestamp semantics.
+            InitializeSourceReview(info.Width, info.Height, info.FrameRate);
+            if (continuation is not null)
+            {
+                ApplyWorkspaceReview(continuation);
+                var cadence = (CadenceChoice)CadenceChoiceBox.SelectedItem;
+                await service.SetReviewOptionsAsync(new(continuation.Speed, cadence.Divisor,
+                    cadence.Divisor == 1 ? cadence.Rate : null), token);
+                if (generation != _generation || token.IsCancellationRequested) return;
+            }
             _mediaView = new MediaPlaybackView(service);
             VideoHost.Children.Add(_mediaView);
             _mediaView.Loaded += MediaView_Loaded;
-            InitializeSourceReview(info.Width, info.Height, info.FrameRate);
             _openMilestone?.Invoke(PlayerOpenMilestone.PresentationSurfaceCreated);
             UpdateFromSnapshot(service.Snapshot);
             SetTransportEnabled(true);
@@ -1240,6 +1257,7 @@ public partial class PlayerViewerHost : UserControl
         foreach (var item in _subclipItems) item.IsSelected = SubclipsList.SelectedItems.Contains(item);
         DeleteSelectedSubclipsButton.IsEnabled = SubclipsList.SelectedItems.Count > 0;
         ExportSelectedSubclipsMenuItem.IsEnabled = SubclipsList.SelectedItems.Count > 0;
+        if (_applyingWorkspaceReview) return;
         var selected = e.AddedItems.Cast<SubclipPanelItem>().LastOrDefault()
             ?? SubclipsList.SelectedItems.Cast<SubclipPanelItem>().FirstOrDefault(item => item.SubclipId == _selectedSubclipId)
             ?? SubclipsList.SelectedItems.Cast<SubclipPanelItem>().LastOrDefault();

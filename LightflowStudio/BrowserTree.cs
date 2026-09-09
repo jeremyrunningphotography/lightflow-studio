@@ -140,6 +140,12 @@ internal sealed class BrowserTreeModel
     public ObservableCollection<BrowserTreeNode> Roots { get; } = [];
     public BrowserTreeNode? SelectedNode { get; private set; }
 
+    internal IReadOnlyList<BrowserTreeNode> KnownFolders() => Roots.SelectMany(Flatten)
+        .Where(node => !node.IsPlaceholder).ToArray();
+
+    internal BrowserTreeNode EnsureWorkspaceRoot(BrowserLocation location) =>
+        FindRoot(location) ?? AddCurrentRoot(location);
+
     public void SetStorageEntries(IEnumerable<BrowserStorageEntry> entries)
     {
         var existing = Roots.Where(node => node.Storage is not null)

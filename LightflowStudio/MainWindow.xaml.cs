@@ -220,6 +220,7 @@ public partial class MainWindow : Window
         InitializeBrowserQuickFilterButtons();
         SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
+        InitializeWorkspaceContinuation();
         // End stale tile gestures even when release is handled by chrome or lands outside the tile.
         AddHandler(Mouse.PreviewMouseDownEvent, new MouseButtonEventHandler((_, _) => ResetBrowserAssetGesture()), true);
         AddHandler(Mouse.MouseUpEvent, new MouseButtonEventHandler((_, _) => ResetBrowserAssetGesture()), true);
@@ -229,6 +230,7 @@ public partial class MainWindow : Window
         _storage.ThumbnailActivity.Changed += (_, change) => Dispatcher.BeginInvoke(() =>
             _browserGrid.ApplyThumbnailGenerating(change.AssetId, change.IsGenerating));
         if (_workspaceState.Current.Browser is { } savedBrowserLocation) ShowBrowserRestoringState(savedBrowserLocation);
+        PrepareWorkspacePlayerPresentation();
         _batchFolderRefreshTimer.Tick += (_, _) =>
         {
             _batchFolderRefreshTimer.Stop();
@@ -237,7 +239,7 @@ public partial class MainWindow : Window
         _workspaceSaveTimer.Tick += (_, _) =>
         {
             _workspaceSaveTimer.Stop();
-            _workspaceState.Save();
+            SaveWorkspaceState();
         };
         _collectionDragHoverTimer.Tick += (_, _) => ExpandHoveredCollectionSet();
         _browserSearchDebounceTimer.Tick += (_, _) =>
@@ -288,10 +290,7 @@ public partial class MainWindow : Window
                 // before restoration starts from ~1.1s to ~0.16s. Restoration itself proceeds independently.
                 await RefreshBrowserStorageAsync();
                 await RefreshCollectionsAsync();
-                if (_workspaceState.Current.Layout?.BrowserCollectionId is { } collectionId)
-                    _ = LoadCollectionScopeAsync(collectionId);
-                else
-                    _ = RestoreBrowserLocationAsync(_workspaceState.Current.Browser);
+                _ = RestoreWorkspaceContinuationAsync();
 
                 RefreshCatalogBackups();
                 RefreshHistory();
@@ -341,6 +340,8 @@ public partial class MainWindow : Window
             _browserNavigation.KnownContentAvailable -= BrowserNavigation_KnownContentAvailable;
             _workspaceSaveTimer.Stop();
             _browserSearchDebounceTimer.Stop();
+            _workspaceClosed = true;
+            _workspaceRestoration.Cancel();
             _browserMetadataResortTimer.Stop();
             _collectionDragHoverTimer.Stop();
             _browserNavigation.Dispose();
@@ -464,6 +465,8 @@ public partial class MainWindow : Window
     private void SaveWorkspaceState()
     {
         _workspaceSaveTimer.Stop();
+        if (_restoringWorkspace) return;
+        CaptureWorkspaceContinuation();
         var bounds = RestoreBounds;
         if (bounds.Width > 0 && bounds.Height > 0)
             _workspaceState.SetWindow(new WorkspaceWindowState
@@ -507,7 +510,8 @@ public partial class MainWindow : Window
             // it is derived live from the Catalog's stored recursive roots against whatever folder actually
             // loads, exactly like an interactive navigation. Restoration therefore needs no scope-mode step
             // of its own; it simply drives the same navigation path every other Locations interaction uses.
-            var result = await BrowserLocationRestoration.RestoreAsync(_browserNavigation, _storage.MediaRoots, saved)
+            var result = await BrowserLocationRestoration.RestoreAsync(_browserNavigation, _storage.MediaRoots, saved,
+                _workspaceRestoration.Token)
                 .ConfigureAwait(true);
             if (generation != _browserUiGeneration) return;
             if (!ApplyBrowserSuccessState(result.State, generation))
@@ -524,7 +528,7 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException)
         {
-            if (generation == _browserUiGeneration) ShowDefaultBrowserEmptyState();
+            if (generation == _browserUiGeneration && _workspaceRestoration.IsCurrent) ShowDefaultBrowserEmptyState();
         }
         catch (Exception exception) when (exception is InvalidOperationException or MachineIdentityException or
             ArgumentException or IOException or UnauthorizedAccessException)
@@ -654,7 +658,7 @@ public partial class MainWindow : Window
     /// </summary>
     private async void BrowserFolderTreeItem_Expanded(object sender, RoutedEventArgs e)
     {
-        if (_synchronizingBrowserTree || (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node ||
+        if (_restoringWorkspace || _synchronizingBrowserTree || (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node ||
             node.IsPlaceholder || !node.Children.Any(child => child.IsPlaceholder))
             return;
         if (node.RootId is not { } rootId || node.RelativeFolder is not { } relativeFolder)
@@ -763,9 +767,11 @@ public partial class MainWindow : Window
 
     private void BringBrowserTreeNodeIntoView(BrowserTreeNode node)
     {
+        if (_restoringWorkspace || _workspaceTreeRevealSuppressed) return;
         const double disclosureAndIconWidth = 44;
         _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
+            if (_restoringWorkspace || _workspaceTreeRevealSuppressed) return;
             // A delayed reveal must not focus an old row: WPF focus itself raises selection/navigation.
             if (!ReferenceEquals(_browserTree.SelectedNode, node) ||
                 _browserScopeSelection.Active == BrowserScopeSelectionKind.Collection) return;
@@ -816,6 +822,7 @@ public partial class MainWindow : Window
     /// </remarks>
     private async Task RevealBrowserTreeAncestorsAsync(BrowserLocation location, long generation)
     {
+        if (_restoringWorkspace || _workspaceTreeRevealSuppressed) return;
         IReadOnlyList<BrowserTreeNode> pending;
         _synchronizingBrowserTree = true;
         try { pending = _browserTree.GetUnmaterializedAncestors(location); }
@@ -1053,6 +1060,19 @@ public partial class MainWindow : Window
             .Select(entry => entry.AssetId!.Value).ToHashSet();
         await ApplyBrowserPreviewRecordsAsync(ids, ids, generation, () =>
             ReferenceEquals(_lastLoadedBrowserState, state) && _browserNavigation.IsCurrent(state), state.CatalogAssets);
+        if (_restoringWorkspace && _savedContinuation is { } saved && _workspaceRestoration.IsCurrent &&
+            generation == _browserUiGeneration && ReferenceEquals(_lastLoadedBrowserState, state))
+        {
+            await LoadBrowserAssetStatesAsync(ids.Select(id => new CatalogReconciliationItem(id, "",
+                CatalogReconciliationItemStatus.Unchanged)).ToArray(), generation, _browserAssetStateRevision);
+            if (!_workspaceRestoration.IsCurrent || generation != _browserUiGeneration || !ReferenceEquals(_lastLoadedBrowserState, state)) return;
+            _browserGrid.ReapplyQuery();
+            _browserGrid.RestoreWorkspaceSelection(saved.Grid);
+            _pendingWorkspaceGrid = saved.Grid;
+            if (saved.Player is null) BrowserGridRows.Opacity = 1;
+            UpdateBrowserStatusText();
+            UpdateInspectorContext();
+        }
     }
 
     /// <summary>
@@ -1067,6 +1087,8 @@ public partial class MainWindow : Window
     private async Task RunBrowserNavigationAsync(Func<Task<BrowserFolderState?>> navigate,
         BrowserScopeMode? scopeModeOverride = null)
     {
+        WorkspaceUserInteraction();
+        _pendingWorkspaceGrid = null;
         using var timing = BrowserPerformance.Measure("ui.navigation");
         if (!TryLeaveInspectorContext()) { RestoreLoadedBrowserSelection(); return; }
         using var editing = _inspector?.SuspendEditing();
@@ -1194,7 +1216,7 @@ public partial class MainWindow : Window
         // Player/Viewer was showing behind — it belonged to the scope being left. A same-folder refresh
         // (explicit Refresh, a relevant monitoring event) reaches this with an unchanged scopeIdentity and
         // therefore never disturbs an open Player/Viewer, exactly like it already preserves selection below.
-        if (scopeIdentity != _browserScopeIdentity && _browserPresentation == BrowserPresentationMode.PlayerViewer)
+        if (!_restoringWorkspace && scopeIdentity != _browserScopeIdentity && _browserPresentation == BrowserPresentationMode.PlayerViewer)
             _ = ReturnToBrowserGridAsync(restoreScrollOffset: false, focusGrid: false);
         if (scopeIdentity != _browserScopeIdentity) _browserGrid.ClearSelection();
         _browserScopeIdentity = scopeIdentity;
@@ -1263,9 +1285,8 @@ public partial class MainWindow : Window
 
         if (state.Location is { } location)
         {
-            // Selection is intentionally never persisted here, and #124 (revised) no longer persists scope
-            // mode here either — recursive-root configuration is durable Catalog data now, not workspace
-            // state (see BrowserRecursiveRoot); only the plain folder identity is remembered.
+            // Continuation captures selection separately. Recursive-root configuration remains durable
+            // Catalog data (#124), so this navigation snapshot remembers only the plain folder identity.
             _workspaceState.SetBrowserLocation(location.RootId, location.RelativeFolder, location.AbsolutePath);
             _workspaceSaveTimer.Stop();
             _workspaceSaveTimer.Start();
@@ -1890,10 +1911,19 @@ public partial class MainWindow : Window
         }
         if (generation != _browserUiGeneration) return;
 
+        await OpenResolvedBrowserPlayerAsync(asset, resolution);
+    }
+
+    private async Task OpenResolvedBrowserPlayerAsync(PlayerViewerAsset asset, MediaPathResolution resolution,
+        WorkspacePlayerState? continuation = null, CancellationToken token = default)
+    {
+        token.ThrowIfCancellationRequested();
+        _workspacePlayerPlaceholder = false;
         CaptureBrowserGridScrollOffset();
+        _playerBrowserGrid = continuation is null ? CaptureWorkspaceGrid() : _savedContinuation?.Grid;
         EnsurePlayerViewerHost();
         SetBrowserPresentationMode(BrowserPresentationMode.PlayerViewer);
-        await _playerViewerHost!.OpenAsync(asset, resolution).ConfigureAwait(true);
+        await _playerViewerHost!.OpenAsync(asset, resolution, token, continuation).ConfigureAwait(true);
     }
 
     private void EnsurePlayerViewerHost()
@@ -4398,13 +4428,16 @@ public partial class MainWindow : Window
             ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private async Task LoadCollectionScopeAsync(Guid collectionId)
+    private Task LoadCollectionScopeAsync(Guid collectionId) => LoadCollectionScopeCoreAsync(collectionId);
+
+    private async Task LoadCollectionScopeCoreAsync(Guid collectionId, CancellationToken token = default, bool restoring = false)
     {
+        if (!restoring) { WorkspaceUserInteraction(); _pendingWorkspaceGrid = null; }
         if (!TryLeaveInspectorContext()) { RestoreLoadedBrowserSelection(); return; }
         using var editing = _inspector?.SuspendEditing();
         _collectionScopeCts?.Cancel();
         _collectionScopeCts?.Dispose();
-        var request = _collectionScopeCts = new CancellationTokenSource();
+        var request = _collectionScopeCts = CancellationTokenSource.CreateLinkedTokenSource(token);
         var generation = ++_browserUiGeneration;
         ShowBrowserLoadingState("Loading Collection…");
         try
@@ -4418,7 +4451,7 @@ public partial class MainWindow : Window
         catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException or IOException)
         {
             BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
-            MessageBox.Show(exception.Message, "Collection could not be opened", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (!restoring) MessageBox.Show(exception.Message, "Collection could not be opened", MessageBoxButton.OK, MessageBoxImage.Warning);
             await RefreshCollectionsAsync();
         }
     }
@@ -4430,7 +4463,7 @@ public partial class MainWindow : Window
         var queryScope = $"collection:{scope.Collection.CollectionId:D}";
         if (queryScope != _browserQueryScope) ResetBrowserQueryToolbar(BrowserSortMode.Manual);
         _browserQueryScope = queryScope;
-        if (queryScope != _browserScopeIdentity && _browserPresentation == BrowserPresentationMode.PlayerViewer)
+        if (!_restoringWorkspace && queryScope != _browserScopeIdentity && _browserPresentation == BrowserPresentationMode.PlayerViewer)
             _ = ReturnToBrowserGridAsync(restoreScrollOffset: false, focusGrid: false);
         if (queryScope != _browserScopeIdentity) _browserGrid.ClearSelection();
         _browserScopeIdentity = queryScope;

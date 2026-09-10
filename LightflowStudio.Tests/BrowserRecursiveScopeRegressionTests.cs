@@ -119,7 +119,8 @@ public sealed class BrowserRecursiveScopeRegressionTests
         // same BrowserLocationRestoration.RestoreAsync path every other Locations interaction uses.
         var body = MethodBody("private async Task RestoreBrowserLocationAsync");
 
-        Assert.Contains("BrowserLocationRestoration.RestoreAsync(_browserNavigation, _storage.MediaRoots, saved)", body);
+        Assert.Contains("BrowserLocationRestoration.RestoreAsync(_browserNavigation, _storage.MediaRoots, saved,", body);
+        Assert.Contains("_workspaceRestoration.Token", body);
         Assert.DoesNotContain("SetIncludeSubfoldersAsync", body);
         Assert.DoesNotContain("SetScopeModeAsync", body);
         Assert.DoesNotContain("saved.IncludeSubfolders", body);

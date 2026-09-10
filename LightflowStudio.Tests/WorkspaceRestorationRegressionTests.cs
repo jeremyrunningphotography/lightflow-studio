@@ -41,7 +41,7 @@ public sealed class WorkspaceRestorationRegressionTests
     {
         var source = Source();
         var refreshStorage = source.IndexOf("await RefreshBrowserStorageAsync();", StringComparison.Ordinal);
-        var restore = source.IndexOf("RestoreBrowserLocationAsync(_workspaceState.Current.Browser)", StringComparison.Ordinal);
+        var restore = source.IndexOf("RestoreWorkspaceContinuationAsync()", StringComparison.Ordinal);
 
         Assert.True(refreshStorage >= 0 && restore > refreshStorage,
             "Restoring a Browser location before Locations storage entries are populated would leave an " +
@@ -141,7 +141,7 @@ public sealed class WorkspaceRestorationRegressionTests
         // delayed the start of Browser restoration by over a second — none of that work is visible by
         // default, since Browser (not Encoding/History/Settings) is the startup workspace.
         var source = Source();
-        var kickoff = source.IndexOf("_ = RestoreBrowserLocationAsync(_workspaceState.Current.Browser);", StringComparison.Ordinal);
+        var kickoff = source.IndexOf("_ = RestoreWorkspaceContinuationAsync();", StringComparison.Ordinal);
         Assert.True(kickoff >= 0);
 
         var loadedStart = source.IndexOf("Loaded += async", StringComparison.Ordinal);

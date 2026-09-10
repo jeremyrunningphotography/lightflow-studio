@@ -39,6 +39,7 @@ dotnet publish $project -c Release -r win-x64 --self-contained true `
     -p:NuGetLockFilePath=$publishLockFile `
     -p:DebugType=None -p:DebugSymbols=false -o $appDirectory
 if ($LASTEXITCODE -ne 0) { throw "Application publish failed." }
+& (Join-Path $PSScriptRoot "Test-ApplicationIcon.ps1") -ExecutablePath (Join-Path $appDirectory "LightflowStudio.exe")
 
 $catalogRuntimeCheck = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
     -ArgumentList "--verify-catalog-runtime" -WorkingDirectory $appDirectory `
@@ -47,14 +48,23 @@ if ($catalogRuntimeCheck.ExitCode -ne 0) { throw "Packaged Catalog SQLite runtim
 
 # Exercise the real packaged WPF startup through MainWindow.Loaded and delayed template rendering.
 # The process must remain alive after Browser storage initialization; short-lived XAML/startup crashes fail packaging.
+$presentationReport = Join-Path $stagingRoot "startup-presentation.txt"
 $startupSmoke = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
-    -ArgumentList "--startup-smoke-test", "--jobs-workspace-smoke-test" -WorkingDirectory $appDirectory `
+    -ArgumentList "--startup-smoke-test", "--jobs-workspace-smoke-test", "--startup-presentation-report", "`"$presentationReport`"" -WorkingDirectory $appDirectory `
     -PassThru -WindowStyle Hidden
 try {
     if ($startupSmoke.WaitForExit(8000)) {
         throw "Packaged application exited during the Browser startup smoke test (exit code $($startupSmoke.ExitCode))."
     }
-    Write-Host "Packaged Browser startup and full Jobs workspace activation remained healthy after initialization." -ForegroundColor Green
+    $presentationDeadline = [DateTime]::UtcNow.AddSeconds(30)
+    while (-not (Test-Path -LiteralPath $presentationReport)) {
+        if ($startupSmoke.WaitForExit(250)) { throw "Packaged startup exited before presentation readiness." }
+        if ([DateTime]::UtcNow -gt $presentationDeadline) { throw "Packaged startup did not report presentation readiness." }
+    }
+    if ((Get-Content -LiteralPath $presentationReport -Raw) -ne 'presentation-ready; splash-closed') {
+        throw "Packaged startup reported an invalid presentation result."
+    }
+    Write-Host "Packaged Browser startup, workspace presentation/splash handoff, and full Jobs workspace activation passed." -ForegroundColor Green
     $null = $startupSmoke.CloseMainWindow()
     if (-not $startupSmoke.WaitForExit(5000)) { Stop-Process -InputObject $startupSmoke -Force }
 }

@@ -34,6 +34,12 @@ foreach ($relativePath in $requiredFiles) {
     }
 }
 
+$approvedIcon = Join-Path $repositoryRoot 'LightflowStudio\Assets\Branding\LightflowStudio.ico'
+if ((Get-FileHash -LiteralPath (Join-Path $packageRoot 'LightflowStudio.ico')).Hash -ne
+    (Get-FileHash -LiteralPath $approvedIcon).Hash) {
+    throw 'Packaged ICO does not match the approved application icon.'
+}
+
 $thirdPartyNotices = Get-Content -LiteralPath (Join-Path $packageRoot "THIRD-PARTY-NOTICES.md") -Raw
 $requiredNoticeMarkers = @("FlyleafLib 3.11.2-lightflow.4", "flyleaf-fast-seek.patch", "a9ca2937a95952790efa87b94f56cd735024d52c", "Microsoft.Data.Sqlite 8.0.29", "SQLitePCLRaw 2.1.6", "sqlite.org/copyright")
 foreach ($marker in $requiredNoticeMarkers) {

@@ -478,6 +478,7 @@ public partial class MainWindow : Window
                 IsMaximized = _lastNonMinimizedWindowState == WindowState.Maximized
             });
         _workspaceState.SetBrowserLocationsPaneWidth(_browserLocationsPreferredWidth);
+        if (_playerViewerHost is not null) _workspaceState.SetPlayerFilmstripVisible(_playerViewerHost.FilmstripVisible);
         _workspaceState.SetRightPanel(_rightPanelPreferredWidth, _rightPanelOpen, HomeRightPanel.PreferredSurface);
         _workspaceState.SetFullJobsListPaneWidth(FullJobsListColumn.ActualWidth);
         _workspaceState.SetBrowserThumbnailSizeLevel((int)_browserThumbnailSize);
@@ -1899,6 +1900,7 @@ public partial class MainWindow : Window
         var generation = _browserUiGeneration;
         var asset = new PlayerViewerAsset(tile.RootId, tile.RelativePath, tile.Key, tile.Name,
             MediaPresentationClassification.KindFor(tile.Category), tile.AssetId);
+        var reviewSet = BrowserPlayerReviewSet.Capture(_browserGrid.Tiles, asset);
         MediaPathResolution resolution;
         // Unfiltered: this is a fire-and-forget UI entry point (invoked as `_ = OpenBrowserPlayerViewerAsync(tile)`
         // from the tile double-click/Enter handler), matching RunBrowserNavigationAsync's own catch-all
@@ -1911,17 +1913,18 @@ public partial class MainWindow : Window
         }
         if (generation != _browserUiGeneration) return;
 
-        await OpenResolvedBrowserPlayerAsync(asset, resolution);
+        await OpenResolvedBrowserPlayerAsync(asset, resolution, reviewSet: reviewSet);
     }
 
     private async Task OpenResolvedBrowserPlayerAsync(PlayerViewerAsset asset, MediaPathResolution resolution,
-        WorkspacePlayerState? continuation = null, CancellationToken token = default)
+        WorkspacePlayerState? continuation = null, CancellationToken token = default, PlayerReviewSet? reviewSet = null)
     {
         token.ThrowIfCancellationRequested();
         _workspacePlayerPlaceholder = false;
         CaptureBrowserGridScrollOffset();
         _playerBrowserGrid = continuation is null ? CaptureWorkspaceGrid() : _savedContinuation?.Grid;
         EnsurePlayerViewerHost();
+        _playerViewerHost!.SetReviewSet(reviewSet ?? BrowserPlayerReviewSet.Capture(_browserGrid.Tiles, asset), ResolveReviewAssetAsync);
         SetBrowserPresentationMode(BrowserPresentationMode.PlayerViewer);
         await _playerViewerHost!.OpenAsync(asset, resolution, token, continuation).ConfigureAwait(true);
     }
@@ -1938,6 +1941,8 @@ public partial class MainWindow : Window
             preferredPreviewFrames: _storage.PreferredPreviewFrames,
             classifications: _storage.AssetClassifications);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
+        _playerViewerHost.FilmstripVisible = _workspaceState.Current.Layout?.PlayerFilmstripVisible ?? true;
+        _playerViewerHost.FilmstripVisibilityChanged += (_, _) => ScheduleWorkspaceCapture();
         _playerViewerHost.ContextChanging = TryLeaveInspectorContext;
         _playerViewerHost.SuspendContextEditing = () => _inspector?.SuspendEditing();
         HomeRightPanel.AddSurface("subclips", "Subclips", _playerViewerHost.SubclipsContent, available: false);
@@ -1975,6 +1980,15 @@ public partial class MainWindow : Window
             UpdateBrowserStatusText();
         };
         BrowserPlayerHost.Content = _playerViewerHost;
+    }
+
+    private async Task<MediaPathResolution> ResolveReviewAssetAsync(PlayerViewerAsset asset, CancellationToken token)
+    {
+        var resolved = await _storage.MediaAssets.GetAsync(asset.AssetId!.Value, token);
+        return resolved is null
+            ? new(asset.RootId, asset.RelativePath, asset.Key, null, MediaRootAvailability.Unavailable, false, "This asset is no longer in the Catalog.")
+            : new(resolved.Asset.RootId, resolved.Asset.RelativePath, resolved.Asset.RelativePathKey,
+                resolved.PhysicalPath, resolved.RootAvailability, resolved.SourceExists, resolved.Diagnostic);
     }
 
     private async Task RegeneratePreferredFrameThumbnailAsync(Guid assetId)

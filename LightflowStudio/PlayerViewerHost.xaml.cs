@@ -42,6 +42,7 @@ public partial class PlayerViewerHost : UserControl
     private readonly Func<string>? _creativeLutFolder;
     private readonly Action<PlayerOpenMilestone>? _openMilestone;
     private long _generation;
+    private CancellationTokenSource? _sourceOpenCts;
     private MediaPlaybackLeaseSession? _playback;
     private IMediaPlaybackService? _service;
     private MediaPlaybackView? _mediaView;
@@ -144,6 +145,10 @@ public partial class PlayerViewerHost : UserControl
     {
         ArgumentNullException.ThrowIfNull(asset);
         if (_currentAsset != asset && ContextChanging?.Invoke() == false) return;
+        _sourceOpenCts?.Cancel();
+        _sourceOpenCts?.Dispose();
+        _sourceOpenCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+        token = _sourceOpenCts.Token;
         using var editing = SuspendContextEditing?.Invoke();
         var generation = ++_generation;
         _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseStarted);
@@ -156,7 +161,7 @@ public partial class PlayerViewerHost : UserControl
             // MainWindow.RunBrowserNavigationAsync's own catch-all convention for a fire-and-forget UI entry
             // point, since an unanticipated exception type here must still surface as a status message rather
             // than propagate as a silent unobserved task fault.
-            SetStatus(exception.Message);
+            if (generation == _generation) SetStatus(exception.Message);
         }
         _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseCompleted);
         if (generation != _generation || token.IsCancellationRequested) return;
@@ -164,7 +169,8 @@ public partial class PlayerViewerHost : UserControl
         ResetSubclipWork();
         _currentAsset = asset;
         CurrentAssetChanged?.Invoke(this, EventArgs.Empty);
-        await LoadClassificationAsync(asset.AssetId, generation, token).ConfigureAwait(true);
+        try { await LoadClassificationAsync(asset.AssetId, generation, token).ConfigureAwait(true); }
+        catch (OperationCanceledException) { return; }
         if (generation != _generation || token.IsCancellationRequested) return;
         AddSubclipButton.IsEnabled = false;
         if (asset.Kind == MediaPresentationKind.Video && asset.AssetId is Guid subclipAssetId)
@@ -219,10 +225,20 @@ public partial class PlayerViewerHost : UserControl
     internal async Task CloseAsync()
     {
         if (_currentAsset is not null && ContextChanging?.Invoke() == false) return;
+        CancelReviewRequest();
+        _sourceOpenCts?.Cancel();
+        _sourceOpenCts?.Dispose();
+        _sourceOpenCts = null;
         using var editing = SuspendContextEditing?.Invoke();
         var generation = ++_generation;
         await ReleaseCurrentAsync().ConfigureAwait(true);
         if (generation != _generation) return;
+        _reviewSet = null;
+        _reviewResolver = null;
+        _syncingFilmstrip = true;
+        Filmstrip.ItemsSource = null;
+        _syncingFilmstrip = false;
+        SyncReviewNavigation();
         _currentAsset = null;
         CurrentAssetChanged?.Invoke(this, EventArgs.Empty);
         AssetNameText.Text = "";
@@ -233,9 +249,11 @@ public partial class PlayerViewerHost : UserControl
     {
         var playback = new MediaPlaybackLeaseSession(_coordinator);
         _openMilestone?.Invoke(PlayerOpenMilestone.PlaybackBackendOpenStarted);
-        var service = await playback.OpenAsync(absolutePath, token).ConfigureAwait(true);
+        IMediaPlaybackService service;
+        try { service = await playback.OpenAsync(absolutePath, token).ConfigureAwait(true); }
+        catch { await playback.DisposeAsync().ConfigureAwait(true); throw; }
         _openMilestone?.Invoke(PlayerOpenMilestone.PlaybackBackendOpenCompleted);
-        if (generation != _generation) { await playback.DisposeAsync().ConfigureAwait(true); return; }
+        if (generation != _generation || token.IsCancellationRequested) { await playback.DisposeAsync().ConfigureAwait(true); return; }
 
         _playback = playback;
         _service = service;
@@ -251,6 +269,7 @@ public partial class PlayerViewerHost : UserControl
             if (generation != _generation) return;
             _reviewRange = restoredRange;
             UpdateRangePresentation();
+            // Shared Open already starts paused at source beginning. Seek only when restoring a position/In.
             if (continuation is not null)
             {
                 await service.PauseAsync(token).ConfigureAwait(true);
@@ -296,9 +315,8 @@ public partial class PlayerViewerHost : UserControl
             // nothing further can use, and Space (guarded only on "_service is not null", unlike StepAsync
             // which also checks PositionSlider.IsEnabled) would still reach it despite every transport
             // control being visibly disabled.
-            service.StateChanged -= Playback_StateChanged;
-            _service = null;
-            _playback = null;
+            if (ReferenceEquals(_playback, playback))
+            { service.StateChanged -= Playback_StateChanged; _service = null; _playback = null; }
             await playback.DisposeAsync().ConfigureAwait(true);
             throw;
         }
@@ -341,11 +359,11 @@ public partial class PlayerViewerHost : UserControl
         _mediaView = null;
         VideoHost.Children.Clear();
         if (_service is not null) _service.StateChanged -= Playback_StateChanged;
+        var service = _service;
         _service = null;
         var playback = _playback;
         _playback = null;
         mediaView?.Dispose();
-        if (playback is not null) await playback.DisposeAsync().ConfigureAwait(true);
 
         ImageSurface.Source = null;
         ImageSurface.Visibility = Visibility.Collapsed;
@@ -375,6 +393,9 @@ public partial class PlayerViewerHost : UserControl
         SetColorControlsEnabled(false);
         UpdateRangePresentation();
         SetScreengrabFeedback(null);
+        // Clear old presentation before awaiting teardown: a newer open can publish while disposal waits.
+        try { if (service?.Snapshot.State == MediaPlaybackState.Playing) await service.PauseAsync().ConfigureAwait(true); }
+        finally { if (playback is not null) await playback.DisposeAsync().ConfigureAwait(true); }
     }
 
     private void SetStatus(string? message)
@@ -1460,9 +1481,17 @@ public partial class PlayerViewerHost : UserControl
         e.Handled = TryHandleShortcut(e.Key, e.OriginalSource as DependencyObject);
     }
 
-    internal bool TryHandleShortcut(Key key, DependencyObject? inputOwner)
+    internal bool TryHandleShortcut(Key key, DependencyObject? inputOwner) => TryHandleShortcut(key, inputOwner, Keyboard.Modifiers);
+
+    internal bool TryHandleShortcut(Key key, DependencyObject? inputOwner, ModifierKeys modifiers)
     {
         if (IsTextEntryControl(inputOwner)) return false;
+        var activeModifiers = modifiers;
+        if (activeModifiers == ModifierKeys.Control && key is Key.Left or Key.Right)
+        {
+            _ = TraverseReviewAsync(key == Key.Left ? -1 : 1);
+            return _reviewSet is not null;
+        }
         if (key is Key.Left or Key.Right && IsArrowKeyOwnedByFocusedControl(inputOwner)) return false;
         if (key >= Key.D0 && key <= Key.D5)
         {
@@ -1509,10 +1538,10 @@ public partial class PlayerViewerHost : UserControl
 
     private async Task LoadClassificationAsync(Guid? assetId, long generation, CancellationToken token)
     {
-        _classification = assetId is { } id && _classifications is not null
+        var classification = assetId is { } id && _classifications is not null
             ? (await _classifications.GetAsync([id], token).ConfigureAwait(true)).GetValueOrDefault(id)
             : null;
-        if (generation == _generation) SyncClassificationControls();
+        if (generation == _generation && !token.IsCancellationRequested) { _classification = classification; SyncClassificationControls(); }
     }
 
     private void SyncClassificationControls()
@@ -1586,10 +1615,12 @@ public partial class PlayerViewerHost : UserControl
         _service?.SetColorPipeline(_colorPipeline, !_colorActive);
     }
 
-    private static bool IsArrowKeyOwnedByFocusedControl(DependencyObject? element)
+    private bool IsArrowKeyOwnedByFocusedControl(DependencyObject? element)
     {
         while (element is not null)
         {
+            // Filmstrip traversal uses Ctrl+Arrow; plain arrows retain Player frame stepping.
+            if (ReferenceEquals(element, Filmstrip)) return false;
             if (element is System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.Slider or
                 System.Windows.Controls.Primitives.Thumb or System.Windows.Controls.Primitives.Selector)
                 return true;

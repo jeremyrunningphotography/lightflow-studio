@@ -43,6 +43,7 @@ internal sealed record WorkspaceWindowState
 /// </summary>
 internal sealed record WorkspaceLayoutState
 {
+    public bool PlayerFilmstripVisible { get; init; } = true;
     public double? BrowserLocationsPaneWidth { get; init; }
     public double? FullJobsListPaneWidth { get; init; }
     public double? RightPanelWidth { get; init; }
@@ -259,6 +260,9 @@ internal sealed class WorkspaceStateService
         };
 
     public void SetWindow(WorkspaceWindowState window) => _current = _current with { Window = window };
+
+    public void SetPlayerFilmstripVisible(bool visible) =>
+        _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { PlayerFilmstripVisible = visible } };
 
     // Both layout setters merge into the existing Layout section rather than replacing it outright — with
     // two independent properties now living there (#125 added BrowserThumbnailSizeLevel alongside #121's

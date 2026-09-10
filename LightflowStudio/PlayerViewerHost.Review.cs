@@ -106,6 +106,7 @@ public partial class PlayerViewerHost
         _savedPlayerMargin = Margin;
         _savedCornerRadius = PlayerBorder.CornerRadius;
         PlayerHeader.Visibility = TransportBar.Visibility = Visibility.Collapsed;
+        Filmstrip.Visibility = Visibility.Collapsed;
         PlayerBorder.BorderThickness = PlayerBorder.Margin = Margin = new Thickness(0);
         PlayerBorder.CornerRadius = new CornerRadius(0);
         _fullscreen = new PlayerFullscreenPresentation(this);
@@ -142,6 +143,7 @@ public partial class PlayerViewerHost
         {
             fullscreen.Dispose();
             PlayerHeader.Visibility = Visibility.Visible; TransportBar.Visibility = _savedTransportVisibility;
+            Filmstrip.Visibility = FilmstripVisible ? Visibility.Visible : Visibility.Collapsed;
             PlayerBorder.BorderThickness = _savedBorderThickness; PlayerBorder.Margin = _savedBorderMargin; Margin = _savedPlayerMargin;
             PlayerBorder.CornerRadius = _savedCornerRadius;
             System.Windows.Window.GetWindow(this)?.UpdateLayout();
@@ -149,6 +151,7 @@ public partial class PlayerViewerHost
         finally { Visibility = visibility; }
         UpdateLayout();
         ApplyViewport();
+        RevealReviewItem();
         Focus();
     }
 

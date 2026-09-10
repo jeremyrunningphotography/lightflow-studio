@@ -118,7 +118,7 @@
  </UserControl.Resources>
  <Border x:Name="PlayerBorder" Style="{StaticResource ShellPanel}" Background="#07090D" Padding="0" ClipToBounds="True">
   <Grid>
-   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
 
    <DockPanel x:Name="PlayerHeader" Grid.Row="0" Grid.Column="0" Margin="6,5,6,4">
@@ -136,6 +136,10 @@
      </StackPanel>
     </Button>
     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+     <Button x:Name="PreviousAssetButton" Content="&#xE76B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Click="PreviousAsset_Click" IsEnabled="False" ToolTip="Previous Asset (Ctrl+Left Arrow)" AutomationProperties.Name="Previous Asset"/>
+     <TextBlock x:Name="ReviewPositionText" VerticalAlignment="Center" Margin="5,0" Foreground="{StaticResource MutedTextBrush}"/>
+     <Button x:Name="NextAssetButton" Content="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Click="NextAsset_Click" IsEnabled="False" ToolTip="Next Asset (Ctrl+Right Arrow)" AutomationProperties.Name="Next Asset"/>
+     <Button x:Name="FilmstripToggle" Content="Hide filmstrip" Click="FilmstripToggle_Click" Margin="4,0" AutomationProperties.Name="Toggle filmstrip"/>
      <ComboBox x:Name="ZoomChoice" Width="82" Margin="4,0" SelectionChanged="ZoomChoice_Changed" ToolTip="Display zoom (Ctrl+wheel); drag to pan" AutomationProperties.Name="Display zoom">
       <ComboBoxItem Content="Fit"/><ComboBoxItem Content="50%"/><ComboBoxItem Content="100%"/><ComboBoxItem Content="200%"/><ComboBoxItem Content="400%"/>
      </ComboBox>
@@ -144,6 +148,24 @@
     <TextBlock x:Name="AssetNameText" DockPanel.Dock="Left" Margin="14,0,0,0" VerticalAlignment="Center"
      Foreground="{StaticResource TextBrush}" FontSize="13" TextTrimming="CharacterEllipsis"/>
    </DockPanel>
+
+   <ListBox x:Name="Filmstrip" Grid.Row="3" Height="88" Margin="6,0,6,5" Background="Transparent" BorderThickness="0"
+    ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="True"
+    VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.CacheLength="1"
+    SelectionChanged="Filmstrip_SelectionChanged" PreviewMouseWheel="Filmstrip_PreviewMouseWheel" AutomationProperties.Name="Player filmstrip">
+    <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+    <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem">
+     <Setter Property="Width" Value="104"/><Setter Property="Height" Value="64"/><Setter Property="Margin" Value="2,2"/>
+     <Setter Property="Padding" Value="3"/><Setter Property="Background" Value="#15181E"/><Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+     <Setter Property="BorderThickness" Value="2"/><Setter Property="ToolTip" Value="{Binding Asset.Name}"/>
+     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="4"><ContentPresenter/></Border></ControlTemplate></Setter.Value></Setter>
+     <Style.Triggers><Trigger Property="IsSelected" Value="True"><Setter Property="BorderBrush" Value="{StaticResource OrangeBrush}"/></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#292E37"/></Trigger></Style.Triggers>
+    </Style></ListBox.ItemContainerStyle>
+    <ListBox.ItemTemplate><DataTemplate><Grid>
+     <TextBlock Text="{Binding Asset.Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Preview.HasThumbnail}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+     <Image Source="{Binding Preview.ThumbnailPath}" Stretch="Uniform"/>
+    </Grid></DataTemplate></ListBox.ItemTemplate>
+   </ListBox>
 
    <!-- The one authoritative background for the media surface, matching BrowserGridHost's own single-source-of-
         background convention so no seam can appear between this and the surrounding chrome. -->

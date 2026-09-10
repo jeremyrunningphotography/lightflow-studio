@@ -27,7 +27,6 @@ internal static class WorkspaceTreeRestoration
                 {
                     token.ThrowIfCancellationRequested();
                     var relative = depth == 0 ? "" : string.Join('/', segments.Take(depth));
-                    var path = relative.Length == 0 ? rootPath : MediaPathSemantics.ResolveContained(rootPath, relative);
                     // A volume row may precede the logical root. Establish its chain through the existing model.
                     if (depth == 0 && !string.Equals(node.AbsolutePath?.TrimEnd('\\'), rootPath.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
                     {

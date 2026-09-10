@@ -59,6 +59,9 @@ public partial class MainWindow
 
     private void WorkspaceUserInteraction()
     {
+        // A hidden Browser may still await layout after Player restoration has completed. Once the
+        // Browser is active, new input owns its viewport even if that queued layout never ran.
+        if (_browserPresentation == BrowserPresentationMode.Grid) _pendingWorkspaceGrid = null;
         if (_restoringWorkspace)
         {
             _workspaceRestoration.Cancel();
@@ -208,11 +211,10 @@ public partial class MainWindow
     {
         if (_pendingWorkspaceGrid is not { } saved || !_workspaceRestoration.IsCurrent ||
             FindBrowserGridScrollViewer() is not { ViewportHeight: > 0, ExtentHeight: > 0 } viewer || _browserGrid.Rows.Count == 0) return;
-        var rowHeight = viewer.ExtentHeight / _browserGrid.Rows.Count;
         var row = _browserGrid.Rows.Select((value, index) => (value, index))
             .FirstOrDefault(pair => saved.TopAssetId is not null && pair.value.Tiles.Any(tile => tile.AssetId == saved.TopAssetId));
-        var offset = row.value is not null ? row.index * rowHeight + Math.Min(saved.WithinRowOffset, rowHeight) : saved.VerticalOffset;
-        _browserGridScrollOffset = Math.Clamp(offset, 0, viewer.ScrollableHeight);
+        _browserGridScrollOffset = saved.RestoreOffset(row.value is null ? null : row.index,
+            _browserGrid.Rows.Count, viewer.ExtentHeight, viewer.ScrollableHeight);
         _pendingWorkspaceGrid = null;
         viewer.ScrollToVerticalOffset(_browserGridScrollOffset);
     }

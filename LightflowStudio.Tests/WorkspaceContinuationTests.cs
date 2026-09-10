@@ -6,6 +6,74 @@ namespace LightflowStudio.Tests;
 public sealed class WorkspaceContinuationTests
 {
     [Theory]
+    [InlineData(1, 1000, 800, 117)]
+    [InlineData(1, 2000, 1600, 217)]
+    [InlineData(null, 1000, 800, 800)]
+    [InlineData(9, 1000, 800, 800)]
+    [InlineData(1, 0, 0, 0)]
+    public void Scroll_UsesCurrentRowGeometryOrClampedPixelFallback(int? row, double extent, double maximum, double expected)
+    {
+        var saved = new WorkspaceGridState { VerticalOffset = 907, WithinRowOffset = 17 };
+        Assert.Equal(expected, saved.RestoreOffset(row, 10, extent, maximum));
+    }
+
+    [Fact]
+    public void Schema_RepeatedServiceLifecyclesRetainIndependentSections()
+    {
+        WithFile(path =>
+        {
+            var root = Guid.NewGuid();
+            var state = new WorkspaceStateService(path);
+            state.SetBrowserLocation(root, "shoot", @"D:\shoot");
+            state.SetRightPanel(420, true, "subclips");
+            state.SetBrowserViewMode(BrowserViewMode.Hybrid);
+            state.SetBrowserThumbnailSizeLevel(4);
+            state.SetContinuation(new() { Query = new() { SearchText = "take" }, Grid = new() { VerticalOffset = 50 } });
+            state.Save();
+            for (var cycle = 1; cycle <= 3; cycle++)
+            {
+                state = new WorkspaceStateService(path);
+                Assert.Equal(root, state.Current.Browser!.RootId);
+                Assert.Equal("subclips", state.Current.Layout!.RightPanelActiveSurface);
+                Assert.Equal(420, state.Current.Layout.RightPanelWidth);
+                Assert.True(state.Current.Layout.RightPanelOpen);
+                Assert.Equal(BrowserViewMode.Hybrid, state.GetBrowserViewMode());
+                Assert.Equal(4, state.Current.Layout.BrowserThumbnailSizeLevel);
+                Assert.Equal("take", state.Current.Continuation!.Query.SearchText);
+                Assert.Equal(cycle * 50, state.Current.Continuation.Grid.VerticalOffset);
+                state.SetContinuation(state.Current.Continuation with { Grid = new() { VerticalOffset = (cycle + 1) * 50 } });
+                state.Save();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Tree_OfflineAndFailedBranchesDoNotBlockAnotherRoot()
+    {
+        var offline = new MediaRootInfo(Guid.NewGuid(), "Offline", @"Z:\Offline", MediaRootAvailability.Unavailable);
+        var online = new MediaRootInfo(Guid.NewGuid(), "Online", @"D:\Online", MediaRootAvailability.Online);
+        var tree = new BrowserTreeModel();
+        var calls = new List<string>();
+        var folders = new Folders((request, _) =>
+        {
+            Assert.Equal(online.RootId, request.RootId);
+            var folder = request.RelativeFolder ?? ""; calls.Add(folder);
+            return Task.FromResult(folder == "bad"
+                ? new MediaFolderEnumerationResult(MediaFolderEnumerationStatus.AccessDenied, folder, [])
+                : new MediaFolderEnumerationResult(MediaFolderEnumerationStatus.Succeeded, folder,
+                    folder == "" ? [Directory(online.RootId, "bad"), Directory(online.RootId, "good")] : []));
+        });
+        await WorkspaceTreeRestoration.RestoreAsync(tree, new Roots(offline, online), folders,
+            [new() { RootId = offline.RootId }, new() { RootId = Guid.NewGuid() },
+             new() { RootId = online.RootId, RelativeFolder = "bad" }, new() { RootId = online.RootId, RelativeFolder = "good" }],
+            CancellationToken.None, action => action());
+        Assert.Equal(new[] { "", "bad", "good" }, calls);
+        Assert.True(tree.FindByPath(@"D:\Online\good")!.IsExpanded);
+        Assert.False(tree.FindByPath(@"D:\Online\bad")!.IsExpanded);
+        Assert.Null(tree.SelectedNode);
+    }
+
+    [Theory]
     [InlineData("null")]
     [InlineData("[]")]
     [InlineData("42")]

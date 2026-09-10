@@ -307,7 +307,7 @@ public partial class PlayerViewerHost : UserControl
     private async Task OpenImageAsync(string absolutePath, long generation, CancellationToken token)
     {
         var bitmap = await Task.Run(() => DecodeImage(absolutePath), token).ConfigureAwait(true);
-        if (generation != _generation) return;
+        if (generation != _generation || token.IsCancellationRequested) return;
         ImageSurface.Source = bitmap;
         ImageSurface.Visibility = Visibility.Visible;
         InitializeSourceReview(bitmap.PixelWidth, bitmap.PixelHeight, 0);

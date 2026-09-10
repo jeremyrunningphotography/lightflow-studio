@@ -1285,9 +1285,8 @@ public partial class MainWindow : Window
 
         if (state.Location is { } location)
         {
-            // Selection is intentionally never persisted here, and #124 (revised) no longer persists scope
-            // mode here either — recursive-root configuration is durable Catalog data now, not workspace
-            // state (see BrowserRecursiveRoot); only the plain folder identity is remembered.
+            // Continuation captures selection separately. Recursive-root configuration remains durable
+            // Catalog data (#124), so this navigation snapshot remembers only the plain folder identity.
             _workspaceState.SetBrowserLocation(location.RootId, location.RelativeFolder, location.AbsolutePath);
             _workspaceSaveTimer.Stop();
             _workspaceSaveTimer.Start();

@@ -46,6 +46,15 @@ internal sealed record WorkspaceGridState
     public double WithinRowOffset { get; init; }
     public double VerticalOffset { get; init; }
 
+    internal double RestoreOffset(int? topRow, int rowCount, double extentHeight, double scrollableHeight)
+    {
+        var rowHeight = rowCount > 0 ? extentHeight / rowCount : 0;
+        var offset = topRow is { } row && rowHeight > 0
+            ? row * rowHeight + Math.Min(WithinRowOffset, rowHeight) : VerticalOffset;
+        return Math.Clamp(WorkspaceContinuationState.SafeOffset(offset), 0,
+            WorkspaceContinuationState.SafeOffset(scrollableHeight));
+    }
+
     public static WorkspaceGridState Normalize(WorkspaceGridState? state) => (state ?? new()) with
     {
         SelectedAssetIds = (state?.SelectedAssetIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray(),

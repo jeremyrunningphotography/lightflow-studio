@@ -197,8 +197,15 @@ public sealed partial class PlayerViewerHostLeaseTests
                 host.FilmstripVisible = false;
                 await host.SelectReviewAssetAsync(assets[^1].AssetId!.Value);
                 Assert.Equal(Visibility.Collapsed, host.Filmstrip.Visibility);
+                Assert.Equal(Visibility.Collapsed, host.FilmstripChrome.Visibility);
+                Assert.True(host.StillFilmstripToggle.IsVisible);
+                Assert.False(host.StillFilmstripToggle.IsChecked);
                 host.FilmstripVisible = true;
                 await host.Dispatcher.InvokeAsync(() => host.UpdateLayout(), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Assert.True(host.PreviousAssetButton.TransformToAncestor(host).Transform(new System.Windows.Point()).X <
+                    host.Filmstrip.TransformToAncestor(host).Transform(new System.Windows.Point()).X);
+                Assert.True(host.NextAssetButton.TransformToAncestor(host).Transform(new System.Windows.Point()).X >=
+                    host.Filmstrip.TransformToAncestor(host).Transform(new System.Windows.Point(host.Filmstrip.ActualWidth, 0)).X);
                 Assert.NotNull(host.Filmstrip.ItemContainerGenerator.ContainerFromIndex(9999));
                 Assert.Null(host.Filmstrip.ItemContainerGenerator.ContainerFromIndex(0));
                 Assert.True(Enumerable.Range(0, assets.Length).Count(i => host.Filmstrip.ItemContainerGenerator.ContainerFromIndex(i) is not null) < 100);

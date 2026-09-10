@@ -4,6 +4,35 @@
  xmlns:local="clr-namespace:LightflowStudio"
  Focusable="True" FocusVisualStyle="{x:Null}" PreviewKeyDown="PlayerViewerHost_PreviewKeyDown" PreviewKeyUp="PlayerViewerHost_PreviewKeyUp" LostKeyboardFocus="PlayerViewerHost_LostKeyboardFocus">
  <UserControl.Resources>
+  <Style x:Key="FilmstripArrowStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Width" Value="28"/><Setter Property="Height" Value="28"/><Setter Property="Padding" Value="0"/>
+   <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+  </Style>
+  <Style x:Key="HiddenFilmstripNavigationStyle" TargetType="StackPanel">
+   <Setter Property="Visibility" Value="Collapsed"/>
+   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, ElementName=FilmstripToggle}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>
+  </Style>
+  <!-- Same surface, border and checked treatment as the shell Right Panel toggle; smaller bottom-panel icon. -->
+  <Style x:Key="FilmstripToggleStyle" TargetType="ToggleButton">
+   <Setter Property="Width" Value="28"/><Setter Property="Height" Value="28"/><Setter Property="Margin" Value="5,0"/>
+   <Setter Property="IsChecked" Value="True"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+   <Setter Property="ToolTip" Value="Hide filmstrip"/><Setter Property="AutomationProperties.Name" Value="Toggle filmstrip"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+    <Border x:Name="Chrome" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="6">
+     <Grid Width="14" Height="12" IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5">
+      <Grid.RenderTransform><RotateTransform Angle="90"/></Grid.RenderTransform>
+      <Border BorderBrush="{TemplateBinding Foreground}" BorderThickness="1.5" CornerRadius="2"/>
+      <Border Width="4" HorizontalAlignment="Right" Margin="0,2,2,2" Background="{TemplateBinding Foreground}" Opacity="0.75"/>
+     </Grid>
+    </Border>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger>
+     <Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger>
+     <Trigger Property="IsChecked" Value="False"><Setter Property="ToolTip" Value="Show filmstrip"/></Trigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
   <!-- Copied from TrimEditorWindow.xaml rather than extracted into the shared shell dictionary — the same
        small-scale local-duplication precedent #125 already established for an analogous slider hit-area
        (see MainWindow.xaml's BrowserThumbnailSizeSliderHitArea). Keeping this control's resources local also
@@ -136,10 +165,6 @@
      </StackPanel>
     </Button>
     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-     <Button x:Name="PreviousAssetButton" Content="&#xE76B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Click="PreviousAsset_Click" IsEnabled="False" ToolTip="Previous Asset (Ctrl+Left Arrow)" AutomationProperties.Name="Previous Asset"/>
-     <TextBlock x:Name="ReviewPositionText" VerticalAlignment="Center" Margin="5,0" Foreground="{StaticResource MutedTextBrush}"/>
-     <Button x:Name="NextAssetButton" Content="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Click="NextAsset_Click" IsEnabled="False" ToolTip="Next Asset (Ctrl+Right Arrow)" AutomationProperties.Name="Next Asset"/>
-     <Button x:Name="FilmstripToggle" Content="Hide filmstrip" Click="FilmstripToggle_Click" Margin="4,0" AutomationProperties.Name="Toggle filmstrip"/>
      <ComboBox x:Name="ZoomChoice" Width="82" Margin="4,0" SelectionChanged="ZoomChoice_Changed" ToolTip="Display zoom (Ctrl+wheel); drag to pan" AutomationProperties.Name="Display zoom">
       <ComboBoxItem Content="Fit"/><ComboBoxItem Content="50%"/><ComboBoxItem Content="100%"/><ComboBoxItem Content="200%"/><ComboBoxItem Content="400%"/>
      </ComboBox>
@@ -149,7 +174,10 @@
      Foreground="{StaticResource TextBrush}" FontSize="13" TextTrimming="CharacterEllipsis"/>
    </DockPanel>
 
-   <ListBox x:Name="Filmstrip" Grid.Row="3" Height="88" Margin="6,0,6,5" Background="Transparent" BorderThickness="0"
+   <Grid x:Name="FilmstripChrome" Grid.Row="3"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+<StackPanel VerticalAlignment="Center" Margin="4,0"><Button x:Name="PreviousAssetButton" Style="{StaticResource FilmstripArrowStyle}" Content="&#xE76B;" Click="PreviousAsset_Click" IsEnabled="False" ToolTip="Previous Asset (Ctrl+Left Arrow)" AutomationProperties.Name="Previous Asset"/><TextBlock x:Name="ReviewPositionText" FontSize="10" HorizontalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"/></StackPanel>
+<Button x:Name="NextAssetButton" Grid.Column="2" VerticalAlignment="Center" Margin="4,0" Style="{StaticResource FilmstripArrowStyle}" Content="&#xE76C;" Click="NextAsset_Click" IsEnabled="False" ToolTip="Next Asset (Ctrl+Right Arrow)" AutomationProperties.Name="Next Asset"/>
+<ListBox x:Name="Filmstrip" Grid.Column="1" Height="88" Margin="6,0,6,5" Background="Transparent" BorderThickness="0"
     ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="True"
     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.CacheLength="1"
     SelectionChanged="Filmstrip_SelectionChanged" PreviewMouseWheel="Filmstrip_PreviewMouseWheel" AutomationProperties.Name="Player filmstrip">
@@ -165,7 +193,7 @@
      <TextBlock Text="{Binding Asset.Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Preview.HasThumbnail}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
      <Image Source="{Binding Preview.ThumbnailPath}" Stretch="Uniform"/>
     </Grid></DataTemplate></ListBox.ItemTemplate>
-   </ListBox>
+   </ListBox></Grid>
 
    <!-- The one authoritative background for the media surface, matching BrowserGridHost's own single-source-of-
         background convention so no seam can appear between this and the surrounding chrome. -->
@@ -177,6 +205,11 @@
      TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Visibility="Collapsed"/>
    </Grid>
 
+   <StackPanel x:Name="StillReviewBar" Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="6,3">
+    <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers><DataTrigger Binding="{Binding Visibility, ElementName=TransportBar}" Value="Visible"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+    <ToggleButton x:Name="StillFilmstripToggle" Style="{StaticResource FilmstripToggleStyle}" Click="FilmstripToggle_Click"/>
+    <StackPanel Orientation="Horizontal" Style="{StaticResource HiddenFilmstripNavigationStyle}"><Button Style="{StaticResource FilmstripArrowStyle}" Content="&#xE76B;" Click="PreviousAsset_Click" IsEnabled="{Binding IsEnabled, ElementName=PreviousAssetButton}" ToolTip="Previous Asset (Ctrl+Left Arrow)"/><Button Style="{StaticResource FilmstripArrowStyle}" Content="&#xE76C;" Click="NextAsset_Click" IsEnabled="{Binding IsEnabled, ElementName=NextAssetButton}" ToolTip="Next Asset (Ctrl+Right Arrow)"/></StackPanel>
+   </StackPanel>
    <Border Grid.Row="2" Grid.Column="0" x:Name="TransportBar" Margin="6,0,6,6" Padding="7,5,7,5" Visibility="Collapsed"
     Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="9">
     <Grid>
@@ -249,7 +282,9 @@
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <TextBlock x:Name="CurrentTimeText" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="00:00:00.000"/>
       <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
-       <Button x:Name="PreviousFrameButton" Content="&#x25C4; Frame" Click="PreviousFrame_Click" IsEnabled="False"
+       <ToggleButton x:Name="FilmstripToggle" Style="{StaticResource FilmstripToggleStyle}" Click="FilmstripToggle_Click"/>
+<StackPanel x:Name="HiddenFilmstripNavigation" Orientation="Horizontal" Style="{StaticResource HiddenFilmstripNavigationStyle}"><Button Style="{StaticResource FilmstripArrowStyle}" Content="&#xE76B;" Click="PreviousAsset_Click" IsEnabled="{Binding IsEnabled, ElementName=PreviousAssetButton}" ToolTip="Previous Asset (Ctrl+Left Arrow)"/><Button Style="{StaticResource FilmstripArrowStyle}" Content="&#xE76C;" Click="NextAsset_Click" IsEnabled="{Binding IsEnabled, ElementName=NextAssetButton}" ToolTip="Next Asset (Ctrl+Right Arrow)"/></StackPanel>
+<Button x:Name="PreviousFrameButton" Content="&#x25C4; Frame" Click="PreviousFrame_Click" IsEnabled="False"
         ToolTip="Previous decoded frame (,)" AutomationProperties.Name="Previous frame"/>
        <Button x:Name="PlayPauseButton" MinWidth="88" Content="Play" Click="PlayPause_Click" IsEnabled="False"
         ToolTip="Play/Pause (Space)" AutomationProperties.Name="Play or pause"/>

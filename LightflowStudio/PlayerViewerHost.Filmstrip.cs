@@ -21,7 +21,8 @@ public partial class PlayerViewerHost
         {
             _filmstripVisible = value;
             Filmstrip.Visibility = value && !IsFullscreen ? Visibility.Visible : Visibility.Collapsed;
-            FilmstripToggle.Content = value ? "Hide filmstrip" : "Show filmstrip";
+            FilmstripChrome.Visibility = Filmstrip.Visibility;
+            FilmstripToggle.IsChecked = StillFilmstripToggle.IsChecked = value;
             if (value) RevealReviewItem();
             FilmstripVisibilityChanged?.Invoke(this, EventArgs.Empty);
         }

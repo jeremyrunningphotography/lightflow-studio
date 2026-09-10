@@ -2124,6 +2124,12 @@ public partial class MainWindow : Window
         if (!TryLeaveInspectorContext()) return;
         HomeRightPanel.SetSurfaceAvailable("subclips", false);
         var playerViewerHost = _playerViewerHost;
+        if (restoreScrollOffset && playerViewerHost?.ReviewSet?.HasTraversed == true &&
+            _browserGrid.Tiles.FirstOrDefault(tile => tile.AssetId == playerViewerHost.CurrentAsset?.AssetId) is { } currentTile)
+        {
+            _browserGrid.SelectSingle(currentTile.Index);
+            UpdateBrowserStatusText();
+        }
         SetBrowserPresentationMode(BrowserPresentationMode.Grid);
         if (restoreScrollOffset) RestoreBrowserGridScrollOffset();
         if (focusGrid) BrowserGridRows.Focus();

@@ -28,9 +28,11 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
     private string _photoPath = "";
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public Task MultiSelection_EnterOrDoubleClickOpensSubset_TraversalAndBackPreserveBrowser(bool doubleClick) =>
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    public Task MultiSelection_EnterOrDoubleClickOpensSubset_BackSelectsTraversedAsset(bool doubleClick, bool traverse) =>
         StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
@@ -66,12 +68,12 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 await WaitUntilAsync(() => window.BrowserPlayerHost.Content is PlayerViewerHost { CurrentAsset: not null }, "subset Player");
                 var player = (PlayerViewerHost)window.BrowserPlayerHost.Content;
                 Assert.Equal(expected, player.ReviewSet!.Items.Select(item => item.Asset.AssetId!.Value));
-                await player.TraverseReviewAsync(1);
-                Assert.Equal(expected[1], player.CurrentAsset!.AssetId);
+                if (traverse) await player.TraverseReviewAsync(1);
+                Assert.Equal(expected[traverse ? 1 : 0], player.CurrentAsset!.AssetId);
                 Assert.Equal(expected, grid.SelectedAssetIdsInBrowserOrder);
                 RaiseClick(player.BackButton);
                 await WaitUntilAsync(() => window.BrowserPlayerHost.Visibility == Visibility.Collapsed, "return Browser");
-                Assert.Equal(expected, grid.SelectedAssetIdsInBrowserOrder);
+                Assert.Equal(traverse ? new[] { expected[1] } : expected, grid.SelectedAssetIdsInBrowserOrder);
                 Assert.Equal(_mediaRoot, window.BrowserCurrentPath.Text);
             }
             finally { window.Close(); await storage.DisposeAsync(); }

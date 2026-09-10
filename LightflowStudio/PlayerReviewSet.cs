@@ -10,11 +10,13 @@ internal sealed class PlayerReviewSet(IReadOnlyList<PlayerReviewItem> items, Gui
     private readonly Dictionary<Guid, int> _indices = items.Select((item, index) => (item, index))
         .Where(pair => pair.item.Asset.AssetId is not null).ToDictionary(pair => pair.item.Asset.AssetId!.Value, pair => pair.index);
     public bool CanPrevious => CurrentIndex > 0;
+    public bool HasTraversed { get; private set; }
     public bool CanNext => CurrentIndex >= 0 && CurrentIndex < Items.Count - 1;
     public bool Select(Guid assetId)
     {
         if (!_indices.TryGetValue(assetId, out var index) || index == CurrentIndex) return false;
         CurrentIndex = index;
+        HasTraversed = true;
         return true;
     }
 }

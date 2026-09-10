@@ -18,10 +18,10 @@ internal sealed record WorkspaceDetailsColumn
 /// <summary>Stable, curated columns over the resident Browser projection. No data access belongs here.</summary>
 internal static class BrowserDetails
 {
-    public const double RowHeight = 38;
+    public const double RowHeight = 64;
     public static IReadOnlyList<BrowserDetailsColumn> Columns { get; } =
     [
-        new("preview", "Preview", 68, true),
+        new("preview", "Preview", 112, true),
         new("name", "Name", 240, true, BrowserSortMode.Name),
         new("rating", "Rating", 88, true, BrowserSortMode.Rating),
         new("flag", "Flag", 86, true, BrowserSortMode.Flag),
@@ -48,7 +48,8 @@ internal static class BrowserDetails
         var result = new List<WorkspaceDetailsColumn>();
         foreach (var column in saved ?? [])
             if (column is not null && known.TryGetValue(column.Id ?? "", out var definition) && seen.Add(definition.Id))
-                result.Add(column with { Width = double.IsFinite(column.Width) && column.Width > 0
+                result.Add(column with { Width = column.Id == "preview" && column.Width == 68 ? definition.Width :
+                    double.IsFinite(column.Width) && column.Width > 0
                     ? Math.Clamp(column.Width, 40, 1200) : definition.Width });
         foreach (var column in Columns.Where(c => !seen.Contains(c.Id)))
             result.Add(new() { Id = column.Id, Width = column.Width, Visible = column.Visible });

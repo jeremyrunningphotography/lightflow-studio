@@ -149,7 +149,17 @@ public sealed class BrowserDetailsWpfTests(ITestOutputHelper output)
                 flagChoice.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
                 Assert.Equal(10, window.BrowserDetailsColumns.Count);
                 var name = window.BrowserDetailsColumns.Single(c => Equals(((GridViewColumnHeader)c.Header).Tag, "name"));
+                // Reproduce the reported narrow-column case: rows must not center in unused viewport space.
+                name.Width = 40;
+                await Pump();
+                AssertColumnOrigins();
+                Assert.Equal(64, ((FrameworkElement)VisualTreeHelper.GetParent(rowPresenter)).ActualHeight);
+                var paddingHeader = Children(window.BrowserDetailsHeaders).OfType<GridViewColumnHeader>()
+                    .Single(h => h.Role == GridViewColumnHeaderRole.Padding);
+                Assert.Same(window.FindResource("BrowserDetailsHeaderStyle"), paddingHeader.Style);
                 name.Width = 310;
+                await Pump();
+                AssertColumnOrigins();
                 window.BrowserDetailsColumns.Move(1, 3);
                 ((GridViewColumnHeader)name.Header).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
                 Assert.True(model.Query.SortDescending);
@@ -177,6 +187,15 @@ public sealed class BrowserDetailsWpfTests(ITestOutputHelper output)
                 var state = (WorkspaceStateService)typeof(MainWindow).GetField("_workspaceState", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
                 Assert.Equal("name", state.Current.Layout!.BrowserDetailsColumns!.Where(c => c.Visible).ElementAt(3).Id);
                 Assert.Equal(BrowserLayoutMode.Details, state.Current.Layout.BrowserLayoutMode);
+
+                void AssertColumnOrigins()
+                {
+                    var presenter = Children(window.BrowserGridRows).OfType<GridViewRowPresenter>().First();
+                    var header = (GridViewColumnHeader)window.BrowserDetailsColumns[0].Header;
+                    var rowX = presenter.TransformToAncestor(window.BrowserGridHost).Transform(new Point()).X;
+                    var headerX = header.TransformToAncestor(window.BrowserGridHost).Transform(new Point()).X;
+                    Assert.InRange(Math.Abs(rowX - headerX), 0, 1);
+                }
             }
             finally
             {

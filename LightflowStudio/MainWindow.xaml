@@ -697,6 +697,9 @@
            </DataTemplate>
   <local:BrowserDetailsTextConverter x:Key="BrowserDetailsTextConverter"/>
   <Style x:Key="BrowserDetailsHeaderStyle" TargetType="GridViewColumnHeader">
+   <Setter Property="Background" Value="{StaticResource ShellSurfaceBrush}"/>
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="GridViewColumnHeader">
     <Grid>
      <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="0,0,1,1">
@@ -706,18 +709,21 @@
       <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate></Thumb.Template>
      </Thumb>
     </Grid>
-    <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger></ControlTemplate.Triggers>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger>
+     <Trigger Property="Role" Value="Padding"><Setter TargetName="PART_HeaderGripper" Property="Visibility" Value="Collapsed"/></Trigger>
+    </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
   <DataTemplate x:Key="BrowserDetailsPreviewTemplate">
-   <Grid Height="30" Margin="8,0,6,0">
+   <Grid Height="54" Margin="8,0,6,0">
     <Image Source="{Binding ThumbnailPath}" Stretch="Uniform"/>
     <TextBlock Text="{Binding CategoryGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Foreground="{StaticResource MutedTextBrush}"
      HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibility}}"/>
    </Grid>
   </DataTemplate>
   <DataTemplate x:Key="BrowserDetailsRowsTemplate">
-   <Border DataContext="{Binding Tiles[0]}" Height="38" Width="{DynamicResource BrowserDetailsWidth}" BorderThickness="0,0,0,1"
+   <Border DataContext="{Binding Tiles[0]}" Height="64" HorizontalAlignment="Left" Width="{DynamicResource BrowserDetailsWidth}" BorderThickness="0,0,0,1"
     MouseLeftButtonDown="BrowserGridTile_MouseLeftButtonDown" MouseLeftButtonUp="BrowserGridTile_MouseLeftButtonUp"
     MouseRightButtonDown="BrowserGridTile_MouseRightButtonDown" ContextMenuOpening="BrowserGridTile_ContextMenuOpening"
     AllowDrop="True" DragOver="BrowserGridTile_DragOver" Drop="BrowserGridTile_Drop"
@@ -985,6 +991,16 @@
           </Viewbox>
          </ToggleButton>
          <WrapPanel x:Name="BrowserQueryLayout" Orientation="Horizontal">
+          <Border Style="{StaticResource BrowserToolbarChipStyle}" Margin="0,0,6,4" ClipToBounds="True">
+           <StackPanel Orientation="Horizontal">
+            <ToggleButton x:Name="BrowserGridLayoutButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Width="36" Tag="Grid" Click="BrowserLayout_Click" ToolTip="Grid view" AutomationProperties.Name="Grid view">
+             <Path Width="16" Height="16" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="M0,0 H6 V6 H0 Z M10,0 H16 V6 H10 Z M0,10 H6 V16 H0 Z M10,10 H16 V16 H10 Z"/>
+            </ToggleButton>
+            <ToggleButton x:Name="BrowserDetailsLayoutButton" Style="{StaticResource BrowserQuickFilterSegmentStyle}" Width="36" BorderThickness="0" Tag="Details" Click="BrowserLayout_Click" ToolTip="Details view" AutomationProperties.Name="Details view">
+             <Path Width="16" Height="16" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Data="M0,1 H4 V5 H0 Z M6,2 H16 V4 H6 Z M0,7 H4 V11 H0 Z M6,8 H16 V10 H6 Z M0,13 H4 V17 H0 Z M6,14 H16 V16 H6 Z"/>
+            </ToggleButton>
+           </StackPanel>
+          </Border>
           <!-- Independent per-category toggles (multiple may be active; OR within the facet), presented as
                one segmented control; Filter ▾ (below) additionally supports stacking with other, future
                fields for the compound case this row cannot express alone. Both read/write the same
@@ -1141,7 +1157,7 @@
                actually loads, not declared here: WPF can raise SelectionChanged while InitializeComponent
                is still connecting later-declared named elements, and the handler reads sibling controls
                that would not exist yet. -->
-          <StackPanel Orientation="Horizontal" Margin="0,0,6,4"><ToggleButton x:Name="BrowserGridLayoutButton" Content="Grid" Tag="Grid" Click="BrowserLayout_Click" Padding="10,4"/><ToggleButton x:Name="BrowserDetailsLayoutButton" Content="Details" Tag="Details" Click="BrowserLayout_Click" Padding="10,4"/></StackPanel><Border x:Name="BrowserSortGroup" Style="{StaticResource BrowserToolbarChipStyle}" Margin="0,0,0,4">
+          <Border x:Name="BrowserSortGroup" Style="{StaticResource BrowserToolbarChipStyle}" Margin="0,0,0,4">
            <StackPanel Orientation="Horizontal">
             <TextBlock Margin="10,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Sort"/>
             <ComboBox x:Name="BrowserSortCombo" Height="{StaticResource BrowserRow2ControlHeight}" MinWidth="132" Background="Transparent" BorderThickness="0" Margin="0" VerticalAlignment="Center"
@@ -1220,7 +1236,7 @@
         <Grid Background="Transparent">
          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
          <ScrollViewer x:Name="BrowserDetailsHeaderScroll" Visibility="Collapsed" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Margin="0,0,20,0" Focusable="False" PreviewMouseLeftButtonDown="BrowserDetailsHeader_MouseDown">
-          <GridViewHeaderRowPresenter x:Name="BrowserDetailsHeaders" AllowsColumnReorder="True"/>
+          <GridViewHeaderRowPresenter x:Name="BrowserDetailsHeaders" AllowsColumnReorder="True" ColumnHeaderContainerStyle="{StaticResource BrowserDetailsHeaderStyle}"/>
          </ScrollViewer>
          <ItemsControl Grid.Row="1" ItemTemplate="{StaticResource BrowserThumbnailRowsTemplate}" x:Name="BrowserGridRows" Background="Transparent" Focusable="True" KeyDown="BrowserGridRows_KeyDown"
           PreviewMouseMove="BrowserGridRows_PreviewMouseMove"

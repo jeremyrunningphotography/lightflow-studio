@@ -17,11 +17,14 @@ internal sealed class StartupSplash : Window
         ShowActivated = false;
         Focusable = false;
         Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(8, 8, 10));
-        Width = 640;
-        Height = 360;
+        Width = 440;
+        Height = Width * 480 / 680;
         Content = new System.Windows.Controls.Image
         {
-            Source = new BitmapImage(new Uri("pack://application:,,,/LightflowStudio;component/Assets/Branding/lightflow-splash-1280x720.png")),
+            // Hands-on refinement: trim only empty canvas in presentation. The approved embedded
+            // source remains unchanged, with the mark, glow, wordmark and tagline inside this viewport.
+            Source = new CroppedBitmap(new BitmapImage(new Uri("pack://application:,,,/LightflowStudio;component/Assets/Branding/lightflow-splash-1280x720.png")),
+                new Int32Rect(300, 110, 680, 480)),
             Stretch = Stretch.Uniform,
             IsHitTestVisible = false
         };
@@ -32,8 +35,9 @@ internal sealed class StartupSplash : Window
             var handle = new WindowInteropHelper(this).Handle;
             SetWindowPos(handle, 0, area.Left, area.Top, 0, 0, 0x0015); // NOSIZE | NOZORDER | NOACTIVATE
             var scale = VisualTreeHelper.GetDpi(this);
-            Width = Math.Min(640, area.Width / scale.DpiScaleX * 0.8);
-            Height = Width * 9 / 16;
+            Width = Math.Min(440, Math.Min(area.Width / scale.DpiScaleX * 0.8,
+                area.Height / scale.DpiScaleY * 0.8 * 680 / 480));
+            Height = Width * 480 / 680;
             SetWindowPos(handle, 0, area.Left + (area.Width - (int)(Width * scale.DpiScaleX)) / 2,
                 area.Top + (area.Height - (int)(Height * scale.DpiScaleY)) / 2, 0, 0, 0x0015);
         };

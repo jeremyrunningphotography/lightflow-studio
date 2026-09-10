@@ -42,7 +42,11 @@ public sealed class ApplicationIdentityTests
             Assert.False(splash.Focusable);
             var artwork = Assert.IsType<Image>(splash.Content);
             Assert.Equal(Stretch.Uniform, artwork.Stretch);
-            var bitmap = Assert.IsType<BitmapImage>(artwork.Source);
+            var viewport = Assert.IsType<CroppedBitmap>(artwork.Source);
+            Assert.Equal(new Int32Rect(300, 110, 680, 480), viewport.SourceRect);
+            Assert.Equal(440, splash.Width);
+            Assert.Equal(680d / 480, splash.Width / splash.Height, 6);
+            var bitmap = Assert.IsType<BitmapImage>(viewport.Source);
             Assert.Equal(1280, bitmap.PixelWidth);
             Assert.Equal(720, bitmap.PixelHeight);
             splash.Close();

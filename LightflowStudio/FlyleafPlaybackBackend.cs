@@ -541,7 +541,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             // See StepBackwardAsync's doc comment: every native Player call must run on the dispatcher thread
             // that created the Player, never on whatever threadpool thread a prior .ConfigureAwait(false)
             // continuation happens to resume on.
-            RunOnUi(() => player.SeekAccurate((int)Math.Min(int.MaxValue, clamped)));
+            RunOnUi(() => player.SeekAccurateFromKeyframe((int)Math.Min(int.MaxValue, clamped)));
             var result = await completion.Task.ConfigureAwait(false);
             if (result < 0) throw new InvalidOperationException("The playback seek failed.");
             return RunOnUi(() => Timestamp(player.CurTime));

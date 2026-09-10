@@ -1,0 +1,80 @@
+diff --git a/FlyleafLib/MediaPlayer/Player.Playback.cs b/FlyleafLib/MediaPlayer/Player.Playback.cs
+index 644e30f..805a620 100644
+--- a/FlyleafLib/MediaPlayer/Player.Playback.cs
++++ b/FlyleafLib/MediaPlayer/Player.Playback.cs
+@@ -1,4 +1,4 @@
+-﻿using FlyleafLib.MediaFramework.MediaDecoder;
++using FlyleafLib.MediaFramework.MediaDecoder;
+ 
+ namespace FlyleafLib.MediaPlayer;
+ 
+@@ -201,10 +201,13 @@ partial class Player
+     public void SeekAccurate(int ms)
+         => Seek(ms, false, !IsLive);
+ 
++    /// <summary>Accurate keyframe-first seek with legacy preroll fallback before presentation.</summary>
++    public void SeekAccurateFromKeyframe(int ms) => Seek(ms, false, !IsLive, 0);
++
+     public void ToggleSeekAccurate()
+         => Config.Player.SeekAccurate = !Config.Player.SeekAccurate;
+ 
+-    private void Seek(int ms, bool forward, bool accurate)
++    private void Seek(int ms, bool forward, bool accurate, int accuratePrerollMs = 3000)
+     {
+         if (!canPlay)
+             return;
+@@ -212,7 +215,7 @@ partial class Player
+         lock (seeks)
+         {
+             _CurTime = curTime = ms * (long)10000;
+-            seeks.Push(new SeekData(ms, forward, accurate));
++            seeks.Push(new SeekData(ms, forward, accurate, accuratePrerollMs));
+         }
+ 
+         // TBR: We consider UI here? (_CurTime loses sync)
+@@ -298,7 +301,7 @@ partial class Player
+                         lock (stepSeekLock)
+                         {
+                             decoder.PauseDecoders();
+-                            ret = decoder.Seek(seekData.accurate ? Math.Max(0, seekData.ms - 3000) : seekData.ms, seekData.forward, !seekData.accurate); // 3sec ffmpeg bug for seek accurate when fails to seek backwards (see videodecoder getframe)
++                            ret = decoder.Seek(seekData.accurate ? Math.Max(0, seekData.ms - seekData.accuratePrerollMs) : seekData.ms, seekData.forward, !seekData.accurate); // 3sec ffmpeg bug for seek accurate when fails to seek backwards (see videodecoder getframe)
+                             if (ret < 0)
+                             {
+                                 if (CanWarn) Log.Warn("Seek failed");
+@@ -307,6 +310,18 @@ partial class Player
+                             else if (!ReversePlayback && CanPlay)
+                             {
+                                 decoder.GetVideoFrame(seekData.accurate ? seekData.ms * (long)10000 : -1);
++                                // Some demuxers fail to seek backward accurately. Retry the established
++                                // workaround only when the decoded frame is missing or beyond the target.
++                                if (seekData.accurate && seekData.accuratePrerollMs == 0 &&
++                                    (vFrames.Current == null || vFrames.Current.Timestamp >
++                                        seekData.ms * (long)10000 + VideoDemuxer.VideoStream.FrameDuration / 2))
++                                {
++                                    ret = decoder.Seek(Math.Max(0, seekData.ms - 3000), false, false);
++                                    if (ret >= 0) decoder.GetVideoFrame(seekData.ms * (long)10000);
++                                }
++                                if (ret < 0) seekCompletedMs = -1;
++                                else
++                                {
+                                 ResetFrameStats();
+                                 ShowOneFrame();
+                                 VideoDemuxer.Start();
+@@ -315,6 +330,7 @@ partial class Player
+                                 DataDemuxer.Start();
+                                 decoder.PauseOnQueueFull();
+                                 seekCompletedMs = seekData.ms;
++                                }
+                             }
+                         }
+ 
+@@ -377,6 +393,7 @@ class SeekData
+     public int  ms;
+     public bool forward;
+     public bool accurate;
+-    public SeekData(int ms, bool forward, bool accurate)
+-        { this.ms = ms; this.forward = forward && !accurate; this.accurate = accurate; }
++    public int accuratePrerollMs;
++    public SeekData(int ms, bool forward, bool accurate, int accuratePrerollMs = 3000)
++        { this.ms = ms; this.forward = forward && !accurate; this.accurate = accurate; this.accuratePrerollMs = accuratePrerollMs; }
+ }

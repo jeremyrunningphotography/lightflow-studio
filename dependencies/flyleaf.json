@@ -1,13 +1,14 @@
 {
   "packageId": "FlyleafLib",
-  "packageVersion": "3.11.2-lightflow.3",
+  "packageVersion": "3.11.2-lightflow.4",
   "upstreamVersion": "3.11.2",
   "upstreamCommit": "64cee8bf3749590c98b6b6d416e2f590e4e890cf",
   "sourceRepository": "https://github.com/jeremysrunning/Flyleaf",
   "sourceCommit": "a9ca2937a95952790efa87b94f56cd735024d52c",
   "sourceBranch": "codex/player-frame-selection",
   "upstreamPullRequest": "https://github.com/SuRGeoNix/Flyleaf/pull/719",
-  "packageFile": "FlyleafLib.3.11.2-lightflow.3.nupkg",
-  "packageSha256": "578ca4a55b87dd435a109ca4b170fbc16a35d02f6e3ca3a63a3d4270b68850e5",
-  "license": "LGPL-3.0-or-later"
+  "packageFile": "FlyleafLib.3.11.2-lightflow.4.nupkg",
+  "packageSha256": "d0eb69e7c6edc3abe4d5027c5e94342ceb683b142a10d32a11cf8c2d497d3ca1",
+  "license": "LGPL-3.0-or-later",
+  "sourcePatch": "flyleaf-fast-seek.patch"
 }

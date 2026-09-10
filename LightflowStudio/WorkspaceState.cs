@@ -43,6 +43,8 @@ internal sealed record WorkspaceWindowState
 /// </summary>
 internal sealed record WorkspaceLayoutState
 {
+    public BrowserLayoutMode BrowserLayoutMode { get; init; }
+    public IReadOnlyList<WorkspaceDetailsColumn>? BrowserDetailsColumns { get; init; }
     public bool PlayerFilmstripVisible { get; init; } = true;
     public double? BrowserLocationsPaneWidth { get; init; }
     public double? FullJobsListPaneWidth { get; init; }
@@ -143,7 +145,9 @@ internal sealed record WorkspaceState
             ? mode : (int?)null;
         var collectionId = layout.BrowserCollectionId is { } id && id != Guid.Empty ? id : (Guid?)null;
         var expandedSets = (layout.BrowserExpandedCollectionSetIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
-        return layout with { RightPanelWidth = layout.RightPanelWidth is { } rightWidth && double.IsFinite(rightWidth)
+        return layout with { BrowserLayoutMode = Enum.IsDefined(layout.BrowserLayoutMode) ? layout.BrowserLayoutMode : BrowserLayoutMode.Grid,
+            BrowserDetailsColumns = BrowserDetails.Normalize(layout.BrowserDetailsColumns),
+            RightPanelWidth = layout.RightPanelWidth is { } rightWidth && double.IsFinite(rightWidth)
                 ? Math.Clamp(rightWidth, MinRightPanelWidth, MaxRightPanelWidth) : null,
             RightPanelActiveSurface = layout.RightPanelActiveSurface is "inspector" or "subclips" or "jobs" ? layout.RightPanelActiveSurface : null,
             BrowserLocationsPaneWidth = paneWidth,
@@ -247,6 +251,10 @@ internal sealed class WorkspaceStateService
 
     public void SetContinuation(WorkspaceContinuationState state) =>
         _current = _current with { Continuation = state };
+
+    public void SetBrowserDetails(BrowserLayoutMode mode, IReadOnlyList<WorkspaceDetailsColumn> columns) =>
+        _current = _current with { Layout = (_current.Layout ?? new()) with
+        { BrowserLayoutMode = mode, BrowserDetailsColumns = columns } };
 
     public void SetBrowserLocation(Guid rootId, string relativeFolder, string? lastResolvedAbsolutePath) =>
         _current = _current with

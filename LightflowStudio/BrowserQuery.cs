@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace LightflowStudio;
 
-internal enum BrowserSortMode { Name, CaptureDate, ModifiedDate, MediaType, FileSize, Duration, Manual }
+internal enum BrowserSortMode { Name, CaptureDate, ModifiedDate, MediaType, FileSize, Duration, Manual, Rating, Flag, Dimensions, FrameRate }
 internal enum BrowserNumberComparison { GreaterThanOrEqual, LessThan, LessThanOrEqual, Equal, GreaterThan }
 
 /// <summary>
@@ -367,7 +367,8 @@ internal static class BrowserQueryEngine
 
     private static IReadOnlyList<BrowserGridTile> Sort(IReadOnlyList<BrowserGridTile> tiles, BrowserSortMode mode, bool descending)
     {
-        if (mode is BrowserSortMode.CaptureDate or BrowserSortMode.Duration or BrowserSortMode.FileSize)
+        if (mode is BrowserSortMode.CaptureDate or BrowserSortMode.Duration or BrowserSortMode.FileSize
+            or BrowserSortMode.Rating or BrowserSortMode.Flag or BrowserSortMode.Dimensions or BrowserSortMode.FrameRate)
         {
             // Items that cannot be sorted meaningfully by this criterion (missing capture date/duration/size)
             // always sit at the very end, in a stable name order, regardless of ascending/descending — so
@@ -388,6 +389,9 @@ internal static class BrowserQueryEngine
         BrowserSortMode.CaptureDate => tile => tile.CaptureDate is not null,
         BrowserSortMode.Duration => tile => tile.DurationSeconds is not null,
         BrowserSortMode.FileSize => tile => tile.FileSizeBytes is not null,
+        BrowserSortMode.Rating or BrowserSortMode.Flag => tile => tile.AssetStateApplied,
+        BrowserSortMode.Dimensions => tile => tile.PixelWidth is > 0 && tile.PixelHeight is > 0,
+        BrowserSortMode.FrameRate => tile => BrowserFrameRate.Canonicalize(tile.FrameRate) is not null,
         _ => _ => true
     };
 
@@ -403,6 +407,11 @@ internal static class BrowserQueryEngine
             BrowserSortMode.MediaType => tiles.OrderBy(tile => CategoryRank(tile.Category)),
             BrowserSortMode.FileSize => tiles.OrderBy(tile => tile.FileSizeBytes),
             BrowserSortMode.Duration => tiles.OrderBy(tile => tile.DurationSeconds),
+            BrowserSortMode.Rating => tiles.OrderBy(tile => tile.Rating),
+            BrowserSortMode.Flag => tiles.OrderBy(tile => tile.Flag),
+            BrowserSortMode.Dimensions => tiles.OrderBy(tile => (long?)tile.PixelWidth * tile.PixelHeight)
+                .ThenBy(tile => tile.PixelWidth).ThenBy(tile => tile.PixelHeight),
+            BrowserSortMode.FrameRate => tiles.OrderBy(tile => BrowserFrameRate.Canonicalize(tile.FrameRate)),
             _ => tiles.OrderBy(tile => tile.Name, StringComparer.OrdinalIgnoreCase)
         };
         // A deterministic tie-breaker beneath every sort mode: two items with the same size/type/date never

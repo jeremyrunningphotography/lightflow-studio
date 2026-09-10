@@ -164,6 +164,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     }
 
     public bool HasThumbnail => _thumbnailPath is not null;
+    public int DetailsRevision { get; private set; }
 
     /// <summary>Durable, user-authored Catalog state projected for Browser presentation; never Preview state.</summary>
     public BrowserAssetState AssetState
@@ -263,6 +264,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasColorLabel));
         OnPropertyChanged(nameof(Keywords));
         OnPropertyChanged(nameof(AssetStateLabel));
+        PublishDetails();
     }
     public void SetViewMode(BrowserViewMode mode) => ViewMode = mode;
     public void SetThumbnailGenerating(bool value) => IsThumbnailGenerating = value;
@@ -282,6 +284,10 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         _pixelHeight = metadata.PixelHeight;
         _frameRate = metadata.FrameRate;
         MetadataApplied = true;
+        foreach (var property in new[] { nameof(CameraMake), nameof(CameraModel), nameof(CameraDisplayName),
+            nameof(LensModel), nameof(PixelWidth), nameof(PixelHeight), nameof(FrameRate), nameof(MetadataApplied) })
+            OnPropertyChanged(property);
+        PublishDetails();
         return changed;
     }
 
@@ -289,6 +295,12 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         ApplyMetadata(new BrowserTechnicalMetadata(captureDate, durationSeconds, null, null, null, null, null, null));
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void PublishDetails()
+    {
+        DetailsRevision++;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DetailsRevision)));
+    }
 
     private void OnPropertyChanged([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -816,8 +828,12 @@ internal sealed class BrowserGridModel
     private void RecomputeVisible()
     {
         using var timing = BrowserPerformance.Measure("query.project");
+        var anchorKey = _selection.AnchorIndex is { } anchor && anchor >= 0 && anchor < _visibleTiles.Count
+            ? _visibleTiles[anchor].Key : null;
         _visibleTiles = BrowserQueryEngine.Apply(_allTiles, Query).ToList();
         for (var index = 0; index < _visibleTiles.Count; index++) _visibleTiles[index].Index = index;
+        var anchorIndex = _visibleTiles.FindIndex(tile => tile.Key == anchorKey);
+        _selection.Restore(_selection.Snapshot(), anchorIndex >= 0 ? anchorIndex : null);
         Rebuild();
     }
 

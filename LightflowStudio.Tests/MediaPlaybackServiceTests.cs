@@ -76,6 +76,27 @@ public sealed class MediaPlaybackServiceTests
     }
 
     [Fact]
+    public async Task PlayingSeek_PublishesDecodedPositionBeforeAudioResumeCompletes()
+    {
+        var backend = new FakePlaybackBackend();
+        await using var service = new MediaPlaybackService(backend);
+        await service.OpenAsync(Path.GetFullPath("one.mp4"));
+        await service.PlayAsync();
+        backend.BlockPlay = true;
+        var seek = service.SeekAsync(TimeSpan.FromSeconds(7));
+        await backend.PlayStarted.Task;
+        try
+        {
+            Assert.False(seek.IsCompleted);
+            Assert.Equal(TimeSpan.FromSeconds(7), service.Snapshot.DisplayedTimestamp?.Position);
+            Assert.Equal(MediaPlaybackState.Seeking, service.Snapshot.State);
+        }
+        finally { backend.ReleasePlay.TrySetResult(); }
+        await seek;
+        Assert.Equal(MediaPlaybackState.Playing, service.Snapshot.State);
+    }
+
+    [Fact]
     public async Task Coordinator_TransfersSingleGlobalPlaybackOwnership()
     {
         var backends = new List<FakePlaybackBackend>();
@@ -241,6 +262,9 @@ public sealed class MediaPlaybackServiceTests
         public bool BlockFrameExtraction { get; init; }
         public bool BlockStep { get; init; }
         public bool BlockSeek { get; init; }
+        public bool BlockPlay { get; set; }
+        public TaskCompletionSource PlayStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleasePlay { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int ActiveSessions { get; private set; }
         public int PlayCalls { get; private set; }
         public string? CurrentSource { get; private set; }
@@ -276,7 +300,12 @@ public sealed class MediaPlaybackServiceTests
             return new(new(sourcePath, TimeSpan.FromSeconds(10), TimeSpan.Zero, 1920, 1080, [], null, false), timestamp);
         }
         public Task CloseAsync(CancellationToken token) { ActiveSessions = 0; CurrentSource = null; IsPlaying = false; return Task.CompletedTask; }
-        public Task PlayAsync(CancellationToken token) { PlayCalls++; IsPlaying = true; return Task.CompletedTask; }
+        public async Task PlayAsync(CancellationToken token)
+        {
+            PlayCalls++;
+            if (BlockPlay) { PlayStarted.TrySetResult(); await ReleasePlay.Task.WaitAsync(token); }
+            IsPlaying = true;
+        }
         public Task PauseAsync(CancellationToken token) { IsPlaying = false; return Task.CompletedTask; }
         public async Task<MediaPresentationTimestamp> SeekAsync(TimeSpan position, CancellationToken token)
         {

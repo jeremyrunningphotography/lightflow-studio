@@ -113,6 +113,71 @@ public sealed class WorkspaceMainWindowContinuationTests
         });
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Filmstrip_RestoresOrderedFolderOrCollectionReviewAndOpeningSelection(bool collectionScope, bool subset)
+    {
+        await WithStorage(async (directory, storage, startup) =>
+        {
+            var media = Directory.CreateDirectory(Path.Combine(directory, "media")).FullName;
+            var root = (await storage.MediaRoots.CreateAsync("Library", media)).Root!;
+            var assets = new List<PlayerViewerAsset>();
+            foreach (var name in new[] { "keep-a.png", "keep-b.png", "keep-c.png", "hidden.png" })
+            {
+                WriteImage(Path.Combine(media, name));
+                var asset = (await storage.MediaAssets.CreateAsync(root.RootId, name, "image")).Asset!.Asset;
+                assets.Add(new(root.RootId, name, asset.RelativePathKey, name, MediaPresentationKind.Image, asset.AssetId));
+            }
+            var workspace = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
+            workspace.SetBrowserLocation(root.RootId, "", media);
+            if (collectionScope)
+            {
+                var collection = await storage.Collections.CreateCollectionAsync("Review");
+                await storage.Collections.AddMembershipsAsync(collection.CollectionId, assets.Select(a => a.AssetId!.Value).Reverse().ToArray());
+                workspace.SetBrowserCollectionState(collection.CollectionId, new HashSet<Guid>());
+            }
+            workspace.SetPlayerFilmstripVisible(false);
+            var selected = subset ? new[] { assets[0].AssetId!.Value, assets[2].AssetId!.Value } : new[] { assets[0].AssetId!.Value };
+            workspace.SetContinuation(new()
+            {
+                Query = new() { SearchText = "keep", SortDescending = true },
+                Grid = new() { SelectedAssetIds = selected, AnchorAssetId = selected[0] },
+                Player = new() { Asset = assets[0] }
+            });
+            workspace.Save();
+            var window = new MainWindow(storage, startup.Status, startup.Diagnostic);
+            try
+            {
+                await InvokeTask(window, "RefreshBrowserStorageAsync");
+                await InvokeTask(window, "RestoreWorkspaceContinuationAsync");
+                var grid = Field<BrowserGridModel>(window, "_browserGrid");
+                var player = Field<PlayerViewerHost>(window, "_playerViewerHost");
+                Assert.False(player.FilmstripVisible);
+                Assert.Equal(Visibility.Collapsed, player.FilmstripChrome.Visibility);
+                Assert.Equal(subset, player.ReviewSet!.IsSelectionSubset);
+                Assert.Equal(grid.Tiles.Where(t => !subset || t.IsSelected).Select(t => t.AssetId),
+                    player.ReviewSet.Items.Select(item => item.Asset.AssetId));
+                Assert.Equal(subset ? 2 : 3, player.ReviewSet.Items.Count);
+                var destination = player.ReviewSet.Items[0].Asset.AssetId!.Value;
+                await player.SelectReviewAssetAsync(destination);
+                Assert.Equal(destination, player.CurrentAsset!.AssetId);
+                Assert.NotNull(player.ImageSurface.Source);
+                // Exercise the real Back handler and its async teardown.
+                player.BackButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Assert.Equal(BrowserPresentationMode.Grid, Field<BrowserPresentationMode>(window, "_browserPresentation"));
+                Assert.Equal(subset ? selected.Order() : new[] { destination }, grid.SelectedAssetIdsInBrowserOrder.Order());
+                Assert.Equal("keep", grid.Query.SearchText);
+                Assert.True(grid.Query.SortDescending);
+                Assert.Null(player.ReviewSet);
+            }
+            finally { window.Close(); }
+        });
+    }
+
     private static void WriteImage(string path) => File.WriteAllBytes(path,
         Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a4f8AAAAASUVORK5CYII="));
 

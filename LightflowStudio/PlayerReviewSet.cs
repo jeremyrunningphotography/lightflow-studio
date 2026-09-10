@@ -29,12 +29,13 @@ internal static class BrowserPlayerReviewSet
         var compatible = ordered.Where(tile => tile.AssetId is not null &&
             tile.Category is MediaTypeCategory.Video or MediaTypeCategory.StillImage or MediaTypeCategory.RawImage).ToArray();
         var selected = compatible.Where(tile => tile.IsSelected).ToArray();
-        var candidates = selected.Length > 1 ? selected : compatible;
+        var isSelectionSubset = ordered.Count(tile => tile.IsSelected) > 1;
+        var candidates = isSelectionSubset ? selected : compatible;
         var items = candidates.Select(tile => new PlayerReviewItem(new(tile.RootId, tile.RelativePath, tile.Key,
             tile.Name, MediaPresentationClassification.KindFor(tile.Category), tile.AssetId), tile)).ToList();
         // Continuation can restore a current asset absent from today's query/membership results.
         if (current.AssetId is not null && items.All(item => item.Asset.AssetId != current.AssetId))
             items.Add(new(current, null));
-        return new(items, current.AssetId, selected.Length > 1);
+        return new(items, current.AssetId, isSelectionSubset);
     }
 }

@@ -42,6 +42,20 @@ public sealed class BrowserReviewSetTests
     }
 
     [Fact]
+    public void Capture_MixedSelectionDoesNotExpandWhenOnlyOneSelectedItemIsCompatible()
+    {
+        var tiles = new[] { Tile("selected.mp4"), Tile("selected.wav", MediaTypeCategory.Audio),
+            Tile("unselected.jpg", MediaTypeCategory.StillImage), Tile("unselected.raw", MediaTypeCategory.RawImage) };
+        tiles[0].IsSelected = tiles[1].IsSelected = true;
+        var review = BrowserPlayerReviewSet.Capture(tiles, Asset(tiles[0]));
+        Assert.True(review.IsSelectionSubset);
+        Assert.Equal("selected.mp4", Assert.Single(review.Items).Asset.Name);
+        tiles[1].IsSelected = false;
+        review = BrowserPlayerReviewSet.Capture(tiles, Asset(tiles[0]));
+        Assert.Equal(new[] { "selected.mp4", "unselected.jpg", "unselected.raw" }, review.Items.Select(item => item.Asset.Name));
+    }
+
+    [Fact]
     public void Visibility_RoundTripsInExistingLayoutWithoutDroppingOtherState()
     {
         var state = new WorkspaceStateService("unused.json", new() { Layout = new() { RightPanelOpen = true } });
@@ -166,6 +180,61 @@ public sealed partial class PlayerViewerHostLeaseTests
             Assert.Equal(0, backend.PlayCallCount);
             await host.CloseAsync();
         });
+    }
+
+    [Fact]
+    public async Task Filmstrip_RepeatedSwitchesRestoreOwnRangesAndReleasePresentation()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            await using var service = new MediaPlaybackService(backend);
+            await using var coordinator = new MediaPlaybackCoordinator(() => service);
+            var assets = new[] { ReviewAsset("a.mp4"), ReviewAsset("b.mp4"), ReviewAsset("default.mp4") };
+            var ranges = new ReviewRanges(new Dictionary<Guid, MediaRange?>
+            {
+                [assets[0].AssetId!.Value] = new(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(20)),
+                [assets[1].AssetId!.Value] = new(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(13), TimeSpan.FromSeconds(45)),
+                [assets[2].AssetId!.Value] = null
+            });
+            var host = new PlayerViewerHost(coordinator, ranges);
+            host.SetReviewSet(new(assets.Select(a => new PlayerReviewItem(a, null)).ToArray(), assets[0].AssetId),
+                (a, _) => Task.FromResult(ReviewPath(a)));
+            await host.OpenAsync(assets[0], ReviewPath(assets[0]));
+            for (var cycle = 0; cycle < 3; cycle++)
+            {
+                await service.SeekAsync(TimeSpan.FromSeconds(32));
+                await service.PlayAsync();
+                foreach (var index in new[] { 1, 2, 0 })
+                {
+                    await host.SelectReviewAssetAsync(assets[index].AssetId!.Value);
+                    Assert.Equal(MediaPlaybackState.Paused, service.Snapshot.State);
+                    Assert.Equal(TimeSpan.FromSeconds(index == 0 ? 5 : index == 1 ? 13 : 0), host.CaptureWorkspaceState()!.Position);
+                    Assert.Single(host.VideoHost.Children);
+                    var range = (MediaRange?)typeof(PlayerViewerHost).GetField("_reviewRange",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(host);
+                    Assert.Equal(ranges.Values[assets[index].AssetId!.Value], range);
+                }
+            }
+            Assert.Equal(0, ranges.Saves);
+            await host.CloseAsync();
+            Assert.Empty(host.VideoHost.Children);
+            Assert.Null(host.ReviewSet);
+            var position = host.PositionSlider.Value;
+            backend.Present(59);
+            await host.Dispatcher.InvokeAsync(() => { });
+            Assert.Equal(position, host.PositionSlider.Value);
+            Assert.Null(host.CurrentAsset);
+        });
+    }
+
+    private sealed class ReviewRanges(Dictionary<Guid, MediaRange?> values) : IMediaRangeStore
+    {
+        public Dictionary<Guid, MediaRange?> Values => values;
+        public int Saves { get; private set; }
+        public Task<MediaRange?> RestoreAsync(Guid assetId, CancellationToken cancellationToken = default) => Task.FromResult(values[assetId]);
+        public Task SaveAsync(Guid assetId, MediaRange? range, CancellationToken cancellationToken = default) { Saves++; return Task.CompletedTask; }
     }
 
     private sealed class DelayedReviewRangeStore(Guid delayedId) : IMediaRangeStore

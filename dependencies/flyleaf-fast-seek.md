@@ -1,8 +1,9 @@
 # Local accurate-seek refinement for #111
 
 `3.11.2-lightflow.4` applies `flyleaf-fast-seek.patch` to the published base
-commit pinned in `flyleaf.json`. The new package and patch are repository-local
-pending hands-on acceptance; the base commit alone does not contain this change.
+commit pinned in `flyleaf.json`. The package and patch are repository-local;
+the base commit alone does not contain this change. Jeremy accepted the resulting
+functionality hands-on on September 10, 2026.
 `Build-FlyleafPackage.ps1` applies the patch and builds the manifest version.
 
 The opt-in `SeekAccurateFromKeyframe` retains Flyleaf's accurate decoded-frame
@@ -16,7 +17,11 @@ Evidence from the September 10 recording and Activity Log: native seek/cadence
 work took 876–1068ms during playback and about 400ms paused; stopping took
 0–70ms. The prior timestamp-publication change did not remove this native cost.
 
-No tests were run for this refinement, per the rapid-iteration instruction.
-Hands-on latency improvement and fallback behavior remain to be accepted.
-Final regression coverage must include long-GOP media, VFR/B-frames, near-start
-and end seeks, backward-seek fallback, rapid cancellation, cadence, and audio sync.
+Final acceptance rebuilt the package from public source plus this patch and
+matched SHA-256 `d0eb69e7c6edc3abe4d5027c5e94342ceb683b142a10d32a11cf8c2d497d3ca1`.
+Real-engine tests compare decoded seek PTS against FFprobe for long-GOP B-frame
+and VFR sources, including near-start/end, backward and rapidly replaced seeks.
+Existing cadence, audio restart, frame-step and resource-release regressions run
+in the affected/full suites. Tests do not force every demuxer-specific fallback
+condition or assert a hardware-dependent seek latency. Measured UI improvement
+is covered by Jeremy's hands-on acceptance.

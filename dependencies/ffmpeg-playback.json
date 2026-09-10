@@ -9,6 +9,6 @@
   "buildProjectUrl": "https://github.com/BtbN/FFmpeg-Builds",
   "license": "LGPL-2.1-or-later",
   "variant": "lgpl-shared",
-  "flyleafVersion": "3.11.2-lightflow.3",
+  "flyleafVersion": "3.11.2-lightflow.4",
   "flyleafBindingsVersion": "9.0.0"
 }

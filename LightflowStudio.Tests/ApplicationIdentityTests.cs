@@ -14,6 +14,7 @@ public sealed class ApplicationIdentityTests
     [InlineData("lightflow-header-lockup-480x96.png", "5EE8094B8A5DECF7BA06A0C166CC0581A7B01BCA81E1C3B20DA77E6A90558CFE")]
     [InlineData("lightflow-splash-1280x720.png", "B7D1DA7E0470E0119DB3FB223261AAA04CF9313E82ECD900A3EE557E8A28EB1F")]
     [InlineData("LightflowStudio.ico", "2A20E879577B4A21EACB9502D460B93FBCF1AA59BB4DBA41965B4D7E442E2772")]
+    [InlineData("lightflow-icon-256x256.png", "9853EFF45DDAA042484BF5EBDB4019FAD28CB84EDD32D4A04E2E7FD995046FB9")]
     public async Task EmbeddedAssets_AreUnmodifiedApprovedSources(string name, string expectedHash)
     {
         await StaDispatcher.RunAsync(() =>

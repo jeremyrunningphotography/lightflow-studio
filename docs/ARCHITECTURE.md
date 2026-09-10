@@ -1,5 +1,38 @@
 # Architecture
 
+## Application identity and startup presentation (#241)
+
+`App` owns the splash window and shutdown. After acquiring the primary-instance mutex, it shows
+`StartupSplash` and yields through a WPF render/layout dispatcher pass before starting storage.
+The splash only decodes its embedded artwork; it does not initialize Catalog, playback, Preview, or LUT services.
+Verifier-only processes and secondary launches do not show it. Startup temporarily uses explicit shutdown,
+then assigns the real MainWindow and switches to `OnMainWindowClose`. Success, startup failure, dispatcher
+failure, and exit close the splash; error dialogs are shown after cleanup.
+
+MainWindow owns `PresentationReady`, distinct from its existing broader `StartupCompletion` task.
+It completes after the normal #247 Browser scope/query/selection/tree restoration and optional Player
+open, paused seek, review controls, and a final layout/scroll pass. Missing/offline media retain #247's
+existing fallback and user-input cancellation rules. The real main HWND is DWM-cloaked during this work,
+allowing Loaded, WPF layout, and native Player presentation to initialize without exposing the default shell.
+App then restores taskbar visibility, uncloaks/activates the main window, and closes the splash. No minimum
+duration or timer defines readiness. Non-blocking Preview generation, LUT discovery, reconciliation, and
+unrelated shell initialization retain their existing ownership and do not extend splash lifetime.
+
+Runtime artwork lives in `LightflowStudio/Assets/Branding`; its README links the approved sources.
+The v2 480×96 raster lockup renders at 240×48 DIPs in the existing 60-DIP header. The unchanged 1280×720
+splash uses Jeremy's accepted (300,110,680,480) viewport at 440 DIPs wide, preserving glow and text.
+The accepted v4 ICO is the project ApplicationIcon and packaged `LightflowStudio.ico`. WPF rejected its
+encoding, so Window.Icon uses the supplied unchanged v4 256×256 PNG for window/taskbar identity.
+This is decoder compatibility, not alternate branding. Inno Setup consumes the packaged ICO; uninstall
+identity and shortcuts consume the executable. No runtime icon padding or artwork generation is applied.
+The old JR core header/icon treatment is retired; the JR source remains solely for the unchanged About image.
+Jeremy accepted this implementation hands-on; future icon aesthetic work is outside #241.
+
+Packaging verifies actual EXE and installer icon frames against the approved ICO, checks the packaged ICO
+hash, and requires the startup process to report `presentation-ready; splash-closed`. This report adds
+handoff verification to the existing process-survival/Jobs activation smoke test; it does not await the
+broader shell/background initialization tail. Smoke-test timeout limits test execution, not splash duration.
+
 ## Catalog-backed Browser revisits (#131)
 
 `BrowserNavigationSession` can now present a provisional Catalog snapshot before its existing authoritative

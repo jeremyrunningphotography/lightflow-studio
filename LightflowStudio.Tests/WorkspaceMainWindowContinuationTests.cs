@@ -7,6 +7,19 @@ namespace LightflowStudio.Tests;
 [Collection("STA dispatcher tests")]
 public sealed class WorkspaceMainWindowContinuationTests
 {
+    [Fact]
+    public async Task ClosingBeforePresentationReady_CancelsTheHandoff()
+    {
+        await WithStorage((_, storage, startup) =>
+        {
+            var window = new MainWindow(storage, startup.Status, startup.Diagnostic);
+            Assert.False(window.PresentationReady.IsCompleted);
+            window.Close();
+            Assert.True(window.PresentationReady.IsCanceled);
+            return Task.CompletedTask;
+        });
+    }
+
     [Theory]
     [InlineData("browser")]
     [InlineData("relocated")]
@@ -44,7 +57,9 @@ public sealed class WorkspaceMainWindowContinuationTests
             try
             {
                 await InvokeTask(window, "RefreshBrowserStorageAsync");
-                await InvokeTask(window, "RestoreWorkspaceContinuationAsync");
+                Assert.False(window.PresentationReady.IsCompleted);
+                await window.RestoreStartupPresentationAsync();
+                Assert.True(window.PresentationReady.IsCompletedSuccessfully);
                 var player = Field<PlayerViewerHost?>(window, "_playerViewerHost");
                 if (scenario is "browser" or "deleted")
                 {

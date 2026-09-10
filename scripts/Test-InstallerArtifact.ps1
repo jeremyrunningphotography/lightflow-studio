@@ -31,3 +31,4 @@ if ($description -ne 'Lightflow Studio installer') {
 }
 
 Write-Host "Generated installer metadata and branding validated: $resolved" -ForegroundColor Green
+& (Join-Path $PSScriptRoot 'Test-ApplicationIcon.ps1') -ExecutablePath $resolved

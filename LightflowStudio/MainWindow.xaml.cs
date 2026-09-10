@@ -130,6 +130,9 @@ public partial class MainWindow : Window
     private long _browserAssetGestureGeneration;
     private int _fileSystemMutationPresentationDepth;
     private BrowserGridTile? _browserAssetPendingSingleSelection;
+    private WorkspaceGridState? _browserDoubleClickSelection;
+    private Guid? _browserDoubleClickAssetId;
+    private int _browserDoubleClickTimestamp;
     private BrowserCollectionNode? _browserCollectionPointerTarget;
     private bool _browserCollectionKeyboardSelectionPending;
     private readonly BrowserCollectionDragSession _collectionDragSession = new();
@@ -1491,12 +1494,25 @@ public partial class MainWindow : Window
         // regardless of an incidental modifier key still down from the first click.
         if (e.ClickCount >= 2)
         {
-            if (!_browserGrid.SelectSingle(tile.Index)) { e.Handled = true; return; }
+            // Mouse-up retains ordinary single-click selection semantics. A double-click on a member
+            // of a prior multi-selection restores that deliberate subset before opening its review set.
+            if (_browserDoubleClickSelection is { } selected && _browserDoubleClickAssetId == tile.AssetId &&
+                unchecked((uint)(e.Timestamp - _browserDoubleClickTimestamp)) <= System.Windows.Forms.SystemInformation.DoubleClickTime)
+            {
+                if (!TryLeaveInspectorContext()) { e.Handled = true; return; }
+                _browserGrid.RestoreWorkspaceSelection(selected);
+            }
+            else if (!tile.IsSelected && !_browserGrid.SelectSingle(tile.Index)) { e.Handled = true; return; }
+            _browserDoubleClickSelection = null;
             UpdateBrowserStatusText();
             e.Handled = true;
             _ = OpenBrowserPlayerViewerAsync(tile);
             return;
         }
+        _browserDoubleClickSelection = tile.IsSelected && _browserGrid.SelectedKeys.Count > 1
+            ? CaptureWorkspaceGrid() : null;
+        _browserDoubleClickAssetId = tile.AssetId;
+        _browserDoubleClickTimestamp = e.Timestamp;
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) _browserGrid.SelectRange(tile.Index);
         else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) _browserGrid.ToggleCtrl(tile.Index);
         else if (BrowserAssetDragSelection.ShouldDeferSingleSelection(tile.IsSelected,
@@ -1872,9 +1888,8 @@ public partial class MainWindow : Window
             await RemoveBrowserSelectionFromActiveCollectionAsync();
             return;
         }
-        // #110: Enter opens the single selected item — a conservative reading of "open" for a keyboard user;
-        // opening a multi-selection is #111's filmstrip/review-set territory, deliberately not decided here.
-        if (e.Key == Key.Enter && _browserGrid.SelectedKeys.Count == 1)
+        // Open the first selected asset in Browser order; #111 captures the complete selected subset.
+        if (e.Key == Key.Enter && _browserGrid.SelectedKeys.Count > 0)
         {
             var tile = _browserGrid.Tiles.FirstOrDefault(t => _browserGrid.SelectedKeys.Contains(t.Key));
             if (tile is null) return;

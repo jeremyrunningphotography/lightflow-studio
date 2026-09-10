@@ -14,6 +14,58 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserDetailsTests
 {
     [Fact]
+    public void Columns_RejectUnknownAndDuplicateIdsRecoverWidthsAndKeepOneVisible()
+    {
+        var saved = BrowserDetails.Columns.Select(c => new WorkspaceDetailsColumn
+            { Id = c.Id, Visible = false, Width = c.Id == "name" ? double.NaN : -1 }).ToList();
+        saved.Insert(0, new() { Id = "future-column", Width = 200, Visible = true });
+        saved.Add(new() { Id = "name", Width = 999, Visible = true });
+        var restored = BrowserDetails.Normalize(saved);
+        Assert.Equal(BrowserDetails.Columns.Count, restored.Count);
+        Assert.Equal("name", Assert.Single(restored, c => c.Visible).Id);
+        Assert.All(restored, c => Assert.InRange(c.Width, 40, 1200));
+        Assert.Equal(240, restored.Single(c => c.Id == "name").Width);
+    }
+
+    [Fact]
+    public void LiveResort_RetainsStableShiftAnchorAndSelectedPreviewObjects()
+    {
+        var model = new BrowserGridModel();
+        model.Populate(Entries(3));
+        var tiles = model.Tiles.ToArray();
+        model.SetQuery(new() { SortMode = BrowserSortMode.Rating });
+        model.SelectSingle(1);
+        var anchor = model.SelectionAnchorAssetId;
+        tiles[1].ThumbnailPath = "cached-preview.jpg";
+        tiles[1].SetClassification(new(tiles[1].AssetId!.Value, 5, AssetFlag.Picked, AssetColorLabel.Red, ["Test"]));
+        model.ReapplyQuery();
+        Assert.Equal(anchor, model.SelectionAnchorAssetId);
+        Assert.Same(tiles[1], model.Tiles[0]);
+        Assert.Equal("cached-preview.jpg", model.Tiles[0].ThumbnailPath);
+        model.SelectRange(1);
+        Assert.Equal(2, model.SelectedKeys.Count);
+    }
+
+    [Fact]
+    public void NewSortModes_UseStableNameAndKeyTiesIncludingUnknownValues()
+    {
+        var tiles = Entries(5).Select((entry, index) => new BrowserGridTile(entry, index)).ToArray();
+        foreach (var tile in tiles.Take(3))
+        {
+            tile.ApplyMetadata(new(null, 5, null, null, null, 1920, 1080, 24));
+            tile.SetClassification(new(tile.AssetId!.Value, 3, AssetFlag.Picked, null, []));
+        }
+        foreach (var mode in new[] { BrowserSortMode.Rating, BrowserSortMode.Flag, BrowserSortMode.Dimensions, BrowserSortMode.FrameRate })
+        foreach (var descending in new[] { false, true })
+        {
+            var query = new BrowserQuery { SortMode = mode, SortDescending = descending };
+            var ordered = BrowserQueryEngine.Apply(tiles, query);
+            Assert.Equal(ordered, BrowserQueryEngine.Apply(tiles.Reverse().ToArray(), query));
+            Assert.Equal(tiles.Skip(3), ordered.Skip(3));
+        }
+    }
+
+    [Fact]
     public void LayoutRoundTrip_NormalizesUnknownColumnsAndRetainsQueryAndSharedSelection()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
@@ -192,6 +244,36 @@ public sealed class BrowserDetailsWpfTests(ITestOutputHelper output)
                 var state = (WorkspaceStateService)typeof(MainWindow).GetField("_workspaceState", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
                 Assert.Equal("name", state.Current.Layout!.BrowserDetailsColumns!.Where(c => c.Visible).ElementAt(3).Id);
                 Assert.Equal(BrowserLayoutMode.Details, state.Current.Layout.BrowserLayoutMode);
+                var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var capture = typeof(MainWindow).GetMethod("CaptureWorkspaceGrid", flags)!;
+                viewer.ScrollToVerticalOffset(6400);
+                viewer.ScrollToHorizontalOffset(100);
+                await Pump();
+                var savedViewport = (WorkspaceGridState)capture.Invoke(window, null)!;
+                viewer.ScrollToTop();
+                await Pump();
+                typeof(MainWindow).GetMethod("RestoreBrowserContentOffset", flags)!.Invoke(window, [savedViewport]);
+                await Pump();
+                var restoredViewport = (WorkspaceGridState)capture.Invoke(window, null)!;
+                Assert.Equal(savedViewport.TopAssetId, restoredViewport.TopAssetId);
+                Assert.InRange(Math.Abs(savedViewport.VerticalOffset - restoredViewport.VerticalOffset), 0, 1);
+                Assert.InRange(Math.Abs(savedViewport.HorizontalOffset - restoredViewport.HorizontalOffset), 0, 1);
+
+                // A newer user gesture owns the viewport before queued presentation restoration can run.
+                window.ApplyBrowserLayout(BrowserLayoutMode.Grid, true);
+                typeof(MainWindow).GetMethod("WorkspaceUserInteraction", flags)!.Invoke(window, null);
+                viewer.ScrollToTop();
+                await Pump();
+                Assert.Equal(0, viewer.VerticalOffset);
+                window.ApplyBrowserLayout(BrowserLayoutMode.Details, false);
+                await Pump();
+                model.SelectSingle(2);
+                var keyboardEvent = new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
+                    PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Down)
+                    { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent };
+                window.BrowserGridRows.RaiseEvent(keyboardEvent);
+                Assert.True(model.Tiles[3].IsSelected);
+                Assert.Equal(model.Tiles[3].AssetId, ((WorkspaceGridState)capture.Invoke(window, null)!).CurrentAssetId);
 
                 void AssertColumnOrigins()
                 {

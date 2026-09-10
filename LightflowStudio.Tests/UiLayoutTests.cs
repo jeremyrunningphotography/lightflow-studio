@@ -49,7 +49,8 @@ public class UiLayoutTests
             (string?)Named(document, "BrowserFolderTree").Attribute("SelectedItemChanged"));
         Assert.DoesNotContain(document.Descendants(ns + "Button"), element =>
             (string?)element.Attribute("Click") == "BrowserFolder_Click");
-        var itemTemplates = Named(document, "BrowserGridRows").Descendants(ns + "DataTemplate").ToList();
+        Assert.Equal("{StaticResource BrowserThumbnailRowsTemplate}", (string?)Named(document, "BrowserGridRows").Attribute("ItemTemplate"));
+        var itemTemplates = Resource(document, "BrowserThumbnailRowsTemplate").DescendantsAndSelf(ns + "DataTemplate").ToList();
         Assert.Equal(2, itemTemplates.Count);
         Assert.DoesNotContain(itemTemplates.SelectMany(template => template.Descendants()), element =>
             ((string?)element.Attribute("Text"))?.Contains("Folder", StringComparison.Ordinal) == true);
@@ -265,8 +266,7 @@ public class UiLayoutTests
 
         // The per-row tile ItemsControl and its own horizontal StackPanel — the layer immediately hosting each
         // BrowserGridTile card.
-        var rowTemplate = gridRows.Descendants(ns + "DataTemplate")
-            .Single(template => (string?)template.Attribute("DataType") == "{x:Type local:BrowserGridRow}");
+        var rowTemplate = Resource(document, "BrowserThumbnailRowsTemplate");
         var tileItemsControl = rowTemplate.Element(ns + "ItemsControl")!;
         Assert.Equal("Transparent", (string?)tileItemsControl.Attribute("Background"));
         var tileStackPanel = tileItemsControl.Element(ns + "ItemsControl.ItemsPanel")!
@@ -815,8 +815,11 @@ public class UiLayoutTests
         var x = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var browse = Named(document, "BrowserBrowseToolbar");
         var actions = Named(document, "BrowserSelectionActionToolbar");
-        var contextMenu = Named(document, "BrowserGridRows").Descendants(ns + "ContextMenu").Single(menu =>
-            menu.Descendants(ns + "MenuItem").Any(item => (string?)item.Attribute("Header") == "Add to Collection…"));
+        var contextMenu = Resource(document, "BrowserAssetContextMenu");
+        Assert.Contains(Resource(document, "BrowserThumbnailRowsTemplate").Descendants(), element =>
+            (string?)element.Attribute("ResourceKey") == "BrowserAssetContextMenu");
+        Assert.Contains(Resource(document, "BrowserDetailsRowsTemplate").Descendants(), element =>
+            (string?)element.Attribute("ContextMenu") == "{StaticResource BrowserAssetContextMenu}");
         var navigation = Named(document, "BrowserNavigationToolbar");
         var query = Named(document, "BrowserQueryToolbar");
 
@@ -1758,6 +1761,9 @@ public class UiLayoutTests
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         Assert.Equal("MainWindow_PreviewKeyDown", (string?)document.Root!.Attribute("PreviewKeyDown"));
     }
+
+    private static XElement Resource(XDocument document, string key) => document.Descendants().Single(element =>
+        (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == key);
 
     private static XElement Named(XDocument document, string name) =>
         document.Descendants().Single(element => element.Attributes().Any(attribute =>

@@ -28,13 +28,19 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
     private string _photoPath = "";
 
     [Theory]
-    [InlineData(0, true)]
-    [InlineData(1, true)]
-    [InlineData(2, true)]
-    [InlineData(0, false)]
-    [InlineData(1, false)]
-    [InlineData(2, false)]
-    public Task MultiSelection_OpenEntryPoints_BackRetainsSubset(int openKind, bool traverse) =>
+    [InlineData(0, true, false)]
+    [InlineData(0, true, true)]
+    [InlineData(1, true, false)]
+    [InlineData(1, true, true)]
+    [InlineData(2, true, false)]
+    [InlineData(2, true, true)]
+    [InlineData(0, false, false)]
+    [InlineData(0, false, true)]
+    [InlineData(1, false, false)]
+    [InlineData(1, false, true)]
+    [InlineData(2, false, false)]
+    [InlineData(2, false, true)]
+    public Task MultiSelection_OpenEntryPoints_BackRetainsSubset(int openKind, bool traverse, bool details) =>
         StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
@@ -53,6 +59,8 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 RaiseClick(window.BrowserGoButton);
                 var grid = DragField<BrowserGridModel>(window, "_browserGrid");
                 await WaitUntilAsync(() => grid.Tiles.Count == 3 && grid.Tiles.All(tile => tile.AssetId is not null), "three Catalog assets");
+                window.ApplyBrowserLayout(details ? BrowserLayoutMode.Details : BrowserLayoutMode.Grid, false);
+                grid.SetQuery(grid.Query with { SortDescending = true });
                 var expected = new[] { grid.Tiles[0].AssetId!.Value, grid.Tiles[2].AssetId!.Value };
                 grid.RestoreWorkspaceSelection(new() { SelectedAssetIds = expected, AnchorAssetId = expected[0] });
                 window.UpdateLayout();
@@ -84,6 +92,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 await WaitUntilAsync(() => window.BrowserPlayerHost.Visibility == Visibility.Collapsed, "return Browser");
                 Assert.Equal(expected, grid.SelectedAssetIdsInBrowserOrder);
                 Assert.Equal(_mediaRoot, window.BrowserCurrentPath.Text);
+                Assert.Equal(details, window.BrowserDetailsLayoutButton.IsChecked);
             }
             finally { window.Close(); await storage.DisposeAsync(); }
         });

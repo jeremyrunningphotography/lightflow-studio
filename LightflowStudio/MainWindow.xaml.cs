@@ -223,6 +223,7 @@ public partial class MainWindow : Window
         InitializeBrowserQuickFilterButtons();
         SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
+        InitializeBrowserDetails();
         InitializeWorkspaceContinuation();
         // End stale tile gestures even when release is handled by chrome or lands outside the tile.
         AddHandler(Mouse.PreviewMouseDownEvent, new MouseButtonEventHandler((_, _) => ResetBrowserAssetGesture()), true);
@@ -1314,7 +1315,8 @@ public partial class MainWindow : Window
                 if (BrowserAssetStateRevisionPolicy.CanApply(revision, changedAt))
                     _browserGrid.ApplyAssetState(assetId, state);
             }
-            if (_browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.ColorState or
+            if (_browserGrid.Query.SortMode is BrowserSortMode.Rating or BrowserSortMode.Flag ||
+                _browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.ColorState or
                 BrowserFilterField.CameraLutState or BrowserFilterField.CreativeLutState or
                 BrowserFilterField.ReviewRangeState or BrowserFilterField.SubclipState or BrowserFilterField.Rating or
                 BrowserFilterField.Flag or BrowserFilterField.ColorLabel or BrowserFilterField.Keyword))
@@ -1427,6 +1429,7 @@ public partial class MainWindow : Window
 
     private void UpdateBrowserGridColumns()
     {
+        if (_browserLayoutMode == BrowserLayoutMode.Details) { _browserGrid.SetColumns(1); return; }
         const double scrollbarAllowance = 20;
         var width = BrowserGridHost.ActualWidth - BrowserGridHost.Padding.Left - BrowserGridHost.Padding.Right - scrollbarAllowance;
         if (width <= 0) return;
@@ -1476,6 +1479,7 @@ public partial class MainWindow : Window
 
     private void BrowserGridHost_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (e.OriginalSource is DependencyObject source && IsDetailsHeaderSource(source)) return;
         _browserGrid.ClearSelection();
         BrowserGridRows.Focus();
         UpdateBrowserStatusText();
@@ -1486,6 +1490,7 @@ public partial class MainWindow : Window
         ResetBrowserAssetGesture();
         if (_browserPresentation != BrowserPresentationMode.Grid) return;
         if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
+        _browserKeyboardCurrentAssetId = tile.AssetId;
         _browserFolderDragNode = null;
         _browserAssetPendingSingleSelection = null;
         _browserAssetDragStart = e.GetPosition(BrowserGridRows);
@@ -1877,6 +1882,7 @@ public partial class MainWindow : Window
 
     private async void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (NavigateBrowserKeyboard(e)) { e.Handled = true; return; }
         if (e.Key == Key.A && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
             _browserGrid.SelectAll();
@@ -2265,6 +2271,8 @@ public partial class MainWindow : Window
         _synchronizingBrowserQuery = true;
         try
         {
+            BrowserSortCombo.SelectedIndex = (int)_browserGrid.Query.SortMode;
+            SyncDetailsSortHeaders();
             var filters = _browserGrid.Query.Filters;
             var activeMediaTypes = filters.Where(f => f.Field == BrowserFilterField.MediaType)
                 .Select(f => f.MediaTypeValue).Where(value => value is not null).Select(value => value!.Value).ToHashSet();
@@ -3528,7 +3536,8 @@ public partial class MainWindow : Window
         var hasMetadataFilter = _browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.Camera or
             BrowserFilterField.Lens or BrowserFilterField.CaptureDate or BrowserFilterField.Duration or
             BrowserFilterField.Resolution or BrowserFilterField.FrameRate);
-        if (sortRelevantMetadataChanged && (_browserGrid.Query.SortMode is BrowserSortMode.CaptureDate or BrowserSortMode.Duration || hasMetadataFilter))
+        if (sortRelevantMetadataChanged && (_browserGrid.Query.SortMode is BrowserSortMode.CaptureDate or BrowserSortMode.Duration
+            or BrowserSortMode.FrameRate or BrowserSortMode.Dimensions || hasMetadataFilter))
         {
             // Coalesce into one re-sort ~800ms after updates settle, rather than resorting/reflowing per
             // asset while a large folder's metadata is still streaming in — see #109's responsiveness goal.

@@ -42,9 +42,11 @@ internal sealed record WorkspaceGridState
 {
     public IReadOnlyList<Guid> SelectedAssetIds { get; init; } = [];
     public Guid? AnchorAssetId { get; init; }
+    public Guid? CurrentAssetId { get; init; }
     public Guid? TopAssetId { get; init; }
     public double WithinRowOffset { get; init; }
     public double VerticalOffset { get; init; }
+    public double HorizontalOffset { get; init; }
 
     internal double RestoreOffset(int? topRow, int rowCount, double extentHeight, double scrollableHeight)
     {
@@ -59,7 +61,8 @@ internal sealed record WorkspaceGridState
     {
         SelectedAssetIds = (state?.SelectedAssetIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray(),
         WithinRowOffset = WorkspaceContinuationState.SafeOffset(state?.WithinRowOffset ?? 0),
-        VerticalOffset = WorkspaceContinuationState.SafeOffset(state?.VerticalOffset ?? 0)
+        VerticalOffset = WorkspaceContinuationState.SafeOffset(state?.VerticalOffset ?? 0),
+        HorizontalOffset = WorkspaceContinuationState.SafeOffset(state?.HorizontalOffset ?? 0)
     };
 }
 

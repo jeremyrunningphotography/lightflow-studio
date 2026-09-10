@@ -59,6 +59,7 @@ public partial class MainWindow
 
     private void WorkspaceUserInteraction()
     {
+        ++_browserLayoutRevision;
         // A hidden Browser may still await layout after Player restoration has completed. Once the
         // Browser is active, new input owns its viewport even if that queued layout never ran.
         if (_browserPresentation == BrowserPresentationMode.Grid) _pendingWorkspaceGrid = null;
@@ -95,8 +96,10 @@ public partial class MainWindow
         {
             SelectedAssetIds = _browserGrid.SelectedAssetIdsInBrowserOrder,
             AnchorAssetId = _browserGrid.SelectionAnchorAssetId,
+            CurrentAssetId = _browserKeyboardCurrentAssetId,
             TopAssetId = _browserGrid.Rows.Count > row ? _browserGrid.Rows[row].Tiles.FirstOrDefault()?.AssetId : null,
             VerticalOffset = offset,
+            HorizontalOffset = viewer?.HorizontalOffset ?? 0,
             WithinRowOffset = height > 0 ? offset - row * height : 0
         };
     }
@@ -151,6 +154,7 @@ public partial class MainWindow
                 token.ThrowIfCancellationRequested();
                 _browserGrid.ReapplyQuery();
                 _browserGrid.RestoreWorkspaceSelection(saved.Grid);
+                _browserKeyboardCurrentAssetId = saved.Grid.CurrentAssetId;
                 _pendingWorkspaceGrid = saved.Grid;
                 if (saved.Player is null) BrowserGridRows.Opacity = 1;
                 UpdateBrowserStatusText();
@@ -217,6 +221,7 @@ public partial class MainWindow
             _browserGrid.Rows.Count, viewer.ExtentHeight, viewer.ScrollableHeight);
         _pendingWorkspaceGrid = null;
         viewer.ScrollToVerticalOffset(_browserGridScrollOffset);
+        viewer.ScrollToHorizontalOffset(saved.HorizontalOffset);
     }
 
     private async Task RestoreWorkspacePlayerAsync(WorkspacePlayerState player, CancellationToken token)

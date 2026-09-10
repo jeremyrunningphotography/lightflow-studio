@@ -65,8 +65,10 @@ public sealed class WorkspaceMainWindowContinuationTests
         });
     }
 
-    [Fact]
-    public async Task Browser_RestoresRecursiveQuerySelectionAndLayoutThroughNormalAuthorities()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Browser_RestoresRecursiveQuerySelectionAndLayoutThroughNormalAuthorities(bool details)
     {
         await WithStorage(async (directory, storage, startup) =>
         {
@@ -83,13 +85,14 @@ public sealed class WorkspaceMainWindowContinuationTests
             var workspace = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
             workspace.SetBrowserLocation(root.RootId, "", media);
             workspace.SetBrowserViewMode(BrowserViewMode.Hybrid);
+            workspace.SetBrowserDetails(details ? BrowserLayoutMode.Details : BrowserLayoutMode.Grid, BrowserDetails.Normalize([new() { Id = "name", Width = 345, Visible = true }]));
             workspace.SetBrowserThumbnailSizeLevel(4);
             workspace.SetRightPanel(410, true, "inspector");
             workspace.SetContinuation(new()
             {
                 Query = new() { SearchText = "keep", SortDescending = true,
                     Filters = [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.StillImage)] },
-                Grid = new() { SelectedAssetIds = [.. ids, Guid.NewGuid()], AnchorAssetId = ids[1] }
+                Grid = new() { SelectedAssetIds = [.. ids, Guid.NewGuid()], AnchorAssetId = ids[1], CurrentAssetId = ids[1] }
             });
             workspace.Save();
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic);
@@ -100,6 +103,14 @@ public sealed class WorkspaceMainWindowContinuationTests
                 var grid = Field<BrowserGridModel>(window, "_browserGrid");
                 Assert.True(window.BrowserIncludeSubfoldersButton.IsChecked);
                 Assert.Equal(new[] { ids[1], ids[0] }, grid.SelectedAssetIdsInBrowserOrder);
+                Assert.Equal(ids[1], grid.SelectionAnchorAssetId);
+                Assert.Equal(details, window.BrowserDetailsLayoutButton.IsChecked);
+                Assert.Equal(ids[1], Field<Guid?>(window, "_browserKeyboardCurrentAssetId"));
+                Assert.Equal(345, window.BrowserDetailsColumns[0].Width);
+                var beforeSwitch = grid.Query;
+                window.ApplyBrowserLayout(details ? BrowserLayoutMode.Grid : BrowserLayoutMode.Details, true);
+                window.ApplyBrowserLayout(details ? BrowserLayoutMode.Details : BrowserLayoutMode.Grid, true);
+                Assert.Same(beforeSwitch, grid.Query);
                 Assert.Equal(ids[1], grid.SelectionAnchorAssetId);
                 Assert.Equal(3, grid.TotalCount);
                 Assert.Equal(2, grid.VisibleCount);
@@ -114,11 +125,15 @@ public sealed class WorkspaceMainWindowContinuationTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task Filmstrip_RestoresOrderedFolderOrCollectionReviewAndOpeningSelection(bool collectionScope, bool subset)
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task Filmstrip_RestoresOrderedFolderOrCollectionReviewAndOpeningSelection(bool collectionScope, bool subset, bool details)
     {
         await WithStorage(async (directory, storage, startup) =>
         {
@@ -139,6 +154,7 @@ public sealed class WorkspaceMainWindowContinuationTests
                 await storage.Collections.AddMembershipsAsync(collection.CollectionId, assets.Select(a => a.AssetId!.Value).Reverse().ToArray());
                 workspace.SetBrowserCollectionState(collection.CollectionId, new HashSet<Guid>());
             }
+            workspace.SetBrowserDetails(details ? BrowserLayoutMode.Details : BrowserLayoutMode.Grid, BrowserDetails.Normalize(null));
             workspace.SetPlayerFilmstripVisible(false);
             var selected = subset ? new[] { assets[0].AssetId!.Value, assets[2].AssetId!.Value } : new[] { assets[0].AssetId!.Value };
             workspace.SetContinuation(new()
@@ -155,6 +171,7 @@ public sealed class WorkspaceMainWindowContinuationTests
                 await InvokeTask(window, "RestoreWorkspaceContinuationAsync");
                 var grid = Field<BrowserGridModel>(window, "_browserGrid");
                 var player = Field<PlayerViewerHost>(window, "_playerViewerHost");
+                Assert.Equal(details, window.BrowserDetailsLayoutButton.IsChecked);
                 Assert.False(player.FilmstripVisible);
                 Assert.Equal(Visibility.Collapsed, player.FilmstripChrome.Visibility);
                 Assert.Equal(subset, player.ReviewSet!.IsSelectionSubset);
@@ -173,6 +190,7 @@ public sealed class WorkspaceMainWindowContinuationTests
                 Assert.Equal("keep", grid.Query.SearchText);
                 Assert.True(grid.Query.SortDescending);
                 Assert.Null(player.ReviewSet);
+                Assert.Equal(details, window.BrowserDetailsLayoutButton.IsChecked);
             }
             finally { window.Close(); }
         });

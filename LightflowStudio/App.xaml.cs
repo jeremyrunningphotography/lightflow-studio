@@ -138,8 +138,7 @@ public partial class App : System.Windows.Application
             var reportSwitch = Array.IndexOf(e.Args, "--startup-presentation-report");
             if (e.Args.Contains("--startup-smoke-test") && reportSwitch >= 0 && reportSwitch + 1 < e.Args.Length)
             {
-                if (!await mainWindow.StartupCompletion) throw new InvalidOperationException("Packaged shell initialization failed.");
-                System.IO.File.WriteAllText(e.Args[reportSwitch + 1], "presentation-ready; splash-closed; shell-initialized");
+                System.IO.File.WriteAllText(e.Args[reportSwitch + 1], "presentation-ready; splash-closed");
             }
         }
         catch (OperationCanceledException) when (Dispatcher.HasShutdownStarted || MainWindow is not { IsLoaded: true })

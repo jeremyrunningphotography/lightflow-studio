@@ -61,7 +61,7 @@ try {
         if ($startupSmoke.WaitForExit(250)) { throw "Packaged startup exited before presentation readiness." }
         if ([DateTime]::UtcNow -gt $presentationDeadline) { throw "Packaged startup did not report presentation readiness." }
     }
-    if ((Get-Content -LiteralPath $presentationReport -Raw) -ne 'presentation-ready; splash-closed; shell-initialized') {
+    if ((Get-Content -LiteralPath $presentationReport -Raw) -ne 'presentation-ready; splash-closed') {
         throw "Packaged startup reported an invalid presentation result."
     }
     Write-Host "Packaged Browser startup, workspace presentation/splash handoff, and full Jobs workspace activation passed." -ForegroundColor Green

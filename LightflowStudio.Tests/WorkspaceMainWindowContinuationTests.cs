@@ -255,7 +255,9 @@ public sealed class WorkspaceMainWindowContinuationTests
                         Invoke(window, "WorkspaceUserInteraction");
                         window.BrowserSearchBox.Text = "new work";
                     }
-                    await InvokeTask(window, "RestoreWorkspaceContinuationAsync");
+                    Assert.False(window.PresentationReady.IsCompleted);
+                    await window.RestoreStartupPresentationAsync();
+                    Assert.True(window.PresentationReady.IsCompletedSuccessfully);
                     if (cancel)
                     {
                         Assert.Equal("new work", window.BrowserSearchBox.Text);

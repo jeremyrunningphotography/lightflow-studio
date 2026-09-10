@@ -1,7 +1,7 @@
 # Installer branding assets
 
 `LightflowWizard.png` and `LightflowWizardSmall.png` are deterministic installer renditions of
-`LightflowStudio/Assets/Branding/jr-glow-source.png`, which was supplied by Jeremy Running Photography.
+the historical `jr-glow-source.png`, supplied by Jeremy Running Photography (retired from runtime resources by #241).
 
 - `LightflowWizard.png`: 480 x 918, matching Inno Setup's 240:459 wizard-image aspect ratio at 2x.
 - `LightflowWizardSmall.png`: 294 x 294 for crisp high-DPI header presentation.

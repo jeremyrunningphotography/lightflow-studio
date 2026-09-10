@@ -16,12 +16,14 @@ public partial class App : System.Windows.Application
     }
     private readonly UnexpectedInterfaceErrorGate _unexpectedInterfaceErrorGate = new();
     private IApplicationInstanceCoordinator? _applicationInstance;
+    private StartupSplash? _startupSplash;
+    private bool _presentingStartup;
     internal static ActivityLogFile ActivityLog { get; private set; } = null!;
     internal LightflowStorageCoordinator? Storage { get; private set; }
     internal static MediaPlaybackCoordinator Playback { get; } = new(() =>
         new MediaPlaybackService(new FlyleafPlaybackBackend()));
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         if (!_runStartup) return;
         var migrationCopySwitch = Array.IndexOf(e.Args, CatalogPackageRuntimeVerifier.MigrationCopyCommandLineSwitch);
@@ -48,6 +50,7 @@ public partial class App : System.Windows.Application
         {
             if (MainWindow is MainWindow mainWindow)
             {
+                if (_presentingStartup) return; // The eventual reveal activates the coherent workspace.
                 ActivityLog.TryAppend("[App] Received a secondary launch request; activating the existing window.");
                 mainWindow.ActivateFromLaunch(request);
             }
@@ -77,43 +80,92 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        base.OnStartup(e);
-        var storage = LightflowStorageCoordinator.StartAsync().GetAwaiter().GetResult();
-        if (storage.Coordinator is null)
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        _presentingStartup = true;
+        try
         {
-            System.Windows.MessageBox.Show(storage.Diagnostic ?? "Lightflow storage configuration could not be loaded.",
-                "Storage configuration", MessageBoxButton.OK, MessageBoxImage.Error);
-            Shutdown(1);
-            return;
-        }
-        Storage = storage.Coordinator;
-        ActivityLog = new(Storage.Locations.ActivityLogPath);
-        ActivityLog.TryAppend($"[App] Lightflow Studio {AppVersion.Display} starting.");
-        if (!storage.IsReady)
-            ActivityLog.TryAppend($"[Catalog] {storage.Status}: {storage.Diagnostic}");
-        if (!Storage.PreviewAvailable)
-            ActivityLog.TryAppend($"[Previews] {Storage.PreviewDiagnostic}");
-        if (Storage.RecoveryDiagnostic is not null)
-            ActivityLog.TryAppend($"[Catalog recovery] {Storage.RecoveryDiagnostic}");
+            _startupSplash = new StartupSplash();
+            _startupSplash.Show();
+            // Let WPF render the lightweight artwork before storage or shell construction begins.
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            base.OnStartup(e);
+            var storage = await LightflowStorageCoordinator.StartAsync();
+            if (storage.Coordinator is null)
+            {
+                CloseStartupSplash();
+                System.Windows.MessageBox.Show(storage.Diagnostic ?? "Lightflow storage configuration could not be loaded.",
+                    "Storage configuration", MessageBoxButton.OK, MessageBoxImage.Error);
+                Shutdown(1);
+                return;
+            }
+            Storage = storage.Coordinator;
+            ActivityLog = new(Storage.Locations.ActivityLogPath);
+            ActivityLog.TryAppend($"[App] Lightflow Studio {AppVersion.Display} starting.");
+            if (!storage.IsReady)
+                ActivityLog.TryAppend($"[Catalog] {storage.Status}: {storage.Diagnostic}");
+            if (!Storage.PreviewAvailable)
+                ActivityLog.TryAppend($"[Previews] {Storage.PreviewDiagnostic}");
+            if (Storage.RecoveryDiagnostic is not null)
+                ActivityLog.TryAppend($"[Catalog recovery] {Storage.RecoveryDiagnostic}");
 
-        DispatcherUnhandledException += OnDispatcherUnhandledException;
-        AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
-        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
-        Exit += (_, _) =>
+            DispatcherUnhandledException += OnDispatcherUnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
+            TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+            Exit += (_, _) =>
+            {
+                ActivityLog.TryAppend("[App shutdown] Application.Exit entered; disposing playback.");
+                Playback.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                ActivityLog.TryAppend("[App shutdown] Playback disposal completed; disposing storage.");
+                Storage?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                ActivityLog.TryAppend("[App shutdown] Storage disposal completed.");
+                ActivityLog.TryAppend("[App] Lightflow Studio exiting.");
+            };
+            var mainWindow = new MainWindow(Storage, storage.Status, storage.Diagnostic)
+            {
+                ShowActivated = false,
+                ShowInTaskbar = false
+            };
+            MainWindow = mainWindow;
+            mainWindow.SourceInitialized += (_, _) => StartupWindowPresentation.SetCloaked(mainWindow, true);
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
+            mainWindow.Show();
+            await mainWindow.PresentationReady;
+            mainWindow.ShowInTaskbar = true;
+            StartupWindowPresentation.SetCloaked(mainWindow, false);
+            mainWindow.Activate();
+            CloseStartupSplash();
+            ActivityLog.TryAppend("[App startup] Workspace presentation ready; main window revealed and splash closed.");
+            var reportSwitch = Array.IndexOf(e.Args, "--startup-presentation-report");
+            if (e.Args.Contains("--startup-smoke-test") && reportSwitch >= 0 && reportSwitch + 1 < e.Args.Length)
+            {
+                if (!await mainWindow.StartupCompletion) throw new InvalidOperationException("Packaged shell initialization failed.");
+                System.IO.File.WriteAllText(e.Args[reportSwitch + 1], "presentation-ready; splash-closed; shell-initialized");
+            }
+        }
+        catch (OperationCanceledException) when (Dispatcher.HasShutdownStarted || MainWindow is not { IsLoaded: true })
         {
-            ActivityLog.TryAppend("[App shutdown] Application.Exit entered; disposing playback.");
-            Playback.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            ActivityLog.TryAppend("[App shutdown] Playback disposal completed; disposing storage.");
-            Storage?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            ActivityLog.TryAppend("[App shutdown] Storage disposal completed.");
-            ActivityLog.TryAppend("[App] Lightflow Studio exiting.");
-        };
-        MainWindow = new MainWindow(Storage, storage.Status, storage.Diagnostic);
-        MainWindow.Show();
+            CloseStartupSplash();
+        }
+        catch (Exception exception)
+        {
+            CloseStartupSplash();
+            var diagnostic = BootstrapDiagnostics.TryWrite(exception.ToString());
+            System.Windows.MessageBox.Show($"Lightflow could not finish starting.\n\n{exception.Message}\n\n{diagnostic}",
+                "Lightflow Studio", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        }
+        finally { _presentingStartup = false; CloseStartupSplash(); }
+    }
+
+    private void CloseStartupSplash()
+    {
+        _startupSplash?.Close();
+        _startupSplash = null;
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        CloseStartupSplash();
         try { base.OnExit(e); }
         finally
         {
@@ -125,6 +177,7 @@ public partial class App : System.Windows.Application
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
+        CloseStartupSplash();
         ActivityLog.TryAppend($"[App] Unhandled UI exception: {e.Exception}");
         e.Handled = true;
         if (!_unexpectedInterfaceErrorGate.TryEnter()) return;

@@ -23,8 +23,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Remove="Assets\Branding\LightflowStudio.ico" />
-    <None Remove="Assets\Branding\jr-glow-source.png" />
+    <None Remove="Assets\Branding\lightflow-header-lockup-480x96.png" />
+    <None Remove="Assets\Branding\lightflow-splash-1280x720.png" />
     <Resource Include="Assets\Branding\LightflowStudio.ico" />
-    <Resource Include="Assets\Branding\jr-glow-source.png" />
+    <Resource Include="Assets\Branding\lightflow-header-lockup-480x96.png" />
+    <Resource Include="Assets\Branding\lightflow-splash-1280x720.png" />
   </ItemGroup>
 </Project>

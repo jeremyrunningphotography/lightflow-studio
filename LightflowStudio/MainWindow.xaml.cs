@@ -266,6 +266,7 @@ public partial class MainWindow : Window
         _jobsWorkspaceSmokeTest = Environment.GetCommandLineArgs().Contains("--jobs-workspace-smoke-test", StringComparer.OrdinalIgnoreCase);
         Loaded += async (_, _) =>
         {
+            Task? presentation = null;
             try
             {
                 AboutVersionText.Text = $"Version {AppVersion.Display}  •  Built for the creative workflow";
@@ -287,14 +288,11 @@ public partial class MainWindow : Window
                 BrowserGridRows.ItemsSource = _browserGrid.Rows;
                 if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed += BrowserMonitoring_FolderRefreshed;
 
-                // Browser is the default, immediately visible workspace: get its Locations storage entries
-                // (needed so an offline saved root already has a tree node to show its honest state against)
-                // and kick off restoration before any Encoding/History/Settings-only work below, none of
-                // which the user is looking at yet. Measured on real hardware: this alone cut the delay
-                // before restoration starts from ~1.1s to ~0.16s. Restoration itself proceeds independently.
+                // Start coherent workspace restoration before unrelated Encoding/History/Settings work.
+                // App awaits PresentationReady; background initialization retains its existing lifetime.
                 await RefreshBrowserStorageAsync();
                 await RefreshCollectionsAsync();
-                _ = RestoreWorkspaceContinuationAsync();
+                presentation = RestoreStartupPresentationAsync();
 
                 RefreshCatalogBackups();
                 RefreshHistory();
@@ -324,6 +322,8 @@ public partial class MainWindow : Window
                 BrowserEmptyTitle.Text = "Storage locations could not be loaded";
                 BrowserEmptyMessage.Text = $"Lightflow remains available. Details were written to {_activityLogFile.Path}.";
                 BrowserEmptyState.Visibility = Visibility.Visible;
+                if (presentation is not null) await presentation;
+                _presentationReady.TrySetResult(); // Reveal the existing actionable failure surface.
                 _startupCompletion.TrySetResult(false);
             }
         };
@@ -345,6 +345,7 @@ public partial class MainWindow : Window
             _workspaceSaveTimer.Stop();
             _browserSearchDebounceTimer.Stop();
             _workspaceClosed = true;
+            _presentationReady.TrySetCanceled();
             _workspaceRestoration.Cancel();
             _browserMetadataResortTimer.Stop();
             _collectionDragHoverTimer.Stop();

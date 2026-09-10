@@ -742,16 +742,13 @@
  <Grid Background="{StaticResource WindowBrush}">
   <Grid.RowDefinitions><RowDefinition Height="60"/><RowDefinition Height="*"/><RowDefinition Height="34"/></Grid.RowDefinitions>
 
-  <Border Background="{StaticResource NavigationBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1" Padding="18,0">
+  <Border Background="#08080A" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1" Padding="18,0">
    <Grid>
     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-     <Image Source="Assets/Branding/jr-glow-source.png" Width="38" Height="38" Stretch="Uniform"/>
-     <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
-      <TextBlock Foreground="{StaticResource TextBrush}" FontSize="15" FontWeight="SemiBold" Text="Lightflow Studio"/>
-      <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="9" Text="JEREMY RUNNING PHOTOGRAPHY"/>
-     </StackPanel>
-    </StackPanel>
+    <Border Background="#08080A" VerticalAlignment="Center">
+     <Image Source="Assets/Branding/lightflow-header-lockup-480x96.png" Width="240" Height="48"
+      Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" IsHitTestVisible="False" Focusable="False"/>
+    </Border>
     <ToggleButton Grid.Column="1" x:Name="RightPanelToggle" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Width="36" Height="36" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0" Padding="8"
      ToolTip="Toggle Right Panel (Ctrl+I)" AutomationProperties.Name="Toggle Right Panel" Click="RightPanelToggle_Click">
      <Grid Width="18" Height="16" IsHitTestVisible="False">

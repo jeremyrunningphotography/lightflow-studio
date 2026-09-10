@@ -342,6 +342,9 @@
         <Grid Margin="{TemplateBinding Padding}">
          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/></Grid.ColumnDefinitions>
          <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
+         <Path x:Name="CheckedIndicator" Grid.Column="1" Width="12" Height="10" Stretch="Uniform"
+          HorizontalAlignment="Right" VerticalAlignment="Center" Stroke="{TemplateBinding Foreground}"
+          StrokeThickness="2" Data="M 1 5 L 4 8 L 11 1" Visibility="Collapsed"/>
          <Path x:Name="SubmenuArrow" Grid.Column="1" Width="5" Height="9" Stretch="Fill"
           HorizontalAlignment="Right" VerticalAlignment="Center" Fill="{StaticResource MutedTextBrush}"
           Data="M 0 0 L 5 4.5 L 0 9 Z" Visibility="Collapsed"/>
@@ -359,6 +362,7 @@
       </Grid>
       <ControlTemplate.Triggers>
        <Trigger Property="HasItems" Value="True"><Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible"/></Trigger>
+       <Trigger Property="IsChecked" Value="True"><Setter TargetName="CheckedIndicator" Property="Visibility" Value="Visible"/></Trigger>
        <Trigger Property="IsHighlighted" Value="True">
         <Setter TargetName="ItemChrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/>
         <Setter TargetName="ItemChrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/>

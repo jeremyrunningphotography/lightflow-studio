@@ -142,10 +142,15 @@ public sealed class BrowserDetailsWpfTests(ITestOutputHelper output)
                 var columnMenu = window.BrowserDetailsHeaders.ContextMenu;
                 columnMenu.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent));
                 var flagChoice = columnMenu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, "Flag"));
+                flagChoice.ApplyTemplate();
+                var checkmark = (System.Windows.Shapes.Path)flagChoice.Template.FindName("CheckedIndicator", flagChoice);
+                Assert.Equal(Visibility.Visible, checkmark.Visibility);
                 flagChoice.IsChecked = false;
+                Assert.Equal(Visibility.Collapsed, checkmark.Visibility);
                 flagChoice.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
                 Assert.DoesNotContain(window.BrowserDetailsColumns, c => Equals(((GridViewColumnHeader)c.Header).Tag, "flag"));
                 flagChoice.IsChecked = true;
+                Assert.Equal(Visibility.Visible, checkmark.Visibility);
                 flagChoice.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
                 Assert.Equal(10, window.BrowserDetailsColumns.Count);
                 var name = window.BrowserDetailsColumns.Single(c => Equals(((GridViewColumnHeader)c.Header).Tag, "name"));

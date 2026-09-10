@@ -1537,12 +1537,14 @@ public partial class MainWindow : Window
     {
         if (((FrameworkElement)sender).ContextMenu is not { } menu) return;
         var state = CurrentBrowserSelectionActions();
-        ((MenuItem)menu.Items[0]).IsEnabled = state.SelectionCount > 0 && _browserGrid.SelectedAssetIdsInBrowserOrder.Count == state.SelectionCount;
-        ((MenuItem)menu.Items[1]).IsEnabled = state.SelectionCount > 0 && _activeCollectionScope is not null;
-        ((MenuItem)menu.Items[3]).IsEnabled = state.CanExport;
-        ((MenuItem)menu.Items[4]).IsEnabled = state.CanRegenerateThumbnails;
-        ((MenuItem)menu.Items[7]).IsEnabled = state.CanAssignCameraLut && BrowserCameraLutCombo.IsEnabled;
-        ((MenuItem)menu.Items[8]).IsEnabled = state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled;
+        void Enable(string header, bool enabled) => menu.Items.OfType<MenuItem>().First(item => Equals(item.Header, header)).IsEnabled = enabled;
+        Enable("Open", state.SelectionCount > 0);
+        Enable("Add to Collection…", state.SelectionCount > 0 && _browserGrid.SelectedAssetIdsInBrowserOrder.Count == state.SelectionCount);
+        Enable("Remove from this Collection", state.SelectionCount > 0 && _activeCollectionScope is not null);
+        Enable("Export", state.CanExport);
+        Enable("Regenerate Previews", state.CanRegenerateThumbnails);
+        Enable("Camera LUT", state.CanAssignCameraLut && BrowserCameraLutCombo.IsEnabled);
+        Enable("Creative LUT", state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled);
     }
 
     private void ResetBrowserAssetGesture()
@@ -1891,11 +1893,17 @@ public partial class MainWindow : Window
         // Open the first selected asset in Browser order; #111 captures the complete selected subset.
         if (e.Key == Key.Enter && _browserGrid.SelectedKeys.Count > 0)
         {
-            var tile = _browserGrid.Tiles.FirstOrDefault(t => _browserGrid.SelectedKeys.Contains(t.Key));
-            if (tile is null) return;
             e.Handled = true;
-            _ = OpenBrowserPlayerViewerAsync(tile);
+            OpenBrowserSelection();
         }
+    }
+
+    private void BrowserContextOpen_Click(object sender, RoutedEventArgs e) => OpenBrowserSelection();
+
+    private void OpenBrowserSelection()
+    {
+        if (_browserGrid.Tiles.FirstOrDefault(candidate => candidate.IsSelected) is { } tile)
+            _ = OpenBrowserPlayerViewerAsync(tile);
     }
 
     /// <summary>
@@ -2124,14 +2132,19 @@ public partial class MainWindow : Window
         if (!TryLeaveInspectorContext()) return;
         HomeRightPanel.SetSurfaceAvailable("subclips", false);
         var playerViewerHost = _playerViewerHost;
-        if (restoreScrollOffset && playerViewerHost?.ReviewSet?.HasTraversed == true &&
+        Guid? revealAssetId = null;
+        if (restoreScrollOffset && playerViewerHost?.ReviewSet?.IsSelectionSubset == true && _playerBrowserGrid is { } openingGrid)
+            _browserGrid.RestoreWorkspaceSelection(openingGrid);
+        else if (restoreScrollOffset && playerViewerHost?.ReviewSet?.HasTraversed == true &&
             _browserGrid.Tiles.FirstOrDefault(tile => tile.AssetId == playerViewerHost.CurrentAsset?.AssetId) is { } currentTile)
         {
             _browserGrid.SelectSingle(currentTile.Index);
-            UpdateBrowserStatusText();
+            revealAssetId = currentTile.AssetId;
         }
+        UpdateBrowserStatusText();
         SetBrowserPresentationMode(BrowserPresentationMode.Grid);
         if (restoreScrollOffset) RestoreBrowserGridScrollOffset();
+        if (revealAssetId is { } id) RevealBrowserAsset(id);
         if (focusGrid) BrowserGridRows.Focus();
         if (playerViewerHost is not null) await playerViewerHost.CloseAsync().ConfigureAwait(true);
     }
@@ -2140,6 +2153,26 @@ public partial class MainWindow : Window
     {
         var scrollViewer = FindBrowserGridScrollViewer();
         if (scrollViewer is not null) _browserGridScrollOffset = scrollViewer.VerticalOffset;
+    }
+
+    private void RevealBrowserAsset(Guid assetId)
+    {
+        var generation = _browserUiGeneration;
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (_browserPresentation != BrowserPresentationMode.Grid || generation != _browserUiGeneration) return;
+            BrowserGridRows.UpdateLayout();
+            var row = _browserGrid.Rows.Select((item, index) => (item, index))
+                .FirstOrDefault(pair => pair.item.Tiles.Any(tile => tile.AssetId == assetId));
+            if (row.item is null || FindBrowserGridScrollViewer() is not { ViewportHeight: > 0 } viewer) return;
+            // Works with either logical row units or pixel scrolling; no offscreen container realization required.
+            var rowHeight = viewer.ExtentHeight / _browserGrid.Rows.Count;
+            var top = row.index * rowHeight;
+            var bottom = top + rowHeight;
+            if (top < viewer.VerticalOffset) viewer.ScrollToVerticalOffset(top);
+            else if (bottom > viewer.VerticalOffset + viewer.ViewportHeight)
+                viewer.ScrollToVerticalOffset(Math.Max(top, bottom - viewer.ViewportHeight));
+        }));
     }
 
     private void RestoreBrowserGridScrollOffset()

@@ -280,11 +280,15 @@
      </Grid>
      <Grid Grid.Row="4" Margin="2,7,2,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <TextBlock x:Name="CurrentTimeText" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="00:00:00.000"/>
-      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+       <TextBlock x:Name="CurrentTimeText" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="00:00:00.000"/>
+       <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
        <ToggleButton x:Name="FilmstripToggle" Style="{StaticResource FilmstripToggleStyle}" Click="FilmstripToggle_Click"/>
 <StackPanel x:Name="HiddenFilmstripNavigation" Orientation="Horizontal" Style="{StaticResource HiddenFilmstripNavigationStyle}"><Button Style="{StaticResource FilmstripArrowStyle}" Content="&#xE76B;" Click="PreviousAsset_Click" IsEnabled="{Binding IsEnabled, ElementName=PreviousAssetButton}" ToolTip="Previous Asset (Ctrl+Left Arrow)"/><Button Style="{StaticResource FilmstripArrowStyle}" Content="&#xE76C;" Click="NextAsset_Click" IsEnabled="{Binding IsEnabled, ElementName=NextAssetButton}" ToolTip="Next Asset (Ctrl+Right Arrow)"/></StackPanel>
-<Button x:Name="PreviousFrameButton" Content="&#x25C4; Frame" Click="PreviousFrame_Click" IsEnabled="False"
+       </StackPanel>
+      </Grid>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+       <Button x:Name="PreviousFrameButton" Content="&#x25C4; Frame" Click="PreviousFrame_Click" IsEnabled="False"
         ToolTip="Previous decoded frame (,)" AutomationProperties.Name="Previous frame"/>
        <Button x:Name="PlayPauseButton" MinWidth="88" Content="Play" Click="PlayPause_Click" IsEnabled="False"
         ToolTip="Play/Pause (Space)" AutomationProperties.Name="Play or pause"/>

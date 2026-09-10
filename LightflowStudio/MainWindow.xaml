@@ -1065,6 +1065,8 @@
                 ToolTip="{Binding Name}" AutomationProperties.Name="{Binding AutomationLabel}">
                 <Border.ContextMenu>
                  <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Open" InputGestureText="Enter" Click="BrowserContextOpen_Click"/>
+                  <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
                   <MenuItem x:Name="BrowserAddToCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Add to Collection…" Click="BrowserAddToCollection_Click"/>
                   <MenuItem x:Name="BrowserRemoveFromCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Remove from this Collection" Click="BrowserRemoveFromCollection_Click"/>
                   <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>

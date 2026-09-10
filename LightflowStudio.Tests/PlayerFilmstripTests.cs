@@ -17,6 +17,7 @@ public sealed class BrowserReviewSetTests
         tiles[2].IsSelected = multiple;
         var current = Asset(tiles[0]);
         var review = BrowserPlayerReviewSet.Capture(tiles, current);
+        Assert.Equal(multiple, review.IsSelectionSubset);
         Assert.Equal(multiple ? new[] { "z.mp4", "m.mp4" } : new[] { "z.mp4", "a.jpg", "m.mp4" }, review.Items.Select(item => item.Asset.Name));
         Assert.Same(tiles[0], review.Items[0].Preview);
         tiles[0].ThumbnailPath = "updated-preview.jpg";

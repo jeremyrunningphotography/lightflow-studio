@@ -3,8 +3,9 @@ namespace LightflowStudio;
 /// <summary>A captured order of stable identities; Preview is an existing notifying projection, never a loader.</summary>
 internal sealed record PlayerReviewItem(PlayerViewerAsset Asset, object? Preview);
 
-internal sealed class PlayerReviewSet(IReadOnlyList<PlayerReviewItem> items, Guid? currentAssetId)
+internal sealed class PlayerReviewSet(IReadOnlyList<PlayerReviewItem> items, Guid? currentAssetId, bool isSelectionSubset = false)
 {
+    public bool IsSelectionSubset { get; } = isSelectionSubset;
     public IReadOnlyList<PlayerReviewItem> Items { get; } = items.ToArray();
     public int CurrentIndex { get; private set; } = items.ToList().FindIndex(item => item.Asset.AssetId == currentAssetId);
     private readonly Dictionary<Guid, int> _indices = items.Select((item, index) => (item, index))
@@ -34,6 +35,6 @@ internal static class BrowserPlayerReviewSet
         // Continuation can restore a current asset absent from today's query/membership results.
         if (current.AssetId is not null && items.All(item => item.Asset.AssetId != current.AssetId))
             items.Add(new(current, null));
-        return new(items, current.AssetId);
+        return new(items, current.AssetId, selected.Length > 1);
     }
 }

@@ -28,11 +28,13 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
     private string _photoPath = "";
 
     [Theory]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    public Task MultiSelection_EnterOrDoubleClickOpensSubset_BackSelectsTraversedAsset(bool doubleClick, bool traverse) =>
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    [InlineData(2, true)]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    public Task MultiSelection_OpenEntryPoints_BackRetainsSubset(int openKind, bool traverse) =>
         StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
@@ -54,7 +56,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 var expected = new[] { grid.Tiles[0].AssetId!.Value, grid.Tiles[2].AssetId!.Value };
                 grid.RestoreWorkspaceSelection(new() { SelectedAssetIds = expected, AnchorAssetId = expected[0] });
                 window.UpdateLayout();
-                if (doubleClick)
+                if (openKind == 1)
                 {
                     var tile = FindElementByDataContext(window.BrowserGridRows, grid.Tiles[0])!;
                     RaiseMouseLeftButtonDown(tile, 1);
@@ -62,6 +64,13 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                         { RoutedEvent = UIElement.MouseLeftButtonUpEvent, Source = tile });
                     Assert.Single(grid.SelectedKeys); // Ordinary click still collapses selection.
                     RaiseMouseLeftButtonDown(tile, 2);
+                }
+                else if (openKind == 2)
+                {
+                    var tile = (FrameworkElement)FindElementByDataContext(window.BrowserGridRows, grid.Tiles[0])!;
+                    var open = tile.ContextMenu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, "Open"));
+                    Assert.Equal("Enter", open.InputGestureText);
+                    open.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
                 }
                 else window.BrowserGridRows.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, Key.Enter)
                     { RoutedEvent = Keyboard.KeyDownEvent });
@@ -73,11 +82,46 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 Assert.Equal(expected, grid.SelectedAssetIdsInBrowserOrder);
                 RaiseClick(player.BackButton);
                 await WaitUntilAsync(() => window.BrowserPlayerHost.Visibility == Visibility.Collapsed, "return Browser");
-                Assert.Equal(traverse ? new[] { expected[1] } : expected, grid.SelectedAssetIdsInBrowserOrder);
+                Assert.Equal(expected, grid.SelectedAssetIdsInBrowserOrder);
                 Assert.Equal(_mediaRoot, window.BrowserCurrentPath.Text);
             }
             finally { window.Close(); await storage.DisposeAsync(); }
         });
+
+    [Fact]
+    public Task SingleOpen_TraversedAssetIsSelectedAndRevealedOnReturn() => StaDispatcher.RunAsync(async () =>
+    {
+        TestWpfApplication.EnsureLoaded();
+        for (var index = 0; index < 60; index++) CreateTestJpeg(Path.Combine(_mediaRoot, $"image-{index:D3}.jpg"));
+        var startup = await LightflowStorageCoordinator.StartAsync(_appDataRoot);
+        var storage = startup.Coordinator!;
+        await storage.MediaRoots.CreateAsync("Library", _mediaRoot);
+        var window = NewOffscreenWindow(storage, startup);
+        window.Width = 1200; window.Height = 720;
+        try
+        {
+            window.Show();
+            await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0, "storage");
+            window.BrowserCurrentPath.Text = _mediaRoot; RaiseClick(window.BrowserGoButton);
+            var grid = DragField<BrowserGridModel>(window, "_browserGrid");
+            await WaitUntilAsync(() => grid.Tiles.Count == 61 && grid.Tiles.All(tile => tile.AssetId is not null), "Catalog assets");
+            grid.SelectSingle(0);
+            window.BrowserGridRows.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, Key.Enter)
+                { RoutedEvent = Keyboard.KeyDownEvent });
+            await WaitUntilAsync(() => window.BrowserPlayerHost.Content is PlayerViewerHost { CurrentAsset: not null }, "Player");
+            var player = (PlayerViewerHost)window.BrowserPlayerHost.Content;
+            var destination = grid.Tiles[^1].AssetId!.Value;
+            await player.SelectReviewAssetAsync(destination);
+            RaiseClick(player.BackButton);
+            await window.Dispatcher.InvokeAsync(() => window.UpdateLayout(), DispatcherPriority.ApplicationIdle);
+            Assert.Equal(destination, Assert.Single(grid.SelectedAssetIdsInBrowserOrder));
+            var viewer = (ScrollViewer)typeof(MainWindow).GetMethod("FindBrowserGridScrollViewer",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(window, null)!;
+            Assert.True(viewer.VerticalOffset > 0);
+            Assert.True(viewer.VerticalOffset + viewer.ViewportHeight >= viewer.ExtentHeight - 1);
+        }
+        finally { window.Close(); await storage.DisposeAsync(); }
+    });
 
     public Task InitializeAsync()
     {

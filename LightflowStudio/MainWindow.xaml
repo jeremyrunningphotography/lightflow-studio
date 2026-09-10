@@ -3,7 +3,7 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:local="clr-namespace:LightflowStudio"
  xmlns:sys="clr-namespace:System;assembly=System.Runtime"
- Title="Lightflow Studio" Icon="Assets/Branding/LightflowStudio.ico"
+ Title="Lightflow Studio" Icon="Assets/Branding/lightflow-icon-256x256.png"
  Height="900" Width="1440" MinHeight="720" MinWidth="1120" WindowStartupLocation="CenterScreen"
  Closing="Window_Closing" PreviewKeyDown="MainWindow_PreviewKeyDown" PreviewKeyUp="MainWindow_PreviewKeyUp">
  <Window.Resources>

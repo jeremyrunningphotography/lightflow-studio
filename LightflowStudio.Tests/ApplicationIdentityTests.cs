@@ -27,6 +27,19 @@ public sealed class ApplicationIdentityTests
     }
 
     [Fact]
+    public async Task WindowIcon_DecodesThroughWpf()
+    {
+        await StaDispatcher.RunAsync(() =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var source = BitmapFrame.Create(new Uri("pack://application:,,,/LightflowStudio;component/Assets/Branding/lightflow-icon-256x256.png"));
+            Assert.Equal(256, source.PixelWidth);
+            Assert.Equal(256, source.PixelHeight);
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
     public async Task Splash_CanConstructWithoutStorage_AndDoesNotOwnApplicationLifetime()
     {
         await StaDispatcher.RunAsync(() =>

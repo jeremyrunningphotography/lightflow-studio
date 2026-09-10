@@ -130,6 +130,9 @@ public partial class MainWindow : Window
     private long _browserAssetGestureGeneration;
     private int _fileSystemMutationPresentationDepth;
     private BrowserGridTile? _browserAssetPendingSingleSelection;
+    private WorkspaceGridState? _browserDoubleClickSelection;
+    private Guid? _browserDoubleClickAssetId;
+    private int _browserDoubleClickTimestamp;
     private BrowserCollectionNode? _browserCollectionPointerTarget;
     private bool _browserCollectionKeyboardSelectionPending;
     private readonly BrowserCollectionDragSession _collectionDragSession = new();
@@ -478,6 +481,7 @@ public partial class MainWindow : Window
                 IsMaximized = _lastNonMinimizedWindowState == WindowState.Maximized
             });
         _workspaceState.SetBrowserLocationsPaneWidth(_browserLocationsPreferredWidth);
+        if (_playerViewerHost is not null) _workspaceState.SetPlayerFilmstripVisible(_playerViewerHost.FilmstripVisible);
         _workspaceState.SetRightPanel(_rightPanelPreferredWidth, _rightPanelOpen, HomeRightPanel.PreferredSurface);
         _workspaceState.SetFullJobsListPaneWidth(FullJobsListColumn.ActualWidth);
         _workspaceState.SetBrowserThumbnailSizeLevel((int)_browserThumbnailSize);
@@ -1490,12 +1494,25 @@ public partial class MainWindow : Window
         // regardless of an incidental modifier key still down from the first click.
         if (e.ClickCount >= 2)
         {
-            if (!_browserGrid.SelectSingle(tile.Index)) { e.Handled = true; return; }
+            // Mouse-up retains ordinary single-click selection semantics. A double-click on a member
+            // of a prior multi-selection restores that deliberate subset before opening its review set.
+            if (_browserDoubleClickSelection is { } selected && _browserDoubleClickAssetId == tile.AssetId &&
+                unchecked((uint)(e.Timestamp - _browserDoubleClickTimestamp)) <= System.Windows.Forms.SystemInformation.DoubleClickTime)
+            {
+                if (!TryLeaveInspectorContext()) { e.Handled = true; return; }
+                _browserGrid.RestoreWorkspaceSelection(selected);
+            }
+            else if (!tile.IsSelected && !_browserGrid.SelectSingle(tile.Index)) { e.Handled = true; return; }
+            _browserDoubleClickSelection = null;
             UpdateBrowserStatusText();
             e.Handled = true;
             _ = OpenBrowserPlayerViewerAsync(tile);
             return;
         }
+        _browserDoubleClickSelection = tile.IsSelected && _browserGrid.SelectedKeys.Count > 1
+            ? CaptureWorkspaceGrid() : null;
+        _browserDoubleClickAssetId = tile.AssetId;
+        _browserDoubleClickTimestamp = e.Timestamp;
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) _browserGrid.SelectRange(tile.Index);
         else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) _browserGrid.ToggleCtrl(tile.Index);
         else if (BrowserAssetDragSelection.ShouldDeferSingleSelection(tile.IsSelected,
@@ -1520,12 +1537,14 @@ public partial class MainWindow : Window
     {
         if (((FrameworkElement)sender).ContextMenu is not { } menu) return;
         var state = CurrentBrowserSelectionActions();
-        ((MenuItem)menu.Items[0]).IsEnabled = state.SelectionCount > 0 && _browserGrid.SelectedAssetIdsInBrowserOrder.Count == state.SelectionCount;
-        ((MenuItem)menu.Items[1]).IsEnabled = state.SelectionCount > 0 && _activeCollectionScope is not null;
-        ((MenuItem)menu.Items[3]).IsEnabled = state.CanExport;
-        ((MenuItem)menu.Items[4]).IsEnabled = state.CanRegenerateThumbnails;
-        ((MenuItem)menu.Items[7]).IsEnabled = state.CanAssignCameraLut && BrowserCameraLutCombo.IsEnabled;
-        ((MenuItem)menu.Items[8]).IsEnabled = state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled;
+        void Enable(string header, bool enabled) => menu.Items.OfType<MenuItem>().First(item => Equals(item.Header, header)).IsEnabled = enabled;
+        Enable("Open", state.SelectionCount > 0);
+        Enable("Add to Collection…", state.SelectionCount > 0 && _browserGrid.SelectedAssetIdsInBrowserOrder.Count == state.SelectionCount);
+        Enable("Remove from this Collection", state.SelectionCount > 0 && _activeCollectionScope is not null);
+        Enable("Export", state.CanExport);
+        Enable("Regenerate Previews", state.CanRegenerateThumbnails);
+        Enable("Camera LUT", state.CanAssignCameraLut && BrowserCameraLutCombo.IsEnabled);
+        Enable("Creative LUT", state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled);
     }
 
     private void ResetBrowserAssetGesture()
@@ -1871,15 +1890,20 @@ public partial class MainWindow : Window
             await RemoveBrowserSelectionFromActiveCollectionAsync();
             return;
         }
-        // #110: Enter opens the single selected item — a conservative reading of "open" for a keyboard user;
-        // opening a multi-selection is #111's filmstrip/review-set territory, deliberately not decided here.
-        if (e.Key == Key.Enter && _browserGrid.SelectedKeys.Count == 1)
+        // Open the first selected asset in Browser order; #111 captures the complete selected subset.
+        if (e.Key == Key.Enter && _browserGrid.SelectedKeys.Count > 0)
         {
-            var tile = _browserGrid.Tiles.FirstOrDefault(t => _browserGrid.SelectedKeys.Contains(t.Key));
-            if (tile is null) return;
             e.Handled = true;
-            _ = OpenBrowserPlayerViewerAsync(tile);
+            OpenBrowserSelection();
         }
+    }
+
+    private void BrowserContextOpen_Click(object sender, RoutedEventArgs e) => OpenBrowserSelection();
+
+    private void OpenBrowserSelection()
+    {
+        if (_browserGrid.Tiles.FirstOrDefault(candidate => candidate.IsSelected) is { } tile)
+            _ = OpenBrowserPlayerViewerAsync(tile);
     }
 
     /// <summary>
@@ -1899,6 +1923,7 @@ public partial class MainWindow : Window
         var generation = _browserUiGeneration;
         var asset = new PlayerViewerAsset(tile.RootId, tile.RelativePath, tile.Key, tile.Name,
             MediaPresentationClassification.KindFor(tile.Category), tile.AssetId);
+        var reviewSet = BrowserPlayerReviewSet.Capture(_browserGrid.Tiles, asset);
         MediaPathResolution resolution;
         // Unfiltered: this is a fire-and-forget UI entry point (invoked as `_ = OpenBrowserPlayerViewerAsync(tile)`
         // from the tile double-click/Enter handler), matching RunBrowserNavigationAsync's own catch-all
@@ -1911,17 +1936,18 @@ public partial class MainWindow : Window
         }
         if (generation != _browserUiGeneration) return;
 
-        await OpenResolvedBrowserPlayerAsync(asset, resolution);
+        await OpenResolvedBrowserPlayerAsync(asset, resolution, reviewSet: reviewSet);
     }
 
     private async Task OpenResolvedBrowserPlayerAsync(PlayerViewerAsset asset, MediaPathResolution resolution,
-        WorkspacePlayerState? continuation = null, CancellationToken token = default)
+        WorkspacePlayerState? continuation = null, CancellationToken token = default, PlayerReviewSet? reviewSet = null)
     {
         token.ThrowIfCancellationRequested();
         _workspacePlayerPlaceholder = false;
         CaptureBrowserGridScrollOffset();
         _playerBrowserGrid = continuation is null ? CaptureWorkspaceGrid() : _savedContinuation?.Grid;
         EnsurePlayerViewerHost();
+        _playerViewerHost!.SetReviewSet(reviewSet ?? BrowserPlayerReviewSet.Capture(_browserGrid.Tiles, asset), ResolveReviewAssetAsync);
         SetBrowserPresentationMode(BrowserPresentationMode.PlayerViewer);
         await _playerViewerHost!.OpenAsync(asset, resolution, token, continuation).ConfigureAwait(true);
     }
@@ -1938,6 +1964,8 @@ public partial class MainWindow : Window
             preferredPreviewFrames: _storage.PreferredPreviewFrames,
             classifications: _storage.AssetClassifications);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
+        _playerViewerHost.FilmstripVisible = _workspaceState.Current.Layout?.PlayerFilmstripVisible ?? true;
+        _playerViewerHost.FilmstripVisibilityChanged += (_, _) => ScheduleWorkspaceCapture();
         _playerViewerHost.ContextChanging = TryLeaveInspectorContext;
         _playerViewerHost.SuspendContextEditing = () => _inspector?.SuspendEditing();
         HomeRightPanel.AddSurface("subclips", "Subclips", _playerViewerHost.SubclipsContent, available: false);
@@ -1975,6 +2003,15 @@ public partial class MainWindow : Window
             UpdateBrowserStatusText();
         };
         BrowserPlayerHost.Content = _playerViewerHost;
+    }
+
+    private async Task<MediaPathResolution> ResolveReviewAssetAsync(PlayerViewerAsset asset, CancellationToken token)
+    {
+        var resolved = await _storage.MediaAssets.GetAsync(asset.AssetId!.Value, token);
+        return resolved is null
+            ? new(asset.RootId, asset.RelativePath, asset.Key, null, MediaRootAvailability.Unavailable, false, "This asset is no longer in the Catalog.")
+            : new(resolved.Asset.RootId, resolved.Asset.RelativePath, resolved.Asset.RelativePathKey,
+                resolved.PhysicalPath, resolved.RootAvailability, resolved.SourceExists, resolved.Diagnostic);
     }
 
     private async Task RegeneratePreferredFrameThumbnailAsync(Guid assetId)
@@ -2095,8 +2132,19 @@ public partial class MainWindow : Window
         if (!TryLeaveInspectorContext()) return;
         HomeRightPanel.SetSurfaceAvailable("subclips", false);
         var playerViewerHost = _playerViewerHost;
+        Guid? revealAssetId = null;
+        if (restoreScrollOffset && playerViewerHost?.ReviewSet?.IsSelectionSubset == true && _playerBrowserGrid is { } openingGrid)
+            _browserGrid.RestoreWorkspaceSelection(openingGrid);
+        else if (restoreScrollOffset && playerViewerHost?.ReviewSet?.HasTraversed == true &&
+            _browserGrid.Tiles.FirstOrDefault(tile => tile.AssetId == playerViewerHost.CurrentAsset?.AssetId) is { } currentTile)
+        {
+            _browserGrid.SelectSingle(currentTile.Index);
+            revealAssetId = currentTile.AssetId;
+        }
+        UpdateBrowserStatusText();
         SetBrowserPresentationMode(BrowserPresentationMode.Grid);
         if (restoreScrollOffset) RestoreBrowserGridScrollOffset();
+        if (revealAssetId is { } id) RevealBrowserAsset(id);
         if (focusGrid) BrowserGridRows.Focus();
         if (playerViewerHost is not null) await playerViewerHost.CloseAsync().ConfigureAwait(true);
     }
@@ -2105,6 +2153,26 @@ public partial class MainWindow : Window
     {
         var scrollViewer = FindBrowserGridScrollViewer();
         if (scrollViewer is not null) _browserGridScrollOffset = scrollViewer.VerticalOffset;
+    }
+
+    private void RevealBrowserAsset(Guid assetId)
+    {
+        var generation = _browserUiGeneration;
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (_browserPresentation != BrowserPresentationMode.Grid || generation != _browserUiGeneration) return;
+            BrowserGridRows.UpdateLayout();
+            var row = _browserGrid.Rows.Select((item, index) => (item, index))
+                .FirstOrDefault(pair => pair.item.Tiles.Any(tile => tile.AssetId == assetId));
+            if (row.item is null || FindBrowserGridScrollViewer() is not { ViewportHeight: > 0 } viewer) return;
+            // Works with either logical row units or pixel scrolling; no offscreen container realization required.
+            var rowHeight = viewer.ExtentHeight / _browserGrid.Rows.Count;
+            var top = row.index * rowHeight;
+            var bottom = top + rowHeight;
+            if (top < viewer.VerticalOffset) viewer.ScrollToVerticalOffset(top);
+            else if (bottom > viewer.VerticalOffset + viewer.ViewportHeight)
+                viewer.ScrollToVerticalOffset(Math.Max(top, bottom - viewer.ViewportHeight));
+        }));
     }
 
     private void RestoreBrowserGridScrollOffset()

@@ -247,6 +247,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
     public async Task PlayAsync(CancellationToken token)
     {
+        var resumeTimer = Stopwatch.StartNew();
         token.ThrowIfCancellationRequested();
         var player = RequirePlayer();
         if (!_cadencePrepared && (_reviewOptions.FrameDivisor > 1 || _reviewOptions.TargetRate is not null))
@@ -273,6 +274,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         }
         token.ThrowIfCancellationRequested();
         RunOnUi(player.Play);
+        if (resumeTimer.ElapsedMilliseconds >= 150)
+            App.ActivityLog?.TryAppend($"[Player timing] Playback/audio restart: {resumeTimer.ElapsedMilliseconds}ms.");
     }
 
     public async Task PauseAsync(CancellationToken token)
@@ -316,10 +319,15 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
 
     public async Task<MediaPresentationTimestamp> PrepareSeekAsync(TimeSpan position, bool resume, CancellationToken token)
     {
+        var timer = Stopwatch.StartNew();
         var player = RequirePlayer();
         await StopPlaybackAsync(player, token).ConfigureAwait(false);
+        var stopMilliseconds = timer.ElapsedMilliseconds;
         RunOnUi(() => ConfigureCadence(player, resume));
-        return await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
+        var timestamp = await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
+        if (timer.ElapsedMilliseconds >= 150)
+            App.ActivityLog?.TryAppend($"[Player timing] Seek to {position.TotalSeconds:0.000}s: stop={stopMilliseconds}ms, cadence/native seek={timer.ElapsedMilliseconds - stopMilliseconds}ms, resume={resume}.");
+        return timestamp;
     }
 
     /// <summary>
@@ -533,7 +541,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             // See StepBackwardAsync's doc comment: every native Player call must run on the dispatcher thread
             // that created the Player, never on whatever threadpool thread a prior .ConfigureAwait(false)
             // continuation happens to resume on.
-            RunOnUi(() => player.SeekAccurate((int)Math.Min(int.MaxValue, clamped)));
+            RunOnUi(() => player.SeekAccurateFromKeyframe((int)Math.Min(int.MaxValue, clamped)));
             var result = await completion.Task.ConfigureAwait(false);
             if (result < 0) throw new InvalidOperationException("The playback seek failed.");
             return RunOnUi(() => Timestamp(player.CurTime));

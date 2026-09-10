@@ -25,6 +25,17 @@ Inventory before persistence changes:
 
 No new Catalog/Preview session data or second query/playback authority is introduced.
 
+## #111 integration
+
+The Player filmstrip adds `WorkspaceLayoutState.PlayerFilmstripVisible` (default
+true). It merges with the existing layout and restores before Player opens.
+Review membership is reconstructed from the restored Browser results/selection
+and current AssetId, rather than persisted as another query or media history.
+The interrupted current source retains #247's paused position restoration;
+traversal afterward starts at each destination's own In. Folder and Collection,
+single-result-set and selected-subset restoration are covered through actual
+MainWindow continuation tests. See `player-111.md` for the later acceptance record.
+
 Jeremy accepted the functionality hands-on before final acceptance validation. Final review preserved the accepted UX and closed two cancellation gaps: new Browser input discards a deferred scroll restore even after startup finishes, and image decode checks cancellation before publishing its surface.
 
 Final Release validation:

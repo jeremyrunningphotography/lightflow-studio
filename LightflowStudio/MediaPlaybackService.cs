@@ -183,6 +183,9 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
             EnsureCurrent(operation);
             if (resumePlayback)
             {
+                // Decoding has already reached the destination. Audio priming may still take time;
+                // expose the decoded frame now without claiming playback has resumed yet.
+                Publish(Snapshot with { DisplayedTimestamp = timestamp });
                 await _backend.PlayAsync(operation.Token).ConfigureAwait(false);
                 EnsureCurrent(operation);
             }

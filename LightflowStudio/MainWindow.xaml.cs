@@ -96,8 +96,7 @@ public partial class MainWindow : Window
     /// <summary>The node most recently targeted by a passive (non-interactive) tree reveal, consumed by <see cref="BrowserFolderTree_SelectedItemChanged"/> the first time a matching event arrives. See that method's doc comment.</summary>
     private BrowserTreeNode? _browserTreeRevealedNode;
     private BrowserTreeNode? _browserFolderPointerTarget;
-    private System.Windows.Point _browserFolderDragStart;
-    private BrowserTreeNode? _browserFolderDragNode;
+    private readonly BrowserFolderDragGesture _browserFolderDragGesture = new();
     private BrowserTreeNode? _browserFileDropTarget;
     private FileDragAdorner? _fileDragAdorner;
     private System.Windows.Documents.AdornerLayer? _fileDragAdornerLayer;
@@ -229,7 +228,14 @@ public partial class MainWindow : Window
         AddHandler(Mouse.PreviewMouseDownEvent, new MouseButtonEventHandler((_, _) => ResetBrowserAssetGesture()), true);
         AddHandler(Mouse.MouseUpEvent, new MouseButtonEventHandler((_, _) => ResetBrowserAssetGesture()), true);
         BrowserGridRows.LostMouseCapture += (_, _) => ResetBrowserAssetGesture();
-        Deactivated += (_, _) => ResetBrowserAssetGesture();
+        Deactivated += (_, _) => { ResetBrowserAssetGesture(); _browserFolderDragGesture.Reset(); };
+        AddHandler(Mouse.PreviewMouseDownEvent, new MouseButtonEventHandler((_, _) => _browserFolderDragGesture.Reset()), true);
+        AddHandler(Mouse.MouseUpEvent, new MouseButtonEventHandler((_, _) => _browserFolderDragGesture.Reset()), true);
+        BrowserFolderTree.LostMouseCapture += (_, _) => _browserFolderDragGesture.Reset();
+        BrowserFolderTree.LostKeyboardFocus += (_, _) =>
+        {
+            if (!BrowserFolderTree.IsKeyboardFocusWithin) _browserFolderDragGesture.Reset();
+        };
         InitializeRightPanel();
         _storage.ThumbnailActivity.Changed += (_, change) => Dispatcher.BeginInvoke(() =>
             _browserGrid.ApplyThumbnailGenerating(change.AssetId, change.IsGenerating));
@@ -1006,12 +1012,12 @@ public partial class MainWindow : Window
     {
         ResetBrowserAssetGesture();
         _browserFolderPointerTarget = BrowserTreeNodeFromElement(e.OriginalSource as DependencyObject);
-        _browserFolderDragNode = _browserFolderPointerTarget;
-        _browserFolderDragStart = e.GetPosition(BrowserFolderTree);
+        _browserFolderDragGesture.Begin(BrowserFolderDragGesture.HeaderNode(e.OriginalSource as DependencyObject),
+            e.GetPosition(BrowserFolderTree));
     }
 
     private void BrowserFolderTree_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
-        _browserFolderDragNode = null;
+        _browserFolderDragGesture.Reset();
 
     /// <summary>
     /// #124 (revised): toggles Include Subfolders for whichever folder is currently open, via
@@ -1492,7 +1498,7 @@ public partial class MainWindow : Window
         if (_browserPresentation != BrowserPresentationMode.Grid) return;
         if (((FrameworkElement)sender).DataContext is not BrowserGridTile tile) return;
         _browserKeyboardCurrentAssetId = tile.AssetId;
-        _browserFolderDragNode = null;
+        _browserFolderDragGesture.Reset();
         _browserAssetPendingSingleSelection = null;
         _browserAssetDragStart = e.GetPosition(BrowserGridRows);
         _browserAssetDragTile = tile;
@@ -2926,16 +2932,25 @@ public partial class MainWindow : Window
 
     private void BrowserFolderTree_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (e.LeftButton != MouseButtonState.Pressed || _browserFolderDragNode?.AbsolutePath is not { } path) return;
-        var point = e.GetPosition(BrowserFolderTree);
-        if (Math.Abs(point.X - _browserFolderDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
-            Math.Abs(point.Y - _browserFolderDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
-        var node = _browserFolderDragNode; _browserFolderDragNode = null;
+        var node = _browserFolderDragGesture.Take(e.GetPosition(BrowserFolderTree), e.LeftButton == MouseButtonState.Pressed);
+        if (node?.AbsolutePath is not { } path) return;
+        var generation = _browserFolderDragGesture.Generation;
         var data = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, new[] { path });
-        BrowserStatusText.Text = $"Move folder ‘{node.DisplayName}’ — hold Ctrl to copy";
-        ShowFileDragAdorner(1, FileOperationKind.Move, null, "\uE8B7");
-        System.Windows.DragDrop.DoDragDrop(BrowserFolderTree, data, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
-        ClearFolderDropFeedback(); ClearFileDragAdorner();
+        try
+        {
+            BrowserStatusText.Text = $"Move folder ‘{node.DisplayName}’ — hold Ctrl to copy";
+            ShowFileDragAdorner(1, FileOperationKind.Move, null, "\uE8B7");
+            // Rendering pumps the dispatcher. A release or interrupted gesture must not
+            // enter DoDragDrop with an already-released button and immediately drop.
+            if (!_browserFolderDragGesture.IsCurrent(generation, Mouse.LeftButton == MouseButtonState.Pressed)) return;
+            System.Windows.DragDrop.DoDragDrop(BrowserFolderTree, data, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
+        }
+        finally
+        {
+            _browserFolderDragGesture.Reset();
+            ClearFolderDropFeedback();
+            ClearFileDragAdorner();
+        }
     }
 
     private void BrowserFolderTree_DragOver(object sender, System.Windows.DragEventArgs e)
@@ -3024,15 +3039,22 @@ public partial class MainWindow : Window
 
     private async void BrowserFolderTree_Drop(object sender, System.Windows.DragEventArgs e)
     {
+        e.Handled = true;
         var node = BrowserFolderDropTarget(e.OriginalSource as DependencyObject);
         var paths = e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[];
-        if (node?.AbsolutePath is null || paths is not { Length: > 0 }) return;
+        ClearFolderDropFeedback();
+        if (node?.AbsolutePath is null || paths is not { Length: > 0 })
+        { e.Effects = System.Windows.DragDropEffects.None; return; }
         var kind = FileOperationPathSemantics.DragKind(paths[0], node.AbsolutePath,
             Keyboard.Modifiers.HasFlag(ModifierKeys.Control), Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
         var selected = (await SelectedFileOperationSourcesAsync()).ToDictionary(source => source.Path, StringComparer.OrdinalIgnoreCase);
         var sources = paths.Select(path => selected.TryGetValue(path, out var source) ? source :
             new FileOperationSource(null, path, File.Exists(path) ? new FileInfo(path).Length : null, Directory.Exists(path))).ToArray();
         ClearFolderDropFeedback();
+        // A native Drop with eligible header/data must also pass planning before confirmation.
+        try { _ = await Task.Run(() => FileOperationPlanner.Plan(kind, sources, node.AbsolutePath)); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException)
+        { e.Effects = System.Windows.DragDropEffects.None; e.Handled = true; return; }
         if (sources.Any(source => source.IsDirectory) && !ConfirmationDialog.Confirm(this, $"{kind} folder",
             $"{kind} the selected folder{(sources.Count(source => source.IsDirectory) == 1 ? "" : "s")}?",
             $"Destination: {node.AbsolutePath}", "The operation will be tracked in Jobs when its cost requires it.", kind.ToString())) return;
@@ -3040,15 +3062,8 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private static BrowserTreeNode? BrowserFolderDropTarget(DependencyObject? element)
-    {
-        while (element is not null)
-        {
-            if (element is FrameworkElement { DataContext: BrowserTreeNode node }) return node;
-            element = VisualTreeHelper.GetParent(element);
-        }
-        return null;
-    }
+    private static BrowserTreeNode? BrowserFolderDropTarget(DependencyObject? element) =>
+        BrowserFolderDragGesture.HeaderNode(element);
 
     private bool PlayerOwnsShortcutContext() =>
         MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home) &&

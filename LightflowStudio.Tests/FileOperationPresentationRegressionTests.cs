@@ -6,6 +6,31 @@ namespace LightflowStudio.Tests;
 public sealed class FileOperationPresentationRegressionTests
 {
     [Fact]
+    public void FolderGestureWiringClearsInterruptedPressesAndValidatesBeforeConfirmation()
+    {
+        var code = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
+        Assert.Contains("BrowserFolderDragGesture.GuardSelectionPress(e);", code);
+        Assert.Contains("_browserFolderPointerTarget = BrowserFolderDragGesture.HeaderNode(e.OriginalSource as DependencyObject);", code);
+        Assert.Contains("Mouse.PreviewMouseDownEvent, new MouseButtonEventHandler((_, _) => _browserFolderDragGesture.Reset()), true", code);
+        Assert.Contains("Mouse.MouseUpEvent, new MouseButtonEventHandler((_, _) => _browserFolderDragGesture.Reset()), true", code);
+        Assert.Contains("BrowserFolderTree.LostMouseCapture += (_, _) => _browserFolderDragGesture.Reset()", code);
+        Assert.Contains("if (!BrowserFolderTree.IsKeyboardFocusWithin) _browserFolderDragGesture.Reset()", code);
+        Assert.Contains("Deactivated += (_, _) => { ResetBrowserAssetGesture(); _browserFolderDragGesture.Reset(); }", code);
+        var start = code.IndexOf("private void BrowserFolderTree_MouseMove", StringComparison.Ordinal);
+        var end = code.IndexOf("private void BrowserFolderTree_DragOver", start, StringComparison.Ordinal);
+        var drag = code[start..end];
+        Assert.True(drag.IndexOf("ShowFileDragAdorner", StringComparison.Ordinal) < drag.IndexOf("IsCurrent(generation", StringComparison.Ordinal));
+        Assert.True(drag.IndexOf("IsCurrent(generation", StringComparison.Ordinal) < drag.IndexOf("System.Windows.DragDrop.DoDragDrop", StringComparison.Ordinal));
+        Assert.Contains("finally", drag);
+        Assert.Contains("_browserFolderDragGesture.Reset();", drag);
+        start = code.IndexOf("private async void BrowserFolderTree_Drop", StringComparison.Ordinal);
+        end = code.IndexOf("private bool PlayerOwnsShortcutContext", start, StringComparison.Ordinal);
+        var drop = code[start..end];
+        Assert.Contains("BrowserFolderDragGesture.HeaderNode(element)", drop);
+        Assert.True(drop.IndexOf("FileOperationPlanner.Plan", StringComparison.Ordinal) < drop.IndexOf("ConfirmationDialog.Confirm", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void FileDragFeedback_UsesDedicatedTopmostBrowserSurfaceAndNativeDragRenderTicks()
     {
         var root = FindRepositoryRoot();

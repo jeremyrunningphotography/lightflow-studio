@@ -1011,9 +1011,10 @@ public partial class MainWindow : Window
     private void BrowserFolderTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         ResetBrowserAssetGesture();
-        _browserFolderPointerTarget = BrowserTreeNodeFromElement(e.OriginalSource as DependencyObject);
-        _browserFolderDragGesture.Begin(BrowserFolderDragGesture.HeaderNode(e.OriginalSource as DependencyObject),
-            e.GetPosition(BrowserFolderTree));
+        _browserFolderPointerTarget = BrowserFolderDragGesture.HeaderNode(e.OriginalSource as DependencyObject);
+        _browserFolderDragGesture.Begin(_browserFolderPointerTarget, e.GetPosition(BrowserFolderTree));
+        // Stop WPF's item class handler before it selects/focuses an ancestor and scrolls it into view.
+        BrowserFolderDragGesture.GuardSelectionPress(e);
     }
 
     private void BrowserFolderTree_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
@@ -4930,16 +4931,6 @@ public partial class MainWindow : Window
         e.Effects = drop is { Kind: not BrowserCollectionDropKind.None }
             ? System.Windows.DragDropEffects.Move : System.Windows.DragDropEffects.None;
         e.Handled = true;
-    }
-
-    private static BrowserTreeNode? BrowserTreeNodeFromElement(DependencyObject? element)
-    {
-        while (element is not null)
-        {
-            if (element is FrameworkElement { DataContext: BrowserTreeNode node }) return node;
-            element = VisualTreeHelper.GetParent(element);
-        }
-        return null;
     }
 
     private void BrowserCollectionTree_DragLeave(object sender, System.Windows.DragEventArgs e)

@@ -9,6 +9,8 @@ public sealed class FileOperationPresentationRegressionTests
     public void FolderGestureWiringClearsInterruptedPressesAndValidatesBeforeConfirmation()
     {
         var code = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
+        Assert.Contains("BrowserFolderDragGesture.GuardSelectionPress(e);", code);
+        Assert.Contains("_browserFolderPointerTarget = BrowserFolderDragGesture.HeaderNode(e.OriginalSource as DependencyObject);", code);
         Assert.Contains("Mouse.PreviewMouseDownEvent, new MouseButtonEventHandler((_, _) => _browserFolderDragGesture.Reset()), true", code);
         Assert.Contains("Mouse.MouseUpEvent, new MouseButtonEventHandler((_, _) => _browserFolderDragGesture.Reset()), true", code);
         Assert.Contains("BrowserFolderTree.LostMouseCapture += (_, _) => _browserFolderDragGesture.Reset()", code);

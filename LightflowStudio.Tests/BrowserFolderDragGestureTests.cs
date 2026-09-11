@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using Xunit;
 
 namespace LightflowStudio.Tests;
@@ -8,7 +10,7 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserFolderDragGestureTests
 {
     [Fact]
-    public Task HeaderHitTestingRejectsSelectedItemChromeBackgroundAndExpander() => StaDispatcher.RunAsync(() =>
+    public Task RowHitTestingIncludesHighlightPaddingButRejectsWhitespaceAndExpander() => StaDispatcher.RunAsync(() =>
     {
         TestWpfApplication.EnsureLoaded();
         var node = new BrowserTreeNode("Source", @"C:\Source") { IsSelected = true };
@@ -25,11 +27,11 @@ public sealed class BrowserFolderDragGestureTests
         tree.UpdateLayout();
 
         Assert.Same(node, BrowserFolderDragGesture.HeaderNode(label));
+        Assert.Same(node, BrowserFolderDragGesture.HeaderNode((DependencyObject)item.Template.FindName("HeaderChrome", item)));
         var gesture = new BrowserFolderDragGesture();
         var nonItems = new DependencyObject[]
         {
             tree, item,
-            (DependencyObject)item.Template.FindName("HeaderChrome", item),
             (DependencyObject)item.Template.FindName("Expander", item),
             (DependencyObject)item.Template.FindName("ItemsHost", item),
             new Border { DataContext = node }
@@ -44,6 +46,61 @@ public sealed class BrowserFolderDragGestureTests
                 gesture.Begin(hit, new Point());
                 Assert.Null(gesture.Take(new Point(100, 100), true));
             }
+        }
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task WhitespacePressesAreHandledBeforeItemSelectionAndBringIntoView() => StaDispatcher.RunAsync(() =>
+    {
+        TestWpfApplication.EnsureLoaded();
+        var root = new TreeViewItem
+        {
+            Header = new TextBlock { Text = "Drive" }, DataContext = new BrowserTreeNode("Drive", @"C:\"),
+            Style = (Style)Application.Current.FindResource("BrowserTreeItemStyle"), IsExpanded = true
+        };
+        var selected = new TreeViewItem
+        {
+            Header = new TextBlock { Text = "Selected folder" },
+            DataContext = new BrowserTreeNode("Selected folder", @"C:\Selected"), Style = root.Style
+        };
+        root.Items.Add(selected);
+        var tree = new TreeView();
+        tree.Items.Add(root);
+        tree.Measure(new Size(400, 400));
+        tree.Arrange(new Rect(0, 0, 400, 400));
+        tree.UpdateLayout();
+        selected.IsSelected = true;
+        var bringIntoView = 0;
+        tree.RequestBringIntoView += (_, _) => bringIntoView++;
+        tree.AddHandler(Mouse.PreviewMouseDownEvent,
+            new MouseButtonEventHandler((_, e) => BrowserFolderDragGesture.GuardSelectionPress(e)));
+        var surfaces = new UIElement[]
+        {
+            tree, root, (UIElement)VisualTreeHelper.GetChild(root, 0),
+            (UIElement)root.Template.FindName("ItemsHost", root)
+        };
+        foreach (var surface in surfaces)
+        {
+            for (var repeat = 0; repeat < 3; repeat++)
+            {
+                var press = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                    { RoutedEvent = Mouse.PreviewMouseDownEvent };
+                surface.RaiseEvent(press);
+                Assert.True(press.Handled);
+                press.RoutedEvent = Mouse.MouseDownEvent;
+                surface.RaiseEvent(press);
+                Assert.Same(selected, tree.SelectedItem);
+                Assert.Equal(0, bringIntoView);
+            }
+        }
+
+        foreach (var eligible in new[] { "HeaderChrome", "Expander" })
+        {
+            var press = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                { RoutedEvent = Mouse.PreviewMouseDownEvent };
+            ((UIElement)root.Template.FindName(eligible, root)).RaiseEvent(press);
+            Assert.False(press.Handled); // Row selection and disclosure still reach their normal WPF handlers.
         }
         return Task.CompletedTask;
     });

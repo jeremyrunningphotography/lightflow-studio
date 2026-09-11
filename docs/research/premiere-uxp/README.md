@@ -31,7 +31,7 @@ No release targets, milestones, extra blockers, or new implementation issues wer
 ## Versions and evidence ledger
 
 - **Observed:** installed executable at `C:\Program Files\Adobe\Adobe Premiere Pro 2026\Adobe Premiere Pro.exe`
-  reports ProductVersion `26.5.0`, FileVersion `26.5.0.99`. Premiere launched to Home; no real project opened.
+  reports ProductVersion `26.5.0`, FileVersion `26.5.0.99`.
 - **Documented current release:** Adobe's September 9 release notes identify 26.5.
   [Release notes](https://helpx.adobe.com/premiere/desktop/whats-new/release-notes.html).
 - **Target:** Premiere 26.5, manifest v5; actual UXP runtime version must come from the loaded plugin.
@@ -43,6 +43,33 @@ No release targets, milestones, extra blockers, or new implementation issues wer
 
 Prototype and reproduction instructions: [prototype/README.md](prototype/README.md).
 Generated data lives under ignored `artifacts/research/premiere-256/`, not the Catalog.
+
+### Host setup checkpoint
+
+UXP Developer Tool 2.3.0.5 is installed and the research manifest is registered as
+`lightflow-research-256`. Load and Load & Watch returned **No applications are connected to
+the service**; UDT itself reported a connection to its service on port 14001.
+Premiere's Plugins preference initially showed developer mode unchecked. It was enabled,
+and, with Jeremy's explicit permission, the open `Lightflow Test.prproj` was saved and
+Premiere restarted. A new empty project was then created at:
+
+`artifacts/research/premiere-256/1c976eac-c3bd-4bce-a4e6-b45f28b4ec27/Lightflow-256-disposable.prproj`.
+
+The title bar verified the disposable destination. No source media has been imported and
+no prototype API mutation has run. After restart and project creation, UDT still displayed
+no connected host. Subsequent UDT input attempts failed with `coordinate input geometry is
+unavailable`, then `computer-use request timed out: activate_window` and, after window
+recovery, `computer-use request timed out: click`. Read-only process inspection reported
+Premiere and UDT responsive. The host connection and UI input failure remain unresolved;
+this is tooling evidence, not evidence that Premiere's UXP APIs lack the required features.
+
+The published Adobe CLI 1.2.0 fallback was attempted only under ignored
+`artifacts/research/uxp-cli`. Setup failed successively on missing `tar`, the published
+`@adobe/uxp-devtools-app` dependency, and finally `yarn`. It did not produce a usable CLI.
+Adobe's [CLI source instructions](https://github.com/adobe-uxp/devtools-cli/blob/main/packages/uxp-devtools-cli/README.md)
+describe manual Yarn setup and warn that npm installation is unsupported. Prefer restoring
+the current UDT host connection rather than treating this older package as a tested Premiere tool.
+No loopback bridge was started and no UXP evidence or mapping file has been generated.
 
 ## Existing Lightflow ownership boundaries
 

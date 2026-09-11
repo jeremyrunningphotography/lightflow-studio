@@ -1,0 +1,17 @@
+{
+  "manifestVersion": 5,
+  "id": "lightflow-research-256",
+  "name": "Lightflow 256 Disposable Research",
+  "version": "0.0.1",
+  "main": "index.html",
+  "host": { "app": "premierepro", "minVersion": "26.5.0" },
+  "requiredPermissions": {
+    "localFileSystem": "request",
+    "network": { "domains": ["http://127.0.0.1:47856"] }
+  },
+  "entrypoints": [{
+    "type": "panel", "id": "research", "label": "Lightflow 256 Research",
+    "minimumSize": { "width": 400, "height": 300 },
+    "preferredDockedSize": { "width": 500, "height": 600 }
+  }]
+}

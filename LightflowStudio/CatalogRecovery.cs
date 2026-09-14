@@ -60,14 +60,16 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         bool onlyIfNeededToday = false, CancellationToken cancellationToken = default) => Task.Run(() =>
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var source = Inspect(databasePath, full: true, cancellationToken);
-        if (!source.IsValid) return new CatalogBackupResult(false, Diagnostic: source.Diagnostic);
         var now = _utcNow().ToUniversalTime();
         if (onlyIfNeededToday)
         {
             var existing = ListBackups().FirstOrDefault(x => x.Kind == CatalogBackupKind.Automatic && x.CreatedUtc.UtcDateTime.Date == now.UtcDateTime.Date);
             if (existing is not null) return new CatalogBackupResult(true, existing);
         }
+        // Reusing today's backup is not a new integrity check. Startup already opened/checked the
+        // Catalog; validate the source and the resulting copy only when actually making a backup.
+        var source = Inspect(databasePath, full: true, cancellationToken);
+        if (!source.IsValid) return new CatalogBackupResult(false, Diagnostic: source.Diagnostic);
         var final = UniqueBackupPath(source.SchemaVersion!.Value, now, kind);
         var staging = final + $".{Guid.NewGuid():N}.tmp";
         try

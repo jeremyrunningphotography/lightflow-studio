@@ -442,6 +442,8 @@ internal sealed class DerivedWorkBatch : IDerivedWorkBatch
     private CancellationTokenRegistration _cancellation;
     private bool _sealed;
     private bool _canceled;
+    private readonly Queue<DerivedWorkProgress> _notifications = new();
+    private bool _publishing;
 
     public DerivedWorkBatch(CatalogReconciliationResult reconciliation, Action<DerivedWorkBatch> cancel)
     {
@@ -464,8 +466,9 @@ internal sealed class DerivedWorkBatch : IDerivedWorkBatch
         {
             if (_canceled || !_pending.Remove(assetId)) return;
             _running.Add(assetId);
-            Publish();
+            _notifications.Enqueue(Snapshot());
         }
+        Publish();
     }
 
     internal void Complete(Guid assetId, DerivedWorkItemResult result)
@@ -474,38 +477,45 @@ internal sealed class DerivedWorkBatch : IDerivedWorkBatch
         {
             if (_canceled || (!_pending.Remove(assetId) && !_running.Remove(assetId))) return;
             _results.Add(result);
-            Publish();
+            _notifications.Enqueue(Snapshot());
             TryFinish();
         }
+        Publish();
     }
 
     internal IReadOnlyList<Guid> CancelPending()
     {
+        Guid[] affected;
         lock (_sync)
         {
             if (_canceled || _completion.Task.IsCompleted) return [];
             _canceled = true;
-            var affected = _pending.Concat(_running).ToArray();
+            affected = _pending.Concat(_running).ToArray();
             foreach (var assetId in affected)
                 _results.Add(new(assetId, DerivedWorkItemOutcome.Canceled,
                     DerivedWorkComponentOutcome.Canceled, DerivedWorkComponentOutcome.Canceled));
             _pending.Clear();
             _running.Clear();
-            Publish();
+            _notifications.Enqueue(Snapshot());
             Finish();
-            return affected;
         }
+        Publish();
+        return affected;
     }
 
-    internal void Seal() { lock (_sync) { _sealed = true; Publish(); TryFinish(); } }
-    internal void CompleteEmpty() { lock (_sync) { _sealed = true; Publish(); TryFinish(); } }
+    internal void Seal()
+    {
+        lock (_sync) { _sealed = true; _notifications.Enqueue(Snapshot()); TryFinish(); }
+        Publish();
+    }
+    internal void CompleteEmpty() => Seal();
     internal void SetCancellation(CancellationTokenRegistration registration)
     {
         lock (_sync)
         {
-            if (_completion.Task.IsCompleted) registration.Dispose();
-            else _cancellation = registration;
+            if (!_completion.Task.IsCompleted) { _cancellation = registration; return; }
         }
+        registration.Dispose();
     }
 
     public void Cancel() => _cancel(this);
@@ -524,12 +534,26 @@ internal sealed class DerivedWorkBatch : IDerivedWorkBatch
 
     private void Publish()
     {
-        var progress = Snapshot();
-        if (ProgressChanged is not { } handlers) return;
-        foreach (EventHandler<DerivedWorkProgress> handler in handlers.GetInvocationList())
+        // Aggregate listeners read other child batches. Never call them while owning a child lock.
+        // One drainer preserves mutation order, including a listener that reenters to cancel.
+        lock (_sync)
         {
-            try { handler(this, progress); }
-            catch { }
+            if (_publishing) return;
+            _publishing = true;
+        }
+        while (true)
+        {
+            DerivedWorkProgress progress;
+            lock (_sync)
+            {
+                if (!_notifications.TryDequeue(out progress!)) { _publishing = false; return; }
+            }
+            if (ProgressChanged is not { } handlers) continue;
+            foreach (EventHandler<DerivedWorkProgress> handler in handlers.GetInvocationList())
+            {
+                try { handler(this, progress); }
+                catch { }
+            }
         }
     }
 

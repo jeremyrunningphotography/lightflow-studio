@@ -1,6 +1,34 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { execute, sameProject } = require('./handoff.js');
+const vm = require('node:vm');
+const fsForPanel = require('node:fs');
+
+test('panel allows only one folder picker and restores Connect after cancellation', async () => {
+  const elements = Object.fromEntries(['pair', 'disconnect', 'status'].map(name => [name,
+    { addEventListener(_, handler) { this.click = handler; } }]));
+  let calls = 0;
+  let cancel;
+  const uxp = { storage: { localFileSystem: { getFolder() {
+    calls++;
+    return new Promise(resolve => { cancel = resolve; });
+  } } } };
+  vm.runInNewContext(fsForPanel.readFileSync(require.resolve('./index.js'), 'utf8'), {
+    require: name => name === 'uxp' ? uxp : name === 'premierepro' ? {} : { execute, sameProject },
+    document: { getElementById: name => elements[name] }
+  });
+  const first = elements.pair.click();
+  assert.equal(elements.pair.disabled, true);
+  await elements.pair.click();
+  assert.equal(calls, 1);
+  cancel(null);
+  await first;
+  assert.equal(elements.pair.disabled, false);
+  const next = elements.pair.click();
+  assert.equal(calls, 2);
+  cancel(null);
+  await next;
+});
 
 function fixture() {
   const project = { guid: 'project-1', path: 'C:/test/edit.prproj', name: 'edit' };

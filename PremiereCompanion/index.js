@@ -12,6 +12,7 @@ let busy = false;
 let lastHealthy = 0;
 let timer = null;
 let pulseBusy = false;
+let pairingInProgress = false;
 let cachedBins = [];
 const status = text => { document.getElementById('status').textContent = text; };
 const id = item => String(typeof item.getId === 'function' ? item.getId() : ppro.ProjectItem.cast(item).getId());
@@ -56,7 +57,7 @@ async function heartbeat(discoverBins = true) {
     }
   }
   if (discoverBins) cachedBins = bins;
-  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.1', protocol: 1,
+  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.2', protocol: 1,
     hostVersion: uxp.host.version, uxpVersion: uxp.versions.uxp, project: describe(project), bins: cachedBins });
   lastHealthy = Date.now();
   return project;
@@ -133,7 +134,7 @@ async function tick() {
       await new Promise(resolve => setTimeout(resolve, 100));
       await request('/v1/receipt', result, command.dispatchId);
       status(`${result.outcome}: ${result.message}`);
-    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.1`);
+    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.2`);
   } catch (error) {
     lastHealthy = 0;
     status(String(error.message || error));
@@ -141,6 +142,9 @@ async function tick() {
 }
 
 document.getElementById('pair').addEventListener('click', async () => {
+  if (pairingInProgress) return;
+  pairingInProgress = true;
+  document.getElementById('pair').disabled = true;
   try {
     folder = await fs.getFolder();
     if (!folder) return;
@@ -152,6 +156,7 @@ document.getElementById('pair').addEventListener('click', async () => {
     timer = setInterval(tick, 1500);
     await tick();
   } catch (error) { running = false; status(String(error.message || error)); }
+  finally { pairingInProgress = false; document.getElementById('pair').disabled = false; }
 });
 document.getElementById('disconnect').addEventListener('click', () => {
   running = false;

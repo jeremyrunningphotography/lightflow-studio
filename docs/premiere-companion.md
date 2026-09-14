@@ -107,13 +107,31 @@ Verified locally:
 - CCX update to 1.0.1 accepted by UPIA. The already-loaded client continued reporting
   1.0.0, demonstrating the installed-versus-running version distinction.
 - Closing Premiere expired the authenticated connection and removed Connected status.
+- After the startup stall cleared, installed 1.0.1 reopened and authenticated after
+  manual pairing. With no project open, the healthy heartbeat reported a null project
+  and empty bins.
+- The production bridge imported the synthetic `source.mov` into the requested new
+  `Lightflow 257 acceptance` bin. A repeat send verified the same native item ID without
+  reimport. Saving, closing and reopening the disposable project preserved the project,
+  bin and source-item IDs; a third send again verified the original item.
+  Raw credential-free receipts and lifecycle readback are in
+  [the production evidence directory](evidence/premiere-257/).
 
-Still unverified and blocking completion: source import and repeat receipts in the real
-host; save/reopen/Save As identity persistence; item/bin rename/move and undo/redo;
+Still unverified and blocking completion: Save As identity behavior; item/bin
+rename/move and undo/redo;
 multiple-project/project-switch behavior in the real host; interrupted import recovery;
-reconnection of the updated companion after cold start. Reopening the disposable project
-twice produced a partially drawn workspace and an unresponsive Premiere instance before
-the updated companion could be reopened. The cause has not been established. No source
-media was imported or user project content changed during this checkpoint.
+and the complete packaged Lightflow selection-to-Jobs interaction. Native window and
+keyboard actions timed out again after the successful save/reopen/API checks, while the
+authenticated API heartbeat remained healthy. The cause has not been established.
+The disposable project now contains the synthetic source and acceptance bin; unrelated
+projects were not modified. Companion 1.0.2 increases the minimum/floating panel height
+and makes pairing single-flight after 1.0.1 exposed clipped status and duplicate folder
+pickers. The regression test passes; the updated panel still needs real-host validation.
+
+The required local package command passed startup presentation, Jobs activation and
+dependency validation. The smoke timeout now permits up to 15 minutes for bounded
+Catalog integrity/migration work, while retaining readiness and early-exit checks.
+The initial short deadline failed against the existing approximately 1.4 GB Catalog;
+a diagnostic launch completed migration and presentation readiness.
 
 Keep #257 In Progress and its PR Draft until these production acceptance gates pass.

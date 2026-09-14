@@ -2,7 +2,7 @@
   "manifestVersion": 5,
   "id": "com.lightflowstudio.premiere",
   "name": "Lightflow Studio Companion",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "index.html",
   "host": { "app": "premierepro", "minVersion": "26.5.0" },
   "requiredPermissions": {
@@ -11,7 +11,8 @@
   },
   "entrypoints": [{
     "type": "panel", "id": "lightflow", "label": "Lightflow Studio",
-    "minimumSize": { "width": 320, "height": 240 },
-    "preferredDockedSize": { "width": 400, "height": 400 }
+    "minimumSize": { "width": 320, "height": 420 },
+    "preferredDockedSize": { "width": 400, "height": 440 },
+    "preferredFloatingSize": { "width": 400, "height": 440 }
   }]
 }

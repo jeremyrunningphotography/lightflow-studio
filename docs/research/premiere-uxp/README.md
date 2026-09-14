@@ -1,12 +1,12 @@
 # Premiere UXP edit-handoff research — #256
 
-Research date: 2026-09-11; reconciled 2026-09-14. Status: **core runtime proof exercised; architecture/product review checkpoint**.
+Research date: 2026-09-11; reconciled 2026-09-14. Status: **core runtime proof exercised; architecture/product review accepted**.
 Starting main: `7d37f893f680fff69a2c8d6b2ec6cb0f221f5939` (fetched and reconfirmed).
 Branch: `codex/256-premiere-uxp-research`. No production application files changed.
 
 This document distinguishes **local observation**, **Adobe documentation**, and **proposed design**.
 Documentation and Node tests do not satisfy #256's Premiere runtime Definition of Done.
-Do not begin #257 on the strength of this report alone.
+Jeremy accepted the architecture on 2026-09-14. Remaining empirical risks belong to #257–#260 acceptance criteria and do not block #256 completion. #257 remains unstarted; this pass stops before merge.
 
 ## Roadmap reconciliation
 
@@ -16,14 +16,14 @@ Existing Area option IDs were preserved when adding the approved generic NLE Are
 | Issue | Priority | Status | Native parent | Native blockers |
 | --- | --- | --- | --- | --- |
 | #255 | P2 — Normal | In Progress | None | None |
-| #256 | P1 — High | Review | #255 | None |
+| #256 | P1 — High | Done | #255 | None |
 | #257 | P2 — Normal | Backlog | #255 | #256 |
 | #258 | P2 — Normal | Backlog | #255 | #256, #257 |
 | #259 | P2 — Normal | Backlog | #255 | #256, #257, #226 |
 | #260 | P2 — Normal | Backlog | #255 | #256, #257, #39 |
 
-Readback verified all relationships. #255 has five open native children and all DoD items
-remain unchecked. Its execution summary now distinguishes active research from planned implementation.
+Readback verified all relationships. #255 has one completed research child and four open implementation children. Implementation DoD items
+remain unchecked; its architecture research DoD item is checked. Its execution summary distinguishes completed research from unstarted implementation.
 #226 remains Player / P2 / Backlog / parent #72. #39 remains Video Processing / P2 / Backlog /
 parent #27. Completed #157 remains Subclips / P2 / Done, with all six children closed.
 No release targets, milestones, extra blockers, or new implementation issues were introduced.
@@ -115,8 +115,8 @@ The Windows folder picker had to be targeted as its own top-level window. Screen
 input worked where text-only state had lacked coordinate geometry. These are test-control findings,
 not a proposed integration architecture.
 
-The core proof stopping point is reached. #256 remains open in Review; #257 has not started.
-Recommend a UXP client with authenticated localhost HTTP and existing Catalog identities, subject
+The core research and architecture direction are accepted. #256 is complete; #257 has not started.
+Accepted: a UXP client with authenticated localhost HTTP and existing Catalog identities, subject
 to cold-start CCX permissions and lifecycle testing before any near-one-click/background promise.
 File-manifest transport remains a fallback candidate; automatic polling is not proven.
 Remaining checks below are explicit acceptance risks, not successful results.
@@ -173,8 +173,8 @@ Sources: [Project](https://developer.adobe.com/premiere-pro/uxp/ppro-reference/c
 
 Subclip creation takes a name, TickTime start/end, a hard-boundary boolean, and `takeVideo` /
 `takeAudio` options (documented defaults true). Hard boundaries are documented to prevent extending
-past the range. Proposed default: both available media streams and hard boundaries; product review
-must accept that policy after an actual trim test. Do not mutate the source clip's review In/Out
+past the range. Accepted default: both available media streams and hard boundaries; #258
+must validate actual trim enforcement and inclusion variants during implementation. Do not mutate the source clip's review In/Out
 as a substitute for a native subclip.
 
 ## Actions, undo, and side effects
@@ -199,9 +199,9 @@ Source-marker/XMP preferences may cause on-disk metadata writes. The prototype u
 media; production requires explicit investigation of project-only marker/metadata behavior. Do not
 write identity into media XMP or silently change the user's global metadata preferences.
 
-## Candidate IPC and availability design
+## Accepted IPC direction and implementation availability design
 
-**Recommendation pending runtime proof:** Lightflow hosts a small authenticated loopback service;
+**Accepted architecture:** Lightflow hosts a small authenticated loopback service;
 the UXP companion is its client. Start with HTTP polling/long polling for commands and per-operation
 acknowledgements. WebSocket is an optional latency optimization with the same protocol and journal,
 not an exactly-once guarantee. Adobe documents fetch and client WebSockets with declared domains;
@@ -360,14 +360,14 @@ promising no developer setup to production users.
 [UDT setup](https://developer.adobe.com/premiere-pro/uxp/introduction/essentials/dev-tools/).
 
 Keep a stable distribution plugin ID, increment plugin version, and version the protocol separately.
-Recommended first supported host floor: 26.5; do not mistake the 26.3 API floor for a tested product
+Accepted initial supported host floor: 26.5; do not mistake the 26.3 API floor for a tested product
 support promise. Handshake includes companion version, protocol range, host version, actual UXP
 version, required capabilities and destination session. No heartbeat alone can distinguish missing,
 disabled or closed Premiere. Marketplace can be a later distribution channel, not an architectural
 dependency. Verify upgrade, uninstall and incompatible-version behavior on a clean profile.
 [Manifest](https://developer.adobe.com/uxp/guides/explanation/concepts/manifest/).
 
-Proposed production security boundary:
+Accepted production security boundary (implementation must validate it):
 
 - Bind explicit loopback only; validate Host and reject browser Origin/fetch-context requests.
 - Authenticate every request with a high-entropy session token, scoped to a short-lived paired
@@ -384,23 +384,36 @@ Proposed production security boundary:
 The prototype tests only the HTTP health/authentication boundary. It does not implement production
 pairing ACLs, command transport, persistent journals, or background lifecycle.
 
-## Remaining acceptance gates
+## Accepted architecture and delegated implementation acceptance
 
-1. Core load/import/subclip/marker/proxy/identity and visible-panel HTTP proof completed; see evidence.
-2. Prove exact native subclip bounds, hard-boundary trimming, and audio/video inclusion variants.
-3. Prove marker properties/GUID persistence and source-file/sidecar effects.
-4. Prove proxy positive/negative compatibility and explicitly non-undoable behavior.
-5. Prove rename/move/save/reopen/Save As reconciliation and unknown-outcome recovery.
-6. Prove loopback permissions and hidden/background availability, multiple/no projects and reconnect.
-7. Verify independent production installation/update without development tooling.
+Jeremy accepted the core architecture research on 2026-09-14. Initial host floor is Premiere Pro
+26.5 with a modern UXP companion as client of Lightflow's narrow authenticated localhost HTTP
+service, bound only to loopback. Preserve exact endpoint/Host validation and session-token security.
 
-Stop now at the requested core-proof milestone for architecture/product review. Do not begin #257
-or close #256 as fully accepted. Keep the broader checks explicit before production commitments.
-Review refinements: #257 needs exact localhost endpoint validation and cold-start/lifecycle checks;
-#258 must distinguish native bounds from review in/out and retain exclusive-Out conversion;
-#259 maps durable MarkerId to destination GUID without making Premiere colors/types mandatory UI;
-#260 verifies attachment readback separately from media compatibility. No extra dependency edges.
+CatalogId, AssetId, SubclipId, future MarkerId and future #39 proxy artifact identity/state remain
+Lightflow-authoritative. Premiere project/item/marker identifiers are destination mappings only;
+media paths are transport/corroborating facts. Use one-way Lightflow → Premiere handoff with
+idempotent retry/reconciliation and conflict detection, never bidirectional synchronization.
+Prefer native subclips over rendered media; default to hard boundaries and available audio/video
+streams unless a later implementation issue establishes a reason to change the policy. #39 owns
+proxy generation/artifact durability; #260 only consumes/attaches prepared proxies. Premiere marker
+type/color mappings belong in the NLE adapter, not Lightflow domain enums.
 
-On September 14, #226/#39 received the proven compatibility guidance without new product scope;
-their Areas, parent Epics and P2 were verified unchanged. #255 remains In Progress, #256 Review,
-#257–#260 Backlog, and all specified native parent/blocker relationships were rechecked.
+Successful runtime evidence above and in `evidence/` is unchanged. Documented Adobe behavior and
+unexecuted tests remain distinct from proof. Acceptance does not make the disposable prototype
+production code or establish the proposed JSON schema as a finalized persistence design.
+
+The following remaining empirical risks are now explicit implementation acceptance criteria:
+
+| Owner | Required implementation validation |
+| --- | --- |
+| #257 | Production CCX install/update, companion/protocol compatibility, cold start, missing/incompatible companion, closed/no/multiple projects, active-project switching, hidden/background availability if used, reconnect, authenticated loopback and exact endpoint/session security. Project GUID/item ID persistence across save/reopen/Save As and rename/move, unknown-outcome recovery, import/transaction undo/redo, and any metadata recovery stamp's scope/side effects. |
+| #258 | Exact rational range conversion/exclusive-Out, source-relative versus displayed timecode, 30000/1001 and VFR, hard-boundary enforcement, audio/video variants, undo/redo and duplicate-free reconciliation. Observed ProjectItem In/Out getters do not reliably verify native subclip bounds. |
+| #259 | MarkerId-to-GUID mapping and save/reopen persistence, supported name/comments/start/duration/color/type mapping and precise source-relative timing, adapter-owned enums, Premiere-side edit conflicts, undo/redo and source-file/XMP side effects. No implicit expansion of #226. |
+| #260 | Positive attachment/readback and playback, negative rate/duration/audio-channel/dimensions-PAR compatibility, existing-different-proxy conflict, non-undoable attachment and partial failure. No Premiere-specific encoder. |
+
+These risks no longer block closing #256. #256 is Completed / Done. #255 stays open / In Progress,
+with only its architecture research DoD item checked. #257–#260 remain unstarted / Backlog; existing
+native relationships remain intact, including the now-satisfied #256 blocker references. No new edges.
+#226/#39 retain their already-applied guidance, existing Areas, parents and P2; no further changes.
+The research Draft PR remains unmerged pending final review. Do not begin #257 in this cleanup.

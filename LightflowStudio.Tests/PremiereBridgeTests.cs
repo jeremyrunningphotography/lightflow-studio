@@ -172,6 +172,37 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         Assert.False((await _journal.PrepareAsync(_project, "root", null, _source)).PreviouslyDispatched);
     }
     [Fact]
+    public async Task JobsSerializeHandoffsCancelQueuedWorkAndExposeDurableReceipts()
+    {
+        await Post("/v1/heartbeat", Hello);
+        var jobs = new PremiereJobs(_journal, _bridge);
+        jobs.Enqueue(_project, "root", null, [_source]);
+        jobs.Enqueue(_project, "root", null, [_source]);
+        var queued = jobs.Jobs[1];
+        Assert.False(queued.WorkspaceItem().CanPause);
+        Assert.False(queued.WorkspaceItem().CanReorder);
+        jobs.Cancel(queued.JobId);
+        PremiereCommand? dispatched = null;
+        for (var attempt = 0; attempt < 30 && dispatched is null; attempt++)
+        {
+            var response = await Post("/v1/poll", new { });
+            if (response.StatusCode == HttpStatusCode.OK)
+                dispatched = await response.Content.ReadFromJsonAsync<PremiereCommand>(PremiereProtocol.Json);
+        }
+        Assert.NotNull(dispatched);
+        _client.DefaultRequestHeaders.Add("X-Lightflow-Dispatch", dispatched.DispatchId.ToString());
+        var receipt = new PremiereReceipt(dispatched.Intent.OperationId, PremiereOutcome.Verified, "native-item", "verified source");
+        Assert.Equal(HttpStatusCode.OK, (await Post("/v1/receipt", receipt)).StatusCode);
+        for (var attempt = 0; attempt < 100 && jobs.Jobs.Any(job => job.State is JobState.Queued or JobState.Running); attempt++)
+            await Task.Delay(20);
+        Assert.Equal(JobState.Completed, jobs.Jobs[0].State);
+        Assert.Equal(receipt, Assert.Single(jobs.Jobs[0].Receipts));
+        Assert.Equal(JobState.Cancelled, jobs.Jobs[1].State);
+        await jobs.RefreshHistoryAsync();
+        Assert.Equal(JobState.Completed, Assert.Single(jobs.History).State);
+        Assert.Single(await _journal.ListAsync());
+    }
+    [Fact]
     public async Task CommandIsDispatchedOnceAndReceiptIsBoundToOperationAndSession()
     {
         await Post("/v1/heartbeat", Hello);

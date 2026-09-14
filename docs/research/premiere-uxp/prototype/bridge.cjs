@@ -10,7 +10,7 @@ function createBridge(token) {
       response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify(payload));
     };
-    if (request.headers.host !== '127.0.0.1:47856' || request.headers.origin ||
+    if (!['127.0.0.1:47856', 'localhost:47856'].includes(request.headers.host) || request.headers.origin ||
         (request.headers['sec-fetch-site'] && request.headers['sec-fetch-site'] !== 'none'))
       return reply(403, { error: 'browser-or-host-rejected' });
     const supplied = Buffer.from(request.headers.authorization || '');

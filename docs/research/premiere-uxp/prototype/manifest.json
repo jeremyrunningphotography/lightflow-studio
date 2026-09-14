@@ -7,7 +7,7 @@
   "host": { "app": "premierepro", "minVersion": "26.5.0" },
   "requiredPermissions": {
     "localFileSystem": "request",
-    "network": { "domains": ["http://127.0.0.1:47856"] }
+    "network": { "domains": ["http://localhost"] }
   },
   "entrypoints": [{
     "type": "panel", "id": "research", "label": "Lightflow 256 Research",

@@ -18,6 +18,8 @@ const { createBridge } = require('./bridge.cjs');
     assert.equal(await request(), 401);
     assert.equal(await request({ Authorization: 'Bearer wrong' }), 401);
     assert.equal(await request(auth), 200);
+    assert.equal(await request({ ...auth, Host: 'localhost:47856' }), 200);
+    assert.equal(await request({ ...auth, Host: 'localhost:47857' }), 403);
     assert.equal(await request({ ...auth, Origin: 'https://example.com' }), 403);
     assert.equal(await request({ ...auth, Host: 'attacker.example' }), 403);
     assert.equal(await request({ ...auth, 'Sec-Fetch-Site': 'cross-site' }), 403);

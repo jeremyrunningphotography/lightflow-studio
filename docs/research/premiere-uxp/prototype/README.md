@@ -4,6 +4,13 @@ This is an experiment, not a production companion. It never reads the Lightflow 
 Fixture UUIDs demonstrate contract shape only; production must consume existing identities.
 See [the research report](../README.md) for observed versus documented results.
 
+Core proof executed on Premiere 26.5.0.99 / UXP `uxp-9.3.0-local`, UDT 2.3.0.5.
+Reviewed results are in `../evidence`. The working network declaration is `http://localhost`;
+the client uses port 47856 and the server binds only numeric loopback. Numeric-IP manifest entries
+failed in this environment. Unload/load after manifest edits. Native subclip bounds were verified
+in Edit Subclip; ProjectItem in/out getters did not return those bounds. Broader lifecycle,
+save/reopen, undo/redo, negative proxy compatibility and clean CCX installation remain unproven.
+
 ## Reproduce
 
 1. From the repository root, generate new synthetic fixtures:

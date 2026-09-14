@@ -1,0 +1,121 @@
+{
+  "startedUtc": "2026-09-11T20:45:41.701Z",
+  "prototype": "0.0.1",
+  "steps": [
+    {
+      "step": "destinationCheck",
+      "value": {
+        "selectedFolder": "C:\\Git\\lightflow-studio\\artifacts\\research\\premiere-256\\1c976eac-c3bd-4bce-a4e6-b45f28b4ec27",
+        "expectedPath": "C:\\Git\\lightflow-studio\\artifacts\\research\\premiere-256\\1c976eac-c3bd-4bce-a4e6-b45f28b4ec27/Lightflow-256-disposable.prproj",
+        "actualPath": "\\\\?\\C:\\Git\\lightflow-studio\\artifacts\\research\\premiere-256\\1c976eac-c3bd-4bce-a4e6-b45f28b4ec27\\Lightflow-256-disposable.prproj"
+      }
+    },
+    {
+      "step": "runtime",
+      "value": {
+        "host": "premierepro",
+        "hostVersion": "26.5.0",
+        "uxpVersion": "uxp-9.3.0-local",
+        "applicationPath": "C:\\Program Files\\Adobe\\Adobe Premiere Pro 2026\\Adobe Premiere Pro.exe"
+      }
+    },
+    {
+      "step": "timebase",
+      "value": {
+        "oneSecondTicks": "254016000000",
+        "requestedInTicks": "254016000000",
+        "requestedOutTicks": "762048000000"
+      }
+    },
+    {
+      "step": "activeProject",
+      "value": {
+        "guid": "7d8cc53c-b864-4646-aea8-6494db4134aa",
+        "path": "\\\\?\\C:\\Git\\lightflow-studio\\artifacts\\research\\premiere-256\\1c976eac-c3bd-4bce-a4e6-b45f28b4ec27\\Lightflow-256-disposable.prproj",
+        "name": "Lightflow-256-disposable.prproj",
+        "resolvedByGuid": "7d8cc53c-b864-4646-aea8-6494db4134aa"
+      }
+    },
+    {
+      "step": "bin",
+      "value": {
+        "id": "632f0c75-76b5-410d-ad49-90f4490354b6",
+        "name": "Lightflow-256"
+      }
+    },
+    {
+      "step": "importReturn",
+      "value": true
+    },
+    {
+      "step": "source",
+      "value": {
+        "assetId": "766c81b2-7217-45c8-84e6-288d1b0498c0",
+        "id": "06dcbe6b-bb69-4280-b405-ab82ceb79dd3",
+        "path": "C:\\Git\\lightflow-studio\\artifacts\\research\\premiere-256\\1c976eac-c3bd-4bce-a4e6-b45f28b4ec27\\source.mov"
+      }
+    },
+    {
+      "step": "pathSearchCandidates",
+      "value": [
+        {
+          "id": "06dcbe6b-bb69-4280-b405-ab82ceb79dd3",
+          "name": "source.mov"
+        }
+      ]
+    },
+    {
+      "step": "subclip",
+      "value": {
+        "id": "0e9bf3fb-0b65-45a3-95a3-5729a9e406d0",
+        "name": "LF256 native 1-3 seconds",
+        "videoIn": "-101606400000000000",
+        "videoOut": "-101606400000000000",
+        "audioIn": "-101606400000000000",
+        "audioOut": "-101606400000000000",
+        "hardBoundariesRequested": true,
+        "trimmingBeyondBounds": "requires interactive follow-up"
+      }
+    },
+    {
+      "step": "marker",
+      "value": {
+        "guid": "44506b04-7a3b-4420-8afd-e678a90febd4",
+        "name": "LF256 point",
+        "comments": "Disposable Lightflow marker",
+        "type": "Comment",
+        "colorIndex": 1,
+        "start": "508032000000",
+        "initialDuration": "0",
+        "duration": "127008000000"
+      }
+    },
+    {
+      "step": "proxy",
+      "value": {
+        "canProxy": true,
+        "before": {
+          "hasProxy": false,
+          "path": ""
+        },
+        "attached": true,
+        "after": {
+          "hasProxy": true,
+          "path": "C:\\Git\\lightflow-studio\\artifacts\\research\\premiere-256\\1c976eac-c3bd-4bce-a4e6-b45f28b4ec27\\proxy.mov"
+        },
+        "undoable": false
+      }
+    },
+    {
+      "step": "save",
+      "value": true
+    },
+    {
+      "step": "loopback",
+      "value": {
+        "error": "f: Permission denied to the url http://127.0.0.1:47856/health. Manifest entry not found."
+      }
+    }
+  ],
+  "finishedUtc": "2026-09-11T20:45:54.142Z"
+}

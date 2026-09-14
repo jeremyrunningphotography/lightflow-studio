@@ -1,6 +1,6 @@
 # Premiere UXP edit-handoff research — #256
 
-Research date: 2026-09-11. Status: **in progress; runtime proof pending**.
+Research date: 2026-09-11; reconciled 2026-09-14. Status: **core runtime proof exercised; architecture/product review checkpoint**.
 Starting main: `7d37f893f680fff69a2c8d6b2ec6cb0f221f5939` (fetched and reconfirmed).
 Branch: `codex/256-premiere-uxp-research`. No production application files changed.
 
@@ -44,7 +44,7 @@ No release targets, milestones, extra blockers, or new implementation issues wer
 Prototype and reproduction instructions: [prototype/README.md](prototype/README.md).
 Generated data lives under ignored `artifacts/research/premiere-256/`, not the Catalog.
 
-### Host setup checkpoint
+### Historical host setup checkpoint at 3ff20cf (superseded below)
 
 UXP Developer Tool 2.3.0.5 is installed and the research manifest is registered as
 `lightflow-research-256`. Load and Load & Watch returned **No applications are connected to
@@ -70,6 +70,54 @@ Adobe's [CLI source instructions](https://github.com/adobe-uxp/devtools-cli/blob
 describe manual Yarn setup and warn that npm installation is unsupported. Prefer restoring
 the current UDT host connection rather than treating this older package as a tested Premiere tool.
 No loopback bridge was started and no UXP evidence or mapping file has been generated.
+
+### Successful runtime proof — September 11
+
+The preferred UDT retry succeeded with UDT 2.3.0.5, Premiere 26.5.0.99 and reported UXP
+`uxp-9.3.0-local`. Load, Debug, Reload, Unload and fresh Load worked. No CLI or legacy fallback
+was needed. The intervening cause of host recovery was not isolated. The earlier pending/unobserved
+entries above describe checkpoint 3ff20cf and are superseded by these results.
+
+Reviewed evidence: [first core run](evidence/first-core-run.json), [repeat run](evidence/repeat-run.json),
+[localhost success](evidence/localhost-success.json), [subclip dialog](evidence/subclip-bounds.png).
+Only disposable paths, IDs and results are included; pairing credentials are excluded.
+
+- Active project GUID resolved to the same project. Premiere returned a Windows extended drive path,
+  whereas folder selection returned an ordinary drive path. The initial destination guard rejected
+  this before mutation. Normalizing the equivalent prefix fixed it while retaining full path/GUID checks.
+- One bin, source and native subclip were created. Repeated runs reused mapped IDs without duplicate
+  imports/subclips/markers, including across plugin unload/load in the same project session.
+- The native subclip requested [1s, 3s), both audio/video, hard boundaries. Edit Subclip showed
+  01:00:01:00 to inclusive displayed end 01:00:02:29, duration 00:00:02:00 at 30fps, and checked
+  Restrict Trims To Subclip Boundaries. Actual timeline trim enforcement remains untested.
+  ProjectItem in/out getters returned `-101606400000000000`; Media getters described the underlying
+  six-second source. Neither getter is a reliable readback of the native subclip bounds.
+- Created a source-clip Comment marker at 2s with zero duration, name and comments. Its GUID remained
+  stable while setting color index 1 and duration 0.5s, and on repeated runs. Reopen persistence is untested.
+- Proxy capability was true; attachment returned true and exact path/state readback confirmed it.
+  Repeats recognized the existing attachment. Fixture: MPEG-4/PCM MOV, 30fps, six seconds, stereo
+  48kHz, 640x360 source/320x180 proxy, matching 01:00:00:00 timecode. This is one positive case,
+  not a codec whitelist, compatibility rejection contract, or playback proof.
+- Locked named transactions created bin/subclip/marker and changed marker properties. Save returned
+  true. Proxy non-undoability remains a documentation claim; actual undo/redo was not exercised.
+- Source/proxy SHA256 still matched generation values after these runs; no adjacent XMP sidecar
+  appeared. This observation is specific to these MOV fixtures and current metadata preferences.
+- Numeric loopback manifest declarations with and without port failed with `Permission denied ...
+  Manifest entry not found`, including fresh unload/load. `http://localhost` in the manifest and
+  `http://localhost:47856/health` in fetch succeeded with session-token authentication. The server
+  remained bound to 127.0.0.1, with exact allowed Host/port checks. The manifest grants a hostname,
+  not one port; enforce the fixed endpoint in code. This is an observed workaround, not a universal
+  claim about numeric IPs in UXP. No all-domains permission was used.
+
+The Windows folder picker had to be targeted as its own top-level window. Screenshot-backed UDT
+input worked where text-only state had lacked coordinate geometry. These are test-control findings,
+not a proposed integration architecture.
+
+The core proof stopping point is reached. #256 remains open for review; #257 has not started.
+Recommend a UXP client with authenticated localhost HTTP and existing Catalog identities, subject
+to cold-start CCX permissions and lifecycle testing before any near-one-click/background promise.
+File-manifest transport remains a fallback candidate; automatic polling is not proven.
+Remaining checks below are explicit acceptance risks, not successful results.
 
 ## Existing Lightflow ownership boundaries
 
@@ -97,7 +145,8 @@ That command is not a durable proxy artifact model or a demonstrated Premiere-co
 
 ## Documented capability matrix
 
-Every row below awaits runtime confirmation unless explicitly stated elsewhere.
+Minimum versions below are documentation claims; older hosts were not tested. The successful runtime
+ledger above supplies core confirmation on 26.5; this table also lists broader checks still needed.
 
 | Capability | Documented surface / minimum | Evidence needed |
 | --- | --- | --- |
@@ -335,7 +384,7 @@ pairing ACLs, command transport, persistent journals, or background lifecycle.
 
 ## Remaining acceptance gates
 
-1. Load companion and record actual host/UXP versions and every core API result.
+1. Core load/import/subclip/marker/proxy/identity and visible-panel HTTP proof completed; see evidence.
 2. Prove exact native subclip bounds, hard-boundary trimming, and audio/video inclusion variants.
 3. Prove marker properties/GUID persistence and source-file/sidecar effects.
 4. Prove proxy positive/negative compatibility and explicitly non-undoable behavior.
@@ -343,5 +392,9 @@ pairing ACLs, command transport, persistent journals, or background lifecycle.
 6. Prove loopback permissions and hidden/background availability, multiple/no projects and reconnect.
 7. Verify independent production installation/update without development tooling.
 
-Only then finalize architecture decisions in #256, surgically refine #226/#39 and #257–#260 where
-evidence changes their contracts, reconcile the Epic, and stop for product/architecture review.
+Stop now at the requested core-proof milestone for architecture/product review. Do not begin #257
+or close #256 as fully accepted. Keep the broader checks explicit before production commitments.
+Review refinements: #257 needs exact localhost endpoint validation and cold-start/lifecycle checks;
+#258 must distinguish native bounds from review in/out and retain exclusive-Out conversion;
+#259 maps durable MarkerId to destination GUID without making Premiere colors/types mandatory UI;
+#260 verifies attachment readback separately from media compatibility. No extra dependency edges.

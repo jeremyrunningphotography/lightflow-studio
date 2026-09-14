@@ -4,7 +4,7 @@ const uxp = require('uxp');
 const fs = uxp.storage.localFileSystem;
 const projectName = 'Lightflow-256-disposable.prproj';
 let busy = false;
-const normalize = value => value.replace(/\\/g, '/').toLowerCase();
+const normalize = value => value.replace(/\\/g, '/').replace(/^\/\/\?\/(?=[a-z]:\/)/i, '').toLowerCase();
 const guid = value => value ? value.toString() : null;
 const id = item => typeof item.getId === 'function' ? item.getId() : ppro.ProjectItem.cast(item).getId();
 const tick = value => ppro.TickTime.createWithTicks(value);
@@ -56,6 +56,8 @@ async function main() {
     const proxy = await folder.getEntry('proxy.mov');
     const projectPath = folder.nativePath + '/' + projectName;
     let project = await ppro.Project.getActiveProject();
+    await log('destinationCheck', { selectedFolder: folder.nativePath, expectedPath: projectPath,
+      actualPath: project && project.path });
     // Never operate on, save, close, or repurpose an existing real project.
     if (project && normalize(project.path) !== normalize(projectPath))
       throw new Error('Close real/other projects before running the disposable proof');
@@ -147,7 +149,10 @@ async function main() {
         await checkpoint();
       }
       const sub = ppro.ClipProjectItem.cast(subclip);
+      const media = await sub.getMedia();
       return { id: id(subclip), name: subclip.name,
+        mediaStart: media.getStart().ticks, mediaDuration: media.getDuration().ticks,
+        contentType: await sub.getContentType(),
         videoIn: (await sub.getInPoint(ppro.Constants.MediaType.VIDEO)).ticks,
         videoOut: (await sub.getOutPoint(ppro.Constants.MediaType.VIDEO)).ticks,
         audioIn: (await sub.getInPoint(ppro.Constants.MediaType.AUDIO)).ticks,
@@ -193,7 +198,7 @@ async function main() {
     await log('save', await project.save());
     await optional('loopback', async () => {
       const pairing = JSON.parse(await (await folder.getEntry('pairing.json')).read());
-      const response = await fetch('http://127.0.0.1:47856/health', {
+      const response = await fetch('http://localhost:47856/health', {
         headers: { Authorization: `Bearer ${pairing.token}` }
       });
       if (!response.ok) throw new Error(`Loopback HTTP ${response.status}`);

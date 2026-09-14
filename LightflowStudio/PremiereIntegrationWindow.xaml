@@ -1,0 +1,27 @@
+<Window x:Class="LightflowStudio.PremiereIntegrationWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Premiere Pro Integration" Width="620" Height="650" MinWidth="520" MinHeight="500"
+ WindowStartupLocation="CenterOwner" Background="{StaticResource WindowBrush}" Foreground="{StaticResource TextBrush}">
+ <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="24">
+  <TextBlock Text="Premiere Pro Integration" FontSize="24" FontWeight="SemiBold"/>
+  <TextBlock x:Name="ConnectionText" Margin="0,16,0,4" FontSize="16" TextWrapping="Wrap"/>
+  <TextBlock x:Name="ProjectText" TextWrapping="Wrap"/>
+  <TextBlock x:Name="GuidanceText" Margin="0,8,0,12" TextWrapping="Wrap"/>
+  <WrapPanel><Button Content="Install / update companion…" Click="Install_Click" Margin="0,0,8,8"/>
+   <Button Content="Refresh installation" Click="Refresh_Click" Margin="0,0,8,8"/>
+   <Button Content="Reconnect / rotate pairing" Click="Pair_Click" Margin="0,0,8,8"/>
+  </WrapPanel>
+  <TextBlock Text="In the Premiere companion, select this pairing folder:" TextWrapping="Wrap"/>
+  <TextBox x:Name="PairingPath" IsReadOnly="True" Margin="0,6,0,16" TextWrapping="Wrap"/>
+  <TextBlock x:Name="SelectionText" TextWrapping="Wrap"/>
+  <TextBlock Text="Destination bin" Margin="0,12,0,4"/>
+  <ComboBox x:Name="Bins" DisplayMemberPath="Name"/>
+  <TextBlock Text="Create or use a child bin (optional)" Margin="0,12,0,4"/>
+  <TextBox x:Name="NewBinName" MaxLength="100"/>
+  <TextBlock Text="Retries verify existing items and preserve editor names and bins. Cancellation stops between items; completed imports remain in Premiere. Save the Premiere project after handoff."
+   Margin="0,12,0,12" TextWrapping="Wrap"/>
+  <Button x:Name="SendButton" Content="Send to Premiere Pro" Click="Send_Click" HorizontalAlignment="Right"/>
+  <TextBlock x:Name="ResultText" Margin="0,12,0,0" TextWrapping="Wrap"/>
+ </StackPanel></ScrollViewer>
+</Window>

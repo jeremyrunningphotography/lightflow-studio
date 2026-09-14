@@ -77,6 +77,7 @@ finally {
 }
 
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "PremiereHelper") -Destination (Join-Path $appDirectory "PremiereHelper") -Recurse -Force
+& (Join-Path $PSScriptRoot "Build-PremiereCompanion.ps1") -OutputPath (Join-Path $appDirectory "PremiereCompanion\LightflowStudio.ccx")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "THIRD-PARTY-NOTICES.md") -Destination $appDirectory -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "dependencies\flyleaf.json") -Destination (Join-Path $appDirectory "flyleaf-package.json") -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "dependencies\flyleaf-fast-seek.patch") -Destination $appDirectory -Force

@@ -1,0 +1,17 @@
+{
+  "manifestVersion": 5,
+  "id": "com.lightflowstudio.premiere",
+  "name": "Lightflow Studio Companion",
+  "version": "1.0.1",
+  "main": "index.html",
+  "host": { "app": "premierepro", "minVersion": "26.5.0" },
+  "requiredPermissions": {
+    "localFileSystem": "request",
+    "network": { "domains": ["http://localhost"] }
+  },
+  "entrypoints": [{
+    "type": "panel", "id": "lightflow", "label": "Lightflow Studio",
+    "minimumSize": { "width": 320, "height": 240 },
+    "preferredDockedSize": { "width": 400, "height": 400 }
+  }]
+}

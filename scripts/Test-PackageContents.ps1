@@ -20,6 +20,7 @@ $requiredFiles = @(
     "flyleaf-fast-seek.md",
     "PremiereHelper\Export-V1-Clips.jsx",
     "PremiereHelper\README.txt",
+    "PremiereCompanion\LightflowStudio.ccx",
     "ffmpeg\bin\ffmpeg.exe",
     "ffmpeg\bin\ffprobe.exe",
     "ffmpeg\ffmpeg-package.json",

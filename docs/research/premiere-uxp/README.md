@@ -16,7 +16,7 @@ Existing Area option IDs were preserved when adding the approved generic NLE Are
 | Issue | Priority | Status | Native parent | Native blockers |
 | --- | --- | --- | --- | --- |
 | #255 | P2 — Normal | In Progress | None | None |
-| #256 | P1 — High | In Progress | #255 | None |
+| #256 | P1 — High | Review | #255 | None |
 | #257 | P2 — Normal | Backlog | #255 | #256 |
 | #258 | P2 — Normal | Backlog | #255 | #256, #257 |
 | #259 | P2 — Normal | Backlog | #255 | #256, #257, #226 |
@@ -34,12 +34,14 @@ No release targets, milestones, extra blockers, or new implementation issues wer
   reports ProductVersion `26.5.0`, FileVersion `26.5.0.99`.
 - **Documented current release:** Adobe's September 9 release notes identify 26.5.
   [Release notes](https://helpx.adobe.com/premiere/desktop/whats-new/release-notes.html).
-- **Target:** Premiere 26.5, manifest v5; actual UXP runtime version must come from the loaded plugin.
+- **Observed target:** Premiere 26.5, manifest v5; loaded runtime `uxp-9.3.0-local`.
 - **Observed outside Premiere:** synthetic 6-second 30/1 fps fixtures, 180 video frames, stereo audio,
   640×360 source and 320×180 proxy generated and FFprobe-checked; JavaScript syntax and authenticated
   Node HTTP boundary checks passed.
-- **Not yet observed:** plugin load, API mutations, destination identifiers, UXP network request,
-  save/reopen identity, undo, hard-boundary enforcement, source-file side effects, production installation.
+- **Observed:** plugin load, core mutations/identifiers, repeated execution and UXP HTTP request;
+  see the successful runtime ledger below for exact evidence and limitations.
+- **Still untested:** save/reopen identity, actual undo/redo and trim enforcement, negative proxy
+  compatibility/playback, other source metadata preferences, background lifecycle, production installation.
 
 Prototype and reproduction instructions: [prototype/README.md](prototype/README.md).
 Generated data lives under ignored `artifacts/research/premiere-256/`, not the Catalog.
@@ -113,7 +115,7 @@ The Windows folder picker had to be targeted as its own top-level window. Screen
 input worked where text-only state had lacked coordinate geometry. These are test-control findings,
 not a proposed integration architecture.
 
-The core proof stopping point is reached. #256 remains open for review; #257 has not started.
+The core proof stopping point is reached. #256 remains open in Review; #257 has not started.
 Recommend a UXP client with authenticated localhost HTTP and existing Catalog identities, subject
 to cold-start CCX permissions and lifecycle testing before any near-one-click/background promise.
 File-manifest transport remains a fallback candidate; automatic polling is not proven.
@@ -398,3 +400,7 @@ Review refinements: #257 needs exact localhost endpoint validation and cold-star
 #258 must distinguish native bounds from review in/out and retain exclusive-Out conversion;
 #259 maps durable MarkerId to destination GUID without making Premiere colors/types mandatory UI;
 #260 verifies attachment readback separately from media compatibility. No extra dependency edges.
+
+On September 14, #226/#39 received the proven compatibility guidance without new product scope;
+their Areas, parent Epics and P2 were verified unchanged. #255 remains In Progress, #256 Review,
+#257–#260 Backlog, and all specified native parent/blocker relationships were rechecked.

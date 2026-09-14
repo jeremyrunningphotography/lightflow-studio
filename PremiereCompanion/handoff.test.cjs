@@ -5,8 +5,8 @@ const vm = require('node:vm');
 const fsForPanel = require('node:fs');
 
 test('panel allows only one folder picker and restores Connect after cancellation', async () => {
-  const elements = Object.fromEntries(['pair', 'disconnect', 'status'].map(name => [name,
-    { addEventListener(_, handler) { this.click = handler; } }]));
+  const elements = Object.fromEntries(['pair', 'disconnect', 'status', 'forget', 'troubleshoot', 'recovery'].map(name => [name,
+    { style: {}, addEventListener(_, handler) { this.click = handler; } }]));
   let calls = 0;
   let cancel;
   const uxp = { storage: { localFileSystem: { getFolder() {
@@ -15,16 +15,20 @@ test('panel allows only one folder picker and restores Connect after cancellatio
   } } } };
   vm.runInNewContext(fsForPanel.readFileSync(require.resolve('./index.js'), 'utf8'), {
     require: name => name === 'uxp' ? uxp : name === 'premierepro' ? {} : require(name),
-    document: { getElementById: name => elements[name] }
+    document: { getElementById: name => elements[name] },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} }
   });
+  await new Promise(resolve => setImmediate(resolve));
   const first = elements.pair.click();
   assert.equal(elements.pair.disabled, true);
   await elements.pair.click();
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(calls, 1);
   cancel(null);
   await first;
   assert.equal(elements.pair.disabled, false);
   const next = elements.pair.click();
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(calls, 2);
   cancel(null);
   await next;

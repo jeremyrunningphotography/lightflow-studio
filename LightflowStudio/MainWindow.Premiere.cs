@@ -4,6 +4,13 @@ namespace LightflowStudio;
 
 public partial class MainWindow
 {
+    private bool _premiereClosing;
+    private async Task ResumePremiereAsync()
+    {
+        if (!System.IO.File.Exists(System.IO.Path.Combine(_storage.Locations.PremierePairingDirectory, "lightflow-pairing.json"))) return;
+        try { await EnsurePremiereAsync(); }
+        catch (Exception error) { AppendLog($"Premiere automatic connection unavailable: {error.Message}"); }
+    }
     private PremiereBridge? _premiereBridge;
     private PremiereJobs? _premiereJobs;
     private IReadOnlyList<JobsWorkspaceItem> _premiereHistory = [];
@@ -23,10 +30,11 @@ public partial class MainWindow
         await _premiereStart.WaitAsync();
         try
         {
-            if (_premiereBridge is not null) return;
+            if (_premiereBridge is not null || _premiereClosing) return;
             var journal = new CatalogPremiereHandoffs(() => _storage.CatalogAvailable ? _storage.CatalogSession : null);
             var bridge = new PremiereBridge(journal, _storage.Locations.PremierePairingDirectory);
             await bridge.StartAsync();
+            if (_premiereClosing) { await bridge.DisposeAsync(); return; }
             _premiereBridge = bridge;
             _premiereJobs = new(journal, bridge);
             _premiereJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
@@ -56,9 +64,9 @@ public partial class MainWindow
             var route = PremiereSendState.Route(connection);
             if (route != PremiereSendRoute.Send)
             {
-                if (route == PremiereSendRoute.Settings || System.Windows.MessageBox.Show(this,
-                    $"Premiere is not connected. {connection.Message}\n\nOpen integration Settings?",
-                    "Send to Premiere Pro", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                if (route == PremiereSendRoute.Settings || NoticeDialog.OfferAction(this,
+                    "Send to Premiere Pro", "Premiere is not connected",
+                    $"{connection.Message}\n\nOpen Integration Settings for setup and connection help.", "Open Integration Settings"))
                     new PremiereIntegrationWindow(_premiereBridge) { Owner = this }.ShowDialog();
                 return;
             }

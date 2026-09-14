@@ -306,6 +306,7 @@ public partial class MainWindow : Window
                 RefreshCatalogBackups();
                 RefreshHistory();
                 await LoadPremiereHistoryAsync();
+                _ = ResumePremiereAsync();
                 if (_jobsWorkspaceSmokeTest)
                     MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs);
                 LocateTools();
@@ -339,6 +340,7 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _premiereClosing = true;
             _premiereJobs?.CancelAll();
             _premiereBridge?.DisposeAsync().AsTask().GetAwaiter().GetResult();
             ResetBrowserAssetGesture();

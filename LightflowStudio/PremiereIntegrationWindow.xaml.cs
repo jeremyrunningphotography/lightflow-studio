@@ -15,7 +15,6 @@ public partial class PremiereIntegrationWindow : Window
     {
         InitializeComponent();
         _bridge = bridge;
-        PairingPath.Text = bridge.PairingDirectory;
         _timer.Tick += (_, _) => RefreshConnection();
         Loaded += async (_, _) => { _timer.Start(); await InspectAsync(); RefreshConnection(); };
         Closed += (_, _) => _timer.Stop();
@@ -37,14 +36,23 @@ public partial class PremiereIntegrationWindow : Window
             _ => "Ready"
         };
         GuidanceText.Text = connection.State == PremiereConnectionState.Connected ? "Authenticated companion connection is healthy." : connection.Message;
+        InstallButton.Visibility = connection.State is PremiereConnectionState.CompanionNotInstalled or PremiereConnectionState.UpdateRequired
+            ? Visibility.Visible : Visibility.Collapsed;
+        InstallButton.Content = connection.State == PremiereConnectionState.UpdateRequired ? "Update Companion…" : "Install Companion…";
         var hello = connection.Companion;
         ProjectText.Text = hello is null ? "" : $"Project: {hello.Project?.Name ?? "No active project"}\nCompanion: {hello.CompanionVersion}";
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await InspectAsync();
+    private void CopySetup_Click(object sender, RoutedEventArgs e)
+    {
+        try { System.Windows.Clipboard.SetText(_bridge.PairingDirectory); ResultText.Text = "Setup location copied. Paste it into Adobe's folder picker address bar, press Enter, then select the folder."; }
+        catch (Exception) { ResultText.Text = "The clipboard is busy. Try Copy Setup Location again."; }
+    }
+    private void Done_Click(object sender, RoutedEventArgs e) => Close();
     private async void Pair_Click(object sender, RoutedEventArgs e)
     {
-        try { await _bridge.RotatePairingAsync(); ResultText.Text = "Connection reset. Choose Connect to Lightflow in the companion and select the connection folder again."; RefreshConnection(); }
+        try { await _bridge.RotatePairingAsync(); ResultText.Text = "Connection reset. The companion will reconnect automatically using its remembered access. If paused, choose Resume Connection in the companion."; RefreshConnection(); }
         catch (Exception error) { ResultText.Text = error.Message; }
     }
     private void Install_Click(object sender, RoutedEventArgs e)

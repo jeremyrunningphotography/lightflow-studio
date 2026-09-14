@@ -14,6 +14,37 @@ public class PremiereBridgeCollection;
 [Collection("Premiere bridge")]
 public sealed class PremiereBridgeTests : IAsyncLifetime
 {
+    [Fact]
+    public async Task AutomaticRenewalKeepsValidCredentialsAndRejectsOldCredentialsAfterExpiry()
+    {
+        await _bridge.RenewExpiredPairingAsync();
+        Assert.True(_bridge.Authenticate("localhost:47857", _authorization, false, IPAddress.Loopback));
+        _now = _now.AddHours(8);
+        Assert.False(_bridge.Authenticate("localhost:47857", _authorization, false, IPAddress.Loopback));
+        await _bridge.RenewExpiredPairingAsync();
+        using var renewed = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(_bridge.PairingDirectory, "lightflow-pairing.json")));
+        var authorization = "Bearer " + renewed.RootElement.GetProperty("token").GetString();
+        Assert.NotEqual(_authorization, authorization);
+        Assert.False(_bridge.Authenticate("localhost:47857", _authorization, false, IPAddress.Loopback));
+        Assert.True(_bridge.Authenticate("localhost:47857", authorization, false, IPAddress.Loopback));
+        Assert.False(_bridge.Authenticate("localhost:47857", authorization, true, IPAddress.Loopback));
+        Assert.False(_bridge.Authenticate("localhost:47857", authorization, false, IPAddress.Parse("192.0.2.1")));
+        Assert.Equal(PremiereConnectionState.Ready, _bridge.Connection.State);
+    }
+    [Fact]
+    public async Task FailedExpiredCredentialPublicationCanBeRetried()
+    {
+        _now = _now.AddHours(8);
+        var path = Path.Combine(_bridge.PairingDirectory, "lightflow-pairing.json");
+        using (var locked = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var failure = await Record.ExceptionAsync(() => _bridge.RenewExpiredPairingAsync());
+            Assert.True(failure is IOException or UnauthorizedAccessException);
+        }
+        await _bridge.RenewExpiredPairingAsync();
+        using var renewed = JsonDocument.Parse(await File.ReadAllTextAsync(path));
+        Assert.True(_bridge.Authenticate("localhost:47857", "Bearer " + renewed.RootElement.GetProperty("token").GetString(), false, IPAddress.Loopback));
+    }
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "Lightflow-Premiere-tests", Guid.NewGuid().ToString("N"));
     private CatalogDatabaseSession _session = null!;
     private CatalogPremiereHandoffs _journal = null!;

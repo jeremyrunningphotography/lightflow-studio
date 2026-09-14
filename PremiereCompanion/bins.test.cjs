@@ -56,11 +56,12 @@ function panel(activeProject) {
     require: name => name === 'premierepro' ? {
       Project: { getActiveProject: activeProject }, FolderItem: { cast: folder }
     } : name === 'uxp' ? { storage: { localFileSystem: {} }, host: { version: '26.5.0' }, versions: { uxp: '9.3.0' } } : require(name),
-    document: { getElementById: () => ({ addEventListener() {} }) },
+    document: { getElementById: () => ({ style: {}, addEventListener() {} }) },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     fetch: async (_, options) => { messages.push(JSON.parse(options.body)); return { ok: true, status: 200, json: async () => ({}) }; }
   });
   vm.runInContext(require('node:fs').readFileSync(require.resolve('./index.js'), 'utf8'), context);
-  vm.runInContext("running = true; pairing = { endpoint: ENDPOINT, expiresUtc: '2099-01-01', token: 'test' };", context);
+  vm.runInContext("running = true; access.read = async () => ({ endpoint: ENDPOINT, protocol: 1, expiresUtc: '2099-01-01', token: 'A'.repeat(64) });", context);
   return { messages, heartbeat: discover => vm.runInContext(`heartbeat(${discover})`, context) };
 }
 test('production heartbeat publishes root and clears prior bins on busy project switch', async () => {

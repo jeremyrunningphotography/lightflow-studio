@@ -3,17 +3,18 @@ const ppro = require('premierepro');
 const uxp = require('uxp');
 const { execute, sameProject } = require('./handoff.js');
 const { ProjectBins, enumerateBins } = require('./bins.js');
+const { PairingAccess, validatePairing, ENDPOINT } = require('./pairing.js');
 const fs = uxp.storage.localFileSystem;
-const ENDPOINT = 'http://localhost:47857';
+const access = new PairingAccess(fs, localStorage);
 const instanceId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 let pairing = null;
-let folder = null;
 let running = false;
 let busy = false;
 let lastHealthy = 0;
 let timer = null;
 let pulseBusy = false;
 let pairingInProgress = false;
+let connectionGeneration = 0;
 const projectBins = new ProjectBins();
 const status = text => { document.getElementById('status').textContent = text; };
 const id = item => String(typeof item.getId === 'function' ? item.getId() : ppro.ProjectItem.cast(item).getId());
@@ -33,8 +34,8 @@ async function walk(bin, depth = 0) {
 }
 
 async function request(path, payload, dispatchId = '') {
-  if (!running || !pairing || pairing.endpoint !== ENDPOINT || Date.parse(pairing.expiresUtc) <= Date.now())
-    throw new Error('Pairing expired. Reconnect from Lightflow.');
+  if (!running) throw new Error('Connection paused. Choose Resume Connection.');
+  validatePairing(pairing);
   const response = await fetch(ENDPOINT + path, { method: 'POST', redirect: 'error',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${pairing.token}`,
       'X-Lightflow-Session': instanceId, 'X-Lightflow-Dispatch': dispatchId },
@@ -46,6 +47,8 @@ async function request(path, payload, dispatchId = '') {
 }
 
 async function heartbeat(discoverBins = true) {
+  pairing = await access.read();
+  if (!running) throw new Error('Connection paused.');
   const project = await ppro.Project.getActiveProject();
   const description = describe(project);
   const bins = await projectBins.read(description, discoverBins, async () =>
@@ -53,7 +56,7 @@ async function heartbeat(discoverBins = true) {
   const current = describe(await ppro.Project.getActiveProject());
   if ((description || current) && !sameProject(description, current))
     throw new Error('Active project changed while reading bins. Waiting for the current project.');
-  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.3', protocol: 1,
+  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.4', protocol: 1,
     hostVersion: uxp.host.version, uxpVersion: uxp.versions.uxp, project: description, bins });
   lastHealthy = Date.now();
   return project;
@@ -130,33 +133,56 @@ async function tick() {
       await new Promise(resolve => setTimeout(resolve, 100));
       await request('/v1/receipt', result, command.dispatchId);
       status(`${result.outcome}: ${result.message}`);
-    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.3`);
+    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.4`);
   } catch (error) {
     lastHealthy = 0;
     status(String(error.message || error));
   } finally { busy = false; }
 }
 
-document.getElementById('pair').addEventListener('click', async () => {
+function showConnectionAction() {
+  document.getElementById('pair').textContent = access.needsGrant ? 'Allow Connection Access…' : 'Resume Connection';
+  document.getElementById('pair').style.display = running ? 'none' : 'inline-block';
+  document.getElementById('disconnect').style.display = running ? 'inline-block' : 'none';
+}
+function stopConnection() {
+  connectionGeneration++;
+  running = false; pairing = null; lastHealthy = 0;
+  clearInterval(timer);
+}
+async function startConnection(interactive = false) {
   if (pairingInProgress) return;
   pairingInProgress = true;
+  const generation = ++connectionGeneration;
   document.getElementById('pair').disabled = true;
   try {
-    folder = await fs.getFolder();
-    if (!folder) return;
-    pairing = JSON.parse(await (await folder.getEntry('lightflow-pairing.json')).read());
-    if (pairing.endpoint !== ENDPOINT || pairing.protocol !== 1 || !/^[A-F0-9]{64}$/.test(pairing.token))
-      throw new Error('This is not a supported Lightflow pairing folder.');
+    const restored = await access.restore();
+    if (generation !== connectionGeneration) return;
+    if (!restored) {
+      status('One-time setup: in Lightflow Integration Settings, expand First-time setup and click Copy Setup Location. Choose Allow Connection Access here, paste the location into the folder picker address bar, press Enter, then Select Folder. Adobe remembers this permission.');
+      if (!interactive || !await access.grant(() => generation === connectionGeneration)) return;
+    }
+    if (generation !== connectionGeneration) return;
+    if (interactive) access.resume();
+    if (access.paused) { status('Connection paused. Choose Resume Connection when ready.'); return; }
     running = true;
     clearInterval(timer);
     timer = setInterval(tick, 1500);
     await tick();
   } catch (error) { running = false; status(String(error.message || error)); }
-  finally { pairingInProgress = false; document.getElementById('pair').disabled = false; }
-});
+  finally { pairingInProgress = false; document.getElementById('pair').disabled = false; showConnectionAction(); }
+}
+document.getElementById('pair').addEventListener('click', () => startConnection(true));
 document.getElementById('disconnect').addEventListener('click', () => {
-  running = false;
-  pairing = null;
-  clearInterval(timer);
-  status('Disconnected. Open Lightflow to pair again.');
+  stopConnection(); access.pause(); showConnectionAction();
+  status('Connection paused. Choose Resume Connection when ready.');
 });
+document.getElementById('forget').addEventListener('click', () => {
+  stopConnection(); access.forget(); showConnectionAction();
+  status('Remembered connection access removed. Choose Allow Connection Access to set up again.');
+});
+document.getElementById('troubleshoot').addEventListener('click', () => {
+  const panel = document.getElementById('recovery');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+});
+startConnection();

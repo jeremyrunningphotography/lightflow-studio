@@ -1,0 +1,46 @@
+using System.Xml.Linq;
+using Xunit;
+
+namespace LightflowStudio.Tests;
+
+public class PremiereUiContractTests
+{
+    private static string Source(string name)
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+            if (File.Exists(Path.Combine(directory.FullName, "LightflowStudio", "LightflowStudio.csproj")))
+                return Path.Combine(directory.FullName, "LightflowStudio", name);
+        throw new InvalidOperationException("Repository root not found.");
+    }
+    [Fact]
+    public void DisconnectedSendUsesSharedStyledActionInsteadOfStockMessageBox()
+    {
+        var source = File.ReadAllText(Source("MainWindow.Premiere.cs"));
+        Assert.DoesNotContain("MessageBox", source);
+        Assert.Contains("NoticeDialog.OfferAction", source);
+        Assert.Contains("Open Integration Settings", source);
+        var dialog = XDocument.Load(Source("NoticeDialog.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var cancel = dialog.Descendants().Single(e => (string?)e.Attribute(x + "Name") == "CancelButton");
+        Assert.Equal("True", (string?)cancel.Attribute("IsCancel"));
+        Assert.Equal("Not now", (string?)cancel.Attribute("Content"));
+        Assert.Contains(dialog.Descendants(), e => (string?)e.Attribute("Style") == "{StaticResource Card}");
+        var actionCode = File.ReadAllText(Source("NoticeDialog.xaml.cs"));
+        Assert.Contains("FindResource(\"PrimaryButton\")", actionCode);
+        Assert.Contains("WindowAppearance.EnableDarkTitleBar", actionCode);
+    }
+    [Fact]
+    public void SettingsKeepsSetupDetailsExpandableAndDestinationChoicesInSend()
+    {
+        var settings = XDocument.Load(Source("PremiereIntegrationWindow.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        Assert.DoesNotContain(settings.Descendants(), e => new[] { "Bins", "NewBinName", "SendButton", "PairingPath" }.Contains((string?)e.Attribute(x + "Name")));
+        var copy = settings.Descendants().Single(e => (string?)e.Attribute("Click") == "CopySetup_Click");
+        Assert.Contains(copy.Ancestors(), e => e.Name.LocalName == "Expander" && (string?)e.Attribute("Header") == "First-time setup");
+        var reset = settings.Descendants().Single(e => (string?)e.Attribute("Click") == "Pair_Click");
+        Assert.Contains(reset.Ancestors(), e => e.Name.LocalName == "Expander" && (string?)e.Attribute("Header") == "Troubleshooting");
+        var send = XDocument.Load(Source("PremiereSendWindow.xaml"));
+        foreach (var name in new[] { "Bins", "NewBinName", "SendButton" })
+            Assert.Contains(send.Descendants(), e => (string?)e.Attribute(x + "Name") == name);
+    }
+}

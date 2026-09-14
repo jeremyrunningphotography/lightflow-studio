@@ -41,6 +41,8 @@ internal sealed class PremiereBridge : IAsyncDisposable
     private Guid _dispatchId;
     private long _lastRequest;
     private bool _disposed;
+    private readonly CancellationTokenSource _maintenanceStop = new();
+    private Task? _maintenance;
     public const int HeartbeatSeconds = 10;
     public event Action? Changed;
 
@@ -58,8 +60,8 @@ internal sealed class PremiereBridge : IAsyncDisposable
             if (hello is not null && _now() < _expires && _now() - _heartbeat < TimeSpan.FromSeconds(HeartbeatSeconds))
                 return new(PremiereConnectionState.Connected, $"Connected — Premiere Pro {hello.HostVersion}", hello);
             if (hello is not null) return new(PremiereConnectionState.ConnectionProblem,
-                "Companion connection expired. Open the Lightflow companion in Premiere and reconnect.");
-            return new(PremiereConnectionState.Ready, "Open the Lightflow companion in Premiere and select the pairing folder.");
+                "The companion is not responding. Open Window > UXP Plugins > Lightflow Studio Companion in Premiere. It reconnects automatically after setup.");
+            return new(PremiereConnectionState.Ready, "In Premiere, choose Window > UXP Plugins > Lightflow Studio Companion. After first-time setup, it connects automatically.");
         }
     }
 
@@ -89,6 +91,7 @@ internal sealed class PremiereBridge : IAsyncDisposable
             await server.StartAsync().ConfigureAwait(false);
             _server = server;
             await RotatePairingAsync().ConfigureAwait(false);
+            _maintenance = MaintainPairingAsync();
         }
         catch
         {
@@ -100,17 +103,29 @@ internal sealed class PremiereBridge : IAsyncDisposable
         }
     }
 
-    public async Task RotatePairingAsync()
+    private async Task MaintainPairingAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_maintenanceStop.Token).ConfigureAwait(false))
+            {
+                try { await RenewExpiredPairingAsync().ConfigureAwait(false); }
+                catch (Exception) when (!_disposed) { _problem = "The companion connection could not be renewed. Open Integration Settings and reset the connection."; Changed?.Invoke(); }
+            }
+        }
+        catch (OperationCanceledException) when (_maintenanceStop.IsCancellationRequested) { }
+    }
+    public Task RotatePairingAsync() => RotatePairingAsync(false);
+    internal Task RenewExpiredPairingAsync() => RotatePairingAsync(true);
+    private async Task RotatePairingAsync(bool onlyIfExpired)
     {
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            _token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-            _expires = _now().AddHours(8);
-            _hello = null;
-            _incompatible = false;
-            _problem = null;
-            _completion?.TrySetException(new InvalidOperationException("Pairing rotated. Reconcile the interrupted handoff."));
+            if (_disposed || (onlyIfExpired && _now() < _expires)) return;
+            var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+            var expires = _now().AddHours(8);
             var directory = Directory.CreateDirectory(_pairingDirectory);
             if (directory.Attributes.HasFlag(FileAttributes.ReparsePoint)) throw new IOException("Pairing folder must not be a link.");
             var acl = new DirectorySecurity();
@@ -122,8 +137,14 @@ internal sealed class PremiereBridge : IAsyncDisposable
             var path = Path.Combine(_pairingDirectory, "lightflow-pairing.json");
             var temp = Path.Combine(_pairingDirectory, Guid.NewGuid().ToString("N") + ".tmp");
             await File.WriteAllTextAsync(temp, JsonSerializer.Serialize(new { endpoint = PremiereProtocol.Endpoint,
-                protocol = PremiereProtocol.Version, token = _token, expiresUtc = _expires }, PremiereProtocol.Json)).ConfigureAwait(false);
+                protocol = PremiereProtocol.Version, token, expiresUtc = expires }, PremiereProtocol.Json)).ConfigureAwait(false);
             File.Move(temp, path, true);
+            _token = token;
+            _expires = expires;
+            _hello = null;
+            _incompatible = false;
+            _problem = null;
+            _completion?.TrySetException(new InvalidOperationException("Pairing rotated. Reconcile the interrupted handoff."));
         }
         finally { _gate.Release(); }
         Changed?.Invoke();
@@ -250,6 +271,8 @@ internal sealed class PremiereBridge : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _disposed = true;
+        _maintenanceStop.Cancel();
+        if (_maintenance is not null) await _maintenance.ConfigureAwait(false);
         _token = "";
         _completion?.TrySetException(new InvalidOperationException("Lightflow is closing. Reconcile any interrupted handoff."));
         if (_server is not null) await _server.DisposeAsync().ConfigureAwait(false);

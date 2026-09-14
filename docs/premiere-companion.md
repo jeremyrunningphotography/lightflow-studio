@@ -10,11 +10,12 @@ This implementation sends source media only. Native Subclips (#258), marker proj
 1. Open Settings → General → Premiere Pro Integration in Lightflow.
 2. Install the bundled CCX through Creative Cloud Desktop. Restart Premiere after updating
    a running companion; the installed version and the loaded version can differ.
-3. Expand **Connect the companion** in integration Settings for Adobe's folder-access
-   step. Open the Lightflow Studio panel in Premiere, choose Connect to Lightflow and
-   select that folder. Keep the panel open during handoff. Folder selection is required
-   by the companion's narrow `localFileSystem: request` permission; no broad disk access
-   is granted. Reset is available under **Troubleshooting**, not a routine primary action.
+3. For first-time setup only, expand **First-time setup** in integration Settings and
+   choose **Copy Setup Location**. In Premiere, choose Window > UXP Plugins > Lightflow
+   Studio Companion, then **Allow Connection Access**. Paste the copied location into
+   Adobe's folder-picker address bar, press Enter and choose Select Folder. The companion
+   remembers Adobe's folder grant and connects automatically on subsequent launches.
+   Keep the panel open during handoff. Reset/forget controls are under Troubleshooting.
 4. Select compatible Catalog source assets in the Browser and choose **Send to Premiere Pro…**.
    If setup is needed this opens integration Settings. If disconnected, it explains the
    state and offers Settings. When connected it opens a separate Send dialog: review the
@@ -28,9 +29,36 @@ and available bins. A healthy companion with no project can be Connected, but ca
 receive a handoff. Missing/disabled components, incompatible versions and connection
 failures have separate guidance. Refresh installation after installing/updating a CCX.
 
-Lightflow starts the listener when the integration is opened. Pairing expires after
-eight hours and rotates on listener start or explicit reconnection. The companion asks
-for the pairing folder each session; no hidden/background availability is promised.
+Lightflow starts the listener when integration is first opened, then resumes a previously
+configured listener during later workspace initialization without opening Settings. It
+does not block presentation readiness on the bridge. Credentials expire after eight
+hours; a 15-second maintenance check renews expired credentials, and listener restart or
+explicit reset rotates them. The companion rereads the protected file through its saved
+folder grant on each heartbeat. Closing the panel still removes its availability.
+
+### Supported automatic setup boundary (companion 1.0.4)
+
+Adobe's [Premiere UXP filesystem documentation](https://developer.adobe.com/premiere-pro/uxp/resources/recipes/filesystem-operations/)
+distinguishes sandbox access, user-selected `request` access and arbitrary-path
+`fullAccess`. It also documents persistent folder tokens across sessions. Same-user
+Windows execution and a deterministic path do not bypass that sandbox. The supported
+implementation retains one initial folder grant rather than broadening permissions.
+There is no unauthenticated credential-discovery endpoint and no dependency on writing
+credentials into undocumented Adobe plugin-data directory layouts.
+
+Only Adobe's opaque folder token and the explicit pause choice are stored in plugin
+localStorage; Lightflow bearer credentials remain in its ACL-protected file and companion
+memory. A folder token is deliberate: a token for the credential file could break when
+Lightflow atomically replaces that file. Reconnect reads the latest file and validates
+the exact endpoint, protocol, credential format and expiry before any HTTP request.
+Malformed, missing or expired settings never authorize a request. An expired file waits
+for Lightflow renewal; an invalid Adobe grant requires the explained access step again.
+Disconnect persists a pause until Resume Connection. Forget Connection removes the grant
+and requires first-time setup again. Neither action deletes handoff reconciliation data.
+
+Settings shows installation/live status and clear next-action guidance; setup details
+are expandable, with no raw path field. The disconnected Send action reuses the shared
+Lightflow NoticeDialog, using a primary Open Integration Settings button and Not now.
 
 ## Production boundary
 
@@ -84,7 +112,7 @@ surfaces, and source receipts remain in the Catalog across Lightflow restarts.
 ## Packaging and automated validation
 
 `scripts/Build-PremiereCompanion.ps1` builds a flat deterministic CCX containing the
-five production code/manifest files and unchanged approved icon/header PNG assets.
+six production code/manifest files and unchanged approved icon/header PNG assets.
 `Build-Release.ps1` includes it at
 `PremiereCompanion/LightflowStudio.ccx`; package validation requires it.
 

@@ -45,11 +45,11 @@ internal static partial class PremiereInstallation
             return new(PremiereConnectionState.UpdateRequired, "Update Premiere Pro to 26.5 or later.");
         var plugin = CompanionRow().Match(host.Groups[2].Value);
         if (!plugin.Success) return new(PremiereConnectionState.CompanionNotInstalled,
-            "Install the Lightflow Studio companion, then open Plugins → Lightflow Studio in Premiere.");
+            "Install the companion, then in Premiere choose Window > UXP Plugins > Lightflow Studio Companion.");
         if (!plugin.Groups[2].Value.StartsWith("1.", StringComparison.Ordinal))
             return new(PremiereConnectionState.UpdateRequired, "Install the companion version included with this Lightflow release.");
         return new(PremiereConnectionState.Ready, plugin.Groups[1].Value == "Enabled"
-            ? "Companion installed. Open it in Premiere and connect to Lightflow."
+            ? "In Premiere, choose Window > UXP Plugins > Lightflow Studio Companion. Complete its one-time setup; later connections are automatic."
             : "Companion installed but disabled. Enable it in Creative Cloud Desktop.");
     }
 

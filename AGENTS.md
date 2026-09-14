@@ -20,6 +20,12 @@
 - Use the Project's existing field values and conventions. Never invent parentage, priority, Area, Status, or product scope merely to tidy the roadmap; surface genuine ambiguity for product input.
 - Project reconciliation is part of completing issue-management, PR-handoff, and merge/cleanup work. Normally inspect directly affected items, not the entire Project. Correct broader mechanical drift when authoritative repository state resolves it, and report non-mechanical ambiguity instead of guessing.
 
+## User-facing UI conventions
+
+- Before adding or modifying WPF UI, inspect comparable Lightflow surfaces and reuse their controls/resources, spacing, typography, button hierarchy, dark-theme behavior and dialog interaction patterns.
+- Use Lightflow-styled dialogs and explicit action labels; do not introduce raw/default WPF presentation (such as `MessageBox`, stock Yes/No prompts, unstyled controls or default modal chrome) where a shared Lightflow pattern exists or should be created.
+- Functional correctness alone is insufficient for new UI: packaged hands-on acceptance must include visual consistency.
+
 ## PR preparation and functional-test artifact
 
 - Jeremy functionally tests every change by running `artifacts\release\LightflowStudio\LightflowStudio.exe`.

@@ -10,10 +10,15 @@ This implementation sends source media only. Native Subclips (#258), marker proj
 1. Open Settings → General → Premiere Pro Integration in Lightflow.
 2. Install the bundled CCX through Creative Cloud Desktop. Restart Premiere after updating
    a running companion; the installed version and the loaded version can differ.
-3. Open the Lightflow Studio panel in Premiere. Select the pairing folder displayed by
-   Lightflow. Keep the panel open during handoff.
+3. Expand **Connect the companion** in integration Settings for Adobe's folder-access
+   step. Open the Lightflow Studio panel in Premiere, choose Connect to Lightflow and
+   select that folder. Keep the panel open during handoff. Folder selection is required
+   by the companion's narrow `localFileSystem: request` permission; no broad disk access
+   is granted. Reset is available under **Troubleshooting**, not a routine primary action.
 4. Select compatible Catalog source assets in the Browser and choose **Send to Premiere Pro…**.
-   Review the connected project and destination bin; optionally create/use a child bin.
+   If setup is needed this opens integration Settings. If disconnected, it explains the
+   state and offers Settings. When connected it opens a separate Send dialog: review the
+   current project and select a destination bin; optionally create/use a child bin.
 5. Follow progress and per-source results in Jobs. Save the Premiere project after import.
 
 Installation inventory is read through Adobe UPIA. Installed software yields Ready, never
@@ -78,13 +83,39 @@ surfaces, and source receipts remain in the Catalog across Lightflow restarts.
 
 ## Packaging and automated validation
 
-`scripts/Build-PremiereCompanion.ps1` builds a flat deterministic CCX containing only the
-four production files. `Build-Release.ps1` includes it at
+`scripts/Build-PremiereCompanion.ps1` builds a flat deterministic CCX containing the
+five production code/manifest files and unchanged approved icon/header PNG assets.
+`Build-Release.ps1` includes it at
 `PremiereCompanion/LightflowStudio.ccx`; package validation requires it.
 
-Run the .NET suite and `node --test PremiereCompanion/handoff.test.cjs`. Bridge tests use
+Run the .NET suite and `node --test PremiereCompanion/*.test.cjs`. Bridge tests use
 the actual HTTP listener, an isolated SQLite Catalog and Windows ACLs. The JavaScript
 suite tests reconciliation and crash gaps with injected native adapters.
+
+### Reviewed Settings/Send separation (companion 1.0.3)
+
+Settings has no bin picker, child-bin field or Send action. Its status comes from actual
+authenticated heartbeat health, with installation inventory used only when no live
+connection is available. The Send dialog clears destination/child-bin choices on project
+changes or disconnect and rechecks the current project and bin at submission. It never
+uses installation alone to authorize a send. A healthy no-project connection shows an
+instruction to open/save a project. Missing bin data has explicit waiting/error guidance.
+
+Bin enumeration was already implemented and historical production evidence contains
+root/child bins. The former combined Settings dialog nevertheless exposed an empty picker
+without a healthy project. Static investigation also found a publication defect: busy
+heartbeats could pair a new active project with cached bins from its predecessor. The
+cache is now scoped by project GUID and saved-path guard; enumeration rechecks the active
+project before publication, includes project root, and reports nesting/item/bin limits.
+Nested labels show hierarchy and retain native IDs; names are never reconciliation keys.
+The exact cause of Jeremy's observed empty dropdown cannot be established from code
+alone. Current-project population and visual rendering remain acceptance checks.
+
+The CCX uses the approved #241 PNG bytes for both panel header and manifest icon entries,
+following Adobe's [UXP manifest icon contract](https://developer.adobe.com/uxp/guides/explanation/concepts/manifest/).
+Creative Cloud/host rendering remains unverified this iteration. No computer control or
+real Premiere/UI testing was performed for 1.0.3. General startup performance is tracked
+separately in [#265](https://github.com/jeremyrunningphotography/lightflow-studio/issues/265).
 
 `PremiereLiveAcceptanceTests` is an explicitly opted-in driver, not a substitute for
 hands-on acceptance. Set `LIGHTFLOW_PREMIERE_ACCEPTANCE` to an isolated artifact directory

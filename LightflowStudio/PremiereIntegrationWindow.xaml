@@ -10,18 +10,20 @@
   <TextBlock x:Name="GuidanceText" Margin="0,8,0,12" TextWrapping="Wrap"/>
   <WrapPanel><Button Content="Install / update companion…" Click="Install_Click" Margin="0,0,8,8"/>
    <Button Content="Refresh installation" Click="Refresh_Click" Margin="0,0,8,8"/>
-   <Button Content="Reconnect / rotate pairing" Click="Pair_Click" Margin="0,0,8,8"/>
   </WrapPanel>
-  <TextBlock Text="In the Premiere companion, select this pairing folder:" TextWrapping="Wrap"/>
-  <TextBox x:Name="PairingPath" IsReadOnly="True" Margin="0,6,0,16" TextWrapping="Wrap"/>
-  <TextBlock x:Name="SelectionText" TextWrapping="Wrap"/>
-  <TextBlock Text="Destination bin" Margin="0,12,0,4"/>
-  <ComboBox x:Name="Bins" DisplayMemberPath="Name"/>
-  <TextBlock Text="Create or use a child bin (optional)" Margin="0,12,0,4"/>
-  <TextBox x:Name="NewBinName" MaxLength="100"/>
-  <TextBlock Text="Retries verify existing items and preserve editor names and bins. Cancellation stops between items; completed imports remain in Premiere. Save the Premiere project after handoff."
-   Margin="0,12,0,12" TextWrapping="Wrap"/>
-  <Button x:Name="SendButton" Content="Send to Premiere Pro" Click="Send_Click" HorizontalAlignment="Right"/>
+  <TextBlock Text="To send media, select sources in the Browser and choose Send to Premiere Pro." Margin="0,8,0,16" TextWrapping="Wrap"/>
+  <Expander Header="Connect the companion" Margin="0,0,0,12">
+   <StackPanel Margin="0,8,0,0">
+    <TextBlock Text="In Premiere, open Window > UXP Plugins > Lightflow Studio Companion and choose Connect to Lightflow. Adobe requires you to grant access to the connection folder below. Select the folder, not the JSON file inside it. Keep the companion panel open while sending." TextWrapping="Wrap"/>
+    <TextBox x:Name="PairingPath" IsReadOnly="True" Margin="0,8,0,8" TextWrapping="Wrap"/>
+   </StackPanel>
+  </Expander>
+  <Expander Header="Troubleshooting">
+   <StackPanel Margin="0,8,0,0">
+    <TextBlock Text="If the companion reports expired or rejected pairing, reset the connection, then choose Connect to Lightflow in the companion and grant folder access again. Resetting interrupts active handoffs; retry will reconcile completed items." TextWrapping="Wrap"/>
+    <Button Content="Reset companion connection" Click="Pair_Click" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+   </StackPanel>
+  </Expander>
   <TextBlock x:Name="ResultText" Margin="0,12,0,0" TextWrapping="Wrap"/>
  </StackPanel></ScrollViewer>
 </Window>

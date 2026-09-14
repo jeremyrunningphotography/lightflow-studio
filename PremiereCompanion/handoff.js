@@ -2,7 +2,7 @@
 
 // Platform-independent reconciliation policy. The adapter owns every Premiere API call.
 const pathKey = value => value.replace(/\\/g, '/').replace(/^\/\/\?\/(?=[a-z]:\/)/i, '').replace(/\/$/, '').toLowerCase();
-const sameProject = (left, right) => left && left.guid === right.guid && pathKey(left.path) === pathKey(right.path);
+const sameProject = (left, right) => !!left && !!right && left.guid === right.guid && pathKey(left.path) === pathKey(right.path);
 
 async function execute(command, adapter, journal) {
   const intent = command.intent;

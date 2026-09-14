@@ -41,6 +41,27 @@ public partial class MainWindow
         try
         {
             await EnsurePremiereAsync();
+            if (!selection)
+            {
+                new PremiereIntegrationWindow(_premiereBridge!) { Owner = this }.ShowDialog();
+                return;
+            }
+            var live = _premiereBridge!.Connection;
+            var connection = live;
+            if (live.State == PremiereConnectionState.Ready)
+            {
+                var installation = await PremiereInstallation.InspectAsync();
+                connection = PremiereSendState.WithInstallation(_premiereBridge.Connection, installation);
+            }
+            var route = PremiereSendState.Route(connection);
+            if (route != PremiereSendRoute.Send)
+            {
+                if (route == PremiereSendRoute.Settings || System.Windows.MessageBox.Show(this,
+                    $"Premiere is not connected. {connection.Message}\n\nOpen integration Settings?",
+                    "Send to Premiere Pro", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                    new PremiereIntegrationWindow(_premiereBridge) { Owner = this }.ShowDialog();
+                return;
+            }
             var sources = new List<PremiereSource>();
             if (selection)
             {
@@ -55,7 +76,7 @@ public partial class MainWindow
                     sources.Add(source);
                 }
             }
-            new PremiereIntegrationWindow(_premiereBridge!, _premiereJobs!, sources) { Owner = this }.ShowDialog();
+            new PremiereSendWindow(_premiereBridge!, _premiereJobs!, sources) { Owner = this }.ShowDialog();
             if (_premiereJobs!.Jobs.Any(job => job.State is JobState.Queued or JobState.Running)) OpenJobsPanel();
         }
         catch (Exception error)

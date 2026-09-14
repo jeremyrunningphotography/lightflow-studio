@@ -36,7 +36,7 @@ jobs:
       - name: Test
         run: dotnet test .\LightflowStudio.Tests\LightflowStudio.Tests.csproj -c Release --no-restore --logger "trx;LogFileName=tests.trx" --blame-hang-timeout 5m --blame-hang-dump-type mini
       - name: Test Premiere companion reconciliation
-        run: node --test PremiereCompanion/handoff.test.cjs
+        run: node --test PremiereCompanion/*.test.cjs
       - name: Preserve test results
         if: always()
         uses: actions/upload-artifact@v6

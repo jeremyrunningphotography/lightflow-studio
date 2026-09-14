@@ -1,0 +1,21 @@
+<Window x:Class="LightflowStudio.PremiereSendWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Send to Premiere Pro" Width="620" Height="530" MinWidth="520" MinHeight="450"
+ WindowStartupLocation="CenterOwner" Background="{StaticResource WindowBrush}" Foreground="{StaticResource TextBrush}">
+ <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="24">
+  <TextBlock Text="Send to Premiere Pro" FontSize="24" FontWeight="SemiBold"/>
+  <TextBlock x:Name="ContextText" Margin="0,16,0,12" TextWrapping="Wrap"/>
+  <TextBlock x:Name="SelectionText" TextWrapping="Wrap"/>
+  <TextBlock Text="Destination bin" Margin="0,12,0,4"/>
+  <ComboBox x:Name="Bins" DisplayMemberPath="Name" SelectionChanged="Bins_SelectionChanged" AutomationProperties.Name="Premiere destination bin"/>
+  <TextBlock Text="Create or use a child bin (optional)" Margin="0,12,0,4"/>
+  <TextBox x:Name="NewBinName" MaxLength="100" AutomationProperties.Name="Premiere child bin name"/>
+  <TextBlock Text="Retries verify existing items and preserve editor names and bins. Cancellation stops between items; completed imports remain in Premiere. Save the Premiere project after handoff." Margin="0,12,0,12" TextWrapping="Wrap"/>
+  <TextBlock x:Name="StateText" Margin="0,0,0,12" TextWrapping="Wrap"/>
+  <DockPanel><Button Content="Integration Settings…" Click="Settings_Click" HorizontalAlignment="Left"/>
+   <Button x:Name="SendButton" Content="Send to Premiere Pro" Click="Send_Click" HorizontalAlignment="Right"/>
+  </DockPanel>
+  <TextBlock x:Name="ResultText" Margin="0,12,0,0" TextWrapping="Wrap"/>
+ </StackPanel></ScrollViewer>
+</Window>

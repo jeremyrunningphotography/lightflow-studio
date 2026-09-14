@@ -2,7 +2,8 @@
   "manifestVersion": 5,
   "id": "com.lightflowstudio.premiere",
   "name": "Lightflow Studio Companion",
-  "version": "1.0.2",
+  "version": "1.0.3",
+  "icons": [{ "width": 256, "height": 256, "path": "lightflow-icon-256x256.png", "scale": [1], "theme": ["all"], "species": ["generic"] }],
   "main": "index.html",
   "host": { "app": "premierepro", "minVersion": "26.5.0" },
   "requiredPermissions": {
@@ -11,6 +12,7 @@
   },
   "entrypoints": [{
     "type": "panel", "id": "lightflow", "label": "Lightflow Studio",
+    "icons": [{ "width": 256, "height": 256, "path": "lightflow-icon-256x256.png", "scale": [1], "theme": ["all"], "species": ["generic"] }],
     "minimumSize": { "width": 320, "height": 420 },
     "preferredDockedSize": { "width": 400, "height": 440 },
     "preferredFloatingSize": { "width": 400, "height": 440 }

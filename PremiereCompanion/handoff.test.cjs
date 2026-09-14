@@ -14,7 +14,7 @@ test('panel allows only one folder picker and restores Connect after cancellatio
     return new Promise(resolve => { cancel = resolve; });
   } } } };
   vm.runInNewContext(fsForPanel.readFileSync(require.resolve('./index.js'), 'utf8'), {
-    require: name => name === 'uxp' ? uxp : name === 'premierepro' ? {} : { execute, sameProject },
+    require: name => name === 'uxp' ? uxp : name === 'premierepro' ? {} : require(name),
     document: { getElementById: name => elements[name] }
   });
   const first = elements.pair.click();

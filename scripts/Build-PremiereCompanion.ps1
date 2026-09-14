@@ -18,12 +18,16 @@ try {
     $archive = New-Object IO.Compression.ZipArchive($stream, [IO.Compression.ZipArchiveMode]::Create, $true)
     try {
         # Same flat CCX structure verified with UDT; include only the production payload.
-        foreach ($name in @('manifest.json', 'index.html', 'index.js', 'handoff.js')) {
+        foreach ($name in @('manifest.json', 'index.html', 'index.js', 'handoff.js', 'bins.js',
+            'lightflow-icon-256x256.png', 'lightflow-header-lockup-480x96.png')) {
             $entry = $archive.CreateEntry($name, [IO.Compression.CompressionLevel]::Optimal)
             $entry.LastWriteTime = [DateTimeOffset]::Parse('2026-01-01T00:00:00Z')
             $entryStream = $entry.Open()
             try {
-                $bytes = [IO.File]::ReadAllBytes((Join-Path $source $name))
+                $payload = if ($name.EndsWith('.png')) {
+                    Join-Path $PSScriptRoot "..\LightflowStudio\Assets\Branding\$name"
+                } else { Join-Path $source $name }
+                $bytes = [IO.File]::ReadAllBytes($payload)
                 $entryStream.Write($bytes, 0, $bytes.Length)
             } finally { $entryStream.Dispose() }
         }

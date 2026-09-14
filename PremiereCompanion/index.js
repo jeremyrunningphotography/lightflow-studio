@@ -2,6 +2,7 @@
 const ppro = require('premierepro');
 const uxp = require('uxp');
 const { execute, sameProject } = require('./handoff.js');
+const { ProjectBins, enumerateBins } = require('./bins.js');
 const fs = uxp.storage.localFileSystem;
 const ENDPOINT = 'http://localhost:47857';
 const instanceId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -13,7 +14,7 @@ let lastHealthy = 0;
 let timer = null;
 let pulseBusy = false;
 let pairingInProgress = false;
-let cachedBins = [];
+const projectBins = new ProjectBins();
 const status = text => { document.getElementById('status').textContent = text; };
 const id = item => String(typeof item.getId === 'function' ? item.getId() : ppro.ProjectItem.cast(item).getId());
 const describe = project => project ? { guid: String(project.guid), path: project.path, name: project.name } : null;
@@ -46,19 +47,14 @@ async function request(path, payload, dispatchId = '') {
 
 async function heartbeat(discoverBins = true) {
   const project = await ppro.Project.getActiveProject();
-  const bins = [];
-  if (project && discoverBins) {
-    const root = await project.getRootItem();
-    bins.push({ id: id(root), name: 'Project root' });
-    for (const item of await walk(root)) {
-      let bin;
-      try { bin = ppro.FolderItem.cast(item); } catch (_) { /* clip */ }
-      if (bin) bins.push({ id: id(bin), name: `${bin.name} (${id(bin)})` });
-    }
-  }
-  if (discoverBins) cachedBins = bins;
-  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.2', protocol: 1,
-    hostVersion: uxp.host.version, uxpVersion: uxp.versions.uxp, project: describe(project), bins: cachedBins });
+  const description = describe(project);
+  const bins = await projectBins.read(description, discoverBins, async () =>
+    enumerateBins(await project.getRootItem(), item => ppro.FolderItem.cast(item), id));
+  const current = describe(await ppro.Project.getActiveProject());
+  if ((description || current) && !sameProject(description, current))
+    throw new Error('Active project changed while reading bins. Waiting for the current project.');
+  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.3', protocol: 1,
+    hostVersion: uxp.host.version, uxpVersion: uxp.versions.uxp, project: description, bins });
   lastHealthy = Date.now();
   return project;
 }
@@ -134,7 +130,7 @@ async function tick() {
       await new Promise(resolve => setTimeout(resolve, 100));
       await request('/v1/receipt', result, command.dispatchId);
       status(`${result.outcome}: ${result.message}`);
-    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.2`);
+    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.3`);
   } catch (error) {
     lastHealthy = 0;
     status(String(error.message || error));

@@ -1205,12 +1205,12 @@
            <TextBlock Margin="3,0,5,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="COLOR"/>
            <ComboBox x:Name="BrowserCameraLutCombo" Style="{StaticResource BrowserSelectionLutComboStyle}" IsEnabled="False" SelectedIndex="0"
             ToolTip="Assign a Camera/technical LUT to all selected videos" AutomationProperties.Name="Assign Camera LUT"
-            DropDownOpened="BrowserCameraLutCombo_DropDownOpened" SelectionChanged="BrowserCameraLutCombo_SelectionChanged">
+            SelectionChanged="BrowserCameraLutCombo_SelectionChanged">
             <ComboBoxItem Content="Camera LUT…" IsEnabled="False"/>
            </ComboBox>
            <ComboBox x:Name="BrowserCreativeLutCombo" Style="{StaticResource BrowserSelectionLutComboStyle}" IsEnabled="False" SelectedIndex="0"
             ToolTip="Assign a Creative LUT to all selected videos" AutomationProperties.Name="Assign Creative LUT"
-            DropDownOpened="BrowserCreativeLutCombo_DropDownOpened" SelectionChanged="BrowserCreativeLutCombo_SelectionChanged">
+            SelectionChanged="BrowserCreativeLutCombo_SelectionChanged">
             <ComboBoxItem Content="Creative LUT…" IsEnabled="False"/>
            </ComboBox>
           </StackPanel>

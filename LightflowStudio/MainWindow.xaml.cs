@@ -160,6 +160,9 @@ public partial class MainWindow : Window
     private CapabilityInvocation? _browserEncodingInvocation;
     private CancellationTokenSource? _browserEncodingHandoffCts;
     private long _browserColorSelectionRevision;
+    private Guid[]? _browserColorSelectionIds;
+    private long _browserColorContextGeneration;
+    private bool _browserColorContextApplicable;
     private bool _updatingBrowserColorSelectors;
     private bool _lutInitializationCompleted;
     private long _browserVisualIdentityAuditGeneration = -1;
@@ -1295,6 +1298,8 @@ public partial class MainWindow : Window
             ? "Select a drive, mapped location, or managed library to browse its folders and supported media."
             : "Choose another folder from the navigation pane or refresh this location.");
         UpdateBrowserStatusText();
+        // Folder reconciliation can change source availability even when selected identities survive.
+        _ = RefreshBrowserColorSelectorsAsync(force: true);
 
         if (state.Location is { } location)
         {
@@ -1800,8 +1805,6 @@ public partial class MainWindow : Window
         finally { UpdateBrowserSelectionActions(); }
     }
 
-    private void BrowserCameraLutCombo_DropDownOpened(object sender, EventArgs e) => _ = RefreshBrowserColorSelectorsAsync();
-    private void BrowserCreativeLutCombo_DropDownOpened(object sender, EventArgs e) => _ = RefreshBrowserColorSelectorsAsync();
     private async void BrowserCameraLutCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
         await ApplyBrowserLutComboSelectionAsync((System.Windows.Controls.ComboBox)sender, ColorLutStage.Camera);
     private async void BrowserCreativeLutCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
@@ -1814,10 +1817,15 @@ public partial class MainWindow : Window
     private static void ApplyBrowserLutPresentation(System.Windows.Controls.ComboBox combo,
         BrowserLutPickerPresentation presentation)
     {
-        combo.Items.Clear();
         combo.DisplayMemberPath = nameof(BrowserLutActionOption.Label);
-        foreach (var option in presentation.Options) combo.Items.Add(option);
-        combo.SelectedIndex = presentation.SelectedIndex;
+        // Retain the items (and their WPF containers) unless the stage's choices actually changed.
+        if (!combo.Items.Cast<object>().SequenceEqual(presentation.Options))
+        {
+            combo.Items.Clear();
+            foreach (var option in presentation.Options) combo.Items.Add(option);
+        }
+        if (combo.SelectedIndex != presentation.SelectedIndex)
+            combo.SelectedIndex = presentation.SelectedIndex;
     }
 
     private async Task ApplyBrowserLutComboSelectionAsync(System.Windows.Controls.ComboBox combo, ColorLutStage stage)
@@ -1856,7 +1864,7 @@ public partial class MainWindow : Window
             var committed = await _storage.AssetColors.GetAsync(ids);
             foreach (var id in ids)
                 ApplyCommittedBrowserAssetStateFlag(id, BrowserAssetState.Color, committed[id].HasColor);
-            await RefreshBrowserColorSelectorsAsync();
+            await RefreshBrowserColorSelectorsAsync(force: true);
             _ = RegenerateColorThumbnailsAsync(ids);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException or SqliteException)
@@ -2001,6 +2009,7 @@ public partial class MainWindow : Window
         _playerViewerHost.ColorStateChanged += (_, change) =>
         {
             ApplyCommittedBrowserAssetStateFlag(change.AssetId, BrowserAssetState.Color, change.HasColor);
+            _ = RefreshBrowserColorSelectorsAsync(force: true);
             _ = RegenerateColorThumbnailsAsync([change.AssetId]);
         };
         _playerViewerHost.SubclipStateChanged += (_, change) =>
@@ -3236,29 +3245,40 @@ public partial class MainWindow : Window
             state.SelectionCount, state.CanRegenerateThumbnails);
         BrowserRegenerateThumbnailsButton.ToolTip = regenerateLabel;
         AutomationProperties.SetName(BrowserRegenerateThumbnailsButton, regenerateLabel);
-        BrowserCameraLutCombo.IsEnabled = state.CanAssignCameraLut;
-        BrowserCreativeLutCombo.IsEnabled = state.CanAssignCreativeLut;
         _ = RefreshBrowserColorSelectorsAsync();
     }
 
-    private async Task RefreshBrowserColorSelectorsAsync()
+    private async Task RefreshBrowserColorSelectorsAsync(bool force = false)
     {
-        var revision = ++_browserColorSelectionRevision;
         var ids = _browserGrid.SelectedAssetIdsInBrowserOrder.ToArray();
         var state = CurrentBrowserSelectionActions();
-        if (!state.CanAssignCameraLut || ids.Length != state.SelectionCount)
+        var applicable = state.CanAssignCameraLut && ids.Length == state.SelectionCount;
+        // Status/metadata publication does not own Color interaction. Selection order can change
+        // during a metadata-driven sort without changing the assets whose assignments we present.
+        var contextChanged = _browserColorSelectionIds is null ||
+            _browserColorContextGeneration != _browserUiGeneration ||
+            _browserColorContextApplicable != applicable ||
+            !ids.ToHashSet().SetEquals(_browserColorSelectionIds);
+        if (!contextChanged && !force) return;
+        _browserColorSelectionIds = ids;
+        _browserColorContextGeneration = _browserUiGeneration;
+        _browserColorContextApplicable = applicable;
+        var revision = ++_browserColorSelectionRevision;
+        if (!applicable)
         {
             SetBrowserColorSelectorsUnavailable();
             return;
         }
-        BrowserCameraLutCombo.IsEnabled = BrowserCreativeLutCombo.IsEnabled = false;
+        if (contextChanged)
+            BrowserCameraLutCombo.IsEnabled = BrowserCreativeLutCombo.IsEnabled = false;
         try
         {
             var colorsTask = _storage.AssetColors.GetAsync(ids);
             var resolutionTasks = ids.Select(id => _storage.MediaAssets.GetAsync(id)).ToArray();
             await Task.WhenAll(resolutionTasks).ConfigureAwait(true);
             var colors = await colorsTask.ConfigureAwait(true);
-            if (revision != _browserColorSelectionRevision || !ids.SequenceEqual(_browserGrid.SelectedAssetIdsInBrowserOrder)) return;
+            if (revision != _browserColorSelectionRevision ||
+                !ids.ToHashSet().SetEquals(_browserGrid.SelectedAssetIdsInBrowserOrder)) return;
             var availability = resolutionTasks.Select(task => task.Result is
                 { SourceExists: true, RootAvailability: MediaRootAvailability.Online }).ToArray();
             if (!BrowserSelectionActions.CanAssignLutColor(state, availability))
@@ -4188,6 +4208,7 @@ public partial class MainWindow : Window
         {
             var camera = _storage.LutCache.Snapshot(ColorLutStage.Camera);
             var creative = _storage.LutCache.Snapshot(ColorLutStage.Creative);
+            _ = RefreshBrowserColorSelectorsAsync(force: true);
             _lutOptions = LutCatalog.CombinedOptions(camera.Resources, creative.Resources);
             var count = RefreshLuts();
             SettingsCameraLutFolderStatus.Text = LutFolderStatus(camera);

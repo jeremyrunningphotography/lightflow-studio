@@ -505,6 +505,134 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
         });
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public Task BrowserLutCombo_MetadataPublicationRetainsOpenPickerAndAssignments(bool camera) =>
+        StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            File.WriteAllText(Path.Combine(_mediaRoot, "clip.mov"), "metadata supplied by test");
+            File.WriteAllText(Path.Combine(_mediaRoot, "second.mov"), "metadata supplied by test");
+            var startup = await LightflowStorageCoordinator.StartAsync(_appDataRoot);
+            var storage = startup.Coordinator!;
+            await storage.MediaRoots.CreateAsync("Library", _mediaRoot);
+            var window = NewOffscreenWindow(storage, startup);
+            window.Width = 1600;
+            object? Invoke(string name, params object?[] arguments) => typeof(MainWindow)
+                .GetMethod(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .Invoke(window, arguments);
+            Task Refresh(bool force = false) => (Task)Invoke("RefreshBrowserColorSelectorsAsync", force)!;
+            try
+            {
+                window.Show();
+                await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0, "storage");
+                await WaitUntilAsync(() => DragField<bool>(window, "_lutInitializationCompleted"), "LUT initialization");
+                window.BrowserCurrentPath.Text = _mediaRoot;
+                RaiseClick(window.BrowserGoButton);
+                var grid = DragField<BrowserGridModel>(window, "_browserGrid");
+                await WaitUntilAsync(() => grid.Tiles.Count == 3 && grid.Tiles.All(tile => tile.AssetId is not null), "Catalog assets");
+                var videos = grid.Tiles.Where(tile => tile.Category == MediaTypeCategory.Video).ToArray();
+                var id = videos[0].AssetId!.Value;
+                var stage = camera ? ColorLutStage.Camera : ColorLutStage.Creative;
+                var folder = Path.Combine(_appDataRoot, "test-luts");
+                Directory.CreateDirectory(folder);
+                File.WriteAllText(Path.Combine(folder, "First.cube"), "LUT_3D_SIZE 2\n" +
+                    string.Concat(Enumerable.Repeat("0 0 0\n", 8)));
+                var library = await storage.LutCache.RefreshAsync(stage, folder);
+                var lut = Assert.Single(library.Resources);
+                await storage.AssetColors.SetStageAsync([id], stage, lut.LutId);
+                grid.SelectSingle(videos[0].Index);
+                await Refresh();
+                var combo = camera ? window.BrowserCameraLutCombo : window.BrowserCreativeLutCombo;
+                var other = camera ? window.BrowserCreativeLutCombo : window.BrowserCameraLutCombo;
+                Assert.True(combo.IsEnabled);
+                Assert.Equal(lut.LutId, Assert.IsType<BrowserLutActionOption>(combo.SelectedItem).LutId);
+                window.RightPanelToggle.IsChecked = true;
+                RaiseClick(window.RightPanelToggle);
+                var inspector = DragField<MediaInspectorView>(window, "_inspector");
+                await WaitUntilAsync(() => inspector.FieldGroups.ItemsSource is not null, "initial Inspector hydration");
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                var options = combo.Items.Cast<object>().ToArray();
+                var otherOptions = other.Items.Cast<object>().ToArray();
+                var selected = combo.SelectedItem;
+                var events = 0;
+                combo.SelectionChanged += (_, _) => events++;
+                other.SelectionChanged += (_, _) => events++;
+                var revision = DragField<long>(window, "_browserColorSelectionRevision");
+                combo.IsDropDownOpen = true;
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                Assert.True(combo.IsDropDownOpen);
+                for (var index = 1; index <= 3; index++)
+                {
+                    await storage.Previews!.SetMetadataAsync(id, new(1, PreviewComponentState.Current,
+                        PayloadJson: $"{{\"kind\":\"video\",\"container\":\"mov\",\"durationSeconds\":{index}}}"));
+                    await (Task)Invoke("ApplyBrowserPreviewRecordsAsync", new HashSet<Guid>(), new HashSet<Guid> { id },
+                        DragField<long>(window, "_browserUiGeneration"), (Func<bool>)(() => true), null, null)!;
+                    await WaitUntilAsync(() => inspector.FieldGroups.ItemsSource is IEnumerable<IGrouping<string, InspectorField>> groups &&
+                        groups.SelectMany(group => group).Any(field => field.Name == "Duration" &&
+                            field.Value == MediaInspectorService.Seconds(index)), "live Inspector metadata");
+                    await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                    Assert.True(combo.IsEnabled);
+                    Assert.True(combo.IsDropDownOpen);
+                    Assert.Same(selected, combo.SelectedItem);
+                    Assert.Equal(revision, DragField<long>(window, "_browserColorSelectionRevision"));
+                    Assert.Equal(0, events);
+                    for (var item = 0; item < options.Length; item++) Assert.Same(options[item], combo.Items[item]);
+                    for (var item = 0; item < otherOptions.Length; item++) Assert.Same(otherOptions[item], other.Items[item]);
+                    Assert.Equal((double)index, videos[0].DurationSeconds);
+                }
+                Assert.NotNull(inspector.FieldGroups.ItemsSource);
+                combo.IsDropDownOpen = false;
+
+                // Real library publication updates only the affected stage, retaining its assignment.
+                File.WriteAllText(Path.Combine(folder, "Second.cube"), "LUT_3D_SIZE 2\n" +
+                    string.Concat(Enumerable.Repeat("1 1 1\n", 8)));
+                await storage.LutCache.RefreshAsync(stage, folder);
+                Invoke("PublishCachedLuts");
+                await WaitUntilAsync(() => combo.Items.Count == options.Length + 1, "new LUT choice");
+                Assert.Equal(lut.LutId, Assert.IsType<BrowserLutActionOption>(combo.SelectedItem).LutId);
+                for (var item = 0; item < otherOptions.Length; item++) Assert.Same(otherOptions[item], other.Items[item]);
+                events = 0;
+                await Refresh(force: true);
+                Assert.Equal(0, events); // Equivalent cache/assignment publication is also inert.
+
+                grid.ToggleCtrl(videos[1].Index);
+                await Refresh();
+                Assert.Equal("Mixed", Assert.IsType<BrowserLutActionOption>(combo.SelectedItem).Label);
+                Assert.Equal("No LUT", Assert.IsType<BrowserLutActionOption>(other.SelectedItem).Label);
+                // Metadata-driven ordering of the same selected set must not rebind either picker.
+                revision = DragField<long>(window, "_browserColorSelectionRevision");
+                grid.SetQuery(grid.Query with { SortDescending = !grid.Query.SortDescending });
+                await Refresh();
+                Assert.Equal(revision, DragField<long>(window, "_browserColorSelectionRevision"));
+                grid.SelectSingle(videos[1].Index);
+                await Refresh();
+                Assert.Equal("No LUT", Assert.IsType<BrowserLutActionOption>(combo.SelectedItem).Label);
+                // Exercise the real SelectionChanged -> durable assignment path.
+                combo.SelectedIndex = combo.Items.Cast<BrowserLutActionOption>().ToList().FindIndex(option => option.LutId == lut.LutId);
+                await WaitUntilAsync(() => grid.Tiles.Single(tile => tile.AssetId == videos[1].AssetId)
+                    .AssetState.HasFlag(BrowserAssetState.Color), "committed Color assignment");
+                var committed = (await storage.AssetColors.GetAsync([videos[1].AssetId!.Value]))[videos[1].AssetId!.Value];
+                Assert.Equal(lut.LutId, (camera ? committed.Camera : committed.Creative)!.LutId);
+                Assert.Null(camera ? committed.Creative : committed.Camera);
+                await Refresh(force: true);
+                grid.ToggleCtrl(videos[0].Index);
+                await Refresh();
+                Assert.Equal(lut.LutId, Assert.IsType<BrowserLutActionOption>(combo.SelectedItem).LutId); // Shared.
+                File.Delete(Path.Combine(folder, "First.cube"));
+                await storage.LutCache.RefreshAsync(stage, folder);
+                Invoke("PublishCachedLuts");
+                await WaitUntilAsync(() => combo.SelectedItem is BrowserLutActionOption option &&
+                    option.LutId == lut.LutId && option.Label.EndsWith("(Unavailable)"), "missing assigned LUT");
+                grid.SelectSingle(grid.Tiles.Single(tile => tile.Category == MediaTypeCategory.StillImage).Index);
+                await Refresh();
+                Assert.False(combo.IsEnabled);
+                Assert.False(other.IsEnabled);
+            }
+            finally { window.Close(); await storage.DisposeAsync(); }
+        });
+
     private static IEnumerable<string> VisualText(DependencyObject root)
     {
         if (root is TextBlock text && !string.IsNullOrEmpty(text.Text)) yield return text.Text;

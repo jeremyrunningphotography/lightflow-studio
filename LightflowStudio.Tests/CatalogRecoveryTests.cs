@@ -27,6 +27,33 @@ public sealed class CatalogRecoveryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DailyBackupReuse_DoesNotReadSourceAgain_ButNewBackupsStillValidateIt()
+    {
+        var locations = LightflowStorageLocations.Create(_root);
+        var created = await new CatalogDatabaseService(locations).CreateNewAsync();
+        await created.Session!.DisposeAsync();
+        var clock = new DateTimeOffset(2026, 9, 14, 12, 0, 0, TimeSpan.Zero);
+        var recovery = new SqliteCatalogRecoveryService(locations, () => clock);
+        var first = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic, true);
+        Assert.True(first.Succeeded);
+        SqliteConnection.ClearAllPools();
+        // Deterministically detect any repeated source scan without a wall-clock performance assertion.
+        using (var exclusive = new FileStream(locations.CatalogDatabasePath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var reused = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic, true);
+            Assert.True(reused.Succeeded);
+            Assert.Equal(first.Backup, reused.Backup);
+            Assert.False((await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic)).Succeeded);
+            clock = clock.AddDays(1);
+            Assert.False((await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic, true)).Succeeded);
+        }
+        var nextDay = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic, true);
+        Assert.True(nextDay.Succeeded);
+        Assert.NotEqual(first.Backup!.Path, nextDay.Backup!.Path);
+        Assert.True((await recovery.CheckIntegrityAsync(nextDay.Backup.Path)).IsValid);
+    }
+
+    [Fact]
     public async Task MigrationBackup_UsesRealValidatedSqliteBackup()
     {
         var locations = LightflowStorageLocations.Create(_root);

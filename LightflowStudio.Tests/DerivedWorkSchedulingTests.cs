@@ -6,6 +6,57 @@ namespace LightflowStudio.Tests;
 public sealed class DerivedWorkSchedulingTests
 {
     [Fact]
+    public async Task AggregateProgress_ConcurrentNavigationCancellationAndWorkerCompletion_DoNotDeadlock()
+    {
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var reconciliation = Reconciliation((firstId, CatalogReconciliationItemStatus.New),
+            (secondId, CatalogReconciliationItemStatus.New));
+        var first = new DerivedWorkBatch(reconciliation, batch => batch.CancelPending());
+        var second = new DerivedWorkBatch(reconciliation, batch => batch.CancelPending());
+        first.AddPending(firstId); second.AddPending(secondId);
+        first.Seal(); second.Seal();
+        second.MarkRunning(secondId);
+        using var rendezvous = new Barrier(2);
+        var met = new System.Collections.Concurrent.ConcurrentBag<bool>();
+        // Both publishers enter their handlers before either aggregate reads the other child.
+        first.ProgressChanged += (_, _) => met.Add(rendezvous.SignalAndWait(TimeSpan.FromSeconds(5)));
+        second.ProgressChanged += (_, _) => met.Add(rendezvous.SignalAndWait(TimeSpan.FromSeconds(5)));
+        var aggregate = new AggregateDerivedWorkBatch(reconciliation, [first, second]);
+        await Task.WhenAll(Task.Run(first.Cancel), Task.Run(() => second.Complete(secondId,
+            new(secondId, DerivedWorkItemOutcome.Generated, DerivedWorkComponentOutcome.Succeeded,
+                DerivedWorkComponentOutcome.Succeeded)))).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(2, met.Count);
+        Assert.All(met, Assert.True);
+        var final = await aggregate.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(DerivedWorkBatchStatus.Canceled, final.Status);
+        Assert.Equal(1, final.Canceled);
+        Assert.Equal(1, final.Generated);
+        Assert.Equal(2, aggregate.Results.Count);
+    }
+
+    [Fact]
+    public void ProgressNotifications_ReentrantCancellationRetainsOrderAndCompletion()
+    {
+        var id = Guid.NewGuid();
+        var batch = new DerivedWorkBatch(Reconciliation((id, CatalogReconciliationItemStatus.New)),
+            value => value.CancelPending());
+        batch.AddPending(id);
+        batch.Seal();
+        var received = new List<DerivedWorkProgress>();
+        batch.ProgressChanged += (_, progress) =>
+        {
+            if (progress.Running == 1) batch.Cancel();
+        };
+        batch.ProgressChanged += (_, progress) => received.Add(progress);
+        batch.MarkRunning(id);
+        Assert.Equal(new[] { DerivedWorkBatchStatus.Running, DerivedWorkBatchStatus.Canceled },
+            received.Select(progress => progress.Status));
+        Assert.True(batch.Completion.IsCompletedSuccessfully);
+        Assert.Equal(1, batch.Progress.Canceled);
+    }
+
+    [Fact]
     public async Task CurrentRecordWithMissingArtifactRepairsOnlyThumbnail()
     {
         var asset = Asset("image");

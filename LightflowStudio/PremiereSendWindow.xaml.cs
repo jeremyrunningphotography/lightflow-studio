@@ -47,8 +47,8 @@ public partial class PremiereSendWindow : Window
             DestinationMessageText.Text = _state.Message;
             RangeMessageText.Text = PremiereSendPlanning.HasRangeIssue(_sources)
                 ? ApplyRangesCheck.IsChecked == true
-                    ? "One or more saved In/Out points cannot be transferred exactly. Turn off this option to send full sources."
-                    : "One or more saved In/Out points cannot be transferred exactly. Those sources will be sent as full sources."
+                    ? "One or more review ranges fall between Premiere timing units. Turn this off to send those files as full sources."
+                    : "One or more review ranges fall between Premiere timing units. Those files will be sent as full sources."
                 : ApplyRangesCheck.IsEnabled ? "Saved ranges apply only to matching source items; this does not create Subclips."
                 : "No selected video has saved In/Out points.";
             SendButton.IsEnabled = _sources.Count > 0 && _state.CanSend(live)

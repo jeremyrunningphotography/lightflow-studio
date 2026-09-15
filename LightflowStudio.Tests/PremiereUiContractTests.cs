@@ -57,6 +57,8 @@ public class PremiereUiContractTests
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute("Click") == "Refresh_Click");
         Assert.DoesNotContain("Retries verify existing", send.ToString());
         Assert.Contains("PremiereSendPlanning.Sources", text);
+        Assert.Contains("review ranges fall between Premiere timing units", text);
+        Assert.DoesNotContain("cannot be transferred exactly", text);
     }
 
     [Fact]

@@ -254,7 +254,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
     }
 
     [Fact]
-    public void SourceRangePlanningPreservesExactBoundariesOrLetsUserSendTheFullSource()
+    public void SourceRangePlanningUsesTheNearestPremiereTickOrLetsUserSendTheFullSource()
     {
         var range = new MediaRange(TimeSpan.FromTicks(100), TimeSpan.FromTicks(10), TimeSpan.FromTicks(90));
         Assert.True(PremiereRangeProjection.TryCreate(range, out var projection));
@@ -263,7 +263,10 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         var withRange = _source with { Range = projection };
         Assert.Same(withRange, Assert.Single(PremiereSendPlanning.Sources([withRange], true)));
         Assert.Null(Assert.Single(PremiereSendPlanning.Sources([withRange], false)).Range);
-        Assert.False(PremiereRangeProjection.TryCreate(new MediaRange(TimeSpan.FromTicks(101), TimeSpan.FromTicks(10), TimeSpan.FromTicks(91)), out _));
+        Assert.True(PremiereRangeProjection.TryCreate(new MediaRange(TimeSpan.FromTicks(101), TimeSpan.FromTicks(10), TimeSpan.FromTicks(91)), out var adjusted));
+        Assert.NotNull(adjusted);
+        Assert.True(adjusted!.TimingAdjusted);
+        Assert.True(adjusted.IsValid());
     }
     [Fact]
     public async Task ProjectSwitchBeforeDispatchStopsWithoutImportPermission()

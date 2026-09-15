@@ -11,7 +11,7 @@ internal static class PremiereProtocol
     public const int Version = 1;
     public const int Port = 47857;
     public const string Endpoint = "http://localhost:47857";
-    public const string CompanionVersion = "1.0.5";
+    public const string CompanionVersion = "1.0.6";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
@@ -30,14 +30,13 @@ internal sealed record PremiereProject(string Guid, string Path, string Name);
 internal sealed record PremiereBin(string Id, string Name);
 internal sealed record PremiereHello(string InstanceId, string CompanionVersion, int Protocol,
     string HostVersion, string UxpVersion, PremiereProject? Project, IReadOnlyList<PremiereBin> Bins);
-/// <summary>Lightflow ticks are 100ns. Premiere ticks are 1/254016000000 second, so exact conversion requires a multiple of five.</summary>
+/// <summary>Lightflow ticks are 100ns. The companion maps them to the nearest Premiere tick.</summary>
 internal sealed record PremiereRangeProjection(string InTicks, string OutTicks, string SourceDurationTicks)
 {
     internal static bool TryCreate(MediaRange range, out PremiereRangeProjection? projection)
     {
         projection = null;
-        if (range.IsFullSource || range.Validate().Count != 0 || range.EffectiveIn.Ticks % 5 != 0
-            || range.EffectiveOut.Ticks % 5 != 0 || range.SourceDuration.Ticks % 5 != 0) return false;
+        if (range.IsFullSource || range.Validate().Count != 0) return false;
         projection = new(range.EffectiveIn.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture),
             range.EffectiveOut.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture),
             range.SourceDuration.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -47,11 +46,24 @@ internal sealed record PremiereRangeProjection(string InTicks, string OutTicks, 
     {
         const System.Globalization.NumberStyles integer = System.Globalization.NumberStyles.None;
         var culture = System.Globalization.CultureInfo.InvariantCulture;
-        if (!long.TryParse(InTicks, integer, culture, out var input) || !long.TryParse(OutTicks, integer, culture, out var output)
-            || !long.TryParse(SourceDurationTicks, integer, culture, out var duration)) return false;
+        if (!System.Numerics.BigInteger.TryParse(InTicks, integer, culture, out var input)
+            || !System.Numerics.BigInteger.TryParse(OutTicks, integer, culture, out var output)
+            || !System.Numerics.BigInteger.TryParse(SourceDurationTicks, integer, culture, out var duration)) return false;
+        var premiereInput = NearestPremiereTicks(input);
+        var premiereOutput = NearestPremiereTicks(output);
+        var premiereDuration = NearestPremiereTicks(duration);
         return input >= 0 && output > input && output <= duration && duration > 0
-            && input % 5 == 0 && output % 5 == 0 && duration % 5 == 0;
+            && premiereOutput > premiereInput && premiereOutput <= premiereDuration;
     }
+
+    [JsonIgnore]
+    public bool TimingAdjusted => HasRemainder(InTicks) || HasRemainder(OutTicks) || HasRemainder(SourceDurationTicks);
+
+    private static bool HasRemainder(string value) => System.Numerics.BigInteger.TryParse(value,
+        System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var ticks) && ticks % 5 != 0;
+
+    private static System.Numerics.BigInteger NearestPremiereTicks(System.Numerics.BigInteger value) =>
+        (value * 127008 + 2) / 5;
 }
 internal sealed record PremiereSource(Guid AssetId, string Path, string SizeBytes, string LastWriteUtcTicks,
     PremiereRangeProjection? Range = null)
@@ -61,7 +73,8 @@ internal sealed record PremiereSource(Guid AssetId, string Path, string SizeByte
     [JsonIgnore]
     public string Name => System.IO.Path.GetFileName(Path);
     [JsonIgnore]
-    public string RangeSummary => RangeIssue ?? (Range is null ? "Full source" : "Saved In/Out points");
+    public string RangeSummary => RangeIssue ?? (Range is null ? "Full source" : Range.TimingAdjusted
+        ? "Saved In/Out points · adjusted for Premiere" : "Saved In/Out points");
     [JsonIgnore]
     public bool HasRange => Range is not null;
     [JsonIgnore]
@@ -189,7 +202,7 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
             || file.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture) != source.LastWriteUtcTicks)
             throw new InvalidOperationException("Source is missing or changed. Refresh the Browser before sending.");
         if (source.Range is not null && !source.Range.IsValid())
-            throw new InvalidOperationException("The saved In/Out range cannot be represented exactly in Premiere.");
+            throw new InvalidOperationException("The saved In/Out range is too short for Premiere.");
     }
 
     public static bool CompatibleExtension(string extension) => extension.ToLowerInvariant() is

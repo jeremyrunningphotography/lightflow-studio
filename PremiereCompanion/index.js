@@ -2,6 +2,7 @@
 const ppro = require('premierepro');
 const uxp = require('uxp');
 const { execute, sameProject } = require('./handoff.js');
+const { nearestPremiereTicks } = require('./range.js');
 const { ProjectBins, enumerateBins } = require('./bins.js');
 const { PairingAccess, validatePairing, ENDPOINT } = require('./pairing.js');
 const fs = uxp.storage.localFileSystem;
@@ -56,7 +57,7 @@ async function heartbeat(discoverBins = true) {
   const current = describe(await ppro.Project.getActiveProject());
   if ((description || current) && !sameProject(description, current))
     throw new Error('Active project changed while reading bins. Waiting for the current project.');
-  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.5', protocol: 1,
+  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.6', protocol: 1,
     hostVersion: uxp.host.version, uxpVersion: uxp.versions.uxp, project: description, bins });
   lastHealthy = Date.now();
   return project;
@@ -77,13 +78,7 @@ const journal = {
 };
 
 function adapter(project) {
-  const premiereTicks = value => {
-    if (typeof value !== 'string' || !/^\d+$/.test(value)) throw new Error('Lightflow In/Out values are invalid.');
-    const sourceTicks = BigInt(value);
-    // .NET TimeSpan uses 10,000,000 ticks/s and Premiere uses 254,016,000,000 ticks/s.
-    if (sourceTicks % 5n !== 0n) throw new Error('Lightflow In/Out cannot be represented exactly in Premiere.');
-    return ppro.TickTime.createWithTicks((sourceTicks / 5n * 127008n).toString());
-  };
+  const premiereTicks = value => ppro.TickTime.createWithTicks(nearestPremiereTicks(value));
   return {
     activeProject: async () => describe(await ppro.Project.getActiveProject()),
     connected: () => running && Date.now() - lastHealthy < 10000,
@@ -161,7 +156,7 @@ async function tick() {
       await new Promise(resolve => setTimeout(resolve, 100));
       await request('/v1/receipt', result, command.dispatchId);
       status(`${result.outcome}: ${result.message}`);
-    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.5`);
+    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.6`);
   } catch (error) {
     lastHealthy = 0;
     status(String(error.message || error));

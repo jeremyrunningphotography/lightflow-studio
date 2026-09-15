@@ -81,7 +81,7 @@ public partial class MainWindow
                     string? rangeIssue = null;
                     if (PremiereSendPlanning.IsVideo(path) && await _storage.MediaRanges.RestoreAsync(assetId) is { } savedRange
                         && !PremiereRangeProjection.TryCreate(savedRange, out range))
-                        rangeIssue = "Saved In/Out cannot be transferred exactly";
+                        rangeIssue = "Saved In/Out is too short for Premiere";
                     var source = new PremiereSource(assetId, path,
                         resolved.Asset.FileSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         resolved.Asset.LastWriteUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture), range) { RangeIssue = rangeIssue };

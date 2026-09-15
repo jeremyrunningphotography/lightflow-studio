@@ -36,7 +36,7 @@ hours; a 15-second maintenance check renews expired credentials, and listener re
 explicit reset rotates them. The companion rereads the protected file through its saved
 folder grant on each heartbeat. Closing the panel still removes its availability.
 
-### Supported automatic setup boundary (companion 1.0.5)
+### Supported automatic setup boundary (companion 1.0.6)
 
 Adobe's [Premiere UXP filesystem documentation](https://developer.adobe.com/premiere-pro/uxp/resources/recipes/filesystem-operations/)
 distinguishes sandbox access, user-selected `request` access and arbitrary-path
@@ -121,9 +121,11 @@ source item's In/Out points after import. It is not native Subclip creation; #25
 that separate operation. Premiere's supported
 [ClipProjectItem source In/Out actions](https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/clipprojectitem/)
 run in an undoable project transaction. Lightflow's 100-nanosecond `TimeSpan` boundaries
-are converted to Premiere `TickTime` values with integer arithmetic. A boundary that is
-not exactly representable is shown as unavailable; the user can explicitly turn the
-option off to send the full source, but Lightflow never rounds it silently.
+are converted to Premiere `TickTime` values with integer arithmetic. When a boundary
+falls between Premiere ticks, Lightflow deterministically uses the nearest representable
+tick (ties round up) and explains that adjustment in the Send dialog. A range is omitted
+only when it remains invalid after projection, such as a range too short to retain an
+ordered In/Out pair.
 
 The companion records the source-range projection after its imported-item mapping and
 before it returns the authenticated receipt. A missing receipt then reconciles that
@@ -140,7 +142,7 @@ use a process/window activation workaround after Send. Jobs continues to record 
 ## Packaging and automated validation
 
 `scripts/Build-PremiereCompanion.ps1` builds a flat deterministic CCX containing the
-six production code/manifest files and unchanged approved icon/header PNG assets.
+seven production code/manifest files and unchanged approved icon/header PNG assets.
 `Build-Release.ps1` includes it at
 `PremiereCompanion/LightflowStudio.ccx`; package validation requires it.
 

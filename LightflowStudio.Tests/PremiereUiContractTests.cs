@@ -43,4 +43,28 @@ public class PremiereUiContractTests
         foreach (var name in new[] { "Bins", "NewBinName", "SendButton" })
             Assert.Contains(send.Descendants(), e => (string?)e.Attribute(x + "Name") == name);
     }
+
+    [Fact]
+    public void SendUsesThreeClearSectionsWithSourceReviewRefreshAndRangeOption()
+    {
+        var send = XDocument.Load(Source("PremiereSendWindow.xaml"));
+        var text = File.ReadAllText(Source("PremiereSendWindow.xaml.cs"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        foreach (var heading in new[] { "Premiere connection", "Media being sent", "Premiere destination" })
+            Assert.Contains(send.Descendants(), element => (string?)element.Attribute("Text") == heading);
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "Sources");
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "ApplyRangesCheck");
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute("Click") == "Refresh_Click");
+        Assert.DoesNotContain("Retries verify existing", send.ToString());
+        Assert.Contains("PremiereSendPlanning.Sources", text);
+    }
+
+    [Fact]
+    public void ShutdownProtectionUsesOnlyAnUnresolvedDispatchedBridgeCommand()
+    {
+        var window = File.ReadAllText(Source("MainWindow.xaml.cs"));
+        var closing = window[window.IndexOf("private void Window_Closing", StringComparison.Ordinal)..];
+        Assert.Contains("_premiereBridge?.HasUnresolvedDispatchedHandoff == true", closing);
+        Assert.DoesNotContain("_premiereJobs?.Jobs.Any(job => job.State is JobState.Queued or JobState.Running)", closing);
+    }
 }

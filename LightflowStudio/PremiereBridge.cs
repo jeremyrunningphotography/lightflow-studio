@@ -46,6 +46,10 @@ internal sealed class PremiereBridge : IAsyncDisposable
     public const int HeartbeatSeconds = 10;
     public event Action? Changed;
 
+    /// <summary>Only a command delivered to the companion and still lacking its receipt protects shutdown.</summary>
+    public bool HasUnresolvedDispatchedHandoff => _activeIntent is not null && _dispatchSession is not null
+        && _completion is { Task.IsCompleted: false };
+
     public PremiereBridge(CatalogPremiereHandoffs journal, string pairingDirectory, Func<DateTimeOffset>? now = null)
     { _journal = journal; _pairingDirectory = pairingDirectory; _now = now ?? (() => DateTimeOffset.UtcNow); }
 

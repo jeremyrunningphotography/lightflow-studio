@@ -77,9 +77,14 @@ public partial class MainWindow
                 {
                     var resolved = await _storage.MediaAssets.GetAsync(assetId);
                     if (resolved?.PhysicalPath is not { } path) throw new InvalidOperationException("A selected Catalog source is unavailable.");
+                    PremiereRangeProjection? range = null;
+                    string? rangeIssue = null;
+                    if (PremiereSendPlanning.IsVideo(path) && await _storage.MediaRanges.RestoreAsync(assetId) is { } savedRange
+                        && !PremiereRangeProjection.TryCreate(savedRange, out range))
+                        rangeIssue = "Saved In/Out cannot be transferred exactly";
                     var source = new PremiereSource(assetId, path,
                         resolved.Asset.FileSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        resolved.Asset.LastWriteUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        resolved.Asset.LastWriteUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture), range) { RangeIssue = rangeIssue };
                     CatalogPremiereHandoffs.ValidateSource(source);
                     sources.Add(source);
                 }

@@ -45,7 +45,8 @@ function fixture() {
   const adapter = {
     activeProject: async () => project, connected: () => true,
     items: async () => items.slice(), targetBin: async () => 'bin-1',
-    importSource: async path => { imports++; items.push({ id: 'item-1', mediaPath: path }); }
+    importSource: async path => { imports++; items.push({ id: 'item-1', mediaPath: path }); },
+    projectRange: async () => {}
   };
   const journal = { read: async id => stored.get(id), write: async (id, value) => stored.set(id, value) };
   return { command, adapter, journal, items, stored, imports: () => imports };
@@ -101,6 +102,18 @@ test('lost connection after import persists item for reconciliation', async () =
   assert.equal((await execute(f.command, f.adapter, f.journal)).outcome, 'UnknownOutcome');
   f.adapter.connected = () => true;
   assert.equal((await execute({ ...f.command, previouslyDispatched: true }, f.adapter, f.journal)).outcome, 'Verified');
+  assert.equal(f.imports(), 1);
+});
+test('source In/Out is projected once and a lost receipt reconciles without a second mutation', async () => {
+  const f = fixture();
+  f.command.intent.source.range = { inTicks: '50000000', outTicks: '100000000', sourceDurationTicks: '150000000' };
+  const applied = [];
+  f.adapter.projectRange = async (itemId, range) => applied.push({ itemId, range });
+  assert.equal((await execute(f.command, f.adapter, f.journal)).outcome, 'Verified');
+  assert.deepEqual(applied, [{ itemId: 'item-1', range: f.command.intent.source.range }]);
+  assert.equal(f.stored.get('op-1').phase, 'range-projected');
+  assert.equal((await execute({ ...f.command, previouslyDispatched: true }, f.adapter, f.journal)).outcome, 'Verified');
+  assert.equal(applied.length, 1);
   assert.equal(f.imports(), 1);
 });
 test('intent persistence failure prevents import; result persistence failure remains unknown', async () => {

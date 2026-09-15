@@ -239,8 +239,10 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         await Post("/v1/heartbeat", Hello);
         var command = await _journal.PrepareAsync(_project, "root", null, _source);
         var completion = _bridge.SendAsync(command, CancellationToken.None);
+        Assert.False(_bridge.HasUnresolvedDispatchedHandoff);
         var response = await Post("/v1/poll", new { });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(_bridge.HasUnresolvedDispatchedHandoff);
         Assert.True((await _journal.PrepareAsync(_project, "root", null, _source)).PreviouslyDispatched);
         Assert.Equal(HttpStatusCode.NoContent, (await Post("/v1/poll", new { })).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await Post("/v1/receipt", new PremiereReceipt(Guid.NewGuid(), PremiereOutcome.Verified, "item", "wrong"))).StatusCode);
@@ -248,6 +250,20 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         _client.DefaultRequestHeaders.Add("X-Lightflow-Dispatch", command.DispatchId.ToString());
         Assert.Equal(HttpStatusCode.OK, (await Post("/v1/receipt", receipt)).StatusCode);
         Assert.Equal(receipt, await completion);
+        Assert.False(_bridge.HasUnresolvedDispatchedHandoff);
+    }
+
+    [Fact]
+    public void SourceRangePlanningPreservesExactBoundariesOrLetsUserSendTheFullSource()
+    {
+        var range = new MediaRange(TimeSpan.FromTicks(100), TimeSpan.FromTicks(10), TimeSpan.FromTicks(90));
+        Assert.True(PremiereRangeProjection.TryCreate(range, out var projection));
+        Assert.NotNull(projection);
+        Assert.True(projection!.IsValid());
+        var withRange = _source with { Range = projection };
+        Assert.Same(withRange, Assert.Single(PremiereSendPlanning.Sources([withRange], true)));
+        Assert.Null(Assert.Single(PremiereSendPlanning.Sources([withRange], false)).Range);
+        Assert.False(PremiereRangeProjection.TryCreate(new MediaRange(TimeSpan.FromTicks(101), TimeSpan.FromTicks(10), TimeSpan.FromTicks(91)), out _));
     }
     [Fact]
     public async Task ProjectSwitchBeforeDispatchStopsWithoutImportPermission()

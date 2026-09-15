@@ -11,7 +11,7 @@ internal static class PremiereProtocol
     public const int Version = 1;
     public const int Port = 47857;
     public const string Endpoint = "http://localhost:47857";
-    public const string CompanionVersion = "1.0.4";
+    public const string CompanionVersion = "1.0.5";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
@@ -30,7 +30,44 @@ internal sealed record PremiereProject(string Guid, string Path, string Name);
 internal sealed record PremiereBin(string Id, string Name);
 internal sealed record PremiereHello(string InstanceId, string CompanionVersion, int Protocol,
     string HostVersion, string UxpVersion, PremiereProject? Project, IReadOnlyList<PremiereBin> Bins);
-internal sealed record PremiereSource(Guid AssetId, string Path, string SizeBytes, string LastWriteUtcTicks);
+/// <summary>Lightflow ticks are 100ns. Premiere ticks are 1/254016000000 second, so exact conversion requires a multiple of five.</summary>
+internal sealed record PremiereRangeProjection(string InTicks, string OutTicks, string SourceDurationTicks)
+{
+    internal static bool TryCreate(MediaRange range, out PremiereRangeProjection? projection)
+    {
+        projection = null;
+        if (range.IsFullSource || range.Validate().Count != 0 || range.EffectiveIn.Ticks % 5 != 0
+            || range.EffectiveOut.Ticks % 5 != 0 || range.SourceDuration.Ticks % 5 != 0) return false;
+        projection = new(range.EffectiveIn.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            range.EffectiveOut.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            range.SourceDuration.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return true;
+    }
+    internal bool IsValid()
+    {
+        const System.Globalization.NumberStyles integer = System.Globalization.NumberStyles.None;
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        if (!long.TryParse(InTicks, integer, culture, out var input) || !long.TryParse(OutTicks, integer, culture, out var output)
+            || !long.TryParse(SourceDurationTicks, integer, culture, out var duration)) return false;
+        return input >= 0 && output > input && output <= duration && duration > 0
+            && input % 5 == 0 && output % 5 == 0 && duration % 5 == 0;
+    }
+}
+internal sealed record PremiereSource(Guid AssetId, string Path, string SizeBytes, string LastWriteUtcTicks,
+    PremiereRangeProjection? Range = null)
+{
+    [JsonIgnore]
+    public string? RangeIssue { get; init; }
+    [JsonIgnore]
+    public string Name => System.IO.Path.GetFileName(Path);
+    [JsonIgnore]
+    public string RangeSummary => RangeIssue ?? (Range is null ? "Full source" : "Saved In/Out points");
+    [JsonIgnore]
+    public bool HasRange => Range is not null;
+    [JsonIgnore]
+    public bool HasRangeIssue => RangeIssue is not null;
+    public PremiereSource WithoutRange() => this with { Range = null, RangeIssue = null };
+}
 internal sealed record PremiereIntent(Guid OperationId, Guid CatalogId, string DestinationId,
     PremiereProject Project, string BinId, string? CreateBinName, PremiereSource Source)
 {
@@ -86,8 +123,10 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
             {
                 var prior = JsonSerializer.Deserialize<PremiereIntent>(reader.GetString(0), PremiereProtocol.Json)!;
                 // Changed source facts must never reuse an operation ID or silently relink editor media.
-                if (prior.Source != source)
+                if ((prior.Source with { Range = null, RangeIssue = null }) != (source with { Range = null, RangeIssue = null }))
                     throw new InvalidOperationException("Source changed since the previous handoff. Reconcile the existing Premiere item before sending again.");
+                // Projection is part of an immutable handoff intent. A later Send selection reconciles the
+                // original source-item projection rather than overwriting an editor's established item.
                 result = new(prior, reader.GetBoolean(1), reader.IsDBNull(2) ? null
                     : JsonSerializer.Deserialize<PremiereReceipt>(reader.GetString(2), PremiereProtocol.Json));
                 return result;
@@ -149,6 +188,8 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
         if (!file.Exists || file.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) != source.SizeBytes
             || file.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture) != source.LastWriteUtcTicks)
             throw new InvalidOperationException("Source is missing or changed. Refresh the Browser before sending.");
+        if (source.Range is not null && !source.Range.IsValid())
+            throw new InvalidOperationException("The saved In/Out range cannot be represented exactly in Premiere.");
     }
 
     public static bool CompatibleExtension(string extension) => extension.ToLowerInvariant() is

@@ -13,6 +13,15 @@ async function execute(command, adapter, journal) {
       throw new Error('Active project changed. Return to the accepted project and reconcile.');
     if (!adapter.connected()) throw new Error('Connection expired. Reconnect before continuing.');
   };
+  const projectRange = async (itemId, saved) => {
+    // The journal records this separate mutation before the bridge receipt. If a receipt is lost,
+    // reconciliation can prove the range was already applied without overwriting later editor work.
+    if (!intent.source.range || !saved || saved.phase === 'range-projected') return;
+    await guard();
+    await adapter.projectRange(itemId, intent.source.range);
+    await journal.write(intent.operationId, { ...saved, phase: 'range-projected', itemId });
+    await guard();
+  };
   try {
     await guard();
     const saved = await journal.read(intent.operationId);
@@ -24,6 +33,7 @@ async function execute(command, adapter, journal) {
       const matches = items.filter(item => item.id === itemId);
       if (matches.length !== 1 || pathKey(matches[0].mediaPath || '') !== pathKey(intent.source.path))
         return receipt('Conflict', itemId, 'Mapped source is missing or relinked. Editor undo and edits are preserved; no reimport.');
+      await projectRange(itemId, saved);
       await guard();
       return receipt('Verified', itemId, 'Existing Catalog source verified; editor name and bin preserved.');
     }
@@ -43,7 +53,9 @@ async function execute(command, adapter, journal) {
     const added = items.filter(item => !before.has(item.id) && item.mediaPath
       && pathKey(item.mediaPath) === pathKey(intent.source.path));
     if (added.length !== 1) return receipt('UnknownOutcome', null, 'Import readback was ambiguous; reconcile before any retry.');
-    await journal.write(intent.operationId, { intent: JSON.stringify(intent), phase: 'imported', itemId: added[0].id });
+    const imported = { intent: JSON.stringify(intent), phase: 'imported', itemId: added[0].id };
+    await journal.write(intent.operationId, imported);
+    await projectRange(added[0].id, imported);
     await guard();
     return receipt('Verified', added[0].id, 'Source imported and verified. Save your Premiere project to preserve the import.');
   } catch (error) {

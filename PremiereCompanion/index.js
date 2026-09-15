@@ -56,7 +56,7 @@ async function heartbeat(discoverBins = true) {
   const current = describe(await ppro.Project.getActiveProject());
   if ((description || current) && !sameProject(description, current))
     throw new Error('Active project changed while reading bins. Waiting for the current project.');
-  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.4', protocol: 1,
+  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.5', protocol: 1,
     hostVersion: uxp.host.version, uxpVersion: uxp.versions.uxp, project: description, bins });
   lastHealthy = Date.now();
   return project;
@@ -77,6 +77,13 @@ const journal = {
 };
 
 function adapter(project) {
+  const premiereTicks = value => {
+    if (typeof value !== 'string' || !/^\d+$/.test(value)) throw new Error('Lightflow In/Out values are invalid.');
+    const sourceTicks = BigInt(value);
+    // .NET TimeSpan uses 10,000,000 ticks/s and Premiere uses 254,016,000,000 ticks/s.
+    if (sourceTicks % 5n !== 0n) throw new Error('Lightflow In/Out cannot be represented exactly in Premiere.');
+    return ppro.TickTime.createWithTicks((sourceTicks / 5n * 127008n).toString());
+  };
   return {
     activeProject: async () => describe(await ppro.Project.getActiveProject()),
     connected: () => running && Date.now() - lastHealthy < 10000,
@@ -108,7 +115,28 @@ function adapter(project) {
       if (matches.length !== 1) throw new Error('Created bin readback is ambiguous.');
       return ppro.FolderItem.cast(matches[0]);
     },
-    importSource: (path, bin) => project.importFiles([path], true, bin, false)
+    importSource: (path, bin) => project.importFiles([path], true, bin, false),
+    async projectRange(itemId, range) {
+      if (!range || typeof range !== 'object') throw new Error('Lightflow In/Out range is invalid.');
+      const sourceDuration = premiereTicks(range.sourceDurationTicks);
+      const inPoint = premiereTicks(range.inTicks);
+      const outPoint = premiereTicks(range.outTicks);
+      if (BigInt(outPoint.ticks) <= BigInt(inPoint.ticks) || BigInt(outPoint.ticks) > BigInt(sourceDuration.ticks))
+        throw new Error('Lightflow In/Out range is invalid.');
+      const matches = (await walk(await project.getRootItem())).filter(item => id(item) === itemId);
+      if (matches.length !== 1) throw new Error('Imported source item is unavailable for In/Out projection.');
+      const clip = ppro.ClipProjectItem.cast(matches[0]);
+      const media = await clip.getMedia();
+      const actualDuration = await media.getDuration();
+      if (BigInt(actualDuration.ticks) < BigInt(outPoint.ticks))
+        throw new Error('The imported media duration does not contain Lightflow’s saved Out point.');
+      let succeeded = false;
+      project.lockedAccess(() => {
+        succeeded = project.executeTransaction(compound => compound.addAction(
+          clip.createSetInOutPointsAction(inPoint, outPoint)), 'Lightflow: apply source In/Out');
+      });
+      if (!succeeded) throw new Error('Premiere could not apply the source In/Out points.');
+    }
   };
 }
 
@@ -133,7 +161,7 @@ async function tick() {
       await new Promise(resolve => setTimeout(resolve, 100));
       await request('/v1/receipt', result, command.dispatchId);
       status(`${result.outcome}: ${result.message}`);
-    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.4`);
+    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.5`);
   } catch (error) {
     lastHealthy = 0;
     status(String(error.message || error));

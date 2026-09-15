@@ -36,7 +36,7 @@ hours; a 15-second maintenance check renews expired credentials, and listener re
 explicit reset rotates them. The companion rereads the protected file through its saved
 folder grant on each heartbeat. Closing the panel still removes its availability.
 
-### Supported automatic setup boundary (companion 1.0.4)
+### Supported automatic setup boundary (companion 1.0.5)
 
 Adobe's [Premiere UXP filesystem documentation](https://developer.adobe.com/premiere-pro/uxp/resources/recipes/filesystem-operations/)
 distinguishes sandbox access, user-selected `request` access and arbitrary-path
@@ -108,6 +108,34 @@ Cancellation stops waiting/queued work. An import already executing in Premiere 
 finish and remain there. Resending the same Catalog selection reconciles known results;
 it does not blindly replay an uncertain command. Batch progress uses the existing Jobs
 surfaces, and source receipts remain in the Catalog across Lightflow restarts.
+
+## Send workflow and source In/Out
+
+The Send dialog separates the connected Premiere project, selected Catalog sources, and
+the active-project destination. Refresh reads the latest authenticated companion
+heartbeat and clears a selected bin/child name when the project destination identity
+changes. It does not infer a project from installed software.
+
+For video sources with a saved Lightflow review range, the per-send option projects the
+source item's In/Out points after import. It is not native Subclip creation; #258 owns
+that separate operation. Premiere's supported
+[ClipProjectItem source In/Out actions](https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/clipprojectitem/)
+run in an undoable project transaction. Lightflow's 100-nanosecond `TimeSpan` boundaries
+are converted to Premiere `TickTime` values with integer arithmetic. A boundary that is
+not exactly representable is shown as unavailable; the user can explicitly turn the
+option off to send the full source, but Lightflow never rounds it silently.
+
+The companion records the source-range projection after its imported-item mapping and
+before it returns the authenticated receipt. A missing receipt then reconciles that
+known phase without applying the range again. This preserves an editor's later item
+changes while retaining duplicate-free recovery.
+
+A mere authenticated connection does not protect application shutdown. The close warning
+appears only after the bridge has delivered a command to the companion and before the
+corresponding receipt resolves it. A queued or idle Connected state closes normally.
+Premiere UXP does not expose a reliable foreground-activation contract, and Windows
+foreground rules do not make process/window activation dependable, so Lightflow does not
+use a process/window activation workaround after Send. Jobs continues to record results.
 
 ## Packaging and automated validation
 

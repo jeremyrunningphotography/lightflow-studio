@@ -6839,12 +6839,12 @@ public partial class MainWindow : Window
     {
         _playerViewerHost?.ExitFullscreen();
         if (!TryLeaveInspectorContext()) { e.Cancel = true; return; }
-        if (!_forceClose && _premiereJobs?.Jobs.Any(job => job.State is JobState.Queued or JobState.Running) == true)
+        if (!_forceClose && _premiereBridge?.HasUnresolvedDispatchedHandoff == true)
         {
             if (!ConfirmationDialog.Confirm(this, "Premiere handoff is active", "Stop waiting and close Lightflow?",
                 "An import already in progress may remain in Premiere. Reopen Lightflow and send the same Catalog selection to reconcile.",
                 null, "Stop handoff")) { e.Cancel = true; return; }
-            _premiereJobs.CancelAll();
+            _premiereJobs?.CancelAll();
         }
         SaveBatchState();
         SaveWorkspaceState();

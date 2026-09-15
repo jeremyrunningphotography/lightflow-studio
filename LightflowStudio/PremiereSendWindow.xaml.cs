@@ -16,7 +16,9 @@ public partial class PremiereSendWindow : Window
     {
         InitializeComponent();
         _bridge = bridge; _jobs = jobs; _sources = sources;
-        SelectionText.Text = $"{sources.Count} Catalog source(s) selected.";
+        Sources.ItemsSource = sources;
+        ApplyRangesCheck.IsChecked = PremiereSendPlanning.CanApplyRanges(sources);
+        ApplyRangesCheck.IsEnabled = PremiereSendPlanning.CanApplyRanges(sources);
         _timer.Tick += (_, _) => RefreshConnection();
         Loaded += (_, _) => { RefreshConnection(); _timer.Start(); };
         Closed += (_, _) => _timer.Stop();
@@ -34,10 +36,23 @@ public partial class PremiereSendWindow : Window
             Bins.SelectedItem = _state.Bins.FirstOrDefault(bin => bin.Id == _state.SelectedBinId);
             Bins.IsEnabled = _state.Bins.Count > 0;
             NewBinName.IsEnabled = _state.DestinationId is not null;
-            ContextText.Text = live.State == PremiereConnectionState.Connected && live.Companion is { } hello
-                ? $"{live.Message}\nProject: {hello.Project?.Name ?? "No active project"}\nCompanion: {hello.CompanionVersion}" : "Premiere companion disconnected";
-            StateText.Text = _state.Message;
-            SendButton.IsEnabled = _sources.Count > 0 && _state.CanSend(live);
+            var connected = live.State == PremiereConnectionState.Connected;
+            ConnectionText.Text = connected ? "Connected" : "Not connected";
+            ConnectionBadge.Background = (System.Windows.Media.Brush)FindResource(connected ? "ReadyBadgeBackgroundBrush" : "PausedBadgeBackgroundBrush");
+            ConnectionBadge.BorderBrush = (System.Windows.Media.Brush)FindResource(connected ? "ReadyBadgeBorderBrush" : "PausedBadgeBorderBrush");
+            ProjectText.Text = connected ? $"Project: {live.Companion?.Project?.Name ?? "No active project"}" : "";
+            CompanionText.Text = connected && live.Companion is { } hello
+                ? $"Premiere Pro {hello.HostVersion} · Companion {hello.CompanionVersion}" : "";
+            ConnectionMessageText.Text = live.Message;
+            DestinationMessageText.Text = _state.Message;
+            RangeMessageText.Text = PremiereSendPlanning.HasRangeIssue(_sources)
+                ? ApplyRangesCheck.IsChecked == true
+                    ? "One or more saved In/Out points cannot be transferred exactly. Turn off this option to send full sources."
+                    : "One or more saved In/Out points cannot be transferred exactly. Those sources will be sent as full sources."
+                : ApplyRangesCheck.IsEnabled ? "Saved ranges apply only to matching source items; this does not create Subclips."
+                : "No selected video has saved In/Out points.";
+            SendButton.IsEnabled = _sources.Count > 0 && _state.CanSend(live)
+                && !(ApplyRangesCheck.IsChecked == true && PremiereSendPlanning.HasRangeIssue(_sources));
         }
         finally { _refreshing = false; }
     }
@@ -49,6 +64,8 @@ public partial class PremiereSendWindow : Window
     }
     private void Settings_Click(object sender, RoutedEventArgs e) =>
         new PremiereIntegrationWindow(_bridge) { Owner = this }.ShowDialog();
+    private void Refresh_Click(object sender, RoutedEventArgs e) => RefreshConnection();
+    private void ApplyRanges_Changed(object sender, RoutedEventArgs e) => RefreshConnection();
     private void Send_Click(object sender, RoutedEventArgs e)
     {
         var live = _bridge.Connection;
@@ -56,7 +73,8 @@ public partial class PremiereSendWindow : Window
         try
         {
             _jobs.Enqueue(live.Companion!.Project!, _state.SelectedBinId!,
-                string.IsNullOrWhiteSpace(NewBinName.Text) ? null : NewBinName.Text.Trim(), _sources);
+                string.IsNullOrWhiteSpace(NewBinName.Text) ? null : NewBinName.Text.Trim(),
+                PremiereSendPlanning.Sources(_sources, ApplyRangesCheck.IsChecked == true));
             Close();
         }
         catch (Exception error) { ResultText.Text = error.Message; }

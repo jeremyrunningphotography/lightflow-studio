@@ -57,6 +57,7 @@ public class PremiereUiContractTests
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "MediaHeading");
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RangeCheck");
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RangeTimeline");
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "PremiereItemText");
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "ProjectText");
         var sourcesScroll = send.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "SourcesScroll");
         Assert.Equal("SourcesScroll_PreviewMouseWheel", (string?)sourcesScroll.Attribute("PreviewMouseWheel"));

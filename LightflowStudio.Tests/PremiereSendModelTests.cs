@@ -14,8 +14,8 @@ public class PremiereSendModelTests
 
         Assert.Equal(true, model.GlobalUseRangeState);
         Assert.Collection(model.Items,
-            item => { Assert.True(item.HasRange); Assert.True(item.UseRange); Assert.Equal(24, item.RangeSegmentLeft, 8); Assert.Equal(192, item.RangeSegmentWidth, 8); },
-            item => { Assert.False(item.HasRange); Assert.False(item.UseRange); },
+            item => { Assert.True(item.HasRange); Assert.True(item.UseRange); Assert.Equal("→ Same source item in Premiere", item.PremiereItemText); Assert.Equal(24, item.RangeSegmentLeft, 8); Assert.Equal(192, item.RangeSegmentWidth, 8); },
+            item => { Assert.False(item.HasRange); Assert.False(item.UseRange); Assert.Equal("→ Same source item in Premiere", item.PremiereItemText); },
             item => { Assert.True(item.HasRange); Assert.True(item.UseRange); });
         Assert.Equal(2, model.PlannedSources.Count(source => source.Range is not null));
 

@@ -8,15 +8,15 @@ internal sealed record JobsWorkspaceItem(
     Guid JobId, Guid? HistoryRecordId, EncodingJobHistoryRecord? HistoryRecord, bool SchedulerOwned, bool IsLegacyProjection,
     string Name, string Capability, JobState State, double? Progress, string Timing, string SourcePath,
     string OutputPath, string Issue, string Details, DateTimeOffset SortTime, long QueueOrder,
-    JobDetailsPresentation? DetailPresentation = null)
+    JobDetailsPresentation? DetailPresentation = null, bool SupportsQueueControls = true)
 {
-    public string StateText => JobsPresentation.StateText(State);
+    public string StateText => Capability == "Premiere handoff" && State == JobState.Running ? "Sending" : JobsPresentation.StateText(State);
     public bool IsCurrent => SchedulerOwned;
-    public bool CanPause => IsCurrent && State == JobState.Queued;
-    public bool CanResume => IsCurrent && State == JobState.Paused;
-    public bool CanRetry => IsCurrent && State == JobState.NeedsAttention;
+    public bool CanPause => SupportsQueueControls && IsCurrent && State == JobState.Queued;
+    public bool CanResume => SupportsQueueControls && IsCurrent && State == JobState.Paused;
+    public bool CanRetry => SupportsQueueControls && IsCurrent && State == JobState.NeedsAttention;
     public bool CanCancel => IsCurrent && State is JobState.Queued or JobState.Running or JobState.Paused or JobState.NeedsAttention;
-    public bool CanReorder => IsCurrent && State == JobState.Queued;
+    public bool CanReorder => SupportsQueueControls && IsCurrent && State == JobState.Queued;
     public bool CanReviewAndRerun => HistoryRecord is not null;
     public bool CanRemoveHistory => HistoryRecordId is not null && (!SchedulerOwned || JobsPresentation.IsTerminal(State));
     public string LegacyNote => IsLegacyProjection ? "Older Jobs saved together · group-level Review & Rerun and removal" : "";
@@ -193,7 +193,7 @@ internal static class JobsWorkspacePresentation
 
     private static string CompactTimestamp(DateTimeOffset value) => value.ToLocalTime().ToString("MMM d, HH:mm");
 
-    private static bool Matches(JobState state, JobsWorkspaceFilter filter) => filter switch
+    internal static bool Matches(JobState state, JobsWorkspaceFilter filter) => filter switch
     {
         JobsWorkspaceFilter.All => true,
         JobsWorkspaceFilter.Active => state == JobState.Running,

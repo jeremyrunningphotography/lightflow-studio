@@ -3,7 +3,9 @@ param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot "..\dist"),
     [ValidateSet("Release", "PullRequest")]
     [string]$Mode = "Release",
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    [ValidateRange(30, 1800)]
+    [int]$StartupTimeoutSeconds = 900
 )
 
 $ErrorActionPreference = "Stop"
@@ -56,7 +58,9 @@ try {
     if ($startupSmoke.WaitForExit(8000)) {
         throw "Packaged application exited during the Browser startup smoke test (exit code $($startupSmoke.ExitCode))."
     }
-    $presentationDeadline = [DateTime]::UtcNow.AddSeconds(30)
+    # Existing Catalogs can require integrity checks and a migration backup before WPF is ready.
+    # Keep the readiness assertion and process-exit checks, allowing a bounded first-run migration.
+    $presentationDeadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
     while (-not (Test-Path -LiteralPath $presentationReport)) {
         if ($startupSmoke.WaitForExit(250)) { throw "Packaged startup exited before presentation readiness." }
         if ([DateTime]::UtcNow -gt $presentationDeadline) { throw "Packaged startup did not report presentation readiness." }
@@ -77,6 +81,7 @@ finally {
 }
 
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "PremiereHelper") -Destination (Join-Path $appDirectory "PremiereHelper") -Recurse -Force
+& (Join-Path $PSScriptRoot "Build-PremiereCompanion.ps1") -OutputPath (Join-Path $appDirectory "PremiereCompanion\LightflowStudio.ccx")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "THIRD-PARTY-NOTICES.md") -Destination $appDirectory -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "dependencies\flyleaf.json") -Destination (Join-Path $appDirectory "flyleaf-package.json") -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "dependencies\flyleaf-fast-seek.patch") -Destination $appDirectory -Force

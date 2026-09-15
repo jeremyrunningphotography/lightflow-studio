@@ -16,15 +16,15 @@
     </StackPanel>
    </Border>
    <TextBlock Text="Select source media in the Browser and choose Send to Premiere Pro to choose a destination and send." Style="{StaticResource PageSubtitle}" Margin="0,0,0,12"/>
-   <Expander x:Name="SetupHelp" Header="First-time setup" Margin="0,0,0,12">
-    <StackPanel Margin="0,8,0,0">
+   <Expander Style="{StaticResource SettingsExpanderStyle}" x:Name="SetupHelp" Header="First-time setup" Margin="0,0,0,12">
+    <StackPanel Margin="10,0,10,0">
      <TextBlock Style="{StaticResource PageSubtitle}" Text="Adobe requires one folder-access grant so the companion can read Lightflow's protected connection settings. This grants access only to the connection folder; you do not need to find your media or project folder."/>
-     <TextBlock Margin="0,8,0,8" TextWrapping="Wrap" Text="1. Click Copy Setup Location below.&#10;2. In Premiere, open Window > UXP Plugins > Lightflow Studio Companion.&#10;3. Click Allow Connection Access. In the folder picker, paste the copied location into the address bar, press Enter, then choose Select Folder.&#10;&#10;The companion remembers this grant and connects automatically on later launches. Keep its panel open while sending."/>
+     <TextBlock Foreground="{StaticResource TextBrush}" FontSize="13" LineHeight="20" Margin="0,8,0,8" TextWrapping="Wrap" Text="1. Click Copy Setup Location below.&#10;2. In Premiere, open Window > UXP Plugins > Lightflow Studio Companion.&#10;3. Click Allow Connection Access. In the folder picker, paste the copied location into the address bar, press Enter, then choose Select Folder.&#10;&#10;The companion remembers this grant and connects automatically on later launches. Keep its panel open while sending."/>
      <Button Content="Copy Setup Location" Click="CopySetup_Click" HorizontalAlignment="Left"/>
     </StackPanel>
    </Expander>
-   <Expander Header="Troubleshooting">
-    <StackPanel Margin="0,8,0,0">
+   <Expander Style="{StaticResource SettingsExpanderStyle}" Header="Troubleshooting">
+    <StackPanel Margin="10,0,10,0">
      <TextBlock Style="{StaticResource PageSubtitle}" Text="Open the companion panel and choose Resume Connection if it was disconnected. Restarted Lightflow sessions and renewed credentials reconnect automatically. If Adobe says folder access is no longer valid, choose Allow Connection Access again using First-time setup."/>
      <WrapPanel Margin="0,8,0,0">
       <Button Content="Refresh Installation" Click="Refresh_Click"/>

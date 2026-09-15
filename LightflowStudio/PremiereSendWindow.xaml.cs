@@ -40,16 +40,19 @@ public partial class PremiereSendWindow : Window
             if (!_state.Bins.SequenceEqual((Bins.ItemsSource as IReadOnlyList<PremiereBin>) ?? []))
                 Bins.ItemsSource = _state.Bins;
             Bins.SelectedItem = _state.Bins.FirstOrDefault(bin => bin.Id == _state.SelectedBinId);
-            Bins.IsEnabled = _state.Bins.Count > 0;
-            NewBinName.IsEnabled = _state.DestinationId is not null;
-            var connected = live.State == PremiereConnectionState.Connected;
-            ConnectionText.Text = connected ? "Connected" : "Not connected";
-            ConnectionBadge.Background = (System.Windows.Media.Brush)FindResource(connected ? "ReadyBadgeBackgroundBrush" : "PausedBadgeBackgroundBrush");
-            ConnectionBadge.BorderBrush = (System.Windows.Media.Brush)FindResource(connected ? "ReadyBadgeBorderBrush" : "PausedBadgeBorderBrush");
-            ProjectText.Text = connected ? $"Project: {live.Companion?.Project?.Name ?? "No active project"}" : "";
-            CompanionText.Text = connected && live.Companion is { } hello
+            var presentation = PremiereSendState.Present(live);
+            Bins.IsEnabled = _state.Bins.Count > 0 && presentation.IsActionable;
+            NewBinName.IsEnabled = _state.DestinationId is not null && presentation.IsActionable;
+            var ready = presentation.Readiness is PremiereSendReadiness.DestinationRequired or PremiereSendReadiness.Ready;
+            ConnectionText.Text = presentation.Badge;
+            ConnectionBadge.Background = (System.Windows.Media.Brush)FindResource(ready ? "ReadyBadgeBackgroundBrush" : "PausedBadgeBackgroundBrush");
+            ConnectionBadge.BorderBrush = (System.Windows.Media.Brush)FindResource(ready ? "ReadyBadgeBorderBrush" : "PausedBadgeBorderBrush");
+            ProjectRow.Visibility = live.State == PremiereConnectionState.Connected ? Visibility.Visible : Visibility.Collapsed;
+            ProjectText.Text = presentation.IsProjectMissing ? "No active project" : live.Companion?.Project?.Name ?? "";
+            ProjectText.Foreground = (System.Windows.Media.Brush)FindResource(presentation.IsProjectMissing ? "RedBrush" : "TextBrush");
+            CompanionText.Text = live.State == PremiereConnectionState.Connected && live.Companion is { } hello
                 ? $"Premiere Pro {hello.HostVersion} · Companion {hello.CompanionVersion}" : "";
-            ConnectionMessageText.Text = live.Message;
+            ConnectionMessageText.Text = presentation.Guidance;
             DestinationMessageText.Text = _state.Message;
             SyncMedia();
             RangeMessageText.Text = _media.HasRangeIssue

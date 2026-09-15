@@ -8,16 +8,29 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
     public string Name => $"Send {Sources.Count} source(s) to Premiere";
     public double Progress => Sources.Count == 0 ? 0 : Completed * 100d / Sources.Count;
     public string Details => $"Project: {Project.Name}\n{Completed} of {Sources.Count} source(s) processed.\n{Message}\n"
-        + string.Join("\n", Receipts.Select(receipt => $"{OutcomeText(receipt)}: {receipt.Message}"));
+        + string.Join("\n", Receipts.Select(receipt => $"{OutcomeText(receipt)}: {UserMessage(receipt)}"));
     internal static string OutcomeText(PremiereReceipt receipt) => receipt.Outcome switch
     {
         PremiereOutcome.Verified when receipt.Message.Contains("updated", StringComparison.OrdinalIgnoreCase) => "Updated",
         PremiereOutcome.Verified when receipt.Message.Contains("cleared", StringComparison.OrdinalIgnoreCase) => "Updated",
         PremiereOutcome.Verified when receipt.Message.Contains("imported", StringComparison.OrdinalIgnoreCase) => "Imported",
         PremiereOutcome.Verified => "Verified",
-        PremiereOutcome.Conflict => "Conflict — action required",
+        PremiereOutcome.Conflict => "Not sent",
         PremiereOutcome.UnknownOutcome => "Needs reconciliation",
         _ => "Failed"
+    };
+    internal static string UserMessage(PremiereReceipt receipt) => receipt.Outcome switch
+    {
+        PremiereOutcome.Verified => receipt.Message,
+        PremiereOutcome.UnknownOutcome => "Premiere may have started this import but it could not be verified. Return to the original project and send the same source again.",
+        PremiereOutcome.Conflict when receipt.Message.Contains("missing or relinked", StringComparison.OrdinalIgnoreCase)
+            => "The matching Premiere source was moved or relinked. Restore or relink it in the original project, then send again.",
+        PremiereOutcome.Conflict when receipt.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase)
+            => "A matching file already exists in Premiere but is not linked to this Catalog source. Resolve that item in the original project, then send again.",
+        PremiereOutcome.Conflict when receipt.Message.Contains("identity changed", StringComparison.OrdinalIgnoreCase)
+            => "The source changed since its earlier handoff. Refresh the Browser and resolve the existing Premiere source before sending again.",
+        PremiereOutcome.Conflict => "Premiere could not safely reconcile this source. Resolve the existing source in the original project, then send again.",
+        _ => "Premiere did not change this source. Check the connection and try again."
     };
     public JobCardPresentation Card(bool expanded) => new(JobId, Name, JobsPresentation.Glyph(State),
         State == JobState.Running ? "Sending" : JobsPresentation.StateText(State), Progress, State == JobState.Running,
@@ -111,7 +124,7 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
                     result = new(Guid.Empty, PremiereOutcome.Failed, null, error.Message);
                 }
                 receipts.Add(result);
-                job = job with { Completed = receipts.Count, Receipts = receipts.ToArray(), Message = $"{Path.GetFileName(source.Path)}: {result.Message}" };
+                job = job with { Completed = receipts.Count, Receipts = receipts.ToArray(), Message = $"{Path.GetFileName(source.Path)}: {PremiereJob.UserMessage(result)}" };
                 Publish(job);
             }
             job = job with { State = receipts.All(receipt => receipt.Outcome == PremiereOutcome.Verified)

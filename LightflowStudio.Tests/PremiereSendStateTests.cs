@@ -61,7 +61,8 @@ public class PremiereSendStateTests
     {
         var state = new PremiereSendState(); var live = Connected();
         var noProject = live with { Companion = live.Companion! with { Project = null } };
-        state.Refresh(noProject); Assert.Empty(state.Bins); Assert.Contains("Open and save", state.Message); Assert.False(state.CanSend(noProject));
+        state.Refresh(noProject); Assert.Empty(state.Bins); Assert.Equal("", state.Message); Assert.False(state.CanSend(noProject));
+        Assert.Equal("Open or create a Premiere project, then click Refresh.", PremiereSendState.Present(noProject).Guidance);
         var noBins = live with { Companion = live.Companion! with { Bins = [] } };
         state.Refresh(noBins); Assert.Contains("Waiting for bins", state.Message); Assert.False(state.CanSend(noBins));
     }

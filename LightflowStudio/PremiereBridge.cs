@@ -59,7 +59,7 @@ internal sealed class PremiereBridge : IAsyncDisposable
         get
         {
             if (_problem is not null) return new(PremiereConnectionState.ConnectionProblem, _problem);
-            if (_incompatible) return new(PremiereConnectionState.UpdateRequired, "Install companion 1.x and Premiere Pro 26.5 or later.");
+            if (_incompatible) return new(PremiereConnectionState.UpdateRequired, $"Install companion {PremiereProtocol.CompanionVersion} and Premiere Pro 26.5 or later.");
             var hello = _hello;
             if (hello is not null && _now() < _expires && _now() - _heartbeat < TimeSpan.FromSeconds(HeartbeatSeconds))
                 return new(PremiereConnectionState.Connected, $"Connected — Premiere Pro {hello.HostVersion}", hello);
@@ -191,7 +191,7 @@ internal sealed class PremiereBridge : IAsyncDisposable
                         || string.IsNullOrWhiteSpace(project.Path) || !Path.IsPathFullyQualified(project.Path)))
                 { context.Response.StatusCode = 400; return; }
                 _incompatible = hello.Protocol != PremiereProtocol.Version || !Version.TryParse(hello.CompanionVersion, out var companionVersion)
-                    || companionVersion.Major != 1
+                    || companionVersion < Version.Parse(PremiereProtocol.CompanionVersion)
                     || !PremiereProtocol.SupportedHost(hello.HostVersion);
                 if (_incompatible) { context.Response.StatusCode = 409; Changed?.Invoke(); return; }
                 if (_hello is not null && _hello.InstanceId != hello.InstanceId && Connection.State == PremiereConnectionState.Connected)

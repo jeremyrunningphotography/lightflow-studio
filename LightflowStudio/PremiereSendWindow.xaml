@@ -12,7 +12,7 @@
     <StackPanel Grid.Column="1" Orientation="Horizontal"><Button Content="Refresh" Click="Refresh_Click"/><Button Content="Integration Settings…" Click="Settings_Click"/></StackPanel>
    </Grid>
    <Border x:Name="ConnectionBadge" Margin="0,9,0,0" Padding="8,5" HorizontalAlignment="Left" CornerRadius="6" Background="{StaticResource ReadyBadgeBackgroundBrush}" BorderBrush="{StaticResource ReadyBadgeBorderBrush}" BorderThickness="1"><TextBlock x:Name="ConnectionText" FontWeight="SemiBold"/></Border>
-   <TextBlock x:Name="ProjectText" Margin="0,7,0,0" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/>
+   <StackPanel x:Name="ProjectRow" Orientation="Horizontal" Margin="0,7,0,0"><TextBlock Text="Project: " Foreground="{StaticResource TextBrush}"/><TextBlock x:Name="ProjectText" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/></StackPanel>
    <TextBlock x:Name="CompanionText" Margin="0,3,0,0" Style="{StaticResource PageSubtitle}"/>
    <TextBlock x:Name="ConnectionMessageText" Margin="0,7,0,0" Style="{StaticResource PageSubtitle}"/>
   </StackPanel></Border>

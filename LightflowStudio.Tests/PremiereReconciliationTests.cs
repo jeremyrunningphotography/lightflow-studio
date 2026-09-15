@@ -63,6 +63,46 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
     public void NestedSendMediaWheelTransfersOnlyAtDirectionalBoundaries(double height, double offset, int delta, bool transfers)
         => Assert.Equal(transfers, PremiereSendWindow.ShouldTransferWheelToDialog(height, offset, delta));
 
+    [Fact]
+    public void SendReadinessSeparatesHealthyConnectionFromAnActionableProject()
+    {
+        var disconnected = PremiereSendState.Present(new(PremiereConnectionState.ConnectionProblem, "Reconnect."));
+        Assert.Equal(PremiereSendReadiness.Disconnected, disconnected.Readiness);
+        var noProject = PremiereSendState.Present(new(PremiereConnectionState.Connected, "Connected.", new("s", "1.0.7", 1, "26.5", "9", null, [])));
+        Assert.Equal(PremiereSendReadiness.ProjectRequired, noProject.Readiness);
+        Assert.True(noProject.IsProjectMissing);
+        Assert.Equal("Open or create a Premiere project, then click Refresh.", noProject.Guidance);
+        var active = PremiereSendState.Present(new(PremiereConnectionState.Connected, "Connected.", new("s", "1.0.7", 1, "26.5", "9", new("p", @"C:\edit.prproj", "edit"), [new("root", "Root")] )));
+        Assert.Equal(PremiereSendReadiness.DestinationRequired, active.Readiness);
+        Assert.True(active.IsActionable);
+    }
+
+    [Fact]
+    public void RefreshClearsClosedOrSwitchedProjectAndAcceptsTheNewProject()
+    {
+        var state = new PremiereSendState();
+        var first = new PremiereProject("first", @"C:\first.prproj", "first");
+        state.Refresh(new(PremiereConnectionState.Connected, "", new("s", "1.0.7", 1, "26.5", "9", first, [new("first-root", "Root")])));
+        state.SelectedBinId = "first-root";
+        Assert.NotNull(state.DestinationId);
+        state.Refresh(new(PremiereConnectionState.Connected, "", new("s", "1.0.7", 1, "26.5", "9", null, [])));
+        Assert.Null(state.DestinationId);
+        Assert.Null(state.SelectedBinId);
+        var second = new PremiereProject("second", @"C:\second.prproj", "second");
+        state.Refresh(new(PremiereConnectionState.Connected, "", new("s", "1.0.7", 1, "26.5", "9", second, [new("second-root", "Root")])));
+        Assert.Equal(PremiereProtocol.DestinationId(second), state.DestinationId);
+        Assert.Single(state.Bins);
+    }
+
+    [Fact]
+    public void JobsPresentConcreteRecoveryInsteadOfInternalConflictDiagnostics()
+    {
+        var receipt = new PremiereReceipt(Guid.NewGuid(), PremiereOutcome.Conflict, null, "Operation payload changed; no mutation performed.");
+        Assert.Equal("Not sent", PremiereJob.OutcomeText(receipt));
+        Assert.DoesNotContain("payload", PremiereJob.UserMessage(receipt), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Resolve", PremiereJob.UserMessage(receipt), StringComparison.OrdinalIgnoreCase);
+    }
+
     public async Task DisposeAsync()
     {
         if (_session is not null) await _session.DisposeAsync();

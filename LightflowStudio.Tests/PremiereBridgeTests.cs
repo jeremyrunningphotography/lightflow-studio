@@ -77,7 +77,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         _client.DefaultRequestHeaders.Add("X-Lightflow-Session", "session-1");
     }
     private sealed class Machine : IMachineIdentityProvider { public string GetMachineId() => "test-machine"; }
-    private PremiereHello Hello => new("session-1", "1.0.0", 1, "26.5.0", "9.3.0", _project, [new("root", "Root")]);
+    private PremiereHello Hello => new("session-1", PremiereProtocol.CompanionVersion, 1, "26.5.0", "9.3.0", _project, [new("root", "Root")]);
     private async Task<HttpResponseMessage> Post(string path, object value)
     {
         await Task.Delay(70);
@@ -284,7 +284,8 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
     [Theory]
     [InlineData("0 extensions installed for Others", (int)PremiereConnectionState.PremiereNotInstalled)]
     [InlineData("0 extensions installed for Premiere Pro (ver 26.5.0)\n Status Extension Name Version\n", (int)PremiereConnectionState.CompanionNotInstalled)]
-    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.0.0\n", (int)PremiereConnectionState.Ready)]
+    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.0.7\n", (int)PremiereConnectionState.Ready)]
+    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.0.6\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 2.0.0\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("System exception", (int)PremiereConnectionState.ConnectionProblem)]
     public void InstallationInventoryDoesNotInventLiveness(string inventory, int expected)

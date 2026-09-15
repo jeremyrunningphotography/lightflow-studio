@@ -45,18 +45,25 @@ public class PremiereUiContractTests
     }
 
     [Fact]
-    public void SendUsesThreeClearSectionsWithSourceReviewRefreshAndRangeOption()
+    public void SendUsesExportStyleSourceReviewWithGlobalAndPerItemRangeOptions()
     {
         var send = XDocument.Load(Source("PremiereSendWindow.xaml"));
         var text = File.ReadAllText(Source("PremiereSendWindow.xaml.cs"));
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
-        foreach (var heading in new[] { "Premiere connection", "Media being sent", "Premiere destination" })
+        foreach (var heading in new[] { "Premiere connection", "Premiere destination" })
             Assert.Contains(send.Descendants(), element => (string?)element.Attribute("Text") == heading);
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "Sources");
-        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "ApplyRangesCheck");
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "GlobalUseRangesCheck");
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "MediaHeading");
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RangeCheck");
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RangeTimeline");
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute("Click") == "Refresh_Click");
         Assert.DoesNotContain("Retries verify existing", send.ToString());
-        Assert.Contains("PremiereSendPlanning.Sources", text);
+        Assert.DoesNotContain("ApplyRangesCheck", text);
+        Assert.DoesNotContain("this does not create Subclips", text);
+        Assert.Contains("PremiereSendModel", text);
+        Assert.Contains("GlobalUseRanges_Changed", text);
+        Assert.Contains("RangeUse_Changed", text);
         Assert.DoesNotContain("nearest timing unit", text);
         Assert.DoesNotContain("cannot be transferred exactly", text);
     }

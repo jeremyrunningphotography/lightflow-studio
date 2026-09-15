@@ -58,6 +58,19 @@ internal sealed record PremiereRangeProjection(string InTicks, string OutTicks, 
 
     private static System.Numerics.BigInteger NearestPremiereTicks(System.Numerics.BigInteger value) =>
         (value * 127008 + 2) / 5;
+
+    internal bool TryGetMediaRange(out MediaRange? range)
+    {
+        range = null;
+        const System.Globalization.NumberStyles integer = System.Globalization.NumberStyles.None;
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        if (!long.TryParse(InTicks, integer, culture, out var input) || !long.TryParse(OutTicks, integer, culture, out var output)
+            || !long.TryParse(SourceDurationTicks, integer, culture, out var duration)) return false;
+        var value = new MediaRange(TimeSpan.FromTicks(duration), TimeSpan.FromTicks(input), TimeSpan.FromTicks(output));
+        if (value.Validate().Count != 0) return false;
+        range = value;
+        return true;
+    }
 }
 internal sealed record PremiereSource(Guid AssetId, string Path, string SizeBytes, string LastWriteUtcTicks,
     PremiereRangeProjection? Range = null)

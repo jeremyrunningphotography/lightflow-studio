@@ -346,7 +346,6 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
 
     private IReadOnlyList<ExportSubmissionItem> BuildSubmissionItems()
     {
-        const double timelineWidth = 240;
         var planned = _plan?.Items;
         return ActiveInputs().Select((value, planIndex) =>
         {
@@ -366,26 +365,15 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
                 : item?.Definition.MediaRange;
             var sourceDuration = proposedRange?.SourceDuration ?? input.InitialTrim?.SourceDuration
                 ?? (_metadata.ElementAtOrDefault(index) is { } metadata ? TimeSpan.FromSeconds(metadata.DurationSeconds) : TimeSpan.Zero);
-            var exportIn = useRange && proposedRange is not null ? proposedRange.EffectiveIn : TimeSpan.Zero;
-            var exportOut = useRange && proposedRange is not null ? proposedRange.EffectiveOut : sourceDuration;
-            var hasUsableDuration = sourceDuration > TimeSpan.Zero;
-            var left = hasUsableDuration ? Math.Clamp(exportIn.TotalSeconds / sourceDuration.TotalSeconds, 0, 1) * timelineWidth : 0;
-            var right = hasUsableDuration ? Math.Clamp(exportOut.TotalSeconds / sourceDuration.TotalSeconds, 0, 1) * timelineWidth : timelineWidth;
-            var width = Math.Max(2, right - left);
-            var rangeToolTip = useRange && proposedRange is not null
-                ? $"{FormatTime(exportIn)} – {FormatTime(exportOut)} · {FormatDuration(exportOut - exportIn)} selected of {FormatDuration(sourceDuration)}"
-                : $"Full source · {FormatDuration(sourceDuration)}";
-            var timelineAutomationName = useRange && proposedRange is not null
-                ? $"Export range {FormatTime(exportIn)} to {FormatTime(exportOut)} of {FormatDuration(sourceDuration)} for {sourceName}"
-                : $"Export full source, {FormatDuration(sourceDuration)}, for {sourceName}";
+            var timeline = MediaRangeTimelinePresentation.For(sourceName, sourceDuration, proposedRange, useRange, "Export");
             var rangeAutomationName = hasRange
                 ? $"Use In/Out for {sourceName}"
                 : $"Use In/Out for {sourceName}, unavailable because no In/Out is defined";
             var displayName = input.ExportProvenance?.SubclipName ?? sourceName;
             return new ExportSubmissionItem(index, item?.Definition.Id ?? Guid.Empty, displayName, outputText, $"Output for {displayName}: {outputText.TrimStart('→', ' ')}",
                 !input.RangeIsFixed && hasRange, useRange,
-                !input.RangeIsFixed && hasRange && _rangesGloballyEnabled, rangeAutomationName, left, width,
-                rangeToolTip, timelineAutomationName, item?.Issues ?? []);
+                !input.RangeIsFixed && hasRange && _rangesGloballyEnabled, rangeAutomationName, timeline.SegmentLeft, timeline.SegmentWidth,
+                timeline.ToolTip, timeline.AutomationName, item?.Issues ?? []);
         }).ToArray();
     }
 
@@ -404,14 +392,6 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         .Where(value => value.input.ExportProvenance?.Kind != ExportItemKind.NoSubclipFullSourceFallback ||
             _includeNoSubclipSources)
         .ToArray();
-
-    private static string FormatTime(TimeSpan value) => value.TotalHours >= 1
-        ? value.ToString(@"h\:mm\:ss\.f")
-        : value.ToString(@"mm\:ss\.f");
-
-    private static string FormatDuration(TimeSpan value) => value.TotalHours >= 1
-        ? value.ToString(@"h\:mm\:ss\.f")
-        : value.TotalMinutes >= 1 ? value.ToString(@"m\:ss\.f") : $"{value.TotalSeconds:0.0} s";
 
     private double? EstimateOutputBytes()
     {

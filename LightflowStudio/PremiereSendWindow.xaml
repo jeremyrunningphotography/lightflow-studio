@@ -17,12 +17,20 @@
    <TextBlock x:Name="ConnectionMessageText" Margin="0,7,0,0" Style="{StaticResource PageSubtitle}"/>
   </StackPanel></Border>
   <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="12"><StackPanel>
-   <TextBlock Text="Media being sent" Style="{StaticResource SectionTitle}"/>
-   <ScrollViewer MaxHeight="180" Margin="0,9,0,0" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" VerticalScrollBarVisibility="Auto"><ItemsControl x:Name="Sources"><ItemsControl.ItemTemplate><DataTemplate>
-    <Border Padding="7,5" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1"><Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/><TextBlock Grid.Column="1" Margin="10,0,0,0" Foreground="{StaticResource MutedTextBrush}" Text="{Binding RangeSummary}"/></Grid></Border>
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <TextBlock x:Name="MediaHeading" Text="Media being sent" Style="{StaticResource SectionTitle}"/>
+    <CheckBox x:Name="GlobalUseRangesCheck" Grid.Column="1" VerticalAlignment="Center" Content="Use In/Out points" IsThreeState="False" Checked="GlobalUseRanges_Changed" Unchecked="GlobalUseRanges_Changed" AutomationProperties.Name="Use In and Out points for applicable Premiere sources"/>
+   </Grid>
+   <ScrollViewer x:Name="SourcesScroll" Style="{StaticResource SourceMediaReviewScrollViewer}" MaxHeight="220" Margin="0,9,0,0" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="True" KeyboardNavigation.DirectionalNavigation="Continue"><ItemsControl x:Name="Sources" Background="{StaticResource ShellSurfaceBrush}"><ItemsControl.ItemTemplate><DataTemplate>
+    <Border Padding="4,3" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1"><StackPanel>
+     <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="{Binding SourceFileName}" TextTrimming="CharacterEllipsis" AutomationProperties.Name="{Binding SourceFileName}"/>
+     <Grid x:Name="RangeRow" Margin="0,4,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="112"/><ColumnDefinition Width="240"/></Grid.ColumnDefinitions>
+      <CheckBox x:Name="RangeCheck" VerticalAlignment="Center" Content="Use In/Out" IsChecked="{Binding UseRange, Mode=OneWay}" IsEnabled="{Binding RangeControlEnabled}" Checked="RangeUse_Changed" Unchecked="RangeUse_Changed" AutomationProperties.Name="{Binding RangeAutomationName}"/>
+      <Border x:Name="RangeTimeline" Grid.Column="1" Height="14" VerticalAlignment="Center" Background="Transparent" Focusable="True" ToolTip="{Binding RangeToolTip}" AutomationProperties.Name="{Binding TimelineAutomationName}"><Canvas Width="240" Height="14"><Border Canvas.Left="0" Canvas.Top="6" Width="240" Height="2" Background="{StaticResource ShellDividerBrush}" CornerRadius="1"/><Border Canvas.Left="{Binding RangeSegmentLeft}" Canvas.Top="5" Width="{Binding RangeSegmentWidth}" Height="4" Background="{StaticResource ShellFocusBrush}" CornerRadius="2"/></Canvas></Border>
+     </Grid>
+    </StackPanel></Border><DataTemplate.Triggers><DataTrigger Binding="{Binding HasRange}" Value="False"><Setter TargetName="RangeRow" Property="Visibility" Value="Collapsed"/></DataTrigger></DataTemplate.Triggers>
    </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
-   <CheckBox x:Name="ApplyRangesCheck" Margin="0,9,0,0" Content="Apply saved In/Out points to video source items" Checked="ApplyRanges_Changed" Unchecked="ApplyRanges_Changed"/>
-   <TextBlock x:Name="RangeMessageText" Margin="0,4,0,0" Style="{StaticResource PageSubtitle}"/>
+   <TextBlock x:Name="RangeMessageText" Margin="0,6,0,0" Style="{StaticResource PageSubtitle}"/>
   </StackPanel></Border>
   <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="12"><StackPanel>
    <TextBlock Text="Premiere destination" Style="{StaticResource SectionTitle}"/>

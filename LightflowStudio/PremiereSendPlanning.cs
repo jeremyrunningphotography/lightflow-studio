@@ -9,6 +9,12 @@ internal static class PremiereSendPlanning
     public static IReadOnlyList<PremiereSource> Sources(IReadOnlyList<PremiereSource> selected, bool applyRanges) =>
         applyRanges ? selected : selected.Select(source => source.WithoutRange()).ToArray();
 
+    public static IReadOnlyList<PremiereSource> Sources(IReadOnlyList<PremiereSource> selected, IReadOnlyList<bool> useRanges)
+    {
+        if (selected.Count != useRanges.Count) throw new ArgumentException("Every selected source needs a range choice.", nameof(useRanges));
+        return selected.Select((source, index) => useRanges[index] ? source : source.WithoutRange()).ToArray();
+    }
+
     public static bool CanApplyRanges(IReadOnlyList<PremiereSource> selected) => selected.Any(source => source.HasRange);
     public static bool HasRangeIssue(IReadOnlyList<PremiereSource> selected) => selected.Any(source => source.HasRangeIssue);
 }

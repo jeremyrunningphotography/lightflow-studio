@@ -9,16 +9,15 @@ public partial class PremiereSendWindow : Window
     private readonly PremiereBridge _bridge;
     private readonly PremiereJobs _jobs;
     private readonly IReadOnlyList<PremiereSource> _sources;
+    private readonly PremiereSendModel _media;
     private readonly PremiereSendState _state = new();
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool _refreshing;
     internal PremiereSendWindow(PremiereBridge bridge, PremiereJobs jobs, IReadOnlyList<PremiereSource> sources)
     {
         InitializeComponent();
-        _bridge = bridge; _jobs = jobs; _sources = sources;
-        Sources.ItemsSource = sources;
-        ApplyRangesCheck.IsChecked = PremiereSendPlanning.CanApplyRanges(sources);
-        ApplyRangesCheck.IsEnabled = PremiereSendPlanning.CanApplyRanges(sources);
+        _bridge = bridge; _jobs = jobs; _sources = sources; _media = new PremiereSendModel(sources);
+        SyncMedia();
         _timer.Tick += (_, _) => RefreshConnection();
         Loaded += (_, _) => { RefreshConnection(); _timer.Start(); };
         Closed += (_, _) => _timer.Stop();
@@ -45,14 +44,11 @@ public partial class PremiereSendWindow : Window
                 ? $"Premiere Pro {hello.HostVersion} · Companion {hello.CompanionVersion}" : "";
             ConnectionMessageText.Text = live.Message;
             DestinationMessageText.Text = _state.Message;
-            RangeMessageText.Text = PremiereSendPlanning.HasRangeIssue(_sources)
-                ? ApplyRangesCheck.IsChecked == true
-                    ? "One or more review ranges are too short for Premiere. Turn this off to send those files as full sources."
-                    : "One or more review ranges are too short for Premiere. Those files will be sent as full sources."
-                : ApplyRangesCheck.IsEnabled ? "Saved ranges apply only to matching source items; this does not create Subclips."
-                : "No selected video has saved In/Out points.";
-            SendButton.IsEnabled = _sources.Count > 0 && _state.CanSend(live)
-                && !(ApplyRangesCheck.IsChecked == true && PremiereSendPlanning.HasRangeIssue(_sources));
+            SyncMedia();
+            RangeMessageText.Text = _media.HasRangeIssue
+                ? "One or more review ranges are too short for Premiere and will be sent as full sources."
+                : "";
+            SendButton.IsEnabled = _sources.Count > 0 && _state.CanSend(live);
         }
         finally { _refreshing = false; }
     }
@@ -65,7 +61,28 @@ public partial class PremiereSendWindow : Window
     private void Settings_Click(object sender, RoutedEventArgs e) =>
         new PremiereIntegrationWindow(_bridge) { Owner = this }.ShowDialog();
     private void Refresh_Click(object sender, RoutedEventArgs e) => RefreshConnection();
-    private void ApplyRanges_Changed(object sender, RoutedEventArgs e) => RefreshConnection();
+    private void RangeUse_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_refreshing || sender is not System.Windows.Controls.CheckBox { DataContext: PremiereSendItem item } check) return;
+        _media.SetUseRange(item.Index, check.IsChecked == true);
+        SyncMedia();
+    }
+    private void GlobalUseRanges_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_refreshing || GlobalUseRangesCheck.IsChecked is not { } use) return;
+        _media.SetGlobalUseRanges(use);
+        SyncMedia();
+    }
+    private void SyncMedia()
+    {
+        var items = _media.Items;
+        MediaHeading.Text = $"Media being sent · {_sources.Count}";
+        Sources.ItemsSource = items;
+        GlobalUseRangesCheck.IsEnabled = items.Any(item => item.HasRange);
+        GlobalUseRangesCheck.IsChecked = _media.GlobalUseRangeState;
+        System.Windows.Automation.AutomationProperties.SetName(SourcesScroll,
+            $"Media being sent, {_sources.Count} {(_sources.Count == 1 ? "source" : "sources")}");
+    }
     private void Send_Click(object sender, RoutedEventArgs e)
     {
         var live = _bridge.Connection;
@@ -74,7 +91,7 @@ public partial class PremiereSendWindow : Window
         {
             _jobs.Enqueue(live.Companion!.Project!, _state.SelectedBinId!,
                 string.IsNullOrWhiteSpace(NewBinName.Text) ? null : NewBinName.Text.Trim(),
-                PremiereSendPlanning.Sources(_sources, ApplyRangesCheck.IsChecked == true));
+                _media.PlannedSources);
             Close();
         }
         catch (Exception error) { ResultText.Text = error.Message; }

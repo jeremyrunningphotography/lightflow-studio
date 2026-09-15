@@ -49,8 +49,6 @@ public partial class PremiereSendWindow : Window
                 ? ApplyRangesCheck.IsChecked == true
                     ? "One or more review ranges are too short for Premiere. Turn this off to send those files as full sources."
                     : "One or more review ranges are too short for Premiere. Those files will be sent as full sources."
-                : ApplyRangesCheck.IsChecked == true && PremiereSendPlanning.HasTimingAdjustment(_sources)
-                    ? "Premiere will adjust one or more review boundaries to the nearest timing unit."
                 : ApplyRangesCheck.IsEnabled ? "Saved ranges apply only to matching source items; this does not create Subclips."
                 : "No selected video has saved In/Out points.";
             SendButton.IsEnabled = _sources.Count > 0 && _state.CanSend(live)

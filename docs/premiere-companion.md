@@ -123,9 +123,9 @@ that separate operation. Premiere's supported
 run in an undoable project transaction. Lightflow's 100-nanosecond `TimeSpan` boundaries
 are converted to Premiere `TickTime` values with integer arithmetic. When a boundary
 falls between Premiere ticks, Lightflow deterministically uses the nearest representable
-tick (ties round up) and explains that adjustment in the Send dialog. A range is omitted
-only when it remains invalid after projection, such as a range too short to retain an
-ordered In/Out pair.
+tick (ties round up). This quantization is at most 0.4 Premiere tick (about 1.6
+picoseconds), so it is applied silently. A range is omitted only when it remains invalid
+after projection, such as a range too short to retain an ordered In/Out pair.
 
 The companion records the source-range projection after its imported-item mapping and
 before it returns the authenticated receipt. A missing receipt then reconciles that

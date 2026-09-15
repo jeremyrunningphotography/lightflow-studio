@@ -56,12 +56,6 @@ internal sealed record PremiereRangeProjection(string InTicks, string OutTicks, 
             && premiereOutput > premiereInput && premiereOutput <= premiereDuration;
     }
 
-    [JsonIgnore]
-    public bool TimingAdjusted => HasRemainder(InTicks) || HasRemainder(OutTicks) || HasRemainder(SourceDurationTicks);
-
-    private static bool HasRemainder(string value) => System.Numerics.BigInteger.TryParse(value,
-        System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var ticks) && ticks % 5 != 0;
-
     private static System.Numerics.BigInteger NearestPremiereTicks(System.Numerics.BigInteger value) =>
         (value * 127008 + 2) / 5;
 }
@@ -73,8 +67,7 @@ internal sealed record PremiereSource(Guid AssetId, string Path, string SizeByte
     [JsonIgnore]
     public string Name => System.IO.Path.GetFileName(Path);
     [JsonIgnore]
-    public string RangeSummary => RangeIssue ?? (Range is null ? "Full source" : Range.TimingAdjusted
-        ? "Saved In/Out points · adjusted for Premiere" : "Saved In/Out points");
+    public string RangeSummary => RangeIssue ?? (Range is null ? "Full source" : "Saved In/Out points");
     [JsonIgnore]
     public bool HasRange => Range is not null;
     [JsonIgnore]

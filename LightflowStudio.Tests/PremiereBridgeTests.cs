@@ -265,8 +265,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         Assert.Null(Assert.Single(PremiereSendPlanning.Sources([withRange], false)).Range);
         Assert.True(PremiereRangeProjection.TryCreate(new MediaRange(TimeSpan.FromTicks(101), TimeSpan.FromTicks(10), TimeSpan.FromTicks(91)), out var adjusted));
         Assert.NotNull(adjusted);
-        Assert.True(adjusted!.TimingAdjusted);
-        Assert.True(adjusted.IsValid());
+        Assert.True(adjusted!.IsValid());
     }
     [Fact]
     public async Task ProjectSwitchBeforeDispatchStopsWithoutImportPermission()

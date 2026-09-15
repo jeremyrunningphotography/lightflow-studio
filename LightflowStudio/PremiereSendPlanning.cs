@@ -11,5 +11,4 @@ internal static class PremiereSendPlanning
 
     public static bool CanApplyRanges(IReadOnlyList<PremiereSource> selected) => selected.Any(source => source.HasRange);
     public static bool HasRangeIssue(IReadOnlyList<PremiereSource> selected) => selected.Any(source => source.HasRangeIssue);
-    public static bool HasTimingAdjustment(IReadOnlyList<PremiereSource> selected) => selected.Any(source => source.Range?.TimingAdjusted == true);
 }

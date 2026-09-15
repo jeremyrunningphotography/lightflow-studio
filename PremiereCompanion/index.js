@@ -57,7 +57,7 @@ async function heartbeat(discoverBins = true) {
   const current = describe(await ppro.Project.getActiveProject());
   if ((description || current) && !sameProject(description, current))
     throw new Error('Active project changed while reading bins. Waiting for the current project.');
-  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.6', protocol: 1,
+  await request('/v1/heartbeat', { instanceId, companionVersion: '1.0.7', protocol: 1,
     hostVersion: uxp.host.version, uxpVersion: uxp.versions.uxp, project: description, bins });
   lastHealthy = Date.now();
   return project;
@@ -131,6 +131,17 @@ function adapter(project) {
           clip.createSetInOutPointsAction(inPoint, outPoint)), 'Lightflow: apply source In/Out');
       });
       if (!succeeded) throw new Error('Premiere could not apply the source In/Out points.');
+    },
+    async clearRange(itemId) {
+      const matches = (await walk(await project.getRootItem())).filter(item => id(item) === itemId);
+      if (matches.length !== 1) throw new Error('Imported source item is unavailable for In/Out projection.');
+      const clip = ppro.ClipProjectItem.cast(matches[0]);
+      let succeeded = false;
+      project.lockedAccess(() => {
+        succeeded = project.executeTransaction(compound => compound.addAction(
+          clip.createClearInOutPointsAction()), 'Lightflow: clear source In/Out');
+      });
+      if (!succeeded) throw new Error('Premiere could not clear the source In/Out points.');
     }
   };
 }
@@ -156,7 +167,7 @@ async function tick() {
       await new Promise(resolve => setTimeout(resolve, 100));
       await request('/v1/receipt', result, command.dispatchId);
       status(`${result.outcome}: ${result.message}`);
-    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.6`);
+    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.0.7`);
   } catch (error) {
     lastHealthy = 0;
     status(String(error.message || error));

@@ -154,8 +154,11 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         Assert.False(first.PreviouslyDispatched);
         await _journal.MarkDispatchedAsync(first.Intent);
         var reopened = new CatalogPremiereHandoffs(() => _session);
-        var unknown = await reopened.PrepareAsync(_project, "editor-moved-bin", null, _source);
-        Assert.Equal(first.Intent, unknown.Intent);
+        var ranged = _source with { Range = new PremiereRangeProjection("10", "90", "100") };
+        var unknown = await reopened.PrepareAsync(_project, "editor-moved-bin", null, ranged);
+        Assert.Equal(first.Intent.OperationId, unknown.Intent.OperationId);
+        Assert.Equal("editor-moved-bin", unknown.Intent.BinId);
+        Assert.Equal(ranged.Range, unknown.Intent.Source.Range);
         Assert.True(unknown.PreviouslyDispatched);
         var receipt = new PremiereReceipt(first.Intent.OperationId, PremiereOutcome.Verified, "item-1", "verified");
         await reopened.SaveReceiptAsync(first.Intent, receipt);

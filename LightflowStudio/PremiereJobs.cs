@@ -8,7 +8,17 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
     public string Name => $"Send {Sources.Count} source(s) to Premiere";
     public double Progress => Sources.Count == 0 ? 0 : Completed * 100d / Sources.Count;
     public string Details => $"Project: {Project.Name}\n{Completed} of {Sources.Count} source(s) processed.\n{Message}\n"
-        + string.Join("\n", Receipts.Select(receipt => $"{receipt.Outcome}: {receipt.Message}"));
+        + string.Join("\n", Receipts.Select(receipt => $"{OutcomeText(receipt)}: {receipt.Message}"));
+    internal static string OutcomeText(PremiereReceipt receipt) => receipt.Outcome switch
+    {
+        PremiereOutcome.Verified when receipt.Message.Contains("updated", StringComparison.OrdinalIgnoreCase) => "Updated",
+        PremiereOutcome.Verified when receipt.Message.Contains("cleared", StringComparison.OrdinalIgnoreCase) => "Updated",
+        PremiereOutcome.Verified when receipt.Message.Contains("imported", StringComparison.OrdinalIgnoreCase) => "Imported",
+        PremiereOutcome.Verified => "Verified",
+        PremiereOutcome.Conflict => "Conflict — action required",
+        PremiereOutcome.UnknownOutcome => "Needs reconciliation",
+        _ => "Failed"
+    };
     public JobCardPresentation Card(bool expanded) => new(JobId, Name, JobsPresentation.Glyph(State),
         State == JobState.Running ? "Sending" : JobsPresentation.StateText(State), Progress, State == JobState.Running,
         "", null, new JobMessageDetailsPresentation(Details), Message, expanded, false, false, false,
@@ -87,13 +97,22 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
             foreach (var source in job.Sources)
             {
                 cts.Token.ThrowIfCancellationRequested();
-                var command = await journal.PrepareAsync(job.Project, binId, createName, source, cts.Token).ConfigureAwait(false);
-                var result = await bridge.SendAsync(command, cts.Token).ConfigureAwait(false);
+                PremiereReceipt result;
+                try
+                {
+                    var command = await journal.PrepareAsync(job.Project, binId, createName, source, cts.Token).ConfigureAwait(false);
+                    result = await bridge.SendAsync(command, cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception error)
+                {
+                    // Each Catalog source is independently reconcilable. A bad source must not
+                    // abandon unrelated sources in a multi-source handoff.
+                    result = new(Guid.Empty, PremiereOutcome.Failed, null, error.Message);
+                }
                 receipts.Add(result);
                 job = job with { Completed = receipts.Count, Receipts = receipts.ToArray(), Message = $"{Path.GetFileName(source.Path)}: {result.Message}" };
                 Publish(job);
-                if (result.Outcome == PremiereOutcome.UnknownOutcome)
-                    throw new InvalidOperationException("Import outcome is uncertain. Reconnect to the original project and send the same Catalog selection to reconcile.");
             }
             job = job with { State = receipts.All(receipt => receipt.Outcome == PremiereOutcome.Verified)
                 ? JobState.Completed : JobState.CompletedWithWarnings };

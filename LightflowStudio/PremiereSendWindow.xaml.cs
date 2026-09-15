@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace LightflowStudio;
@@ -19,7 +20,13 @@ public partial class PremiereSendWindow : Window
         _bridge = bridge; _jobs = jobs; _sources = sources; _media = new PremiereSendModel(sources);
         SyncMedia();
         _timer.Tick += (_, _) => RefreshConnection();
-        Loaded += (_, _) => { RefreshConnection(); _timer.Start(); };
+        Loaded += (_, _) =>
+        {
+            // Keep the larger default useful on smaller displays; the outer dialog remains scrollable.
+            MaxHeight = Math.Max(MinHeight, SystemParameters.WorkArea.Height - 24);
+            Height = Math.Min(Height, MaxHeight);
+            RefreshConnection(); _timer.Start();
+        };
         Closed += (_, _) => _timer.Stop();
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
     }
@@ -72,6 +79,18 @@ public partial class PremiereSendWindow : Window
         if (_refreshing || GlobalUseRangesCheck.IsChecked is not { } use) return;
         _media.SetGlobalUseRanges(use);
         SyncMedia();
+    }
+    internal static bool ShouldTransferWheelToDialog(double scrollableHeight, double verticalOffset, int delta) =>
+        scrollableHeight <= 0 || (delta > 0 && verticalOffset <= 0) || (delta < 0 && verticalOffset >= scrollableHeight);
+    private void SourcesScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (!ShouldTransferWheelToDialog(SourcesScroll.ScrollableHeight, SourcesScroll.VerticalOffset, e.Delta)) return;
+        e.Handled = true;
+        DialogScroll.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+        {
+            RoutedEvent = MouseWheelEvent,
+            Source = DialogScroll
+        });
     }
     private void SyncMedia()
     {

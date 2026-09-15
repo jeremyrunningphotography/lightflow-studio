@@ -57,6 +57,10 @@ public class PremiereUiContractTests
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "MediaHeading");
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RangeCheck");
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RangeTimeline");
+        var sourcesScroll = send.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "SourcesScroll");
+        Assert.Equal("SourcesScroll_PreviewMouseWheel", (string?)sourcesScroll.Attribute("PreviewMouseWheel"));
+        Assert.Equal("DialogScroll", (string?)send.Root!.Elements().Single(element => element.Name.LocalName == "ScrollViewer").Attribute(x + "Name"));
+        Assert.Equal("720", (string?)send.Root!.Attribute("Height"));
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute("Click") == "Refresh_Click");
         Assert.DoesNotContain("Retries verify existing", send.ToString());
         Assert.DoesNotContain("ApplyRangesCheck", text);
@@ -64,6 +68,7 @@ public class PremiereUiContractTests
         Assert.Contains("PremiereSendModel", text);
         Assert.Contains("GlobalUseRanges_Changed", text);
         Assert.Contains("RangeUse_Changed", text);
+        Assert.Contains("ShouldTransferWheelToDialog", text);
         Assert.DoesNotContain("nearest timing unit", text);
         Assert.DoesNotContain("cannot be transferred exactly", text);
     }

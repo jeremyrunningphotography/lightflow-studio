@@ -46,7 +46,7 @@ function fixture() {
     activeProject: async () => project, connected: () => true,
     items: async () => items.slice(), targetBin: async () => 'bin-1',
     importSource: async path => { imports++; items.push({ id: 'item-1', mediaPath: path }); },
-    projectRange: async () => {}
+    projectRange: async () => {}, clearRange: async () => {}
   };
   const journal = { read: async id => stored.get(id), write: async (id, value) => stored.set(id, value) };
   return { command, adapter, journal, items, stored, imports: () => imports };
@@ -115,6 +115,39 @@ test('source In/Out is projected once and a lost receipt reconciles without a se
   assert.equal((await execute({ ...f.command, previouslyDispatched: true }, f.adapter, f.journal)).outcome, 'Verified');
   assert.equal(applied.length, 1);
   assert.equal(f.imports(), 1);
+});
+test('mutable range choices reconcile the same Catalog item without duplicate import', async () => {
+  const f = fixture();
+  f.command.intent.source.range = { inTicks: '50000000', outTicks: '100000000', sourceDurationTicks: '150000000' };
+  const applied = []; const cleared = [];
+  f.adapter.projectRange = async (itemId, range) => applied.push({ itemId, range });
+  f.adapter.clearRange = async itemId => cleared.push(itemId);
+  const first = await execute(f.command, f.adapter, f.journal);
+  assert.equal(first.outcome, 'Verified');
+  const changed = structuredClone(f.command);
+  changed.previouslyDispatched = true; changed.previousReceipt = first;
+  changed.intent.source.range = { inTicks: '60000000', outTicks: '110000000', sourceDurationTicks: '150000000' };
+  assert.match((await execute(changed, f.adapter, f.journal)).message, /updated/);
+  changed.intent.source.range = null;
+  assert.match((await execute(changed, f.adapter, f.journal)).message, /cleared/);
+  assert.equal(f.imports(), 1);
+  assert.equal(applied.length, 2);
+  assert.deepEqual(cleared, ['item-1']);
+});
+test('a changed destination bin is a permitted retry of the same operation', async () => {
+  const f = fixture();
+  const first = await execute(f.command, f.adapter, f.journal);
+  const retry = structuredClone(f.command);
+  retry.previouslyDispatched = true; retry.previousReceipt = first; retry.intent.binId = 'other-bin';
+  assert.equal((await execute(retry, f.adapter, f.journal)).outcome, 'Verified');
+  assert.equal(f.imports(), 1);
+});
+test('a new full-source import records its projection without a redundant clear', async () => {
+  const f = fixture(); let clears = 0;
+  f.adapter.clearRange = async () => { clears++; };
+  assert.equal((await execute(f.command, f.adapter, f.journal)).outcome, 'Verified');
+  assert.equal(clears, 0);
+  assert.equal(f.stored.get('op-1').projection, 'full-source');
 });
 test('intent persistence failure prevents import; result persistence failure remains unknown', async () => {
   const f = fixture(); f.journal.write = async () => { throw new Error('disk full'); };

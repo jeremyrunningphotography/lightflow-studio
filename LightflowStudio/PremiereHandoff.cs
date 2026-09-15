@@ -11,7 +11,7 @@ internal static class PremiereProtocol
     public const int Version = 1;
     public const int Port = 47857;
     public const string Endpoint = "http://localhost:47857";
-    public const string CompanionVersion = "1.0.6";
+    public const string CompanionVersion = "1.0.7";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
@@ -135,21 +135,34 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
         read.CommandText = "SELECT IntentJson, Dispatched, ReceiptJson FROM PremiereHandoffs WHERE DestinationId=$destination AND AssetId=$asset";
         read.Parameters.AddWithValue("$destination", destination);
         read.Parameters.AddWithValue("$asset", source.AssetId.ToString());
-        PremiereCommand result;
+        PremiereIntent? prior = null;
+        bool dispatched = false;
+        PremiereReceipt? priorReceipt = null;
         using (var reader = read.ExecuteReader())
         {
             if (reader.Read())
             {
-                var prior = JsonSerializer.Deserialize<PremiereIntent>(reader.GetString(0), PremiereProtocol.Json)!;
+                prior = JsonSerializer.Deserialize<PremiereIntent>(reader.GetString(0), PremiereProtocol.Json)!;
+                dispatched = reader.GetBoolean(1);
+                priorReceipt = reader.IsDBNull(2) ? null : JsonSerializer.Deserialize<PremiereReceipt>(reader.GetString(2), PremiereProtocol.Json);
                 // Changed source facts must never reuse an operation ID or silently relink editor media.
                 if ((prior.Source with { Range = null, RangeIssue = null }) != (source with { Range = null, RangeIssue = null }))
                     throw new InvalidOperationException("Source changed since the previous handoff. Reconcile the existing Premiere item before sending again.");
-                // Projection is part of an immutable handoff intent. A later Send selection reconciles the
-                // original source-item projection rather than overwriting an editor's established item.
-                result = new(prior, reader.GetBoolean(1), reader.IsDBNull(2) ? null
-                    : JsonSerializer.Deserialize<PremiereReceipt>(reader.GetString(2), PremiereProtocol.Json));
-                return result;
             }
+        }
+        if (prior is not null)
+        {
+            // Asset identity and source facts are immutable. Placement is only used for an initial
+            // import, while a later explicit Send may reconcile its source In/Out projection.
+            var updatedIntent = prior with { Project = project, BinId = binId, CreateBinName = createBinName, Source = source };
+            using var update = connection.CreateCommand();
+            update.Transaction = transaction;
+            update.CommandText = "UPDATE PremiereHandoffs SET IntentJson=$intent WHERE OperationId=$id";
+            update.Parameters.AddWithValue("$id", updatedIntent.OperationId.ToString());
+            update.Parameters.AddWithValue("$intent", JsonSerializer.Serialize(updatedIntent, PremiereProtocol.Json));
+            if (update.ExecuteNonQuery() != 1) throw new InvalidOperationException("Handoff intent is missing from the Catalog.");
+            transaction.Commit();
+            return new(updatedIntent, dispatched, priorReceipt);
         }
         var intent = new PremiereIntent(Guid.NewGuid(), catalog.Identity.CatalogId, destination, project,
             binId, createBinName, source);

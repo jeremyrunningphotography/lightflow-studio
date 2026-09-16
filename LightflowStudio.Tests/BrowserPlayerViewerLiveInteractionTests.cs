@@ -532,6 +532,12 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 RaiseClick(window.BrowserGoButton);
                 var grid = DragField<BrowserGridModel>(window, "_browserGrid");
                 await WaitUntilAsync(() => grid.Tiles.Count == 3 && grid.Tiles.All(tile => tile.AssetId is not null), "Catalog assets");
+                // These placeholder videos deliberately have no probeable metadata. Let the real
+                // workers finish before the test publishes its own records, or a late failed probe
+                // can overwrite them while the Inspector is hydrating (especially on CI).
+                var derivedWork = DragField<IDerivedWorkBatch>(window, "_activeBrowserDerivedWorkBatch");
+                await derivedWork.Completion.WaitAsync(TimeSpan.FromSeconds(30));
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                 var videos = grid.Tiles.Where(tile => tile.Category == MediaTypeCategory.Video).ToArray();
                 var id = videos[0].AssetId!.Value;
                 var stage = camera ? ColorLutStage.Camera : ColorLutStage.Creative;

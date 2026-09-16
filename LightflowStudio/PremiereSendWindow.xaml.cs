@@ -20,7 +20,8 @@ public partial class PremiereSendWindow : Window
     {
         InitializeComponent();
         _bridge = bridge; _jobs = jobs; _sources = sources; _subclips = subclips ?? [];
-        _media = _subclips.Count == 0 ? new PremiereSendModel(sources) : new PremiereSendModel(sources, _subclips);
+        _media = new PremiereSendModel(sources, _subclips);
+        SourceMediaRadio.IsChecked = true;
         SyncMedia();
         _timer.Tick += (_, _) => RefreshConnection();
         Loaded += (_, _) =>
@@ -86,6 +87,11 @@ public partial class PremiereSendWindow : Window
         _media.SetGlobalUseRanges(use);
         SyncMedia();
     }
+    private void RepresentationMode_Changed(object sender, RoutedEventArgs e)
+    {
+        _media.SelectMode(SubclipsRadio.IsChecked == true ? PremiereSendMode.Subclips : PremiereSendMode.Sources);
+        SyncMedia();
+    }
     internal static bool ShouldTransferWheelToDialog(double scrollableHeight, double verticalOffset, int delta) =>
         scrollableHeight <= 0 || (delta > 0 && verticalOffset <= 0) || (delta < 0 && verticalOffset >= scrollableHeight);
     private void SourcesScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -101,17 +107,22 @@ public partial class PremiereSendWindow : Window
     private void SyncMedia()
     {
         var items = _media.Items;
-        var count = items.Count;
+        var fallbackCount = _media.PlannedSubclips.Count(item => item.Projection.IsSourceFallback);
+        var nativeCount = _media.PlannedSubclips.Count - fallbackCount;
         MediaHeading.Text = _media.Mode == PremiereSendMode.Subclips
-            ? $"Subclips being sent · {count}" : $"Media being sent · {_sources.Count}";
+            ? $"Media being sent · {PremiereGrammar.Mixed(nativeCount, fallbackCount)}"
+            : $"Media being sent · {PremiereGrammar.Count(_sources.Count, "source")}";
+        RepresentationHelpText.Text = _media.Mode == PremiereSendMode.Subclips
+            ? "Saved Subclips are sent as native Premiere Subclips. A selected source with no saved Subclips is sent as the whole source."
+            : "Each selected Browser source is sent once. Saved In/Out points can be included where available.";
         Sources.ItemsSource = items;
         GlobalUseRangesCheck.Visibility = _media.Mode == PremiereSendMode.Sources ? Visibility.Visible : Visibility.Collapsed;
         GlobalUseRangesCheck.IsEnabled = _media.Mode == PremiereSendMode.Sources && items.Any(item => item.HasRange);
         GlobalUseRangesCheck.IsChecked = _media.GlobalUseRangeState;
         System.Windows.Automation.AutomationProperties.SetName(SourcesScroll,
             _media.Mode == PremiereSendMode.Subclips
-                ? $"Subclips being sent, {count} {(count == 1 ? "Subclip" : "Subclips")}"
-                : $"Media being sent, {_sources.Count} {(_sources.Count == 1 ? "source" : "sources")}");
+                ? $"Media being sent, {PremiereGrammar.Mixed(nativeCount, fallbackCount)}"
+                : $"Media being sent, {PremiereGrammar.Count(_sources.Count, "source")}");
     }
     private void Send_Click(object sender, RoutedEventArgs e)
     {

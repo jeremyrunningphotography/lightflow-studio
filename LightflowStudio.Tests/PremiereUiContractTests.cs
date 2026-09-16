@@ -57,6 +57,11 @@ public class PremiereUiContractTests
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "MediaHeading");
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RangeCheck");
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RangeTimeline");
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "SourceMediaRadio"
+            && (string?)element.Attribute("Content") is null);
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "SubclipsRadio"
+            && (string?)element.Attribute("Content") is null);
+        Assert.Contains("RepresentationMode_Changed", text);
         Assert.DoesNotContain(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "PremiereItemText");
         var noRangeTrigger = send.Descendants().Single(element => element.Name.LocalName == "DataTrigger" &&
             (string?)element.Attribute("Binding") == "{Binding HasRange}" && (string?)element.Attribute("Value") == "False");
@@ -81,6 +86,25 @@ public class PremiereUiContractTests
         Assert.Contains("RedBrush", text);
         Assert.DoesNotContain("nearest timing unit", text);
         Assert.DoesNotContain("cannot be transferred exactly", text);
+    }
+
+    [Fact]
+    public void BrowserUsesOneSendToPremiereActionAndDialogOwnsTheRepresentationChoice()
+    {
+        var main = XDocument.Load(Source("MainWindow.xaml"));
+        var ns = main.Root!.Name.Namespace;
+        var sendTo = main.Descendants(ns + "MenuItem").Single(item => (string?)item.Attribute("Header") == "Send To");
+        var premiere = Assert.Single(sendTo.Elements(ns + "MenuItem"));
+        Assert.Equal("Premiere Pro", (string?)premiere.Attribute("Header"));
+        Assert.Equal("BrowserSendPremiere_Click", (string?)premiere.Attribute("Click"));
+        Assert.DoesNotContain(main.Descendants(ns + "MenuItem"), item =>
+            (string?)item.Attribute("Header") is "Send files with In/Out points…" or "Send Subclips…");
+
+        var send = XDocument.Load(Source("PremiereSendWindow.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "SourceMediaRadio");
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "SubclipsRadio");
+        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RepresentationHelpText");
     }
 
     [Fact]

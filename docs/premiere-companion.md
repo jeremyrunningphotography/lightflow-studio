@@ -17,11 +17,11 @@ timeline assembly remain outside its scope.
    Adobe's folder-picker address bar, press Enter and choose Select Folder. The companion
    remembers Adobe's folder grant and connects automatically on subsequent launches.
    Keep the panel open during handoff. Reset/forget controls are under Troubleshooting.
-4. Select compatible Catalog source assets in the Browser and choose **Send to Premiere Pro**,
-   then **Send files with In/Out points…** or **Send Subclips…**.
+4. Select compatible Catalog source assets in the Browser and choose **Send To → Premiere Pro**.
    If setup is needed this opens integration Settings. If disconnected, it explains the
    state and offers Settings. When connected it opens a separate Send dialog: review the
-   current project and select a destination bin; optionally create/use a child bin.
+   current project, choose **Source media** or **Subclips**, and select a destination bin;
+   optionally create/use a child bin. Changing representation updates the same preview.
 5. Follow progress and per-source or per-Subclip results in Jobs. Save the Premiere project after handoff.
 
 Installation inventory is read through Adobe UPIA. Installed software yields Ready, never
@@ -38,7 +38,7 @@ hours; a 15-second maintenance check renews expired credentials, and listener re
 explicit reset rotates them. The companion rereads the protected file through its saved
 folder grant on each heartbeat. Closing the panel still removes its availability.
 
-### Supported automatic setup boundary (companion 1.1.0)
+### Supported automatic setup boundary (companion 1.1.1)
 
 Adobe's [Premiere UXP filesystem documentation](https://developer.adobe.com/premiere-pro/uxp/resources/recipes/filesystem-operations/)
 distinguishes sandbox access, user-selected `request` access and arbitrary-path
@@ -89,13 +89,14 @@ Catalog schemas 14–15 add source and native-Subclip projection journals inside
 migration, backup and relocation boundary. CatalogId, AssetId and SubclipId remain authoritative. Each destination
 registration is scoped to the observed project GUID and normalized saved project path;
 Save As cannot silently retarget an accepted command. This path is a destination guard,
-not the identity of a source asset. An existing registration retains its accepted bin
-and operation ID on retry, even if the user selects another bin.
+not the identity of a source asset. A retry retains its operation ID and records the
+currently selected destination. Once verified, later editor organization remains authoritative.
 
 Before dispatch, Lightflow durably records the intent and dispatch state. The companion
 records intent before import, reads native item IDs afterward, and records the resulting
 mapping before returning a receipt. A retry locates the mapped item by ID and corroborates
-its media path. Names and bin moves remain editor-owned. Missing/relinked items, editor
+its media path. Initial native Subclip creation also verifies that a distinct item was created
+and placed in the selected destination; later editor names and bin moves remain editor-owned. Missing/relinked items, editor
 undo, changed source facts, ambiguous readback and unmapped matching media stop with an
 explicit conflict or uncertain outcome; a matching path never authorizes adoption.
 
@@ -118,7 +119,7 @@ the active-project destination. Refresh reads the latest authenticated companion
 heartbeat and clears a selected bin/child name when the project destination identity
 changes. It does not infer a project from installed software.
 
-For video sources with a saved Lightflow review range, the source-file action's per-send option projects the
+For video sources with a saved Lightflow review range, Source media mode's per-send option projects the
 source item's In/Out points after import. Premiere's supported
 [ClipProjectItem source In/Out actions](https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/clipprojectitem/)
 run in an undoable project transaction. Lightflow's 100-nanosecond `TimeSpan` boundaries
@@ -133,13 +134,14 @@ before it returns the authenticated receipt. A missing receipt then reconciles t
 known phase without applying the range again. This preserves an editor's later item
 changes while retaining duplicate-free recovery.
 
-The Subclip action retains the same connection and destination sections but replaces the
+Subclips mode retains the same connection and destination sections but replaces the
 source-range choices with a fixed review of the native Subclips to create. Each saved
 Lightflow Subclip carries its durable ID, name, revision and exact exclusive-Out range. A
-selected source with no saved Subclips contributes one AssetId-backed fallback using its
-saved review range or Premiere's full native media duration. The companion reconciles the
-Catalog source first without changing its source In/Out state, then creates each subclip in
-an undoable transaction with hard boundaries and available video/audio streams requested.
+selected source with no saved Subclips contributes its whole Catalog source, never its saved
+review range and never an implicit native Subclip. The companion reconciles each Catalog source
+first without changing its source In/Out state, then creates each saved Subclip in an undoable
+transaction with hard boundaries and available video/audio streams requested. Native items are
+moved into and read back from the selected destination before success is reported.
 
 Each native projection has an independent durable operation, destination item mapping and
 receipt. Identical retries verify the mapped native item; missing mappings after a dispatched
@@ -147,7 +149,9 @@ attempt become uncertain rather than duplicating work. Premiere does not expose 
 programmatic native-boundary readback in the observed host, so retries corroborate the mapped
 item and source media while the durable projected range remains the range authority. Changed
 Lightflow projection data conflicts with an existing mapped native subclip and preserves editor
-renames, moves and other edits for review.
+renames, moves and other edits for review. Verified native receipts must carry the exact projection
+key and the current production mutation-verification marker; source-level or legacy command
+acceptance cannot complete a native Subclip item.
 
 A mere authenticated connection does not protect application shutdown. The close warning
 appears only after the bridge has delivered a command to the companion and before the
@@ -159,7 +163,7 @@ use a process/window activation workaround after Send. Jobs continues to record 
 ## Packaging and automated validation
 
 `scripts/Build-PremiereCompanion.ps1` builds a flat deterministic CCX containing the
-seven production code/manifest files and unchanged approved icon/header PNG assets.
+production code/manifest files and unchanged approved icon/header PNG assets.
 `Build-Release.ps1` includes it at
 `PremiereCompanion/LightflowStudio.ccx`; package validation requires it.
 

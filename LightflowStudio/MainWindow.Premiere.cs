@@ -42,15 +42,14 @@ public partial class MainWindow
         }
         finally { _premiereStart.Release(); }
     }
-    private async void PremiereIntegration_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(null);
-    private async void BrowserSendPremiere_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(PremiereSendMode.Sources);
-    private async void BrowserSendPremiereSubclips_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(PremiereSendMode.Subclips);
-    private async Task OpenPremiereAsync(PremiereSendMode? mode)
+    private async void PremiereIntegration_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(false);
+    private async void BrowserSendPremiere_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(true);
+    private async Task OpenPremiereAsync(bool send)
     {
         try
         {
             await EnsurePremiereAsync();
-            if (mode is null)
+            if (!send)
             {
                 new PremiereIntegrationWindow(_premiereBridge!) { Owner = this }.ShowDialog();
                 return;
@@ -73,38 +72,30 @@ public partial class MainWindow
             }
             var sources = new List<PremiereSource>();
             var savedSubclips = new Dictionary<Guid, IReadOnlyList<Subclip>>();
-            if (mode is not null)
+            foreach (var assetId in _browserGrid.SelectedAssetIdsInBrowserOrder)
             {
-                foreach (var assetId in _browserGrid.SelectedAssetIdsInBrowserOrder)
-                {
-                    var resolved = await _storage.MediaAssets.GetAsync(assetId);
-                    if (resolved?.PhysicalPath is not { } path) throw new InvalidOperationException("A selected Catalog source is unavailable.");
-                    PremiereRangeProjection? range = null;
-                    string? rangeIssue = null;
-                    if (PremiereSendPlanning.IsVideo(path) && await _storage.MediaRanges.RestoreAsync(assetId) is { } savedRange
-                        && !PremiereRangeProjection.TryCreate(savedRange, out range))
-                        rangeIssue = "Saved In/Out is too short for Premiere";
-                    var source = new PremiereSource(assetId, path,
-                        resolved.Asset.FileSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        resolved.Asset.LastWriteUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture), range) { RangeIssue = rangeIssue };
-                    CatalogPremiereHandoffs.ValidateSource(source);
-                    sources.Add(source);
-                    if (mode == PremiereSendMode.Subclips)
-                        savedSubclips[assetId] = await _storage.Subclips.ListAsync(assetId);
-                }
+                var resolved = await _storage.MediaAssets.GetAsync(assetId);
+                if (resolved?.PhysicalPath is not { } path) throw new InvalidOperationException("A selected Catalog source is unavailable.");
+                PremiereRangeProjection? range = null;
+                string? rangeIssue = null;
+                if (PremiereSendPlanning.IsVideo(path) && await _storage.MediaRanges.RestoreAsync(assetId) is { } savedRange
+                    && !PremiereRangeProjection.TryCreate(savedRange, out range))
+                    rangeIssue = "Saved In/Out is too short for Premiere";
+                var source = new PremiereSource(assetId, path,
+                    resolved.Asset.FileSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    resolved.Asset.LastWriteUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture), range) { RangeIssue = rangeIssue };
+                CatalogPremiereHandoffs.ValidateSource(source);
+                sources.Add(source);
+                savedSubclips[assetId] = await _storage.Subclips.ListAsync(assetId);
             }
-            var subclipPlan = mode == PremiereSendMode.Subclips
-                ? PremiereSendPlanning.Subclips(sources, savedSubclips) : [];
-            if (mode == PremiereSendMode.Subclips && sources.Any(source => source.HasRangeIssue
-                    && savedSubclips.GetValueOrDefault(source.AssetId)?.Count == 0))
-                throw new InvalidOperationException("A saved review range is too short to create a native Premiere Subclip.");
+            var subclipPlan = PremiereSendPlanning.Subclips(sources, savedSubclips);
             new PremiereSendWindow(_premiereBridge!, _premiereJobs!, sources, subclipPlan) { Owner = this }.ShowDialog();
             if (_premiereJobs!.Jobs.Any(job => job.State is JobState.Queued or JobState.Running)) OpenJobsPanel();
         }
         catch (Exception error)
         {
             var message = $"Premiere connection problem: {error.Message}";
-            if (mode is not null) BrowserStatusText.Text = message;
+            if (send) BrowserStatusText.Text = message;
             else SettingsMessage.Text = message;
         }
     }

@@ -18,7 +18,7 @@ try {
     $archive = New-Object IO.Compression.ZipArchive($stream, [IO.Compression.ZipArchiveMode]::Create, $true)
     try {
         # Same flat CCX structure verified with UDT; include only the production payload.
-        foreach ($name in @('manifest.json', 'index.html', 'index.js', 'handoff.js', 'bins.js', 'pairing.js', 'range.js',
+        foreach ($name in @('manifest.json', 'index.html', 'index.js', 'adapter.js', 'handoff.js', 'bins.js', 'pairing.js', 'range.js',
             'lightflow-icon-256x256.png', 'lightflow-header-lockup-480x96.png')) {
             $entry = $archive.CreateEntry($name, [IO.Compression.CompressionLevel]::Optimal)
             $entry.LastWriteTime = [DateTimeOffset]::Parse('2026-01-01T00:00:00Z')

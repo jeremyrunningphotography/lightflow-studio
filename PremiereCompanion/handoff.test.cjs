@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { execute, sameProject } = require('./handoff.js');
+const { createAdapter } = require('./adapter.js');
 const vm = require('node:vm');
 const fsForPanel = require('node:fs');
 
@@ -57,6 +58,102 @@ function fixture() {
   const journal = { read: async id => stored.get(id), write: async (id, value) => stored.set(id, value) };
   return { command, adapter, journal, items, stored, imports: () => imports };
 }
+
+function productionFixture(executeActions = true) {
+  const root = folder('root', 'Root');
+  const sourceBin = folder('source-bin', 'Existing sources');
+  const targetBin = folder('target-bin', 'Selected destination');
+  add(root, sourceBin); add(root, targetBin);
+  const source = clip('source-item', 'source.mov', 'C:/test/source.mov', '1000');
+  add(sourceBin, source);
+  let created = 0;
+  function folder(itemId, name) {
+    return { itemId, name, children: [], getItems: async function () { return this.children.slice(); },
+      createBinAction(childName) { return () => add(this, folder(`bin-${childName}`, childName)); },
+      createMoveItemAction(item, destination) { return () => { item.parent.children = item.parent.children.filter(value => value !== item); add(destination, item); }; } };
+  }
+  function clip(itemId, name, mediaPath, durationTicks) {
+    return { itemId, name, mediaPath, async getMediaFilePath() { return this.mediaPath; },
+      async getMedia() { return { getDuration: async () => ({ ticks: durationTicks }) }; },
+      createSubClipAction(subclipName) { return () => add(source.parent,
+        clip(`native-${++created}`, subclipName, mediaPath, durationTicks)); },
+      createSetInOutPointsAction() { return () => {}; }, createClearInOutPointsAction() { return () => {}; } };
+  }
+  function add(parent, item) { item.parent = parent; parent.children.push(item); return item; }
+  const walk = async bin => {
+    const result = [];
+    for (const item of await bin.getItems()) {
+      result.push(item);
+      if (item.children) result.push(...await walk(item));
+    }
+    return result;
+  };
+  const project = { guid: 'project-1', path: 'C:/test/edit.prproj', name: 'edit', getRootItem: async () => root,
+    lockedAccess(callback) { callback(); }, executeTransaction(callback) {
+      const actions = []; callback({ addAction: action => actions.push(action) });
+      if (executeActions) for (const action of actions) action();
+      return true;
+    }, importFiles: async () => true };
+  const ppro = { TickTime: { createWithTicks: ticks => ({ ticks: String(ticks) }) },
+    Project: { getActiveProject: async () => project }, FolderItem: { cast: item => {
+      if (!item.children) throw new Error('not a folder'); return item;
+    } }, ClipProjectItem: { cast: item => {
+      if (!item.mediaPath) throw new Error('not a clip'); return item;
+    } }, ProjectItem: { cast: item => {
+      item.getParentBin ||= async () => item.parent;
+      return item;
+    } } };
+  const adapter = createAdapter(ppro, project, walk, item => item.itemId, value => String(value),
+    { activeProject: async () => ({ guid: project.guid, path: project.path, name: project.name }), connected: () => true });
+  return { adapter, project, source, targetBin, created: () => created };
+}
+
+test('production adapter executes native create and verifies selected-bin placement before success', async () => {
+  const f = productionFixture();
+  const result = await f.adapter.createSubclip('source-item', { name: 'Native', range: { inTicks: '10', outTicks: '90' },
+    hardBoundaries: true, takeVideo: true, takeAudio: true }, f.targetBin);
+  assert.equal(result, 'native-1');
+  assert.equal(f.created(), 1);
+  assert.deepEqual((await f.targetBin.getItems()).map(item => item.itemId), ['native-1']);
+});
+
+test('production adapter rejects a successful transaction result when no native mutation executes', async () => {
+  const f = productionFixture(false);
+  await assert.rejects(() => f.adapter.createSubclip('source-item', { name: 'No-op', range: { inTicks: '10', outTicks: '90' },
+    hardBoundaries: true, takeVideo: true, takeAudio: true }, f.targetBin), /did not produce exactly one/);
+  assert.equal(f.created(), 0);
+});
+
+test('production dispatch reports Verified only after the real native-create seam mutates and reads back', async () => {
+  const f = productionFixture();
+  const intent = { operationId: 'production-op', catalogId: 'catalog-1', destinationId: 'destination-1',
+    project: { guid: 'project-1', path: 'C:/test/edit.prproj', name: 'edit' }, binId: 'target-bin', createBinName: null,
+    source: { assetId: 'asset-1', path: 'C:/test/source.mov' }, subclip: { subclipId: 'subclip-1', name: 'Native',
+      revision: 1, sourceItemId: 'source-item', range: { inTicks: '10', outTicks: '90', sourceDurationTicks: '1000' },
+      isSourceFallback: false, hardBoundaries: true, takeVideo: true, takeAudio: true } };
+  const stored = new Map();
+  const result = await execute({ intent, previouslyDispatched: false, previousReceipt: null }, f.adapter,
+    { read: async key => stored.get(key), write: async (key, value) => stored.set(key, value) });
+  assert.equal(result.outcome, 'Verified');
+  assert.equal(result.verification, 'native-subclip-v2');
+  assert.equal(f.created(), 1);
+  assert.deepEqual((await f.targetBin.getItems()).map(item => item.itemId), [result.itemId]);
+});
+
+test('production dispatch never converts a no-op native transaction into a successful receipt', async () => {
+  const f = productionFixture(false);
+  const intent = { operationId: 'production-no-op', catalogId: 'catalog-1', destinationId: 'destination-1',
+    project: { guid: 'project-1', path: 'C:/test/edit.prproj', name: 'edit' }, binId: 'target-bin', createBinName: null,
+    source: { assetId: 'asset-1', path: 'C:/test/source.mov' }, subclip: { subclipId: 'subclip-1', name: 'No-op',
+      revision: 1, sourceItemId: 'source-item', range: { inTicks: '10', outTicks: '90', sourceDurationTicks: '1000' },
+      isSourceFallback: false, hardBoundaries: true, takeVideo: true, takeAudio: true } };
+  const stored = new Map();
+  const result = await execute({ intent, previouslyDispatched: false, previousReceipt: null }, f.adapter,
+    { read: async key => stored.get(key), write: async (key, value) => stored.set(key, value) });
+  assert.notEqual(result.outcome, 'Verified');
+  assert.equal(result.verification, null);
+  assert.equal(f.created(), 0);
+});
 test('initial import is journaled and repeat verifies item identity without duplicate', async () => {
   const f = fixture();
   assert.equal((await execute(f.command, f.adapter, f.journal)).outcome, 'Verified');

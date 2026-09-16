@@ -30,7 +30,7 @@ internal static class PremiereSendPlanning
             if (current.Count == 0)
             {
                 output.Add(new(source, new(null, System.IO.Path.GetFileNameWithoutExtension(source.Path), 1,
-                    source.Range, "", IsSourceFallback: true)));
+                    null, "", IsSourceFallback: true)));
                 continue;
             }
             foreach (var subclip in SubclipCurrentOrder.Apply(current))

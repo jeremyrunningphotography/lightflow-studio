@@ -1,6 +1,7 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -11,11 +12,15 @@ internal static class PremiereProtocol
     public const int Version = 1;
     public const int Port = 47857;
     public const string Endpoint = "http://localhost:47857";
-    public const string CompanionVersion = "1.1.0";
+    public const string CompanionVersion = "1.1.1";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         Converters = { new JsonStringEnumConverter() }
+    };
+    private static readonly JsonSerializerOptions ProjectionJson = new(Json)
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
     public static string PathKey(string path) => Path.GetFullPath(path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)
         ? @"\\" + path[8..] : path.StartsWith(@"\\?\", StringComparison.Ordinal) ? path[4..] : path)
@@ -24,6 +29,15 @@ internal static class PremiereProtocol
         Encoding.UTF8.GetBytes(project.Guid + "\n" + PathKey(project.Path))));
     public static bool SupportedHost(string version) => System.Version.TryParse(version, out var parsed)
         && parsed >= new Version(26, 5);
+    public static string SubclipProjectionKey(PremiereSubclipProjection subclip) => JsonSerializer.Serialize(new
+    {
+        name = subclip.Name,
+        revision = subclip.Revision,
+        range = subclip.Range is null ? "full-source" : $"{subclip.Range.InTicks}:{subclip.Range.OutTicks}:{subclip.Range.SourceDurationTicks}",
+        hardBoundaries = subclip.HardBoundaries,
+        takeVideo = subclip.TakeVideo,
+        takeAudio = subclip.TakeAudio
+    }, ProjectionJson);
 }
 
 internal sealed record PremiereProject(string Guid, string Path, string Name);
@@ -102,7 +116,7 @@ internal sealed record PremiereIntent(Guid OperationId, Guid CatalogId, string D
 }
 internal enum PremiereOutcome { Verified, Conflict, Failed, UnknownOutcome }
 internal sealed record PremiereReceipt(Guid OperationId, PremiereOutcome Outcome, string? ItemId, string Message,
-    string? ProjectionKey = null);
+    string? ProjectionKey = null, string? Verification = null);
 internal sealed record PremiereCommand(PremiereIntent Intent, bool PreviouslyDispatched, PremiereReceipt? PreviousReceipt)
 {
     public Guid DispatchId { get; init; } = Guid.NewGuid();
@@ -251,7 +265,10 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
     {
         if (receipt.OperationId != intent.OperationId || receipt.Message is null || receipt.Message.Length > 2000
             || !Enum.IsDefined(receipt.Outcome) || receipt.ItemId?.Length > 200
-            || receipt.Outcome == PremiereOutcome.Verified && string.IsNullOrWhiteSpace(receipt.ItemId))
+            || receipt.Outcome == PremiereOutcome.Verified && string.IsNullOrWhiteSpace(receipt.ItemId)
+            || intent.Subclip is { } subclip && receipt.Outcome == PremiereOutcome.Verified
+                && (receipt.ProjectionKey != PremiereProtocol.SubclipProjectionKey(subclip)
+                    || receipt.Verification != "native-subclip-v2"))
             throw new InvalidOperationException("Invalid companion receipt.");
         return UpdateAsync(intent, "UPDATE PremiereHandoffs SET ReceiptJson=$receipt WHERE OperationId=$id", receipt);
     }
@@ -277,7 +294,8 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
                 receipt = receipt with
                 {
                     ItemId = receipt.ItemId ?? existing?.ItemId,
-                    ProjectionKey = receipt.ProjectionKey ?? existing?.ProjectionKey
+                    ProjectionKey = receipt.ProjectionKey ?? existing?.ProjectionKey,
+                    Verification = receipt.Verification ?? existing?.Verification
                 };
             }
             command.Parameters.AddWithValue("$receipt", JsonSerializer.Serialize(receipt, PremiereProtocol.Json));

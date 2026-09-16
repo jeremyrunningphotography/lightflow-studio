@@ -31,7 +31,7 @@ async function executeSubclip(command, adapter, journal, guard) {
   const spec = intent.subclip;
   const projection = subclipProjection(spec);
   const receipt = (outcome, itemId, message) => ({ operationId: intent.operationId, outcome, itemId, message,
-    projectionKey: projection });
+    projectionKey: projection, verification: outcome === 'Verified' ? 'native-subclip-v2' : null });
   let mutationStarted = false;
   try {
     await guard();
@@ -46,11 +46,22 @@ async function executeSubclip(command, adapter, journal, guard) {
       return receipt('Conflict', itemId || null, 'Mapped source is missing or relinked. Native Subclip creation was not attempted.');
     if (itemId) {
       const matches = items.filter(item => item.id === itemId);
-      if (matches.length !== 1 || pathKey(matches[0].mediaPath || '') !== pathKey(intent.source.path))
+      if (itemId === spec.sourceItemId || matches.length !== 1
+          || pathKey(matches[0].mediaPath || '') !== pathKey(intent.source.path))
         return receipt('Conflict', itemId, 'Mapped native Subclip is missing or relinked. Editor undo and edits are preserved; no duplicate was created.');
       if (projected && projected !== projection)
         return receipt('Conflict', itemId, 'The Lightflow Subclip changed after projection. The existing Premiere Subclip was preserved for review.');
-      if (!saved) await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId, projection });
+      const verified = saved?.verification === 'native-subclip-v2'
+        || command.previousReceipt?.verification === 'native-subclip-v2';
+      if (!verified) {
+        if (!saved || saved.phase !== 'created')
+          return receipt('Conflict', itemId, 'The earlier native Subclip receipt lacks production mutation proof. Recreate it in a fresh destination before retrying.');
+        const targetBin = await adapter.targetBin(intent.binId, intent.createBinName, guard);
+        await guard();
+        await adapter.placeSubclip(itemId, targetBin);
+      }
+      await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId, projection,
+        verification: 'native-subclip-v2' });
       return receipt('Verified', itemId, 'Existing native Premiere Subclip verified; editor name and organization preserved.');
     }
     const reportedNoMutation = command.previousReceipt?.outcome === 'Failed' && !command.previousReceipt?.itemId;
@@ -61,12 +72,15 @@ async function executeSubclip(command, adapter, journal, guard) {
       return receipt('Conflict', null, 'An unmapped Premiere item already has this Subclip name and source. Resolve it before retrying.');
     await journal.write(intent.operationId, { intent: JSON.stringify(intent), identity: subclipIdentity(intent), phase: 'intent', projection });
     await guard();
+    const targetBin = await adapter.targetBin(intent.binId, intent.createBinName, guard);
+    await guard();
     mutationStarted = true;
-    const createdId = await adapter.createSubclip(spec.sourceItemId, spec);
+    const createdId = await adapter.createSubclip(spec.sourceItemId, spec, targetBin);
     items = await adapter.items();
     const matches = items.filter(item => item.id === createdId && pathKey(item.mediaPath || '') === pathKey(intent.source.path));
     if (matches.length !== 1) return receipt('UnknownOutcome', null, 'Native Subclip readback was ambiguous; reconcile before any retry.');
-    await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId: createdId, projection });
+    await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId: createdId, projection,
+      verification: 'native-subclip-v2' });
     await guard();
     return receipt('Verified', createdId, 'Native Premiere Subclip created and verified. Save your Premiere project to preserve it.');
   } catch (error) {

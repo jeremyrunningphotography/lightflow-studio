@@ -2,7 +2,8 @@ namespace LightflowStudio;
 
 internal sealed record PremiereSendItem(int Index, string SourceFileName, bool HasRange, bool UseRange,
     bool RangeControlEnabled, string RangeAutomationName, double RangeSegmentLeft, double RangeSegmentWidth,
-    string RangeToolTip, string TimelineAutomationName, string DetailText = "", bool ShowRangeControl = true);
+    string RangeToolTip, string TimelineAutomationName, string DetailText = "", bool ShowRangeControl = true,
+    bool IsWholeSourceFallback = false);
 
 /// <summary>Source-only handoff planning mirrors Export's global/per-item review-range choices.</summary>
 internal sealed class PremiereSendModel
@@ -11,18 +12,28 @@ internal sealed class PremiereSendModel
     private readonly IReadOnlyList<PremierePlannedSubclip> subclips;
     private readonly bool[] _useRanges;
     private bool _rangesGloballyEnabled = true;
+    private PremiereSendMode _mode;
 
     public PremiereSendModel(IReadOnlyList<PremiereSource> sources)
     { this.sources = sources; subclips = []; _useRanges = sources.Select(source => source.Range is not null && source.RangeIssue is null).ToArray(); }
     public PremiereSendModel(IReadOnlyList<PremiereSource> sources, IReadOnlyList<PremierePlannedSubclip> subclips)
-    { this.sources = sources; this.subclips = subclips; _useRanges = new bool[sources.Count]; }
+    {
+        this.sources = sources; this.subclips = subclips;
+        _useRanges = sources.Select(source => source.Range is not null && source.RangeIssue is null).ToArray();
+    }
 
     public IReadOnlyList<PremiereSource> PlannedSources => PremiereSendPlanning.Sources(sources, _useRanges);
     public IReadOnlyList<PremierePlannedSubclip> PlannedSubclips => subclips;
-    public PremiereSendMode Mode => subclips.Count == 0 ? PremiereSendMode.Sources : PremiereSendMode.Subclips;
+    public PremiereSendMode Mode => _mode;
     public IReadOnlyList<PremiereSendItem> Items => Mode == PremiereSendMode.Sources
         ? sources.Select(BuildItem).ToArray() : subclips.Select(BuildSubclipItem).ToArray();
     public bool HasRangeIssue => sources.Any(source => source.RangeIssue is not null);
+    public void SelectMode(PremiereSendMode mode)
+    {
+        if (mode == PremiereSendMode.Subclips && subclips.Count == 0)
+            throw new InvalidOperationException("Subclip planning is unavailable for this selection.");
+        _mode = mode;
+    }
     public bool? GlobalUseRangeState
     {
         get
@@ -70,12 +81,14 @@ internal sealed class PremiereSendModel
         item.Projection.Range?.TryGetMediaRange(out range);
         var presentation = MediaRangeTimelinePresentation.For(item.Projection.Name,
             range?.SourceDuration ?? TimeSpan.Zero, range, range is not null, "Premiere Subclip");
-        return new(index, item.Projection.Name, range is not null, true, false, "",
+        return new(index, item.Projection.IsSourceFallback ? item.Source.Name : item.Projection.Name,
+            range is not null, true, false, "",
             range is null ? 0 : presentation.SegmentLeft,
             range is null ? MediaRangeTimelinePresentation.Width : presentation.SegmentWidth,
             range is null ? "Full source" : presentation.ToolTip,
             range is null ? $"Full-source Premiere Subclip {item.Projection.Name}" : presentation.AutomationName,
-            item.Source.Name, ShowRangeControl: false);
+            item.Projection.IsSourceFallback ? "Whole source · no saved Subclips" : item.Source.Name,
+            ShowRangeControl: false, IsWholeSourceFallback: item.Projection.IsSourceFallback);
     }
 
     private static bool HasUsableRange(PremiereSource source) => source.RangeIssue is null

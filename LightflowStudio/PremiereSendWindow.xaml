@@ -4,6 +4,12 @@
  Title="Send to Premiere Pro" Width="650" Height="720" MinWidth="560" MinHeight="500"
  WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
  Background="{StaticResource WindowBrush}" Foreground="{StaticResource TextBrush}">
+ <Window.Resources>
+  <Style x:Key="RepresentationModeRadio" TargetType="RadioButton">
+   <Setter Property="MinHeight" Value="42"/><Setter Property="Padding" Value="8,6"/><Setter Property="Foreground" Value="{DynamicResource TextBrush}"/><Setter Property="Cursor" Value="Hand"/><Setter Property="HorizontalContentAlignment" Value="Left"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton"><Border x:Name="FocusChrome" Background="Transparent" BorderBrush="{DynamicResource ShellDividerBrush}" BorderThickness="1" CornerRadius="5" Padding="{TemplateBinding Padding}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions><Grid Width="16" Height="16" VerticalAlignment="Center"><Ellipse Fill="{DynamicResource ShellSurfaceBrush}" Stroke="{DynamicResource ShellDividerBrush}" StrokeThickness="1"/><Ellipse x:Name="SelectionDot" Width="8" Height="8" Fill="{DynamicResource ShellFocusBrush}" Visibility="Collapsed"/></Grid><ContentPresenter Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}"/></Grid></Border><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="SelectionDot" Property="Visibility" Value="Visible"/><Setter TargetName="FocusChrome" Property="Background" Value="{DynamicResource ShellSurfaceBrush}"/><Setter TargetName="FocusChrome" Property="BorderBrush" Value="{DynamicResource ShellFocusBrush}"/></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="FocusChrome" Property="Background" Value="{DynamicResource ShellRaisedBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="FocusChrome" Property="BorderBrush" Value="{DynamicResource ShellFocusBrush}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+ </Window.Resources>
  <ScrollViewer x:Name="DialogScroll" VerticalScrollBarVisibility="Auto"><StackPanel Margin="18">
   <TextBlock Text="Send to Premiere Pro" Style="{StaticResource PageTitle}" FontSize="24"/>
   <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="12"><StackPanel>
@@ -17,6 +23,12 @@
    <TextBlock x:Name="ConnectionMessageText" Margin="0,7,0,0" Style="{StaticResource PageSubtitle}"/>
   </StackPanel></Border>
   <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="12"><StackPanel>
+   <TextBlock Text="Send representation" Style="{StaticResource SectionTitle}"/>
+   <Grid Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+    <RadioButton x:Name="SourceMediaRadio" Margin="0,0,4,0" Style="{StaticResource RepresentationModeRadio}" GroupName="SendRepresentation" Checked="RepresentationMode_Changed" AutomationProperties.Name="Send source media"><StackPanel><TextBlock FontWeight="SemiBold" Text="Source media"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" Text="One item per selected source"/></StackPanel></RadioButton>
+    <RadioButton x:Name="SubclipsRadio" Grid.Column="1" Margin="4,0,0,0" Style="{StaticResource RepresentationModeRadio}" GroupName="SendRepresentation" Checked="RepresentationMode_Changed" AutomationProperties.Name="Send Subclips"><StackPanel><TextBlock FontWeight="SemiBold" Text="Subclips"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Saved Subclips or whole source"/></StackPanel></RadioButton>
+   </Grid>
+   <TextBlock x:Name="RepresentationHelpText" Margin="0,7,0,8" Style="{StaticResource PageSubtitle}" TextWrapping="Wrap"/>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <TextBlock x:Name="MediaHeading" Text="Media being sent" Style="{StaticResource SectionTitle}"/>
     <CheckBox x:Name="GlobalUseRangesCheck" Grid.Column="1" VerticalAlignment="Center" Content="Use In/Out points" IsThreeState="False" Checked="GlobalUseRanges_Changed" Unchecked="GlobalUseRanges_Changed" AutomationProperties.Name="Use In and Out points for applicable Premiere sources"/>

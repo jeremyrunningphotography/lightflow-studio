@@ -2,6 +2,7 @@
 const ppro = require('premierepro');
 const uxp = require('uxp');
 const { execute, sameProject } = require('./handoff.js');
+const { createAdapter } = require('./adapter.js');
 const { nearestPremiereTicks } = require('./range.js');
 const { ProjectBins, enumerateBins } = require('./bins.js');
 const { PairingAccess, validatePairing, ENDPOINT } = require('./pairing.js');
@@ -57,7 +58,7 @@ async function heartbeat(discoverBins = true) {
   const current = describe(await ppro.Project.getActiveProject());
   if ((description || current) && !sameProject(description, current))
     throw new Error('Active project changed while reading bins. Waiting for the current project.');
-  await request('/v1/heartbeat', { instanceId, companionVersion: '1.1.0', protocol: 1,
+  await request('/v1/heartbeat', { instanceId, companionVersion: '1.1.1', protocol: 1,
     hostVersion: uxp.host.version, uxpVersion: uxp.versions.uxp, project: description, bins });
   lastHealthy = Date.now();
   return project;
@@ -78,96 +79,10 @@ const journal = {
 };
 
 function adapter(project) {
-  const premiereTicks = value => ppro.TickTime.createWithTicks(nearestPremiereTicks(value));
-  return {
+  return createAdapter(ppro, project, walk, id, nearestPremiereTicks, {
     activeProject: async () => describe(await ppro.Project.getActiveProject()),
-    connected: () => running && Date.now() - lastHealthy < 10000,
-    async items() {
-      const items = [];
-      for (const item of await walk(await project.getRootItem())) {
-        let mediaPath = null;
-        try { mediaPath = await ppro.ClipProjectItem.cast(item).getMediaFilePath(); } catch (_) { /* bin or non-media */ }
-        items.push({ id: id(item), name: item.name, mediaPath });
-      }
-      return items;
-    },
-    async targetBin(binId, createName, guard) {
-      const root = await project.getRootItem();
-      const parent = [root, ...await walk(root)].find(item => id(item) === binId);
-      if (!parent) throw new Error('Target bin no longer exists.');
-      const bin = ppro.FolderItem.cast(parent);
-      if (!createName) return bin;
-      const existing = (await bin.getItems()).filter(item => item.name === createName);
-      if (existing.length > 1) throw new Error('Target bin name is ambiguous.');
-      if (existing.length === 1) return ppro.FolderItem.cast(existing[0]);
-      await guard();
-      let succeeded;
-      project.lockedAccess(() => {
-        succeeded = project.executeTransaction(compound => compound.addAction(bin.createBinAction(createName, false)), 'Lightflow: create handoff bin');
-      });
-      if (!succeeded) throw new Error('Could not create the target bin.');
-      const matches = (await bin.getItems()).filter(item => item.name === createName);
-      if (matches.length !== 1) throw new Error('Created bin readback is ambiguous.');
-      return ppro.FolderItem.cast(matches[0]);
-    },
-    importSource: (path, bin) => project.importFiles([path], true, bin, false),
-    async projectRange(itemId, range) {
-      if (!range || typeof range !== 'object') throw new Error('Lightflow In/Out range is invalid.');
-      const sourceDuration = premiereTicks(range.sourceDurationTicks);
-      const inPoint = premiereTicks(range.inTicks);
-      const outPoint = premiereTicks(range.outTicks);
-      if (BigInt(outPoint.ticks) <= BigInt(inPoint.ticks) || BigInt(outPoint.ticks) > BigInt(sourceDuration.ticks))
-        throw new Error('Lightflow In/Out range is invalid.');
-      const matches = (await walk(await project.getRootItem())).filter(item => id(item) === itemId);
-      if (matches.length !== 1) throw new Error('Imported source item is unavailable for In/Out projection.');
-      const clip = ppro.ClipProjectItem.cast(matches[0]);
-      const media = await clip.getMedia();
-      const actualDuration = await media.getDuration();
-      if (BigInt(actualDuration.ticks) < BigInt(outPoint.ticks))
-        throw new Error('The imported media duration does not contain Lightflow’s saved Out point.');
-      let succeeded = false;
-      project.lockedAccess(() => {
-        succeeded = project.executeTransaction(compound => compound.addAction(
-          clip.createSetInOutPointsAction(inPoint, outPoint)), 'Lightflow: apply source In/Out');
-      });
-      if (!succeeded) throw new Error('Premiere could not apply the source In/Out points.');
-    },
-    async clearRange(itemId) {
-      const matches = (await walk(await project.getRootItem())).filter(item => id(item) === itemId);
-      if (matches.length !== 1) throw new Error('Imported source item is unavailable for In/Out projection.');
-      const clip = ppro.ClipProjectItem.cast(matches[0]);
-      let succeeded = false;
-      project.lockedAccess(() => {
-        succeeded = project.executeTransaction(compound => compound.addAction(
-          clip.createClearInOutPointsAction()), 'Lightflow: clear source In/Out');
-      });
-      if (!succeeded) throw new Error('Premiere could not clear the source In/Out points.');
-    },
-    async createSubclip(sourceItemId, spec) {
-      const beforeItems = await walk(await project.getRootItem());
-      const matches = beforeItems.filter(item => id(item) === sourceItemId);
-      if (matches.length !== 1) throw new Error('Mapped source is unavailable for native Subclip creation.');
-      const clip = ppro.ClipProjectItem.cast(matches[0]);
-      const media = await clip.getMedia();
-      const duration = await media.getDuration();
-      const start = spec.range ? premiereTicks(spec.range.inTicks) : ppro.TickTime.createWithTicks('0');
-      const end = spec.range ? premiereTicks(spec.range.outTicks) : duration;
-      if (BigInt(end.ticks) <= BigInt(start.ticks) || BigInt(end.ticks) > BigInt(duration.ticks))
-        throw new Error('The native Subclip range is outside the imported source duration.');
-      let succeeded = false;
-      project.lockedAccess(() => {
-        succeeded = project.executeTransaction(compound => compound.addAction(clip.createSubClipAction(
-          spec.name, start, end, spec.hardBoundaries === true,
-          { takeVideo: spec.takeVideo === true, takeAudio: spec.takeAudio === true })),
-          'Lightflow: create native Subclip');
-      });
-      if (!succeeded) throw new Error('Premiere could not create the native Subclip.');
-      const before = new Set(beforeItems.map(id));
-      const added = (await walk(await project.getRootItem())).filter(item => !before.has(id(item)) && item.name === spec.name);
-      if (added.length !== 1) throw new Error('Native Subclip readback was ambiguous.');
-      return id(added[0]);
-    }
-  };
+    connected: () => running && Date.now() - lastHealthy < 10000
+  });
 }
 
 async function tick() {
@@ -191,7 +106,7 @@ async function tick() {
       await new Promise(resolve => setTimeout(resolve, 100));
       await request('/v1/receipt', result, command.dispatchId);
       status(`${result.outcome}: ${result.message}`);
-    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.1.0`);
+    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.1.1`);
   } catch (error) {
     lastHealthy = 0;
     status(String(error.message || error));

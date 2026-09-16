@@ -67,7 +67,7 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         Assert.NotEqual(first.Intent.OperationId, second.Intent.OperationId);
         await _journal.MarkDispatchedAsync(first.Intent);
         await _journal.SaveReceiptAsync(first.Intent, new(first.Intent.OperationId, PremiereOutcome.Verified,
-            "native-first", "created", "projection-one"));
+            "native-first", "created", PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip!), "native-subclip-v2"));
         await _journal.SaveReceiptAsync(first.Intent, new(first.Intent.OperationId, PremiereOutcome.Failed,
             null, "transient failure"));
 
@@ -76,9 +76,35 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         Assert.Equal(first.Intent.OperationId, retry.Intent.OperationId);
         Assert.True(retry.PreviouslyDispatched);
         Assert.Equal("native-first", retry.PreviousReceipt!.ItemId);
-        Assert.Equal("projection-one", retry.PreviousReceipt.ProjectionKey);
+        Assert.Equal(PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip!), retry.PreviousReceipt.ProjectionKey);
         Assert.Equal("First renamed", retry.Intent.Subclip!.Name);
         Assert.Equal(2, (await _journal.ListAsync()).Count);
+    }
+
+    [Fact]
+    public async Task VerifiedSubclipReceiptRequiresExactProjectionProof()
+    {
+        var projection = new PremiereSubclipProjection(Guid.NewGuid(), "Proof", 2,
+            new("10", "90", "100"), "source-item");
+        var command = await _journal.PrepareSubclipAsync(_project, "root", null, _source, projection);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _journal.SaveReceiptAsync(command.Intent,
+            new(command.Intent.OperationId, PremiereOutcome.Verified, "source-item", "source-shaped receipt")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _journal.SaveReceiptAsync(command.Intent,
+            new(command.Intent.OperationId, PremiereOutcome.Verified, "native-item", "wrong projection", "wrong")));
+        var receipt = new PremiereReceipt(command.Intent.OperationId, PremiereOutcome.Verified, "native-item", "created",
+            PremiereProtocol.SubclipProjectionKey(projection), "native-subclip-v2");
+        await _journal.SaveReceiptAsync(command.Intent, receipt);
+        Assert.Equal(receipt, (await _journal.PrepareSubclipAsync(_project, "root", null, _source, projection)).PreviousReceipt);
+    }
+
+    [Fact]
+    public void SubclipProjectionProofMatchesJavaScriptJsonForUnicodeNames()
+    {
+        var projection = new PremiereSubclipProjection(Guid.NewGuid(), "Café 二", 2,
+            new("10", "90", "100"), "source-item");
+
+        Assert.Equal("{\"name\":\"Café 二\",\"revision\":2,\"range\":\"10:90:100\",\"hardBoundaries\":true,\"takeVideo\":true,\"takeAudio\":true}",
+            PremiereProtocol.SubclipProjectionKey(projection));
     }
 
     [Fact]

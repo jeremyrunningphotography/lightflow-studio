@@ -62,7 +62,7 @@ public class PremiereSendModelTests
     }
 
     [Fact]
-    public void SubclipModeProjectsEverySavedRangeAndUsesReviewOrFullSourceFallback()
+    public void DialogSwitchesBetweenSourceAndSubclipPlansAndUsesOnlyWholeSourceFallback()
     {
         var source = Source("one.mov", new MediaRange(TimeSpan.FromTicks(100), TimeSpan.FromTicks(10), TimeSpan.FromTicks(90)));
         var saved = new Subclip(Guid.NewGuid(), source.AssetId, "Close up", 0, TimeSpan.FromTicks(20),
@@ -73,6 +73,9 @@ public class PremiereSendModelTests
         { [source.AssetId] = [savedSecond, saved] });
         var model = new PremiereSendModel([source], planned);
 
+        Assert.Equal(PremiereSendMode.Sources, model.Mode);
+        Assert.Single(model.PlannedSources);
+        model.SelectMode(PremiereSendMode.Subclips);
         Assert.Equal(PremiereSendMode.Subclips, model.Mode);
         var item = model.Items[0];
         Assert.Equal("Close up", item.SourceFileName);
@@ -84,10 +87,47 @@ public class PremiereSendModelTests
         var fallback = Assert.Single(PremiereSendPlanning.Subclips([source],
             new Dictionary<Guid, IReadOnlyList<Subclip>>()));
         Assert.True(fallback.Projection.IsSourceFallback);
-        Assert.Equal(source.Range, fallback.Projection.Range);
+        Assert.Null(fallback.Projection.Range);
+        var fallbackModel = new PremiereSendModel([source], [fallback]);
+        fallbackModel.SelectMode(PremiereSendMode.Subclips);
+        Assert.True(fallbackModel.Items.Single().IsWholeSourceFallback);
+        Assert.Contains("Whole source", fallbackModel.Items.Single().DetailText);
         var full = Source("full.mov");
         Assert.Null(Assert.Single(PremiereSendPlanning.Subclips([full],
             new Dictionary<Guid, IReadOnlyList<Subclip>>())).Projection.Range);
+    }
+
+    [Fact]
+    public void MixedSubclipPlanKeepsEverySelectedSourceAndPreviewMatchesThePlan()
+    {
+        var withSubclips = Source("saved.mov");
+        var whole = Source("whole.mov", new MediaRange(TimeSpan.FromTicks(100), TimeSpan.FromTicks(10), TimeSpan.FromTicks(90)));
+        var saved = new Subclip(Guid.NewGuid(), withSubclips.AssetId, "Named moment", 0, TimeSpan.FromTicks(20),
+            TimeSpan.FromTicks(60), TimeSpan.FromTicks(100), 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var plan = PremiereSendPlanning.Subclips([withSubclips, whole], new Dictionary<Guid, IReadOnlyList<Subclip>>
+        {
+            [withSubclips.AssetId] = [saved]
+        });
+        var model = new PremiereSendModel([withSubclips, whole], plan);
+        model.SelectMode(PremiereSendMode.Subclips);
+
+        Assert.Equal(plan, model.PlannedSubclips);
+        Assert.Collection(model.Items,
+            item => { Assert.Equal("Named moment", item.SourceFileName); Assert.Equal("saved.mov", item.DetailText); Assert.False(item.IsWholeSourceFallback); },
+            item => { Assert.Equal("whole.mov", item.SourceFileName); Assert.Contains("Whole source", item.DetailText); Assert.True(item.IsWholeSourceFallback); Assert.Equal(MediaRangeTimelinePresentation.Width, item.RangeSegmentWidth); });
+        Assert.Null(plan[1].Projection.Range);
+    }
+
+    [Fact]
+    public void PremiereCountsUseConcreteSingularPluralAndMixedItemGrammar()
+    {
+        Assert.Equal("1 source", PremiereGrammar.Count(1, "source"));
+        Assert.Equal("4 sources", PremiereGrammar.Count(4, "source"));
+        Assert.Equal("1 Subclip", PremiereGrammar.Mixed(1, 0));
+        Assert.Equal("4 Subclips", PremiereGrammar.Mixed(4, 0));
+        Assert.Equal("2 items", PremiereGrammar.Mixed(1, 1));
+        Assert.DoesNotContain("(s)", new PremiereJob(Guid.NewGuid(), new("g", @"C:\edit.prproj", "edit"),
+            [Source("one.mov")], JobState.Queued, 0, [], "", DateTimeOffset.UtcNow).Name);
     }
 
     private static void AssertFullSource(PremiereSendItem item)

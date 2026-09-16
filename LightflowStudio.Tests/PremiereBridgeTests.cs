@@ -85,6 +85,17 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         return await _client.SendAsync(request);
     }
+    private async Task<HttpResponseMessage> PostReceipt(PremiereCommand command, PremiereReceipt receipt)
+    {
+        await Task.Delay(70);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/v1/receipt")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(receipt, PremiereProtocol.Json), Encoding.UTF8)
+        };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        request.Headers.Add("X-Lightflow-Dispatch", command.DispatchId.ToString());
+        return await _client.SendAsync(request);
+    }
     [Fact]
     public async Task InstalledOrStartedIsNotConnected_HeartbeatExpiresAndCompatibilityRejects()
     {
@@ -237,6 +248,69 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         Assert.Single(await _journal.ListAsync());
     }
     [Fact]
+    public async Task SubclipJobReconcilesSourceBeforeDispatchingNativeCreateAndRequiresProjectionProof()
+    {
+        await Post("/v1/heartbeat", Hello);
+        var projection = new PremiereSubclipProjection(Guid.NewGuid(), "Native", 1,
+            new("10", "90", "100"), "");
+        var jobs = new PremiereJobs(_journal, _bridge);
+        jobs.EnqueueSubclips(_project, "root", null, [new(_source, projection)]);
+
+        PremiereCommand? source = null;
+        for (var attempt = 0; attempt < 30 && source is null; attempt++)
+        {
+            var response = await Post("/v1/poll", new { });
+            if (response.StatusCode == HttpStatusCode.OK)
+                source = await response.Content.ReadFromJsonAsync<PremiereCommand>(PremiereProtocol.Json);
+        }
+        Assert.NotNull(source);
+        Assert.Null(source.Intent.Subclip);
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(source,
+            new(source.Intent.OperationId, PremiereOutcome.Verified, "source-item", "source imported"))).StatusCode);
+
+        PremiereCommand? native = null;
+        for (var attempt = 0; attempt < 30 && native is null; attempt++)
+        {
+            var response = await Post("/v1/poll", new { });
+            if (response.StatusCode == HttpStatusCode.OK)
+                native = await response.Content.ReadFromJsonAsync<PremiereCommand>(PremiereProtocol.Json);
+        }
+        Assert.NotNull(native);
+        Assert.Equal("source-item", native.Intent.Subclip!.SourceItemId);
+        var sourceShaped = new PremiereReceipt(native.Intent.OperationId, PremiereOutcome.Verified,
+            "native-item", "accepted without proof");
+        Assert.Equal(HttpStatusCode.BadRequest, (await PostReceipt(native, sourceShaped)).StatusCode);
+        for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
+            await Task.Delay(20);
+        Assert.Equal(JobState.CompletedWithWarnings, jobs.Jobs[0].State);
+    }
+
+    [Fact]
+    public async Task WholeSourceFallbackCompletesAfterSourceReconciliationWithoutNativeCommand()
+    {
+        await Post("/v1/heartbeat", Hello);
+        var fallback = new PremiereSubclipProjection(null, "source", 1, null, "", IsSourceFallback: true);
+        var jobs = new PremiereJobs(_journal, _bridge);
+        jobs.EnqueueSubclips(_project, "root", null, [new(_source, fallback)]);
+        PremiereCommand? source = null;
+        for (var attempt = 0; attempt < 30 && source is null; attempt++)
+        {
+            var response = await Post("/v1/poll", new { });
+            if (response.StatusCode == HttpStatusCode.OK)
+                source = await response.Content.ReadFromJsonAsync<PremiereCommand>(PremiereProtocol.Json);
+        }
+        Assert.NotNull(source);
+        Assert.Null(source.Intent.Subclip);
+        Assert.Null(source.Intent.Source.Range);
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(source,
+            new(source.Intent.OperationId, PremiereOutcome.Verified, "source-item", "Source imported and verified."))).StatusCode);
+        for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
+            await Task.Delay(20);
+        Assert.Equal(JobState.Completed, jobs.Jobs[0].State);
+        Assert.Equal("Send 1 source to Premiere", jobs.Jobs[0].Name);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post("/v1/poll", new { })).StatusCode);
+    }
+    [Fact]
     public async Task CommandIsDispatchedOnceAndReceiptIsBoundToOperationAndSession()
     {
         await Post("/v1/heartbeat", Hello);
@@ -284,7 +358,8 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
     [Theory]
     [InlineData("0 extensions installed for Others", (int)PremiereConnectionState.PremiereNotInstalled)]
     [InlineData("0 extensions installed for Premiere Pro (ver 26.5.0)\n Status Extension Name Version\n", (int)PremiereConnectionState.CompanionNotInstalled)]
-    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.0\n", (int)PremiereConnectionState.Ready)]
+    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.1\n", (int)PremiereConnectionState.Ready)]
+    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.0\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.0.6\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 2.0.0\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("System exception", (int)PremiereConnectionState.ConnectionProblem)]

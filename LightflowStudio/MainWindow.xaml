@@ -564,9 +564,8 @@
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Add keyword…" Click="BrowserAddKeyword_Click"/>
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Clear keywords" Click="BrowserClearKeywords_Click"/>
                   </MenuItem>
-                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Send to Premiere Pro">
-                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Send files with In/Out points…" Click="BrowserSendPremiere_Click"/>
-                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Send Subclips…" Click="BrowserSendPremiereSubclips_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Send To">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Premiere Pro" Click="BrowserSendPremiere_Click"/>
                   </MenuItem>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export">
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export…" Click="BrowserContextExport_Click"/>

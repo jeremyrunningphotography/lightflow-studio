@@ -54,7 +54,12 @@ public sealed class ApplicationIdentityTests
             Assert.False(splash.ShowInTaskbar);
             Assert.False(splash.ShowActivated);
             Assert.False(splash.Focusable);
-            var artwork = Assert.IsType<Image>(splash.Content);
+            var content = Assert.IsType<Grid>(splash.Content);
+            var artwork = Assert.Single(content.Children.OfType<Image>());
+            var progress = Assert.Single(content.Children.OfType<TextBlock>());
+            splash.SetProgress("Checking Catalog…");
+            Assert.Equal("Checking Catalog…", progress.Text);
+            Assert.Equal(Application.Current.FindResource("MutedTextBrush"), progress.Foreground);
             Assert.Equal(Stretch.Uniform, artwork.Stretch);
             var viewport = Assert.IsType<CroppedBitmap>(artwork.Source);
             Assert.Equal(new Int32Rect(300, 110, 680, 480), viewport.SourceRect);

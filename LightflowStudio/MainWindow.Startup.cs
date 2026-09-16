@@ -9,6 +9,7 @@ public partial class MainWindow
 
     internal async Task RestoreStartupPresentationAsync()
     {
+        using var timing = StartupDiagnostics.Stage("Workspace restoration", "Restoring workspace…");
         try
         {
             await RestoreWorkspaceContinuationAsync();

@@ -60,29 +60,37 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         bool onlyIfNeededToday = false, CancellationToken cancellationToken = default) => Task.Run(() =>
     {
         cancellationToken.ThrowIfCancellationRequested();
+        using var backupTiming = StartupDiagnostics.Stage("Catalog backup", "Protecting Catalog…");
         var now = _utcNow().ToUniversalTime();
         if (onlyIfNeededToday)
         {
+            using var decisionTiming = StartupDiagnostics.Stage("Backup decision");
             var existing = ListBackups().FirstOrDefault(x => x.Kind == CatalogBackupKind.Automatic && x.CreatedUtc.UtcDateTime.Date == now.UtcDateTime.Date);
-            if (existing is not null) return new CatalogBackupResult(true, existing);
+            if (existing is not null)
+            {
+                StartupDiagnostics.Note("Backup decision: reusing today’s Automatic backup");
+                return new CatalogBackupResult(true, existing);
+            }
+            StartupDiagnostics.Note("Backup decision: creating Automatic backup");
         }
         // Reusing today's backup is not a new integrity check. Startup already opened/checked the
         // Catalog; validate the source and the resulting copy only when actually making a backup.
-        var source = Inspect(databasePath, full: true, cancellationToken);
+        var source = Inspect(databasePath, full: true, cancellationToken, "Backup source full check");
         if (!source.IsValid) return new CatalogBackupResult(false, Diagnostic: source.Diagnostic);
-        var final = UniqueBackupPath(source.SchemaVersion!.Value, now, kind);
+        var final = UniqueBackupPath(source.SchemaVersion!.Value, now);
         var staging = final + $".{Guid.NewGuid():N}.tmp";
         try
         {
             Directory.CreateDirectory(_locations.CatalogBackupsDirectory);
-            BackupDatabase(databasePath, staging);
-            var validation = Inspect(staging, full: true, cancellationToken);
+            using (StartupDiagnostics.Stage("Backup copy", "Copying Catalog backup…"))
+                BackupDatabase(databasePath, staging);
+            var validation = Inspect(staging, full: true, cancellationToken, "Backup copy full check");
             if (!validation.IsValid || validation.CatalogId != source.CatalogId || validation.SchemaVersion != source.SchemaVersion)
                 return new CatalogBackupResult(false, Diagnostic: validation.Diagnostic ?? "The backup did not preserve Catalog identity and schema.");
             File.Move(staging, final);
             File.WriteAllText(final + ".metadata.json", JsonSerializer.Serialize(new BackupMetadata(kind)));
             var backup = ParseBackup(final)!;
-            ApplyRetention();
+            using (StartupDiagnostics.Stage("Backup retention")) ApplyRetention();
             return new CatalogBackupResult(true, backup);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException)
@@ -97,7 +105,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         if (!Directory.Exists(_locations.CatalogBackupsDirectory)) return [];
         return Directory.EnumerateFiles(_locations.CatalogBackupsDirectory, "LightflowCatalog-v*-*.db")
             .Select(ParseBackup).Where(x => x is not null).Cast<CatalogBackup>()
-            .OrderByDescending(x => x.CreatedUtc).ToArray();
+            .OrderByDescending(x => x.CreatedUtc).ThenByDescending(x => x.Path, StringComparer.Ordinal).ToArray();
     }
 
     public Task<CatalogRestoreInstallation> BeginRestoreAsync(string backupPath, bool requireCurrentProtection = false,
@@ -195,8 +203,10 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         }, cancellationToken);
     }
 
-    private CatalogIntegrityResult Inspect(string path, bool full, CancellationToken cancellationToken)
+    private CatalogIntegrityResult Inspect(string path, bool full, CancellationToken cancellationToken,
+        string stage = "Recovery full check")
     {
+        using var timing = StartupDiagnostics.Stage(stage, "Validating Catalog backup…");
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -226,13 +236,14 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         checkpoint.ExecuteScalar();
     }
 
-    private string UniqueBackupPath(int schema, DateTimeOffset now, CatalogBackupKind kind)
+    private string UniqueBackupPath(int schema, DateTimeOffset now)
     {
-        while (true)
+        for (var sequence = 0; ; sequence++)
         {
-            var path = Path.Combine(_locations.CatalogBackupsDirectory, $"LightflowCatalog-v{schema}-{now:yyyyMMddTHHmmssZ}.db");
+            // A collision must not advance the backup's UTC date (especially at midnight).
+            var suffix = sequence == 0 ? "" : $"_{sequence:D8}";
+            var path = Path.Combine(_locations.CatalogBackupsDirectory, $"LightflowCatalog-v{schema}-{now:yyyyMMddTHHmmssZ}{suffix}.db");
             if (!File.Exists(path)) return path;
-            now = now.AddSeconds(1);
         }
     }
 
@@ -241,7 +252,12 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         var all = ListBackups();
         var daily = all.GroupBy(x => x.CreatedUtc.UtcDateTime.Date).Select(g => PreferredAnchor(g)).Take(DailyRetention).ToHashSet();
         var monthly = all.GroupBy(x => (x.CreatedUtc.Year, x.CreatedUtc.Month)).Select(g => PreferredAnchor(g)).Take(MonthlyRetention).ToHashSet();
-        foreach (var backup in all.Where(x => !daily.Contains(x) && !monthly.Contains(x)))
+        // Migration/Recovery anchors protect the state before a change. Keep that protection,
+        // and today's Automatic snapshot as the evidence used by the daily backup decision.
+        // At most one extra file is retained; on the next UTC day normal anchor retention applies.
+        var today = _utcNow().UtcDateTime.Date;
+        var automatic = all.FirstOrDefault(x => x.Kind == CatalogBackupKind.Automatic && x.CreatedUtc.UtcDateTime.Date == today);
+        foreach (var backup in all.Where(x => !daily.Contains(x) && !monthly.Contains(x) && x != automatic))
         {
             try { File.Delete(backup.Path); } catch { }
             try { File.Delete(backup.Path + ".metadata.json"); } catch { }
@@ -274,6 +290,6 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
 
     private sealed record BackupMetadata(CatalogBackupKind Kind);
 
-    [GeneratedRegex(@"^LightflowCatalog-v(\d+)-(\d{8}T\d{6}Z)\.db$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^LightflowCatalog-v(\d+)-(\d{8}T\d{6}Z)(?:_\d{8})?\.db$", RegexOptions.IgnoreCase)]
     private static partial Regex BackupName();
 }

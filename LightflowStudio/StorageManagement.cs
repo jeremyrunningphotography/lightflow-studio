@@ -155,6 +155,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         IStorageConfigurationStore? configuration = null, ICatalogSessionActivator? activator = null,
         ICatalogRecoveryService? recovery = null)
     {
+        using var timing = StartupDiagnostics.Stage("Storage initialization", "Opening storage…");
         transfer ??= new SqliteCatalogRelocationTransfer();
         activator ??= new CatalogSessionActivator();
         var defaults = localApplicationData is null
@@ -229,7 +230,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         var (previews, previewDiagnostic) = await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
         var coordinator = new LightflowStorageCoordinator(configuration, settings, locations, opened.Session, transfer,
             activator, recovery, previews, previewDiagnostic);
-        await coordinator.MediaMonitoring!.StartAsync(cancellationToken).ConfigureAwait(false);
+        using (StartupDiagnostics.Stage("Media-root monitoring", "Checking media locations…"))
+            await coordinator.MediaMonitoring!.StartAsync(cancellationToken).ConfigureAwait(false);
         var automaticBackup = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic,
             onlyIfNeededToday: true, cancellationToken).ConfigureAwait(false);
         if (!automaticBackup.Succeeded)

@@ -45,6 +45,10 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        ActivityLog = new(LightflowStorageLocations.Current.ActivityLogPath);
+        using var startupDiagnostics = new StartupDiagnostics(message => ActivityLog.TryAppend(message),
+            progress => Dispatcher.BeginInvoke(() => _startupSplash?.SetProgress(progress)));
+        StartupDiagnostics.Note($"Process entered startup; process age={(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds:F1}ms");
         _applicationInstance = new WindowsApplicationInstanceCoordinator();
         _applicationInstance.LaunchRequested += request => Dispatcher.Invoke(() =>
         {
@@ -99,7 +103,7 @@ public partial class App : System.Windows.Application
                 return;
             }
             Storage = storage.Coordinator;
-            ActivityLog = new(Storage.Locations.ActivityLogPath);
+
             ActivityLog.TryAppend($"[App] Lightflow Studio {AppVersion.Display} starting.");
             if (!storage.IsReady)
                 ActivityLog.TryAppend($"[Catalog] {storage.Status}: {storage.Diagnostic}");
@@ -120,6 +124,7 @@ public partial class App : System.Windows.Application
                 ActivityLog.TryAppend("[App shutdown] Storage disposal completed.");
                 ActivityLog.TryAppend("[App] Lightflow Studio exiting.");
             };
+            using var presentationTiming = StartupDiagnostics.Stage("Workspace construction and presentation", "Restoring workspace…");
             var mainWindow = new MainWindow(Storage, storage.Status, storage.Diagnostic)
             {
                 ShowActivated = false,

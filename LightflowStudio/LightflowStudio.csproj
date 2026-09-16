@@ -16,6 +16,7 @@
     <ApplicationIcon>Assets\Branding\LightflowStudio.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Flyleaf.FFmpeg.Bindings" Version="9.0.0" />
     <PackageReference Include="FlyleafLib" Version="[3.11.2-lightflow.4]" />
     <PackageReference Include="NAudio.WinMM" Version="2.3.0" />

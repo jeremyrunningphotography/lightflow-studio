@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body { padding: 16px; color: #eee; background: #242424; font-family: sans-serif; overflow: auto; }
+h2 { margin-bottom: 12px; } button { margin: 8px 0; padding: 8px; }
+#status { white-space: pre-wrap; margin: 12px 0; }
+</style></head><body>
+<img src="lightflow-header-lockup-480x96.png" width="240" height="48" alt="Lightflow Studio">
+<p>Send source media from your Lightflow Catalog to the active Premiere project.</p>
+<button id="pair">Allow Connection Access…</button>
+<button id="disconnect">Disconnect</button>
+<div id="status">Checking remembered Lightflow connection…</div>
+<p>Keep this panel open while sending. Closing Premiere or switching projects stops further handoff work.</p>
+<button id="troubleshoot">Troubleshooting</button>
+<div id="recovery" style="display: none"><p>If the saved folder is no longer available, forget it and repeat the one-time access step in Lightflow Settings. Normal restarts and credential resets reconnect automatically.</p><button id="forget">Forget Connection</button></div>
+<script src="index.js"></script>
+</body></html>

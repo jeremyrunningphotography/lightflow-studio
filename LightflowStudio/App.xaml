@@ -87,6 +87,11 @@
    <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
   </Style>
 
+  <!-- Shared bounded source-review list chrome for Export-style handoff dialogs. -->
+  <Style x:Key="SourceMediaReviewScrollViewer" TargetType="ScrollViewer">
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollViewer"><Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"><Grid><ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Margin="0,0,14,0" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" CanContentScroll="{TemplateBinding CanContentScroll}"/><ScrollBar x:Name="PART_VerticalScrollBar" Width="14" HorizontalAlignment="Right" Orientation="Vertical" Maximum="{TemplateBinding ScrollableHeight}" ViewportSize="{TemplateBinding ViewportHeight}" Value="{TemplateBinding VerticalOffset}" Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/></Grid></Border></ControlTemplate></Setter.Value></Setter>
+  </Style>
+
   <Style x:Key="LightflowToolTipStyle" TargetType="ToolTip">
    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
    <Setter Property="Background" Value="{StaticResource ElevatedBrush}"/>
@@ -107,6 +112,14 @@
    </Setter>
   </Style>
   <Style TargetType="ToolTip" BasedOn="{StaticResource LightflowToolTipStyle}"/>
+
+  <Style x:Key="SettingsExpanderToggleStyle" TargetType="ToggleButton">
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="10,8"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton"><Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock x:Name="Glyph" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="▸"/><ContentPresenter Grid.Column="1" VerticalAlignment="Center" RecognizesAccessKey="True"/></Grid></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSurfaceBrush}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/><Setter TargetName="Glyph" Property="Text" Value="▾"/><Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource ShellFocusBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/><Setter TargetName="Chrome" Property="BorderThickness" Value="2"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/><Setter Property="Cursor" Value="Arrow"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="SettingsExpanderStyle" TargetType="Expander">
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander"><StackPanel><ToggleButton Style="{StaticResource SettingsExpanderToggleStyle}" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/><ContentPresenter x:Name="ExpandSite" Margin="0,8,0,0" Visibility="Collapsed" ContentSource="Content"/></StackPanel><ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="ExpandSite" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
 
   <Style x:Key="PageTitle" TargetType="TextBlock">
    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>

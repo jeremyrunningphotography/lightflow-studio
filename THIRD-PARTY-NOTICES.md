@@ -1,5 +1,13 @@
 # Third-Party Notices
 
+## Local HTTP bridge
+
+The Premiere bridge uses Microsoft ASP.NET Core 8 (Kestrel), distributed with the
+self-contained .NET application. ASP.NET Core is copyright .NET Foundation and
+contributors and licensed under the MIT License. Source and license:
+<https://github.com/dotnet/aspnetcore> and
+<https://github.com/dotnet/aspnetcore/blob/main/LICENSE.txt>.
+
 Lightflow Studio includes FFmpeg and FFprobe executables produced by the
 [BtbN FFmpeg Builds project](https://github.com/BtbN/FFmpeg-Builds).
 

@@ -25,7 +25,8 @@ internal static class CatalogMigrations
         new(10, "Durable Collections, Collection Sets, and membership", ApplyVersion10),
         new(11, "Mixed Collection hierarchy sibling order", ApplyVersion11),
         new(12, "Durable asset ratings, flags, color labels, and keywords", ApplyVersion12),
-        new(13, "Creator-authored asset descriptions and overrides", ApplyVersion13)
+        new(13, "Creator-authored asset descriptions and overrides", ApplyVersion13),
+        new(14, "Premiere destination projections and durable handoff intents", ApplyVersion14)
     ];
 
     private static void ApplyVersion1(
@@ -553,6 +554,19 @@ internal static class CatalogMigrations
                 UpdatedUtc TEXT NOT NULL CHECK (length(UpdatedUtc) = 28)
             );
             """);
+
+    private static void ApplyVersion14(SqliteConnection connection, SqliteTransaction transaction,
+        CatalogMigrationContext context) => Execute(connection, transaction, """
+        CREATE TABLE PremiereHandoffs (
+            OperationId TEXT NOT NULL PRIMARY KEY,
+            DestinationId TEXT NOT NULL,
+            AssetId TEXT NOT NULL REFERENCES MediaAssets(AssetId) ON DELETE RESTRICT,
+            IntentJson TEXT NOT NULL,
+            ReceiptJson TEXT NULL,
+            Dispatched INTEGER NOT NULL DEFAULT 0 CHECK (Dispatched IN (0,1)),
+            UNIQUE(DestinationId, AssetId)
+        );
+        """);
 
     private static void Execute(SqliteConnection connection, SqliteTransaction transaction, string sql)
     {

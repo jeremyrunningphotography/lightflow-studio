@@ -305,6 +305,8 @@ public partial class MainWindow : Window
 
                 RefreshCatalogBackups();
                 RefreshHistory();
+                await LoadPremiereHistoryAsync();
+                _ = ResumePremiereAsync();
                 if (_jobsWorkspaceSmokeTest)
                     MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs);
                 LocateTools();
@@ -338,6 +340,9 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _premiereClosing = true;
+            _premiereJobs?.CancelAll();
+            _premiereBridge?.DisposeAsync().AsTask().GetAwaiter().GetResult();
             ResetBrowserAssetGesture();
             _inspectorRefreshTimer.Stop();
             _inspector?.Dispose();
@@ -6209,7 +6214,13 @@ public partial class MainWindow : Window
         var projected = JobsWorkspacePresentation.Project(_exportScheduler.Jobs, _durableHistoryRecords,
                 JobsSearchText?.Text, filter, _deletedFullJobsTerminalJobIds)
             .Concat(JobsWorkspacePresentation.ProjectFileOperations(_fileOperationJobs.Jobs, _fileOperationJobs.History,
-                JobsSearchText?.Text, filter)).OrderBy(item => JobsPresentation.IsTerminal(item.State) ? 1 : 0)
+                JobsSearchText?.Text, filter))
+            .Concat((_premiereJobs?.Jobs ?? []).Where(job => job.State is JobState.Queued or JobState.Running || job.Receipts.Count == 0).Select(job => job.WorkspaceItem())
+                .Where(item => JobsWorkspacePresentation.Matches(item.State, filter)
+                    && (string.IsNullOrWhiteSpace(JobsSearchText?.Text) || item.Name.Contains(JobsSearchText.Text, StringComparison.OrdinalIgnoreCase))))
+            .Concat((_premiereJobs?.History ?? _premiereHistory).Where(item => JobsWorkspacePresentation.Matches(item.State, filter)
+                && (string.IsNullOrWhiteSpace(JobsSearchText?.Text) || item.Name.Contains(JobsSearchText.Text, StringComparison.OrdinalIgnoreCase))))
+            .OrderBy(item => JobsPresentation.IsTerminal(item.State) ? 1 : 0)
             .ThenByDescending(item => item.SortTime).ToArray();
         FullJobsMaximumExports.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         ReconcileJobsWorkspace(projected);
@@ -6365,6 +6376,7 @@ public partial class MainWindow : Window
                 "Incomplete output uses the existing cleanup policy.", single?.OutputPath, selection.IsSingle ? "Cancel Job" : "Cancel selected"))
             foreach (var id in intended)
                 if (_fileOperationJobs.Jobs.Any(job => job.Intent.OperationId == id)) _fileOperationJobs.Cancel(id);
+                else if (_premiereJobs?.Jobs.Any(job => job.JobId == id) == true) _premiereJobs.Cancel(id);
                 else _exportScheduler.Cancel(id);
     }
 
@@ -6680,17 +6692,21 @@ public partial class MainWindow : Window
         var queuePaused = _exportScheduler.IsQueuePaused;
         var fileJobs = _fileOperationJobs.Jobs;
         var activeFileJobs = fileJobs.Count(job => job.State is FileOperationState.Waiting or FileOperationState.Running);
+        var premiereJobs = (_premiereJobs?.Jobs ?? []).Where(job => !_dismissedTerminalJobIds.Contains(job.JobId)).ToArray();
+        var activePremiereJobs = premiereJobs.Count(job => job.State is JobState.Queued or JobState.Running);
         JobsStatusButton.Content = activeFileJobs == 0 ? JobsPresentation.StatusText(jobs, queuePaused)
             : $"{JobsPresentation.StatusText(jobs, queuePaused)} · {activeFileJobs} file {(activeFileJobs == 1 ? "operation" : "operations")}";
+        if (activePremiereJobs > 0) JobsStatusButton.Content += $" · {activePremiereJobs} Premiere handoff(s)";
         AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs workspace.");
         JobsStatusButton.ToolTip = "Open full Jobs workspace";
         _compactJobsView.MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         ApplyQueueGatePresentation(FullJobsQueueGateButton, queuePaused);
         ApplyQueueGatePresentation(_compactJobsView.JobsQueueGateButton, queuePaused);
         var visibleJobs = JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds);
-        var cancellableCount = JobsPresentation.BulkCancellableJobs(jobs).Count;
-        var clearableCount = visibleJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State));
-        var bulkAction = JobsPresentation.BulkAction(visibleJobs);
+        var cancellableCount = JobsPresentation.BulkCancellableJobs(jobs).Count + activePremiereJobs;
+        var clearableCount = visibleJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State))
+            + premiereJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State));
+        var bulkAction = cancellableCount > 0 ? JobsBulkAction.CancelAll : clearableCount > 0 ? JobsBulkAction.ClearAll : JobsBulkAction.None;
         var cancelAll = bulkAction == JobsBulkAction.CancelAll;
         _compactJobsView.JobsCancelAllButton.Content = cancelAll ? "Cancel all" : "Clear all";
         _compactJobsView.JobsCancelAllButton.IsEnabled = bulkAction != JobsBulkAction.None;
@@ -6701,7 +6717,8 @@ public partial class MainWindow : Window
             ? $"Cancel all {cancellableCount} active Jobs"
             : clearableCount > 0 ? $"Clear all {clearableCount} dismissible Jobs from panel" : "Clear all, no Jobs to clear");
         var cards = visibleJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId)))
-            .Concat(fileJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.Intent.OperationId)))).ToList();
+            .Concat(fileJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.Intent.OperationId))))
+            .Concat(premiereJobs.Select(job => job.Card(_expandedJobIds.Contains(job.JobId)))).ToList();
         JobsPresentation.Reconcile(_compactJobsCards, cards);
         if (MainTabs?.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
     }
@@ -6770,6 +6787,11 @@ public partial class MainWindow : Window
     internal void JobsCancel_Click(object sender, RoutedEventArgs e)
     {
         if (JobIdFrom(sender) is not { } id) return;
+        if (_premiereJobs?.Jobs.Any(job => job.JobId == id) == true)
+        {
+            _premiereJobs.Cancel(id);
+            return;
+        }
         var fileJob = _fileOperationJobs.Jobs.FirstOrDefault(snapshot => snapshot.Intent.OperationId == id &&
             snapshot.State is FileOperationState.Waiting or FileOperationState.Running);
         if (fileJob is not null)
@@ -6790,19 +6812,25 @@ public partial class MainWindow : Window
     {
         var jobs = _exportScheduler.Jobs;
         var intended = JobsPresentation.BulkCancellableJobs(jobs).Select(job => job.JobId).ToList();
+        intended.AddRange((_premiereJobs?.Jobs ?? []).Where(job => job.State is JobState.Queued or JobState.Running).Select(job => job.JobId));
         if (intended.Count > 0)
         {
             var noun = intended.Count == 1 ? "Job" : "Jobs";
-            if (!ConfirmationDialog.Confirm(this, "Cancel all Export Jobs", $"Cancel all {intended.Count} active {noun}?",
-                "Needs-attention and terminal Jobs are unaffected. Incomplete outputs use the existing cleanup policy.",
+            if (!ConfirmationDialog.Confirm(this, "Cancel all Jobs", $"Cancel all {intended.Count} active {noun}?",
+                _premiereJobs?.Jobs.Any(job => intended.Contains(job.JobId)) == true
+                    ? "An in-flight Premiere import may remain. Resend the same Catalog selection to reconcile it. Incomplete exports use the existing cleanup policy."
+                    : "Needs-attention and terminal Jobs are unaffected. Incomplete outputs use the existing cleanup policy.",
                 null, "Cancel all")) return;
             foreach (var id in intended)
                 if (_fileOperationJobs.Jobs.Any(job => job.Intent.OperationId == id)) _fileOperationJobs.Cancel(id);
+                else if (_premiereJobs?.Jobs.Any(job => job.JobId == id) == true) _premiereJobs.Cancel(id);
                 else _exportScheduler.Cancel(id);
             return;
         }
         foreach (var job in JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds)
                      .Where(job => JobsPresentation.IsDismissibleDrawerRow(job.State)))
+            _dismissedTerminalJobIds.Add(job.JobId);
+        foreach (var job in (_premiereJobs?.Jobs ?? []).Where(job => JobsPresentation.IsDismissibleDrawerRow(job.State)))
             _dismissedTerminalJobIds.Add(job.JobId);
         ApplyJobsPresentation(_exportScheduler.Jobs);
     }
@@ -6811,6 +6839,13 @@ public partial class MainWindow : Window
     {
         _playerViewerHost?.ExitFullscreen();
         if (!TryLeaveInspectorContext()) { e.Cancel = true; return; }
+        if (!_forceClose && _premiereBridge?.HasUnresolvedDispatchedHandoff == true)
+        {
+            if (!ConfirmationDialog.Confirm(this, "Premiere handoff is active", "Stop waiting and close Lightflow?",
+                "An import already in progress may remain in Premiere. Reopen Lightflow and send the same Catalog selection to reconcile.",
+                null, "Stop handoff")) { e.Cancel = true; return; }
+            _premiereJobs?.CancelAll();
+        }
         SaveBatchState();
         SaveWorkspaceState();
         _previewMaintenanceCts?.Cancel();

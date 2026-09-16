@@ -1,6 +1,6 @@
 namespace LightflowStudio;
 
-internal sealed record PremiereSendItem(int Index, string SourceFileName, string PremiereItemText, bool HasRange, bool UseRange,
+internal sealed record PremiereSendItem(int Index, string SourceFileName, bool HasRange, bool UseRange,
     bool RangeControlEnabled, string RangeAutomationName, double RangeSegmentLeft, double RangeSegmentWidth,
     string RangeToolTip, string TimelineAutomationName);
 
@@ -44,9 +44,14 @@ internal sealed class PremiereSendModel(IReadOnlyList<PremiereSource> sources)
         var range = hasRange && source.Range!.TryGetMediaRange(out var value) ? value : null;
         var presentation = MediaRangeTimelinePresentation.For(source.Name, range?.SourceDuration ?? TimeSpan.Zero,
             range, hasRange && _useRanges[index], "Premiere source");
-        return new(index, source.Name, "→ Same source item in Premiere", hasRange, hasRange && _useRanges[index], hasRange && _rangesGloballyEnabled,
+        // A source without saved points is still visibly a full-source handoff. Its timeline
+        // intentionally fills the same shared range track rather than disappearing.
+        var fullSource = !hasRange;
+        return new(index, source.Name, hasRange, hasRange && _useRanges[index], hasRange && _rangesGloballyEnabled,
             hasRange ? $"Use In/Out for {source.Name}" : $"Use In/Out for {source.Name}, unavailable because no saved In/Out is defined",
-            presentation.SegmentLeft, presentation.SegmentWidth, presentation.ToolTip, presentation.AutomationName);
+            fullSource ? 0 : presentation.SegmentLeft, fullSource ? MediaRangeTimelinePresentation.Width : presentation.SegmentWidth,
+            fullSource ? "Full source" : presentation.ToolTip,
+            fullSource ? $"Full Premiere source handoff for {source.Name}" : presentation.AutomationName);
     }
 
     private static bool HasUsableRange(PremiereSource source) => source.RangeIssue is null

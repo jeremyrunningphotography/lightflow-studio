@@ -14,8 +14,14 @@ public class PremiereSendModelTests
 
         Assert.Equal(true, model.GlobalUseRangeState);
         Assert.Collection(model.Items,
-            item => { Assert.True(item.HasRange); Assert.True(item.UseRange); Assert.Equal("→ Same source item in Premiere", item.PremiereItemText); Assert.Equal(24, item.RangeSegmentLeft, 8); Assert.Equal(192, item.RangeSegmentWidth, 8); },
-            item => { Assert.False(item.HasRange); Assert.False(item.UseRange); Assert.Equal("→ Same source item in Premiere", item.PremiereItemText); },
+            item => { Assert.True(item.HasRange); Assert.True(item.UseRange); Assert.Equal(24, item.RangeSegmentLeft, 8); Assert.Equal(192, item.RangeSegmentWidth, 8); },
+            item =>
+            {
+                Assert.False(item.HasRange); Assert.False(item.UseRange);
+                Assert.Equal(0, item.RangeSegmentLeft); Assert.Equal(MediaRangeTimelinePresentation.Width, item.RangeSegmentWidth);
+                Assert.Equal("Full source", item.RangeToolTip);
+                Assert.Equal("Full Premiere source handoff for two.mov", item.TimelineAutomationName);
+            },
             item => { Assert.True(item.HasRange); Assert.True(item.UseRange); });
         Assert.Equal(2, model.PlannedSources.Count(source => source.Range is not null));
 
@@ -36,6 +42,31 @@ public class PremiereSendModelTests
         Assert.NotNull(model.PlannedSources[0].Range);
         Assert.Null(model.PlannedSources[1].Range);
         Assert.NotNull(model.PlannedSources[2].Range);
+    }
+
+    [Fact]
+    public void MixedSourcesKeepEveryTimelineWhileOnlySavedRangesOfferInOutControls()
+    {
+        var model = new PremiereSendModel([
+            Source("ranged.mov", new MediaRange(TimeSpan.FromTicks(100), TimeSpan.FromTicks(10), TimeSpan.FromTicks(90))),
+            Source("full-one.mov"),
+            Source("full-two.mov"),
+            Source("second-ranged.mov", new MediaRange(TimeSpan.FromTicks(100), TimeSpan.FromTicks(20), TimeSpan.FromTicks(80)))
+        ]);
+
+        Assert.Collection(model.Items,
+            item => Assert.True(item.HasRange),
+            item => AssertFullSource(item),
+            item => AssertFullSource(item),
+            item => Assert.True(item.HasRange));
+    }
+
+    private static void AssertFullSource(PremiereSendItem item)
+    {
+        Assert.False(item.HasRange);
+        Assert.False(item.RangeControlEnabled);
+        Assert.Equal(0, item.RangeSegmentLeft);
+        Assert.Equal(MediaRangeTimelinePresentation.Width, item.RangeSegmentWidth);
     }
 
     private static PremiereSource Source(string fileName, MediaRange? range = null)

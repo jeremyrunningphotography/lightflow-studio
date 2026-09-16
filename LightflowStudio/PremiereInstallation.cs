@@ -46,8 +46,9 @@ internal static partial class PremiereInstallation
         var plugin = CompanionRow().Match(host.Groups[2].Value);
         if (!plugin.Success) return new(PremiereConnectionState.CompanionNotInstalled,
             "Install the companion, then in Premiere choose Window > UXP Plugins > Lightflow Studio Companion.");
+        var requiredCompanion = Version.Parse(PremiereProtocol.CompanionVersion);
         if (!Version.TryParse(plugin.Groups[2].Value, out var companionVersion)
-            || companionVersion < Version.Parse(PremiereProtocol.CompanionVersion))
+            || companionVersion.Major != requiredCompanion.Major || companionVersion < requiredCompanion)
             return new(PremiereConnectionState.UpdateRequired, "Install the companion version included with this Lightflow release.");
         return new(PremiereConnectionState.Ready, plugin.Groups[1].Value == "Enabled"
             ? "In Premiere, choose Window > UXP Plugins > Lightflow Studio Companion. Complete its one-time setup; later connections are automatic."

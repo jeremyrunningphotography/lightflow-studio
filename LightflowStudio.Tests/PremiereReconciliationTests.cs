@@ -103,6 +103,22 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         Assert.Contains("Resolve", PremiereJob.UserMessage(receipt), StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void RunningMultiSourceHandoffPublishesSendingProgressAfterEachTerminalReceipt()
+    {
+        var sources = new[]
+        {
+            new PremiereSource(Guid.NewGuid(), "one.mov", "1", "1"),
+            new PremiereSource(Guid.NewGuid(), "two.mov", "1", "1")
+        };
+        var job = new PremiereJob(Guid.NewGuid(), _project, sources, JobState.Running, 1, [], "one.mov: Imported.", DateTimeOffset.UtcNow);
+
+        Assert.Equal(50, job.Progress);
+        Assert.Equal("Sending", job.Card(expanded: false).State);
+        Assert.Equal(50, job.Card(expanded: false).Progress);
+        Assert.Equal(50, job.WorkspaceItem().Progress);
+    }
+
     public async Task DisposeAsync()
     {
         if (_session is not null) await _session.DisposeAsync();

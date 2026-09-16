@@ -23,11 +23,12 @@ public sealed class JobsRadialProgress : FrameworkElement
         var center = new Point(RenderSize.Width / 2, RenderSize.Height / 2);
         var radius = Math.Max(1, Math.Min(RenderSize.Width, RenderSize.Height) / 2 - 2);
         var stateColor = StateColor(State);
-        var determinateExport = State == "Exporting" && Progress > 0;
-        var ringPen = new Pen(new SolidColorBrush(determinateExport ? Color.FromRgb(91, 98, 108) : stateColor), 2);
-        if (State == "Exporting" && !determinateExport) ringPen.DashStyle = new DashStyle([2d, 1.5d], 0);
+        var active = State is "Exporting" or "Sending";
+        var determinate = IsDeterminateProgress(State, Progress);
+        var ringPen = new Pen(new SolidColorBrush(determinate ? Color.FromRgb(91, 98, 108) : stateColor), 2);
+        if (active && !determinate) ringPen.DashStyle = new DashStyle([2d, 1.5d], 0);
         dc.DrawEllipse(null, ringPen, center, radius, radius);
-        if (State == "Exporting" && Progress > 0)
+        if (active && Progress > 0)
         {
             var sweep = Math.Clamp(Progress, 0, 100) * 3.6;
             if (sweep >= 359.99) sweep = 359.99;
@@ -49,11 +50,14 @@ public sealed class JobsRadialProgress : FrameworkElement
 
     internal static Color StateColor(string state) => state switch
     {
-        "Exporting" => Color.FromRgb(255, 139, 31),
+        "Exporting" or "Sending" => Color.FromRgb(255, 139, 31),
         "Completed" => Color.FromRgb(69, 191, 120),
         "Completed with warnings" or "Needs attention" => Color.FromRgb(235, 184, 64),
         "Failed" => Color.FromRgb(221, 82, 102),
         "Paused" => Color.FromRgb(207, 181, 77),
         _ => Color.FromRgb(91, 98, 108)
     };
+
+    internal static bool IsDeterminateProgress(string state, double progress)
+        => state is "Exporting" or "Sending" && progress > 0;
 }

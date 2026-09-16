@@ -57,7 +57,12 @@ public class PremiereUiContractTests
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "MediaHeading");
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RangeCheck");
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RangeTimeline");
-        Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "PremiereItemText");
+        Assert.DoesNotContain(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "PremiereItemText");
+        var noRangeTrigger = send.Descendants().Single(element => element.Name.LocalName == "DataTrigger" &&
+            (string?)element.Attribute("Value") == "False");
+        Assert.Contains(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeCheck" &&
+            (string?)element.Attribute("Property") == "Visibility" && (string?)element.Attribute("Value") == "Collapsed");
+        Assert.DoesNotContain(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeRow");
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "ProjectText");
         var sourcesScroll = send.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "SourcesScroll");
         Assert.Equal("SourcesScroll_PreviewMouseWheel", (string?)sourcesScroll.Attribute("PreviewMouseWheel"));

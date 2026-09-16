@@ -164,7 +164,11 @@ internal sealed class PreviewStoreService : IPreviewStoreService
             command.CommandText = SelectSql + " ORDER BY AssetId;";
             using var reader = command.ExecuteReader();
             var records = new List<PreviewRecord>();
-            while (reader.Read()) records.Add(Read(reader));
+            while (reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                records.Add(Read(reader));
+            }
             return records;
         }, cancellationToken);
 

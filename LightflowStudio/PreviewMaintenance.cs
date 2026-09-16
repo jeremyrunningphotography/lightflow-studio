@@ -151,7 +151,7 @@ internal sealed class PreviewMaintenanceService : IPreviewMaintenanceService
         var removed = 0;
         long freed = 0;
         var now = DateTimeOffset.UtcNow;
-        var referenced = ReferencedPaths(records);
+        var referenced = ReferencedPaths(records, cancellationToken);
 
         foreach (var file in EnumerateCacheFiles())
         {
@@ -291,7 +291,7 @@ internal sealed class PreviewMaintenanceService : IPreviewMaintenanceService
         foreach (var path in new[] { _locations.PreviewsDatabasePath, _locations.PreviewsDatabasePath + "-wal", _locations.PreviewsDatabasePath + "-shm" })
             if (File.Exists(path)) database += new FileInfo(path).Length;
         long thumbnails = 0, previews = 0, temporary = 0;
-        var files = EnumerateCacheFiles().ToArray();
+        var files = EnumerateCacheFiles(cancellationToken).ToArray();
         foreach (var file in files)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -299,15 +299,22 @@ internal sealed class PreviewMaintenanceService : IPreviewMaintenanceService
             else if (IsWithin(_locations.ThumbnailCacheDirectory, file.FullName)) thumbnails += file.Length;
             else previews += file.Length;
         }
-        var referenced = ReferencedPaths(records);
+        var referenced = ReferencedPaths(records, cancellationToken);
         return new(database, thumbnails, previews, temporary, records.Count, files.Length,
             files.Count(file => !referenced.Contains(file.FullName)));
     }
 
-    private HashSet<string> ReferencedPaths(IEnumerable<PreviewRecord> records) =>
-        records.SelectMany(record => new[] { record.ThumbnailRelativePath, record.StandardPreviewRelativePath })
-            .Select(ResolvePersistedCachePath).Where(path => path is not null)
-            .Select(path => path!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> ReferencedPaths(IEnumerable<PreviewRecord> records, CancellationToken cancellationToken)
+    {
+        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var record in records)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var relative in new[] { record.ThumbnailRelativePath, record.StandardPreviewRelativePath })
+                if (ResolvePersistedCachePath(relative) is { } path) paths.Add(path);
+        }
+        return paths;
+    }
 
     private IEnumerable<(PreviewRecord Record, PreviewArtifactKind Kind, PreviewComponentState State, string? Path)>
         ArtifactEntries(IEnumerable<PreviewRecord> records)
@@ -343,12 +350,17 @@ internal sealed class PreviewMaintenanceService : IPreviewMaintenanceService
         catch (ArgumentException) { return null; }
     }
 
-    private IEnumerable<FileInfo> EnumerateCacheFiles()
+    private IEnumerable<FileInfo> EnumerateCacheFiles(CancellationToken cancellationToken = default)
     {
         foreach (var root in new[] { _locations.ThumbnailCacheDirectory, _locations.StandardPreviewCacheDirectory })
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!Directory.Exists(root)) continue;
-            foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)) yield return new(path);
+            foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return new(path);
+            }
         }
     }
 

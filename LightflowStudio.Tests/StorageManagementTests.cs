@@ -22,6 +22,37 @@ public sealed class StorageManagementTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Shutdown_CancelsQueuedUsage_ButStillWaitsForTheActiveStorageOperation()
+    {
+        var coordinator = (await LightflowStorageCoordinator.StartAsync(_root)).Coordinator!;
+        var catalogId = coordinator.CatalogSession.Identity.CatalogId;
+        // Hold the actual serialization gate to model an in-progress durable mutation without
+        // relying on disk speed or making disposal skip that operation.
+        var gate = (SemaphoreSlim)typeof(LightflowStorageCoordinator).GetField("_mutationGate",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(coordinator)!;
+        await gate.WaitAsync();
+        Task? shutdown = null;
+        try
+        {
+            var usage = coordinator.GetPreviewUsageAsync();
+            Assert.False(usage.IsCompleted);
+            shutdown = coordinator.DisposeAsync().AsTask();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => usage.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.False(shutdown.IsCompleted);
+        }
+        finally
+        {
+            gate.Release();
+            if (shutdown is not null) await shutdown.WaitAsync(TimeSpan.FromSeconds(5));
+            else await coordinator.DisposeAsync();
+        }
+        var reopened = await LightflowStorageCoordinator.StartAsync(_root);
+        Assert.True(reopened.IsReady);
+        Assert.Equal(catalogId, reopened.Coordinator!.CatalogSession.Identity.CatalogId);
+        await reopened.Coordinator.DisposeAsync();
+    }
+
+    [Fact]
     public async Task IndependentCustomLocations_SurviveRestart()
     {
         var first = (await LightflowStorageCoordinator.StartAsync(_root)).Coordinator!;
@@ -39,6 +70,32 @@ public sealed class StorageManagementTests : IAsyncLifetime
         Assert.Equal(Path.GetFullPath(previews), restarted.Coordinator.Locations.PreviewsDirectory);
         Assert.Equal(identity, restarted.Coordinator.CatalogSession.Identity.CatalogId);
         await restarted.Coordinator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Shutdown_CancelsUsageHoldingStorageGate_ThenDrainsExistingPreviewLease()
+    {
+        var coordinator = (await LightflowStorageCoordinator.StartAsync(_root)).Coordinator!;
+        var operations = (PreviewOperationCoordinator)typeof(LightflowStorageCoordinator).GetField("_previewOperations",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(coordinator)!;
+        var activePreview = await operations.EnterMaintenanceAsync();
+        Task? shutdown = null;
+        try
+        {
+            // GetUsage owns the storage gate before waiting for this Preview lease.
+            var usage = coordinator.GetPreviewUsageAsync();
+            Assert.False(usage.IsCompleted);
+            shutdown = coordinator.DisposeAsync().AsTask();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => usage.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.False(shutdown.IsCompleted);
+        }
+        finally
+        {
+            activePreview.Dispose();
+            if (shutdown is not null) await shutdown.WaitAsync(TimeSpan.FromSeconds(5));
+            else await coordinator.DisposeAsync();
+        }
+        Assert.False(coordinator.CatalogAvailable);
     }
 
     [Fact]

@@ -70,7 +70,11 @@ try {
     }
     Write-Host "Packaged Browser startup, workspace presentation/splash handoff, and full Jobs workspace activation passed." -ForegroundColor Green
     $null = $startupSmoke.CloseMainWindow()
-    if (-not $startupSmoke.WaitForExit(5000)) { Stop-Process -InputObject $startupSmoke -Force }
+    if (-not $startupSmoke.WaitForExit(5000)) {
+        throw "Packaged application did not exit gracefully within five seconds after closing. Cleanup will terminate the smoke process."
+    }
+    if ($startupSmoke.ExitCode -ne 0) { throw "Packaged shutdown failed (exit code $($startupSmoke.ExitCode))." }
+    Write-Host "Packaged graceful shutdown passed." -ForegroundColor Green
 }
 finally {
     $startupSmoke.Refresh()

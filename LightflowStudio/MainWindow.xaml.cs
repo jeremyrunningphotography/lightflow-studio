@@ -4292,16 +4292,20 @@ public partial class MainWindow : Window
 
     private async Task RefreshPreviewUsageAsync()
     {
+        if (_workspaceClosed) return;
         try
         {
             var usage = await _storage.GetPreviewUsageAsync();
+            if (_workspaceClosed) return;
             PreviewUsageText.Text = usage is null
                 ? _storage.PreviewDiagnostic ?? "Preview storage is unavailable."
                 : $"{FormatBytes(usage.TotalBytes)} used — {usage.RecordCount:N0} records, " +
                   $"{usage.ArtifactCount:N0} generated files{(usage.OrphanCount == 0 ? "" : $", {usage.OrphanCount:N0} orphaned")}";
         }
+        catch (OperationCanceledException) when (_workspaceClosed) { }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or SqliteException)
         {
+            if (_workspaceClosed) return;
             PreviewUsageText.Text = $"Preview usage is unavailable: {exception.Message}";
         }
     }

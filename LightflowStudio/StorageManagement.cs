@@ -66,6 +66,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     private readonly ICatalogSessionActivator _activator;
     private ICatalogRecoveryService _recovery;
     private readonly SemaphoreSlim _mutationGate = new(1, 1);
+    private readonly CancellationTokenSource _readShutdown = new();
     private readonly PreviewOperationCoordinator _previewOperations = new();
     private readonly SemaphoreSlim _thumbnailRegenerationGate = new(2, 2);
     private readonly AssetPreviewGenerationGate _assetPreviewGenerationGate = new();
@@ -479,6 +480,9 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
 
     public async Task<PreviewUsage?> GetPreviewUsageAsync(CancellationToken cancellationToken = default)
     {
+        // Usage is read-only accounting, not a write/flush that shutdown must finish.
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _readShutdown.Token);
+        cancellationToken = lifetime.Token;
         await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -729,24 +733,39 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         _ => StorageStartupStatus.CatalogUnreadable
     };
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync() => DisposeAsync(null);
+
+    internal async ValueTask DisposeAsync(Action<string>? diagnostic)
     {
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        void Report(string stage) => diagnostic?.Invoke($"[Storage shutdown pid={Environment.ProcessId} elapsed={timer.Elapsed.TotalMilliseconds:F1}ms] {stage}");
+        Report("Canceling read-only usage measurement");
+        _readShutdown.Cancel();
+        Report("Disposing LUT cache");
         if (LutCache is IDisposable disposableLutCache) disposableLutCache.Dispose();
+        Report("Stopping media monitoring");
         await DisposeMediaMonitoringAsync().ConfigureAwait(false);
+        Report("Stopping derived work");
         await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
+        Report("Waiting for storage operations");
         await _mutationGate.WaitAsync().ConfigureAwait(false);
         try
         {
+            Report("Waiting for Preview operations");
             using var previewLease = await _previewOperations.EnterMaintenanceAsync().ConfigureAwait(false);
+            Report("Closing Catalog");
             if (_catalogSession is not null) await _catalogSession.DisposeAsync().ConfigureAwait(false);
             _catalogSession = null;
+            Report("Closing Previews");
             if (Previews is not null) await Previews.DisposeAsync().ConfigureAwait(false);
             Previews = null;
+            Report("Completed");
         }
         finally
         {
             _mutationGate.Release();
             _mutationGate.Dispose();
+            _readShutdown.Dispose();
         }
     }
 

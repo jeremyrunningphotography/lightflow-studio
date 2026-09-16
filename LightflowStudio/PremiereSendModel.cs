@@ -85,9 +85,9 @@ internal sealed class PremiereSendModel
             range is not null, true, false, "",
             range is null ? 0 : presentation.SegmentLeft,
             range is null ? MediaRangeTimelinePresentation.Width : presentation.SegmentWidth,
-            range is null ? "Full source" : presentation.ToolTip,
-            range is null ? $"Full-source Premiere Subclip {item.Projection.Name}" : presentation.AutomationName,
-            item.Projection.IsSourceFallback ? "Whole source · no saved Subclips" : item.Source.Name,
+            range is null ? "Complete video" : presentation.ToolTip,
+            range is null ? $"Complete video {item.Source.Name}" : presentation.AutomationName,
+            item.Projection.IsSourceFallback ? "Complete video · no saved Subclips" : item.Source.Name,
             ShowRangeControl: false, IsWholeSourceFallback: item.Projection.IsSourceFallback);
     }
 

@@ -111,10 +111,10 @@ public partial class PremiereSendWindow : Window
         var nativeCount = _media.PlannedSubclips.Count - fallbackCount;
         MediaHeading.Text = _media.Mode == PremiereSendMode.Subclips
             ? $"Media being sent · {PremiereGrammar.Mixed(nativeCount, fallbackCount)}"
-            : $"Media being sent · {PremiereGrammar.Count(_sources.Count, "source")}";
+            : $"Media being sent · {PremiereGrammar.Count(_sources.Count, "video")}";
         RepresentationHelpText.Text = _media.Mode == PremiereSendMode.Subclips
-            ? "Saved Subclips are sent as native Premiere Subclips. A selected source with no saved Subclips is sent as the whole source."
-            : "Each selected Browser source is sent once. Saved In/Out points can be included where available.";
+            ? "Selected videos without Subclips are sent in full."
+            : "Saved In/Out points can optionally be included.";
         Sources.ItemsSource = items;
         GlobalUseRangesCheck.Visibility = _media.Mode == PremiereSendMode.Sources ? Visibility.Visible : Visibility.Collapsed;
         GlobalUseRangesCheck.IsEnabled = _media.Mode == PremiereSendMode.Sources && items.Any(item => item.HasRange);
@@ -122,7 +122,7 @@ public partial class PremiereSendWindow : Window
         System.Windows.Automation.AutomationProperties.SetName(SourcesScroll,
             _media.Mode == PremiereSendMode.Subclips
                 ? $"Media being sent, {PremiereGrammar.Mixed(nativeCount, fallbackCount)}"
-                : $"Media being sent, {PremiereGrammar.Count(_sources.Count, "source")}");
+                : $"Media being sent, {PremiereGrammar.Count(_sources.Count, "video")}");
     }
     private void Send_Click(object sender, RoutedEventArgs e)
     {

@@ -5,9 +5,9 @@ namespace LightflowStudio;
 internal static class PremiereGrammar
 {
     public static string Count(int count, string singular) => $"{count} {(count == 1 ? singular : singular + "s")}";
-    public static string Mixed(int nativeSubclips, int wholeSources) => nativeSubclips == 0
-        ? Count(wholeSources, "source")
-        : wholeSources == 0 ? Count(nativeSubclips, "Subclip") : Count(nativeSubclips + wholeSources, "item");
+    public static string Mixed(int nativeSubclips, int completeVideos) => nativeSubclips == 0
+        ? Count(completeVideos, "video")
+        : completeVideos == 0 ? Count(nativeSubclips, "Subclip") : Count(nativeSubclips + completeVideos, "item");
 }
 
 internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnlyList<PremiereSource> Sources,
@@ -15,7 +15,7 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
     IReadOnlyList<PremierePlannedSubclip>? Subclips = null)
 {
     public int ItemCount => Subclips?.Count ?? Sources.Count;
-    public string CountText => Subclips is null ? PremiereGrammar.Count(Sources.Count, "source")
+    public string CountText => Subclips is null ? PremiereGrammar.Count(Sources.Count, "video")
         : PremiereGrammar.Mixed(Subclips.Count(item => !item.Projection.IsSourceFallback),
             Subclips.Count(item => item.Projection.IsSourceFallback));
     public string Name => $"Send {CountText} to Premiere";
@@ -204,14 +204,14 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
                 if (sourceReceipt.Outcome != PremiereOutcome.Verified || string.IsNullOrWhiteSpace(sourceReceipt.ItemId))
                     result = new(Guid.Empty, sourceReceipt.Outcome, sourceReceipt.ItemId,
                         item.Projection.IsSourceFallback
-                            ? $"Source reconciliation failed before sending the whole source: {sourceReceipt.Message}"
+                            ? $"Video preparation failed before sending the complete video: {sourceReceipt.Message}"
                             : $"Source reconciliation failed before creating {item.Projection.Name}: {sourceReceipt.Message}");
                 else if (item.Projection.IsSourceFallback)
                     result = sourceReceipt with
                     {
                         Message = sourceReceipt.Message.Contains("imported", StringComparison.OrdinalIgnoreCase)
-                            ? "Whole source imported and verified. Save your Premiere project to preserve the import."
-                            : "Existing whole source verified; editor name and organization preserved."
+                            ? "Complete video imported and verified. Save your Premiere project to preserve the import."
+                            : "Existing video verified; editor name and organization preserved."
                     };
                 else
                 {

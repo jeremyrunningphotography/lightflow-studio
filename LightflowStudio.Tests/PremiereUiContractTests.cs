@@ -108,6 +108,61 @@ public class PremiereUiContractTests
     }
 
     [Fact]
+    public void SendUsesUserFacingVideoCopyAndDestinationHierarchyWording()
+    {
+        var send = XDocument.Load(Source("PremiereSendWindow.xaml"));
+        var behavior = File.ReadAllText(Source("PremiereSendWindow.xaml.cs"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var text = send.Descendants().Where(element => element.Name.LocalName == "TextBlock")
+            .Select(element => (string?)element.Attribute("Text")).Where(value => value is not null).ToArray();
+
+        Assert.Contains("What to send", text);
+        Assert.Contains("Videos", text);
+        Assert.Contains("Send the selected videos", text);
+        Assert.Contains("Subclips", text);
+        Assert.Contains("Send saved Subclips", text);
+        Assert.Contains("New bin inside destination (optional)", text);
+        Assert.DoesNotContain(text, value => value!.Contains("whole source", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("selected source", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("representation", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("child bin", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("Selected videos without Subclips are sent in full.", behavior);
+        Assert.Contains("Saved In/Out points can optionally be included.", behavior);
+        Assert.DoesNotContain("selected source", behavior, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("whole source", behavior, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("New Premiere bin inside destination", (string?)send.Descendants()
+            .Single(element => (string?)element.Attribute(x + "Name") == "NewBinName")
+            .Attribute("AutomationProperties.Name"));
+    }
+
+    [Fact]
+    public void SharedButtonFocusUsesFixedGeometryAndRefreshUsesThatMomentaryCommandStyle()
+    {
+        var app = XDocument.Load(Source("App.xaml"));
+        var ns = app.Root!.Name.Namespace;
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var buttonStyle = app.Descendants(ns + "Style").Single(style =>
+            (string?)style.Attribute("TargetType") == "Button" && style.Attribute(x + "Key") is null);
+        Assert.Contains(buttonStyle.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "FocusVisualStyle" && (string?)setter.Attribute("Value") == "{x:Null}");
+        var interactionTriggers = buttonStyle.Descendants(ns + "Trigger").Where(trigger =>
+            (string?)trigger.Attribute("Property") is "IsMouseOver" or "IsPressed" or "IsKeyboardFocused").ToArray();
+        Assert.Equal(3, interactionTriggers.Length);
+        Assert.DoesNotContain(interactionTriggers.SelectMany(trigger => trigger.Elements(ns + "Setter")), setter =>
+            (string?)setter.Attribute("Property") is "BorderThickness" or "Padding" or "Margin"
+                or "Width" or "Height" or "MinWidth" or "MinHeight");
+        var focus = interactionTriggers.Single(trigger => (string?)trigger.Attribute("Property") == "IsKeyboardFocused");
+        Assert.Contains(focus.Elements(ns + "Setter"), setter =>
+            (string?)setter.Attribute("TargetName") == "Chrome" && (string?)setter.Attribute("Property") == "BorderBrush");
+
+        var send = XDocument.Load(Source("PremiereSendWindow.xaml"));
+        var refresh = send.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "RefreshButton");
+        Assert.Equal("Button", refresh.Name.LocalName);
+        Assert.Null(refresh.Attribute("Style"));
+        Assert.Equal("Refresh_Click", (string?)refresh.Attribute("Click"));
+    }
+
+    [Fact]
     public void ShutdownProtectionUsesOnlyAnUnresolvedDispatchedBridgeCommand()
     {
         var window = File.ReadAllText(Source("MainWindow.xaml.cs"));

@@ -15,7 +15,7 @@
   <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="12"><StackPanel>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <TextBlock Text="Premiere connection" Style="{StaticResource SectionTitle}"/>
-    <StackPanel Grid.Column="1" Orientation="Horizontal"><Button Content="Refresh" Click="Refresh_Click"/><Button Content="Integration Settings…" Click="Settings_Click"/></StackPanel>
+    <StackPanel Grid.Column="1" Orientation="Horizontal"><Button x:Name="RefreshButton" Content="Refresh" Click="Refresh_Click"/><Button Content="Integration Settings…" Click="Settings_Click"/></StackPanel>
    </Grid>
    <Border x:Name="ConnectionBadge" Margin="0,9,0,0" Padding="8,5" HorizontalAlignment="Left" CornerRadius="6" Background="{StaticResource ReadyBadgeBackgroundBrush}" BorderBrush="{StaticResource ReadyBadgeBorderBrush}" BorderThickness="1"><TextBlock x:Name="ConnectionText" FontWeight="SemiBold"/></Border>
    <StackPanel x:Name="ProjectRow" Orientation="Horizontal" Margin="0,7,0,0"><TextBlock Text="Project: " Foreground="{StaticResource TextBrush}"/><TextBlock x:Name="ProjectText" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"/></StackPanel>
@@ -23,15 +23,15 @@
    <TextBlock x:Name="ConnectionMessageText" Margin="0,7,0,0" Style="{StaticResource PageSubtitle}"/>
   </StackPanel></Border>
   <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="12"><StackPanel>
-   <TextBlock Text="Send representation" Style="{StaticResource SectionTitle}"/>
+   <TextBlock Text="What to send" Style="{StaticResource SectionTitle}"/>
    <Grid Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-    <RadioButton x:Name="SourceMediaRadio" Margin="0,0,4,0" Style="{StaticResource RepresentationModeRadio}" GroupName="SendRepresentation" Checked="RepresentationMode_Changed" AutomationProperties.Name="Send source media"><StackPanel><TextBlock FontWeight="SemiBold" Text="Source media"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" Text="One item per selected source"/></StackPanel></RadioButton>
-    <RadioButton x:Name="SubclipsRadio" Grid.Column="1" Margin="4,0,0,0" Style="{StaticResource RepresentationModeRadio}" GroupName="SendRepresentation" Checked="RepresentationMode_Changed" AutomationProperties.Name="Send Subclips"><StackPanel><TextBlock FontWeight="SemiBold" Text="Subclips"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Saved Subclips or whole source"/></StackPanel></RadioButton>
+    <RadioButton x:Name="SourceMediaRadio" Margin="0,0,4,0" Style="{StaticResource RepresentationModeRadio}" GroupName="SendRepresentation" Checked="RepresentationMode_Changed" AutomationProperties.Name="Send videos"><StackPanel><TextBlock FontWeight="SemiBold" Text="Videos"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Send the selected videos"/></StackPanel></RadioButton>
+    <RadioButton x:Name="SubclipsRadio" Grid.Column="1" Margin="4,0,0,0" Style="{StaticResource RepresentationModeRadio}" GroupName="SendRepresentation" Checked="RepresentationMode_Changed" AutomationProperties.Name="Send Subclips"><StackPanel><TextBlock FontWeight="SemiBold" Text="Subclips"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Send saved Subclips"/></StackPanel></RadioButton>
    </Grid>
    <TextBlock x:Name="RepresentationHelpText" Margin="0,7,0,8" Style="{StaticResource PageSubtitle}" TextWrapping="Wrap"/>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <TextBlock x:Name="MediaHeading" Text="Media being sent" Style="{StaticResource SectionTitle}"/>
-    <CheckBox x:Name="GlobalUseRangesCheck" Grid.Column="1" VerticalAlignment="Center" Content="Use In/Out points" IsThreeState="False" Checked="GlobalUseRanges_Changed" Unchecked="GlobalUseRanges_Changed" AutomationProperties.Name="Use In and Out points for applicable Premiere sources"/>
+    <CheckBox x:Name="GlobalUseRangesCheck" Grid.Column="1" VerticalAlignment="Center" Content="Use In/Out points" IsThreeState="False" Checked="GlobalUseRanges_Changed" Unchecked="GlobalUseRanges_Changed" AutomationProperties.Name="Use In and Out points for applicable videos"/>
    </Grid>
    <ScrollViewer x:Name="SourcesScroll" Style="{StaticResource SourceMediaReviewScrollViewer}" MaxHeight="220" Margin="0,9,0,0" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="True" KeyboardNavigation.DirectionalNavigation="Continue" PreviewMouseWheel="SourcesScroll_PreviewMouseWheel"><ItemsControl x:Name="Sources" Background="{StaticResource ShellSurfaceBrush}"><ItemsControl.ItemTemplate><DataTemplate>
     <Border Padding="4,3" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1"><StackPanel>
@@ -53,8 +53,8 @@
    <TextBlock Text="Premiere destination" Style="{StaticResource SectionTitle}"/>
    <TextBlock Text="Destination bin" Style="{StaticResource FieldLabel}" Margin="0,9,0,3"/>
    <ComboBox x:Name="Bins" DisplayMemberPath="Name" SelectionChanged="Bins_SelectionChanged" AutomationProperties.Name="Premiere destination bin"/>
-   <TextBlock Text="Create or reuse a child bin (optional)" Style="{StaticResource FieldLabel}" Margin="0,10,0,3"/>
-   <TextBox x:Name="NewBinName" MaxLength="100" AutomationProperties.Name="Premiere child bin name"/>
+   <TextBlock Text="New bin inside destination (optional)" Style="{StaticResource FieldLabel}" Margin="0,10,0,3"/>
+   <TextBox x:Name="NewBinName" MaxLength="100" AutomationProperties.Name="New Premiere bin inside destination"/>
    <TextBlock x:Name="DestinationMessageText" Margin="0,7,0,0" Style="{StaticResource PageSubtitle}"/>
   </StackPanel></Border>
   <DockPanel Margin="0,14,0,0"><TextBlock x:Name="ResultText" DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap"/><Button x:Name="SendButton" Style="{StaticResource PrimaryButton}" Content="Send to Premiere Pro" Click="Send_Click" HorizontalAlignment="Right"/></DockPanel>

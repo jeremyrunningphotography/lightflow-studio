@@ -307,7 +307,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
             await Task.Delay(20);
         Assert.Equal(JobState.Completed, jobs.Jobs[0].State);
-        Assert.Equal("Send 1 source to Premiere", jobs.Jobs[0].Name);
+        Assert.Equal("Send 1 video to Premiere", jobs.Jobs[0].Name);
         Assert.Equal(HttpStatusCode.NoContent, (await Post("/v1/poll", new { })).StatusCode);
     }
     [Fact]

@@ -91,7 +91,8 @@ public class PremiereSendModelTests
         var fallbackModel = new PremiereSendModel([source], [fallback]);
         fallbackModel.SelectMode(PremiereSendMode.Subclips);
         Assert.True(fallbackModel.Items.Single().IsWholeSourceFallback);
-        Assert.Contains("Whole source", fallbackModel.Items.Single().DetailText);
+        Assert.Equal("Complete video · no saved Subclips", fallbackModel.Items.Single().DetailText);
+        Assert.Equal("Complete video", fallbackModel.Items.Single().RangeToolTip);
         var full = Source("full.mov");
         Assert.Null(Assert.Single(PremiereSendPlanning.Subclips([full],
             new Dictionary<Guid, IReadOnlyList<Subclip>>())).Projection.Range);
@@ -114,15 +115,17 @@ public class PremiereSendModelTests
         Assert.Equal(plan, model.PlannedSubclips);
         Assert.Collection(model.Items,
             item => { Assert.Equal("Named moment", item.SourceFileName); Assert.Equal("saved.mov", item.DetailText); Assert.False(item.IsWholeSourceFallback); },
-            item => { Assert.Equal("whole.mov", item.SourceFileName); Assert.Contains("Whole source", item.DetailText); Assert.True(item.IsWholeSourceFallback); Assert.Equal(MediaRangeTimelinePresentation.Width, item.RangeSegmentWidth); });
+            item => { Assert.Equal("whole.mov", item.SourceFileName); Assert.Equal("Complete video · no saved Subclips", item.DetailText); Assert.True(item.IsWholeSourceFallback); Assert.Equal(MediaRangeTimelinePresentation.Width, item.RangeSegmentWidth); });
         Assert.Null(plan[1].Projection.Range);
     }
 
     [Fact]
     public void PremiereCountsUseConcreteSingularPluralAndMixedItemGrammar()
     {
-        Assert.Equal("1 source", PremiereGrammar.Count(1, "source"));
-        Assert.Equal("4 sources", PremiereGrammar.Count(4, "source"));
+        Assert.Equal("1 video", PremiereGrammar.Count(1, "video"));
+        Assert.Equal("4 videos", PremiereGrammar.Count(4, "video"));
+        Assert.Equal("1 video", PremiereGrammar.Mixed(0, 1));
+        Assert.Equal("4 videos", PremiereGrammar.Mixed(0, 4));
         Assert.Equal("1 Subclip", PremiereGrammar.Mixed(1, 0));
         Assert.Equal("4 Subclips", PremiereGrammar.Mixed(4, 0));
         Assert.Equal("2 items", PremiereGrammar.Mixed(1, 1));

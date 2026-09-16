@@ -20,9 +20,9 @@ timeline assembly remain outside its scope.
 4. Select compatible Catalog source assets in the Browser and choose **Send To → Premiere Pro**.
    If setup is needed this opens integration Settings. If disconnected, it explains the
    state and offers Settings. When connected it opens a separate Send dialog: review the
-   current project, choose **Source media** or **Subclips**, and select a destination bin;
-   optionally create/use a child bin. Changing representation updates the same preview.
-5. Follow progress and per-source or per-Subclip results in Jobs. Save the Premiere project after handoff.
+   current project, choose **Videos** or **Subclips**, and select a destination bin;
+   optionally name a new bin inside that destination. Changing the choice updates the same preview.
+5. Follow progress and per-video or per-Subclip results in Jobs. Save the Premiere project after handoff.
 
 Installation inventory is read through Adobe UPIA. Installed software yields Ready, never
 Connected. Connected requires a compatible authenticated heartbeat received within ten
@@ -116,10 +116,10 @@ surfaces, and source receipts remain in the Catalog across Lightflow restarts.
 
 The Send dialog separates the connected Premiere project, selected Catalog sources, and
 the active-project destination. Refresh reads the latest authenticated companion
-heartbeat and clears a selected bin/child name when the project destination identity
+heartbeat and clears the selected destination or new-bin name when the project destination identity
 changes. It does not infer a project from installed software.
 
-For video sources with a saved Lightflow review range, Source media mode's per-send option projects the
+For videos with a saved Lightflow review range, Videos mode's per-send option projects the
 source item's In/Out points after import. Premiere's supported
 [ClipProjectItem source In/Out actions](https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/clipprojectitem/)
 run in an undoable project transaction. Lightflow's 100-nanosecond `TimeSpan` boundaries
@@ -135,9 +135,9 @@ known phase without applying the range again. This preserves an editor's later i
 changes while retaining duplicate-free recovery.
 
 Subclips mode retains the same connection and destination sections but replaces the
-source-range choices with a fixed review of the native Subclips to create. Each saved
+video range choices with a fixed review of the native Subclips to create. Each saved
 Lightflow Subclip carries its durable ID, name, revision and exact exclusive-Out range. A
-selected source with no saved Subclips contributes its whole Catalog source, never its saved
+selected video with no saved Subclips is sent in full, never using its saved
 review range and never an implicit native Subclip. The companion reconciles each Catalog source
 first without changing its source In/Out state, then creates each saved Subclip in an undoable
 transaction with hard boundaries and available video/audio streams requested. Native items are

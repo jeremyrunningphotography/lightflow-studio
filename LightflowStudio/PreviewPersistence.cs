@@ -164,7 +164,11 @@ internal sealed class PreviewStoreService : IPreviewStoreService
             command.CommandText = SelectSql + " ORDER BY AssetId;";
             using var reader = command.ExecuteReader();
             var records = new List<PreviewRecord>();
-            while (reader.Read()) records.Add(Read(reader));
+            while (reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                records.Add(Read(reader));
+            }
             return records;
         }, cancellationToken);
 
@@ -324,14 +328,17 @@ internal sealed class PreviewStoreService : IPreviewStoreService
     private void EnsureInitialized(CancellationToken cancellationToken)
     {
         if (_initialized) return;
+        using var timing = StartupDiagnostics.Stage("Preview initialization", "Checking Previews…");
         cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(_locations.PreviewsDirectory);
         if (File.Exists(_locations.PreviewsDatabasePath))
         {
             using (var inspection = OpenReadOnlyConnection()) ValidateForMigration(inspection);
             using var existing = OpenConnection();
-            Migrate(existing);
-            ValidateDatabase(existing);
+            var migrated = Migrate(existing);
+            // The read-only inspection already scanned an unchanged database. A migration still
+            // requires its post-change scan; schema and identity checks always remain enabled.
+            ValidateDatabase(existing, checkIntegrity: migrated);
             _initialized = true;
             return;
         }
@@ -400,12 +407,10 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         return connection;
     }
 
-    private static void ValidateDatabase(SqliteConnection connection)
+    private static void ValidateDatabase(SqliteConnection connection, bool checkIntegrity = true)
     {
+        if (checkIntegrity) ValidateIntegrity(connection);
         using var command = connection.CreateCommand();
-        command.CommandText = "PRAGMA quick_check;";
-        if (!string.Equals(Convert.ToString(command.ExecuteScalar()), "ok", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("The Preview database failed its integrity check. It may be safely rebuilt.");
         command.CommandText = "PRAGMA application_id;";
         if (Convert.ToInt32(command.ExecuteScalar()) != SqliteApplicationId)
             throw new InvalidDataException("The configured Preview database is not a Lightflow Preview store.");
@@ -419,10 +424,8 @@ internal sealed class PreviewStoreService : IPreviewStoreService
 
     private static void ValidateForMigration(SqliteConnection connection)
     {
+        ValidateIntegrity(connection);
         using var command = connection.CreateCommand();
-        command.CommandText = "PRAGMA quick_check;";
-        if (!string.Equals(Convert.ToString(command.ExecuteScalar()), "ok", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("The Preview database failed its integrity check. It may be safely rebuilt.");
         command.CommandText = "PRAGMA application_id;";
         if (Convert.ToInt32(command.ExecuteScalar()) != SqliteApplicationId)
             throw new InvalidDataException("The configured Preview database is not a Lightflow Preview store.");
@@ -434,16 +437,27 @@ internal sealed class PreviewStoreService : IPreviewStoreService
             throw new InvalidDataException("The Preview database schema is unsupported and may be safely rebuilt.");
     }
 
-    private static void Migrate(SqliteConnection connection)
+    private static void ValidateIntegrity(SqliteConnection connection)
+    {
+        using var timing = StartupDiagnostics.Stage("Preview quick check", "Checking Previews…");
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA quick_check;";
+        if (!string.Equals(Convert.ToString(command.ExecuteScalar()), "ok", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("The Preview database failed its integrity check. It may be safely rebuilt.");
+    }
+
+    private static bool Migrate(SqliteConnection connection)
     {
         using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version;";
-        if (Convert.ToInt32(version.ExecuteScalar()) != 1) return;
+        if (Convert.ToInt32(version.ExecuteScalar()) != 1) return false;
+        using var timing = StartupDiagnostics.Stage("Preview migration", "Upgrading Previews…");
         using var transaction = connection.BeginTransaction();
         Execute(connection, transaction, "ALTER TABLE PreviewRecords ADD COLUMN ThumbnailVisualIdentity TEXT NULL;");
         Execute(connection, transaction, "ALTER TABLE PreviewRecords ADD COLUMN StandardPreviewVisualIdentity TEXT NULL;");
         Execute(connection, transaction, $"PRAGMA user_version={SchemaVersion};");
         transaction.Commit();
+        return true;
     }
 
     private static PreviewRecord? Read(SqliteConnection connection, Guid assetId)

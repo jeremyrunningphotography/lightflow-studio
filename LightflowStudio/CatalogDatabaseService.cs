@@ -40,6 +40,7 @@ internal sealed class CatalogDatabaseService
 
     private CatalogOpenResult CreateNew(CancellationToken cancellationToken)
     {
+        using var timing = StartupDiagnostics.Stage("Catalog open", "Checking Catalog…");
         cancellationToken.ThrowIfCancellationRequested();
         var databasePath = Path.GetFullPath(_storageLocations.CatalogDatabasePath);
         var catalogDirectory = Path.GetDirectoryName(databasePath)!;
@@ -83,6 +84,7 @@ internal sealed class CatalogDatabaseService
 
     private CatalogOpenResult OpenExisting(CancellationToken cancellationToken)
     {
+        using var timing = StartupDiagnostics.Stage("Catalog open", "Checking Catalog…");
         cancellationToken.ThrowIfCancellationRequested();
         var databasePath = Path.GetFullPath(_storageLocations.CatalogDatabasePath);
         var catalogDirectory = Path.GetDirectoryName(databasePath)!;
@@ -125,7 +127,10 @@ internal sealed class CatalogDatabaseService
             {
                 if (inspectedVersion < CurrentSchemaVersion)
                     RunMigrations(connections, inspectedVersion, isNewCatalog: false, cancellationToken);
-                return BuildSuccessResult(connections, CatalogOpenStatus.Ready);
+                // Inspection already scanned this Catalog. Repeat only after schema mutation;
+                // identity/history and the connection durability policy are still verified below.
+                return BuildSuccessResult(connections, CatalogOpenStatus.Ready,
+                    checkIntegrity: inspectedVersion < CurrentSchemaVersion);
             }
             catch
             {
@@ -187,6 +192,7 @@ internal sealed class CatalogDatabaseService
         bool isNewCatalog,
         CancellationToken cancellationToken)
     {
+        using var timing = StartupDiagnostics.Stage("Catalog migrations", "Preparing Catalog…");
         if (startingVersion > CurrentSchemaVersion)
             throw new CatalogOpenException(CatalogOpenStatus.UnsupportedFutureSchema,
                 $"Catalog schema {startingVersion} requires a newer Lightflow version.", startingVersion);
@@ -218,6 +224,7 @@ internal sealed class CatalogDatabaseService
         var catalogId = startingVersion == 0 ? Guid.NewGuid() : ReadCatalogIdentity(connections).CatalogId;
         foreach (var migration in _migrations.Where(migration => migration.Version > startingVersion))
         {
+            using var migrationTiming = StartupDiagnostics.Stage($"Catalog migration {migration.Version}", "Upgrading Catalog…");
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
@@ -260,11 +267,11 @@ internal sealed class CatalogDatabaseService
 
     private CatalogOpenResult BuildSuccessResult(
         CatalogSqliteConnectionFactory connections,
-        CatalogOpenStatus successStatus)
+        CatalogOpenStatus successStatus, bool checkIntegrity = true)
     {
         using var connection = connections.OpenConnection();
         var policy = CatalogSqliteConnectionFactory.ApplyRuntimePolicy(connection);
-        EnsureIntegrity(connection, quick: true);
+        if (checkIntegrity) EnsureIntegrity(connection, quick: true);
         var version = ReadSchemaVersion(connection);
         if (version != CurrentSchemaVersion)
             throw new CatalogOpenException(CatalogOpenStatus.MigrationFailed,
@@ -324,6 +331,7 @@ internal sealed class CatalogDatabaseService
 
     private static void EnsureIntegrity(SqliteConnection connection, bool quick)
     {
+        using var timing = StartupDiagnostics.Stage(quick ? "Catalog quick check" : "Catalog full check", "Checking Catalog…");
         var result = Convert.ToString(ExecuteScalar(connection,
             quick ? "PRAGMA quick_check;" : "PRAGMA integrity_check;"));
         if (!string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))

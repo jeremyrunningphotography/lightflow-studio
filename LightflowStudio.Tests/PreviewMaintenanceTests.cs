@@ -26,6 +26,51 @@ public sealed class PreviewMaintenanceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CanceledUsage_ReleasesItsPreviewLeaseWithoutChangingArtifacts()
+    {
+        await using var fixture = await Fixture.CreateAsync(_root);
+        var artifact = await fixture.AddArtifactAsync(Guid.NewGuid(), PreviewComponentState.Current, 12);
+        using var cancellation = new CancellationTokenSource();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = new FailingClearStore(fixture.Store)
+        {
+            ListOverride = async token =>
+            {
+                entered.SetResult();
+                await Task.Delay(Timeout.Infinite, token);
+                return [];
+            }
+        };
+        using var service = fixture.CreateService(store);
+        var usage = service.GetUsageAsync(cancellation.Token);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var maintenance = fixture.Operations.EnterMaintenanceAsync();
+        Assert.False(maintenance.IsCompleted);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => usage);
+        using var released = await maintenance.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(12, new FileInfo(artifact.Path).Length);
+        Assert.NotNull(await fixture.Store.GetAsync(artifact.AssetId));
+    }
+
+    [Fact]
+    public async Task CacheEnumeration_ObservesCancellationBetweenFiles()
+    {
+        await using var fixture = await Fixture.CreateAsync(_root);
+        fixture.WriteCacheFile("thumbnails/a.jpg", 1, old: false);
+        fixture.WriteCacheFile("thumbnails/b.jpg", 1, old: false);
+        using var cancellation = new CancellationTokenSource();
+        var enumerate = typeof(PreviewMaintenanceService).GetMethod("EnumerateCacheFiles",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var files = (IEnumerable<FileInfo>)enumerate.Invoke(fixture.Service, [cancellation.Token])!;
+        using var iterator = files.GetEnumerator();
+        Assert.True(iterator.MoveNext());
+        cancellation.Cancel();
+        Assert.ThrowsAny<OperationCanceledException>(() => iterator.MoveNext());
+        Assert.Equal(2, Directory.GetFiles(fixture.Locations.ThumbnailCacheDirectory).Length);
+    }
+
+    [Fact]
     public async Task CleanupRemovesOldOrphanAndStaleThenEnforcesQuotaButRetainsOffline()
     {
         await using var fixture = await Fixture.CreateAsync(_root);
@@ -341,9 +386,11 @@ public sealed class PreviewMaintenanceTests : IAsyncLifetime
 
     private sealed class FailingClearStore(IPreviewStoreService inner) : IPreviewStoreService
     {
+        public Func<CancellationToken, Task<IReadOnlyList<PreviewRecord>>>? ListOverride { get; init; }
         public Task InitializeAsync(CancellationToken cancellationToken = default) => inner.InitializeAsync(cancellationToken);
         public Task<PreviewRecord?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) => inner.GetAsync(assetId, cancellationToken);
-        public Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default) => inner.ListAsync(cancellationToken);
+        public Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default) =>
+            ListOverride?.Invoke(cancellationToken) ?? inner.ListAsync(cancellationToken);
         public Task<PreviewRecord> ObserveSourceAsync(Guid assetId, PreviewSourceIdentity source, CancellationToken cancellationToken = default) => inner.ObserveSourceAsync(assetId, source, cancellationToken);
         public Task<PreviewRecord?> SetSourceAvailabilityAsync(Guid assetId, PreviewSourceAvailability availability, CancellationToken cancellationToken = default) => inner.SetSourceAvailabilityAsync(assetId, availability, cancellationToken);
         public Task<PreviewRecord?> SetMetadataAsync(Guid assetId, PreviewComponentUpdate update, CancellationToken cancellationToken = default) => inner.SetMetadataAsync(assetId, update, cancellationToken);

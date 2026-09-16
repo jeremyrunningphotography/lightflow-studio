@@ -67,6 +67,75 @@ public sealed class CatalogRecoveryTests : IAsyncLifetime
         Assert.Contains(recovery.ListBackups(), x => x.Kind == CatalogBackupKind.Migration);
     }
 
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    [InlineData(2, false)]
+    public async Task SameDayProtection_RetainsAutomaticAndReusesItAcrossLaunches(int protectionKind, bool protectionFirst)
+    {
+        var locations = LightflowStorageLocations.Create(_root);
+        var created = await new CatalogDatabaseService(locations).CreateNewAsync();
+        await created.Session!.DisposeAsync();
+        var clock = new DateTimeOffset(2026, 9, 14, 12, 0, 0, TimeSpan.Zero);
+        var recovery = new SqliteCatalogRecoveryService(locations, () => clock);
+        var firstKind = protectionFirst ? (CatalogBackupKind)protectionKind : CatalogBackupKind.Automatic;
+        var secondKind = protectionFirst ? CatalogBackupKind.Automatic : (CatalogBackupKind)protectionKind;
+        var first = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, firstKind);
+        clock = clock.AddSeconds(2);
+        var second = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, secondKind);
+        Assert.True(first.Succeeded);
+        Assert.True(second.Succeeded);
+        var automatic = protectionFirst ? second.Backup! : first.Backup!;
+        var protection = protectionFirst ? first.Backup! : second.Backup!;
+        Assert.Equal(2, recovery.ListBackups().Count);
+        Assert.True(File.Exists(automatic.Path));
+        Assert.True((await recovery.CheckIntegrityAsync(protection.Path)).IsValid);
+
+        // Reconstructing the service models separate launches; the exclusive source lock proves
+        // reuse does not perform source validation or copying (no timing threshold required).
+        SqliteConnection.ClearAllPools();
+        using (var locked = new FileStream(locations.CatalogDatabasePath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            for (var launch = 0; launch < 3; launch++)
+            {
+                recovery = new SqliteCatalogRecoveryService(locations, () => clock);
+                var reused = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic, true);
+                Assert.True(reused.Succeeded);
+                Assert.Equal(automatic.Path, reused.Backup!.Path);
+            }
+            clock = clock.AddDays(1);
+            Assert.False((await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic, true)).Succeeded);
+        }
+        var nextDay = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic, true);
+        Assert.True(nextDay.Succeeded);
+        Assert.NotEqual(automatic.Path, nextDay.Backup!.Path);
+        Assert.True(File.Exists(protection.Path));
+        Assert.False(File.Exists(automatic.Path));
+        Assert.True((await recovery.CheckIntegrityAsync(nextDay.Backup.Path)).IsValid);
+    }
+
+    [Fact]
+    public async Task SameSecondAtUtcMidnight_DoesNotDateAutomaticBackupInTheFuture()
+    {
+        var locations = LightflowStorageLocations.Create(_root);
+        var created = await new CatalogDatabaseService(locations).CreateNewAsync();
+        await created.Session!.DisposeAsync();
+        var clock = new DateTimeOffset(2026, 9, 14, 23, 59, 59, TimeSpan.Zero);
+        var recovery = new SqliteCatalogRecoveryService(locations, () => clock);
+        var protection = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Migration);
+        var automatic = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic, true);
+        Assert.True(protection.Succeeded);
+        Assert.True(automatic.Succeeded);
+        Assert.Equal(clock, automatic.Backup!.CreatedUtc);
+        Assert.Equal(automatic.Backup, (await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic, true)).Backup);
+        clock = clock.AddSeconds(1);
+        var nextDay = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic, true);
+        Assert.True(nextDay.Succeeded);
+        Assert.NotEqual(automatic.Backup.Path, nextDay.Backup!.Path);
+        Assert.True(File.Exists(protection.Backup!.Path));
+    }
+
     [Fact]
     public async Task CorruptionAndInvalidBackup_AreRejectedWithoutReplacingCatalog()
     {

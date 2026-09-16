@@ -9,6 +9,19 @@ namespace LightflowStudio;
 // Presentation only. App owns shutdown; MainWindow owns workspace restoration/readiness.
 internal sealed class StartupSplash : Window
 {
+    private readonly System.Windows.Controls.TextBlock _status = new()
+    {
+        Text = "Starting Lightflow…",
+        FontSize = 12,
+        TextAlignment = TextAlignment.Center,
+        HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
+        VerticalAlignment = System.Windows.VerticalAlignment.Bottom,
+        Margin = new Thickness(16, 0, 16, 12),
+        IsHitTestVisible = false
+    };
+
+    internal void SetProgress(string message) => _status.Text = message;
+
     internal StartupSplash()
     {
         WindowStyle = WindowStyle.None;
@@ -19,7 +32,7 @@ internal sealed class StartupSplash : Window
         Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(8, 8, 10));
         Width = 440;
         Height = Width * 480 / 680;
-        Content = new System.Windows.Controls.Image
+        var artwork = new System.Windows.Controls.Image
         {
             // Hands-on refinement: trim only empty canvas in presentation. The approved embedded
             // source remains unchanged, with the mark, glow, wordmark and tagline inside this viewport.
@@ -28,6 +41,11 @@ internal sealed class StartupSplash : Window
             Stretch = Stretch.Uniform,
             IsHitTestVisible = false
         };
+        _status.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "MutedTextBrush");
+        var content = new System.Windows.Controls.Grid();
+        content.Children.Add(artwork);
+        content.Children.Add(_status);
+        Content = content;
         SourceInitialized += (_, _) =>
         {
             // Position the HWND on the cursor's display before measuring that display's WPF DPI.

@@ -54,6 +54,45 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         Assert.Equal(4, (await _journal.ListAsync()).Count);
     }
 
+    [Fact]
+    public async Task SubclipMappingsPersistPerDestinationIdentityAndKeepIndependentReceipts()
+    {
+        var range = new PremiereRangeProjection("10000001", "30000002", "60000000");
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var first = await _journal.PrepareSubclipAsync(_project, "root", null, _source,
+            new(firstId, "First", 1, range, "source-item"));
+        var second = await _journal.PrepareSubclipAsync(_project, "root", null, _source,
+            new(secondId, "Second", 1, range, "source-item"));
+        Assert.NotEqual(first.Intent.OperationId, second.Intent.OperationId);
+        await _journal.MarkDispatchedAsync(first.Intent);
+        await _journal.SaveReceiptAsync(first.Intent, new(first.Intent.OperationId, PremiereOutcome.Verified,
+            "native-first", "created", "projection-one"));
+        await _journal.SaveReceiptAsync(first.Intent, new(first.Intent.OperationId, PremiereOutcome.Failed,
+            null, "transient failure"));
+
+        var retry = await _journal.PrepareSubclipAsync(_project, "other-bin", null, _source,
+            new(firstId, "First renamed", 2, range, "source-item"));
+        Assert.Equal(first.Intent.OperationId, retry.Intent.OperationId);
+        Assert.True(retry.PreviouslyDispatched);
+        Assert.Equal("native-first", retry.PreviousReceipt!.ItemId);
+        Assert.Equal("projection-one", retry.PreviousReceipt.ProjectionKey);
+        Assert.Equal("First renamed", retry.Intent.Subclip!.Name);
+        Assert.Equal(2, (await _journal.ListAsync()).Count);
+    }
+
+    [Fact]
+    public void RangeProjectionPreservesExclusiveOutWithNearestPremiereTickAtNtscAndVfrPositions()
+    {
+        var frame = TimeSpan.FromTicks(333667); // nearest Lightflow tick to 1001/30000 second
+        var vfrPosition = TimeSpan.FromTicks(12_345_679);
+        Assert.True(PremiereRangeProjection.TryCreate(new(TimeSpan.FromSeconds(10), frame,
+            frame + vfrPosition), out var projection));
+        Assert.Equal(frame.Ticks.ToString(), projection!.InTicks);
+        Assert.Equal((frame + vfrPosition).Ticks.ToString(), projection.OutTicks);
+        Assert.True(projection.IsValid());
+    }
+
     [Theory]
     [InlineData(0, 0, 120, true)]
     [InlineData(100, 0, 120, true)]

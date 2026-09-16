@@ -42,14 +42,15 @@ public partial class MainWindow
         }
         finally { _premiereStart.Release(); }
     }
-    private async void PremiereIntegration_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(false);
-    private async void BrowserSendPremiere_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(true);
-    private async Task OpenPremiereAsync(bool selection)
+    private async void PremiereIntegration_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(null);
+    private async void BrowserSendPremiere_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(PremiereSendMode.Sources);
+    private async void BrowserSendPremiereSubclips_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(PremiereSendMode.Subclips);
+    private async Task OpenPremiereAsync(PremiereSendMode? mode)
     {
         try
         {
             await EnsurePremiereAsync();
-            if (!selection)
+            if (mode is null)
             {
                 new PremiereIntegrationWindow(_premiereBridge!) { Owner = this }.ShowDialog();
                 return;
@@ -71,7 +72,8 @@ public partial class MainWindow
                 return;
             }
             var sources = new List<PremiereSource>();
-            if (selection)
+            var savedSubclips = new Dictionary<Guid, IReadOnlyList<Subclip>>();
+            if (mode is not null)
             {
                 foreach (var assetId in _browserGrid.SelectedAssetIdsInBrowserOrder)
                 {
@@ -87,15 +89,22 @@ public partial class MainWindow
                         resolved.Asset.LastWriteUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture), range) { RangeIssue = rangeIssue };
                     CatalogPremiereHandoffs.ValidateSource(source);
                     sources.Add(source);
+                    if (mode == PremiereSendMode.Subclips)
+                        savedSubclips[assetId] = await _storage.Subclips.ListAsync(assetId);
                 }
             }
-            new PremiereSendWindow(_premiereBridge!, _premiereJobs!, sources) { Owner = this }.ShowDialog();
+            var subclipPlan = mode == PremiereSendMode.Subclips
+                ? PremiereSendPlanning.Subclips(sources, savedSubclips) : [];
+            if (mode == PremiereSendMode.Subclips && sources.Any(source => source.HasRangeIssue
+                    && savedSubclips.GetValueOrDefault(source.AssetId)?.Count == 0))
+                throw new InvalidOperationException("A saved review range is too short to create a native Premiere Subclip.");
+            new PremiereSendWindow(_premiereBridge!, _premiereJobs!, sources, subclipPlan) { Owner = this }.ShowDialog();
             if (_premiereJobs!.Jobs.Any(job => job.State is JobState.Queued or JobState.Running)) OpenJobsPanel();
         }
         catch (Exception error)
         {
             var message = $"Premiere connection problem: {error.Message}";
-            if (selection) BrowserStatusText.Text = message;
+            if (mode is not null) BrowserStatusText.Text = message;
             else SettingsMessage.Text = message;
         }
     }

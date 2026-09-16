@@ -61,6 +61,35 @@ public class PremiereSendModelTests
             item => Assert.True(item.HasRange));
     }
 
+    [Fact]
+    public void SubclipModeProjectsEverySavedRangeAndUsesReviewOrFullSourceFallback()
+    {
+        var source = Source("one.mov", new MediaRange(TimeSpan.FromTicks(100), TimeSpan.FromTicks(10), TimeSpan.FromTicks(90)));
+        var saved = new Subclip(Guid.NewGuid(), source.AssetId, "Close up", 0, TimeSpan.FromTicks(20),
+            TimeSpan.FromTicks(60), TimeSpan.FromTicks(100), 4, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var savedSecond = saved with { SubclipId = Guid.NewGuid(), Name = "Reaction", Ordinal = 1,
+            In = TimeSpan.FromTicks(70), Out = TimeSpan.FromTicks(90) };
+        var planned = PremiereSendPlanning.Subclips([source], new Dictionary<Guid, IReadOnlyList<Subclip>>
+        { [source.AssetId] = [savedSecond, saved] });
+        var model = new PremiereSendModel([source], planned);
+
+        Assert.Equal(PremiereSendMode.Subclips, model.Mode);
+        var item = model.Items[0];
+        Assert.Equal("Close up", item.SourceFileName);
+        Assert.Equal("one.mov", item.DetailText);
+        Assert.False(item.ShowRangeControl);
+        Assert.Equal<Guid?>([saved.SubclipId, savedSecond.SubclipId],
+            model.PlannedSubclips.Select(value => value.Projection.SubclipId).ToArray());
+
+        var fallback = Assert.Single(PremiereSendPlanning.Subclips([source],
+            new Dictionary<Guid, IReadOnlyList<Subclip>>()));
+        Assert.True(fallback.Projection.IsSourceFallback);
+        Assert.Equal(source.Range, fallback.Projection.Range);
+        var full = Source("full.mov");
+        Assert.Null(Assert.Single(PremiereSendPlanning.Subclips([full],
+            new Dictionary<Guid, IReadOnlyList<Subclip>>())).Projection.Range);
+    }
+
     private static void AssertFullSource(PremiereSendItem item)
     {
         Assert.False(item.HasRange);

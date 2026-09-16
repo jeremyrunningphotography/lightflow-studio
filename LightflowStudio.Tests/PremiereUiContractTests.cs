@@ -59,7 +59,7 @@ public class PremiereUiContractTests
         Assert.Contains(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "RangeTimeline");
         Assert.DoesNotContain(send.Descendants(), element => (string?)element.Attribute(x + "Name") == "PremiereItemText");
         var noRangeTrigger = send.Descendants().Single(element => element.Name.LocalName == "DataTrigger" &&
-            (string?)element.Attribute("Value") == "False");
+            (string?)element.Attribute("Binding") == "{Binding HasRange}" && (string?)element.Attribute("Value") == "False");
         Assert.Contains(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeCheck" &&
             (string?)element.Attribute("Property") == "Visibility" && (string?)element.Attribute("Value") == "Collapsed");
         Assert.DoesNotContain(noRangeTrigger.Elements(), element => (string?)element.Attribute("TargetName") == "RangeRow");
@@ -77,6 +77,7 @@ public class PremiereUiContractTests
         Assert.Contains("RangeUse_Changed", text);
         Assert.Contains("ShouldTransferWheelToDialog", text);
         Assert.Contains("PremiereSendState.Present", text);
+        Assert.Contains("EnqueueSubclips", text);
         Assert.Contains("RedBrush", text);
         Assert.DoesNotContain("nearest timing unit", text);
         Assert.DoesNotContain("cannot be transferred exactly", text);

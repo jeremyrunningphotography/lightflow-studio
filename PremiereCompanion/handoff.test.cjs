@@ -42,11 +42,17 @@ function fixture() {
   const stored = new Map();
   const items = [];
   let imports = 0;
+  let subclips = 0;
   const adapter = {
     activeProject: async () => project, connected: () => true,
     items: async () => items.slice(), targetBin: async () => 'bin-1',
     importSource: async path => { imports++; items.push({ id: 'item-1', mediaPath: path }); },
-    projectRange: async () => {}, clearRange: async () => {}
+    projectRange: async () => {}, clearRange: async () => {},
+    createSubclip: async (sourceItemId, spec) => {
+      const created = `subclip-${++subclips}`;
+      items.push({ id: created, name: spec.name, mediaPath: items.find(item => item.id === sourceItemId)?.mediaPath });
+      return created;
+    }
   };
   const journal = { read: async id => stored.get(id), write: async (id, value) => stored.set(id, value) };
   return { command, adapter, journal, items, stored, imports: () => imports };
@@ -57,6 +63,68 @@ test('initial import is journaled and repeat verifies item identity without dupl
   f.items[0].name = 'editor renamed'; f.items[0].parent = 'editor moved';
   assert.equal((await execute({ ...f.command, previouslyDispatched: true }, f.adapter, f.journal)).outcome, 'Verified');
   assert.equal(f.imports(), 1);
+});
+
+test('native Subclip creation is identity-aware and an identical retry does not duplicate', async () => {
+  const f = fixture();
+  f.items.push({ id: 'source-item', name: 'source.mov', mediaPath: 'C:/test/source.mov' });
+  f.command.intent.operationId = 'subclip-op';
+  f.command.intent.subclip = { subclipId: 'subclip-id', name: 'Interview answer', revision: 3,
+    sourceItemId: 'source-item', range: { inTicks: '10000001', outTicks: '30000002', sourceDurationTicks: '60000000' },
+    isSourceFallback: false, hardBoundaries: true, takeVideo: true, takeAudio: true };
+  const first = await execute(f.command, f.adapter, f.journal);
+  assert.equal(first.outcome, 'Verified');
+  assert.equal(f.items.filter(item => item.name === 'Interview answer').length, 1);
+  const retry = { ...f.command, previouslyDispatched: true, previousReceipt: first };
+  assert.equal((await execute(retry, f.adapter, f.journal)).outcome, 'Verified');
+  assert.equal(f.items.filter(item => item.name === 'Interview answer').length, 1);
+});
+
+test('native Subclip retry preserves editor changes and conflicts on changed Lightflow projection', async () => {
+  const f = fixture();
+  f.items.push({ id: 'source-item', name: 'source.mov', mediaPath: 'C:/test/source.mov' });
+  f.command.intent.operationId = 'subclip-op';
+  f.command.intent.subclip = { subclipId: 'subclip-id', name: 'Original', revision: 1,
+    sourceItemId: 'source-item', range: { inTicks: '10', outTicks: '90', sourceDurationTicks: '100' },
+    isSourceFallback: false, hardBoundaries: true, takeVideo: true, takeAudio: true };
+  const first = await execute(f.command, f.adapter, f.journal);
+  f.items.find(item => item.id === first.itemId).name = 'Editor rename';
+  assert.equal((await execute({ ...f.command, previouslyDispatched: true, previousReceipt: first }, f.adapter, f.journal)).outcome, 'Verified');
+  const changed = structuredClone(f.command);
+  changed.previouslyDispatched = true; changed.previousReceipt = first;
+  changed.intent.subclip.name = 'Lightflow rename'; changed.intent.subclip.revision = 2;
+  assert.equal((await execute(changed, f.adapter, f.journal)).outcome, 'Conflict');
+});
+
+test('unknown native Subclip outcome and unmapped same-name item never create duplicates', async () => {
+  const f = fixture();
+  f.items.push({ id: 'source-item', name: 'source.mov', mediaPath: 'C:/test/source.mov' });
+  f.command.intent.operationId = 'subclip-op';
+  f.command.intent.subclip = { subclipId: null, name: 'source', revision: 1, sourceItemId: 'source-item', range: null,
+    isSourceFallback: true, hardBoundaries: true, takeVideo: true, takeAudio: true };
+  assert.equal((await execute({ ...f.command, previouslyDispatched: true }, f.adapter, f.journal)).outcome, 'UnknownOutcome');
+  f.items.push({ id: 'unmapped-subclip', name: 'source', mediaPath: 'C:/test/source.mov' });
+  assert.equal((await execute(f.command, f.adapter, f.journal)).outcome, 'Conflict');
+});
+
+test('reported pre-mutation Subclip failure can retry without blocking independent work', async () => {
+  const f = fixture();
+  f.items.push({ id: 'source-item', name: 'source.mov', mediaPath: 'C:/test/source.mov' });
+  f.command.intent.operationId = 'subclip-op';
+  f.command.intent.subclip = { subclipId: 'subclip-id', name: 'Retry me', revision: 1,
+    sourceItemId: 'source-item', range: { inTicks: '10', outTicks: '90', sourceDurationTicks: '100' },
+    isSourceFallback: false, hardBoundaries: true, takeVideo: true, takeAudio: true };
+  let connected = false;
+  f.adapter.connected = () => connected;
+  const failed = await execute(f.command, f.adapter, f.journal);
+  assert.equal(failed.outcome, 'Failed');
+  connected = true;
+  const retry = { ...f.command, previouslyDispatched: true, previousReceipt: failed };
+  assert.equal((await execute(retry, f.adapter, f.journal)).outcome, 'Verified');
+  const independent = structuredClone(f.command);
+  independent.intent.operationId = 'independent-op'; independent.intent.subclip.subclipId = 'independent-id';
+  independent.intent.subclip.name = 'Independent';
+  assert.equal((await execute(independent, f.adapter, f.journal)).outcome, 'Verified');
 });
 test('receipt survives companion data loss, but undo is a conflict', async () => {
   const f = fixture();

@@ -20,6 +20,59 @@ const savedRangeKey = saved => {
   // range-projected phase proves that the legacy requested range was actually applied.
   try { return saved?.phase === 'range-projected' && saved.intent ? rangeKey(JSON.parse(saved.intent).source.range) : null; } catch (_) { return null; }
 };
+const subclipIdentity = intent => JSON.stringify({ source: JSON.parse(identity(intent)),
+  subclip: intent.subclip.isSourceFallback ? `asset:${intent.source.assetId}` : `subclip:${intent.subclip.subclipId}` });
+const subclipProjection = subclip => JSON.stringify({ name: subclip.name, revision: subclip.revision,
+  range: rangeKey(subclip.range), hardBoundaries: subclip.hardBoundaries,
+  takeVideo: subclip.takeVideo, takeAudio: subclip.takeAudio });
+
+async function executeSubclip(command, adapter, journal, guard) {
+  const intent = command.intent;
+  const spec = intent.subclip;
+  const projection = subclipProjection(spec);
+  const receipt = (outcome, itemId, message) => ({ operationId: intent.operationId, outcome, itemId, message,
+    projectionKey: projection });
+  let mutationStarted = false;
+  try {
+    await guard();
+    const saved = await journal.read(intent.operationId);
+    if (saved && saved.identity !== subclipIdentity(intent))
+      return receipt('Conflict', saved.itemId || null, 'Catalog Subclip identity changed; no mutation performed.');
+    const itemId = saved?.itemId || command.previousReceipt?.itemId;
+    const projected = saved?.projection || command.previousReceipt?.projectionKey;
+    let items = await adapter.items();
+    const sources = items.filter(item => item.id === spec.sourceItemId);
+    if (sources.length !== 1 || pathKey(sources[0].mediaPath || '') !== pathKey(intent.source.path))
+      return receipt('Conflict', itemId || null, 'Mapped source is missing or relinked. Native Subclip creation was not attempted.');
+    if (itemId) {
+      const matches = items.filter(item => item.id === itemId);
+      if (matches.length !== 1 || pathKey(matches[0].mediaPath || '') !== pathKey(intent.source.path))
+        return receipt('Conflict', itemId, 'Mapped native Subclip is missing or relinked. Editor undo and edits are preserved; no duplicate was created.');
+      if (projected && projected !== projection)
+        return receipt('Conflict', itemId, 'The Lightflow Subclip changed after projection. The existing Premiere Subclip was preserved for review.');
+      if (!saved) await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId, projection });
+      return receipt('Verified', itemId, 'Existing native Premiere Subclip verified; editor name and organization preserved.');
+    }
+    const reportedNoMutation = command.previousReceipt?.outcome === 'Failed' && !command.previousReceipt?.itemId;
+    const safeFailedRetry = reportedNoMutation && (!saved || saved.phase === 'intent');
+    if ((command.previouslyDispatched || saved) && !safeFailedRetry)
+      return receipt('UnknownOutcome', null, 'Prior native Subclip creation is uncertain. Inspect the original project; automatic duplication is blocked.');
+    if (items.some(item => item.name === spec.name && pathKey(item.mediaPath || '') === pathKey(intent.source.path)))
+      return receipt('Conflict', null, 'An unmapped Premiere item already has this Subclip name and source. Resolve it before retrying.');
+    await journal.write(intent.operationId, { intent: JSON.stringify(intent), identity: subclipIdentity(intent), phase: 'intent', projection });
+    await guard();
+    mutationStarted = true;
+    const createdId = await adapter.createSubclip(spec.sourceItemId, spec);
+    items = await adapter.items();
+    const matches = items.filter(item => item.id === createdId && pathKey(item.mediaPath || '') === pathKey(intent.source.path));
+    if (matches.length !== 1) return receipt('UnknownOutcome', null, 'Native Subclip readback was ambiguous; reconcile before any retry.');
+    await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId: createdId, projection });
+    await guard();
+    return receipt('Verified', createdId, 'Native Premiere Subclip created and verified. Save your Premiere project to preserve it.');
+  } catch (error) {
+    return receipt(mutationStarted ? 'UnknownOutcome' : 'Failed', null, String(error.message || error).slice(0, 1500));
+  }
+}
 
 async function execute(command, adapter, journal) {
   const intent = command.intent;
@@ -30,9 +83,11 @@ async function execute(command, adapter, journal) {
       throw new Error('Active project changed. Return to the accepted project and reconcile.');
     if (!adapter.connected()) throw new Error('Connection expired. Reconnect before continuing.');
   };
+  if (intent.subclip) return executeSubclip(command, adapter, journal, guard);
   const reconcileRange = async (itemId, saved) => {
     // A later explicit Send may update or clear Lightflow's source-point projection. Editor
     // location and naming remain untouched, and the existing Catalog-mapped item is retained.
+    if (intent.source.preserveRange) return false;
     const desired = rangeKey(intent.source.range);
     if (savedRangeKey(saved) === desired) return false;
     // A new import has Premiere's normal full-source state already. Record it without adding an

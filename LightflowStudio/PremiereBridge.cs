@@ -213,6 +213,7 @@ internal sealed class PremiereBridge : IAsyncDisposable
                 if (!SameProject(_hello.Project, pending.Intent.Project))
                 { _completion?.TrySetException(new InvalidOperationException("Active Premiere project changed. Retry only in the original destination.")); context.Response.StatusCode = 409; return; }
                 CatalogPremiereHandoffs.ValidateSource(pending.Intent.Source);
+                if (pending.Intent.Subclip is { } subclip) CatalogPremiereHandoffs.ValidateSubclip(subclip);
                 // Persist intent as dispatched before giving Premiere permission to mutate.
                 await _journal.MarkDispatchedAsync(pending.Intent).ConfigureAwait(false);
                 _dispatchSession = _hello.InstanceId;

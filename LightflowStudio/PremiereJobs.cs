@@ -3,17 +3,20 @@ using System.IO;
 namespace LightflowStudio;
 
 internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnlyList<PremiereSource> Sources,
-    JobState State, int Completed, IReadOnlyList<PremiereReceipt> Receipts, string Message, DateTimeOffset CreatedUtc)
+    JobState State, int Completed, IReadOnlyList<PremiereReceipt> Receipts, string Message, DateTimeOffset CreatedUtc,
+    IReadOnlyList<PremierePlannedSubclip>? Subclips = null)
 {
-    public string Name => $"Send {Sources.Count} source(s) to Premiere";
-    public double Progress => Sources.Count == 0 ? 0 : Completed * 100d / Sources.Count;
-    public string Details => $"Project: {Project.Name}\n{Completed} of {Sources.Count} source(s) processed.\n{Message}\n"
+    public int ItemCount => Subclips?.Count ?? Sources.Count;
+    public string Name => Subclips is null ? $"Send {Sources.Count} source(s) to Premiere" : $"Send {Subclips.Count} Subclip(s) to Premiere";
+    public double Progress => ItemCount == 0 ? 0 : Completed * 100d / ItemCount;
+    public string Details => $"Project: {Project.Name}\n{Completed} of {ItemCount} {(Subclips is null ? "source(s)" : "Subclip(s)")} processed.\n{Message}\n"
         + string.Join("\n", Receipts.Select(receipt => $"{OutcomeText(receipt)}: {UserMessage(receipt)}"));
     internal static string OutcomeText(PremiereReceipt receipt) => receipt.Outcome switch
     {
         PremiereOutcome.Verified when receipt.Message.Contains("updated", StringComparison.OrdinalIgnoreCase) => "Updated",
         PremiereOutcome.Verified when receipt.Message.Contains("cleared", StringComparison.OrdinalIgnoreCase) => "Updated",
         PremiereOutcome.Verified when receipt.Message.Contains("imported", StringComparison.OrdinalIgnoreCase) => "Imported",
+        PremiereOutcome.Verified when receipt.Message.Contains("created", StringComparison.OrdinalIgnoreCase) => "Created",
         PremiereOutcome.Verified => "Verified",
         PremiereOutcome.Conflict => "Not sent",
         PremiereOutcome.UnknownOutcome => "Needs reconciliation",
@@ -27,6 +30,11 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
             => "The matching Premiere source was moved or relinked. Restore or relink it in the original project, then send again.",
         PremiereOutcome.Conflict when receipt.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase)
             => "A matching file already exists in Premiere but is not linked to this Catalog source. Resolve that item in the original project, then send again.",
+        PremiereOutcome.Conflict when receipt.Message.Contains("Subclip changed", StringComparison.OrdinalIgnoreCase)
+            || receipt.Message.Contains("Catalog Subclip", StringComparison.OrdinalIgnoreCase)
+            => "This Lightflow Subclip changed after it was sent. Review the existing Premiere Subclip, then resolve the conflict before retrying.",
+        PremiereOutcome.Conflict when receipt.Message.Contains("native Subclip", StringComparison.OrdinalIgnoreCase)
+            => "The matching native Premiere Subclip is missing or changed. Review the original project before retrying.",
         PremiereOutcome.Conflict when receipt.Message.Contains("identity changed", StringComparison.OrdinalIgnoreCase)
             => "The source changed since its earlier handoff. Refresh the Browser and resolve the existing Premiere source before sending again.",
         PremiereOutcome.Conflict => "Premiere could not safely reconcile this source. Resolve the existing source in the original project, then send again.",
@@ -76,7 +84,7 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
                     ? "Interrupted handoff. Send the same source in the original project to reconcile."
                     : "Prepared but not dispatched. Send the source again to continue.");
                 return new JobsWorkspaceItem(command.Intent.OperationId, null, null, false, false,
-                    $"Premiere: {Path.GetFileName(command.Intent.Source.Path)}", "Premiere handoff", state,
+                    command.Intent.Subclip is { } subclip ? $"Premiere Subclip: {subclip.Name}" : $"Premiere: {Path.GetFileName(command.Intent.Source.Path)}", "Premiere handoff", state,
                     receipt is null ? 0 : 100, command.Intent.CreatedUtc.ToLocalTime().ToString("MMM d, HH:mm"),
                     command.Intent.Source.Path, command.Intent.Project.Path, message, message,
                     command.Intent.CreatedUtc, long.MaxValue, new JobMessageDetailsPresentation(message));
@@ -86,6 +94,18 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
     {
         if (sources.Count is < 1 or > 500) throw new InvalidOperationException("Select between 1 and 500 source assets.");
         var job = new PremiereJob(Guid.NewGuid(), project, sources.ToArray(), JobState.Queued, 0, [], "", DateTimeOffset.UtcNow);
+        var cts = new CancellationTokenSource();
+        lock (_sync) { _jobs.Add(job); _cancellations[job.JobId] = cts; }
+        Changed?.Invoke();
+        _ = RunAsync(job, binId, createName, cts);
+    }
+    public void EnqueueSubclips(PremiereProject project, string binId, string? createName,
+        IReadOnlyList<PremierePlannedSubclip> subclips)
+    {
+        if (subclips.Count is < 1 or > 500) throw new InvalidOperationException("Select between 1 and 500 Subclips.");
+        var sources = subclips.Select(item => item.Source).DistinctBy(source => source.AssetId).ToArray();
+        var job = new PremiereJob(Guid.NewGuid(), project, sources, JobState.Queued, 0, [], "", DateTimeOffset.UtcNow,
+            subclips.ToArray());
         var cts = new CancellationTokenSource();
         lock (_sync) { _jobs.Add(job); _cancellations[job.JobId] = cts; }
         Changed?.Invoke();
@@ -107,6 +127,14 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
             entered = true;
             job = job with { State = JobState.Running }; Publish(job);
             var receipts = new List<PremiereReceipt>();
+            if (job.Subclips is not null)
+            {
+                await RunSubclipsAsync(job, binId, createName, receipts, cts).ConfigureAwait(false);
+                job = Jobs.Single(current => current.JobId == job.JobId);
+                job = job with { State = receipts.All(receipt => receipt.Outcome == PremiereOutcome.Verified)
+                    ? JobState.Completed : JobState.CompletedWithWarnings };
+                return;
+            }
             foreach (var source in job.Sources)
             {
                 cts.Token.ThrowIfCancellationRequested();
@@ -140,6 +168,48 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
             lock (_sync) _cancellations.Remove(job.JobId);
             cts.Dispose(); Publish(job);
             try { await RefreshHistoryAsync().ConfigureAwait(false); } catch { /* Durable journal errors already surface on handoff; keep current result visible. */ }
+        }
+    }
+
+    private async Task RunSubclipsAsync(PremiereJob job, string binId, string? createName,
+        List<PremiereReceipt> receipts, CancellationTokenSource cts)
+    {
+        foreach (var group in job.Subclips!.GroupBy(item => item.Source.AssetId))
+        {
+            cts.Token.ThrowIfCancellationRequested();
+            var source = group.First().Source with { Range = null, RangeIssue = null, PreserveRange = true };
+            PremiereReceipt sourceReceipt;
+            try
+            {
+                var sourceCommand = await journal.PrepareAsync(job.Project, binId, createName, source, cts.Token).ConfigureAwait(false);
+                sourceReceipt = await bridge.SendAsync(sourceCommand, cts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception error) { sourceReceipt = new(Guid.Empty, PremiereOutcome.Failed, null, error.Message); }
+            foreach (var item in group)
+            {
+                cts.Token.ThrowIfCancellationRequested();
+                PremiereReceipt result;
+                if (sourceReceipt.Outcome != PremiereOutcome.Verified || string.IsNullOrWhiteSpace(sourceReceipt.ItemId))
+                    result = new(Guid.Empty, sourceReceipt.Outcome, sourceReceipt.ItemId,
+                        $"Source reconciliation failed before creating {item.Projection.Name}: {sourceReceipt.Message}");
+                else
+                {
+                    try
+                    {
+                        var projection = item.Projection with { SourceItemId = sourceReceipt.ItemId };
+                        var command = await journal.PrepareSubclipAsync(job.Project, binId, createName,
+                            item.Source with { PreserveRange = true }, projection, cts.Token).ConfigureAwait(false);
+                        result = await bridge.SendAsync(command, cts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception error) { result = new(Guid.Empty, PremiereOutcome.Failed, null, error.Message); }
+                }
+                receipts.Add(result);
+                job = job with { Completed = receipts.Count, Receipts = receipts.ToArray(),
+                    Message = $"{item.Projection.Name}: {PremiereJob.UserMessage(result)}" };
+                Publish(job);
+            }
         }
     }
 }

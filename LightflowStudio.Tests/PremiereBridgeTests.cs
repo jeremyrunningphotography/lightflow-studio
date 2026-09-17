@@ -461,7 +461,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
     [Theory]
     [InlineData("0 extensions installed for Others", (int)PremiereConnectionState.PremiereNotInstalled)]
     [InlineData("0 extensions installed for Premiere Pro (ver 26.5.0)\n Status Extension Name Version\n", (int)PremiereConnectionState.CompanionNotInstalled)]
-    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.4\n", (int)PremiereConnectionState.Ready)]
+    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.5\n", (int)PremiereConnectionState.Ready)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.2\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.1\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.0\n", (int)PremiereConnectionState.UpdateRequired)]

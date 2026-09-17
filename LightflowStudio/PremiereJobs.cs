@@ -250,11 +250,12 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
     {
         foreach (var group in job.Subclips!.GroupBy(item => item.Source.AssetId))
         {
+            var plannedItems = group.ToArray();
             cts.Token.ThrowIfCancellationRequested();
-            foreach (var item in group) job = UpdateItem(job, item, PremiereJobItemState.Sending);
+            foreach (var item in plannedItems) job = UpdateItem(job, item, PremiereJobItemState.Sending);
             Publish(job);
-            var nativeSubclips = group.All(item => !item.Projection.IsSourceFallback);
-            var source = group.First().Source with
+            var nativeSubclips = plannedItems.All(item => !item.Projection.IsSourceFallback);
+            var source = plannedItems[0].Source with
             {
                 Range = null,
                 RangeIssue = null,
@@ -269,8 +270,10 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception error) { sourceReceipt = new(Guid.Empty, PremiereOutcome.Failed, null, error.Message); }
-            foreach (var item in group)
+            var earlierItemsVerified = true;
+            for (var itemIndex = 0; itemIndex < plannedItems.Length; itemIndex++)
             {
+                var item = plannedItems[itemIndex];
                 cts.Token.ThrowIfCancellationRequested();
                 PremiereReceipt result;
                 if (sourceReceipt.Outcome != PremiereOutcome.Verified || string.IsNullOrWhiteSpace(sourceReceipt.ItemId))
@@ -289,7 +292,13 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
                 {
                     try
                     {
-                        var projection = item.Projection with { SourceItemId = sourceReceipt.ItemId };
+                        var projection = item.Projection with
+                        {
+                            SourceItemId = sourceReceipt.ItemId,
+                            RemoveSourceAfter = nativeSubclips && earlierItemsVerified
+                                && sourceReceipt.Verification == PremiereProtocol.TemporarySubclipSourceVerification
+                                && itemIndex == plannedItems.Length - 1
+                        };
                         var command = await journal.PrepareSubclipAsync(job.Project, binId, createName,
                             item.Source with { PreserveRange = true }, projection, cts.Token).ConfigureAwait(false);
                         result = await bridge.SendAsync(command, cts.Token).ConfigureAwait(false);
@@ -298,6 +307,7 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
                     catch (Exception error) { result = new(Guid.Empty, PremiereOutcome.Failed, null, error.Message); }
                 }
                 receipts.Add(result);
+                earlierItemsVerified &= result.Outcome == PremiereOutcome.Verified;
                 job = UpdateItem(job with { Receipts = receipts.ToArray() }, item, ItemState(result), result);
                 Publish(job);
             }

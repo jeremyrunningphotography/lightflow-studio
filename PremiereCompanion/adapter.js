@@ -72,6 +72,15 @@ function createAdapter(ppro, project, walk, id, nearestPremiereTicks, runtime) {
     },
     existingTargetBin: (binId, createName, guard) => findTargetBin(binId, createName, guard, false),
     importSource: (path, bin) => project.importFiles([path], true, bin, false),
+    async removeItem(itemId) {
+      const item = await findExactly(itemId, 'Temporary native Subclip source is unavailable for cleanup.');
+      const parent = ppro.FolderItem.cast(await ppro.ProjectItem.cast(item).getParentBin());
+      transaction('remove the temporary native Subclip source', () => [
+        parent.createRemoveItemAction(ppro.ProjectItem.cast(item))
+      ]);
+      const remaining = (await walk(await project.getRootItem())).filter(candidate => id(candidate) === itemId);
+      if (remaining.length !== 0) throw new Error('Temporary native Subclip source remained after cleanup.');
+    },
     placeSubclip,
     async subclipInBin(itemId, targetBin) {
       const item = await findExactly(itemId, 'Mapped native Subclip is unavailable for destination verification.');

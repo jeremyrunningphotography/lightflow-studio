@@ -20,11 +20,19 @@ const savedRangeKey = saved => {
   // range-projected phase proves that the legacy requested range was actually applied.
   try { return saved?.phase === 'range-projected' && saved.intent ? rangeKey(JSON.parse(saved.intent).source.range) : null; } catch (_) { return null; }
 };
+const savedTemporaryPrerequisite = saved => {
+  if (saved?.temporaryPrerequisite === true) return true;
+  try {
+    return ['imported', 'range-projected'].includes(saved?.phase)
+      && JSON.parse(saved.intent).source?.isSubclipPrerequisite === true;
+  } catch (_) { return false; }
+};
 const subclipIdentity = intent => JSON.stringify({ source: JSON.parse(identity(intent)),
   subclip: intent.subclip.isSourceFallback ? `asset:${intent.source.assetId}` : `subclip:${intent.subclip.subclipId}` });
 const subclipProjection = subclip => JSON.stringify({ name: subclip.name, revision: subclip.revision,
   range: rangeKey(subclip.range), hardBoundaries: subclip.hardBoundaries,
   takeVideo: subclip.takeVideo, takeAudio: subclip.takeAudio });
+const temporarySubclipSourceVerification = 'temporary-subclip-source-v1';
 
 async function executeSubclip(command, adapter, journal, guard) {
   const intent = command.intent;
@@ -68,6 +76,7 @@ async function executeSubclip(command, adapter, journal, guard) {
           await guard();
           await adapter.placeSubclip(itemId, targetBin);
         }
+        if (spec.removeSourceAfter) await adapter.removeItem(spec.sourceItemId);
         await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId, projection,
           verification: 'native-subclip-v3' });
         return receipt('Verified', itemId, 'Existing native Premiere Subclip verified; editor name and organization preserved.');
@@ -95,6 +104,7 @@ async function executeSubclip(command, adapter, journal, guard) {
     items = await adapter.items();
     const matches = items.filter(item => item.id === createdId && pathKey(item.mediaPath || '') === pathKey(intent.source.path));
     if (matches.length !== 1) return receipt('UnknownOutcome', null, 'Native Subclip readback was ambiguous; reconcile before any retry.');
+    if (spec.removeSourceAfter) await adapter.removeItem(spec.sourceItemId);
     await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId: createdId, projection,
       verification: 'native-subclip-v3' });
     await guard();
@@ -106,7 +116,8 @@ async function executeSubclip(command, adapter, journal, guard) {
 
 async function execute(command, adapter, journal) {
   const intent = command.intent;
-  const receipt = (outcome, itemId, message) => ({ operationId: intent.operationId, outcome, itemId, message });
+  const receipt = (outcome, itemId, message, verification = null) =>
+    ({ operationId: intent.operationId, outcome, itemId, message, verification });
   let mutationStarted = false;
   const guard = async () => {
     if (!sameProject(await adapter.activeProject(), intent.project))
@@ -150,9 +161,12 @@ async function execute(command, adapter, journal) {
           return receipt('Conflict', itemId, 'The mapped Premiere source was relinked. Restore its original media or delete it, then retry.');
         const updated = await reconcileRange(itemId, saved || { identity: identity(intent), phase: 'mapped', itemId });
         await guard();
+        const temporary = savedTemporaryPrerequisite(saved)
+          || command.previousReceipt?.verification === temporarySubclipSourceVerification;
         return receipt('Verified', itemId, updated
           ? (intent.source.range ? 'Existing source In/Out updated.' : 'Existing source In/Out cleared.')
-          : 'Existing Catalog source verified; editor name and bin preserved.');
+          : 'Existing Catalog source verified; editor name and bin preserved.',
+          temporary ? temporarySubclipSourceVerification : null);
       }
       const matching = items.filter(item => item.mediaPath && pathKey(item.mediaPath) === pathKey(intent.source.path));
       if (matching.length > 0)
@@ -183,11 +197,14 @@ async function execute(command, adapter, journal) {
     const added = items.filter(item => !before.has(item.id) && item.mediaPath
       && pathKey(item.mediaPath) === pathKey(intent.source.path));
     if (added.length !== 1) return receipt('UnknownOutcome', null, 'Import readback was ambiguous; reconcile before any retry.');
-    const imported = { intent: JSON.stringify(intent), identity: identity(intent), phase: 'imported', itemId: added[0].id };
+    const temporary = intent.source.isSubclipPrerequisite === true;
+    const imported = { intent: JSON.stringify(intent), identity: identity(intent), phase: 'imported', itemId: added[0].id,
+      temporaryPrerequisite: temporary };
     await journal.write(intent.operationId, imported);
     await reconcileRange(added[0].id, imported);
     await guard();
-    return receipt('Verified', added[0].id, 'Source imported and verified. Save your Premiere project to preserve the import.');
+    return receipt('Verified', added[0].id, 'Source imported and verified. Save your Premiere project to preserve the import.',
+      temporary ? temporarySubclipSourceVerification : null);
   } catch (error) {
     return receipt(mutationStarted ? 'UnknownOutcome' : 'Failed', null, String(error.message || error).slice(0, 1500));
   }

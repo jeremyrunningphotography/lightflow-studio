@@ -12,7 +12,8 @@ internal static class PremiereProtocol
     public const int Version = 1;
     public const int Port = 47857;
     public const string Endpoint = "http://localhost:47857";
-    public const string CompanionVersion = "1.1.4";
+    public const string CompanionVersion = "1.1.5";
+    public const string TemporarySubclipSourceVerification = "temporary-subclip-source-v1";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
@@ -103,7 +104,7 @@ internal sealed record PremiereSource(Guid AssetId, string Path, string SizeByte
 }
 internal sealed record PremiereSubclipProjection(Guid? SubclipId, string Name, long Revision,
     PremiereRangeProjection? Range, string SourceItemId, bool IsSourceFallback = false,
-    bool HardBoundaries = true, bool TakeVideo = true, bool TakeAudio = true)
+    bool HardBoundaries = true, bool TakeVideo = true, bool TakeAudio = true, bool RemoveSourceAfter = false)
 {
     [JsonIgnore]
     public string ProjectionKey => IsSourceFallback ? "fallback" : SubclipId!.Value.ToString("D");

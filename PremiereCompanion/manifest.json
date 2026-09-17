@@ -2,7 +2,7 @@
   "manifestVersion": 5,
   "id": "com.lightflowstudio.premiere",
   "name": "Lightflow Studio Companion",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "icons": [{ "width": 256, "height": 256, "path": "lightflow-icon-256x256.png", "scale": [1], "theme": ["all"], "species": ["generic"] }],
   "main": "index.html",
   "host": { "app": "premierepro", "minVersion": "26.5.0" },

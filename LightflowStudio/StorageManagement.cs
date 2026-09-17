@@ -154,23 +154,25 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public static async Task<StorageStartupResult> StartAsync(string? localApplicationData = null,
         CancellationToken cancellationToken = default, ICatalogRelocationTransfer? transfer = null,
         IStorageConfigurationStore? configuration = null, ICatalogSessionActivator? activator = null,
-        ICatalogRecoveryService? recovery = null)
+        ICatalogRecoveryService? recovery = null, LightflowStorageLocations? profile = null)
     {
         using var timing = StartupDiagnostics.Stage("Storage initialization", "Opening storage…");
         transfer ??= new SqliteCatalogRelocationTransfer();
         activator ??= new CatalogSessionActivator();
-        var defaults = localApplicationData is null
-            ? LightflowStorageLocations.CreateDefault()
-            : LightflowStorageLocations.Create(localApplicationData);
+        var defaults = profile ?? (localApplicationData is null
+            ? LightflowStorageLocations.Current
+            : LightflowStorageLocations.Create(localApplicationData));
+        ApplicationDataProfile.Initialize(defaults);
         configuration ??= new AppSettingsStorageConfigurationStore(defaults.SettingsPath);
         if (!configuration.TryLoad(out var settings, out var settingsDiagnostic))
             return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: settingsDiagnostic);
+        if (defaults.IsIsolated && !File.Exists(defaults.SettingsPath))
+            settings = settings with { LutFolder = null, CameraLutFolder = "", CreativeLutFolder = "",
+                ScreengrabDirectory = Path.Combine(defaults.ApplicationDataDirectory, "Screengrabs") };
         LightflowStorageLocations locations;
         try
         {
-            locations = localApplicationData is null
-                ? LightflowStorageLocations.CreateDefault(new(settings.CatalogDirectory, settings.PreviewsDirectory))
-                : LightflowStorageLocations.Create(localApplicationData, new(settings.CatalogDirectory, settings.PreviewsDirectory));
+            locations = defaults.WithOverrides(new(settings.CatalogDirectory, settings.PreviewsDirectory));
         }
         catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
         {

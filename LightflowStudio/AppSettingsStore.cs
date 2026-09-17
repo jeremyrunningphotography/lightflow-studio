@@ -10,6 +10,8 @@ internal sealed record AppSettings
     {
         get
         {
+            if (LightflowStorageLocations.Current.IsIsolated)
+                return Path.Combine(LightflowStorageLocations.Current.ApplicationDataDirectory, "Screengrabs");
             var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             if (string.IsNullOrWhiteSpace(pictures))
                 pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
@@ -22,7 +24,7 @@ internal sealed record AppSettings
     // LutFolder is retained only as the read-time migration source for pre-#146 settings files.
     // New saves use the two stage-specific preferences below.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? LutFolder { get; init; } = LutCatalog.DefaultFolder;
+    public string? LutFolder { get; init; } = LightflowStorageLocations.Current.IsIsolated ? "" : LutCatalog.DefaultFolder;
     public string CameraLutFolder { get; init; } = "";
     public bool CameraLutIncludeSubfolders { get; init; }
     public string CreativeLutFolder { get; init; } = "";

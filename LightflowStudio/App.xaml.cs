@@ -26,6 +26,19 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         if (!_runStartup) return;
+        try
+        {
+            ApplicationDataProfile.Initialize(LightflowStorageLocations.Current);
+        }
+        catch (Exception exception)
+        {
+            // Configuration failures must never enter logging, activation, or normal storage startup.
+            Console.Error.WriteLine("Lightflow data-root startup failed: " + exception.Message);
+            Trace.WriteLine(exception);
+            BootstrapDiagnostics.TryWrite("Lightflow data-root startup failed: " + exception);
+            Shutdown(2);
+            return;
+        }
         var migrationCopySwitch = Array.IndexOf(e.Args, CatalogPackageRuntimeVerifier.MigrationCopyCommandLineSwitch);
         if (migrationCopySwitch >= 0)
         {
@@ -49,7 +62,8 @@ public partial class App : System.Windows.Application
         using var startupDiagnostics = new StartupDiagnostics(message => ActivityLog.TryAppend(message),
             progress => Dispatcher.BeginInvoke(() => _startupSplash?.SetProgress(progress)));
         StartupDiagnostics.Note($"Process entered startup; process age={(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds:F1}ms");
-        _applicationInstance = new WindowsApplicationInstanceCoordinator();
+        _applicationInstance = new WindowsApplicationInstanceCoordinator(
+            ApplicationDataProfile.InstanceIdentity(LightflowStorageLocations.Current));
         _applicationInstance.LaunchRequested += request => Dispatcher.Invoke(() =>
         {
             if (MainWindow is MainWindow mainWindow)

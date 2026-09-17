@@ -7,6 +7,7 @@ public partial class MainWindow
     private bool _premiereClosing;
     private async Task ResumePremiereAsync()
     {
+        if (_storage.Locations.IsIsolated) return;
         if (!System.IO.File.Exists(System.IO.Path.Combine(_storage.Locations.PremierePairingDirectory, "lightflow-pairing.json"))) return;
         try { await EnsurePremiereAsync(); }
         catch (Exception error) { AppendLog($"Premiere automatic connection unavailable: {error.Message}"); }
@@ -27,6 +28,8 @@ public partial class MainWindow
     private readonly SemaphoreSlim _premiereStart = new(1, 1);
     private async Task EnsurePremiereAsync()
     {
+        if (_storage.Locations.IsIsolated)
+            throw new InvalidOperationException("Premiere connection is disabled for an isolated data-root profile.");
         await _premiereStart.WaitAsync();
         try
         {

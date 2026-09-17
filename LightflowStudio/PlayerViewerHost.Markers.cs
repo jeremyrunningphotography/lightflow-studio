@@ -65,7 +65,7 @@ public partial class PlayerViewerHost
             button.SetResourceReference(ForegroundProperty, "OrangeBrush");
             System.Windows.Automation.AutomationProperties.SetName(button, $"Seek to {marker.DisplayName} at {marker.PositionLabel}");
             button.Click += async (_, _) => await SeekMarkerAsync(marker);
-            Canvas.SetLeft(button, MarkerNavigation.Fraction(marker.Position, duration) * Math.Max(0, MarkerTrack.ActualWidth - 14));
+            Canvas.SetLeft(button, MarkerNavigation.Fraction(marker.Position, duration) * MarkerTrack.ActualWidth - 7);
             MarkerTrack.Children.Add(button);
         }
     }

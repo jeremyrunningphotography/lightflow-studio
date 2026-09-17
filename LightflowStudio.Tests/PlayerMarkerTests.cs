@@ -7,6 +7,30 @@ namespace LightflowStudio.Tests;
 public sealed partial class PlayerViewerHostLeaseTests
 {
     [Fact]
+    public async Task Markers_DiamondCentersAlignWithFullSourceTrackEndpoints()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var markers = new FakeMarkers(); var asset = ReviewAsset("alignment.mp4");
+            foreach (var seconds in new[] { 0, 30, 60 })
+                await markers.CreateAsync(asset.AssetId!.Value, TimeSpan.FromSeconds(seconds));
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(new FakeBackend()));
+            var host = new PlayerViewerHost(coordinator, markers: markers);
+            await host.OpenAsync(asset, ReviewPath(asset));
+            host.Measure(new Size(900, 700)); host.Arrange(new Rect(0, 0, 900, 700)); host.UpdateLayout();
+            await host.Dispatcher.InvokeAsync(() => { });
+            var buttons = host.MarkerTrack.Children.Cast<FrameworkElement>().ToArray();
+            Assert.Equal(3, buttons.Length);
+            Assert.True(host.MarkerTrack.ActualWidth > 0);
+            Assert.Equal(0, System.Windows.Controls.Canvas.GetLeft(buttons[0]) + buttons[0].Width / 2);
+            Assert.Equal(host.MarkerTrack.ActualWidth / 2, System.Windows.Controls.Canvas.GetLeft(buttons[1]) + buttons[1].Width / 2);
+            Assert.Equal(host.MarkerTrack.ActualWidth, System.Windows.Controls.Canvas.GetLeft(buttons[2]) + buttons[2].Width / 2);
+            await host.CloseAsync();
+        });
+    }
+
+    [Fact]
     public async Task Markers_ControlsUseExactSharedSeekAndDoNotWriteReviewRanges()
     {
         await StaDispatcher.RunAsync(async () =>

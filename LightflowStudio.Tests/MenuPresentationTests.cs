@@ -14,6 +14,29 @@ namespace LightflowStudio.Tests;
 [Collection("STA dispatcher tests")]
 public sealed class MenuPresentationTests(ITestOutputHelper output)
 {
+    [Theory]
+    [InlineData(150, 30, 180, 28)]
+    [InlineData(350, 80, 180, 28)]
+    [InlineData(450, 1000, 150, 24)]
+    public async Task SharedPopupCandidatesPreferRightAndRetainVerticalAndLeftFallbacks(
+        double width, double height, double targetWidth, double targetHeight)
+    {
+        await StaDispatcher.RunAsync(() =>
+        {
+            var popup = new LightflowSubmenuPopup();
+            Assert.Equal(PlacementMode.Custom, popup.Placement);
+            var candidates = popup.CustomPopupPlacementCallback!(
+                new Size(width, height), new Size(targetWidth, targetHeight), new Point(7, 11));
+            Assert.Equal(new[]
+            {
+                new Point(targetWidth, 0), new Point(targetWidth, targetHeight - height),
+                new Point(-width, 0), new Point(-width, targetHeight - height)
+            }, candidates.Select(candidate => candidate.Point));
+            Assert.All(candidates, candidate => Assert.Equal(PopupPrimaryAxis.Vertical, candidate.PrimaryAxis));
+            return Task.CompletedTask;
+        });
+    }
+
     [Fact]
     public async Task GearMenuUsesMinimumWhileBrowserCanGrow()
     {
@@ -36,7 +59,7 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
                 Assert.True(browser.ActualWidth > gear.ActualWidth);
                 AssertNoHorizontalScrolling(browser);
             }
-            finally { gear.IsOpen = false; browser.IsOpen = false; }
+            finally { await CloseMenus(gear, browser); }
         });
     }
 
@@ -81,7 +104,7 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
                     Assert.False(((LightflowSubmenuPopup)item.Template.FindName("PART_Popup", item)).OpensLeft);
                 }
             }
-            finally { menu.IsOpen = false; }
+            finally { await CloseMenus(menu); }
         });
     }
 
@@ -120,7 +143,7 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
                 await Settle();
                 Assert.False(parent.IsSubmenuOpen);
             }
-            finally { menu.IsOpen = false; }
+            finally { await CloseMenus(menu); }
         });
     }
 
@@ -132,15 +155,6 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
             TestWpfApplication.EnsureLoaded();
             var menu = LoadMenu("BrowserAssetContextMenu");
             var item = menu.Items.OfType<MenuItem>().Single(i => Equals(i.Header, "Camera LUT"));
-            bool tracing = true;
-            void Trace(string stage) { if (!tracing) return; output.WriteLine($"{stage}: menu={menu.IsOpen}; item={item.IsSubmenuOpen}; selected={item.IsHighlighted}; mouseOver={item.IsMouseOver}; mouse={System.Windows.Forms.Cursor.Position}; focus={Keyboard.FocusedElement}; capture={Mouse.Captured}; work={SystemParameters.WorkArea}; delay={SystemParameters.MenuShowDelay}; runtime={Environment.Version}"); }
-            item.SubmenuOpened += (_, _) => Trace("opened");
-            item.SubmenuClosed += (_, _) => { if (tracing) { Trace("closed"); output.WriteLine(Environment.StackTrace); } };
-            item.MouseEnter += (_, _) => Trace("mouse enter");
-            item.MouseLeave += (_, _) => Trace("mouse leave");
-            var openDescriptor = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(MenuItem.IsSubmenuOpenProperty, typeof(MenuItem));
-            EventHandler openChanged = (_, _) => { if (tracing && !item.IsSubmenuOpen) { Trace("IsSubmenuOpen false"); output.WriteLine(Environment.StackTrace); } };
-            openDescriptor.AddValueChanged(item, openChanged);
             try
             {
                 OpenAt(menu, false);
@@ -155,12 +169,10 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
                 await Settle();
                 AssertPlacement(item, true, "expanded LUT requires left");
                 item.Items.RemoveAt(1);
-                Trace("after removal");
                 await Settle();
-                Trace("after settle");
                 AssertPlacement(item, false, "short LUT fits right again");
             }
-            finally { tracing = false; openDescriptor.RemoveValueChanged(item, openChanged); menu.IsOpen = false; }
+            finally { await CloseMenus(menu); }
         });
     }
 
@@ -186,7 +198,7 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
                 output.WriteLine($"MenuDropAlignment={SystemParameters.MenuDropAlignment}; parent={parentPoint}; child={childPoint}");
                 Assert.Equal(SystemParameters.MenuDropAlignment, childPoint.X < parentPoint.X);
             }
-            finally { menu.IsOpen = false; }
+            finally { await CloseMenus(menu); }
         });
     }
 
@@ -242,6 +254,35 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
         await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
     }
 
+    private static async Task CloseMenus(params ContextMenu[] menus)
+    {
+        var visuals = new List<Visual>(menus);
+        void RememberPopups(ItemsControl owner)
+        {
+            foreach (var item in owner.Items.OfType<MenuItem>())
+            {
+                if (item.Template?.FindName("PART_Popup", item) is Popup { Child: { } child })
+                    visuals.Add(child);
+                RememberPopups(item);
+            }
+        }
+        foreach (var menu in menus)
+        {
+            RememberPopups(menu);
+            menu.IsOpen = false;
+        }
+        // Fade completion/native destruction is asynchronous even after IsOpen becomes false.
+        // Do not let a previous fixture retain capture or callbacks into the next STA test.
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (visuals.Any(visual => PresentationSource.FromVisual(visual) is not null))
+        {
+            Assert.True(DateTime.UtcNow < deadline, "Menu popup windows did not finish closing.");
+            await Task.Delay(10);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+        }
+        await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+    }
+
     private static ContextMenu LoadMenu(string name)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
@@ -254,7 +295,13 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
         foreach (var attribute in element.DescendantsAndSelf().Attributes().Where(a =>
             a.Name.LocalName is "Click" or "SubmenuOpened" or "PlacementTarget" ||
             a.Name == x + "Shared" || a.Name == x + "Key").ToArray()) attribute.Remove();
-        return (ContextMenu)XamlReader.Parse(element.ToString());
+        var menu = (ContextMenu)XamlReader.Parse(element.ToString());
+        // These tests explicitly drive opening, resizing and keyboard input. A runner's stationary
+        // cursor can intersect the initially placed menu and schedule WPF's sibling-hover timer;
+        // that timer legitimately closes our submenu even after the fixture relocates the root.
+        // Isolate geometry/keyboard assertions from ambient pointer input, not from WPF placement.
+        menu.IsHitTestVisible = false;
+        return menu;
     }
 
     private static void AssertNoHorizontalScrolling(DependencyObject element)

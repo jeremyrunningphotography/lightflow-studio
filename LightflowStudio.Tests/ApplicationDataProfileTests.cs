@@ -87,7 +87,22 @@ public sealed class ApplicationDataProfileTests : IDisposable
             Assert.True(File.Exists(profile.CatalogDatabasePath));
             Assert.True(File.Exists(profile.PreviewsDatabasePath));
             Assert.True(File.Exists(profile.SettingsPath));
+            Assert.DoesNotContain("J:\\\\Photography", File.ReadAllText(profile.SettingsPath));
         }
+    }
+
+    [Fact]
+    public void IsolatedSettingsRoundTripNeverRestoresLegacyMachineLutDefault()
+    {
+        var profile = Profile();
+        var store = new AppSettingsStorageConfigurationStore(profile.SettingsPath, isolated: true);
+        Assert.True(store.TryLoad(out var initial, out _));
+        Assert.Empty(initial.CameraLutFolder);
+        store.Save(initial);
+        Assert.True(store.TryLoad(out var restored, out _));
+        Assert.Empty(restored.CameraLutFolder);
+        Assert.Empty(restored.CreativeLutFolder);
+        Assert.Equal(LutCatalog.DefaultFolder, AppSettings.Normalize(new AppSettings(), isolated: false).CameraLutFolder);
     }
 
     [Fact]

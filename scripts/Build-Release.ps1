@@ -78,6 +78,10 @@ try {
             throw "Packaged smoke did not initialize isolated state: $relative"
         }
     }
+    $isolatedSettings = Get-Content -LiteralPath (Join-Path $smokeDataRoot 'settings.json') -Raw | ConvertFrom-Json
+    if ($isolatedSettings.CameraLutFolder -or $isolatedSettings.CreativeLutFolder -or $isolatedSettings.DefaultVideoFolder) {
+        throw "Empty isolated smoke profile inherited media or LUT preferences."
+    }
     Write-Host "Packaged Browser startup, workspace presentation/splash handoff, and full Jobs workspace activation passed." -ForegroundColor Green
     $null = $startupSmoke.CloseMainWindow()
     if (-not $startupSmoke.WaitForExit(5000)) {

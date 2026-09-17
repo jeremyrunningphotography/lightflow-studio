@@ -23,11 +23,11 @@ internal interface IStorageConfigurationStore
     void Save(AppSettings settings);
 }
 
-internal sealed class AppSettingsStorageConfigurationStore(string path) : IStorageConfigurationStore
+internal sealed class AppSettingsStorageConfigurationStore(string path, bool isolated = false) : IStorageConfigurationStore
 {
     public bool TryLoad(out AppSettings settings, out string? diagnostic) =>
-        AppSettingsStore.TryLoadForStartup(path, out settings, out diagnostic);
-    public void Save(AppSettings settings) => AppSettingsStore.Save(path, settings);
+        AppSettingsStore.TryLoadForStartup(path, out settings, out diagnostic, isolated);
+    public void Save(AppSettings settings) => AppSettingsStore.Save(path, settings, isolated);
 }
 
 internal interface ICatalogRelocationTransfer
@@ -163,7 +163,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             ? LightflowStorageLocations.Current
             : LightflowStorageLocations.Create(localApplicationData));
         ApplicationDataProfile.Initialize(defaults);
-        configuration ??= new AppSettingsStorageConfigurationStore(defaults.SettingsPath);
+        configuration ??= new AppSettingsStorageConfigurationStore(defaults.SettingsPath, defaults.IsIsolated);
         if (!configuration.TryLoad(out var settings, out var settingsDiagnostic))
             return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: settingsDiagnostic);
         if (defaults.IsIsolated && !File.Exists(defaults.SettingsPath))

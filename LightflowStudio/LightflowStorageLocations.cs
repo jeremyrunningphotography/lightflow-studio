@@ -33,7 +33,10 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
 {
     public const string CatalogFileName = "LightflowCatalog.db";
     public const string PreviewsFileName = "previews.db";
-    public static LightflowStorageLocations Current { get; } = CreateDefault();
+    private static readonly Lazy<LightflowStorageLocations> ProcessLocations = new(() =>
+        ApplicationDataProfile.Resolve(Environment.GetCommandLineArgs().Skip(1).ToArray()));
+    public static LightflowStorageLocations Current => ProcessLocations.Value;
+    public bool IsIsolated { get; init; }
 
     public required string ApplicationDataDirectory { get; init; }
     public required string SettingsPath { get; init; }
@@ -67,6 +70,13 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
         options ??= new();
         var applicationData = Path.GetFullPath(Path.Combine(localApplicationData,
             "Jeremy Running Photography", "Lightflow Studio"));
+        return CreateAtRoot(applicationData, options);
+    }
+
+    internal static LightflowStorageLocations CreateAtRoot(string applicationData,
+        LightflowStorageLocationOptions? options = null)
+    {
+        options ??= new();
         var catalogDirectory = ResolveOverride(options.CatalogDirectory,
             Path.Combine(applicationData, "Catalog"), nameof(options.CatalogDirectory));
         var previewsDirectory = ResolveOverride(options.PreviewsDirectory,
@@ -107,6 +117,11 @@ internal sealed record LightflowStorageLocations : ILightflowStorageLocations
             nameof(options.CatalogDirectory));
         var previewsDirectory = ResolveOverride(options.PreviewsDirectory, PreviewsDirectory,
             nameof(options.PreviewsDirectory));
+        if (IsIsolated)
+        {
+            ApplicationDataProfile.RequireContained(ApplicationDataDirectory, catalogDirectory);
+            ApplicationDataProfile.RequireContained(ApplicationDataDirectory, previewsDirectory);
+        }
         ValidateOwnershipBoundaries(catalogDirectory, previewsDirectory, TemporaryDirectory);
         return this with
         {

@@ -74,7 +74,8 @@ public sealed class StartupIdentityRegressionTests
         }
         Assert.True(app.IndexOf("_startupSplash.Show()") < app.IndexOf("await LightflowStorageCoordinator.StartAsync()"));
         Assert.True(app.IndexOf("await mainWindow.PresentationReady") < app.IndexOf("SetCloaked(mainWindow, false)"));
-        var failure = app[app.IndexOf("catch (Exception exception)")..];
+        // The earlier data-root preflight fails before any splash or modal exists.
+        var failure = app[app.IndexOf("catch (Exception exception)", app.IndexOf("_startupSplash.Show()"))..];
         Assert.True(failure.IndexOf("CloseStartupSplash()") < failure.IndexOf("MessageBox.Show"));
         Assert.Contains("ShutdownMode = ShutdownMode.OnExplicitShutdown", app);
         Assert.Contains("ShutdownMode = ShutdownMode.OnMainWindowClose", app);

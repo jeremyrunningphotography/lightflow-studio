@@ -28,6 +28,10 @@
 
 ## PR preparation and functional-test artifact
 
+- For parallel agent work, use full independent clones under `C:\Git\Agents` (not Git worktrees). Keep edits, build outputs, and data roots within the owning task workspace; never reuse another task's outputs or Jeremy's canonical checkout.
+- Launch any agent/test build with `--data-root "<absolute task-owned directory>"`, including packaged hands-on tests. Never launch an experimental build against normal user storage. Packaging supplies its own disposable isolated smoke root.
+- Report the exact workspace, packaged executable, and isolated data-root paths in the handoff. Isolation does not authorize merging; normal review and explicit acceptance still apply.
+
 - Jeremy functionally tests every change by running `artifacts\release\LightflowStudio\LightflowStudio.exe`.
 - Before reporting any PR as ready, always rebuild that exact local packaged executable from the PR branch with:
   `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1 -Mode PullRequest -SkipInstaller`

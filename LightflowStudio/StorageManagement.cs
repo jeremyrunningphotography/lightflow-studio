@@ -23,11 +23,11 @@ internal interface IStorageConfigurationStore
     void Save(AppSettings settings);
 }
 
-internal sealed class AppSettingsStorageConfigurationStore(string path) : IStorageConfigurationStore
+internal sealed class AppSettingsStorageConfigurationStore(string path, bool isolated = false) : IStorageConfigurationStore
 {
     public bool TryLoad(out AppSettings settings, out string? diagnostic) =>
-        AppSettingsStore.TryLoadForStartup(path, out settings, out diagnostic);
-    public void Save(AppSettings settings) => AppSettingsStore.Save(path, settings);
+        AppSettingsStore.TryLoadForStartup(path, out settings, out diagnostic, isolated);
+    public void Save(AppSettings settings) => AppSettingsStore.Save(path, settings, isolated);
 }
 
 internal interface ICatalogRelocationTransfer
@@ -154,23 +154,25 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public static async Task<StorageStartupResult> StartAsync(string? localApplicationData = null,
         CancellationToken cancellationToken = default, ICatalogRelocationTransfer? transfer = null,
         IStorageConfigurationStore? configuration = null, ICatalogSessionActivator? activator = null,
-        ICatalogRecoveryService? recovery = null)
+        ICatalogRecoveryService? recovery = null, LightflowStorageLocations? profile = null)
     {
         using var timing = StartupDiagnostics.Stage("Storage initialization", "Opening storage…");
         transfer ??= new SqliteCatalogRelocationTransfer();
         activator ??= new CatalogSessionActivator();
-        var defaults = localApplicationData is null
-            ? LightflowStorageLocations.CreateDefault()
-            : LightflowStorageLocations.Create(localApplicationData);
-        configuration ??= new AppSettingsStorageConfigurationStore(defaults.SettingsPath);
+        var defaults = profile ?? (localApplicationData is null
+            ? LightflowStorageLocations.Current
+            : LightflowStorageLocations.Create(localApplicationData));
+        ApplicationDataProfile.Initialize(defaults);
+        configuration ??= new AppSettingsStorageConfigurationStore(defaults.SettingsPath, defaults.IsIsolated);
         if (!configuration.TryLoad(out var settings, out var settingsDiagnostic))
             return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: settingsDiagnostic);
+        if (defaults.IsIsolated && !File.Exists(defaults.SettingsPath))
+            settings = settings with { LutFolder = null, CameraLutFolder = "", CreativeLutFolder = "",
+                ScreengrabDirectory = Path.Combine(defaults.ApplicationDataDirectory, "Screengrabs") };
         LightflowStorageLocations locations;
         try
         {
-            locations = localApplicationData is null
-                ? LightflowStorageLocations.CreateDefault(new(settings.CatalogDirectory, settings.PreviewsDirectory))
-                : LightflowStorageLocations.Create(localApplicationData, new(settings.CatalogDirectory, settings.PreviewsDirectory));
+            locations = defaults.WithOverrides(new(settings.CatalogDirectory, settings.PreviewsDirectory));
         }
         catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
         {

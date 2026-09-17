@@ -30,6 +30,9 @@ function Write-StageTiming([string]$Name, [Diagnostics.Stopwatch]$Timer) {
     Write-Host ("TIMING {0}: {1:n1}s" -f $Name, $Timer.Elapsed.TotalSeconds) -ForegroundColor DarkCyan
 }
 
+if (-not $stagingRoot.StartsWith($repositoryRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Staging directory must remain within this repository."
+}
 if (Test-Path -LiteralPath $stagingRoot) { Remove-Item -LiteralPath $stagingRoot -Recurse -Force }
 if (Test-Path -LiteralPath $OutputDirectory) { Remove-Item -LiteralPath $OutputDirectory -Recurse -Force }
 New-Item -ItemType Directory -Path $appDirectory, $OutputDirectory -Force | Out-Null
@@ -43,8 +46,11 @@ dotnet publish $project -c Release -r win-x64 --self-contained true `
 if ($LASTEXITCODE -ne 0) { throw "Application publish failed." }
 & (Join-Path $PSScriptRoot "Test-ApplicationIcon.ps1") -ExecutablePath (Join-Path $appDirectory "LightflowStudio.exe")
 
+$smokeDataRoot = Join-Path $stagingRoot ("startup-data-" + [Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $smokeDataRoot | Out-Null
+Write-Host "Packaged smoke data root: $smokeDataRoot"
 $catalogRuntimeCheck = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
-    -ArgumentList "--verify-catalog-runtime" -WorkingDirectory $appDirectory `
+    -ArgumentList "--verify-catalog-runtime", "--data-root", "`"$smokeDataRoot`"" -WorkingDirectory $appDirectory `
     -Wait -PassThru -WindowStyle Hidden
 if ($catalogRuntimeCheck.ExitCode -ne 0) { throw "Packaged Catalog SQLite runtime verification failed." }
 
@@ -52,14 +58,13 @@ if ($catalogRuntimeCheck.ExitCode -ne 0) { throw "Packaged Catalog SQLite runtim
 # The process must remain alive after Browser storage initialization; short-lived XAML/startup crashes fail packaging.
 $presentationReport = Join-Path $stagingRoot "startup-presentation.txt"
 $startupSmoke = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
-    -ArgumentList "--startup-smoke-test", "--jobs-workspace-smoke-test", "--startup-presentation-report", "`"$presentationReport`"" -WorkingDirectory $appDirectory `
+    -ArgumentList "--data-root", "`"$smokeDataRoot`"", "--startup-smoke-test", "--jobs-workspace-smoke-test", "--startup-presentation-report", "`"$presentationReport`"" -WorkingDirectory $appDirectory `
     -PassThru -WindowStyle Hidden
 try {
     if ($startupSmoke.WaitForExit(8000)) {
         throw "Packaged application exited during the Browser startup smoke test (exit code $($startupSmoke.ExitCode))."
     }
-    # Existing Catalogs can require integrity checks and a migration backup before WPF is ready.
-    # Keep the readiness assertion and process-exit checks, allowing a bounded first-run migration.
+    # Wait for deterministic first use of an empty isolated profile.
     $presentationDeadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
     while (-not (Test-Path -LiteralPath $presentationReport)) {
         if ($startupSmoke.WaitForExit(250)) { throw "Packaged startup exited before presentation readiness." }
@@ -67,6 +72,15 @@ try {
     }
     if ((Get-Content -LiteralPath $presentationReport -Raw) -ne 'presentation-ready; splash-closed') {
         throw "Packaged startup reported an invalid presentation result."
+    }
+    foreach ($relative in @('Catalog\LightflowCatalog.db', 'Previews\previews.db', 'settings.json', 'activity.log')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $smokeDataRoot $relative))) {
+            throw "Packaged smoke did not initialize isolated state: $relative"
+        }
+    }
+    $isolatedSettings = Get-Content -LiteralPath (Join-Path $smokeDataRoot 'settings.json') -Raw | ConvertFrom-Json
+    if ($isolatedSettings.CameraLutFolder -or $isolatedSettings.CreativeLutFolder -or $isolatedSettings.DefaultVideoFolder) {
+        throw "Empty isolated smoke profile inherited media or LUT preferences."
     }
     Write-Host "Packaged Browser startup, workspace presentation/splash handoff, and full Jobs workspace activation passed." -ForegroundColor Green
     $null = $startupSmoke.CloseMainWindow()
@@ -82,6 +96,11 @@ finally {
     if (-not $startupSmoke.WaitForExit(5000)) {
         throw "Packaged Browser startup smoke process did not terminate during cleanup."
     }
+    $resolvedSmokeRoot = [IO.Path]::GetFullPath($smokeDataRoot)
+    if (-not $resolvedSmokeRoot.StartsWith($stagingRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Smoke cleanup escaped the task staging directory."
+    }
+    Remove-Item -LiteralPath $resolvedSmokeRoot -Recurse -Force
 }
 
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "PremiereHelper") -Destination (Join-Path $appDirectory "PremiereHelper") -Recurse -Force

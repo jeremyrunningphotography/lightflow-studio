@@ -132,9 +132,10 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
             TestWpfApplication.EnsureLoaded();
             var menu = LoadMenu("BrowserAssetContextMenu");
             var item = menu.Items.OfType<MenuItem>().Single(i => Equals(i.Header, "Camera LUT"));
-            void Trace(string stage) => output.WriteLine($"{stage}: menu={menu.IsOpen}; item={item.IsSubmenuOpen}; selected={item.IsHighlighted}; mouseOver={item.IsMouseOver}; mouse={System.Windows.Forms.Cursor.Position}; focus={Keyboard.FocusedElement}; capture={Mouse.Captured}; work={SystemParameters.WorkArea}; delay={SystemParameters.MenuShowDelay}; runtime={Environment.Version}");
+            bool tracing = true;
+            void Trace(string stage) { if (!tracing) return; output.WriteLine($"{stage}: menu={menu.IsOpen}; item={item.IsSubmenuOpen}; selected={item.IsHighlighted}; mouseOver={item.IsMouseOver}; mouse={System.Windows.Forms.Cursor.Position}; focus={Keyboard.FocusedElement}; capture={Mouse.Captured}; work={SystemParameters.WorkArea}; delay={SystemParameters.MenuShowDelay}; runtime={Environment.Version}"); }
             item.SubmenuOpened += (_, _) => Trace("opened");
-            item.SubmenuClosed += (_, _) => { Trace("closed"); output.WriteLine(Environment.StackTrace); };
+            item.SubmenuClosed += (_, _) => { if (tracing) { Trace("closed"); output.WriteLine(Environment.StackTrace); } };
             item.MouseEnter += (_, _) => Trace("mouse enter");
             item.MouseLeave += (_, _) => Trace("mouse leave");
             try
@@ -156,7 +157,7 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
                 Trace("after settle");
                 AssertPlacement(item, false, "short LUT fits right again");
             }
-            finally { menu.IsOpen = false; }
+            finally { tracing = false; menu.IsOpen = false; }
         });
     }
 

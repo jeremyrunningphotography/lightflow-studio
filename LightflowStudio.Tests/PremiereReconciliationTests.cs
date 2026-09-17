@@ -186,6 +186,35 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         Assert.Equal(50, job.WorkspaceItem().Progress);
     }
 
+    [Fact]
+    public void SubclipJobsExposeTypedItemStatusesWithoutRepeatingTheLastItemAsAnIssue()
+    {
+        var sent = new PremiereReceipt(Guid.NewGuid(), PremiereOutcome.Verified, "sent-item", "created");
+        var conflict = new PremiereReceipt(Guid.NewGuid(), PremiereOutcome.Conflict, "conflict-item",
+            "The mapped native Subclip is outside the selected destination.");
+        var planned = new[]
+        {
+            new PremierePlannedSubclip(_source, new(Guid.NewGuid(), "Sent moment", 1, new("10", "40", "100"), "source")),
+            new PremierePlannedSubclip(_source, new(Guid.NewGuid(), "Conflicting moment", 1, new("50", "90", "100"), "source"))
+        };
+        var items = new[]
+        {
+            new PremiereJobItem($"subclip:{planned[0].Projection.SubclipId:D}", "Sent moment", PremiereJobItemState.Sent, sent),
+            new PremiereJobItem($"subclip:{planned[1].Projection.SubclipId:D}", "Conflicting moment", PremiereJobItemState.Conflict, conflict)
+        };
+        var job = new PremiereJob(Guid.NewGuid(), _project, [_source], JobState.CompletedWithWarnings, 2,
+            [sent, conflict], "Sent moment — Sent", DateTimeOffset.UtcNow, planned, items);
+
+        var card = job.Card(expanded: true);
+        var details = Assert.IsType<PremiereJobDetailsPresentation>(card.Details);
+        Assert.Collection(details.Items,
+            item => { Assert.Equal("Sent", item.Status); Assert.Equal(PremiereJobItemState.Sent, item.State); Assert.Empty(item.Detail); },
+            item => { Assert.Equal("Conflict", item.Status); Assert.Equal(PremiereJobItemState.Conflict, item.State); Assert.Contains("Move it back", item.Detail); });
+        Assert.Equal("1 item needs attention.", card.Issue);
+        Assert.DoesNotContain("Sent moment — Sent", card.Issue);
+        Assert.Equal(card.Issue, job.WorkspaceItem().Issue);
+    }
+
     public async Task DisposeAsync()
     {
         if (_session is not null) await _session.DisposeAsync();

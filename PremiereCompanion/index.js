@@ -58,7 +58,7 @@ async function heartbeat(discoverBins = true) {
   const current = describe(await ppro.Project.getActiveProject());
   if ((description || current) && !sameProject(description, current))
     throw new Error('Active project changed while reading bins. Waiting for the current project.');
-  await request('/v1/heartbeat', { instanceId, companionVersion: '1.1.2', protocol: 1,
+  await request('/v1/heartbeat', { instanceId, companionVersion: '1.1.3', protocol: 1,
     hostVersion: uxp.host.version, uxpVersion: uxp.versions.uxp, project: description, bins });
   lastHealthy = Date.now();
   return project;
@@ -106,7 +106,7 @@ async function tick() {
       await new Promise(resolve => setTimeout(resolve, 100));
       await request('/v1/receipt', result, command.dispatchId);
       status(`${result.outcome}: ${result.message}`);
-    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.1.2`);
+    } else status(`Connected to Lightflow\nPremiere ${uxp.host.version}\nProject: ${project ? project.name : 'No active project'}\nCompanion 1.1.3`);
   } catch (error) {
     lastHealthy = 0;
     status(String(error.message || error));

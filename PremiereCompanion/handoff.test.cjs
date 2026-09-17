@@ -48,7 +48,7 @@ function fixture() {
     activeProject: async () => project, connected: () => true,
     items: async () => items.slice(), targetBin: async () => 'bin-1', existingTargetBin: async () => 'bin-1',
     subclipInBin: async itemId => (items.find(item => item.id === itemId)?.parent || 'bin-1') === 'bin-1',
-    importSource: async path => { imports++; items.push({ id: 'item-1', mediaPath: path }); },
+    importSource: async path => { imports++; items.push({ id: `item-${imports}`, mediaPath: path }); },
     projectRange: async () => {}, clearRange: async () => {},
     createSubclip: async (sourceItemId, spec) => {
       const created = `subclip-${++subclips}`;
@@ -248,15 +248,43 @@ test('reported pre-mutation Subclip failure can retry without blocking independe
   independent.intent.subclip.name = 'Independent';
   assert.equal((await execute(independent, f.adapter, f.journal)).outcome, 'Verified');
 });
-test('receipt survives companion data loss, but undo is a conflict', async () => {
+test('verified source deletion is recreated by an explicit retry without adopting path matches', async () => {
   const f = fixture();
   const receipt = await execute(f.command, f.adapter, f.journal);
   f.stored.clear();
   const retry = { ...f.command, previouslyDispatched: true, previousReceipt: receipt };
   assert.equal((await execute(retry, f.adapter, f.journal)).outcome, 'Verified');
   f.items.length = 0;
-  assert.equal((await execute(retry, f.adapter, f.journal)).outcome, 'Conflict');
-  assert.equal(f.imports(), 1);
+  const recreated = await execute(retry, f.adapter, f.journal);
+  assert.equal(recreated.outcome, 'Verified');
+  assert.notEqual(recreated.itemId, receipt.itemId);
+  assert.equal(f.imports(), 2);
+  f.items.length = 0;
+  f.items.push({ id: 'unmapped-replacement', mediaPath: 'C:/test/source.mov' });
+  assert.equal((await execute({ ...retry, previousReceipt: recreated }, f.adapter, f.journal)).outcome, 'Conflict');
+  assert.equal(f.imports(), 2);
+});
+
+test('verified native Subclip deletion recreates the same durable operation without duplicating an unmapped candidate', async () => {
+  const f = fixture();
+  f.items.push({ id: 'source-item', name: 'source.mov', mediaPath: 'C:/test/source.mov' });
+  f.command.intent.operationId = 'subclip-op';
+  f.command.intent.subclip = { subclipId: 'subclip-id', name: 'Recover me', revision: 1,
+    sourceItemId: 'source-item', range: { inTicks: '10', outTicks: '90', sourceDurationTicks: '100' },
+    isSourceFallback: false, hardBoundaries: true, takeVideo: true, takeAudio: true };
+  const first = await execute(f.command, f.adapter, f.journal);
+  f.items.splice(f.items.findIndex(item => item.id === first.itemId), 1);
+  const retry = { ...f.command, previouslyDispatched: true, previousReceipt: first };
+  const recreated = await execute(retry, f.adapter, f.journal);
+  assert.equal(recreated.outcome, 'Verified');
+  assert.notEqual(recreated.itemId, first.itemId);
+  assert.equal(f.items.filter(item => item.name === 'Recover me').length, 1);
+  f.items.splice(f.items.findIndex(item => item.id === recreated.itemId), 1);
+  f.items.push({ id: 'unmapped-native', name: 'Recover me', mediaPath: 'C:/test/source.mov', parent: 'bin-1' });
+  const conflict = await execute({ ...retry, previousReceipt: recreated }, f.adapter, f.journal);
+  assert.equal(conflict.outcome, 'Conflict');
+  assert.match(conflict.message, /unmapped item|replacement Premiere item/);
+  assert.equal(f.items.filter(item => item.name === 'Recover me').length, 1);
 });
 test('unknown crash gap never blindly replays, including an empty destination', async () => {
   const f = fixture();

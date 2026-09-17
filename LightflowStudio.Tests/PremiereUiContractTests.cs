@@ -108,6 +108,24 @@ public class PremiereUiContractTests
     }
 
     [Fact]
+    public void PremiereJobItemsUseSemanticSentAndConflictColors()
+    {
+        var main = XDocument.Load(Source("MainWindow.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var template = main.Descendants().Single(element => element.Name.LocalName == "DataTemplate"
+            && (string?)element.Attribute("DataType") == "{x:Type local:PremiereJobDetailsPresentation}");
+        var triggers = template.Descendants().Where(element => element.Name.LocalName == "DataTrigger").ToArray();
+        var sent = triggers.Single(trigger => ((string?)trigger.Attribute("Value"))?.EndsWith(".Sent}", StringComparison.Ordinal) == true);
+        var conflict = triggers.Single(trigger => ((string?)trigger.Attribute("Value"))?.EndsWith(".Conflict}", StringComparison.Ordinal) == true);
+        Assert.Contains(sent.Descendants(), setter => setter.Name.LocalName == "Setter"
+            && (string?)setter.Attribute("Property") == "Foreground" && (string?)setter.Attribute("Value") == "{StaticResource SuccessBrush}");
+        Assert.Contains(conflict.Descendants(), setter => setter.Name.LocalName == "Setter"
+            && (string?)setter.Attribute("Property") == "Foreground" && (string?)setter.Attribute("Value") == "{StaticResource WarningBrush}");
+        Assert.Contains(template.Descendants(), element => element.Name.LocalName == "ItemsControl"
+            && (string?)element.Attribute("ItemsSource") == "{Binding Items}");
+    }
+
+    [Fact]
     public void SendUsesUserFacingVideoCopyAndDestinationHierarchyWording()
     {
         var send = XDocument.Load(Source("PremiereSendWindow.xaml"));

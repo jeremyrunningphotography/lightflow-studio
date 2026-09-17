@@ -42,6 +42,20 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
         : $"Project: {Project.Name}\n{Completed} of {CountText} processed.\n"
             + string.Join("\n", Items.Select(item => $"{item.Name} — {item.StatusText}"
                 + (item.Receipt is { Outcome: not PremiereOutcome.Verified } receipt ? $": {UserMessage(receipt)}" : "")));
+    private JobDetailsPresentation DetailPresentation => Items is null
+        ? new JobMessageDetailsPresentation(Details)
+        : new PremiereJobDetailsPresentation(Project.Name, $"{Completed} of {CountText} processed.",
+            Items.Select(item => new PremiereJobItemDetailsPresentation(item.Name, item.StatusText,
+                item.Receipt is { Outcome: not PremiereOutcome.Verified } receipt ? $": {UserMessage(receipt)}" : "",
+                item.State)).ToArray());
+    private int AttentionCount => Items?.Count(item => item.State is PremiereJobItemState.Failed
+        or PremiereJobItemState.Conflict) ?? 0;
+    private string? Issue => Items is null ? Message : AttentionCount switch
+    {
+        0 => null,
+        1 => "1 item needs attention.",
+        var count => $"{count} items need attention."
+    };
     internal static string OutcomeText(PremiereReceipt receipt) => receipt.Outcome switch
     {
         PremiereOutcome.Verified when receipt.Message.Contains("updated", StringComparison.OrdinalIgnoreCase) => "Updated",
@@ -59,6 +73,12 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
         PremiereOutcome.UnknownOutcome => "Premiere may have started this import but it could not be verified. Return to the original project and send the same source again.",
         PremiereOutcome.Conflict when receipt.Message.Contains("missing or relinked", StringComparison.OrdinalIgnoreCase)
             => "The matching Premiere source was moved or relinked. Restore or relink it in the original project, then send again.",
+        PremiereOutcome.Conflict when receipt.Message.Contains("source was relinked", StringComparison.OrdinalIgnoreCase)
+            => "The matching Premiere source uses different media. Restore its original media or delete that item, then send again.",
+        PremiereOutcome.Conflict when receipt.Message.Contains("unmapped replacement", StringComparison.OrdinalIgnoreCase)
+            => "An unlinked replacement uses the same media. Delete it or restore the original mapped source, then send again.",
+        PremiereOutcome.Conflict when receipt.Message.Contains("replacement Premiere item", StringComparison.OrdinalIgnoreCase)
+            => "An unlinked Premiere item already matches this Subclip. Delete it or restore the original mapped Subclip, then send again.",
         PremiereOutcome.Conflict when receipt.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase)
             => "A matching file already exists in Premiere but is not linked to this Catalog source. Resolve that item in the original project, then send again.",
         PremiereOutcome.Conflict when receipt.Message.Contains("Subclip changed", StringComparison.OrdinalIgnoreCase)
@@ -75,12 +95,12 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
     };
     public JobCardPresentation Card(bool expanded) => new(JobId, Name, JobsPresentation.Glyph(State),
         State == JobState.Running ? "Sending" : JobsPresentation.StateText(State), Progress, State == JobState.Running,
-        "", null, new JobMessageDetailsPresentation(Details), Message, expanded, false, false, false,
+        "", null, DetailPresentation, Issue, expanded, false, false, false,
         State is JobState.Queued or JobState.Running, false);
     public JobsWorkspaceItem WorkspaceItem() => new(JobId, null, null, State is JobState.Queued or JobState.Running,
         false, Name, "Premiere handoff", State, Progress, CreatedUtc.ToLocalTime().ToString("MMM d, HH:mm"),
-        Sources.FirstOrDefault()?.Path ?? "", Project.Path, Message, Details, CreatedUtc, long.MaxValue,
-        new JobMessageDetailsPresentation(Details), SupportsQueueControls: false);
+        Sources.FirstOrDefault()?.Path ?? "", Project.Path, Issue ?? "", Details, CreatedUtc, long.MaxValue,
+        DetailPresentation, SupportsQueueControls: false);
 }
 
 /// <summary>Typed non-encoding executor; current progress is projected into the existing Jobs product.</summary>

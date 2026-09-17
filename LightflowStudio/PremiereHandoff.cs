@@ -12,7 +12,7 @@ internal static class PremiereProtocol
     public const int Version = 1;
     public const int Port = 47857;
     public const string Endpoint = "http://localhost:47857";
-    public const string CompanionVersion = "1.1.2";
+    public const string CompanionVersion = "1.1.3";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,

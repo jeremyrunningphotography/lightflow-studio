@@ -203,6 +203,10 @@ internal sealed record FileSystemJobDetailsPresentation(string Operation, string
     string ItemProgress, string CurrentItem, string ByteProgress, string ResultSummary,
     string FailureSummary) : JobDetailsPresentation;
 internal sealed record JobMessageDetailsPresentation(string Text) : JobDetailsPresentation;
+internal sealed record PremiereJobItemDetailsPresentation(string Name, string Status, string Detail,
+    PremiereJobItemState State);
+internal sealed record PremiereJobDetailsPresentation(string Project, string Progress,
+    IReadOnlyList<PremiereJobItemDetailsPresentation> Items) : JobDetailsPresentation;
 
 internal sealed class JobCardPresentation(Guid jobId, string name, string glyph, string state, double progress,
     bool showProgress, string elapsed, string? eta, JobDetailsPresentation details, string? issue, bool isExpanded,

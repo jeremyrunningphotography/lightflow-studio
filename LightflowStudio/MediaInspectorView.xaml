@@ -88,6 +88,16 @@
                 ToolTip="Reload Catalog values and discard unapplied changes"/>
        </WrapPanel>
       </StackPanel>
+      <StackPanel x:Name="MarkerSection" Visibility="Collapsed" Margin="0,8">
+       <TextBlock Text="Lightflow markers" FontWeight="SemiBold" Margin="0,0,0,6"/>
+       <ItemsControl x:Name="InspectorMarkers">
+        <ItemsControl.ItemTemplate><DataTemplate>
+         <Button Click="InspectorMarker_Click" HorizontalContentAlignment="Left" Margin="0,2" Padding="6,4" ToolTip="Seek to this marker in Player">
+          <StackPanel><TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding PositionLabel}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11"/></StackPanel>
+         </Button>
+        </DataTemplate></ItemsControl.ItemTemplate>
+       </ItemsControl>
+      </StackPanel>
       <ItemsControl x:Name="FieldGroups">
        <ItemsControl.ItemTemplate>
         <DataTemplate>

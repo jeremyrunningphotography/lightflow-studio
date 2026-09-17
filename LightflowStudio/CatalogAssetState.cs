@@ -35,7 +35,10 @@ internal sealed record BrowserAssetQueryState(
     bool HasCameraLut,
     bool HasCreativeLut,
     int SubclipCount,
-    AssetClassification? Classification = null);
+    AssetClassification? Classification = null, int MarkerCount = 0)
+{
+    public bool HasMarkers => MarkerCount > 0;
+}
 
 /// <summary>
 /// Projects durable, user-authored Catalog facts into the small state vocabulary consumed by Browser tiles.
@@ -113,6 +116,15 @@ internal sealed class CatalogBrowserAssetStateStore(Func<CatalogDatabaseSession?
                     };
                 }
                 subclipReader.Close();
+
+                command.CommandText = $"SELECT AssetId, COUNT(*) FROM TimelineMarkers WHERE AssetId IN ({string.Join(',', parameters)}) GROUP BY AssetId;";
+                using var markerReader = command.ExecuteReader();
+                while (markerReader.Read())
+                {
+                    var markerAssetId = Guid.Parse(markerReader.GetString(0));
+                    states[markerAssetId] = states[markerAssetId] with { MarkerCount = markerReader.GetInt32(1) };
+                }
+                markerReader.Close();
 
                 command.Parameters.Clear();
                 parameters = batch.Select((id, index) =>

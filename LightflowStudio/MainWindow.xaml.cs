@@ -1990,7 +1990,8 @@ public partial class MainWindow : Window
             assetColors: _storage.AssetColors, cameraLutFolder: () => _storage.Settings.CameraLutFolder,
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder,
             preferredPreviewFrames: _storage.PreferredPreviewFrames,
-            classifications: _storage.AssetClassifications);
+            classifications: _storage.AssetClassifications, markers: _storage.Markers);
+        _playerViewerHost.MarkersChanged += (_, _) => InvalidateInspector();
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         _playerViewerHost.FilmstripVisible = _workspaceState.Current.Layout?.PlayerFilmstripVisible ?? true;
         _playerViewerHost.FilmstripVisibilityChanged += (_, _) => ScheduleWorkspaceCapture();

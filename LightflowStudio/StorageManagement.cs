@@ -99,6 +99,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         MediaFolders = new MediaFolderEnumerator(MediaRoots, MediaTypes, new MediaFolderFileSystem());
         CatalogReconciliation = new CatalogReconciliationService(MediaFolders, MediaAssets);
         MediaRanges = new CatalogMediaRangeStore(() => _catalogSession);
+        Markers = new CatalogMarkerService(() => _catalogSession);
         Subclips = new CatalogSubclipService(() => _catalogSession);
         Collections = new CatalogCollectionOrganizationService(() => _catalogSession);
         PreferredPreviewFrames = new CatalogPreferredPreviewFrameStore(() => _catalogSession);
@@ -129,6 +130,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public IMediaAssetService MediaAssets { get; }
     public IMediaRangeStore MediaRanges { get; }
     public ISubclipService Subclips { get; }
+    public IMarkerService Markers { get; }
     public ICollectionOrganizationService Collections { get; }
     public IPreferredPreviewFrameStore PreferredPreviewFrames { get; }
     public IBrowserAssetStateStore BrowserAssetStates { get; }

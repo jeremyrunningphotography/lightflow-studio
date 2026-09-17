@@ -83,8 +83,9 @@ public partial class PlayerViewerHost : UserControl
         Func<string>? cameraLutFolder = null, Func<string>? creativeLutFolder = null,
         Action<PlayerOpenMilestone>? openMilestone = null,
         IPreferredPreviewFrameStore? preferredPreviewFrames = null,
-        IAssetClassificationStore? classifications = null)
+        IAssetClassificationStore? classifications = null, IMarkerService? markers = null)
     {
+        _markers = markers;
         _coordinator = coordinator;
         _rangeStore = rangeStore;
         _subclips = subclips;
@@ -166,6 +167,7 @@ public partial class PlayerViewerHost : UserControl
         _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseCompleted);
         if (generation != _generation || token.IsCancellationRequested) return;
 
+        ResetMarkers();
         ResetSubclipWork();
         _currentAsset = asset;
         CurrentAssetChanged?.Invoke(this, EventArgs.Empty);
@@ -175,6 +177,7 @@ public partial class PlayerViewerHost : UserControl
         AddSubclipButton.IsEnabled = false;
         if (asset.Kind == MediaPresentationKind.Video && asset.AssetId is Guid subclipAssetId)
             await LoadSubclipsAsync(subclipAssetId, generation, _subclipWorkCts!.Token).ConfigureAwait(true);
+        if (asset.AssetId is { } markerAssetId) await LoadMarkersAsync(markerAssetId, generation);
         if (generation != _generation || token.IsCancellationRequested) return;
         SetExportEnabled(false);
         AssetNameText.Text = asset.Name;
@@ -240,6 +243,7 @@ public partial class PlayerViewerHost : UserControl
         _syncingFilmstrip = false;
         SyncReviewNavigation();
         _currentAsset = null;
+        ResetMarkers();
         CurrentAssetChanged?.Invoke(this, EventArgs.Empty);
         AssetNameText.Text = "";
         SetStatus(null);
@@ -407,6 +411,7 @@ public partial class PlayerViewerHost : UserControl
     private void SetTransportEnabled(bool enabled)
     {
         PositionSlider.IsEnabled = enabled;
+        UpdateMarkerPresentation();
         PreviousFrameButton.IsEnabled = enabled;
         NextFrameButton.IsEnabled = enabled;
         PlayPauseButton.IsEnabled = enabled;
@@ -908,6 +913,7 @@ public partial class PlayerViewerHost : UserControl
 
     private void UpdateRangePresentation()
     {
+        UpdateMarkerPresentation();
         var duration = _service?.SourceInfo?.Duration;
         var presentedRange = PresentedRange;
         var presentation = PlayerRangeTimelinePresentation.For(presentedRange, duration);

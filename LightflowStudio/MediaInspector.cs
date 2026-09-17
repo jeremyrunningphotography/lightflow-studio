@@ -9,12 +9,15 @@ internal sealed record InspectorAsset(Guid? AssetId, string Name, string Relativ
     long? FileSizeBytes = null);
 internal sealed record InspectorField(string Group, string Name, string Value, string? ComparisonValue = null, bool CanOpenFolder = false);
 internal sealed record InspectorSnapshot(string Title, string Status, IReadOnlyList<InspectorField> Fields,
-    string? PreviewPath);
+    string? PreviewPath)
+{
+    public IReadOnlyList<TimelineMarker> Markers { get; init; } = [];
+}
 
 /// <summary>Read-only projection of #70 and Catalog contracts. Store reads are batched
 /// off the UI thread; the multi-selection result has one row per supported field, independent of selection size.</summary>
 internal sealed class MediaInspectorService(IPreviewStoreService? previews, IAssetClassificationStore classifications,
-    string previewsDirectory)
+    string previewsDirectory, IMarkerService? markers = null)
 {
     internal const int BatchSize = 128;
 
@@ -34,6 +37,7 @@ internal sealed class MediaInspectorService(IPreviewStoreService? previews, IAss
                 var records = previews is null ? new Dictionary<Guid, PreviewRecord>() :
                     await previews.GetManyAsync(ids, token).ConfigureAwait(false);
                 var catalog = await classifications.GetAsync(ids, token).ConfigureAwait(false);
+                var markerCounts = markers is null ? null : await markers.SummariesAsync(ids, token).ConfigureAwait(false);
                 foreach (var asset in batch)
                 {
                     token.ThrowIfCancellationRequested();
@@ -54,6 +58,12 @@ internal sealed class MediaInspectorService(IPreviewStoreService? previews, IAss
                         videoCount++;
                         if (metadata?.DurationSeconds is { } duration && double.IsFinite(duration) && duration >= 0)
                         { totalDuration += duration; durationCount++; }
+                    }
+                    if (markerCounts is not null && asset.AssetId is { } markerAsset)
+                    {
+                        var key = ("Lightflow", "Markers");
+                        if (!summary.TryGetValue(key, out var counts)) summary[key] = counts = new();
+                        counts.Add((markerCounts.GetValueOrDefault(markerAsset)?.Count ?? 0).ToString(CultureInfo.InvariantCulture), null);
                     }
                     foreach (var field in Fields(asset, metadata,
                         asset.AssetId is { } aid ? catalog.GetValueOrDefault(aid) : null))
@@ -84,9 +94,11 @@ internal sealed class MediaInspectorService(IPreviewStoreService? previews, IAss
                     new InspectorField("Selection", "Total size", $"{Bytes(totalSize)} · known for {sizeCount:N0} of {assets.Count:N0}"),
                     new InspectorField("Selection", "Video duration", $"{Seconds(totalDuration)} · known for {durationCount:N0} of {videoCount:N0} videos") });
             }
+            var markerList = markers is not null && assets.Count == 1 && assets[0].AssetId is { } singleAsset
+                ? await markers.ListAsync(singleAsset, token).ConfigureAwait(false) : [];
             return new InspectorSnapshot(assets.Count == 1 ? assets[0].Name : $"{assets.Count:N0} selected assets",
                 string.Join(" · ", states.Select(p => assets.Count == 1 ? p.Key : $"{p.Value:N0} {p.Key.ToLowerInvariant()}")),
-                fields, previewPath);
+                fields, previewPath) { Markers = markerList };
         }, token);
 
     internal static string MetadataState(PreviewRecord? record) => record switch

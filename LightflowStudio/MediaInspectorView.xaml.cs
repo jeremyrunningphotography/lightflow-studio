@@ -29,6 +29,12 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
         finally { _transitionPending = false; }
     }
     internal event EventHandler? OpenPlayerRequested;
+    internal Func<TimelineMarker, Task>? SeekMarker { get; set; }
+    private async void InspectorMarker_Click(object sender, RoutedEventArgs e)
+    {
+        if (_playerContext && sender is FrameworkElement { DataContext: TimelineMarker marker } && SeekMarker is not null)
+            await SeekMarker(marker);
+    }
     internal Func<Task>? OpenFolder { get; set; }
     internal bool IsPlayerContext => _playerContext;
     internal IDisposable? SuspendEditing() => _descriptions?.SuspendEditing();
@@ -69,6 +75,8 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
         _hydration = new();
         var token = _hydration.Token;
         _snapshot = null;
+        InspectorMarkers.ItemsSource = null;
+        MarkerSection.Visibility = Visibility.Collapsed;
         if (!_context.Select(a => (a.AssetId, a.RelativePath, a.Kind))
             .SequenceEqual(_displayedContext.Select(a => (a.AssetId, a.RelativePath, a.Kind))))
         {
@@ -91,6 +99,8 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
             var snapshot = await _service().ReadAsync(_context, token);
             if (generation != _generation || token.IsCancellationRequested) return;
             _snapshot = snapshot;
+            InspectorMarkers.ItemsSource = snapshot.Markers;
+            MarkerSection.Visibility = _playerContext && snapshot.Markers.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             TitleText.Text = snapshot.Title;
             StatusText.Text = snapshot.Status;
             FieldGroups.ItemsSource = snapshot.Fields.GroupBy(f => f.Group).ToArray();

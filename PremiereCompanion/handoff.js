@@ -173,7 +173,9 @@ async function execute(command, adapter, journal) {
     const before = new Set(items.map(item => item.id));
     await journal.write(intent.operationId, { intent: JSON.stringify(intent), identity: identity(intent), phase: 'intent' });
     await guard();
-    const bin = await adapter.targetBin(intent.binId, intent.createBinName, guard);
+    const bin = intent.source.isSubclipPrerequisite
+      ? await adapter.prerequisiteSourceBin(intent.binId, intent.createBinName, guard)
+      : await adapter.targetBin(intent.binId, intent.createBinName, guard);
     await guard();
     mutationStarted = true;
     await adapter.importSource(intent.source.path, bin);

@@ -64,6 +64,12 @@ function createAdapter(ppro, project, walk, id, nearestPremiereTicks, runtime) {
       return items;
     },
     targetBin: (binId, createName, guard) => findTargetBin(binId, createName, guard, true),
+    async prerequisiteSourceBin(binId, createName, guard) {
+      const target = await findTargetBin(binId, createName, guard, true);
+      const root = await project.getRootItem();
+      if (id(target) === id(root)) return root;
+      return ppro.FolderItem.cast(await ppro.ProjectItem.cast(target).getParentBin());
+    },
     existingTargetBin: (binId, createName, guard) => findTargetBin(binId, createName, guard, false),
     importSource: (path, bin) => project.importFiles([path], true, bin, false),
     placeSubclip,

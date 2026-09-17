@@ -12,7 +12,7 @@ internal static class PremiereProtocol
     public const int Version = 1;
     public const int Port = 47857;
     public const string Endpoint = "http://localhost:47857";
-    public const string CompanionVersion = "1.1.3";
+    public const string CompanionVersion = "1.1.4";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
@@ -87,7 +87,7 @@ internal sealed record PremiereRangeProjection(string InTicks, string OutTicks, 
     }
 }
 internal sealed record PremiereSource(Guid AssetId, string Path, string SizeBytes, string LastWriteUtcTicks,
-    PremiereRangeProjection? Range = null, bool PreserveRange = false)
+    PremiereRangeProjection? Range = null, bool PreserveRange = false, bool IsSubclipPrerequisite = false)
 {
     [JsonIgnore]
     public string? RangeIssue { get; init; }
@@ -172,8 +172,8 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
                 dispatched = reader.GetBoolean(1);
                 priorReceipt = reader.IsDBNull(2) ? null : JsonSerializer.Deserialize<PremiereReceipt>(reader.GetString(2), PremiereProtocol.Json);
                 // Changed source facts must never reuse an operation ID or silently relink editor media.
-                if ((prior.Source with { Range = null, RangeIssue = null, PreserveRange = false })
-                    != (source with { Range = null, RangeIssue = null, PreserveRange = false }))
+                if ((prior.Source with { Range = null, RangeIssue = null, PreserveRange = false, IsSubclipPrerequisite = false })
+                    != (source with { Range = null, RangeIssue = null, PreserveRange = false, IsSubclipPrerequisite = false }))
                     throw new InvalidOperationException("Source changed since the previous handoff. Reconcile the existing Premiere item before sending again.");
             }
         }
@@ -233,8 +233,8 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
                 prior = JsonSerializer.Deserialize<PremiereIntent>(reader.GetString(0), PremiereProtocol.Json)!;
                 dispatched = reader.GetBoolean(1);
                 priorReceipt = reader.IsDBNull(2) ? null : JsonSerializer.Deserialize<PremiereReceipt>(reader.GetString(2), PremiereProtocol.Json);
-                if ((prior.Source with { Range = null, RangeIssue = null, PreserveRange = false })
-                    != (source with { Range = null, RangeIssue = null, PreserveRange = false }))
+                if ((prior.Source with { Range = null, RangeIssue = null, PreserveRange = false, IsSubclipPrerequisite = false })
+                    != (source with { Range = null, RangeIssue = null, PreserveRange = false, IsSubclipPrerequisite = false }))
                     throw new InvalidOperationException("Source changed since this Subclip was handed off. Reconcile the existing Premiere item before sending again.");
             }
         }

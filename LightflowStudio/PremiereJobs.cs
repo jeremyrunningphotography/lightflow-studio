@@ -253,7 +253,14 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
             cts.Token.ThrowIfCancellationRequested();
             foreach (var item in group) job = UpdateItem(job, item, PremiereJobItemState.Sending);
             Publish(job);
-            var source = group.First().Source with { Range = null, RangeIssue = null, PreserveRange = true };
+            var nativeSubclips = group.All(item => !item.Projection.IsSourceFallback);
+            var source = group.First().Source with
+            {
+                Range = null,
+                RangeIssue = null,
+                PreserveRange = true,
+                IsSubclipPrerequisite = nativeSubclips
+            };
             PremiereReceipt sourceReceipt;
             try
             {

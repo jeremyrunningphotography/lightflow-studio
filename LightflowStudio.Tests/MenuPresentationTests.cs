@@ -138,6 +138,9 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
             item.SubmenuClosed += (_, _) => { if (tracing) { Trace("closed"); output.WriteLine(Environment.StackTrace); } };
             item.MouseEnter += (_, _) => Trace("mouse enter");
             item.MouseLeave += (_, _) => Trace("mouse leave");
+            var openDescriptor = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(MenuItem.IsSubmenuOpenProperty, typeof(MenuItem));
+            EventHandler openChanged = (_, _) => { if (tracing && !item.IsSubmenuOpen) { Trace("IsSubmenuOpen false"); output.WriteLine(Environment.StackTrace); } };
+            openDescriptor.AddValueChanged(item, openChanged);
             try
             {
                 OpenAt(menu, false);
@@ -157,7 +160,7 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
                 Trace("after settle");
                 AssertPlacement(item, false, "short LUT fits right again");
             }
-            finally { tracing = false; menu.IsOpen = false; }
+            finally { tracing = false; openDescriptor.RemoveValueChanged(item, openChanged); menu.IsOpen = false; }
         });
     }
 

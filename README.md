@@ -7,7 +7,7 @@ and practical file operations into one calm desktop workflow. It is built for pe
 who need to move quickly through large folders without opening a full editing suite—or
 giving up control over their originals.
 
-Current version: **0.39.0** · [Download the latest Windows release](https://github.com/jeremyrunningphotography/lightflow-studio/releases/latest)
+Current version: **0.40.0** · [Download the latest Windows release](https://github.com/jeremyrunningphotography/lightflow-studio/releases/latest)
 
 ![Lightflow Studio Browser showing event media with ratings, labels, flags, saved ranges, Subclips, and Color state](docs/assets/readme/browser-overview.jpg)
 

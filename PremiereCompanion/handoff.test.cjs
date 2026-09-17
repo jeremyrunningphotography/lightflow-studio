@@ -44,12 +44,19 @@ function fixture() {
   const items = [];
   let imports = 0;
   let subclips = 0;
+  let removals = 0;
   const adapter = {
     activeProject: async () => project, connected: () => true,
-    items: async () => items.slice(), targetBin: async () => 'bin-1', existingTargetBin: async () => 'bin-1',
+    items: async () => items.slice(), targetBin: async () => 'bin-1', prerequisiteSourceBin: async () => 'source-bin',
+    existingTargetBin: async () => 'bin-1',
     subclipInBin: async itemId => (items.find(item => item.id === itemId)?.parent || 'bin-1') === 'bin-1',
-    importSource: async path => { imports++; items.push({ id: `item-${imports}`, mediaPath: path }); },
+    importSource: async (path, bin) => { imports++; items.push({ id: `item-${imports}`, mediaPath: path, parent: bin }); },
     projectRange: async () => {}, clearRange: async () => {},
+    removeItem: async itemId => {
+      const index = items.findIndex(item => item.id === itemId);
+      if (index < 0) throw new Error('missing cleanup item');
+      items.splice(index, 1); removals++;
+    },
     createSubclip: async (sourceItemId, spec) => {
       const created = `subclip-${++subclips}`;
       items.push({ id: created, name: spec.name, mediaPath: items.find(item => item.id === sourceItemId)?.mediaPath, parent: 'bin-1' });
@@ -57,7 +64,7 @@ function fixture() {
     }
   };
   const journal = { read: async id => stored.get(id), write: async (id, value) => stored.set(id, value) };
-  return { command, adapter, journal, items, stored, imports: () => imports };
+  return { command, adapter, journal, items, stored, imports: () => imports, removals: () => removals };
 }
 
 function productionFixture(executeActions = true) {
@@ -71,7 +78,8 @@ function productionFixture(executeActions = true) {
   function folder(itemId, name) {
     return { itemId, name, children: [], getItems: async function () { return this.children.slice(); },
       createBinAction(childName) { return () => add(this, folder(`bin-${childName}`, childName)); },
-      createMoveItemAction(item, destination) { return () => { item.parent.children = item.parent.children.filter(value => value !== item); add(destination, item); }; } };
+      createMoveItemAction(item, destination) { return () => { item.parent.children = item.parent.children.filter(value => value !== item); add(destination, item); }; },
+      createRemoveItemAction(item) { return () => { this.children = this.children.filter(value => value !== item); item.parent = null; }; } };
   }
   function clip(itemId, name, mediaPath, durationTicks) {
     return { itemId, name, mediaPath, async getMediaFilePath() { return this.mediaPath; },
@@ -125,6 +133,13 @@ test('production adapter rejects a successful transaction result when no native 
   assert.equal(f.created(), 0);
 });
 
+test('production adapter removes a temporary prerequisite only after transaction readback', async () => {
+  const f = productionFixture();
+  await f.adapter.removeItem('source-item');
+  assert.deepEqual((await f.sourceBin.getItems()).map(item => item.itemId), []);
+  await assert.rejects(() => f.adapter.removeItem('source-item'), /unavailable for cleanup/);
+});
+
 test('production dispatch reports Verified only after the real native-create seam mutates and reads back', async () => {
   const f = productionFixture();
   const intent = { operationId: 'production-op', catalogId: 'catalog-1', destinationId: 'destination-1',
@@ -161,6 +176,42 @@ test('initial import is journaled and repeat verifies item identity without dupl
   f.items[0].name = 'editor renamed'; f.items[0].parent = 'editor moved';
   assert.equal((await execute({ ...f.command, previouslyDispatched: true }, f.adapter, f.journal)).outcome, 'Verified');
   assert.equal(f.imports(), 1);
+});
+
+test('temporary Subclip source imports outside the destination and carries cleanup proof across retry', async () => {
+  const f = fixture();
+  f.command.intent.source.isSubclipPrerequisite = true;
+  const first = await execute(f.command, f.adapter, f.journal);
+  assert.equal(first.outcome, 'Verified');
+  assert.equal(first.verification, 'temporary-subclip-source-v1');
+  assert.equal(f.items[0].parent, 'source-bin');
+  delete f.stored.get('op-1').temporaryPrerequisite; // Companion 1.1.4 journal compatibility.
+  const retry = await execute({ ...f.command, previouslyDispatched: true, previousReceipt: null }, f.adapter, f.journal);
+  assert.equal(retry.outcome, 'Verified');
+  assert.equal(retry.verification, 'temporary-subclip-source-v1');
+  assert.equal(f.imports(), 1);
+});
+
+test('native Subclip removes only a cleanup-proven temporary source after successful verification', async () => {
+  const f = fixture();
+  f.items.push({ id: 'source-item', name: 'source.mov', mediaPath: 'C:/test/source.mov', parent: 'source-bin' });
+  f.command.intent.operationId = 'cleanup-op';
+  f.command.intent.subclip = { subclipId: 'subclip-id', name: 'Clean result', revision: 1,
+    sourceItemId: 'source-item', range: { inTicks: '10', outTicks: '90', sourceDurationTicks: '100' },
+    isSourceFallback: false, hardBoundaries: true, takeVideo: true, takeAudio: true, removeSourceAfter: true };
+  const result = await execute(f.command, f.adapter, f.journal);
+  assert.equal(result.outcome, 'Verified');
+  assert.equal(f.removals(), 1);
+  assert.equal(f.items.some(item => item.id === 'source-item'), false);
+  assert.equal(f.items.some(item => item.id === result.itemId), true);
+
+  const preserved = fixture();
+  preserved.items.push({ id: 'source-item', name: 'source.mov', mediaPath: 'C:/test/source.mov', parent: 'editor-bin' });
+  preserved.command.intent.operationId = 'preserve-op';
+  preserved.command.intent.subclip = { ...f.command.intent.subclip, name: 'Preserved result', removeSourceAfter: false };
+  assert.equal((await execute(preserved.command, preserved.adapter, preserved.journal)).outcome, 'Verified');
+  assert.equal(preserved.removals(), 0);
+  assert.equal(preserved.items.some(item => item.id === 'source-item'), true);
 });
 
 test('native Subclip creation is identity-aware and an identical retry does not duplicate', async () => {

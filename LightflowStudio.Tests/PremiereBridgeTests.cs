@@ -285,8 +285,10 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         }
         Assert.NotNull(source);
         Assert.Null(source.Intent.Subclip);
+        Assert.True(source.Intent.Source.IsSubclipPrerequisite);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(source,
-            new(source.Intent.OperationId, PremiereOutcome.Verified, "source-item", "source imported"))).StatusCode);
+            new(source.Intent.OperationId, PremiereOutcome.Verified, "source-item", "source imported",
+                Verification: PremiereProtocol.TemporarySubclipSourceVerification))).StatusCode);
 
         PremiereCommand? native = null;
         for (var attempt = 0; attempt < 30 && native is null; attempt++)
@@ -297,12 +299,38 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         }
         Assert.NotNull(native);
         Assert.Equal("source-item", native.Intent.Subclip!.SourceItemId);
+        Assert.True(native.Intent.Subclip.RemoveSourceAfter);
         var sourceShaped = new PremiereReceipt(native.Intent.OperationId, PremiereOutcome.Verified,
             "native-item", "accepted without proof");
         Assert.Equal(HttpStatusCode.BadRequest, (await PostReceipt(native, sourceShaped)).StatusCode);
         for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
             await Task.Delay(20);
         Assert.Equal(JobState.CompletedWithWarnings, jobs.Jobs[0].State);
+    }
+
+    [Fact]
+    public async Task ExistingOrdinarySourceNeverAuthorizesSubclipPrerequisiteCleanup()
+    {
+        await Post("/v1/heartbeat", Hello);
+        var jobs = new PremiereJobs(_journal, _bridge);
+        jobs.EnqueueSubclips(_project, "root", null,
+        [
+            new(_source, new(Guid.NewGuid(), "Existing source moment", 1, new("10", "90", "100"), ""))
+        ]);
+
+        var source = await PollCommandAsync();
+        Assert.True(source.Intent.Source.IsSubclipPrerequisite);
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(source,
+            new(source.Intent.OperationId, PremiereOutcome.Verified, "editor-source", "existing source verified"))).StatusCode);
+        var native = await PollCommandAsync();
+        Assert.False(native.Intent.Subclip!.RemoveSourceAfter);
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(native,
+            new(native.Intent.OperationId, PremiereOutcome.Verified, "native-item", "created",
+                PremiereProtocol.SubclipProjectionKey(native.Intent.Subclip), "native-subclip-v3"))).StatusCode);
+        for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
+            await Task.Delay(20);
+
+        Assert.Equal(JobState.Completed, jobs.Jobs[0].State);
     }
 
     [Fact]
@@ -320,15 +348,19 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
 
         var source = await PollCommandAsync();
         Assert.Null(source.Intent.Subclip);
+        Assert.True(source.Intent.Source.IsSubclipPrerequisite);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(source,
-            new(source.Intent.OperationId, PremiereOutcome.Verified, "source-item", "source verified"))).StatusCode);
+            new(source.Intent.OperationId, PremiereOutcome.Verified, "source-item", "source verified",
+                Verification: PremiereProtocol.TemporarySubclipSourceVerification))).StatusCode);
         var first = await PollCommandAsync();
         Assert.Equal(firstId, first.Intent.Subclip!.SubclipId);
+        Assert.False(first.Intent.Subclip.RemoveSourceAfter);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(first,
             new(first.Intent.OperationId, PremiereOutcome.Verified, "native-first", "created",
                 PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip), "native-subclip-v3"))).StatusCode);
         var second = await PollCommandAsync();
         Assert.Equal(secondId, second.Intent.Subclip!.SubclipId);
+        Assert.True(second.Intent.Subclip.RemoveSourceAfter);
         Assert.NotEqual(first.Intent.OperationId, second.Intent.OperationId);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(second,
             new(second.Intent.OperationId, PremiereOutcome.Verified, "native-second", "created",
@@ -348,6 +380,36 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FailedDependentSubclipDoesNotAuthorizeTemporarySourceCleanup()
+    {
+        await Post("/v1/heartbeat", Hello);
+        var jobs = new PremiereJobs(_journal, _bridge);
+        jobs.EnqueueSubclips(_project, "root", null,
+        [
+            new(_source, new(Guid.NewGuid(), "Blocked moment", 1, new("10", "40", "100"), "")),
+            new(_source, new(Guid.NewGuid(), "Later moment", 1, new("50", "90", "100"), ""))
+        ]);
+
+        var source = await PollCommandAsync();
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(source,
+            new(source.Intent.OperationId, PremiereOutcome.Verified, "temporary-source", "source imported",
+                Verification: PremiereProtocol.TemporarySubclipSourceVerification))).StatusCode);
+        var first = await PollCommandAsync();
+        Assert.False(first.Intent.Subclip!.RemoveSourceAfter);
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(first,
+            new(first.Intent.OperationId, PremiereOutcome.Conflict, null, "projection conflict"))).StatusCode);
+        var second = await PollCommandAsync();
+        Assert.False(second.Intent.Subclip!.RemoveSourceAfter);
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(second,
+            new(second.Intent.OperationId, PremiereOutcome.Verified, "native-second", "created",
+                PremiereProtocol.SubclipProjectionKey(second.Intent.Subclip), "native-subclip-v3"))).StatusCode);
+        for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
+            await Task.Delay(20);
+
+        Assert.Equal(JobState.CompletedWithWarnings, jobs.Jobs[0].State);
+    }
+
+    [Fact]
     public async Task MixedSourceBatchMapsSharedPreparationFailureToItsFallbackItemAndWarns()
     {
         await Post("/v1/heartbeat", Hello);
@@ -362,14 +424,18 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
 
         var firstSource = await PollCommandAsync();
         Assert.Equal(_source.AssetId, firstSource.Intent.Source.AssetId);
+        Assert.True(firstSource.Intent.Source.IsSubclipPrerequisite);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(firstSource,
-            new(firstSource.Intent.OperationId, PremiereOutcome.Verified, "source-one", "source verified"))).StatusCode);
+            new(firstSource.Intent.OperationId, PremiereOutcome.Verified, "source-one", "source verified",
+                Verification: PremiereProtocol.TemporarySubclipSourceVerification))).StatusCode);
         var native = await PollCommandAsync();
+        Assert.True(native.Intent.Subclip!.RemoveSourceAfter);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(native,
             new(native.Intent.OperationId, PremiereOutcome.Verified, "native-one", "created",
                 PremiereProtocol.SubclipProjectionKey(native.Intent.Subclip!), "native-subclip-v3"))).StatusCode);
         var secondSource = await PollCommandAsync();
         Assert.Equal(fallbackSource.AssetId, secondSource.Intent.Source.AssetId);
+        Assert.False(secondSource.Intent.Source.IsSubclipPrerequisite);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(secondSource,
             new(secondSource.Intent.OperationId, PremiereOutcome.Failed, null, "source mutation missing"))).StatusCode);
         for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
@@ -405,6 +471,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         Assert.NotNull(source);
         Assert.Null(source.Intent.Subclip);
         Assert.Null(source.Intent.Source.Range);
+        Assert.False(source.Intent.Source.IsSubclipPrerequisite);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(source,
             new(source.Intent.OperationId, PremiereOutcome.Verified, "source-item", "Source imported and verified."))).StatusCode);
         for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)

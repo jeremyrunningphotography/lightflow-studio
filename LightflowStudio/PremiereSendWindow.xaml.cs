@@ -10,14 +10,18 @@ public partial class PremiereSendWindow : Window
     private readonly PremiereBridge _bridge;
     private readonly PremiereJobs _jobs;
     private readonly IReadOnlyList<PremiereSource> _sources;
+    private readonly IReadOnlyList<PremierePlannedSubclip> _subclips;
     private readonly PremiereSendModel _media;
     private readonly PremiereSendState _state = new();
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool _refreshing;
-    internal PremiereSendWindow(PremiereBridge bridge, PremiereJobs jobs, IReadOnlyList<PremiereSource> sources)
+    internal PremiereSendWindow(PremiereBridge bridge, PremiereJobs jobs, IReadOnlyList<PremiereSource> sources,
+        IReadOnlyList<PremierePlannedSubclip>? subclips = null)
     {
         InitializeComponent();
-        _bridge = bridge; _jobs = jobs; _sources = sources; _media = new PremiereSendModel(sources);
+        _bridge = bridge; _jobs = jobs; _sources = sources; _subclips = subclips ?? [];
+        _media = new PremiereSendModel(sources, _subclips);
+        SourceMediaRadio.IsChecked = true;
         SyncMedia();
         _timer.Tick += (_, _) => RefreshConnection();
         Loaded += (_, _) =>
@@ -55,10 +59,10 @@ public partial class PremiereSendWindow : Window
             ConnectionMessageText.Text = presentation.Guidance;
             DestinationMessageText.Text = _state.Message;
             SyncMedia();
-            RangeMessageText.Text = _media.HasRangeIssue
+            RangeMessageText.Text = _media.Mode == PremiereSendMode.Sources && _media.HasRangeIssue
                 ? "One or more review ranges are too short for Premiere and will be sent as full sources."
                 : "";
-            SendButton.IsEnabled = _sources.Count > 0 && _state.CanSend(live);
+            SendButton.IsEnabled = _media.Items.Count > 0 && _state.CanSend(live);
         }
         finally { _refreshing = false; }
     }
@@ -83,6 +87,11 @@ public partial class PremiereSendWindow : Window
         _media.SetGlobalUseRanges(use);
         SyncMedia();
     }
+    private void RepresentationMode_Changed(object sender, RoutedEventArgs e)
+    {
+        _media.SelectMode(SubclipsRadio.IsChecked == true ? PremiereSendMode.Subclips : PremiereSendMode.Sources);
+        SyncMedia();
+    }
     internal static bool ShouldTransferWheelToDialog(double scrollableHeight, double verticalOffset, int delta) =>
         scrollableHeight <= 0 || (delta > 0 && verticalOffset <= 0) || (delta < 0 && verticalOffset >= scrollableHeight);
     private void SourcesScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -98,12 +107,22 @@ public partial class PremiereSendWindow : Window
     private void SyncMedia()
     {
         var items = _media.Items;
-        MediaHeading.Text = $"Media being sent · {_sources.Count}";
+        var fallbackCount = _media.PlannedSubclips.Count(item => item.Projection.IsSourceFallback);
+        var nativeCount = _media.PlannedSubclips.Count - fallbackCount;
+        MediaHeading.Text = _media.Mode == PremiereSendMode.Subclips
+            ? $"Media being sent · {PremiereGrammar.Mixed(nativeCount, fallbackCount)}"
+            : $"Media being sent · {PremiereGrammar.Count(_sources.Count, "video")}";
+        RepresentationHelpText.Text = _media.Mode == PremiereSendMode.Subclips
+            ? "Selected videos without Subclips are sent in full."
+            : "Saved In/Out points can optionally be included.";
         Sources.ItemsSource = items;
-        GlobalUseRangesCheck.IsEnabled = items.Any(item => item.HasRange);
+        GlobalUseRangesCheck.Visibility = _media.Mode == PremiereSendMode.Sources ? Visibility.Visible : Visibility.Collapsed;
+        GlobalUseRangesCheck.IsEnabled = _media.Mode == PremiereSendMode.Sources && items.Any(item => item.HasRange);
         GlobalUseRangesCheck.IsChecked = _media.GlobalUseRangeState;
         System.Windows.Automation.AutomationProperties.SetName(SourcesScroll,
-            $"Media being sent, {_sources.Count} {(_sources.Count == 1 ? "source" : "sources")}");
+            _media.Mode == PremiereSendMode.Subclips
+                ? $"Media being sent, {PremiereGrammar.Mixed(nativeCount, fallbackCount)}"
+                : $"Media being sent, {PremiereGrammar.Count(_sources.Count, "video")}");
     }
     private void Send_Click(object sender, RoutedEventArgs e)
     {
@@ -111,9 +130,10 @@ public partial class PremiereSendWindow : Window
         if (!_state.CanSend(live)) { RefreshConnection(); ResultText.Text = "The destination changed or is unavailable. Review the current project and choose a bin again."; return; }
         try
         {
-            _jobs.Enqueue(live.Companion!.Project!, _state.SelectedBinId!,
-                string.IsNullOrWhiteSpace(NewBinName.Text) ? null : NewBinName.Text.Trim(),
-                _media.PlannedSources);
+            var binName = string.IsNullOrWhiteSpace(NewBinName.Text) ? null : NewBinName.Text.Trim();
+            if (_media.Mode == PremiereSendMode.Subclips)
+                _jobs.EnqueueSubclips(live.Companion!.Project!, _state.SelectedBinId!, binName, _media.PlannedSubclips);
+            else _jobs.Enqueue(live.Companion!.Project!, _state.SelectedBinId!, binName, _media.PlannedSources);
             Close();
         }
         catch (Exception error) { ResultText.Text = error.Message; }

@@ -1564,6 +1564,7 @@ public partial class MainWindow : Window
         Enable("Open", state.SelectionCount > 0);
         Enable("Add to Collection…", state.SelectionCount > 0 && _browserGrid.SelectedAssetIdsInBrowserOrder.Count == state.SelectionCount);
         Enable("Remove from this Collection", state.SelectionCount > 0 && _activeCollectionScope is not null);
+        Enable("Send To", state.CanExport);
         Enable("Export", state.CanExport);
         Enable("Regenerate Previews", state.CanRegenerateThumbnails);
         Enable("Camera LUT", state.CanAssignCameraLut && BrowserCameraLutCombo.IsEnabled);

@@ -43,6 +43,23 @@
    </StackPanel>
   </DataTemplate>
   <DataTemplate DataType="{x:Type local:JobMessageDetailsPresentation}"><TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding Text}" TextWrapping="Wrap"/></DataTemplate>
+  <DataTemplate DataType="{x:Type local:PremiereJobDetailsPresentation}">
+   <StackPanel>
+    <TextBlock Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"><Run Text="Project: "/><Run Text="{Binding Project}"/></TextBlock>
+    <TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding Progress}"/>
+    <ItemsControl ItemsSource="{Binding Items}"><ItemsControl.ItemTemplate><DataTemplate>
+     <TextBlock TextWrapping="Wrap"><TextBlock.Style><Style TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+      <Style.Triggers>
+       <DataTrigger Binding="{Binding State}" Value="{x:Static local:PremiereJobItemState.Sending}"><Setter Property="Foreground" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
+       <DataTrigger Binding="{Binding State}" Value="{x:Static local:PremiereJobItemState.Sent}"><Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/></DataTrigger>
+       <DataTrigger Binding="{Binding State}" Value="{x:Static local:PremiereJobItemState.Failed}"><Setter Property="Foreground" Value="{StaticResource WarningBrush}"/></DataTrigger>
+       <DataTrigger Binding="{Binding State}" Value="{x:Static local:PremiereJobItemState.Conflict}"><Setter Property="Foreground" Value="{StaticResource WarningBrush}"/></DataTrigger>
+      </Style.Triggers>
+     </Style></TextBlock.Style><Run Text="{Binding Name}"/><Run Text=" — "/><Run FontWeight="SemiBold" Text="{Binding Status}"/><Run Text="{Binding Detail}"/></TextBlock>
+    </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+   </StackPanel>
+  </DataTemplate>
 
   <!-- Settings is a lightweight utility, but its content needs a stable pattern that can grow without
        returning to one long configuration wall. These resources deliberately stay scoped to MainWindow:
@@ -564,7 +581,9 @@
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Add keyword…" Click="BrowserAddKeyword_Click"/>
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Clear keywords" Click="BrowserClearKeywords_Click"/>
                   </MenuItem>
-                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Send to Premiere Pro…" Click="BrowserSendPremiere_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Send To">
+                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Premiere Pro" Click="BrowserSendPremiere_Click"/>
+                  </MenuItem>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export">
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export…" Click="BrowserContextExport_Click"/>
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export Subclips…" Click="BrowserContextExportSubclips_Click"/>

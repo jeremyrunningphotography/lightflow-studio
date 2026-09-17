@@ -15,7 +15,7 @@
      <Button x:Name="InstallButton" Content="Install Companion…" Style="{StaticResource PrimaryButton}" Click="Install_Click" HorizontalAlignment="Left" Margin="0,10,0,0"/>
     </StackPanel>
    </Border>
-   <TextBlock Text="Select source media in the Browser and choose Send to Premiere Pro to choose a destination and send." Style="{StaticResource PageSubtitle}" Margin="0,0,0,12"/>
+   <TextBlock Text="Select videos in the Browser and choose Send To → Premiere Pro to choose what to send and its destination." Style="{StaticResource PageSubtitle}" Margin="0,0,0,12"/>
    <Expander Style="{StaticResource SettingsExpanderStyle}" x:Name="SetupHelp" Header="First-time setup" Margin="0,0,0,12">
     <StackPanel Margin="10,0,10,0">
      <TextBlock Style="{StaticResource PageSubtitle}" Text="Adobe requires one folder-access grant so the companion can read Lightflow's protected connection settings. This grants access only to the connection folder; you do not need to find your media or project folder."/>

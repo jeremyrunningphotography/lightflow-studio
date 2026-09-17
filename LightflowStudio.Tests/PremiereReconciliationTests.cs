@@ -54,6 +54,71 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         Assert.Equal(4, (await _journal.ListAsync()).Count);
     }
 
+    [Fact]
+    public async Task SubclipMappingsPersistPerDestinationIdentityAndKeepIndependentReceipts()
+    {
+        var range = new PremiereRangeProjection("10000001", "30000002", "60000000");
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var first = await _journal.PrepareSubclipAsync(_project, "root", null, _source,
+            new(firstId, "First", 1, range, "source-item"));
+        var second = await _journal.PrepareSubclipAsync(_project, "root", null, _source,
+            new(secondId, "Second", 1, range, "source-item"));
+        Assert.NotEqual(first.Intent.OperationId, second.Intent.OperationId);
+        await _journal.MarkDispatchedAsync(first.Intent);
+        await _journal.SaveReceiptAsync(first.Intent, new(first.Intent.OperationId, PremiereOutcome.Verified,
+            "native-first", "created", PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip!), "native-subclip-v3"));
+        await _journal.SaveReceiptAsync(first.Intent, new(first.Intent.OperationId, PremiereOutcome.Failed,
+            null, "transient failure"));
+
+        var retry = await _journal.PrepareSubclipAsync(_project, "other-bin", null, _source,
+            new(firstId, "First renamed", 2, range, "source-item"));
+        Assert.Equal(first.Intent.OperationId, retry.Intent.OperationId);
+        Assert.True(retry.PreviouslyDispatched);
+        Assert.Equal("native-first", retry.PreviousReceipt!.ItemId);
+        Assert.Equal(PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip!), retry.PreviousReceipt.ProjectionKey);
+        Assert.Equal("First renamed", retry.Intent.Subclip!.Name);
+        Assert.Equal(2, (await _journal.ListAsync()).Count);
+    }
+
+    [Fact]
+    public async Task VerifiedSubclipReceiptRequiresExactProjectionProof()
+    {
+        var projection = new PremiereSubclipProjection(Guid.NewGuid(), "Proof", 2,
+            new("10", "90", "100"), "source-item");
+        var command = await _journal.PrepareSubclipAsync(_project, "root", null, _source, projection);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _journal.SaveReceiptAsync(command.Intent,
+            new(command.Intent.OperationId, PremiereOutcome.Verified, "source-item", "source-shaped receipt")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _journal.SaveReceiptAsync(command.Intent,
+            new(command.Intent.OperationId, PremiereOutcome.Verified, "native-item", "wrong projection", "wrong")));
+        var receipt = new PremiereReceipt(command.Intent.OperationId, PremiereOutcome.Verified, "native-item", "created",
+            PremiereProtocol.SubclipProjectionKey(projection), "native-subclip-v3");
+        await _journal.SaveReceiptAsync(command.Intent, receipt);
+        Assert.Equal(receipt, (await _journal.PrepareSubclipAsync(_project, "root", null, _source, projection)).PreviousReceipt);
+    }
+
+    [Fact]
+    public void SubclipProjectionProofMatchesJavaScriptJsonForUnicodeNames()
+    {
+        var projection = new PremiereSubclipProjection(Guid.NewGuid(), "Café 二", 2,
+            new("10", "90", "100"), "source-item");
+
+        Assert.Equal("{\"name\":\"Café 二\",\"revision\":2,\"range\":\"10:90:100\",\"hardBoundaries\":true,\"takeVideo\":true,\"takeAudio\":true}",
+            PremiereProtocol.SubclipProjectionKey(projection));
+    }
+
+    [Fact]
+    public void RangeProjectionPreservesExclusiveOutWithNearestPremiereTickAtNtscAndVfrPositions()
+    {
+        var frame = TimeSpan.FromTicks(333667); // nearest Lightflow tick to 1001/30000 second
+        var vfrPosition = TimeSpan.FromTicks(12_345_679);
+        Assert.True(PremiereRangeProjection.TryCreate(new(TimeSpan.FromSeconds(10), frame,
+            frame + vfrPosition), out var projection));
+        Assert.Equal(frame.Ticks.ToString(), projection!.InTicks);
+        Assert.Equal((frame + vfrPosition).Ticks.ToString(), projection.OutTicks);
+        Assert.True(projection.IsValid());
+    }
+
     [Theory]
     [InlineData(0, 0, 120, true)]
     [InlineData(100, 0, 120, true)]
@@ -101,6 +166,8 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         Assert.Equal("Not sent", PremiereJob.OutcomeText(receipt));
         Assert.DoesNotContain("payload", PremiereJob.UserMessage(receipt), StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Resolve", PremiereJob.UserMessage(receipt), StringComparison.OrdinalIgnoreCase);
+        var destination = receipt with { Message = "The mapped native Subclip is outside the selected destination." };
+        Assert.Contains("Move it back", PremiereJob.UserMessage(destination));
     }
 
     [Fact]
@@ -117,6 +184,35 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         Assert.Equal("Sending", job.Card(expanded: false).State);
         Assert.Equal(50, job.Card(expanded: false).Progress);
         Assert.Equal(50, job.WorkspaceItem().Progress);
+    }
+
+    [Fact]
+    public void SubclipJobsExposeTypedItemStatusesWithoutRepeatingTheLastItemAsAnIssue()
+    {
+        var sent = new PremiereReceipt(Guid.NewGuid(), PremiereOutcome.Verified, "sent-item", "created");
+        var conflict = new PremiereReceipt(Guid.NewGuid(), PremiereOutcome.Conflict, "conflict-item",
+            "The mapped native Subclip is outside the selected destination.");
+        var planned = new[]
+        {
+            new PremierePlannedSubclip(_source, new(Guid.NewGuid(), "Sent moment", 1, new("10", "40", "100"), "source")),
+            new PremierePlannedSubclip(_source, new(Guid.NewGuid(), "Conflicting moment", 1, new("50", "90", "100"), "source"))
+        };
+        var items = new[]
+        {
+            new PremiereJobItem($"subclip:{planned[0].Projection.SubclipId:D}", "Sent moment", PremiereJobItemState.Sent, sent),
+            new PremiereJobItem($"subclip:{planned[1].Projection.SubclipId:D}", "Conflicting moment", PremiereJobItemState.Conflict, conflict)
+        };
+        var job = new PremiereJob(Guid.NewGuid(), _project, [_source], JobState.CompletedWithWarnings, 2,
+            [sent, conflict], "Sent moment — Sent", DateTimeOffset.UtcNow, planned, items);
+
+        var card = job.Card(expanded: true);
+        var details = Assert.IsType<PremiereJobDetailsPresentation>(card.Details);
+        Assert.Collection(details.Items,
+            item => { Assert.Equal("Sent", item.Status); Assert.Equal(PremiereJobItemState.Sent, item.State); Assert.Empty(item.Detail); },
+            item => { Assert.Equal("Conflict", item.Status); Assert.Equal(PremiereJobItemState.Conflict, item.State); Assert.Contains("Move it back", item.Detail); });
+        Assert.Equal("1 item needs attention.", card.Issue);
+        Assert.DoesNotContain("Sent moment — Sent", card.Issue);
+        Assert.Equal(card.Issue, job.WorkspaceItem().Issue);
     }
 
     public async Task DisposeAsync()

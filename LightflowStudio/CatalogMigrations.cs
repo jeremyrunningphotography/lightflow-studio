@@ -26,7 +26,8 @@ internal static class CatalogMigrations
         new(11, "Mixed Collection hierarchy sibling order", ApplyVersion11),
         new(12, "Durable asset ratings, flags, color labels, and keywords", ApplyVersion12),
         new(13, "Creator-authored asset descriptions and overrides", ApplyVersion13),
-        new(14, "Premiere destination projections and durable handoff intents", ApplyVersion14)
+        new(14, "Premiere destination projections and durable handoff intents", ApplyVersion14),
+        new(15, "Premiere native Subclip destination projections", ApplyVersion15)
     ];
 
     private static void ApplyVersion1(
@@ -566,6 +567,22 @@ internal static class CatalogMigrations
             Dispatched INTEGER NOT NULL DEFAULT 0 CHECK (Dispatched IN (0,1)),
             UNIQUE(DestinationId, AssetId)
         );
+        """);
+
+    private static void ApplyVersion15(SqliteConnection connection, SqliteTransaction transaction,
+        CatalogMigrationContext context) => Execute(connection, transaction, """
+        CREATE TABLE PremiereSubclipHandoffs (
+            OperationId TEXT NOT NULL PRIMARY KEY,
+            DestinationId TEXT NOT NULL,
+            AssetId TEXT NOT NULL REFERENCES MediaAssets(AssetId) ON DELETE RESTRICT,
+            ProjectionKey TEXT NOT NULL,
+            IntentJson TEXT NOT NULL,
+            ReceiptJson TEXT NULL,
+            Dispatched INTEGER NOT NULL DEFAULT 0 CHECK (Dispatched IN (0,1)),
+            UNIQUE(DestinationId, ProjectionKey)
+        );
+        CREATE INDEX IX_PremiereSubclipHandoffs_Asset
+            ON PremiereSubclipHandoffs(DestinationId, AssetId);
         """);
 
     private static void Execute(SqliteConnection connection, SqliteTransaction transaction, string sql)

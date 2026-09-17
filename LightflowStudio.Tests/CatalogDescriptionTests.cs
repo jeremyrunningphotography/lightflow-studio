@@ -163,7 +163,7 @@ public sealed class CatalogDescriptionTests : IAsyncLifetime
         await old.DisposeAsync();
         var recovery = new SqliteCatalogRecoveryService(locations);
         var migrated = await new CatalogDatabaseService(locations, recovery).OpenExistingAsync();
-        Assert.True(migrated.IsSuccess); Assert.Equal(14, migrated.SchemaVersion);
+        Assert.True(migrated.IsSuccess); Assert.Equal(CatalogMigrations.All[^1].Version, migrated.SchemaVersion);
         await using var session = migrated.Session!;
         Assert.Equal(identity, session.Identity.CatalogId);
         using var connection = session.OpenConnection(); using var command = connection.CreateCommand();

@@ -44,12 +44,12 @@ public partial class MainWindow
     }
     private async void PremiereIntegration_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(false);
     private async void BrowserSendPremiere_Click(object sender, RoutedEventArgs e) => await OpenPremiereAsync(true);
-    private async Task OpenPremiereAsync(bool selection)
+    private async Task OpenPremiereAsync(bool send)
     {
         try
         {
             await EnsurePremiereAsync();
-            if (!selection)
+            if (!send)
             {
                 new PremiereIntegrationWindow(_premiereBridge!) { Owner = this }.ShowDialog();
                 return;
@@ -71,31 +71,31 @@ public partial class MainWindow
                 return;
             }
             var sources = new List<PremiereSource>();
-            if (selection)
+            var savedSubclips = new Dictionary<Guid, IReadOnlyList<Subclip>>();
+            foreach (var assetId in _browserGrid.SelectedAssetIdsInBrowserOrder)
             {
-                foreach (var assetId in _browserGrid.SelectedAssetIdsInBrowserOrder)
-                {
-                    var resolved = await _storage.MediaAssets.GetAsync(assetId);
-                    if (resolved?.PhysicalPath is not { } path) throw new InvalidOperationException("A selected Catalog source is unavailable.");
-                    PremiereRangeProjection? range = null;
-                    string? rangeIssue = null;
-                    if (PremiereSendPlanning.IsVideo(path) && await _storage.MediaRanges.RestoreAsync(assetId) is { } savedRange
-                        && !PremiereRangeProjection.TryCreate(savedRange, out range))
-                        rangeIssue = "Saved In/Out is too short for Premiere";
-                    var source = new PremiereSource(assetId, path,
-                        resolved.Asset.FileSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        resolved.Asset.LastWriteUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture), range) { RangeIssue = rangeIssue };
-                    CatalogPremiereHandoffs.ValidateSource(source);
-                    sources.Add(source);
-                }
+                var resolved = await _storage.MediaAssets.GetAsync(assetId);
+                if (resolved?.PhysicalPath is not { } path) throw new InvalidOperationException("A selected Catalog source is unavailable.");
+                PremiereRangeProjection? range = null;
+                string? rangeIssue = null;
+                if (PremiereSendPlanning.IsVideo(path) && await _storage.MediaRanges.RestoreAsync(assetId) is { } savedRange
+                    && !PremiereRangeProjection.TryCreate(savedRange, out range))
+                    rangeIssue = "Saved In/Out is too short for Premiere";
+                var source = new PremiereSource(assetId, path,
+                    resolved.Asset.FileSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    resolved.Asset.LastWriteUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture), range) { RangeIssue = rangeIssue };
+                CatalogPremiereHandoffs.ValidateSource(source);
+                sources.Add(source);
+                savedSubclips[assetId] = await _storage.Subclips.ListAsync(assetId);
             }
-            new PremiereSendWindow(_premiereBridge!, _premiereJobs!, sources) { Owner = this }.ShowDialog();
+            var subclipPlan = PremiereSendPlanning.Subclips(sources, savedSubclips);
+            new PremiereSendWindow(_premiereBridge!, _premiereJobs!, sources, subclipPlan) { Owner = this }.ShowDialog();
             if (_premiereJobs!.Jobs.Any(job => job.State is JobState.Queued or JobState.Running)) OpenJobsPanel();
         }
         catch (Exception error)
         {
             var message = $"Premiere connection problem: {error.Message}";
-            if (selection) BrowserStatusText.Text = message;
+            if (send) BrowserStatusText.Text = message;
             else SettingsMessage.Text = message;
         }
     }

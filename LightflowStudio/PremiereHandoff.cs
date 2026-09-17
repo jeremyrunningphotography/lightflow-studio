@@ -1,6 +1,7 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -11,11 +12,16 @@ internal static class PremiereProtocol
     public const int Version = 1;
     public const int Port = 47857;
     public const string Endpoint = "http://localhost:47857";
-    public const string CompanionVersion = "1.0.7";
+    public const string CompanionVersion = "1.1.5";
+    public const string TemporarySubclipSourceVerification = "temporary-subclip-source-v1";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         Converters = { new JsonStringEnumConverter() }
+    };
+    private static readonly JsonSerializerOptions ProjectionJson = new(Json)
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
     public static string PathKey(string path) => Path.GetFullPath(path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)
         ? @"\\" + path[8..] : path.StartsWith(@"\\?\", StringComparison.Ordinal) ? path[4..] : path)
@@ -24,6 +30,15 @@ internal static class PremiereProtocol
         Encoding.UTF8.GetBytes(project.Guid + "\n" + PathKey(project.Path))));
     public static bool SupportedHost(string version) => System.Version.TryParse(version, out var parsed)
         && parsed >= new Version(26, 5);
+    public static string SubclipProjectionKey(PremiereSubclipProjection subclip) => JsonSerializer.Serialize(new
+    {
+        name = subclip.Name,
+        revision = subclip.Revision,
+        range = subclip.Range is null ? "full-source" : $"{subclip.Range.InTicks}:{subclip.Range.OutTicks}:{subclip.Range.SourceDurationTicks}",
+        hardBoundaries = subclip.HardBoundaries,
+        takeVideo = subclip.TakeVideo,
+        takeAudio = subclip.TakeAudio
+    }, ProjectionJson);
 }
 
 internal sealed record PremiereProject(string Guid, string Path, string Name);
@@ -73,7 +88,7 @@ internal sealed record PremiereRangeProjection(string InTicks, string OutTicks, 
     }
 }
 internal sealed record PremiereSource(Guid AssetId, string Path, string SizeBytes, string LastWriteUtcTicks,
-    PremiereRangeProjection? Range = null)
+    PremiereRangeProjection? Range = null, bool PreserveRange = false, bool IsSubclipPrerequisite = false)
 {
     [JsonIgnore]
     public string? RangeIssue { get; init; }
@@ -87,13 +102,22 @@ internal sealed record PremiereSource(Guid AssetId, string Path, string SizeByte
     public bool HasRangeIssue => RangeIssue is not null;
     public PremiereSource WithoutRange() => this with { Range = null, RangeIssue = null };
 }
+internal sealed record PremiereSubclipProjection(Guid? SubclipId, string Name, long Revision,
+    PremiereRangeProjection? Range, string SourceItemId, bool IsSourceFallback = false,
+    bool HardBoundaries = true, bool TakeVideo = true, bool TakeAudio = true, bool RemoveSourceAfter = false)
+{
+    [JsonIgnore]
+    public string ProjectionKey => IsSourceFallback ? "fallback" : SubclipId!.Value.ToString("D");
+}
 internal sealed record PremiereIntent(Guid OperationId, Guid CatalogId, string DestinationId,
-    PremiereProject Project, string BinId, string? CreateBinName, PremiereSource Source)
+    PremiereProject Project, string BinId, string? CreateBinName, PremiereSource Source,
+    PremiereSubclipProjection? Subclip = null)
 {
     public DateTimeOffset CreatedUtc { get; init; } = DateTimeOffset.UtcNow;
 }
 internal enum PremiereOutcome { Verified, Conflict, Failed, UnknownOutcome }
-internal sealed record PremiereReceipt(Guid OperationId, PremiereOutcome Outcome, string? ItemId, string Message);
+internal sealed record PremiereReceipt(Guid OperationId, PremiereOutcome Outcome, string? ItemId, string Message,
+    string? ProjectionKey = null, string? Verification = null);
 internal sealed record PremiereCommand(PremiereIntent Intent, bool PreviouslyDispatched, PremiereReceipt? PreviousReceipt)
 {
     public Guid DispatchId { get; init; } = Guid.NewGuid();
@@ -108,11 +132,14 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
         if (catalog is null) return [];
         using var connection = catalog.OpenConnection();
         using var query = connection.CreateCommand();
-        query.CommandText = "SELECT IntentJson,Dispatched,ReceiptJson FROM PremiereHandoffs ORDER BY rowid DESC LIMIT 500";
-        using var reader = query.ExecuteReader();
         var results = new List<PremiereCommand>();
-        while (reader.Read()) results.Add(new(JsonSerializer.Deserialize<PremiereIntent>(reader.GetString(0), PremiereProtocol.Json)!,
-            reader.GetBoolean(1), reader.IsDBNull(2) ? null : JsonSerializer.Deserialize<PremiereReceipt>(reader.GetString(2), PremiereProtocol.Json)));
+        foreach (var table in new[] { "PremiereHandoffs", "PremiereSubclipHandoffs" })
+        {
+            query.CommandText = $"SELECT IntentJson,Dispatched,ReceiptJson FROM {table} ORDER BY rowid DESC LIMIT 500";
+            using var reader = query.ExecuteReader();
+            while (reader.Read()) results.Add(new(JsonSerializer.Deserialize<PremiereIntent>(reader.GetString(0), PremiereProtocol.Json)!,
+                reader.GetBoolean(1), reader.IsDBNull(2) ? null : JsonSerializer.Deserialize<PremiereReceipt>(reader.GetString(2), PremiereProtocol.Json)));
+        }
         return results;
     });
 
@@ -146,7 +173,8 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
                 dispatched = reader.GetBoolean(1);
                 priorReceipt = reader.IsDBNull(2) ? null : JsonSerializer.Deserialize<PremiereReceipt>(reader.GetString(2), PremiereProtocol.Json);
                 // Changed source facts must never reuse an operation ID or silently relink editor media.
-                if ((prior.Source with { Range = null, RangeIssue = null }) != (source with { Range = null, RangeIssue = null }))
+                if ((prior.Source with { Range = null, RangeIssue = null, PreserveRange = false, IsSubclipPrerequisite = false })
+                    != (source with { Range = null, RangeIssue = null, PreserveRange = false, IsSubclipPrerequisite = false }))
                     throw new InvalidOperationException("Source changed since the previous handoff. Reconcile the existing Premiere item before sending again.");
             }
         }
@@ -178,6 +206,59 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
         return new PremiereCommand(intent, false, null);
     }, cancellationToken);
 
+    public Task<PremiereCommand> PrepareSubclipAsync(PremiereProject project, string binId, string? createBinName,
+        PremiereSource source, PremiereSubclipProjection subclip, CancellationToken cancellationToken = default) => Task.Run(() =>
+    {
+        var catalog = session() ?? throw new InvalidOperationException("The Catalog is unavailable.");
+        ValidateSource(source);
+        ValidateSubclip(subclip);
+        if (source.AssetId == Guid.Empty || string.IsNullOrWhiteSpace(binId)
+            || !Path.IsPathFullyQualified(project.Path) || string.IsNullOrWhiteSpace(project.Guid))
+            throw new InvalidOperationException("A saved active project, target bin and Catalog source are required.");
+        using var connection = catalog.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        var destination = PremiereProtocol.DestinationId(project);
+        var projectionKey = subclip.IsSourceFallback ? $"asset:{source.AssetId:D}" : $"subclip:{subclip.SubclipId:D}";
+        using var read = connection.CreateCommand();
+        read.Transaction = transaction;
+        read.CommandText = "SELECT IntentJson,Dispatched,ReceiptJson FROM PremiereSubclipHandoffs WHERE DestinationId=$destination AND ProjectionKey=$projection";
+        read.Parameters.AddWithValue("$destination", destination);
+        read.Parameters.AddWithValue("$projection", projectionKey);
+        PremiereIntent? prior = null;
+        bool dispatched = false;
+        PremiereReceipt? priorReceipt = null;
+        using (var reader = read.ExecuteReader())
+        {
+            if (reader.Read())
+            {
+                prior = JsonSerializer.Deserialize<PremiereIntent>(reader.GetString(0), PremiereProtocol.Json)!;
+                dispatched = reader.GetBoolean(1);
+                priorReceipt = reader.IsDBNull(2) ? null : JsonSerializer.Deserialize<PremiereReceipt>(reader.GetString(2), PremiereProtocol.Json);
+                if ((prior.Source with { Range = null, RangeIssue = null, PreserveRange = false, IsSubclipPrerequisite = false })
+                    != (source with { Range = null, RangeIssue = null, PreserveRange = false, IsSubclipPrerequisite = false }))
+                    throw new InvalidOperationException("Source changed since this Subclip was handed off. Reconcile the existing Premiere item before sending again.");
+            }
+        }
+        var intent = prior is null
+            ? new PremiereIntent(Guid.NewGuid(), catalog.Identity.CatalogId, destination, project, binId, createBinName, source, subclip)
+            : prior with { Project = project, BinId = binId, CreateBinName = createBinName, Source = source, Subclip = subclip };
+        using var write = connection.CreateCommand();
+        write.Transaction = transaction;
+        if (prior is null)
+        {
+            write.CommandText = "INSERT INTO PremiereSubclipHandoffs(OperationId,DestinationId,AssetId,ProjectionKey,IntentJson) VALUES($id,$destination,$asset,$projection,$intent)";
+            write.Parameters.AddWithValue("$destination", destination);
+            write.Parameters.AddWithValue("$asset", source.AssetId.ToString());
+            write.Parameters.AddWithValue("$projection", projectionKey);
+        }
+        else write.CommandText = "UPDATE PremiereSubclipHandoffs SET IntentJson=$intent WHERE OperationId=$id";
+        write.Parameters.AddWithValue("$id", intent.OperationId.ToString());
+        write.Parameters.AddWithValue("$intent", JsonSerializer.Serialize(intent, PremiereProtocol.Json));
+        if (write.ExecuteNonQuery() != 1) throw new InvalidOperationException("Subclip handoff intent could not be saved.");
+        transaction.Commit();
+        return new PremiereCommand(intent, dispatched, priorReceipt);
+    }, cancellationToken);
+
     public Task MarkDispatchedAsync(PremiereIntent intent) => UpdateAsync(intent,
         "UPDATE PremiereHandoffs SET Dispatched=1 WHERE OperationId=$id", null);
 
@@ -185,7 +266,10 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
     {
         if (receipt.OperationId != intent.OperationId || receipt.Message is null || receipt.Message.Length > 2000
             || !Enum.IsDefined(receipt.Outcome) || receipt.ItemId?.Length > 200
-            || receipt.Outcome == PremiereOutcome.Verified && string.IsNullOrWhiteSpace(receipt.ItemId))
+            || receipt.Outcome == PremiereOutcome.Verified && string.IsNullOrWhiteSpace(receipt.ItemId)
+            || intent.Subclip is { } subclip && receipt.Outcome == PremiereOutcome.Verified
+                && (receipt.ProjectionKey != PremiereProtocol.SubclipProjectionKey(subclip)
+                    || receipt.Verification != "native-subclip-v3"))
             throw new InvalidOperationException("Invalid companion receipt.");
         return UpdateAsync(intent, "UPDATE PremiereHandoffs SET ReceiptJson=$receipt WHERE OperationId=$id", receipt);
     }
@@ -196,16 +280,25 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
         if (catalog.Identity.CatalogId != intent.CatalogId) throw new InvalidOperationException("The active Catalog changed.");
         using var connection = catalog.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = sql;
+        var table = intent.Subclip is null ? "PremiereHandoffs" : "PremiereSubclipHandoffs";
+        command.CommandText = sql.Replace("PremiereHandoffs", table, StringComparison.Ordinal);
         command.Parameters.AddWithValue("$id", intent.OperationId.ToString());
         if (receipt is not null)
         {
             // A transient failure must not erase an established destination identity.
             using var prior = connection.CreateCommand();
-            prior.CommandText = "SELECT ReceiptJson FROM PremiereHandoffs WHERE OperationId=$id";
+            prior.CommandText = $"SELECT ReceiptJson FROM {table} WHERE OperationId=$id";
             prior.Parameters.AddWithValue("$id", intent.OperationId.ToString());
-            if (receipt.ItemId is null && prior.ExecuteScalar() is string json)
-                receipt = receipt with { ItemId = JsonSerializer.Deserialize<PremiereReceipt>(json, PremiereProtocol.Json)?.ItemId };
+            if (prior.ExecuteScalar() is string json)
+            {
+                var existing = JsonSerializer.Deserialize<PremiereReceipt>(json, PremiereProtocol.Json);
+                receipt = receipt with
+                {
+                    ItemId = receipt.ItemId ?? existing?.ItemId,
+                    ProjectionKey = receipt.ProjectionKey ?? existing?.ProjectionKey,
+                    Verification = receipt.Verification ?? existing?.Verification
+                };
+            }
             command.Parameters.AddWithValue("$receipt", JsonSerializer.Serialize(receipt, PremiereProtocol.Json));
         }
         if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("Handoff intent is missing from the Catalog.");
@@ -222,6 +315,17 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
             throw new InvalidOperationException("Source is missing or changed. Refresh the Browser before sending.");
         if (source.Range is not null && !source.Range.IsValid())
             throw new InvalidOperationException("The saved In/Out range is too short for Premiere.");
+    }
+
+    public static void ValidateSubclip(PremiereSubclipProjection subclip)
+    {
+        if (string.IsNullOrWhiteSpace(subclip.Name) || subclip.Name.Length > 255 || subclip.Name.IndexOfAny(['\r', '\n']) >= 0
+            || subclip.Revision < 1 || string.IsNullOrWhiteSpace(subclip.SourceItemId) || subclip.SourceItemId.Length > 200
+            || subclip.Range is not null && !subclip.Range.IsValid()
+            || subclip.Range is null && !subclip.IsSourceFallback
+            || !subclip.HardBoundaries || !subclip.TakeVideo && !subclip.TakeAudio
+            || subclip.IsSourceFallback == (subclip.SubclipId is not null))
+            throw new InvalidOperationException("The native Premiere Subclip projection is invalid.");
     }
 
     public static bool CompatibleExtension(string extension) => extension.ToLowerInvariant() is

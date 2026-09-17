@@ -52,6 +52,8 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
     private HttpClient _client = null!;
     private DateTimeOffset _now = DateTimeOffset.UtcNow;
     private PremiereSource _source = null!;
+    private MediaAssetService _assets = null!;
+    private Guid _rootId;
     private readonly PremiereProject _project = new("project-guid", @"C:\disposable\edit.prproj", "edit.prproj");
     private string _authorization = "";
     public async Task InitializeAsync()
@@ -64,8 +66,9 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         var path = Path.Combine(rootPath, "source.mov");
         await File.WriteAllTextAsync(path, "synthetic test media");
         var root = (await roots.CreateAsync("Test", rootPath)).Root!;
-        var assets = new MediaAssetService(new CatalogMediaAssetRepository(() => _session), roots, new SampledSourceFingerprintService());
-        var asset = (await assets.CreateAsync(root.RootId, "source.mov", "video")).Asset!.Asset;
+        _rootId = root.RootId;
+        _assets = new MediaAssetService(new CatalogMediaAssetRepository(() => _session), roots, new SampledSourceFingerprintService());
+        var asset = (await _assets.CreateAsync(root.RootId, "source.mov", "video")).Asset!.Asset;
         _source = new(asset.AssetId, path, asset.FileSizeBytes.ToString(), asset.LastWriteUtcTicks.ToString());
         _journal = new(() => _session);
         _bridge = new(_journal, Path.Combine(_temp, "pairing"), () => _now);
@@ -95,6 +98,23 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         request.Headers.Add("X-Lightflow-Dispatch", command.DispatchId.ToString());
         return await _client.SendAsync(request);
+    }
+    private async Task<PremiereCommand> PollCommandAsync()
+    {
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            var response = await Post("/v1/poll", new { });
+            if (response.StatusCode == HttpStatusCode.OK)
+                return (await response.Content.ReadFromJsonAsync<PremiereCommand>(PremiereProtocol.Json))!;
+        }
+        throw new TimeoutException("No Premiere command was dispatched.");
+    }
+    private async Task<PremiereSource> CreateSourceAsync(string name)
+    {
+        var path = Path.Combine(Path.GetDirectoryName(_source.Path)!, name);
+        await File.WriteAllTextAsync(path, "synthetic test media " + name);
+        var asset = (await _assets.CreateAsync(_rootId, name, "video")).Asset!.Asset;
+        return new(asset.AssetId, path, asset.FileSizeBytes.ToString(), asset.LastWriteUtcTicks.ToString());
     }
     [Fact]
     public async Task InstalledOrStartedIsNotConnected_HeartbeatExpiresAndCompatibilityRejects()
@@ -286,6 +306,89 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SameSourceSubclipBatchDispatchesAndCompletesEverySubclipIndependently()
+    {
+        await Post("/v1/heartbeat", Hello);
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var jobs = new PremiereJobs(_journal, _bridge);
+        jobs.EnqueueSubclips(_project, "root", null,
+        [
+            new(_source, new(firstId, "First moment", 1, new("10", "40", "100"), "")),
+            new(_source, new(secondId, "Second moment", 1, new("50", "90", "100"), ""))
+        ]);
+
+        var source = await PollCommandAsync();
+        Assert.Null(source.Intent.Subclip);
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(source,
+            new(source.Intent.OperationId, PremiereOutcome.Verified, "source-item", "source verified"))).StatusCode);
+        var first = await PollCommandAsync();
+        Assert.Equal(firstId, first.Intent.Subclip!.SubclipId);
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(first,
+            new(first.Intent.OperationId, PremiereOutcome.Verified, "native-first", "created",
+                PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip), "native-subclip-v3"))).StatusCode);
+        var second = await PollCommandAsync();
+        Assert.Equal(secondId, second.Intent.Subclip!.SubclipId);
+        Assert.NotEqual(first.Intent.OperationId, second.Intent.OperationId);
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(second,
+            new(second.Intent.OperationId, PremiereOutcome.Verified, "native-second", "created",
+                PremiereProtocol.SubclipProjectionKey(second.Intent.Subclip), "native-subclip-v3"))).StatusCode);
+        for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
+            await Task.Delay(20);
+
+        var job = jobs.Jobs[0];
+        Assert.Equal(JobState.Completed, job.State);
+        Assert.Equal(2, job.Completed);
+        Assert.Equal(2, job.Receipts.Select(receipt => receipt.OperationId).Distinct().Count());
+        Assert.Collection(job.Items!,
+            item => { Assert.Equal("First moment", item.Name); Assert.Equal(PremiereJobItemState.Sent, item.State); },
+            item => { Assert.Equal("Second moment", item.Name); Assert.Equal(PremiereJobItemState.Sent, item.State); });
+        Assert.Contains("First moment — Sent", job.Details);
+        Assert.Contains("Second moment — Sent", job.Details);
+    }
+
+    [Fact]
+    public async Task MixedSourceBatchMapsSharedPreparationFailureToItsFallbackItemAndWarns()
+    {
+        await Post("/v1/heartbeat", Hello);
+        var fallbackSource = await CreateSourceAsync("fallback.mov");
+        var nativeId = Guid.NewGuid();
+        var jobs = new PremiereJobs(_journal, _bridge);
+        jobs.EnqueueSubclips(_project, "root", null,
+        [
+            new(_source, new(nativeId, "Native moment", 1, new("10", "90", "100"), "")),
+            new(fallbackSource, new(null, "fallback.mov", 1, null, "", IsSourceFallback: true))
+        ]);
+
+        var firstSource = await PollCommandAsync();
+        Assert.Equal(_source.AssetId, firstSource.Intent.Source.AssetId);
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(firstSource,
+            new(firstSource.Intent.OperationId, PremiereOutcome.Verified, "source-one", "source verified"))).StatusCode);
+        var native = await PollCommandAsync();
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(native,
+            new(native.Intent.OperationId, PremiereOutcome.Verified, "native-one", "created",
+                PremiereProtocol.SubclipProjectionKey(native.Intent.Subclip!), "native-subclip-v3"))).StatusCode);
+        var secondSource = await PollCommandAsync();
+        Assert.Equal(fallbackSource.AssetId, secondSource.Intent.Source.AssetId);
+        Assert.Equal(HttpStatusCode.OK, (await PostReceipt(secondSource,
+            new(secondSource.Intent.OperationId, PremiereOutcome.Failed, null, "source mutation missing"))).StatusCode);
+        for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
+            await Task.Delay(20);
+
+        var job = jobs.Jobs[0];
+        Assert.Equal(JobState.CompletedWithWarnings, job.State);
+        Assert.Equal(2, job.Completed);
+        Assert.Collection(job.Items!,
+            item => { Assert.Equal("Native moment", item.Name); Assert.Equal(PremiereJobItemState.Sent, item.State); },
+            item => { Assert.Equal("fallback.mov", item.Name); Assert.Equal(PremiereJobItemState.Failed, item.State); });
+        Assert.Contains("Native moment — Sent", job.Details);
+        Assert.Contains("fallback.mov — Failed", job.Details);
+        Assert.DoesNotContain("Existing video verified", job.Details);
+        await jobs.RefreshHistoryAsync();
+        Assert.Empty(jobs.History);
+    }
+
+    [Fact]
     public async Task WholeSourceFallbackCompletesAfterSourceReconciliationWithoutNativeCommand()
     {
         await Post("/v1/heartbeat", Hello);
@@ -358,7 +461,8 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
     [Theory]
     [InlineData("0 extensions installed for Others", (int)PremiereConnectionState.PremiereNotInstalled)]
     [InlineData("0 extensions installed for Premiere Pro (ver 26.5.0)\n Status Extension Name Version\n", (int)PremiereConnectionState.CompanionNotInstalled)]
-    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.1\n", (int)PremiereConnectionState.Ready)]
+    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.2\n", (int)PremiereConnectionState.Ready)]
+    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.1\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.0\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.0.6\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 2.0.0\n", (int)PremiereConnectionState.UpdateRequired)]

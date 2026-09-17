@@ -67,7 +67,7 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         Assert.NotEqual(first.Intent.OperationId, second.Intent.OperationId);
         await _journal.MarkDispatchedAsync(first.Intent);
         await _journal.SaveReceiptAsync(first.Intent, new(first.Intent.OperationId, PremiereOutcome.Verified,
-            "native-first", "created", PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip!), "native-subclip-v2"));
+            "native-first", "created", PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip!), "native-subclip-v3"));
         await _journal.SaveReceiptAsync(first.Intent, new(first.Intent.OperationId, PremiereOutcome.Failed,
             null, "transient failure"));
 
@@ -92,7 +92,7 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         await Assert.ThrowsAsync<InvalidOperationException>(() => _journal.SaveReceiptAsync(command.Intent,
             new(command.Intent.OperationId, PremiereOutcome.Verified, "native-item", "wrong projection", "wrong")));
         var receipt = new PremiereReceipt(command.Intent.OperationId, PremiereOutcome.Verified, "native-item", "created",
-            PremiereProtocol.SubclipProjectionKey(projection), "native-subclip-v2");
+            PremiereProtocol.SubclipProjectionKey(projection), "native-subclip-v3");
         await _journal.SaveReceiptAsync(command.Intent, receipt);
         Assert.Equal(receipt, (await _journal.PrepareSubclipAsync(_project, "root", null, _source, projection)).PreviousReceipt);
     }
@@ -166,6 +166,8 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         Assert.Equal("Not sent", PremiereJob.OutcomeText(receipt));
         Assert.DoesNotContain("payload", PremiereJob.UserMessage(receipt), StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Resolve", PremiereJob.UserMessage(receipt), StringComparison.OrdinalIgnoreCase);
+        var destination = receipt with { Message = "The mapped native Subclip is outside the selected destination." };
+        Assert.Contains("Move it back", PremiereJob.UserMessage(destination));
     }
 
     [Fact]

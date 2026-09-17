@@ -46,12 +46,13 @@ function fixture() {
   let subclips = 0;
   const adapter = {
     activeProject: async () => project, connected: () => true,
-    items: async () => items.slice(), targetBin: async () => 'bin-1',
+    items: async () => items.slice(), targetBin: async () => 'bin-1', existingTargetBin: async () => 'bin-1',
+    subclipInBin: async itemId => (items.find(item => item.id === itemId)?.parent || 'bin-1') === 'bin-1',
     importSource: async path => { imports++; items.push({ id: 'item-1', mediaPath: path }); },
     projectRange: async () => {}, clearRange: async () => {},
     createSubclip: async (sourceItemId, spec) => {
       const created = `subclip-${++subclips}`;
-      items.push({ id: created, name: spec.name, mediaPath: items.find(item => item.id === sourceItemId)?.mediaPath });
+      items.push({ id: created, name: spec.name, mediaPath: items.find(item => item.id === sourceItemId)?.mediaPath, parent: 'bin-1' });
       return created;
     }
   };
@@ -105,7 +106,7 @@ function productionFixture(executeActions = true) {
     } } };
   const adapter = createAdapter(ppro, project, walk, item => item.itemId, value => String(value),
     { activeProject: async () => ({ guid: project.guid, path: project.path, name: project.name }), connected: () => true });
-  return { adapter, project, source, targetBin, created: () => created };
+  return { adapter, project, source, sourceBin, targetBin, created: () => created };
 }
 
 test('production adapter executes native create and verifies selected-bin placement before success', async () => {
@@ -135,7 +136,7 @@ test('production dispatch reports Verified only after the real native-create sea
   const result = await execute({ intent, previouslyDispatched: false, previousReceipt: null }, f.adapter,
     { read: async key => stored.get(key), write: async (key, value) => stored.set(key, value) });
   assert.equal(result.outcome, 'Verified');
-  assert.equal(result.verification, 'native-subclip-v2');
+  assert.equal(result.verification, 'native-subclip-v3');
   assert.equal(f.created(), 1);
   assert.deepEqual((await f.targetBin.getItems()).map(item => item.itemId), [result.itemId]);
 });
@@ -175,6 +176,30 @@ test('native Subclip creation is identity-aware and an identical retry does not 
   const retry = { ...f.command, previouslyDispatched: true, previousReceipt: first };
   assert.equal((await execute(retry, f.adapter, f.journal)).outcome, 'Verified');
   assert.equal(f.items.filter(item => item.name === 'Interview answer').length, 1);
+});
+
+test('verified native Subclip outside the selected destination is a conflict without moving or duplicating it', async () => {
+  const f = productionFixture();
+  const intent = { operationId: 'placement-op', catalogId: 'catalog-1', destinationId: 'destination-1',
+    project: { guid: 'project-1', path: 'C:/test/edit.prproj', name: 'edit' }, binId: 'target-bin', createBinName: null,
+    source: { assetId: 'asset-1', path: 'C:/test/source.mov' }, subclip: { subclipId: 'subclip-1', name: 'Native',
+      revision: 1, sourceItemId: 'source-item', range: { inTicks: '10', outTicks: '90', sourceDurationTicks: '1000' },
+      isSourceFallback: false, hardBoundaries: true, takeVideo: true, takeAudio: true } };
+  const stored = new Map();
+  const journal = { read: async key => stored.get(key), write: async (key, value) => stored.set(key, value) };
+  const first = await execute({ intent, previouslyDispatched: false, previousReceipt: null }, f.adapter, journal);
+  const native = (await f.targetBin.getItems())[0];
+  f.targetBin.children = [];
+  native.parent = f.sourceBin;
+  f.sourceBin.children.push(native);
+
+  const retry = await execute({ intent, previouslyDispatched: true, previousReceipt: first }, f.adapter, journal);
+
+  assert.equal(retry.outcome, 'Conflict');
+  assert.match(retry.message, /outside the selected destination/);
+  assert.equal(f.created(), 1);
+  assert.deepEqual((await f.targetBin.getItems()).map(item => item.itemId), []);
+  assert.deepEqual((await f.sourceBin.getItems()).filter(item => item.itemId === first.itemId).map(item => item.itemId), [first.itemId]);
 });
 
 test('native Subclip retry preserves editor changes and conflicts on changed Lightflow projection', async () => {

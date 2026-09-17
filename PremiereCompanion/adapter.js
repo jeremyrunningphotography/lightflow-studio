@@ -33,6 +33,22 @@ function createAdapter(ppro, project, walk, id, nearestPremiereTicks, runtime) {
       throw new Error('Created native Subclip was not placed in the selected destination bin.');
     return verified;
   };
+  const findTargetBin = async (binId, createName, guard, createIfMissing) => {
+    const root = await project.getRootItem();
+    const parent = [root, ...await walk(root)].find(item => id(item) === binId);
+    if (!parent) throw new Error('Target bin no longer exists.');
+    const bin = ppro.FolderItem.cast(parent);
+    if (!createName) return bin;
+    const existing = (await bin.getItems()).filter(item => item.name === createName);
+    if (existing.length > 1) throw new Error('Target bin name is ambiguous.');
+    if (existing.length === 1) return ppro.FolderItem.cast(existing[0]);
+    if (!createIfMissing) return null;
+    await guard();
+    transaction('create the handoff bin', () => [bin.createBinAction(createName, false)]);
+    const matches = (await bin.getItems()).filter(item => item.name === createName);
+    if (matches.length !== 1) throw new Error('Created bin readback is ambiguous.');
+    return ppro.FolderItem.cast(matches[0]);
+  };
   return {
     activeProject: runtime.activeProject,
     connected: runtime.connected,
@@ -47,23 +63,14 @@ function createAdapter(ppro, project, walk, id, nearestPremiereTicks, runtime) {
       }
       return items;
     },
-    async targetBin(binId, createName, guard) {
-      const root = await project.getRootItem();
-      const parent = [root, ...await walk(root)].find(item => id(item) === binId);
-      if (!parent) throw new Error('Target bin no longer exists.');
-      const bin = ppro.FolderItem.cast(parent);
-      if (!createName) return bin;
-      const existing = (await bin.getItems()).filter(item => item.name === createName);
-      if (existing.length > 1) throw new Error('Target bin name is ambiguous.');
-      if (existing.length === 1) return ppro.FolderItem.cast(existing[0]);
-      await guard();
-      transaction('create the handoff bin', () => [bin.createBinAction(createName, false)]);
-      const matches = (await bin.getItems()).filter(item => item.name === createName);
-      if (matches.length !== 1) throw new Error('Created bin readback is ambiguous.');
-      return ppro.FolderItem.cast(matches[0]);
-    },
+    targetBin: (binId, createName, guard) => findTargetBin(binId, createName, guard, true),
+    existingTargetBin: (binId, createName, guard) => findTargetBin(binId, createName, guard, false),
     importSource: (path, bin) => project.importFiles([path], true, bin, false),
     placeSubclip,
+    async subclipInBin(itemId, targetBin) {
+      const item = await findExactly(itemId, 'Mapped native Subclip is unavailable for destination verification.');
+      return await parentId(item) === id(targetBin);
+    },
     async projectRange(itemId, range) {
       if (!range || typeof range !== 'object') throw new Error('Lightflow In/Out range is invalid.');
       const sourceDuration = premiereTicks(range.sourceDurationTicks);

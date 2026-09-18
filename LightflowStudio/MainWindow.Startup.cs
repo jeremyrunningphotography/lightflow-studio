@@ -7,6 +7,14 @@ public partial class MainWindow
     private readonly TaskCompletionSource _presentationReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal Task PresentationReady => _presentationReady.Task;
 
+    internal async Task RevealStartupPresentationAsync()
+    {
+        StartupWindowPresentation.SetCloaked(this, false);
+        _playerViewerHost?.RevealStartupVideoPresentation();
+        await Dispatcher.InvokeAsync(UpdateLayout, DispatcherPriority.Loaded);
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+    }
+
     internal async Task RestoreStartupPresentationAsync()
     {
         using var timing = StartupDiagnostics.Stage("Workspace restoration", "Restoring workspace…");

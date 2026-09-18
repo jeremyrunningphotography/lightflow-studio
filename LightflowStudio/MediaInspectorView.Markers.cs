@@ -12,6 +12,9 @@ internal sealed class InspectorMarkerCard(TimelineMarker marker) : INotifyProper
     public TimelineMarker Marker { get; private set; } = marker;
     private string _draft = marker.Name;
     public string DraftName { get => _draft; set { _draft = value; Changed(nameof(DraftName)); } }
+    private bool _isEditing;
+    public bool IsEditing { get => _isEditing; set { _isEditing = value; Changed(nameof(IsEditing)); } }
+    public void CancelRename() { DraftName = Marker.Name; IsEditing = false; }
     public bool IsDirty => DraftName != Marker.Name;
     public bool CanEdit { get; private set; } = true;
     public string Error { get; private set; } = "";
@@ -41,7 +44,7 @@ public partial class MediaInspectorView
         MarkerCards = markers.Select(marker =>
         {
             if (!existing.TryGetValue(marker.MarkerId, out var card)) return new InspectorMarkerCard(marker);
-            if (!card.IsDirty && card.CanEdit) card.Update(marker);
+            if (!card.IsEditing && !card.IsDirty && card.CanEdit) card.Update(marker);
             return card;
         }).ToArray();
         InspectorMarkers.ItemsSource = MarkerCards;
@@ -58,6 +61,15 @@ public partial class MediaInspectorView
         catch (OperationCanceledException) { }
         catch { if (generation == _generation) card.SetThumbnail(null); }
     }
+    private async void InspectorMarkerCard_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        // Edit/thumbnail buttons and text editing own their input; the remaining card surface seeks.
+        for (var current = e.OriginalSource as DependencyObject; current is not null && current != sender;
+             current = current is Visual ? VisualTreeHelper.GetParent(current) : LogicalTreeHelper.GetParent(current))
+            if (current is System.Windows.Controls.Primitives.ButtonBase or System.Windows.Controls.Primitives.TextBoxBase) return;
+        if (_playerContext && sender is FrameworkElement { DataContext: InspectorMarkerCard card } && SeekMarker is not null)
+        { e.Handled = true; await SeekMarker(card.Marker); }
+    }
     private async void InspectorMarker_Click(object sender, RoutedEventArgs e)
     {
         if (_playerContext && sender is FrameworkElement { DataContext: InspectorMarkerCard card } && SeekMarker is not null)
@@ -65,7 +77,9 @@ public partial class MediaInspectorView
     }
     internal async Task SaveMarkerNameAsync(InspectorMarkerCard card)
     {
-        if (_markerCatalog is null || !card.CanEdit || !card.IsDirty || !IsCurrentMarker(card)) return;
+        if (_markerCatalog is null || !card.CanEdit || !card.IsEditing || !IsCurrentMarker(card)) return;
+        if (string.IsNullOrWhiteSpace(card.DraftName) || string.Equals(card.DraftName.Trim(), card.Marker.Name, StringComparison.Ordinal))
+        { card.CancelRename(); return; }
         var marker = card.Marker; var name = card.DraftName;
         card.SetBusy(true);
         try
@@ -73,7 +87,15 @@ public partial class MediaInspectorView
             await _markerCatalog.RenameAsync(marker.MarkerId, marker.Revision, name);
             var updated = (await _markerCatalog.ListAsync(marker.AssetId)).FirstOrDefault(m => m.MarkerId == marker.MarkerId);
             if (updated is not null) card.Update(updated);
+            card.IsEditing = false;
             MarkersChanged?.Invoke(this, marker.AssetId);
+        }
+        catch (MarkerConcurrencyException error)
+        {
+            card.CancelRename();
+            await RefreshAsync();
+            card.SetBusy(false, error.Message);
+            StatusText.Text = error.Message;
         }
         catch (Exception error) { card.SetBusy(false, error.Message); return; }
         finally { if (!card.CanEdit) card.SetBusy(false); }
@@ -95,16 +117,34 @@ public partial class MediaInspectorView
     {
         if (sender is not FrameworkElement { DataContext: InspectorMarkerCard card }) return;
         if (e.Key == Key.Enter) { e.Handled = true; await SaveMarkerNameAsync(card); }
-        else if (e.Key == Key.Escape) { e.Handled = true; card.DraftName = card.Marker.Name; }
+        else if (e.Key == Key.Escape) { e.Handled = true; card.CancelRename(); }
     }
     private async void InspectorMarkerName_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     { if (sender is FrameworkElement { DataContext: InspectorMarkerCard card }) await SaveMarkerNameAsync(card); }
+    private void InspectorMarkerRename_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement { DataContext: InspectorMarkerCard card } button)
+            BeginMarkerRename(card, (DependencyObject)button.Parent);
+    }
+    internal void BeginMarkerRename(InspectorMarkerCard card, DependencyObject owner)
+    {
+        if (!card.CanEdit || !IsCurrentMarker(card)) return;
+        card.DraftName = card.Marker.Name;
+        card.SetBusy(false);
+        card.IsEditing = true;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (card.IsEditing && IsCurrentMarker(card) && FindMarkerEditor(owner) is { } editor)
+            { editor.Focus(); editor.SelectAll(); }
+        }, System.Windows.Threading.DispatcherPriority.Input);
+    }
     private void InspectorMarker_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: InspectorMarkerCard card } owner) return;
         owner.ContextMenu = MarkerMenus.Create(owner, () =>
         {
-            if (FindMarkerEditor(owner) is { } editor) { editor.Focus(); editor.SelectAll(); }
+            BeginMarkerRename(card, owner);
         }, () => ClearInspectorMarkerAsync(card));
         // A name editor otherwise supplies its own stock text menu. The entire card shares marker actions.
         e.Handled = true;

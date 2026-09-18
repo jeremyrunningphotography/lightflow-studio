@@ -295,9 +295,7 @@ public partial class PlayerViewerHost : UserControl
                     cadence.Divisor == 1 ? cadence.Rate : null), token);
                 if (generation != _generation || token.IsCancellationRequested) return;
             }
-            _mediaView = new MediaPlaybackView(service);
-            VideoHost.Children.Add(_mediaView);
-            _mediaView.Loaded += MediaView_Loaded;
+            AttachVideoPresentation(service);
             _openMilestone?.Invoke(PlayerOpenMilestone.PresentationSurfaceCreated);
             UpdateFromSnapshot(service.Snapshot);
             SetTransportEnabled(true);
@@ -324,6 +322,26 @@ public partial class PlayerViewerHost : UserControl
             await playback.DisposeAsync().ConfigureAwait(true);
             throw;
         }
+    }
+
+    private void AttachVideoPresentation(IMediaPlaybackService service)
+    {
+        _mediaView = new MediaPlaybackView(service);
+        _mediaView.Loaded += MediaView_Loaded;
+        VideoHost.Children.Add(_mediaView);
+    }
+
+    internal void RevealStartupVideoPresentation()
+    {
+        if (_service is not { } service || _mediaView is not { } view) return;
+        // A native HWND created under the cloaked startup window can retain its DWM cloak.
+        // Replace only that presentation after reveal; retain the decoded frame, lease and playhead.
+        _nativeInput?.Dispose();
+        _nativeInput = null;
+        view.Loaded -= MediaView_Loaded;
+        VideoHost.Children.Remove(view);
+        view.Dispose();
+        AttachVideoPresentation(service);
     }
 
     private async Task OpenImageAsync(string absolutePath, long generation, CancellationToken token)

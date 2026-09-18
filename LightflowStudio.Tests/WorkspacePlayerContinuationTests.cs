@@ -147,6 +147,8 @@ public sealed partial class PlayerViewerHostLeaseTests
                 MediaRootAvailability.Online, true), continuation: state);
             try
             {
+                host.RevealStartupVideoPresentation();
+                Assert.Equal(1, backend.OpenPresentationOperations.Count(operation => operation == "open"));
                 Assert.Equal(new[] { TimeSpan.FromSeconds(expectedSeconds) }, backend.SeekPositions);
                 Assert.Equal(0, backend.PlayCallCount);
                 Assert.True(backend.OpenPresentationOperations.IndexOf("seek") < backend.OpenPresentationOperations.IndexOf("presentation"));

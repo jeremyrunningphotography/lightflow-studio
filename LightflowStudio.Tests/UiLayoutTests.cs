@@ -966,8 +966,8 @@ public class UiLayoutTests
         var export = Named(document, "ExportButton");
 
         Assert.Equal("Stretch", (string?)color.Attribute("HorizontalAlignment"));
-        Assert.Equal("2", (string?)export.Attribute("Grid.Column"));
-        Assert.Equal("Right", (string?)export.Attribute("HorizontalAlignment"));
+        Assert.Equal("2", (string?)export.Parent!.Attribute("Grid.Column"));
+        Assert.Equal("Right", (string?)export.Parent!.Attribute("HorizontalAlignment"));
         Assert.Equal("Export…", (string?)export.Attribute("Content"));
         Assert.Equal("ExportButton_Click", (string?)export.Attribute("Click"));
         Assert.Equal(new[] { "*", "Auto", "*" }, color.Element(ns + "Grid.ColumnDefinitions")!
@@ -1604,8 +1604,8 @@ public class UiLayoutTests
         Assert.Contains(colorGroup.Descendants(), element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "CameraLutCombo");
         Assert.Contains(colorGroup.Descendants(), element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "CreativeLutCombo");
         var export = Named(document, "ExportButton");
-        Assert.Equal("2", (string?)export.Attribute("Grid.Column"));
-        Assert.Equal("Right", (string?)export.Attribute("HorizontalAlignment"));
+        Assert.Equal("2", (string?)export.Parent!.Attribute("Grid.Column"));
+        Assert.Equal("Right", (string?)export.Parent!.Attribute("HorizontalAlignment"));
         var ratingGroup = Named(document, "PlayerRatingGroup");
         var classificationRow = ratingGroup.Parent!;
         Assert.Equal(new[] { "*", "*", "*" }, classificationRow.Descendants(ns + "ColumnDefinition").Take(3).Select(column => (string?)column.Attribute("Width")));

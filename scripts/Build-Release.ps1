@@ -107,7 +107,6 @@ Copy-Item -LiteralPath (Join-Path $repositoryRoot "PremiereHelper") -Destination
 & (Join-Path $PSScriptRoot "Build-PremiereCompanion.ps1") -OutputPath (Join-Path $appDirectory "PremiereCompanion\LightflowStudio.ccx")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "THIRD-PARTY-NOTICES.md") -Destination $appDirectory -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "dependencies\flyleaf.json") -Destination (Join-Path $appDirectory "flyleaf-package.json") -Force
-Copy-Item -LiteralPath (Join-Path $repositoryRoot "dependencies\flyleaf-fast-seek.patch") -Destination $appDirectory -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "dependencies\flyleaf-fast-seek.md") -Destination $appDirectory -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "LightflowStudio\Assets\Branding\LightflowStudio.ico") -Destination $appDirectory -Force
 & (Join-Path $PSScriptRoot "Get-Ffmpeg.ps1") -Destination $ffmpegDirectory

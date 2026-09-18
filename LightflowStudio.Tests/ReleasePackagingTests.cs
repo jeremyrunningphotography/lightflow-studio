@@ -27,7 +27,7 @@ public sealed class ReleasePackagingTests
         var root = document.RootElement;
         Assert.Equal("lgpl-shared", root.GetProperty("variant").GetString());
         Assert.Equal("LGPL-2.1-or-later", root.GetProperty("license").GetString());
-        Assert.Equal("3.11.2-lightflow.4", root.GetProperty("flyleafVersion").GetString());
+        Assert.Equal("3.11.8-lightflow.1", root.GetProperty("flyleafVersion").GetString());
         Assert.Equal("9.0.0", root.GetProperty("flyleafBindingsVersion").GetString());
         Assert.Matches("^[a-f0-9]{64}$", root.GetProperty("sha256").GetString()!);
         Assert.Contains("lgpl-shared", root.GetProperty("archiveName").GetString());
@@ -36,7 +36,7 @@ public sealed class ReleasePackagingTests
         var packages = project.Descendants("PackageReference").ToDictionary(
             element => element.Attribute("Include")!.Value,
             element => element.Attribute("Version")!.Value);
-        Assert.Equal("[3.11.2-lightflow.4]", packages["FlyleafLib"]);
+        Assert.Equal("[3.11.8-lightflow.1]", packages["FlyleafLib"]);
         Assert.Equal("9.0.0", packages["Flyleaf.FFmpeg.Bindings"]);
         Assert.Equal("2.3.0", packages["NAudio.WinMM"]);
     }
@@ -46,8 +46,10 @@ public sealed class ReleasePackagingTests
     {
         using var document = JsonDocument.Parse(File.ReadAllText(PathAtRoot("dependencies", "flyleaf.json")));
         var root = document.RootElement;
-        Assert.Equal("3.11.2-lightflow.4", root.GetProperty("packageVersion").GetString());
-        Assert.Equal("3.11.2", root.GetProperty("upstreamVersion").GetString());
+        Assert.Equal("3.11.8-lightflow.1", root.GetProperty("packageVersion").GetString());
+        Assert.Equal("3.11.8", root.GetProperty("upstreamVersion").GetString());
+        Assert.Equal("fc96062f9c731a0a4018039f23f4c6305a89ed05", root.GetProperty("upstreamCommit").GetString());
+        Assert.Equal("https://github.com/jeremyrunningphotography/Flyleaf", root.GetProperty("sourceRepository").GetString());
         Assert.Matches("^[a-f0-9]{40}$", root.GetProperty("upstreamCommit").GetString()!);
         Assert.Matches("^[a-f0-9]{40}$", root.GetProperty("sourceCommit").GetString()!);
         Assert.Matches("^[a-f0-9]{64}$", root.GetProperty("packageSha256").GetString()!);
@@ -57,18 +59,30 @@ public sealed class ReleasePackagingTests
         Assert.True(File.Exists(package));
         Assert.Equal(root.GetProperty("packageSha256").GetString(), Convert.ToHexString(
             System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(package))).ToLowerInvariant());
+        using (var archive = System.IO.Compression.ZipFile.OpenRead(package))
+        using (var nuspecStream = archive.GetEntry("FlyleafLib.nuspec")!.Open())
+        {
+            var nuspec = XDocument.Load(nuspecStream);
+            var ns = nuspec.Root!.Name.Namespace;
+            var metadata = nuspec.Root.Element(ns + "metadata")!;
+            Assert.Equal(root.GetProperty("packageVersion").GetString(), metadata.Element(ns + "version")!.Value);
+            var repository = metadata.Element(ns + "repository")!;
+            Assert.Equal(root.GetProperty("sourceCommit").GetString(), repository.Attribute("commit")!.Value);
+            Assert.Equal(root.GetProperty("sourceRepository").GetString(), repository.Attribute("url")!.Value);
+            Assert.NotNull(archive.GetEntry("lib/net8.0-windows7.0/FlyleafLib.dll"));
+        }
 
         var rebuild = File.ReadAllText(PathAtRoot("scripts", "Build-FlyleafPackage.ps1"));
         Assert.Contains("sourceCommit", rebuild);
         Assert.Contains("packageSha256", rebuild);
         Assert.Contains("dotnet pack", rebuild);
-        Assert.Contains("sourcePatch", rebuild);
-        Assert.True(File.Exists(PathAtRoot("dependencies", root.GetProperty("sourcePatch").GetString()!)));
+        Assert.DoesNotContain("git apply", rebuild);
+        Assert.False(root.TryGetProperty("sourcePatch", out _));
 
         var notices = File.ReadAllText(PathAtRoot("THIRD-PARTY-NOTICES.md"));
-        Assert.Contains("FlyleafLib 3.11.2-lightflow.4", notices);
+        Assert.Contains("FlyleafLib 3.11.8-lightflow.1", notices);
         Assert.Contains(root.GetProperty("sourceCommit").GetString()!, notices);
-        Assert.Contains(root.GetProperty("sourcePatch").GetString()!, notices);
+        Assert.Contains("no packaging-time source patch", notices);
     }
 
     [Fact]
@@ -77,7 +91,7 @@ public sealed class ReleasePackagingTests
         var script = File.ReadAllText(PathAtRoot("scripts", "Build-Release.ps1"));
         var dependencyScript = File.ReadAllText(PathAtRoot("scripts", "Get-PlaybackDependencies.ps1"));
         Assert.Contains("Get-PlaybackDependencies.ps1", script);
-        Assert.Contains("flyleaf-fast-seek.patch", script);
+        Assert.DoesNotContain("flyleaf-fast-seek.patch", script);
         Assert.Contains("flyleaf-fast-seek.md", script);
         Assert.Contains("playback\\ffmpeg", script);
         Assert.Contains("avcodec-*.dll", dependencyScript);

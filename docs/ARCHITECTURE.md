@@ -665,7 +665,7 @@ IMediaPlaybackBackend
         ↓
 FlyleafPlaybackBackend
         ↓
-Flyleaf 3.11.2-lightflow.4 + FFmpeg 9 shared libraries + Direct3D 11 + NAudio/WaveOut
+Flyleaf 3.11.8-lightflow.1 + FFmpeg 9 shared libraries + Direct3D 11 + NAudio/WaveOut
 ```
 
 #### Ownership and source lifecycle
@@ -700,7 +700,7 @@ Issue #153 adds a narrow generic GPU post-process seam to the renderer. An optio
 
 #### Packaging and licensing
 
-Encoding continues to invoke the existing pinned LGPL FFmpeg and FFprobe command-line executables. Playback uses FlyleafLib 3.11.2-lightflow.4, Flyleaf.FFmpeg.Bindings 9.0.0, NAudio 2.3.0, and the pinned BtbN FFmpeg 9 `lgpl-shared` archive. The Flyleaf package is restored from the repository-local NuGet source, and `dependencies/flyleaf.json` pins its SHA-256, published fork commit, upstream v3.11.2 base commit, and LGPL license. `scripts/Build-FlyleafPackage.ps1` checks out that pinned commit, applies the manifest sourcePatch, and verifies a reproducible package build. The seek patch and its explanation ship with the package; the published base commit alone does not contain that refinement. The same playback `ffmpeg.exe` already staged beside the shared libraries supplies audio-only decode; no new native codec payload or system codec requirement is introduced. The archive SHA-256, exact source revision, build-project URL, variant, and versions are recorded in `dependencies/ffmpeg-playback.json` and copied into release artifacts. GPL and nonfree BtbN variants are rejected by the dependency-preparation script.
+Encoding continues to invoke the existing pinned LGPL FFmpeg and FFprobe command-line executables. Playback uses FlyleafLib 3.11.8-lightflow.1, Flyleaf.FFmpeg.Bindings 9.0.0, NAudio 2.3.0, and the pinned BtbN FFmpeg 9 `lgpl-shared` archive. The Flyleaf package is restored from the repository-local NuGet source, and `dependencies/flyleaf.json` pins its SHA-256, published fork commit, upstream v3.11.8 base commit, and LGPL license. `scripts/Build-FlyleafPackage.ps1` checks out that pinned commit and verifies a reproducible package build without packaging-time source mutation. The fork includes the accurate-keyframe seek fallback. HDR analysis restores the caller-selected render target and viewport; post-process cleanup restores the upstream ICC texture at t4. Conversion, source ICC and tone mapping precede the Lightflow LUT processor and overlays. The same playback `ffmpeg.exe` already staged beside the shared libraries supplies audio-only decode; no new native codec payload or system codec requirement is introduced. The archive SHA-256, exact source revision, build-project URL, variant, and versions are recorded in `dependencies/ffmpeg-playback.json` and copied into release artifacts. GPL and nonfree BtbN variants are rejected by the dependency-preparation script.
 
 Installer and portable staging place playback DLLs and the audio-decoding executable under `playback/ffmpeg/bin`, with the package manifest, corresponding-source/build links, and upstream license files alongside them. NAudio is managed-only and is included by normal self-contained publish. Managed package versions and their transitive graph are locked by NuGet lock files. `THIRD-PARTY-NOTICES.md` documents Flyleaf, its bindings, FFmpeg, NAudio, Vortice, and SharpGen obligations.
 

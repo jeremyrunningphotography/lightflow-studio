@@ -9,6 +9,14 @@
 - Materially separate issues normally begin in a clean agent conversation after the prior issue is merged.
 - Follow the branch → implementation → validation → Draft PR → review → explicit acceptance → merge/cleanup rhythm.
 
+## Release and maintenance branches
+
+- Normal issues and features start from and target `main`, the development trunk.
+- Each released minor family has a maintenance branch named `release/<major>.<minor>` (for example, `release/0.40`, never `release/0.40.0`). Create it from the exact accepted release source; do not reset or rebase `main` to it.
+- Patch/hotfix work for a released line starts from its release branch and targets that branch for review. Reconcile every release-line fix into `main` through the normal review/acceptance process; record the corresponding PR or why the fix is already present/not applicable.
+- Do not backport ordinary new features. Only the current released minor line is actively maintained unless Jeremy explicitly decides otherwise. Do not introduce a permanent `develop` branch or full GitFlow workflow.
+- Release tags and artifacts must identify the exact accepted commit on the applicable release line, not the current development tip. Preserve validation only while its source and inputs remain applicable. Follow [release planning](docs/RELEASE_PLAN.md) for source verification, publication gates, and deliberate unpublished-tag correction; never move a published release tag.
+
 ## GitHub project and roadmap hygiene
 
 - The GitHub Project/roadmap is durable project state and must remain continuously synchronized with issues, Epics, PRs, and implementation status.

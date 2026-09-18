@@ -150,7 +150,7 @@ public partial class App : System.Windows.Application
             mainWindow.Show();
             await mainWindow.PresentationReady;
             mainWindow.ShowInTaskbar = true;
-            StartupWindowPresentation.SetCloaked(mainWindow, false);
+            await mainWindow.RevealStartupPresentationAsync();
             mainWindow.Activate();
             CloseStartupSplash();
             ActivityLog.TryAppend("[App startup] Workspace presentation ready; main window revealed and splash closed.");

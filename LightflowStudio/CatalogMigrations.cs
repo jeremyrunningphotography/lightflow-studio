@@ -27,8 +27,24 @@ internal static class CatalogMigrations
         new(12, "Durable asset ratings, flags, color labels, and keywords", ApplyVersion12),
         new(13, "Creator-authored asset descriptions and overrides", ApplyVersion13),
         new(14, "Premiere destination projections and durable handoff intents", ApplyVersion14),
-        new(15, "Premiere native Subclip destination projections", ApplyVersion15)
+        new(15, "Premiere native Subclip destination projections", ApplyVersion15),
+        new(16, "Durable asset timeline point markers", ApplyVersion16)
     ];
+
+    private static void ApplyVersion16(SqliteConnection connection, SqliteTransaction transaction, CatalogMigrationContext context) =>
+        Execute(connection, transaction, """
+            CREATE TABLE TimelineMarkers (
+                MarkerId TEXT PRIMARY KEY NOT NULL CHECK(length(MarkerId)=36),
+                AssetId TEXT NOT NULL,
+                PositionTicks INTEGER NOT NULL CHECK(PositionTicks >= 0),
+                Name TEXT NOT NULL,
+                Revision INTEGER NOT NULL CHECK(Revision > 0),
+                CreatedUtc TEXT NOT NULL CHECK(length(CreatedUtc)=28),
+                UpdatedUtc TEXT NOT NULL CHECK(length(UpdatedUtc)=28),
+                FOREIGN KEY(AssetId) REFERENCES MediaAssets(AssetId) ON DELETE RESTRICT,
+                UNIQUE(AssetId,PositionTicks)
+            );
+            """);
 
     private static void ApplyVersion1(
         SqliteConnection connection,

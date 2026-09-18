@@ -4,26 +4,26 @@
  xmlns:local="clr-namespace:LightflowStudio"
  Focusable="True" FocusVisualStyle="{x:Null}" PreviewKeyDown="PlayerViewerHost_PreviewKeyDown" PreviewKeyUp="PlayerViewerHost_PreviewKeyUp" LostKeyboardFocus="PlayerViewerHost_LostKeyboardFocus">
  <UserControl.Resources>
+  <Style x:Key="MarkerTransportButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Width" Value="30"/><Setter Property="Height" Value="30"/><Setter Property="Padding" Value="4"/><Setter Property="Margin" Value="1,0"/></Style>
+  <Style x:Key="MarkerTransportPath" TargetType="Path"><Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/><Setter Property="StrokeThickness" Value="1.5"/><Setter Property="StrokeLineJoin" Value="Round"/><Setter Property="Stretch" Value="Uniform"/></Style>
   <Style x:Key="FilmstripArrowStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
    <Setter Property="Width" Value="28"/><Setter Property="Height" Value="28"/><Setter Property="Padding" Value="0"/>
    <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
   </Style>
   <Style x:Key="HiddenFilmstripNavigationStyle" TargetType="StackPanel">
-   <Setter Property="Visibility" Value="Collapsed"/>
-   <Style.Triggers><DataTrigger Binding="{Binding IsChecked, ElementName=FilmstripToggle}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>
+   <Setter Property="Visibility" Value="Visible"/>
   </Style>
   <!-- Same surface, border and checked treatment as the shell Right Panel toggle; smaller bottom-panel icon. -->
   <Style x:Key="FilmstripToggleStyle" TargetType="ToggleButton">
-   <Setter Property="Width" Value="28"/><Setter Property="Height" Value="28"/><Setter Property="Margin" Value="5,0"/>
+   <Setter Property="Width" Value="40"/><Setter Property="Height" Value="28"/><Setter Property="Margin" Value="5,0"/>
    <Setter Property="IsChecked" Value="True"/><Setter Property="Cursor" Value="Hand"/>
    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
    <Setter Property="ToolTip" Value="Hide filmstrip"/><Setter Property="AutomationProperties.Name" Value="Toggle filmstrip"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
     <Border x:Name="Chrome" Background="{StaticResource ShellSurfaceBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="6">
-     <Grid Width="14" Height="12" IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5">
-      <Grid.RenderTransform><RotateTransform Angle="90"/></Grid.RenderTransform>
+     <Grid Width="23" Height="14" IsHitTestVisible="False">
       <Border BorderBrush="{TemplateBinding Foreground}" BorderThickness="1.5" CornerRadius="2"/>
-      <Border Width="4" HorizontalAlignment="Right" Margin="0,2,2,2" Background="{TemplateBinding Foreground}" Opacity="0.75"/>
+      <UniformGrid Rows="1" Columns="3" Width="18" Height="4" VerticalAlignment="Bottom" Margin="0,0,0,2"><Border Width="4" Height="4" Background="{TemplateBinding Foreground}"/><Border Width="4" Height="4" Background="{TemplateBinding Foreground}"/><Border Width="4" Height="4" Background="{TemplateBinding Foreground}"/></UniformGrid>
      </Grid>
     </Border>
     <ControlTemplate.Triggers>
@@ -223,8 +223,39 @@
        <TextBlock Text="Creative" Margin="12,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="11"/>
        <ComboBox x:Name="CreativeLutCombo" Width="150" Height="26" SelectionChanged="CreativeLutCombo_SelectionChanged" IsEnabled="False" ToolTip="Creative LUT; hold C for momentary Original" AutomationProperties.Name="Creative LUT"/>
       </StackPanel>
-      <Button x:Name="ExportButton" Grid.Column="2" HorizontalAlignment="Right" Margin="6,0,0,0" Padding="5,2" Style="{StaticResource ExportLaunchButton}" Content="Export…" IsEnabled="False"
-       Click="ExportButton_Click" ToolTip="Export this asset with its saved range and assigned Color" AutomationProperties.Name="Export current asset"/>
+      <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"><TextBlock x:Name="ScreengrabFeedbackText" MaxWidth="220" Margin="0,0,6,0" VerticalAlignment="Center"
+        Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" Visibility="Collapsed"
+        AutomationProperties.LiveSetting="Polite"/>
+       <Button x:Name="ScreengrabSuccessButton" Width="26" Height="26" Padding="0" Margin="0,0,4,0"
+        Visibility="Collapsed" Click="ScreengrabSuccess_Click" Foreground="{StaticResource OrangeBrush}"
+        ToolTip="Screengrab saved. Open folder" AutomationProperties.Name="Screengrab saved. Open screengrab folder"
+        AutomationProperties.LiveSetting="Polite">
+        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE73E;"/>
+       </Button>
+       </StackPanel>
+      <StackPanel x:Name="PlayerOutputGroup" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"><Button x:Name="ScreengrabButton" Width="34" Height="30" Padding="0" BorderThickness="1"
+        FocusVisualStyle="{x:Null}" Click="Screengrab_Click" IsEnabled="False"
+        ToolTip="Save the current paused frame as a full-resolution PNG" AutomationProperties.Name="Save paused frame as full-resolution screengrab">
+        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE722;"/>
+       </Button>
+       <Button x:Name="SetPreviewFrameButton" Width="34" Height="30" Padding="0" Margin="4,0,0,0" BorderThickness="1"
+        FocusVisualStyle="{x:Null}" Click="SetPreviewFrame_Click" IsEnabled="False"
+        ToolTip="Use the current paused frame as this asset's Browser Preview" AutomationProperties.Name="Set paused frame as Browser Preview">
+        <Button.ContextMenu>
+         <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+          <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Reset to Automatic Preview"
+           Click="ResetPreviewFrame_Click" AutomationProperties.Name="Reset to Automatic Preview"/>
+         </ContextMenu>
+        </Button.ContextMenu>
+        <Grid Width="17" Height="17">
+         <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5"
+          StrokeLineJoin="Round" Data="M1,3 L16,3 L16,14 L1,14 Z M4,11 L7,8 L9,10 L12,7 L16,11"/>
+         <Ellipse Width="4" Height="4" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-2,0"
+          Fill="{StaticResource OrangeBrush}"/>
+        </Grid>
+       </Button>
+       <Button x:Name="ExportButton" HorizontalAlignment="Right" Margin="6,0,0,0" Padding="5,2" Style="{StaticResource ExportLaunchButton}" Content="Export…" IsEnabled="False"
+       Click="ExportButton_Click" ToolTip="Export this asset with its saved range and assigned Color" AutomationProperties.Name="Export current asset"/></StackPanel>
      </Grid>
      <Grid Grid.Row="1" Margin="2,0,2,4">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -248,13 +279,17 @@
        <ToggleButton x:Name="PlayerLabelPurple" Style="{StaticResource PlayerSwatchChoice}" Tag="Purple" Click="PlayerColorLabel_Click" ToolTip="Purple label" AutomationProperties.Name="Purple label"><Ellipse Style="{StaticResource PlayerColorSwatch}" Fill="{StaticResource ClassificationLabelPurpleBrush}"/></ToggleButton>
       </StackPanel>
      </Grid>
-     <Grid Grid.Row="2" Height="22">
+     <StackPanel x:Name="TimelineSurface" Grid.Row="2" ContextMenuOpening="Timeline_ContextMenuOpening">
+      <StackPanel.ContextMenu><ContextMenu Style="{StaticResource LightflowContextMenuStyle}"/></StackPanel.ContextMenu>
+     <Canvas x:Name="MarkerTrack" Height="14" Margin="7,0" SizeChanged="MarkerTrack_SizeChanged" ToolTip="Lightflow point markers"/>
+     <Grid Height="22">
       <local:TrimRangeIndicator x:Name="ReviewRangeIndicator" Height="18" Margin="7,0" VerticalAlignment="Center"
        Panel.ZIndex="1" IsHitTestVisible="False"/>
       <Slider x:Name="PositionSlider" Style="{StaticResource PlaybackTimelineSlider}" Minimum="0" Maximum="1"
        ValueChanged="PositionSlider_ValueChanged" PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
        IsEnabled="False" ToolTip="Full source timeline: click anywhere to seek, or drag the playhead"/>
      </Grid>
+     </StackPanel>
      <Grid x:Name="RangeReviewRow" Grid.Row="3" Margin="2,4,2,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <StackPanel x:Name="ReviewControlGroup" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
@@ -278,16 +313,23 @@
        <Button x:Name="SetOutButton" Style="{StaticResource RangeSetButton}" Content="Set Out" Click="SetOut_Click" IsEnabled="False" ToolTip="Set Out to the displayed frame (O)" AutomationProperties.Name="Set Out"/>
       </StackPanel>
      </Grid>
-     <Grid Grid.Row="4" Margin="2,7,2,0">
+     <Grid x:Name="TransportControlsRow" Grid.Row="4" Margin="2,7,2,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-       <TextBlock x:Name="CurrentTimeText" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="00:00:00.000"/>
-       <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-       <ToggleButton x:Name="FilmstripToggle" Style="{StaticResource FilmstripToggleStyle}" Click="FilmstripToggle_Click"/>
-<StackPanel x:Name="HiddenFilmstripNavigation" Orientation="Horizontal" Style="{StaticResource HiddenFilmstripNavigationStyle}"><TextBlock Text="{Binding Text, ElementName=ReviewPositionText}" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Margin="3,0,7,0"/><Button Style="{StaticResource FilmstripArrowStyle}" Content="&#xE76B;" Click="PreviousAsset_Click" IsEnabled="{Binding IsEnabled, ElementName=PreviousAssetButton}" ToolTip="Previous Asset (Ctrl+Left Arrow)"/><Button Style="{StaticResource FilmstripArrowStyle}" Content="&#xE76C;" Click="NextAsset_Click" IsEnabled="{Binding IsEnabled, ElementName=NextAssetButton}" ToolTip="Next Asset (Ctrl+Right Arrow)"/></StackPanel>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+       <TextBlock x:Name="CurrentTimeText" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Text="00:00:00.000" Margin="0,0,14,0"/>
+       <StackPanel x:Name="MarkerTransport" Orientation="Horizontal">
+        <Button x:Name="AddMarkerButton" Style="{StaticResource MarkerTransportButton}" Click="AddMarker_Click" ToolTip="Add Marker (M)" AutomationProperties.Name="Add Marker">
+         <Path Data="M6,1 L11,6 L6,11 L1,6 Z M14,7 L14,15 M10,11 L18,11" Width="18" Height="16" Style="{StaticResource MarkerTransportPath}"/>
+        </Button>
+        <Button x:Name="PreviousMarkerButton" Style="{StaticResource MarkerTransportButton}" Click="PreviousMarker_Click" ToolTip="Previous Marker (Alt+Left)" AutomationProperties.Name="Previous Marker">
+         <Path Data="M10,2 L15,7 L10,12 L5,7 Z M4,3 L0,7 L4,11" Width="18" Height="16" Style="{StaticResource MarkerTransportPath}"/>
+        </Button>
+        <Button x:Name="NextMarkerButton" Style="{StaticResource MarkerTransportButton}" Click="NextMarker_Click" ToolTip="Next Marker (Alt+Right)" AutomationProperties.Name="Next Marker">
+         <Path Data="M5,2 L10,7 L5,12 L0,7 Z M11,3 L15,7 L11,11" Width="18" Height="16" Style="{StaticResource MarkerTransportPath}"/>
+        </Button>
        </StackPanel>
-      </Grid>
-      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+      </StackPanel>
+      <StackPanel x:Name="TransportPlaybackGroup" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
        <Button x:Name="PreviousFrameButton" Content="&#x25C4; Frame" Click="PreviousFrame_Click" IsEnabled="False"
         ToolTip="Previous decoded frame (,)" AutomationProperties.Name="Previous frame"/>
        <Button x:Name="PlayPauseButton" MinWidth="88" Content="Play" Click="PlayPause_Click" IsEnabled="False"
@@ -295,38 +337,18 @@
        <Button x:Name="NextFrameButton" Content="Frame &#x25BA;" Click="NextFrame_Click" IsEnabled="False"
         ToolTip="Next decoded frame (.)" AutomationProperties.Name="Next frame"/>
       </StackPanel>
-      <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-       <TextBlock x:Name="ScreengrabFeedbackText" MaxWidth="220" Margin="0,0,6,0" VerticalAlignment="Center"
-        Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" Visibility="Collapsed"
-        AutomationProperties.LiveSetting="Polite"/>
-       <Button x:Name="ScreengrabSuccessButton" Width="26" Height="26" Padding="0" Margin="0,0,4,0"
-        Visibility="Collapsed" Click="ScreengrabSuccess_Click" Foreground="{StaticResource OrangeBrush}"
-        ToolTip="Screengrab saved. Open folder" AutomationProperties.Name="Screengrab saved. Open screengrab folder"
-        AutomationProperties.LiveSetting="Polite">
-        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE73E;"/>
-       </Button>
-       <Button x:Name="ScreengrabButton" Width="34" Height="30" Padding="0" BorderThickness="1"
-        FocusVisualStyle="{x:Null}" Click="Screengrab_Click" IsEnabled="False"
-        ToolTip="Save the current paused frame as a full-resolution PNG" AutomationProperties.Name="Save paused frame as full-resolution screengrab">
-        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE722;"/>
-       </Button>
-       <Button x:Name="SetPreviewFrameButton" Width="34" Height="30" Padding="0" Margin="4,0,0,0" BorderThickness="1"
-        FocusVisualStyle="{x:Null}" Click="SetPreviewFrame_Click" IsEnabled="False"
-        ToolTip="Use the current paused frame as this asset's Browser Preview" AutomationProperties.Name="Set paused frame as Browser Preview">
-        <Button.ContextMenu>
-         <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
-          <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Reset to Automatic Preview"
-           Click="ResetPreviewFrame_Click" AutomationProperties.Name="Reset to Automatic Preview"/>
-         </ContextMenu>
-        </Button.ContextMenu>
-        <Grid Width="17" Height="17">
-         <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5"
-          StrokeLineJoin="Round" Data="M1,3 L16,3 L16,14 L1,14 Z M4,11 L7,8 L9,10 L12,7 L16,11"/>
-         <Ellipse Width="4" Height="4" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-2,0"
-          Fill="{StaticResource OrangeBrush}"/>
-        </Grid>
-       </Button>
-       <TextBlock x:Name="DurationText" VerticalAlignment="Center" Margin="10,0,12,0"
+      <Grid Grid.Column="2">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <StackPanel x:Name="TransportFilmstripGroup" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+      <ToggleButton x:Name="FilmstripToggle" Style="{StaticResource FilmstripToggleStyle}" Margin="0,0,2,0" Click="FilmstripToggle_Click"/>
+       <StackPanel x:Name="HiddenFilmstripNavigation" Orientation="Horizontal" Style="{StaticResource HiddenFilmstripNavigationStyle}" VerticalAlignment="Center">
+        <Button Style="{StaticResource FilmstripArrowStyle}" Width="24" Height="24" Margin="0" MinWidth="0" Content="&#xE76B;" Click="PreviousAsset_Click" IsEnabled="{Binding IsEnabled, ElementName=PreviousAssetButton}" ToolTip="Previous Asset (Ctrl+Left Arrow)"/>
+        <TextBlock x:Name="TransportReviewPositionText" Text="{Binding Text, ElementName=ReviewPositionText}" MinWidth="36" TextAlignment="Center" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource TextBrush}" Margin="2,0"/>
+        <Button Style="{StaticResource FilmstripArrowStyle}" Width="24" Height="24" Margin="0" MinWidth="0" Content="&#xE76C;" Click="NextAsset_Click" IsEnabled="{Binding IsEnabled, ElementName=NextAssetButton}" ToolTip="Next Asset (Ctrl+Right Arrow)"/>
+       </StackPanel>
+       </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+       <TextBlock x:Name="DurationText" VerticalAlignment="Center" Margin="0,0,12,0"
         Foreground="{StaticResource MutedTextBrush}" Text="00:00:00.000"/>
        <Button x:Name="MuteButton" Width="34" Height="30" Padding="0" BorderThickness="1"
         FocusVisualStyle="{x:Null}" Click="MuteButton_Click" IsEnabled="False"
@@ -336,7 +358,9 @@
        <Slider x:Name="VolumeSlider" Style="{StaticResource PlaybackTimelineSlider}" Width="70" Margin="6,0,0,0"
         Minimum="0" Maximum="100" ValueChanged="VolumeSlider_ValueChanged" PreviewMouseLeftButtonDown="VolumeSlider_PreviewMouseLeftButtonDown"
         IsEnabled="False" ToolTip="Click anywhere to set the volume, or drag the thumb" AutomationProperties.Name="Volume"/>
+
       </StackPanel>
+      </Grid>
      </Grid>
    </Grid>
    </Border>

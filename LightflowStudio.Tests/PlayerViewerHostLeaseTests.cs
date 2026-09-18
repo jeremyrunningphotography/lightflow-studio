@@ -1033,7 +1033,7 @@ public sealed partial class PlayerViewerHostLeaseTests
             SeekPositions.Add(position);
             return Task.FromResult(new MediaPresentationTimestamp(position));
         }
-        public Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token) => Task.FromResult(new MediaPresentationTimestamp(TimeSpan.Zero));
+        public Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token) { Operations.Add("forward"); return Task.FromResult(new MediaPresentationTimestamp(TimeSpan.Zero)); }
         public Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token)
         {
             Operations.Add("backward");

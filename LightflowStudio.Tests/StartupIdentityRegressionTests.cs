@@ -73,7 +73,12 @@ public sealed class StartupIdentityRegressionTests
             Assert.DoesNotContain("DispatcherTimer", source);
         }
         Assert.True(app.IndexOf("_startupSplash.Show()") < app.IndexOf("await LightflowStorageCoordinator.StartAsync()"));
-        Assert.True(app.IndexOf("await mainWindow.PresentationReady") < app.IndexOf("SetCloaked(mainWindow, false)"));
+        Assert.Contains("await mainWindow.RevealStartupPresentationAsync()", app);
+        Assert.True(app.IndexOf("await mainWindow.PresentationReady") < app.IndexOf("await mainWindow.RevealStartupPresentationAsync()"));
+        Assert.True(app.IndexOf("await mainWindow.RevealStartupPresentationAsync()") < app.IndexOf("mainWindow.Activate()"));
+        Assert.Contains("StartupWindowPresentation.SetCloaked(this, false)", ready);
+        Assert.Contains("_playerViewerHost?.RevealStartupVideoPresentation()", ready);
+        Assert.True(ready.IndexOf("StartupWindowPresentation.SetCloaked(this, false)") < ready.IndexOf("_playerViewerHost?.RevealStartupVideoPresentation()"));
         // The earlier data-root preflight fails before any splash or modal exists.
         var failure = app[app.IndexOf("catch (Exception exception)", app.IndexOf("_startupSplash.Show()"))..];
         Assert.True(failure.IndexOf("CloseStartupSplash()") < failure.IndexOf("MessageBox.Show"));

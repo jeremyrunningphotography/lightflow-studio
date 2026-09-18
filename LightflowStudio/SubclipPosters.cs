@@ -103,6 +103,11 @@ internal static class SubclipPosterFactory
         AppSettings settings, string? applicationDirectory = null, int maximumConcurrency = 2,
         IPreviewOperationCoordinator? operations = null)
     {
+        return new SubclipPosterService(assets, locations, CreateRenderer(settings, applicationDirectory), maximumConcurrency, operations);
+    }
+
+    internal static IThumbnailRenderer CreateRenderer(AppSettings settings, string? applicationDirectory = null)
+    {
         applicationDirectory ??= AppContext.BaseDirectory;
         var configuredDirectory = string.IsNullOrWhiteSpace(settings.FfmpegPath)
             ? null : Path.GetDirectoryName(settings.FfmpegPath);
@@ -110,8 +115,7 @@ internal static class SubclipPosterFactory
         var ffmpeg = ExecutableLocator.Find("ffmpeg.exe",
             Path.Combine(applicationDirectory, "ffmpeg", "bin", "ffmpeg.exe"),
             configured: configuredFfmpeg ?? settings.FfmpegPath);
-        return new SubclipPosterService(assets, locations,
-            new CompositeThumbnailRenderer(new WicImageThumbnailRenderer(),
-                new FfmpegVideoThumbnailRenderer(ffmpeg, new ProbeProcessRunner())), maximumConcurrency, operations);
+        return new CompositeThumbnailRenderer(new WicImageThumbnailRenderer(),
+            new FfmpegVideoThumbnailRenderer(ffmpeg, new ProbeProcessRunner()));
     }
 }

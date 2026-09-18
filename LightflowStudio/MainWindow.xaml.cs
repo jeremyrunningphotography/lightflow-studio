@@ -1990,7 +1990,8 @@ public partial class MainWindow : Window
             assetColors: _storage.AssetColors, cameraLutFolder: () => _storage.Settings.CameraLutFolder,
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder,
             preferredPreviewFrames: _storage.PreferredPreviewFrames,
-            classifications: _storage.AssetClassifications);
+            classifications: _storage.AssetClassifications, markers: _storage.Markers);
+        _playerViewerHost.MarkersChanged += (_, assetId) => OnMarkerStateChanged(assetId);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         _playerViewerHost.FilmstripVisible = _workspaceState.Current.Layout?.PlayerFilmstripVisible ?? true;
         _playerViewerHost.FilmstripVisibilityChanged += (_, _) => ScheduleWorkspaceCapture();
@@ -2055,6 +2056,14 @@ public partial class MainWindow : Window
         {
             BrowserStatusText.Text = $"Browser Preview regeneration could not complete: {exception.Message}";
         }
+    }
+
+    private void OnMarkerStateChanged(Guid assetId)
+    {
+        InvalidateInspector();
+        var revision = ++_browserAssetStateRevision;
+        _browserAssetStateRevisions[assetId] = revision;
+        _ = RefreshCommittedBrowserAssetQueryStateAsync(assetId, revision);
     }
 
     /// <summary>
@@ -2593,7 +2602,7 @@ public partial class MainWindow : Window
         if (RightPanelSplitter.IsKeyboardFocusWithin || (HomeRightPanel.IsKeyboardFocusWithin &&
             _playerViewerHost?.SubclipsContent.IsKeyboardFocusWithin != true)) return;
         if (PlayerOwnsShortcutContext() && _playerViewerHost!.TryHandleShortcut(
-                e.Key, e.OriginalSource as DependencyObject))
+                e.Key == Key.System ? e.SystemKey : e.Key, e.OriginalSource as DependencyObject))
         {
             e.Handled = true;
             return;

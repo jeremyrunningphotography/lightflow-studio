@@ -400,6 +400,17 @@
    <Setter Property="Margin" Value="{DynamicResource BrowserStateIconSpacing}"/>
   </Style>
   <local:RatingAtLeastConverter x:Key="RatingAtLeast"/>
+  <DataTemplate x:Key="BrowserMarkerIcon"><Viewbox Width="12" Height="12" ToolTip="Timeline markers" AutomationProperties.Name="Timeline markers"><Path Data="M6,0 L12,6 L6,12 L0,6 Z" Fill="{StaticResource OrangeBrush}"/></Viewbox></DataTemplate>
+  <DataTemplate x:Key="BrowserLowerStateIndicators">
+   <DockPanel LastChildFill="False">
+    <ContentPresenter DockPanel.Dock="Right" Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserMarkerIcon}" Visibility="{Binding HasMarkers, Converter={StaticResource BoolToVisibility}}"/>
+    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+     <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserReviewRangeIcon}" Visibility="{Binding HasReviewRange, Converter={StaticResource BoolToVisibility}}"/>
+     <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserSubclipsIcon}" Visibility="{Binding HasSubclips, Converter={StaticResource BoolToVisibility}}"/>
+     <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserColorIcon}" Visibility="{Binding HasColorState, Converter={StaticResource BoolToVisibility}}"/>
+    </StackPanel>
+   </DockPanel>
+  </DataTemplate>
   <DataTemplate x:Key="BrowserRatingIndicator">
    <StackPanel Orientation="Horizontal" ToolTip="{Binding Rating, StringFormat=Rating: {0} of 5}" AutomationProperties.Name="{Binding Rating, StringFormat=Rating: {0} of 5}">
     <Path Width="12" Height="12" Margin="0,0,1,0" Stretch="Uniform" Fill="{StaticResource ClassificationRatingBrush}" Data="{StaticResource ClassificationStarGeometry}"><Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Rating, Converter={StaticResource RatingAtLeast}, ConverterParameter=1}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
@@ -682,11 +693,7 @@
                    </Border>
                    <Border x:Name="BrowserHybridLowerStateOverlay" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Margin="4" Padding="3,2" CornerRadius="3" Background="#9905070A">
                     <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/><Condition Binding="{Binding HasUserAuthoredState}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></Border.Style>
-                    <StackPanel Orientation="Horizontal">
-                     <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserReviewRangeIcon}" Visibility="{Binding HasReviewRange, Converter={StaticResource BoolToVisibility}}"/>
-                     <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserSubclipsIcon}" Visibility="{Binding HasSubclips, Converter={StaticResource BoolToVisibility}}"/>
-                     <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserColorIcon}" Visibility="{Binding HasColorState, Converter={StaticResource BoolToVisibility}}"/>
-                    </StackPanel>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource BrowserLowerStateIndicators}"/>
                    </Border>
                    <ProgressBar x:Name="BrowserThumbnailWorkingIndicator" Width="38" Height="4" Margin="0,0,0,7" HorizontalAlignment="Center" VerticalAlignment="Bottom"
                     IsIndeterminate="True" Visibility="{Binding IsThumbnailGenerating, Converter={StaticResource BoolToVisibility}}" ToolTip="Generating Preview" AutomationProperties.Name="Generating Preview"/>
@@ -699,11 +706,7 @@
                  </Border>
                  <Border x:Name="BrowserInfoLowerFrame" Grid.Row="2" Height="24" Padding="2,2">
                   <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
-                  <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
-                   <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserReviewRangeIcon}" Visibility="{Binding HasReviewRange, Converter={StaticResource BoolToVisibility}}"/>
-                   <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserSubclipsIcon}" Visibility="{Binding HasSubclips, Converter={StaticResource BoolToVisibility}}"/>
-                   <ContentPresenter Style="{StaticResource BrowserStateIconItemStyle}" ContentTemplate="{StaticResource BrowserColorIcon}" Visibility="{Binding HasColorState, Converter={StaticResource BoolToVisibility}}"/>
-                  </StackPanel>
+                  <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource BrowserLowerStateIndicators}"/>
                  </Border>
                  <StackPanel x:Name="BrowserFilenameRow" Grid.Row="3" Margin="1,7,1,0">
                   <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Preview}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>

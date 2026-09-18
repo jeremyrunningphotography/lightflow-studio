@@ -1789,6 +1789,39 @@ public class UiLayoutTests
         Assert.DoesNotContain(Named(player, "PositionSlider").Descendants(), e => e.Name.LocalName == "ContextMenu");
     }
 
+
+    [Fact]
+    public async Task MarkerIndicator_RuntimeBindingTracksPresence()
+    {
+        await StaDispatcher.RunAsync(() =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+            var keys = new[] { "BrowserStateIconItemStyle", "BrowserReviewRangeIcon", "BrowserSubclipsIcon", "BrowserColorIcon", "BrowserMarkerIcon", "BrowserLowerStateIndicators" };
+            var markup = "<ResourceDictionary xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'><BooleanToVisibilityConverter x:Key='BoolToVisibility'/>" +
+                string.Concat(keys.Select(key => Resource(document, key).ToString())) + "</ResourceDictionary>";
+            var resources = (System.Windows.ResourceDictionary)System.Windows.Markup.XamlReader.Parse(markup);
+            var tile = new BrowserGridTile(new(Guid.NewGuid(), "clip.mov", "clip.mov", "clip.mov", false, new(MediaTypeCategory.Video), 10, DateTimeOffset.UnixEpoch, AssetId: Guid.NewGuid()), 0);
+            tile.SetAssetState(new BrowserAssetQueryState(BrowserAssetState.None, false, false, 0, MarkerCount: 2));
+            var host = new System.Windows.Controls.ContentControl { Content = tile, ContentTemplate = (System.Windows.DataTemplate)resources["BrowserLowerStateIndicators"], Resources = resources };
+            host.Measure(new System.Windows.Size(300, 40)); host.Arrange(new System.Windows.Rect(0, 0, 300, 40)); host.UpdateLayout();
+            var marker = Descendants(host).OfType<System.Windows.Controls.ContentPresenter>().Single(p => ReferenceEquals(p.ContentTemplate, resources["BrowserMarkerIcon"]));
+            Assert.Equal(System.Windows.Visibility.Visible, marker.Visibility);
+            tile.SetAssetState(new BrowserAssetQueryState(BrowserAssetState.None, false, false, 0));
+            host.UpdateLayout();
+            Assert.Equal(System.Windows.Visibility.Collapsed, marker.Visibility);
+            return Task.CompletedTask;
+        });
+    }
+    private static IEnumerable<System.Windows.DependencyObject> Descendants(System.Windows.DependencyObject parent)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i); yield return child;
+            foreach (var descendant in Descendants(child)) yield return descendant;
+        }
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

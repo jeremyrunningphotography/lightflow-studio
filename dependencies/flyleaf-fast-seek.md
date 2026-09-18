@@ -1,10 +1,10 @@
-# Local accurate-seek refinement for #111
+# Accurate-keyframe seek provenance
 
-`3.11.2-lightflow.4` applies `flyleaf-fast-seek.patch` to the published base
-commit pinned in `flyleaf.json`. The package and patch are repository-local;
-the base commit alone does not contain this change. Jeremy accepted the resulting
-functionality hands-on on September 10, 2026.
-`Build-FlyleafPackage.ps1` applies the patch and builds the manifest version.
+The current 3.11.8-lightflow.1 package incorporates SeekAccurateFromKeyframe directly
+in the fork commit pinned by flyleaf.json. Build-FlyleafPackage.ps1 performs no
+source mutation. The behavior below is retained from the accepted #111 refinement.
+
+## Historical #111 evidence
 
 The opt-in `SeekAccurateFromKeyframe` retains Flyleaf's accurate decoded-frame
 selection and native seek serialization. It first asks the demuxer to seek

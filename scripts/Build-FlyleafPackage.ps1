@@ -9,7 +9,8 @@ $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $manifestPath = Join-Path $repositoryRoot "dependencies\flyleaf.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
-$workingRoot = Join-Path ([IO.Path]::GetTempPath()) ("lightflow-flyleaf-" + [Guid]::NewGuid().ToString("N"))
+$buildRoot = Join-Path $repositoryRoot "artifacts\flyleaf-source"
+$workingRoot = Join-Path $buildRoot ([Guid]::NewGuid().ToString("N"))
 
 function Normalize-ZipArchive([string]$Path) {
     Add-Type -AssemblyName System.IO.Compression
@@ -50,6 +51,7 @@ function Normalize-ZipArchive([string]$Path) {
 }
 
 try {
+    New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
     $cloneSource = if ($SourceDirectory) { [IO.Path]::GetFullPath($SourceDirectory) } else { $manifest.sourceRepository }
     git clone --no-checkout $cloneSource $workingRoot
     if ($LASTEXITCODE -ne 0) { throw "Flyleaf source clone failed." }
@@ -60,10 +62,8 @@ try {
     }
 
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
-    if ($manifest.sourcePatch) {
-        git -C $workingRoot apply (Join-Path (Split-Path $manifestPath) $manifest.sourcePatch)
-        if ($LASTEXITCODE -ne 0) { throw "Flyleaf source patch failed." }
-    }
+    git -C $workingRoot merge-base --is-ancestor $manifest.upstreamCommit HEAD
+    if ($LASTEXITCODE -ne 0) { throw "Flyleaf source does not contain the pinned upstream baseline." }
     dotnet restore (Join-Path $workingRoot "FlyleafLib\FlyleafLib.csproj") -p:TargetFramework=net8.0-windows
     if ($LASTEXITCODE -ne 0) { throw "Flyleaf package restore failed." }
     # Keep debug metadata identical for local and public clones of the same pin.
@@ -85,9 +85,8 @@ try {
 finally {
     if (Test-Path -LiteralPath $workingRoot) {
         $resolvedRoot = [IO.Path]::GetFullPath($workingRoot)
-        $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
-        if (-not $resolvedRoot.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase) -or
-            -not ([IO.Path]::GetFileName($resolvedRoot)).StartsWith('lightflow-flyleaf-')) {
+        $allowedRoot = [IO.Path]::GetFullPath($buildRoot).TrimEnd('\') + '\'
+        if (-not $resolvedRoot.StartsWith($allowedRoot, [StringComparison]::OrdinalIgnoreCase)) {
             throw "Refusing to remove an unexpected source directory: $resolvedRoot"
         }
         Remove-Item -LiteralPath $workingRoot -Recurse -Force

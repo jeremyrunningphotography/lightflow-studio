@@ -31,26 +31,26 @@ those components.
 
 ## Playback components
 
-Interactive video playback uses the modified FlyleafLib 3.11.2-lightflow.4 package and
+Interactive video playback uses the modified FlyleafLib 3.11.8-lightflow.1 package and
 Flyleaf.FFmpeg.Bindings 9.0.0. Both packages are licensed under the GNU Lesser
 General Public License, version 3.0 or later. The modified package is based on
-upstream Flyleaf v3.11.2 (`64cee8bf3749590c98b6b6d416e2f590e4e890cf`)
+upstream Flyleaf v3.11.8 (`fc96062f9c731a0a4018039f23f4c6305a89ed05`)
 and adds a generic renderer-owned GPU video post-process extension, an optional decoded-PTS frame-selection callback,
-and a D3D snapshot correction that excludes viewport zoom/pan cropping. The distributed
-`flyleaf-fast-seek.patch` adds an opt-in accurate keyframe-first seek with legacy preroll fallback.
+and a D3D snapshot correction that excludes viewport zoom/pan cropping. The same source
+includes an opt-in accurate keyframe-first seek with legacy preroll fallback.
+The generic post-process seam preserves upstream HDR analysis targets and ICC state.
 
-- Modified Flyleaf corresponding source: <https://github.com/jeremysrunning/Flyleaf/tree/a9ca2937a95952790efa87b94f56cd735024d52c>
-- Upstream Flyleaf source: <https://github.com/SuRGeoNix/Flyleaf/tree/v3.11.2>
+- Modified Flyleaf corresponding source: <https://github.com/jeremyrunningphotography/Flyleaf/tree/28f5dd4b3f4c09b6de37524a2e2cd7626f6d844e>
+- Upstream Flyleaf source: <https://github.com/SuRGeoNix/Flyleaf/tree/v3.11.8>
 - Generic upstream contribution: <https://github.com/SuRGeoNix/Flyleaf/pull/719>
 - Flyleaf FFmpeg bindings source: <https://github.com/SuRGeoNix/Flyleaf.FFmpeg.Generator>
 
 The exact source commit, package SHA-256, and package version are recorded in
 `flyleaf-package.json` in the distribution and `dependencies/flyleaf.json` in
 the source repository. `scripts/Build-FlyleafPackage.ps1` checks out that exact
-published commit, applies the `sourcePatch` recorded in the manifest, rebuilds the
-package, and verifies the byte-for-byte package hash. The patch is part of the
-corresponding source and is included alongside `flyleaf-fast-seek.md` in the distribution;
-the published base commit alone does not contain the seek refinement.
+published commit, rebuilds the package, and verifies the byte-for-byte package hash.
+There is no packaging-time source patch. The seek behavior is documented in
+`flyleaf-fast-seek.md` in the distribution and implemented in the pinned fork commit.
 
 Flyleaf uses dynamically loaded FFmpeg shared libraries. Lightflow distributes
 the pinned BtbN `lgpl-shared` build recorded in

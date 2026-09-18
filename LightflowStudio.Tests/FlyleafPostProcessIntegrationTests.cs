@@ -14,7 +14,7 @@ using Xunit;
 namespace LightflowStudio.Tests;
 
 [Collection("STA dispatcher tests")]
-public sealed class FlyleafPostProcessIntegrationTests : IDisposable
+public sealed partial class FlyleafPostProcessIntegrationTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-post-process-").FullName;
 

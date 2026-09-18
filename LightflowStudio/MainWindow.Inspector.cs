@@ -18,6 +18,12 @@ public partial class MainWindow
         _inspector = new MediaInspectorView();
         _inspector.Initialize(() => new MediaInspectorService(_storage.Previews, _storage.AssetClassifications,
             _storage.Locations.PreviewsDirectory, _storage.Markers), _storage.AssetDescriptions);
+        _inspector.InitializeMarkers(_storage.Markers, _storage.CreateMarkerThumbnailService());
+        _inspector.MarkersChanged += (_, assetId) =>
+        {
+            OnMarkerStateChanged(assetId);
+            if (_playerViewerHost?.CurrentAsset?.AssetId == assetId) _ = _playerViewerHost.ReloadMarkersAsync();
+        };
         _browserGrid.SelectionChanging = () => _browserPresentation == BrowserPresentationMode.PlayerViewer || TryLeaveInspectorContext();
         _inspector.OpenPlayerRequested += (_, _) =>
         {

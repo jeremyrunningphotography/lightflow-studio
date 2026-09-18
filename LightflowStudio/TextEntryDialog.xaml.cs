@@ -4,8 +4,10 @@ namespace LightflowStudio;
 
 public partial class TextEntryDialog : Window
 {
-    public TextEntryDialog(string title, string prompt, string initialValue = "")
+    private readonly bool _allowEmpty;
+    public TextEntryDialog(string title, string prompt, string initialValue = "", bool allowEmpty = false)
     {
+        _allowEmpty = allowEmpty;
         InitializeComponent();
         Title = title;
         PromptText.Text = prompt;
@@ -18,7 +20,7 @@ public partial class TextEntryDialog : Window
     private void Cancel_Click(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        if (Value.Length == 0) return;
+        if (!_allowEmpty && Value.Length == 0) return;
         DialogResult = true;
         Close();
     }

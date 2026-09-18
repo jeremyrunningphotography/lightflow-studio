@@ -561,6 +561,9 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         }, progress, cancellationToken).ConfigureAwait(false);
     }
 
+    internal IMarkerThumbnailService CreateMarkerThumbnailService() =>
+        new MarkerThumbnailService(MediaAssets, () => Locations, SubclipPosterFactory.CreateRenderer(Settings), _previewOperations);
+
     internal ISubclipPosterService CreateSubclipPosterService() =>
         SubclipPosterFactory.Create(MediaAssets, () => Locations, Settings, operations: _previewOperations);
 

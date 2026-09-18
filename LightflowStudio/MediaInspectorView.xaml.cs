@@ -30,11 +30,6 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     }
     internal event EventHandler? OpenPlayerRequested;
     internal Func<TimelineMarker, Task>? SeekMarker { get; set; }
-    private async void InspectorMarker_Click(object sender, RoutedEventArgs e)
-    {
-        if (_playerContext && sender is FrameworkElement { DataContext: TimelineMarker marker } && SeekMarker is not null)
-            await SeekMarker(marker);
-    }
     internal Func<Task>? OpenFolder { get; set; }
     internal bool IsPlayerContext => _playerContext;
     internal IDisposable? SuspendEditing() => _descriptions?.SuspendEditing();
@@ -99,7 +94,7 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
             var snapshot = await _service().ReadAsync(_context, token);
             if (generation != _generation || token.IsCancellationRequested) return;
             _snapshot = snapshot;
-            InspectorMarkers.ItemsSource = snapshot.Markers;
+            PresentMarkers(snapshot.Markers, token);
             MarkerSection.Visibility = _playerContext && snapshot.Markers.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             TitleText.Text = snapshot.Title;
             StatusText.Text = snapshot.Status;
@@ -165,6 +160,7 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     public void Dispose()
     {
         _descriptions?.Dispose();
+        _markerThumbnails?.Dispose();
         ++_generation;
         _hydration?.Cancel();
         _hydration?.Dispose();

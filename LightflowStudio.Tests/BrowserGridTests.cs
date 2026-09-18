@@ -6,6 +6,26 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserGridTests
 {
     [Fact]
+    public void MarkerPresence_SharedProjectionSurvivesViewSwitchesAndIndependentStateChanges()
+    {
+        var model = new BrowserGridModel(); var root = Guid.NewGuid(); var id = Guid.NewGuid();
+        var entry = Video(root, "markers.mov"); model.Populate([entry]);
+        model.ApplyAssetIdentities([new(id, entry.RelativePath, CatalogReconciliationItemStatus.New)]);
+        model.ApplyAssetState(id, new BrowserAssetQueryState(BrowserAssetState.None, false, false, 0, MarkerCount: 3));
+        var tile = Assert.Single(model.Tiles);
+        Assert.True(tile.HasMarkers); Assert.True(tile.HasUserAuthoredState); Assert.Equal(3, tile.MarkerCount);
+        Assert.Contains("Timeline Markers", tile.AssetStateLabel);
+        foreach (var mode in new[] { BrowserViewMode.Preview, BrowserViewMode.Info, BrowserViewMode.Hybrid })
+        {
+            model.SetViewMode(mode); Assert.True(tile.HasMarkers); Assert.Equal(3, tile.MarkerCount);
+        }
+        model.ApplyAssetStateFlag(id, BrowserAssetState.Color, true);
+        Assert.True(tile.HasMarkers);
+        model.ApplyAssetState(id, new BrowserAssetQueryState(BrowserAssetState.Color, false, false, 0));
+        Assert.False(tile.HasMarkers); Assert.True(tile.HasColorState);
+    }
+
+    [Fact]
     public void ViewMode_AppliesInPlaceAndSurvivesNavigationOrScopeRepopulation()
     {
         var model = new BrowserGridModel();

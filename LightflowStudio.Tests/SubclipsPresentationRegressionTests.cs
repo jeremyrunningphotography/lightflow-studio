@@ -182,7 +182,7 @@ public sealed class SubclipsPresentationRegressionTests
         Assert.True(commit.IndexOf("string.IsNullOrWhiteSpace(name)", StringComparison.Ordinal) <
                     commit.IndexOf("_subclips.RenameAsync", StringComparison.Ordinal));
         Assert.StartsWith("private void PlayerViewerHost_PreviewKeyDown", shortcuts);
-        Assert.Contains("TryHandleShortcut(e.Key, e.OriginalSource as DependencyObject)", shortcuts);
+        Assert.Contains("TryHandleShortcut(e.Key == Key.System ? e.SystemKey : e.Key, e.OriginalSource as DependencyObject)", shortcuts);
         Assert.Contains("if (IsTextEntryControl(inputOwner)) return false;", shortcutPolicy);
         Assert.DoesNotContain("e.Key == Key.S && IsTextEntryControl", shortcutPolicy);
         Assert.True(commit.IndexOf("item.Replace(updated)", StringComparison.Ordinal) >

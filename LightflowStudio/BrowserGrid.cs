@@ -183,7 +183,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         }
     }
 
-    public bool HasUserAuthoredState => AssetState != BrowserAssetState.None || Rating > 0 ||
+    public bool HasUserAuthoredState => AssetState != BrowserAssetState.None || HasMarkers || Rating > 0 ||
         Flag != AssetFlag.Unflagged || ColorLabel is not null;
     public bool HasReviewRange => AssetState.HasFlag(BrowserAssetState.ReviewRange);
     public bool HasColorState => AssetState.HasFlag(BrowserAssetState.Color);
@@ -191,6 +191,9 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     public bool AssetStateApplied => _assetStateApplied;
     public bool HasCameraLut => _hasCameraLut;
     public bool HasCreativeLut => _hasCreativeLut;
+    private int _markerCount;
+    public int MarkerCount => _markerCount;
+    public bool HasMarkers => MarkerCount > 0;
     public int SubclipCount => _subclipCount;
     public int Rating => _classification?.Rating ?? 0;
     public AssetFlag Flag => _classification?.Flag ?? AssetFlag.Unflagged;
@@ -215,7 +218,8 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     {
         HasReviewRange ? "In/Out Range" : null,
         HasSubclips ? "Saved Subclips" : null,
-        HasColorState ? "Color Applied" : null
+        HasColorState ? "Color Applied" : null,
+        HasMarkers ? "Timeline Markers" : null
     }.Where(label => label is not null));
 
     public void SetAssetId(Guid assetId)
@@ -238,6 +242,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         _hasCameraLut = state.HasCameraLut;
         _hasCreativeLut = state.HasCreativeLut;
         _subclipCount = state.SubclipCount;
+        _markerCount = state.MarkerCount;
         _classification = state.Classification ?? (AssetId is { } assetId ? AssetClassification.Empty(assetId) : null);
         _assetStateApplied = true;
         PublishProjectedState();
@@ -252,6 +257,8 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(HasSubclips));
         OnPropertyChanged(nameof(SubclipCount));
+        OnPropertyChanged(nameof(MarkerCount));
+        OnPropertyChanged(nameof(HasMarkers));
         OnPropertyChanged(nameof(HasCameraLut));
         OnPropertyChanged(nameof(HasCreativeLut));
         OnPropertyChanged(nameof(AssetStateApplied));

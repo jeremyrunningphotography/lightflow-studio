@@ -11,7 +11,7 @@ public class UiLayoutTests
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var hybrid = Named(document, "BrowserHybridStateOverlay");
-        var hybridLower = Named(document, "BrowserHybridLowerStateOverlay");
+        var hybridLower = document.Descendants().Single(e => (string?)e.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "BrowserLowerStateIndicators");
         var working = Named(document, "BrowserThumbnailWorkingIndicator");
         Assert.Contains(hybridLower.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasReviewRange") == true);
         Assert.Contains(hybridLower.Descendants(), element => ((string?)element.Attribute("Visibility"))?.Contains("HasSubclips") == true);
@@ -1771,6 +1771,24 @@ public class UiLayoutTests
     private static XElement Named(XDocument document, string name) =>
         document.Descendants().Single(element => element.Attributes().Any(attribute =>
             attribute.Name.LocalName == "Name" && attribute.Value == name));
+
+    [Fact]
+    public void Markers_UseSharedLowerStatePresentationAndOneTimelineMenu()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
+        var state = document.Descendants().Single(e => (string?)e.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "BrowserLowerStateIndicators");
+        var marker = Assert.Single(state.Descendants(), e => (string?)e.Attribute("ContentTemplate") == "{StaticResource BrowserMarkerIcon}");
+        Assert.Equal("Right", (string?)marker.Attribute("DockPanel.Dock"));
+        Assert.Contains("HasMarkers", (string?)marker.Attribute("Visibility"));
+        foreach (var name in new[] { "BrowserInfoLowerFrame", "BrowserHybridLowerStateOverlay" })
+            Assert.Single(Named(document, name).Descendants(), e => (string?)e.Attribute("ContentTemplate") == "{StaticResource BrowserLowerStateIndicators}");
+        Assert.Equal("2", (string?)Named(document, "BrowserInfoLowerFrame").Attribute("Grid.Row"));
+        var player = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml"));
+        Assert.Equal("Timeline_ContextMenuOpening", (string?)Named(player, "TimelineSurface").Attribute("ContextMenuOpening"));
+        Assert.Contains(Named(player, "TimelineSurface").Descendants(), e => (string?)e.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PositionSlider");
+        Assert.DoesNotContain(Named(player, "PositionSlider").Descendants(), e => e.Name.LocalName == "ContextMenu");
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

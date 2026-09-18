@@ -1484,7 +1484,7 @@ public partial class PlayerViewerHost : UserControl
     /// </summary>
     private void PlayerViewerHost_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        e.Handled = TryHandleShortcut(e.Key, e.OriginalSource as DependencyObject);
+        e.Handled = TryHandleShortcut(e.Key == Key.System ? e.SystemKey : e.Key, e.OriginalSource as DependencyObject);
     }
 
     internal bool TryHandleShortcut(Key key, DependencyObject? inputOwner) => TryHandleShortcut(key, inputOwner, Keyboard.Modifiers);
@@ -1493,6 +1493,18 @@ public partial class PlayerViewerHost : UserControl
     {
         if (IsTextEntryControl(inputOwner)) return false;
         var activeModifiers = modifiers;
+        if (activeModifiers == ModifierKeys.None && key == Key.M)
+        {
+            if (!AddMarkerButton.IsEnabled || _markers is null) return false;
+            AddMarker_Click(this, new RoutedEventArgs()); return true;
+        }
+        if (activeModifiers == ModifierKeys.Alt && key is Key.Left or Key.Right)
+        {
+            if (_markers is null || !PositionSlider.IsEnabled) return false;
+            if (key == Key.Left) PreviousMarker_Click(this, new RoutedEventArgs());
+            else NextMarker_Click(this, new RoutedEventArgs());
+            return true;
+        }
         if (activeModifiers == ModifierKeys.Control && key is Key.Left or Key.Right)
         {
             _ = TraverseReviewAsync(key == Key.Left ? -1 : 1);

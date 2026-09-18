@@ -8,17 +8,16 @@ public partial class PlayerViewerHost
 {
     private readonly IMarkerService? _markers;
     private IReadOnlyList<TimelineMarker> _markerItems = [];
-    private bool _loadingMarkers;
+    private Guid? _selectedMarkerId;
+    internal Guid? SelectedMarkerId => _selectedMarkerId;
+    internal IReadOnlyList<TimelineMarker> CurrentMarkers => _markerItems;
     private bool _markerBusy;
-    internal event EventHandler? MarkersChanged;
+    internal event EventHandler<Guid>? MarkersChanged;
 
     private void ResetMarkers()
     {
         _markerItems = [];
-        _loadingMarkers = true;
-        MarkerChoice.ItemsSource = null;
-        MarkerName.Text = "";
-        _loadingMarkers = false;
+        _selectedMarkerId = null;
         UpdateMarkerPresentation();
     }
 
@@ -30,11 +29,7 @@ public partial class PlayerViewerHost
             var markers = await _markers.ListAsync(assetId);
             if (generation != _generation || _currentAsset?.AssetId != assetId) return;
             _markerItems = markers;
-            _loadingMarkers = true;
-            MarkerChoice.ItemsSource = markers;
-            MarkerChoice.SelectedItem = markers.FirstOrDefault(m => m.MarkerId == select);
-            MarkerName.Text = (MarkerChoice.SelectedItem as TimelineMarker)?.Name ?? "";
-            _loadingMarkers = false;
+            _selectedMarkerId = markers.FirstOrDefault(m => m.MarkerId == select)?.MarkerId;
             UpdateMarkerPresentation();
         }
         catch (Exception error) { if (generation == _generation) SetStatus($"Markers unavailable: {error.Message}"); }
@@ -43,14 +38,12 @@ public partial class PlayerViewerHost
     private void UpdateMarkerPresentation()
     {
         if (MarkerTrack is null) return;
-        MarkerControls.Visibility = _markers is not null && _currentAsset is { Kind: MediaPresentationKind.Video, AssetId: not null }
+        MarkerTransport.Visibility = _markers is not null && _currentAsset is { Kind: MediaPresentationKind.Video, AssetId: not null }
             ? Visibility.Visible : Visibility.Collapsed;
-        MarkerControls.IsEnabled = !_markerBusy;
+        MarkerTransport.IsEnabled = !_markerBusy;
         var canSeek = _service is not null && PositionSlider.IsEnabled;
         AddMarkerButton.IsEnabled = canSeek;
         PreviousMarkerButton.IsEnabled = NextMarkerButton.IsEnabled = canSeek && _markerItems.Count > 0;
-        RenameMarkerButton.IsEnabled = MarkerChoice.SelectedItem is TimelineMarker;
-        RemoveMarkerButton.IsEnabled = _markerItems.Count > 0;
         MarkerTrack.Children.Clear();
         var duration = _service?.SourceInfo?.Duration ?? TimeSpan.Zero;
         foreach (var marker in _markerItems)
@@ -65,6 +58,7 @@ public partial class PlayerViewerHost
             button.SetResourceReference(ForegroundProperty, "OrangeBrush");
             System.Windows.Automation.AutomationProperties.SetName(button, $"Seek to {marker.DisplayName} at {marker.PositionLabel}");
             button.Click += async (_, _) => await SeekMarkerAsync(marker);
+            button.ContextMenu = MarkerMenus.Create(button, () => PromptRenameMarker(marker), () => ClearMarkerAsync(marker));
             Canvas.SetLeft(button, MarkerNavigation.Fraction(marker.Position, duration) * MarkerTrack.ActualWidth - 7);
             MarkerTrack.Children.Add(button);
         }
@@ -80,7 +74,7 @@ public partial class PlayerViewerHost
         {
             var selected = await mutation(assetId);
             await LoadMarkersAsync(assetId, generation, selected);
-            MarkersChanged?.Invoke(this, EventArgs.Empty);
+            MarkersChanged?.Invoke(this, assetId);
         }
         catch (Exception error)
         {
@@ -99,35 +93,49 @@ public partial class PlayerViewerHost
         if (timestamp is not { IsDecodedPresentationTimestamp: true } || !PositionSlider.IsEnabled) return;
         await MarkerMutationAsync(async asset => (await _markers!.CreateAsync(asset, timestamp.Position)).Marker.MarkerId);
     }
-    private async void RenameMarker_Click(object sender, RoutedEventArgs e)
+    internal Task RenameMarkerAsync(TimelineMarker marker, string name) =>
+        marker.AssetId != _currentAsset?.AssetId ? Task.CompletedTask : MarkerMutationAsync(async _ => { await _markers!.RenameAsync(marker.MarkerId, marker.Revision, name); return marker.MarkerId; });
+    internal Task ClearMarkerAsync(TimelineMarker marker) =>
+        marker.AssetId != _currentAsset?.AssetId ? Task.CompletedTask : MarkerMutationAsync(async _ => { await _markers!.DeleteAsync(marker.MarkerId, marker.Revision); return null; });
+    private async void PromptRenameMarker(TimelineMarker marker)
     {
-        if (MarkerChoice.SelectedItem is not TimelineMarker marker) return;
-        var name = MarkerName.Text;
-        await MarkerMutationAsync(async _ => { await _markers!.RenameAsync(marker.MarkerId, marker.Revision, name); return marker.MarkerId; });
+        if (marker.AssetId != _currentAsset?.AssetId) return;
+        var dialog = new TextEntryDialog("Rename Marker", "Marker name (optional)", marker.Name, allowEmpty: true)
+            { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() == true && marker.AssetId == _currentAsset?.AssetId) await RenameMarkerAsync(marker, dialog.Value);
     }
-    private async void RemoveMarker_Click(object sender, RoutedEventArgs e)
+    internal Task ReloadMarkersAsync() => _currentAsset?.AssetId is { } id
+        ? LoadMarkersAsync(id, _generation, _selectedMarkerId) : Task.CompletedTask;
+    internal ContextMenu BuildTimelineMenu()
     {
-        var marker = MarkerChoice.SelectedItem as TimelineMarker ?? _markerItems.FirstOrDefault(m => m.Position == _service?.Snapshot.DisplayedTimestamp?.Position);
-        if (marker is null) return;
-        await MarkerMutationAsync(async _ => { await _markers!.DeleteAsync(marker.MarkerId, marker.Revision); return null; });
+        var menu = MarkerMenus.Empty(this);
+        menu.Items.Add(MarkerMenus.Item(this, "Add Marker", () => AddMarker_Click(this, new RoutedEventArgs()), AddMarkerButton.IsEnabled));
+        var go = MarkerMenus.Item(this, "Go to Marker", () => { }, _markerItems.Count > 0 && PositionSlider.IsEnabled);
+        foreach (var marker in _markerItems)
+            go.Items.Add(MarkerMenus.Item(this, MarkerMenus.Label(marker), async () => await SeekMarkerAsync(marker)));
+        menu.Items.Add(go);
+        menu.Items.Add(MarkerMenus.Item(this, "Go to In", async () => await SeekToBoundaryAsync(PresentedRange?.In), PresentedRange?.In is not null && PositionSlider.IsEnabled));
+        menu.Items.Add(MarkerMenus.Item(this, "Go to Out", async () => await SeekToBoundaryAsync(PresentedRange?.Out), PresentedRange?.Out is not null && PositionSlider.IsEnabled));
+        return menu;
+    }
+    private void Timeline_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        // A diamond owns its two-action menu; every other timeline descendant, including the Thumb, shares this one.
+        if (e.OriginalSource is DependencyObject origin)
+            for (var current = origin; current is not null && current != TimelineSurface; current = current is Visual ? VisualTreeHelper.GetParent(current) : LogicalTreeHelper.GetParent(current))
+                if (current is FrameworkElement { Tag: TimelineMarker }) return;
+        TimelineSurface.ContextMenu = BuildTimelineMenu();
     }
     private async void PreviousMarker_Click(object sender, RoutedEventArgs e) =>
         await SeekMarkerAsync(MarkerNavigation.Previous(_markerItems, _service?.Snapshot.DisplayedTimestamp?.Position ?? TimeSpan.Zero));
     private async void NextMarker_Click(object sender, RoutedEventArgs e) =>
         await SeekMarkerAsync(MarkerNavigation.Next(_markerItems, _service?.Snapshot.DisplayedTimestamp?.Position ?? TimeSpan.Zero));
-    private async void MarkerChoice_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (!_loadingMarkers) await SeekMarkerAsync(MarkerChoice.SelectedItem as TimelineMarker);
-    }
     internal async Task SeekMarkerAsync(TimelineMarker? marker)
     {
         if (marker is null || marker.AssetId != _currentAsset?.AssetId) return;
         marker = _markerItems.FirstOrDefault(m => m.MarkerId == marker.MarkerId);
         if (marker is null) return;
-        _loadingMarkers = true;
-        MarkerChoice.SelectedItem = _markerItems.FirstOrDefault(m => m.MarkerId == marker.MarkerId);
-        MarkerName.Text = marker.Name;
-        _loadingMarkers = false;
+        _selectedMarkerId = marker.MarkerId;
         UpdateMarkerPresentation();
         if (_service is null || !PositionSlider.IsEnabled) return;
         if (_service.SourceInfo is { } source && marker.Position > source.Duration)

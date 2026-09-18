@@ -92,9 +92,19 @@
        <TextBlock Text="Lightflow markers" FontWeight="SemiBold" Margin="0,0,0,6"/>
        <ItemsControl x:Name="InspectorMarkers">
         <ItemsControl.ItemTemplate><DataTemplate>
-         <Button Click="InspectorMarker_Click" HorizontalContentAlignment="Left" Margin="0,2" Padding="6,4" ToolTip="Seek to this marker in Player">
-          <StackPanel><TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding PositionLabel}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11"/></StackPanel>
-         </Button>
+         <Border Padding="6" Margin="0,3" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" ContextMenuOpening="InspectorMarker_ContextMenuOpening">
+          <Border.ContextMenu><ContextMenu Style="{StaticResource LightflowContextMenuStyle}"/></Border.ContextMenu>
+          <StackPanel>
+           <Button Click="InspectorMarker_Click" Padding="0" BorderThickness="0" Background="Transparent" HorizontalContentAlignment="Stretch" ToolTip="Seek to marker">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="74"/><ColumnDefinition/></Grid.ColumnDefinitions>
+             <Grid Height="42" Background="{DynamicResource ShellSurfaceBrush}"><TextBlock Text="◆" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource MutedTextBrush}"/><Image Source="{Binding Thumbnail}" Stretch="Uniform"/><Grid.ToolTip><ToolTip Content="{Binding ThumbnailStatus}"/></Grid.ToolTip></Grid>
+             <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"><TextBlock Text="{Binding Marker.DisplayName}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding Marker.PositionLabel}" Foreground="{DynamicResource MutedTextBrush}" FontSize="11"/></StackPanel>
+            </Grid>
+           </Button>
+           <TextBox x:Name="MarkerNameEditor" Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEdit}" Margin="0,5,0,0" Padding="5,3" AutomationProperties.Name="Marker name" ToolTip="Marker name; Enter to save, Escape to cancel" PreviewKeyDown="InspectorMarkerName_KeyDown" LostKeyboardFocus="InspectorMarkerName_LostKeyboardFocus"/>
+           <TextBlock Text="{Binding Error}" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" FontSize="11"/>
+          </StackPanel>
+         </Border>
         </DataTemplate></ItemsControl.ItemTemplate>
        </ItemsControl>
       </StackPanel>

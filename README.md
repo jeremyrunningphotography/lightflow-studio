@@ -185,3 +185,9 @@ succeed. The complete installer build requires
 [Inno Setup 6](https://jrsoftware.org/isdl.php); the release script downloads and verifies
 the FFmpeg package pinned in `dependencies/ffmpeg.json` and carries its license, source,
 and build records into both distributions.
+
+Normal development targets `main`. Released minor families use maintenance branches
+such as `release/0.40`; patches for that family are released from that branch, with
+fixes reconciled back into `main`. Only the current released minor line is actively
+maintained unless explicitly decided otherwise. See [release planning](docs/RELEASE_PLAN.md)
+for branch, validation, and tag conventions.

@@ -13,26 +13,47 @@ internal interface IMarkerThumbnailService : IDisposable
 internal sealed class MarkerThumbnailService(IMediaAssetService assets, Func<ILightflowStorageLocations> locations,
     IThumbnailRenderer renderer, IPreviewOperationCoordinator? operations = null) : IMarkerThumbnailService
 {
+    private readonly PositionFrameService _frames = new(assets, locations, renderer, operations);
+    public async Task<string?> GetAsync(TimelineMarker marker, CancellationToken token) =>
+        await _frames.GetAsync(await _frames.PrepareAsync(marker.AssetId, token), marker.Position, token);
+    internal static string Identity(MediaAsset source, TimeSpan position) => PositionFrameService.Identity(source, position);
+    public void Dispose() => _frames.Dispose();
+}
+
+internal interface IPositionFrameService : IDisposable
+{
+    Task<MediaAssetResolution?> PrepareAsync(Guid assetId, CancellationToken token);
+    Task<string?> GetAsync(MediaAssetResolution? source, TimeSpan position, CancellationToken token);
+}
+
+/// <summary>Shared Original-color position frames. Effective presentation changes must version Identity and renderer together.</summary>
+internal sealed class PositionFrameService(IMediaAssetService assets, Func<ILightflowStorageLocations> locations,
+    IThumbnailRenderer renderer, IPreviewOperationCoordinator? operations = null) : IPositionFrameService
+{
     private readonly PriorityAsyncGate _gate = new(2);
-    public async Task<string?> GetAsync(TimelineMarker marker, CancellationToken token)
+    public async Task<MediaAssetResolution?> PrepareAsync(Guid assetId, CancellationToken token) =>
+        (await assets.ObserveAsync(assetId, token).ConfigureAwait(false)).Asset;
+
+    public async Task<string?> GetAsync(MediaAssetResolution? source, TimeSpan position, CancellationToken token)
     {
+        if (source?.Asset.Fingerprint is null || position < TimeSpan.Zero) return null;
         using var operation = operations is null ? null : await operations.EnterOperationAsync(token).ConfigureAwait(false);
         using var lease = await _gate.EnterAsync(ThumbnailPriority.Visible, token).ConfigureAwait(false);
-        var observed = await assets.ObserveAsync(marker.AssetId, token).ConfigureAwait(false);
-        if (!observed.Succeeded || observed.Asset?.PhysicalPath is null || observed.Asset.Asset.Fingerprint is null) return null;
-        var identity = Identity(observed.Asset.Asset, marker.Position);
-        var directory = Path.Combine(locations().PreviewsDirectory, "previews", "markers", marker.AssetId.ToString("N"));
+        var identity = Identity(source.Asset, position);
+        // Preserve the marker cache namespace so existing exact-position frames remain reusable.
+        var directory = Path.Combine(locations().PreviewsDirectory, "previews", "markers", source.Asset.AssetId.ToString("N"));
         var path = Path.Combine(directory, identity + ".jpg");
         if (File.Exists(path) && ThumbnailGenerationService.IsValidThumbnail(path)) return path;
+        if (!source.SourceExists || source.RootAvailability != MediaRootAvailability.Online || source.PhysicalPath is null) return null;
         Directory.CreateDirectory(directory);
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".lightflow";
         try
         {
-            var result = await renderer.RenderAsync(observed.Asset.PhysicalPath, observed.Asset.Asset.MediaType,
-                marker.Position, temporary, token).ConfigureAwait(false);
+            var result = await renderer.RenderAsync(source.PhysicalPath, source.Asset.MediaType,
+                position, temporary, token).ConfigureAwait(false);
             if (result.Status != ThumbnailGenerationStatus.Succeeded || !ThumbnailGenerationService.IsValidThumbnail(temporary)) return null;
-            var verified = await assets.ObserveAsync(marker.AssetId, token).ConfigureAwait(false);
-            if (!verified.Succeeded || verified.Asset?.Asset.Fingerprint is null || Identity(verified.Asset.Asset, marker.Position) != identity) return null;
+            var verified = await assets.ObserveAsync(source.Asset.AssetId, token).ConfigureAwait(false);
+            if (!verified.Succeeded || verified.Asset?.Asset.Fingerprint is null || Identity(verified.Asset.Asset, position) != identity) return null;
             token.ThrowIfCancellationRequested();
             File.Move(temporary, path, overwrite: true);
             return path;

@@ -68,9 +68,13 @@ public partial class MainWindow
         _inspectorRefreshTimer.Start();
     }
 
-    private void UpdateSubclipsSurfaceAvailability() => HomeRightPanel.SetSurfaceAvailable("subclips",
-        _browserPresentation == BrowserPresentationMode.PlayerViewer &&
-        _playerViewerHost?.CurrentAsset is { Kind: MediaPresentationKind.Video, AssetId: not null });
+    private void UpdateSubclipsSurfaceAvailability()
+    {
+        var available = _browserPresentation == BrowserPresentationMode.PlayerViewer &&
+            _playerViewerHost?.CurrentAsset is { Kind: MediaPresentationKind.Video, AssetId: not null };
+        HomeRightPanel.SetSurfaceAvailable("subclips", available);
+        HomeRightPanel.SetSurfaceAvailable("visual-index", available);
+    }
 
     private async Task OpenInspectorFolderAsync()
     {

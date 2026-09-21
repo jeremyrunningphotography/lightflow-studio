@@ -374,6 +374,9 @@ public partial class PlayerViewerHost : UserControl
         // wait for a step already genuinely in flight; that one native decode keeps running regardless (see
         // FrameStepQueue's own doc comment — there is no way to abort it), and MediaPlaybackService's existing
         // cancel-on-close/generation handling governs what happens when the close below reaches it.
+        ++_visualIndexContextGeneration;
+        _visualIndexCachedDuration = null;
+        _visualIndex?.SetContext(null, null, 0, VisualIndexContent.Count, false);
         _frameStepQueue.Reset();
         ResetReviewPresentation();
         _service?.SetColorPipeline(null, false);
@@ -742,6 +745,7 @@ public partial class PlayerViewerHost : UserControl
 
     private void UpdateFromSnapshot(MediaPlaybackSnapshot snapshot)
     {
+        RefreshVisualIndex();
         if (snapshot.DisplayedTimestamp is { } timestamp)
         {
             _updatingPosition = true;

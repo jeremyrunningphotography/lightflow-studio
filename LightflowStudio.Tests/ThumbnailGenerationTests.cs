@@ -130,6 +130,40 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task VisualIndex_RealFramesCoverShortSourceReuseOfflineAndDoNotMutateSourceOrPosterIntent()
+    {
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        var source = Path.Combine(fixture.MediaRoot, "visual-index.mkv");
+        Run(Path.Combine(dependencies, "ffmpeg.exe"), "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=10:duration=0.3", "-c:v", "ffv1", source);
+        var original = await File.ReadAllBytesAsync(source);
+        var id = await fixture.AddAssetAsync("visual-index.mkv", "video");
+        using var frames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            new CompositeThumbnailRenderer(new WicImageThumbnailRenderer(),
+                new FfmpegVideoThumbnailRenderer(Path.Combine(dependencies, "ffmpeg.exe"), new ProbeProcessRunner())));
+        var prepared = await frames.PrepareAsync(id, default);
+        var positions = VisualIndexSampling.Plan(TimeSpan.FromSeconds(0.3), 10, 48);
+        Assert.Equal(3, positions.Count);
+        var paths = new List<string>();
+        foreach (var position in positions)
+        {
+            var path = await frames.GetAsync(prepared, position, default);
+            Assert.NotNull(path); paths.Add(path!);
+            Assert.Equal((512, 288), ReadDimensions(path!));
+        }
+        Assert.Equal(3, paths.Distinct().Count());
+        Assert.Equal(original, await File.ReadAllBytesAsync(source));
+        Assert.Null(await fixture.Coordinator.PreferredPreviewFrames.GetAsync(id));
+        File.Delete(source);
+        var offline = await frames.PrepareAsync(id, default);
+        for (var i = 0; i < positions.Count; i++)
+            Assert.Equal(paths[i], await frames.GetAsync(offline, positions[i], default));
+        Assert.Null(await frames.GetAsync(offline, TimeSpan.FromSeconds(1), default));
+    }
+
+    [Fact]
     public async Task PreferredFrame_UsesExactDecodedTimestampAndColorAwareIdentity()
     {
         await using var fixture = await ThumbnailFixture.CreateAsync(_root);

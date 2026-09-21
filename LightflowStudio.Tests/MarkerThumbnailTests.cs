@@ -7,6 +7,62 @@ namespace LightflowStudio.Tests;
 public sealed class MarkerThumbnailTests
 {
     [Fact]
+    public async Task PositionFrames_ReuseExactMarkerCacheOfflineAndRebuildAfterPreviewClear()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "position-frames-" + Guid.NewGuid());
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var source = new MediaAsset(Guid.NewGuid(), Guid.NewGuid(), "clip.mov", "CLIP.MOV", "video", 10, 20,
+                new(1, "original"), MediaAssetSourceStatus.Available, now, now, now);
+            var assets = new Assets(source); var renderer = new Renderer();
+            using var operations = new PreviewOperationCoordinator();
+            using var frames = new PositionFrameService(assets, () => LightflowStorageLocations.Create(root), renderer, operations);
+            using var markers = new MarkerThumbnailService(assets, () => LightflowStorageLocations.Create(root), renderer, operations);
+            var position = TimeSpan.FromTicks(123456789);
+            var prepared = await frames.PrepareAsync(source.AssetId, default);
+            var path = await frames.GetAsync(prepared, position, default);
+            Assert.Equal(path, await markers.GetAsync(new(Guid.NewGuid(), source.AssetId, position, "", 1, now, now), default));
+            Assert.Single(renderer.Positions);
+            Assert.Equal(position, renderer.Positions[0]);
+            var offline = prepared! with { SourceExists = false, PhysicalPath = null, RootAvailability = MediaRootAvailability.Unavailable };
+            Assert.Equal(path, await frames.GetAsync(offline, position, default));
+            Assert.Null(await frames.GetAsync(offline, position + TimeSpan.FromTicks(1), default));
+            Assert.Single(renderer.Positions);
+            using (await operations.EnterMaintenanceAsync()) File.Delete(path!);
+            Assert.Equal(path, await frames.GetAsync(prepared, position, default));
+            Assert.Equal(2, renderer.Positions.Count);
+            Assert.All(Directory.GetFiles(root, "*", SearchOption.AllDirectories), file => Assert.EndsWith(".jpg", file));
+            Assert.NotEqual(PositionFrameService.Identity(source, position), PositionFrameService.Identity(source, position + TimeSpan.FromTicks(1)));
+            Assert.NotEqual(PositionFrameService.Identity(source, position), PositionFrameService.Identity(source with { LastWriteUtcTicks = 21 }, position));
+            using var canceled = new CancellationTokenSource(); canceled.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => frames.GetAsync(prepared, position, canceled.Token));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task PositionFrames_CancellationRemovesTemporaryOutputAndReleasesMaintenance()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "position-cancel-" + Guid.NewGuid());
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var source = new MediaAsset(Guid.NewGuid(), Guid.NewGuid(), "clip.mov", "CLIP.MOV", "video", 10, 20,
+                new(1, "original"), MediaAssetSourceStatus.Available, now, now, now);
+            var assets = new Assets(source); var renderer = new Renderer();
+            using var operations = new PreviewOperationCoordinator();
+            using var frames = new PositionFrameService(assets, () => LightflowStorageLocations.Create(root), renderer, operations);
+            using var canceled = new CancellationTokenSource();
+            renderer.AfterRender = canceled.Cancel;
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => frames.GetAsync(new(source, MediaRootAvailability.Online, "fixture.mov", true), TimeSpan.Zero, canceled.Token));
+            using var maintenance = await operations.EnterMaintenanceAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Empty(Directory.GetFiles(root, "*", SearchOption.AllDirectories));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public async Task MarkerFrames_AreExactRebuildableAndRejectChangedOrUnavailableSources()
     {
         var root = Path.Combine(Path.GetTempPath(), "marker-frames-" + Guid.NewGuid());

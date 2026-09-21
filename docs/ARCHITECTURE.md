@@ -1155,3 +1155,38 @@ Both templates use the same click, Ctrl-click, Shift-click, context selection, d
 `WorkspaceLayoutState` adds layout mode and ordered stable column IDs with visibility and widths. WPF header resizing/reordering and the checked column menu update that same workspace service and its existing debounce/shutdown lifecycle. Unknown/duplicate IDs are ignored, widths are bounded, missing columns receive defaults, and at least one column remains visible. #247's existing `WorkspaceGridState` retains the one shared selection/anchor and top-asset/within-row scroll anchor, adding current AssetId and horizontal offset. Startup restores the chosen template before scope hydration; queued layout scroll restoration is rejected after newer input, layout intent, or Browser generation.
 
 `BrowserGridTile.DetailsRevision` publishes completed metadata/classification/asset-state updates to realized text bindings. Preview cells bind the same notifying `ThumbnailPath` as Grid and the Player filmstrip. Text conversion reads resident normalized values only, with empty text for missing/not-applicable technical metadata. Column configuration does not cause discovery or metadata probing. See `docs/performance/browser-227.md` for final validation coverage and performance limits.
+
+## Visual Index (#293)
+
+The current Catalog-backed video exposes Visual Index through the retained shared Right Panel. PlayerViewerHost
+owns context and exact source-relative seeking through its existing playback service/coordinator. No extra
+playback lease, Catalog image payload, source mutation, export workflow or annotation authority is introduced.
+The shell only registers the surface and persists its density in WorkspaceLayoutState with the preferred tab.
+
+VisualIndexSampling plans 12, 24 (default), or 48 uniform temporal samples. It uses integral ticks on nominal
+frame-cadence slots, includes zero, and reserves a complete interval before EOF; very short sources reduce the
+count to unique slots. Unknown duration remains empty until playback or current cached Preview metadata supplies
+it. A missing/invalid cadence uses a conservative 25 fps planning interval. These positions are exact seek
+requests, not claims of decoded presentation timestamps for variable-frame-rate media. No scene intelligence is
+implemented. Future strategies can replace planning without changing the card/generation/seek boundary.
+
+VisualIndexModel fills stable frame cards sequentially, starting with the first rows. Asset, duration, cadence,
+density and visibility changes cancel obsolete work; generation checks reject even uncooperative completions.
+Hiding/reopening retains the same cards. Nearest-position indication updates only the affected cards, never the
+scroll offset or keyboard selection. The one-to-three-column grid uses the available panel width with stable
+16:9 image regions, contained portraits, exact-position tooltips and keyboard-activatable timestamped buttons.
+
+PositionFrameService generalizes #226's marker cache by asset and exact position; the marker adapter preserves
+its existing interface and cache namespace. Both use the existing IThumbnailRenderer, bounded PriorityAsyncGate
+and PreviewOperationCoordinator. The cache lives under Previews/previews/markers and is safely discarded by
+existing cleanup/Clear/Rebuild, then recreated on demand. Identity retains generator version, observed source
+size/write time/fingerprint, and position ticks; density and marker names are not pixel identity. Source identity
+is checked again before publishing a newly rendered file; temporary files are removed on failure/cancellation.
+A batch observes availability once, reads valid retained cache offline and never decodes absent sources. Failed
+samples remain navigable when playback is available; reopening the surface retries missing derivatives.
+
+Original color deliberately matches marker and Subclip review thumbnails and is labeled in the panel. Browser
+preferred-frame/Color-aware poster intent remains independent. FFmpeg's existing source-orientation behavior is
+preserved. If #287 merges later, its effective-orientation implementation must extend PositionFrameService.Identity
+and the shared renderer contract together, invalidating/rebuilding pixels as appropriate; the Visual Index must
+consume that boundary rather than owning rotation. No speculative rotation state is stored here.

@@ -1991,6 +1991,13 @@ public partial class MainWindow : Window
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder,
             preferredPreviewFrames: _storage.PreferredPreviewFrames,
             classifications: _storage.AssetClassifications, markers: _storage.Markers);
+        _playerViewerHost.InitializeVisualIndex(_storage.CreatePositionFrameService(), () => _storage.Previews,
+            _workspaceState.Current.Layout?.VisualIndexCount ?? 24);
+        _playerViewerHost.VisualIndexDensityChanged += (_, _) =>
+        {
+            _workspaceState.SetVisualIndexCount(_playerViewerHost.VisualIndexCount);
+            ScheduleRightPanelSave();
+        };
         _playerViewerHost.MarkersChanged += (_, assetId) => OnMarkerStateChanged(assetId);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         _playerViewerHost.FilmstripVisible = _workspaceState.Current.Layout?.PlayerFilmstripVisible ?? true;
@@ -1998,6 +2005,7 @@ public partial class MainWindow : Window
         _playerViewerHost.ContextChanging = TryLeaveInspectorContext;
         _playerViewerHost.SuspendContextEditing = () => _inspector?.SuspendEditing();
         HomeRightPanel.AddSurface("subclips", "Subclips", _playerViewerHost.SubclipsContent, available: false);
+        HomeRightPanel.AddSurface("visual-index", "Visual Index", _playerViewerHost.VisualIndexContent, available: false);
         _playerViewerHost.CurrentAssetChanged += (_, _) =>
         {
             UpdateSubclipsSurfaceAvailability();
@@ -2169,6 +2177,7 @@ public partial class MainWindow : Window
         if (_browserPresentation != BrowserPresentationMode.PlayerViewer) return;
         if (!TryLeaveInspectorContext()) return;
         HomeRightPanel.SetSurfaceAvailable("subclips", false);
+        HomeRightPanel.SetSurfaceAvailable("visual-index", false);
         var playerViewerHost = _playerViewerHost;
         Guid? revealAssetId = null;
         if (restoreScrollOffset && playerViewerHost?.ReviewSet?.IsSelectionSubset == true && _playerBrowserGrid is { } openingGrid)

@@ -45,6 +45,7 @@ internal sealed record WorkspaceLayoutState
 {
     public BrowserLayoutMode BrowserLayoutMode { get; init; }
     public IReadOnlyList<WorkspaceDetailsColumn>? BrowserDetailsColumns { get; init; }
+    public int VisualIndexCount { get; init; } = 24;
     public bool PlayerFilmstripVisible { get; init; } = true;
     public double? BrowserLocationsPaneWidth { get; init; }
     public double? FullJobsListPaneWidth { get; init; }
@@ -146,10 +147,11 @@ internal sealed record WorkspaceState
         var collectionId = layout.BrowserCollectionId is { } id && id != Guid.Empty ? id : (Guid?)null;
         var expandedSets = (layout.BrowserExpandedCollectionSetIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray();
         return layout with { BrowserLayoutMode = Enum.IsDefined(layout.BrowserLayoutMode) ? layout.BrowserLayoutMode : BrowserLayoutMode.Grid,
+            VisualIndexCount = VisualIndexSampling.NormalizeCount(layout.VisualIndexCount),
             BrowserDetailsColumns = BrowserDetails.Normalize(layout.BrowserDetailsColumns),
             RightPanelWidth = layout.RightPanelWidth is { } rightWidth && double.IsFinite(rightWidth)
                 ? Math.Clamp(rightWidth, MinRightPanelWidth, MaxRightPanelWidth) : null,
-            RightPanelActiveSurface = layout.RightPanelActiveSurface is "inspector" or "subclips" or "jobs" ? layout.RightPanelActiveSurface : null,
+            RightPanelActiveSurface = layout.RightPanelActiveSurface is "inspector" or "subclips" or "visual-index" or "jobs" ? layout.RightPanelActiveSurface : null,
             BrowserLocationsPaneWidth = paneWidth,
             FullJobsListPaneWidth = fullJobsListPaneWidth,
             BrowserThumbnailSizeLevel = thumbnailSizeLevel, BrowserViewMode = browserViewMode,
@@ -268,6 +270,9 @@ internal sealed class WorkspaceStateService
         };
 
     public void SetWindow(WorkspaceWindowState window) => _current = _current with { Window = window };
+
+    public void SetVisualIndexCount(int count) =>
+        _current = _current with { Layout = (_current.Layout ?? new()) with { VisualIndexCount = VisualIndexSampling.NormalizeCount(count) } };
 
     public void SetPlayerFilmstripVisible(bool visible) =>
         _current = _current with { Layout = (_current.Layout ?? new WorkspaceLayoutState()) with { PlayerFilmstripVisible = visible } };

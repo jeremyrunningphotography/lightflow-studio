@@ -59,7 +59,10 @@ The superseding isolation decision permits Premiere from an isolated packaged pr
 
 Prerequisite acceptance: Jeremy checks that an unconfigured **Send To → Premiere Pro**
 opens Integration Settings, pairs this profile with the production companion, and reaches
-the normal Send workflow. Close the other Lightflow bridge owner first. Copy Setup
+the normal Send workflow after Done or window close. A profile with a previous successful
+authenticated pairing opens Send directly, even while awaiting reconnection; Send remains
+disabled until connection/project/destination requirements are met. Directly opening
+Integration Settings does not open Send afterward. Close the other Lightflow bridge owner first. Copy Setup
 Location from this build; choose Forget Connection in the companion's Troubleshooting
 section, then Allow Connection Access with that location. Each profile owns its Catalog,
 handoff journal and pairing credentials. The companion remembers one explicit folder

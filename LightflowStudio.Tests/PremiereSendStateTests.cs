@@ -13,10 +13,35 @@ public class PremiereSendStateTests
     [InlineData(PremiereConnectionState.CompanionNotInstalled, PremiereSendRoute.Settings)]
     [InlineData(PremiereConnectionState.UpdateRequired, PremiereSendRoute.Settings)]
     [InlineData(PremiereConnectionState.Ready, PremiereSendRoute.Settings)]
-    [InlineData(PremiereConnectionState.ConnectionProblem, PremiereSendRoute.Disconnected)]
+    [InlineData(PremiereConnectionState.ConnectionProblem, PremiereSendRoute.Settings)]
     [InlineData(PremiereConnectionState.Connected, PremiereSendRoute.Send)]
     public void RoutesReflectLiveConnection(object state, object route) =>
         Assert.Equal((PremiereSendRoute)route, PremiereSendState.Route(new((PremiereConnectionState)state, "state")));
+
+    [Fact]
+    public void ConfiguredProfilesOpenSendRegardlessOfTransientReadiness()
+    {
+        foreach (var state in Enum.GetValues<PremiereConnectionState>())
+            Assert.Equal(PremiereSendRoute.Send, PremiereSendState.Route(new(state, "state"), setupComplete: true));
+        var disconnected = new PremiereConnection(PremiereConnectionState.Ready, "waiting for companion");
+        Assert.False(new PremiereSendState().CanSend(disconnected));
+        Assert.False(PremiereSendState.Present(disconnected).IsActionable);
+    }
+
+    [Theory]
+    [InlineData(true, false, "settings,send")]
+    [InlineData(true, true, "send")]
+    [InlineData(false, false, "settings")]
+    [InlineData(false, true, "settings")]
+    public async Task SettingsDismissalPreservesOnlyTheOriginalSendIntent(bool send, bool configured, string expected)
+    {
+        var shown = new List<string>();
+        await PremiereSendState.NavigateAsync(send,
+            PremiereSendState.Route(new(PremiereConnectionState.Ready, "waiting"), configured),
+            () => shown.Add("settings"), // ShowDialog returns for either Done or the window close button.
+            () => { shown.Add("send"); return Task.CompletedTask; });
+        Assert.Equal(expected, string.Join(",", shown));
+    }
 
     [Fact]
     public void InstallationAloneNeverBecomesConnectedAndLiveHealthWinsInventory()

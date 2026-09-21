@@ -43,6 +43,8 @@ internal sealed class PremiereBridge : IAsyncDisposable
     private Guid _dispatchId;
     private long _lastRequest;
     private bool _disposed;
+    private volatile bool _setupComplete;
+    public bool HasCompletedSetup => _setupComplete;
     private readonly CancellationTokenSource _maintenanceStop = new();
     private Task? _maintenance;
     public const int HeartbeatSeconds = 10;
@@ -109,6 +111,7 @@ internal sealed class PremiereBridge : IAsyncDisposable
         var listening = false;
         try
         {
+            _setupComplete = ReadSetupComplete();
             await server.StartAsync().ConfigureAwait(false);
             listening = true;
             _server = server;
@@ -174,11 +177,7 @@ internal sealed class PremiereBridge : IAsyncDisposable
             acl.AddAccessRule(new FileSystemAccessRule(WindowsIdentity.GetCurrent().User!, FileSystemRights.FullControl,
                 InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
             directory.SetAccessControl(acl);
-            var path = Path.Combine(_pairingDirectory, "lightflow-pairing.json");
-            var temp = Path.Combine(_pairingDirectory, Guid.NewGuid().ToString("N") + ".tmp");
-            await File.WriteAllTextAsync(temp, JsonSerializer.Serialize(new { endpoint = PremiereProtocol.Endpoint,
-                protocol = PremiereProtocol.Version, token, expiresUtc = expires }, PremiereProtocol.Json)).ConfigureAwait(false);
-            File.Move(temp, path, true);
+            await PublishPairingAsync(token, expires, _setupComplete).ConfigureAwait(false);
             _token = token;
             _expires = expires;
             _hello = null;
@@ -188,6 +187,42 @@ internal sealed class PremiereBridge : IAsyncDisposable
         }
         finally { _gate.Release(); }
         Changed?.Invoke();
+    }
+
+    private string PairingPath
+    {
+        get
+        {
+            var path = Path.Combine(_pairingDirectory, "lightflow-pairing.json");
+            if (_profile?.IsIsolated == true)
+                ApplicationDataProfile.RequireContained(_profile.ApplicationDataDirectory, path);
+            return path;
+        }
+    }
+    private bool ReadSetupComplete()
+    {
+        var path = PairingPath;
+        if (!File.Exists(path) || new FileInfo(path).Length > 4096) return false;
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("setupComplete", out var complete)
+                && complete.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException) { return false; }
+    }
+    private async Task PublishPairingAsync(string token, DateTimeOffset expires, bool setupComplete)
+    {
+        var path = PairingPath;
+        var temp = Path.Combine(_pairingDirectory, Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            await File.WriteAllTextAsync(temp, JsonSerializer.Serialize(new { endpoint = PremiereProtocol.Endpoint,
+                protocol = PremiereProtocol.Version, token, expiresUtc = expires, setupComplete }, PremiereProtocol.Json)).ConfigureAwait(false);
+            File.Move(temp, path, true);
+        }
+        finally { if (File.Exists(temp)) File.Delete(temp); }
     }
 
     internal bool Authenticate(string host, string? authorization, bool browserRequest, IPAddress? remote)
@@ -232,6 +267,11 @@ internal sealed class PremiereBridge : IAsyncDisposable
                 if (_incompatible) { context.Response.StatusCode = 409; Changed?.Invoke(); return; }
                 if (_hello is not null && _hello.InstanceId != hello.InstanceId && Connection.State == PremiereConnectionState.Connected)
                 { context.Response.StatusCode = 409; return; }
+                if (!_setupComplete)
+                {
+                    await PublishPairingAsync(_token, _expires, true).ConfigureAwait(false);
+                    _setupComplete = true;
+                }
                 _hello = hello;
                 _heartbeat = _now();
                 Changed?.Invoke();
@@ -268,7 +308,7 @@ internal sealed class PremiereBridge : IAsyncDisposable
                 await context.Response.WriteAsJsonAsync(new { accepted = true }, PremiereProtocol.Json, timeout.Token);
             }
         }
-        catch (Exception error) when (error is JsonException or InvalidOperationException or IOException or OperationCanceledException)
+        catch (Exception error) when (error is JsonException or InvalidOperationException or IOException or UnauthorizedAccessException or OperationCanceledException)
         {
             if (!context.Response.HasStarted) context.Response.StatusCode = 400;
             _completion?.TrySetException(new InvalidOperationException("Bridge request failed. Reconnect and reconcile before retrying."));

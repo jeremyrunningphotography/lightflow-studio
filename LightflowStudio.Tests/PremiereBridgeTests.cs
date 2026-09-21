@@ -14,6 +14,29 @@ public class PremiereBridgeCollection;
 [Collection("Premiere bridge")]
 public sealed class PremiereBridgeTests : IAsyncLifetime
 {
+    [Fact]
+    public async Task SuccessfulSetupPersistsAcrossDisconnectResetAndRestartButDoesNotAuthorizeSend()
+    {
+        Assert.False(_bridge.HasCompletedSetup); // Publishing credentials alone is not setup completion.
+        Assert.Equal(HttpStatusCode.Conflict, (await Post("/v1/heartbeat", Hello with { Protocol = 999 })).StatusCode);
+        Assert.False(_bridge.HasCompletedSetup);
+        Assert.Equal(HttpStatusCode.OK, (await Post("/v1/heartbeat", Hello)).StatusCode);
+        Assert.True(_bridge.HasCompletedSetup);
+        _now = _now.AddSeconds(PremiereBridge.HeartbeatSeconds + 1);
+        Assert.Equal(PremiereConnectionState.ConnectionProblem, _bridge.Connection.State);
+        Assert.Equal(PremiereSendRoute.Send, PremiereSendState.Route(_bridge.Connection, _bridge.HasCompletedSetup));
+        await _bridge.RotatePairingAsync();
+        Assert.True(_bridge.HasCompletedSetup);
+        Assert.False(new PremiereSendState().CanSend(_bridge.Connection));
+        var folder = _bridge.PairingDirectory;
+        await _bridge.DisposeAsync();
+        _bridge = new(_journal, folder, () => _now);
+        await _bridge.StartAsync();
+        Assert.True(_bridge.HasCompletedSetup);
+        Assert.Equal(PremiereConnectionState.Ready, _bridge.Connection.State);
+        Assert.False(new PremiereSendState().CanSend(_bridge.Connection));
+        Assert.False(_bridge.Authenticate("localhost:47857", _authorization, false, IPAddress.Loopback));
+    }
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

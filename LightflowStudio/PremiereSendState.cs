@@ -2,7 +2,7 @@ using System.IO;
 
 namespace LightflowStudio;
 
-internal enum PremiereSendRoute { Settings, Disconnected, Send }
+internal enum PremiereSendRoute { Settings, Send }
 internal enum PremiereSendReadiness { Disconnected, ProjectRequired, DestinationRequired, Ready }
 
 internal sealed record PremiereSendPresentation(PremiereSendReadiness Readiness, string Badge, string Guidance,
@@ -20,13 +20,15 @@ internal sealed class PremiereSendState
     public string Message { get; private set; } = "";
     public static PremiereConnection WithInstallation(PremiereConnection live, PremiereConnection installation) =>
         live.State == PremiereConnectionState.Ready ? installation : live;
-    public static PremiereSendRoute Route(PremiereConnection connection) => connection.State switch
+    public static PremiereSendRoute Route(PremiereConnection connection, bool setupComplete = false) =>
+        setupComplete || connection.State == PremiereConnectionState.Connected ? PremiereSendRoute.Send : PremiereSendRoute.Settings;
+
+    public static async Task NavigateAsync(bool send, PremiereSendRoute route, Action openSettings, Func<Task> openSend)
     {
-        PremiereConnectionState.Connected => PremiereSendRoute.Send,
-        PremiereConnectionState.PremiereNotInstalled or PremiereConnectionState.CompanionNotInstalled
-            or PremiereConnectionState.UpdateRequired or PremiereConnectionState.Ready => PremiereSendRoute.Settings,
-        _ => PremiereSendRoute.Disconnected
-    };
+        if (!send || route == PremiereSendRoute.Settings) openSettings();
+        // Done and window close finish the setup step, not the original Send request.
+        if (send) await openSend();
+    }
     public static PremiereSendPresentation Present(PremiereConnection connection)
     {
         if (connection.State != PremiereConnectionState.Connected)

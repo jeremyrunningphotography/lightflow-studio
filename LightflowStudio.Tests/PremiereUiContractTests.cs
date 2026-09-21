@@ -11,7 +11,8 @@ public class PremiereUiContractTests
         var source = File.ReadAllText(Source("MainWindow.Premiere.cs"));
         Assert.DoesNotContain("IsIsolated", source);
         Assert.Contains("new PremiereBridge(journal, _storage.Locations)", source);
-        Assert.Contains("PremiereSendState.Route(connection)", source);
+        Assert.Contains("PremiereSendState.NavigateAsync(send", source);
+        Assert.Contains("_premiereBridge.HasCompletedSetup", source);
         Assert.Contains("new PremiereSendWindow", source);
         Assert.Contains("catch (Exception error) when (_premiereBridge is not null)", source);
         Assert.Contains("new PremiereIntegrationWindow(_premiereBridge)", source);
@@ -27,12 +28,12 @@ public class PremiereUiContractTests
         throw new InvalidOperationException("Repository root not found.");
     }
     [Fact]
-    public void DisconnectedSendUsesSharedStyledActionInsteadOfStockMessageBox()
+    public void SendNavigationUsesExistingStyledSurfacesInsteadOfStockMessageBox()
     {
         var source = File.ReadAllText(Source("MainWindow.Premiere.cs"));
         Assert.DoesNotContain("MessageBox", source);
-        Assert.Contains("NoticeDialog.OfferAction", source);
-        Assert.Contains("Open Integration Settings", source);
+        Assert.Contains("new PremiereIntegrationWindow", source);
+        Assert.Contains("new PremiereSendWindow", source);
         var dialog = XDocument.Load(Source("NoticeDialog.xaml"));
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         var cancel = dialog.Descendants().Single(e => (string?)e.Attribute(x + "Name") == "CancelButton");

@@ -92,6 +92,7 @@ public sealed class PremiereProfileTests : IDisposable
         Assert.True(Authenticates(bridgeA, tokenA));
         await bridgeA.DisposeAsync();
         await bridgeB.StartAsync(); // Explicit retry after the other owner exits.
+        Assert.False(bridgeB.HasCompletedSetup);
         var tokenB = Authorization(await File.ReadAllBytesAsync(pairingB));
         Assert.True(Authenticates(bridgeB, tokenB));
         Assert.False(Authenticates(bridgeB, tokenA));

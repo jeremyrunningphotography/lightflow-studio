@@ -19,8 +19,10 @@ public sealed class PremiereProfileTests : IDisposable
         var directory = Directory.CreateDirectory(profile.PremierePairingDirectory);
         var user = WindowsIdentity.GetCurrent().User!;
         var owner = directory.GetAccessControl().GetOwner(typeof(SecurityIdentifier));
-        Assert.Equal(user, owner);
-        // Match an ordinary user-owned workspace granting Modify, not WRITE_OWNER.
+        Assert.NotNull(owner);
+        // Windows may assign ownership to the user or (on elevated CI runners) the
+        // Administrators group. Preserve that actual owner while granting Modify,
+        // not WRITE_OWNER, to the current user.
         var limited = new DirectorySecurity();
         limited.SetAccessRuleProtection(true, false);
         limited.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.Modify,

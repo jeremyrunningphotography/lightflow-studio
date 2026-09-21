@@ -106,19 +106,23 @@ internal sealed class PremiereBridge : IAsyncDisposable
         });
         var server = builder.Build();
         server.Run(HandleAsync);
+        var listening = false;
         try
         {
             await server.StartAsync().ConfigureAwait(false);
+            listening = true;
             _server = server;
             await RotatePairingAsync(false).ConfigureAwait(false);
             _maintenance = MaintainPairingAsync();
         }
-        catch
+        catch (Exception error)
         {
             await server.DisposeAsync().ConfigureAwait(false);
             _server = null;
             _token = "";
-            _problem = "Could not start the Premiere bridge. Only one Lightflow profile can connect at a time. Close the other Lightflow instance using port 47857, then choose Refresh Connection. If no other instance is running, check that this profile's setup folder is writable.";
+            _problem = listening
+                ? $"The bridge opened its local connection, but could not prepare this profile's protected setup folder. Check folder permissions, then choose Refresh Connection. {error.Message}"
+                : $"Could not open the Premiere bridge on localhost:47857. Only one Lightflow profile can connect at a time. If another instance is connected, close it, then choose Refresh Connection. {error.Message}";
             Changed?.Invoke();
             throw;
         }
@@ -165,7 +169,8 @@ internal sealed class PremiereBridge : IAsyncDisposable
             if (directory.Attributes.HasFlag(FileAttributes.ReparsePoint)) throw new IOException("Pairing folder must not be a link.");
             var acl = new DirectorySecurity();
             acl.SetAccessRuleProtection(true, false);
-            acl.SetOwner(WindowsIdentity.GetCurrent().User!);
+            // The owner may have WRITE_DAC without WRITE_OWNER (for example under C:\Git).
+            // Protect credentials by replacing the DACL; changing ownership is unnecessary.
             acl.AddAccessRule(new FileSystemAccessRule(WindowsIdentity.GetCurrent().User!, FileSystemRights.FullControl,
                 InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
             directory.SetAccessControl(acl);

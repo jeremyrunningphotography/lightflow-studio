@@ -54,7 +54,7 @@ public partial class MainWindow
             try { await EnsurePremiereAsync(); }
             catch (Exception error) when (_premiereBridge is not null)
             {
-                AppendLog($"Premiere connection unavailable: {error.Message}");
+                AppendLog($"Premiere connection unavailable: {error}");
                 new PremiereIntegrationWindow(_premiereBridge) { Owner = this }.ShowDialog();
                 return;
             }

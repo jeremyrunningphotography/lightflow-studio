@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text.Json;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Xunit;
 
 namespace LightflowStudio.Tests;
@@ -8,6 +10,39 @@ namespace LightflowStudio.Tests;
 public sealed class PremiereProfileTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "lightflow-premiere-profile-" + Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public async Task PairingProtectsCredentialsWithoutRequiringPermissionToChangeOwner()
+    {
+        var profile = ApplicationDataProfile.Resolve(["--data-root", Path.Combine(_root, "restricted")]);
+        ApplicationDataProfile.Initialize(profile);
+        var directory = Directory.CreateDirectory(profile.PremierePairingDirectory);
+        var user = WindowsIdentity.GetCurrent().User!;
+        var owner = directory.GetAccessControl().GetOwner(typeof(SecurityIdentifier));
+        Assert.Equal(user, owner);
+        // Match an ordinary user-owned workspace granting Modify, not WRITE_OWNER.
+        var limited = new DirectorySecurity();
+        limited.SetAccessRuleProtection(true, false);
+        limited.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.Modify,
+            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+            PropagationFlags.None, AccessControlType.Allow));
+        directory.SetAccessControl(limited);
+        await using var bridge = new PremiereBridge(new CatalogPremiereHandoffs(() => null), profile);
+        await bridge.StartAsync();
+        Assert.Equal(PremiereConnectionState.Ready, bridge.Connection.State);
+        var secured = directory.GetAccessControl();
+        Assert.Equal(owner, secured.GetOwner(typeof(SecurityIdentifier)));
+        Assert.True(secured.AreAccessRulesProtected);
+        var rule = Assert.Single(secured.GetAccessRules(true, true, typeof(SecurityIdentifier)).Cast<FileSystemAccessRule>());
+        Assert.Equal(user, rule.IdentityReference);
+        Assert.Equal(FileSystemRights.FullControl, rule.FileSystemRights);
+        Assert.False(rule.IsInherited);
+        var pairing = new FileInfo(Path.Combine(directory.FullName, "lightflow-pairing.json"));
+        Assert.True(pairing.Exists);
+        Assert.All(pairing.GetAccessControl().GetAccessRules(true, true, typeof(SecurityIdentifier)).Cast<FileSystemAccessRule>(),
+            fileRule => Assert.Equal(user, fileRule.IdentityReference));
+        Assert.True(Authenticates(bridge, Authorization(await File.ReadAllBytesAsync(pairing.FullName))));
+    }
 
     [Theory]
     [InlineData(false)]

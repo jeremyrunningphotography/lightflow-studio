@@ -72,6 +72,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<BrowserStorageEntry> _browserStorageEntries = [];
     private readonly BrowserGridModel _browserGrid = new();
     private readonly BrowserTreeModel _browserTree = new();
+    private readonly HashSet<BrowserTreeNode> _browserTreeExpansionLoads = [];
     private readonly BrowserCollectionTreeModel _browserCollectionTree = new();
     private readonly BrowserCollectionScopeService _browserCollectionScopes;
     private readonly BrowserNavigationSession _browserNavigation;
@@ -655,65 +656,61 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Expanding a folder — via the disclosure chevron, a double-click, or the keyboard — materializes its real
-    /// children (siblings) for lazy-loading, exactly like <see cref="RevealBrowserTreeAncestorsAsync"/> already
-    /// does for ancestors, but never selects it or navigates into it: hierarchy exploration and
-    /// selection/navigation are deliberately separate actions, matching a conventional tree control. Only a row
-    /// click or keyboard selection (<see cref="BrowserFolderTree_SelectedItemChanged"/>) changes Browser scope/
-    /// contents. Previously this called <c>RunBrowserNavigationAsync</c> directly — reusing "navigate here" as
-    /// the mechanism for fetching a real listing — which also selected the row and replaced the grid/address
-    /// bar on every expand, and (since <see cref="BrowserTreeModel.EnsurePathChain"/> expands every ancestor
-    /// while revealing a deep restored/direct-path location) could race a startup restoration's own in-flight
-    /// navigation for a completely different, shallower folder — the root cause of a startup fallback and of a
-    /// concurrent recursive scan losing its progress and silently restarting. Requires the node to already
-    /// carry a <see cref="BrowserTreeNode.RootId"/>: a bare, not-yet-anchored Volume row (a raw drive letter
-    /// never yet navigated into) has none, so materialization cannot proceed until the row is clicked once to
-    /// establish its Catalog anchor — a narrow, honest trade-off (never silently mis-navigating) rather than
-    /// duplicating filesystem-listing logic in WPF just to materialize an unanchored drive's children without a
-    /// Catalog root. Every path that cannot materialize real children (missing anchor, a root that no longer
-    /// resolves to a physical path, an enumeration failure or exception) collapses the node back via
-    /// <see cref="CollapseUnmaterializableNode"/> rather than returning early and leaving its "Loading…"
-    /// placeholder child stuck showing forever with no further feedback — an honest closed/re-expandable
-    /// chevron, not a false promise of in-progress work.
+    /// Disclosure/keyboard expansion materializes children without selecting or navigating. A never-visited
+    /// volume first resolves its Catalog anchor through the same location service used by navigation.
+    /// One pending load per node handles rapid collapse/re-expand; completion never changes expansion intent.
     /// </summary>
     private async void BrowserFolderTreeItem_Expanded(object sender, RoutedEventArgs e)
     {
-        if (_restoringWorkspace || _synchronizingBrowserTree || (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node ||
-            node.IsPlaceholder || !node.Children.Any(child => child.IsPlaceholder))
-            return;
-        if (node.RootId is not { } rootId || node.RelativeFolder is not { } relativeFolder)
-        {
-            CollapseUnmaterializableNode(node);
-            return;
-        }
-
-        var root = await _storage.MediaRoots.GetAsync(rootId).ConfigureAwait(true);
-        if (root?.PhysicalPath is not { } rootPath)
-        {
-            CollapseUnmaterializableNode(node);
-            return;
-        }
-
-        MediaFolderEnumerationResult listing;
+        if (_restoringWorkspace || _synchronizingBrowserTree || !ReferenceEquals(sender, e.OriginalSource) ||
+            (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node || node.IsPlaceholder ||
+            node.IsMaterialized || !_browserTreeExpansionLoads.Add(node)) return;
+        var requestedPath = node.AbsolutePath;
+        bool IsCurrent() => string.Equals(node.AbsolutePath, requestedPath, StringComparison.OrdinalIgnoreCase) &&
+            _browserTree.KnownFolders().Contains(node) && !node.IsMaterialized;
         try
         {
-            listing = await _storage.MediaFolders.EnumerateAsync(new(rootId, EmptyToNull(relativeFolder))).ConfigureAwait(true);
+            if (node.RootId is null || node.RelativeFolder is null)
+            {
+                var location = requestedPath is null ? null :
+                    await _storage.BrowserLocations.ResolveAsync(requestedPath).ConfigureAwait(true);
+                if (!IsCurrent()) return;
+                if (location is not { Succeeded: true, RootId: { } resolvedRootId, RelativeFolder: { } resolvedFolder })
+                {
+                    CollapseUnmaterializableNode(node);
+                    return;
+                }
+                node.SetIdentity(resolvedRootId, resolvedFolder);
+            }
+            if (node.RootId is not { } rootId || node.RelativeFolder is not { } relativeFolder)
+            {
+                CollapseUnmaterializableNode(node);
+                return;
+            }
+            var root = await _storage.MediaRoots.GetAsync(rootId).ConfigureAwait(true);
+            if (!IsCurrent()) return;
+            if (root?.PhysicalPath is not { } rootPath)
+            {
+                CollapseUnmaterializableNode(node);
+                return;
+            }
+            var listing = await _storage.MediaFolders.EnumerateAsync(new(rootId, EmptyToNull(relativeFolder))).ConfigureAwait(true);
+            if (!IsCurrent()) return;
+            if (!listing.Succeeded)
+            {
+                CollapseUnmaterializableNode(node);
+                return;
+            }
+            _synchronizingBrowserTree = true;
+            try { _browserTree.ApplyDirectoryListing(node, rootPath, listing.Entries); }
+            finally { _synchronizingBrowserTree = false; }
+            SyncBrowserTreeRecursiveIcons();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            CollapseUnmaterializableNode(node);
-            return;
+            if (IsCurrent()) CollapseUnmaterializableNode(node);
         }
-        if (!listing.Succeeded)
-        {
-            CollapseUnmaterializableNode(node);
-            return;
-        }
-
-        _synchronizingBrowserTree = true;
-        try { _browserTree.ApplyDirectoryListing(node, rootPath, listing.Entries); }
-        finally { _synchronizingBrowserTree = false; }
-        SyncBrowserTreeRecursiveIcons();
+        finally { _browserTreeExpansionLoads.Remove(node); }
     }
 
     /// <summary>
@@ -721,7 +718,7 @@ public partial class MainWindow : Window
     /// an expand attempt that could not materialize real children — never leaves the "Loading…" placeholder
     /// visibly stuck with no further feedback. The same reentrancy guard every other programmatic tree
     /// mutation uses keeps this from re-triggering <see cref="BrowserFolderTreeItem_Expanded"/> itself. A
-    /// later, genuine expand attempt (e.g. after the row's own click has established a Catalog anchor, or once
+    /// later, genuine expand attempt (e.g. once a location becomes available again, or once
     /// a transient enumeration failure has cleared) runs this handler fresh and can still succeed.
     /// </summary>
     private void CollapseUnmaterializableNode(BrowserTreeNode node)

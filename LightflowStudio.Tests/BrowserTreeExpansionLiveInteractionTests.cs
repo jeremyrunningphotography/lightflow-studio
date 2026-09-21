@@ -1,19 +1,15 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using Xunit;
 
 namespace LightflowStudio.Tests;
 
-/// <summary>
-/// #124: a live-WPF regression seam for disclosure expansion, added after hands-on testing found that
-/// expanding some top-level/source folders' chevrons could leave their "Loading…" placeholder stuck forever.
-/// Root cause: BrowserFolderTreeItem_Expanded's early-return paths (no Catalog anchor yet for a bare,
-/// never-clicked Volume row; a root that no longer resolves to a physical path; an enumeration exception; an
-/// unsuccessful listing) simply returned, leaving the placeholder visible with no further feedback. These
-/// tests drive the actual, real MainWindow — real Catalog, real filesystem, a real generated TreeView — to
-/// prove the fix (CollapseUnmaterializableNode) closes the node back to an honest, re-expandable state instead.
-/// </summary>
+// #281: exercise the actual generated Location tree without OS input or navigation workarounds.
 [Collection("STA dispatcher tests")]
 public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
 {
@@ -22,7 +18,7 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
 
     public Task InitializeAsync()
     {
-        Directory.CreateDirectory(Path.Combine(_mediaRoot, "Trips"));
+        Directory.CreateDirectory(Path.Combine(_mediaRoot, "Trips", "DayOne"));
         Directory.CreateDirectory(Path.Combine(_mediaRoot, "Events"));
         return Task.CompletedTask;
     }
@@ -35,7 +31,7 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ExpandingABareUnanchoredVolumeRow_ClosesBackInsteadOfStayingStuckOnLoading()
+    public async Task FirstCaretOnNeverSelectedVolume_ResolvesAnchorAndLoadsWithoutNavigation()
     {
         await StaDispatcher.RunAsync(async () =>
         {
@@ -44,10 +40,6 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
             var startup = await LightflowStorageCoordinator.StartAsync(_appDataRoot);
             Assert.True(startup.IsReady, startup.Diagnostic);
             var storage = startup.Coordinator!;
-            // Deliberately not registering "C:\" as a Media Root — a fresh Catalog has zero MediaRoots besides
-            // whichever this test creates, so every OTHER detected local volume (see RefreshBrowserStorageAsync)
-            // is exactly the "bare, not-yet-anchored Volume row" case: BrowserTreeNode.RootId is null until the
-            // row is clicked once.
             var window = NewOffscreenWindow(storage, startup);
             try
             {
@@ -59,19 +51,18 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
                 Assert.NotNull(volumeContainer);
                 var volumeNode = (BrowserTreeNode)volumeContainer!.DataContext;
 
-                // Real chevron-expand: setting IsExpanded raises the Expanded routed event exactly like a
-                // click on the disclosure arrow.
-                volumeContainer.IsExpanded = true;
+                ToggleCaret(volumeContainer);
+                await WaitUntilAsync(() => volumeNode.IsMaterialized);
                 await SettleAsync(window);
-
-                // No Catalog anchor exists yet, so BrowserFolderTreeItem_Expanded cannot materialize real
-                // children — it must close the node back rather than leaving IsExpanded true with a
-                // permanently-stuck "Loading…" placeholder child.
-                Assert.False(volumeNode.IsExpanded);
-                Assert.False(volumeContainer.IsExpanded);
-                var placeholder = Assert.Single(volumeNode.Children);
-                Assert.True(placeholder.IsPlaceholder);
-
+                Assert.True(volumeNode.IsExpanded);
+                Assert.True(volumeContainer.IsExpanded);
+                Assert.NotNull(volumeNode.RootId);
+                Assert.All(volumeNode.Children, child => Assert.False(child.IsPlaceholder));
+                var children = volumeNode.Children.ToArray();
+                ToggleCaret(volumeContainer);
+                ToggleCaret(volumeContainer);
+                await SettleAsync(window);
+                Assert.Equal(children, volumeNode.Children);
                 // The row itself was never selected/navigated by any of this.
                 Assert.Null(window.BrowserFolderTree.SelectedItem);
                 Assert.Equal("", window.BrowserCurrentPath.Text);
@@ -85,7 +76,7 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ExpandingAnAnchoredFolderWithRealChildren_MaterializesThemAndNeverGetsStuck()
+    public async Task NeverSelectedManagedRoot_CaretThenRowThenKeyboard_PreservesChildrenAndDropState()
     {
         await StaDispatcher.RunAsync(async () =>
         {
@@ -103,12 +94,6 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
                 window.Show();
                 await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0);
 
-                window.BrowserCurrentPath.Text = _mediaRoot;
-                RaiseClick(window.BrowserGoButton);
-                await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
-                    string.Equals(window.BrowserCurrentPath.Text, _mediaRoot, StringComparison.OrdinalIgnoreCase));
-                await SettleAsync(window);
-
                 var libraryContainer = FindContainer(window.BrowserFolderTree,
                     node => string.Equals(node.AbsolutePath, _mediaRoot, StringComparison.OrdinalIgnoreCase));
                 Assert.NotNull(libraryContainer);
@@ -116,13 +101,17 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
                 var pathBeforeExpand = window.BrowserCurrentPath.Text;
                 var selectedBeforeExpand = window.BrowserFolderTree.SelectedItem;
 
-                // Real chevron-expand, repeated rapidly (collapse, then re-expand) to prove no duplication.
-                libraryContainer.IsExpanded = true;
+                Assert.False(libraryNode.IsSelected);
+                Assert.False(libraryNode.IsMaterialized);
+                libraryNode.IsFileDropTarget = true;
+                ToggleCaret(libraryContainer);
+                ToggleCaret(libraryContainer);
+                ToggleCaret(libraryContainer);
+                await WaitUntilAsync(() => libraryNode.IsMaterialized);
                 await SettleAsync(window);
-                libraryContainer.IsExpanded = false;
-                libraryContainer.IsExpanded = true;
-                await SettleAsync(window);
-
+                Assert.True(TreeDropPresentation.GetIsValid(libraryContainer));
+                Assert.Null(BrowserFolderDragGesture.HeaderNode(
+                    (DependencyObject)libraryContainer.Template.FindName("Expander", libraryContainer)));
                 Assert.True(libraryNode.IsExpanded);
                 Assert.Equal(2, libraryNode.Children.Count); // "Events" and "Trips" — no duplicates
                 Assert.All(libraryNode.Children, child => Assert.False(child.IsPlaceholder));
@@ -132,6 +121,50 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
                 // Expansion never selected/navigated.
                 Assert.Same(selectedBeforeExpand, window.BrowserFolderTree.SelectedItem);
                 Assert.Equal(pathBeforeExpand, window.BrowserCurrentPath.Text, ignoreCase: true);
+
+                // A never-selected descendant also loads from disclosure intent alone.
+                var trips = libraryNode.Children.Single(child => child.DisplayName == "Trips");
+                var tripsContainer = FindContainer(libraryContainer, node => ReferenceEquals(node, trips));
+                Assert.NotNull(tripsContainer);
+                ToggleCaret(tripsContainer!);
+                await WaitUntilAsync(() => trips.IsMaterialized);
+                Assert.Equal("DayOne", Assert.Single(trips.Children).DisplayName);
+                Assert.False(trips.IsSelected);
+                Assert.Same(selectedBeforeExpand, window.BrowserFolderTree.SelectedItem);
+                Assert.Equal(pathBeforeExpand, window.BrowserCurrentPath.Text);
+                // Normal row input still selects/navigates through the existing event handlers.
+                var header = (UIElement)libraryContainer.Template.FindName("HeaderChrome", libraryContainer);
+                header.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                    { RoutedEvent = Mouse.PreviewMouseDownEvent });
+                header.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                    { RoutedEvent = Mouse.MouseDownEvent });
+                await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    string.Equals(window.BrowserCurrentPath.Text, _mediaRoot, StringComparison.OrdinalIgnoreCase));
+                await SettleAsync(window);
+                Assert.Same(libraryNode, window.BrowserFolderTree.SelectedItem);
+                var children = libraryNode.Children.ToArray();
+                libraryContainer.IsExpanded = false;
+                libraryContainer.Focus();
+                var key = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, Key.Right)
+                    { RoutedEvent = Keyboard.KeyDownEvent };
+                libraryContainer.RaiseEvent(key);
+                await SettleAsync(window);
+                Assert.True(libraryNode.IsExpanded);
+                Assert.Equal(children, libraryNode.Children);
+                Assert.True(libraryNode.IsFileDropTarget);
+                libraryNode.IsFileDropTarget = false;
+                Assert.True(libraryNode.IsSelected);
+
+                // Persisted expansion uses the same RootId/relative-folder identity established by expansion.
+                var restored = new BrowserTreeModel();
+                await WorkspaceTreeRestoration.RestoreAsync(restored, storage.MediaRoots, storage.MediaFolders,
+                    [new() { RootId = libraryNode.RootId!.Value, RelativeFolder = libraryNode.RelativeFolder! }],
+                    CancellationToken.None, action => action());
+                var restoredRoot = restored.FindByPath(_mediaRoot);
+                Assert.NotNull(restoredRoot);
+                Assert.True(restoredRoot.IsExpanded);
+                Assert.Equal(2, restoredRoot.Children.Count);
+                Assert.Null(restored.SelectedNode);
             }
             finally
             {
@@ -141,6 +174,14 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
         });
     }
 
+    private static void ToggleCaret(TreeViewItem item)
+    {
+        item.ApplyTemplate();
+        var caret = (ToggleButton)item.Template.FindName("Expander", item);
+        // Invoke WPF's real toggle/binding/event path, without sending desktop input.
+        var peer = new ToggleButtonAutomationPeer(caret);
+        ((IToggleProvider)peer.GetPattern(PatternInterface.Toggle)).Toggle();
+    }
     private static MainWindow NewOffscreenWindow(LightflowStorageCoordinator storage, StorageStartupResult startup) =>
         new(storage, startup.Status, startup.Diagnostic)
         {

@@ -4,6 +4,54 @@ namespace LightflowStudio.Tests;
 
 public class PremiereSendStateTests
 {
+    [Fact]
+    public async Task InstalledReadyWaitsForDetectionThenOpensSendWithoutRequiringPriorHeartbeat()
+    {
+        var inventory = new TaskCompletionSource<PremiereConnection>();
+        var live = new PremiereConnection(PremiereConnectionState.Ready, "Waiting for companion");
+        var route = PremiereSendState.ResolveRouteAsync(() => live, () => false, () => inventory.Task);
+        Assert.False(route.IsCompleted);
+        inventory.SetResult(new(PremiereConnectionState.Ready, "Companion installed"));
+        Assert.Equal(PremiereSendRoute.Send, await route);
+        Assert.False(new PremiereSendState().CanSend(live));
+        var shown = new List<string>();
+        await PremiereSendState.NavigateAsync(true, await route, () => shown.Add("settings"),
+            () => { shown.Add("send"); return Task.CompletedTask; });
+        Assert.Equal(new[] { "send" }, shown);
+    }
+
+    [Theory]
+    [InlineData(PremiereConnectionState.CompanionNotInstalled)]
+    [InlineData(PremiereConnectionState.PremiereNotInstalled)]
+    [InlineData(PremiereConnectionState.UpdateRequired)]
+    [InlineData(PremiereConnectionState.ConnectionProblem)]
+    public async Task MissingOrUnknownInstallationStillOpensSettings(object state)
+    {
+        Assert.Equal(PremiereSendRoute.Settings, await PremiereSendState.ResolveRouteAsync(
+            () => new(PremiereConnectionState.Ready, "waiting"), () => false,
+            () => Task.FromResult(new PremiereConnection((PremiereConnectionState)state, "setup needed"))));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PreviouslyPairedOrLiveConnectionSkipsInstallationProbe(bool paired)
+    {
+        Assert.Equal(PremiereSendRoute.Send, await PremiereSendState.ResolveRouteAsync(
+            () => new(paired ? PremiereConnectionState.Ready : PremiereConnectionState.Connected, "state"), () => paired,
+            () => throw new InvalidOperationException("Should not inspect")));
+    }
+
+    [Fact]
+    public async Task ConnectionEstablishedDuringInspectionWinsStaleInventory()
+    {
+        var live = new PremiereConnection(PremiereConnectionState.Ready, "waiting");
+        Assert.Equal(PremiereSendRoute.Send, await PremiereSendState.ResolveRouteAsync(() => live, () => false, () =>
+        {
+            live = Connected();
+            return Task.FromResult(new PremiereConnection(PremiereConnectionState.ConnectionProblem, "unavailable"));
+        }));
+    }
     private static PremiereConnection Connected(string path = @"C:\edit.prproj", string bin = "root") => new(
         PremiereConnectionState.Connected, "Connected — Premiere Pro 26.5", new("instance", "1.0.3", 1, "26.5", "9.3",
             new("guid", path, "edit.prproj"), [new(bin, "Project root")]));

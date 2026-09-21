@@ -57,9 +57,14 @@ public partial class MainWindow
                 AppendLog($"Premiere connection unavailable: {error}");
             }
             if (_premiereClosing) return;
+            var route = send
+                ? await PremiereSendState.ResolveRouteAsync(() => _premiereBridge!.Connection,
+                    () => _premiereBridge!.HasCompletedSetup, PremiereInstallation.InspectAsync)
+                : PremiereSendRoute.Settings;
+            if (_premiereClosing) return;
             await PremiereSendState.NavigateAsync(send,
-                PremiereSendState.Route(_premiereBridge!.Connection, _premiereBridge.HasCompletedSetup),
-                () => new PremiereIntegrationWindow(_premiereBridge) { Owner = this }.ShowDialog(),
+                route,
+                () => new PremiereIntegrationWindow(_premiereBridge!) { Owner = this }.ShowDialog(),
                 OpenPremiereSendAsync);
         }
         catch (Exception error)

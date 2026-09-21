@@ -12,13 +12,18 @@ public class PremiereUiContractTests
         Assert.DoesNotContain("IsIsolated", source);
         Assert.Contains("new PremiereBridge(journal, _storage.Locations)", source);
         Assert.Contains("PremiereSendState.NavigateAsync(send", source);
-        Assert.Contains("_premiereBridge.HasCompletedSetup", source);
+        Assert.Contains("_premiereBridge!.HasCompletedSetup", source);
+        Assert.Contains("await PremiereSendState.ResolveRouteAsync", source);
         Assert.Contains("new PremiereSendWindow", source);
         Assert.Contains("catch (Exception error) when (_premiereBridge is not null)", source);
-        Assert.Contains("new PremiereIntegrationWindow(_premiereBridge)", source);
+        Assert.Contains("new PremiereIntegrationWindow(_premiereBridge!)", source);
         Assert.Contains("NoticeDialog.Show", source);
         var settings = File.ReadAllText(Source("PremiereIntegrationWindow.xaml.cs"));
         Assert.Contains("await _bridge.StartAsync()", settings);
+        var xaml = XDocument.Load(Source("PremiereIntegrationWindow.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        Assert.Equal("Collapsed", (string?)xaml.Descendants().Single(element =>
+            (string?)element.Attribute(x + "Name") == "InstallButton").Attribute("Visibility"));
     }
     private static string Source(string name)
     {

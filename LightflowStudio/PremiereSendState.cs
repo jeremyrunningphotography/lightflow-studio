@@ -23,6 +23,17 @@ internal sealed class PremiereSendState
     public static PremiereSendRoute Route(PremiereConnection connection, bool setupComplete = false) =>
         setupComplete || connection.State == PremiereConnectionState.Connected ? PremiereSendRoute.Send : PremiereSendRoute.Settings;
 
+    public static async Task<PremiereSendRoute> ResolveRouteAsync(Func<PremiereConnection> connection,
+        Func<bool> setupComplete, Func<Task<PremiereConnection>> inspectInstallation)
+    {
+        if (Route(connection(), setupComplete()) == PremiereSendRoute.Send) return PremiereSendRoute.Send;
+        var installation = await inspectInstallation();
+        // Bridge Ready means waiting for a connection; inventory Ready means installation is complete.
+        // Neither grants permission to execute a handoff, which still requires live authentication.
+        return installation.State == PremiereConnectionState.Ready
+            ? PremiereSendRoute.Send : Route(connection(), setupComplete());
+    }
+
     public static async Task NavigateAsync(bool send, PremiereSendRoute route, Action openSettings, Func<Task> openSend)
     {
         if (!send || route == PremiereSendRoute.Settings) openSettings();

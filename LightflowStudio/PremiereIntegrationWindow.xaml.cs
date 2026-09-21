@@ -10,11 +10,13 @@ public partial class PremiereIntegrationWindow : Window
     private readonly PremiereBridge _bridge;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private PremiereConnection _installation = new(PremiereConnectionState.ConnectionProblem, "Checking Adobe installation…");
+    private bool _checkingInstallation = true;
 
     internal PremiereIntegrationWindow(PremiereBridge bridge)
     {
         InitializeComponent();
         _bridge = bridge;
+        RefreshConnection();
         _timer.Tick += (_, _) => RefreshConnection();
         Loaded += async (_, _) => { _timer.Start(); await InspectAsync(); RefreshConnection(); };
         Closed += (_, _) => _timer.Stop();
@@ -23,6 +25,8 @@ public partial class PremiereIntegrationWindow : Window
 
     private async Task InspectAsync()
     {
+        _checkingInstallation = true;
+        RefreshConnection();
         try
         {
             await _bridge.StartAsync();
@@ -30,11 +34,20 @@ public partial class PremiereIntegrationWindow : Window
             ResultText.Text = "";
         }
         catch (Exception error) { ResultText.Text = $"Connection unavailable: {error.Message}"; }
+        finally { _checkingInstallation = false; }
         RefreshConnection();
     }
     private void RefreshConnection()
     {
         var live = _bridge.Connection;
+        if (_checkingInstallation && live.State == PremiereConnectionState.Ready)
+        {
+            ConnectionText.Text = "Checking installation…";
+            GuidanceText.Text = "Checking Adobe installation and companion version.";
+            InstallButton.Visibility = Visibility.Collapsed;
+            ProjectText.Text = "";
+            return;
+        }
         var connection = PremiereSendState.WithInstallation(live, _installation);
         ConnectionText.Text = connection.State switch
         {

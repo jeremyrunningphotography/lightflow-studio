@@ -2,6 +2,12 @@
 
 Status: real Premiere 26.5+ transfer succeeded; corrected frame timing awaits hands-on acceptance.
 
+Jeremy accepted the isolated-profile Premiere prerequisite at
+`f4089413e22e8c0449065d69d3ae096ff721ac10` on `codex/259-premiere-markers`.
+The tested package contained companion 1.2.2 and the working tree was clean.
+This is the preserved connection/setup/isolation baseline, not final marker acceptance.
+Acceptance is recorded on [#259](https://github.com/jeremyrunningphotography/lightflow-studio/issues/259#issuecomment-5765638868).
+
 Videos send all current Catalog point markers to the reconciled source ProjectItem.
 Subclips send markers in `[In, Out)` to each durable native Subclip, using exact
 `sourcePositionTicks - InTicks`. Complete-video fallback uses source timing. Temporary
@@ -85,10 +91,11 @@ handoff journal and pairing credentials. The companion remembers one explicit fo
 grant; stale or other-profile credentials cannot authenticate. A port collision offers
 Refresh Connection in Integration Settings and never takes over another bridge.
 
-No marker-specific work resumes until Jeremy accepts this prerequisite. Real Premiere
-behavior and visual consistency still require Jeremy's hands-on acceptance; automated
-checks do not claim that acceptance. Use task-owned disposable media and a new disposable
-Premiere project for subsequent marker testing.
+The prerequisite is accepted and marker work may continue. Preserve this workflow,
+profile-owned state, authentication and the hardened harness. Remaining marker behavior
+and visual consistency require Jeremy's hands-on acceptance; automated checks do not
+claim that acceptance. Use task-owned disposable media and a new disposable Premiere
+project for subsequent marker testing.
 
 ## Optional deterministic live harness
 
@@ -138,13 +145,21 @@ bridge concurrently: the production endpoint remains fixed at localhost:47857.
    Set-Content -LiteralPath "$run\action.txt" -Value 'send'
    ```
 
-5. Wait for `after-send` in `evidence.jsonl`. Inspect the source's five point markers:
-   9.9999999s, 10s, 12.0000001s (unnamed), 19.9999999s and 20s. Readbacks record exact
-   Premiere ticks/GUIDs, independent of rounded Premiere UI displays. Repeat `send`:
+5. Wait for `after-send` in `evidence.jsonl`. Inspect the source's five point markers,
+   whose authoritative positions are 9.9999999s, 10s, 12.0000001s (unnamed),
+   19.9999999s and 20s. The prepared fixture is 30000/1001 fps (verified with ffprobe);
+   these integer-second boundaries are off-grid, so all five retain their positions
+   to Premiere-tick precision. Readbacks record exact Premiere ticks, frame duration
+   and GUIDs, independent of rounded Premiere UI displays. Repeat `send`:
    expect the same five GUIDs and no duplicates.
 6. Send `send-subclips`. The first native Subclip `[10s,20s)` must contain three markers
-   at 0s, 2.0000001s and 9.9999999s. The second `[11s,21s)` must contain markers at
-   1.0000001s, 8.9999999s and 9s. The same MarkerId has distinct target mappings/GUIDs.
+   with authoritative relative positions 0s, 2.0000001s and 9.9999999s. The second
+   `[11s,21s)` must contain markers at authoritative relative positions 1.0000001s,
+   8.9999999s and 9s. Expected readback derives from projected source position minus
+   projected source In, using the receipt's source frame duration. If using another
+   fixture rate, frame-boundary repair may align a near-boundary timestamp, but never
+   changes which authoritative markers belong in `[In, Out)`. Check the near-Out
+   marker's native readback/visibility. Each target has independent GUID mappings.
    Verify actual Source Monitor timing independently of the API readback. If Premiere
    instead applies source-relative timing or shares marker ownership across targets,
    **stop and report evidence; do not adjust the accepted product behavior silently**.
@@ -174,6 +189,19 @@ no marker should have been projected onto a removed prerequisite source.
 
 ## Evidence status
 
-No real Premiere #259 interaction, source/XMP side-effect observation, undo/redo result,
-Subclip timing proof or save/reopen GUID proof is claimed by this implementation.
-Automated results and packaged build provenance are reported in the Draft PR/handoff.
+Jeremy confirmed initial multi-Subclip/full-video fallback marker transfer and accepted
+the isolated-profile prerequisite. Read-only frame/project inspection reproduced the
+old one-frame timing defect; companion 1.2.2 contains its regression-tested correction.
+Corrected frame accuracy for native Subclips and full videos, save/reopen GUID persistence,
+undo/redo and source/XMP effects remain pending explicit live evidence. No completed live
+harness run is claimed. Automated results and package provenance are in the Draft PR.
+
+For final packaged marker acceptance, test Videos and native Subclips in separate fresh
+projects. Check source and Subclip marker frames at zero and nonzero In, named/unnamed
+markers, all four `[In, Out)` membership cases, and overlapping Subclips with independent
+projections. Then check duplicate-free resend, Lightflow rename, preserved editor/unrelated
+markers, safe deletion recovery, uncertain interruption, mixed parent-item Jobs results,
+save/reopen and undo/redo. Start a separate Subclips-only project to verify temporary
+prerequisites are removed without receiving markers. Record source/XMP observations
+without changing global Premiere preferences. Neither prerequisite acceptance nor these
+automated checks authorize merge, issue closure or marking #259 Done.

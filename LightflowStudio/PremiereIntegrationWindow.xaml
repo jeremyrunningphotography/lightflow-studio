@@ -27,11 +27,12 @@
     <StackPanel Margin="10,0,10,0">
      <TextBlock Style="{StaticResource PageSubtitle}" Text="Open the companion panel and choose Resume Connection if it was disconnected. Restarted Lightflow sessions and renewed credentials reconnect automatically. If Adobe says folder access is no longer valid, choose Allow Connection Access again using First-time setup."/>
      <WrapPanel Margin="0,8,0,0">
-      <Button Content="Refresh Installation" Click="Refresh_Click"/>
+      <Button Content="Refresh Connection" Click="Refresh_Click"/>
       <Button Content="Install / Update Companion…" Click="Install_Click"/>
       <Button Content="Reset Connection" Click="Pair_Click"/>
      </WrapPanel>
      <TextBlock Margin="0,6,0,0" Style="{StaticResource PageSubtitle}" Text="Reset replaces the connection credential; the companion rereads it automatically. Active handoffs may be interrupted; retry reconciles completed items. To revoke remembered access, choose Forget Connection in the companion's Troubleshooting section."/>
+     <TextBlock Margin="0,6,0,0" Style="{StaticResource PageSubtitle}" Text="Only one Lightflow profile can connect at a time. To switch profiles, close the other Lightflow instance, choose Refresh Connection here, then choose Forget Connection in the companion and grant this profile's Copy Setup Location using Allow Connection Access. Reset Connection changes only this profile; it does not switch the companion's folder access."/>
     </StackPanel>
    </Expander>
    <TextBlock x:Name="ResultText" Margin="0,12,0,0" TextWrapping="Wrap"/>

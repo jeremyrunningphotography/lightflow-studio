@@ -24,7 +24,7 @@ internal sealed class PremiereSendState
     {
         PremiereConnectionState.Connected => PremiereSendRoute.Send,
         PremiereConnectionState.PremiereNotInstalled or PremiereConnectionState.CompanionNotInstalled
-            or PremiereConnectionState.UpdateRequired => PremiereSendRoute.Settings,
+            or PremiereConnectionState.UpdateRequired or PremiereConnectionState.Ready => PremiereSendRoute.Settings,
         _ => PremiereSendRoute.Disconnected
     };
     public static PremiereSendPresentation Present(PremiereConnection connection)

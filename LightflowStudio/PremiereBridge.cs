@@ -27,7 +27,9 @@ internal sealed class PremiereBridge : IAsyncDisposable
     private readonly Func<DateTimeOffset> _now;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly SemaphoreSlim _send = new(1, 1);
+    private readonly SemaphoreSlim _start = new(1, 1);
     private readonly string _pairingDirectory;
+    private readonly LightflowStorageLocations? _profile;
     private WebApplication? _server;
     private string _token = "";
     private DateTimeOffset _expires;
@@ -53,6 +55,9 @@ internal sealed class PremiereBridge : IAsyncDisposable
     public PremiereBridge(CatalogPremiereHandoffs journal, string pairingDirectory, Func<DateTimeOffset>? now = null)
     { _journal = journal; _pairingDirectory = pairingDirectory; _now = now ?? (() => DateTimeOffset.UtcNow); }
 
+    public PremiereBridge(CatalogPremiereHandoffs journal, LightflowStorageLocations profile)
+        : this(journal, profile.PremierePairingDirectory) { _profile = profile; }
+
     public string PairingDirectory => _pairingDirectory;
     public PremiereConnection Connection
     {
@@ -70,6 +75,17 @@ internal sealed class PremiereBridge : IAsyncDisposable
     }
 
     public async Task StartAsync()
+    {
+        await _start.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            await StartCoreAsync().ConfigureAwait(false);
+        }
+        finally { _start.Release(); }
+    }
+
+    private async Task StartCoreAsync()
     {
         if (_server is not null) return;
         // No environment configuration, proxy middleware, logging providers, CORS, redirects or URL overrides.
@@ -94,14 +110,15 @@ internal sealed class PremiereBridge : IAsyncDisposable
         {
             await server.StartAsync().ConfigureAwait(false);
             _server = server;
-            await RotatePairingAsync().ConfigureAwait(false);
+            await RotatePairingAsync(false).ConfigureAwait(false);
             _maintenance = MaintainPairingAsync();
         }
         catch
         {
             await server.DisposeAsync().ConfigureAwait(false);
             _server = null;
-            _problem = "Could not start the Premiere bridge. Check whether another Lightflow instance is using port 47857.";
+            _token = "";
+            _problem = "Could not start the Premiere bridge. Only one Lightflow profile can connect at a time. Close the other Lightflow instance using port 47857, then choose Refresh Connection. If no other instance is running, check that this profile's setup folder is writable.";
             Changed?.Invoke();
             throw;
         }
@@ -120,7 +137,18 @@ internal sealed class PremiereBridge : IAsyncDisposable
         }
         catch (OperationCanceledException) when (_maintenanceStop.IsCancellationRequested) { }
     }
-    public Task RotatePairingAsync() => RotatePairingAsync(false);
+    public async Task RotatePairingAsync()
+    {
+        await _start.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            // A blocked profile must never publish credentials for someone else's listener.
+            if (_server is null) await StartCoreAsync().ConfigureAwait(false);
+            else await RotatePairingAsync(false).ConfigureAwait(false);
+        }
+        finally { _start.Release(); }
+    }
     internal Task RenewExpiredPairingAsync() => RotatePairingAsync(true);
     private async Task RotatePairingAsync(bool onlyIfExpired)
     {
@@ -128,6 +156,9 @@ internal sealed class PremiereBridge : IAsyncDisposable
         try
         {
             if (_disposed || (onlyIfExpired && _now() < _expires)) return;
+            if (_profile?.IsIsolated == true)
+                ApplicationDataProfile.RequireContained(_profile.ApplicationDataDirectory,
+                    Path.Combine(_pairingDirectory, "lightflow-pairing.json"));
             var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
             var expires = _now().AddHours(8);
             var directory = Directory.CreateDirectory(_pairingDirectory);
@@ -275,11 +306,17 @@ internal sealed class PremiereBridge : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        _disposed = true;
-        _maintenanceStop.Cancel();
-        if (_maintenance is not null) await _maintenance.ConfigureAwait(false);
-        _token = "";
-        _completion?.TrySetException(new InvalidOperationException("Lightflow is closing. Reconcile any interrupted handoff."));
-        if (_server is not null) await _server.DisposeAsync().ConfigureAwait(false);
+        await _start.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _maintenanceStop.Cancel();
+            if (_maintenance is not null) await _maintenance.ConfigureAwait(false);
+            _token = "";
+            _completion?.TrySetException(new InvalidOperationException("Lightflow is closing. Reconcile any interrupted handoff."));
+            if (_server is not null) await _server.DisposeAsync().ConfigureAwait(false);
+        }
+        finally { _start.Release(); }
     }
 }

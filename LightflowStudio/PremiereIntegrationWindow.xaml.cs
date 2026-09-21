@@ -21,7 +21,17 @@ public partial class PremiereIntegrationWindow : Window
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
     }
 
-    private async Task InspectAsync() { _installation = await PremiereInstallation.InspectAsync(); RefreshConnection(); }
+    private async Task InspectAsync()
+    {
+        try
+        {
+            await _bridge.StartAsync();
+            _installation = await PremiereInstallation.InspectAsync();
+            ResultText.Text = "";
+        }
+        catch (Exception error) { ResultText.Text = $"Connection unavailable: {error.Message}"; }
+        RefreshConnection();
+    }
     private void RefreshConnection()
     {
         var live = _bridge.Connection;

@@ -7,7 +7,6 @@ public partial class MainWindow
     private bool _premiereClosing;
     private async Task ResumePremiereAsync()
     {
-        if (_storage.Locations.IsIsolated) return;
         if (!System.IO.File.Exists(System.IO.Path.Combine(_storage.Locations.PremierePairingDirectory, "lightflow-pairing.json"))) return;
         try { await EnsurePremiereAsync(); }
         catch (Exception error) { AppendLog($"Premiere automatic connection unavailable: {error.Message}"); }
@@ -28,20 +27,21 @@ public partial class MainWindow
     private readonly SemaphoreSlim _premiereStart = new(1, 1);
     private async Task EnsurePremiereAsync()
     {
-        if (_storage.Locations.IsIsolated)
-            throw new InvalidOperationException("Premiere connection is disabled for an isolated data-root profile.");
         await _premiereStart.WaitAsync();
         try
         {
-            if (_premiereBridge is not null || _premiereClosing) return;
-            var journal = new CatalogPremiereHandoffs(() => _storage.CatalogAvailable ? _storage.CatalogSession : null);
-            var bridge = new PremiereBridge(journal, _storage.Locations.PremierePairingDirectory);
-            await bridge.StartAsync();
-            if (_premiereClosing) { await bridge.DisposeAsync(); return; }
-            _premiereBridge = bridge;
-            _premiereJobs = new(journal, bridge);
-            _premiereJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
-            await _premiereJobs.RefreshHistoryAsync();
+            if (_premiereClosing) return;
+            if (_premiereBridge is null)
+            {
+                var journal = new CatalogPremiereHandoffs(() => _storage.CatalogAvailable ? _storage.CatalogSession : null);
+                // Retain the profile-owned bridge on startup failure so Settings can explain and retry it.
+                _premiereBridge = new PremiereBridge(journal, _storage.Locations);
+                _premiereJobs = new(journal, _premiereBridge);
+                _premiereJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
+            }
+            await _premiereBridge.StartAsync();
+            if (_premiereClosing) { await _premiereBridge.DisposeAsync(); return; }
+            await _premiereJobs!.RefreshHistoryAsync();
         }
         finally { _premiereStart.Release(); }
     }
@@ -51,7 +51,14 @@ public partial class MainWindow
     {
         try
         {
-            await EnsurePremiereAsync();
+            try { await EnsurePremiereAsync(); }
+            catch (Exception error) when (_premiereBridge is not null)
+            {
+                AppendLog($"Premiere connection unavailable: {error.Message}");
+                new PremiereIntegrationWindow(_premiereBridge) { Owner = this }.ShowDialog();
+                return;
+            }
+            if (_premiereClosing) return;
             if (!send)
             {
                 new PremiereIntegrationWindow(_premiereBridge!) { Owner = this }.ShowDialog();
@@ -100,6 +107,7 @@ public partial class MainWindow
             var message = $"Premiere connection problem: {error.Message}";
             if (send) BrowserStatusText.Text = message;
             else SettingsMessage.Text = message;
+            NoticeDialog.Show(this, "Premiere Pro", "Premiere connection problem", message);
         }
     }
 }

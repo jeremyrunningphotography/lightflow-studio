@@ -5,6 +5,20 @@ namespace LightflowStudio.Tests;
 
 public class PremiereUiContractTests
 {
+    [Fact]
+    public void ProfileStartupAndErrorsKeepSendNavigationVisible()
+    {
+        var source = File.ReadAllText(Source("MainWindow.Premiere.cs"));
+        Assert.DoesNotContain("IsIsolated", source);
+        Assert.Contains("new PremiereBridge(journal, _storage.Locations)", source);
+        Assert.Contains("PremiereSendState.Route(connection)", source);
+        Assert.Contains("new PremiereSendWindow", source);
+        Assert.Contains("catch (Exception error) when (_premiereBridge is not null)", source);
+        Assert.Contains("new PremiereIntegrationWindow(_premiereBridge)", source);
+        Assert.Contains("NoticeDialog.Show", source);
+        var settings = File.ReadAllText(Source("PremiereIntegrationWindow.xaml.cs"));
+        Assert.Contains("await _bridge.StartAsync()", settings);
+    }
     private static string Source(string name)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

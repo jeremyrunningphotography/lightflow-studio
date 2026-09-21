@@ -49,18 +49,29 @@ Retry rules:
 - Marker failures/conflicts remain independent Jobs item results. A verified video or
   Subclip cannot make the overall Job successful when a requested marker failed.
 
-## Approved split acceptance
+## Packaged isolated acceptance (preferred)
 
-The packaged application's isolated-profile Premiere guard is unchanged. Launch only:
+The superseding isolation decision permits Premiere from an isolated packaged profile. Launch:
 
 ```powershell
 & 'C:\Git\Agents\issue-259-premiere-markers\artifacts\release\LightflowStudio\LightflowStudio.exe' --data-root 'C:\Git\Agents\issue-259-premiere-markers\.cache\packaged-acceptance'
 ```
 
-Jeremy checks applicable startup/shutdown, existing point-marker behavior, Jobs styling
-and the expected disabled live connection. Connected Send presentation and integration
-cannot be claimed empirically tested by that isolated application. Companion packaging
-and deterministic Send/Jobs behavior are covered separately by automated validation.
+Prerequisite acceptance: Jeremy checks that an unconfigured **Send To → Premiere Pro**
+opens Integration Settings, pairs this profile with the production companion, and reaches
+the normal Send workflow. Close the other Lightflow bridge owner first. Copy Setup
+Location from this build; choose Forget Connection in the companion's Troubleshooting
+section, then Allow Connection Access with that location. Each profile owns its Catalog,
+handoff journal and pairing credentials. The companion remembers one explicit folder
+grant; stale or other-profile credentials cannot authenticate. A port collision offers
+Refresh Connection in Integration Settings and never takes over another bridge.
+
+No marker-specific work resumes until Jeremy accepts this prerequisite. Real Premiere
+behavior and visual consistency still require Jeremy's hands-on acceptance; automated
+checks do not claim that acceptance. Use task-owned disposable media and a new disposable
+Premiere project for subsequent marker testing.
+
+## Optional deterministic live harness
 
 The live harness uses production Catalog services, planning, `PremiereJobs`, journal,
 authenticated bridge and the same packaged UXP companion. The harness supplies fixtures

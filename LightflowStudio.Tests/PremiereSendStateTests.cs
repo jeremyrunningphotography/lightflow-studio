@@ -12,7 +12,7 @@ public class PremiereSendStateTests
     [InlineData(PremiereConnectionState.PremiereNotInstalled, PremiereSendRoute.Settings)]
     [InlineData(PremiereConnectionState.CompanionNotInstalled, PremiereSendRoute.Settings)]
     [InlineData(PremiereConnectionState.UpdateRequired, PremiereSendRoute.Settings)]
-    [InlineData(PremiereConnectionState.Ready, PremiereSendRoute.Disconnected)]
+    [InlineData(PremiereConnectionState.Ready, PremiereSendRoute.Settings)]
     [InlineData(PremiereConnectionState.ConnectionProblem, PremiereSendRoute.Disconnected)]
     [InlineData(PremiereConnectionState.Connected, PremiereSendRoute.Send)]
     public void RoutesReflectLiveConnection(object state, object route) =>
@@ -22,7 +22,7 @@ public class PremiereSendStateTests
     public void InstallationAloneNeverBecomesConnectedAndLiveHealthWinsInventory()
     {
         var ready = new PremiereConnection(PremiereConnectionState.Ready, "installed");
-        Assert.Equal(PremiereSendRoute.Disconnected, PremiereSendState.Route(PremiereSendState.WithInstallation(ready, ready)));
+        Assert.Equal(PremiereSendRoute.Settings, PremiereSendState.Route(PremiereSendState.WithInstallation(ready, ready)));
         var live = Connected();
         Assert.Same(live, PremiereSendState.WithInstallation(live, ready));
     }

@@ -47,6 +47,7 @@ internal sealed record MediaPlaybackSourceInfo(
 {
     public MediaPlaybackOpenMetrics? OpenMetrics { get; init; }
     public double FrameRate { get; init; }
+    public VideoRotation SourceRotation { get; init; }
 }
 
 internal sealed record MediaPlaybackSnapshot(
@@ -127,6 +128,7 @@ internal interface IMediaPlaybackService : IAsyncDisposable
     void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass) { }
     Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default) => Task.CompletedTask;
     void SetViewport(ViewerViewport viewport) { }
+    void SetVideoRotation(VideoRotation rotation) { }
 
 }
 
@@ -162,4 +164,5 @@ internal interface IMediaPlaybackBackend : IAsyncDisposable
     void SetColorPipeline(PlayerColorPipeline? pipeline, bool bypass) { }
     Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default) => Task.CompletedTask;
     void SetViewport(ViewerViewport viewport) { }
+    void SetVideoRotation(VideoRotation rotation) { }
 }

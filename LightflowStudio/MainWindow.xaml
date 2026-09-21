@@ -599,6 +599,8 @@
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export…" Click="BrowserContextExport_Click"/>
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export Subclips…" Click="BrowserContextExportSubclips_Click"/>
                   </MenuItem>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rotate Left" Click="BrowserRotateLeft_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rotate Right" Click="BrowserRotateRight_Click"/>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Regenerate Previews" Click="BrowserContextRegenerateThumbnails_Click"/>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename…" Click="BrowserRename_Click"/>
                   <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
@@ -681,7 +683,7 @@
                    </Style.Triggers>
                   </Style></Border.Style>
                   <Grid>
-                   <Image Source="{Binding ThumbnailPath}" Stretch="Uniform"/>
+                   <local:OrientedPreviewImage AssetId="{Binding AssetId}" Source="{Binding ThumbnailPath}" Stretch="Uniform"/>
                    <TextBlock Text="{Binding CategoryGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="28" Foreground="{StaticResource MutedTextBrush}"
                     HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibility}}"/>
                    <Border x:Name="BrowserHybridStateOverlay" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="4" Padding="3,2" CornerRadius="3" Background="#9905070A">
@@ -741,7 +743,7 @@
   </Style>
   <DataTemplate x:Key="BrowserDetailsPreviewTemplate">
    <Grid Height="54" Margin="8,0,6,0">
-    <Image Source="{Binding ThumbnailPath}" Stretch="Uniform"/>
+    <local:OrientedPreviewImage AssetId="{Binding AssetId}" Source="{Binding ThumbnailPath}" Stretch="Uniform"/>
     <TextBlock Text="{Binding CategoryGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Foreground="{StaticResource MutedTextBrush}"
      HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibility}}"/>
    </Grid>

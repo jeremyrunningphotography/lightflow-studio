@@ -4,7 +4,7 @@ internal static class FfmpegCommandBuilder
 {
     public static List<string> Encode(string input, string output, string? lut, RecoveryStrategy recovery,
         OutputResolution resolution, bool detailedOutput = false, EncodingOptions? encoding = null,
-        ResolvedMediaRange? trim = null, IReadOnlyList<string>? assignedLuts = null)
+        ResolvedMediaRange? trim = null, IReadOnlyList<string>? assignedLuts = null, VideoRotation rotation = default)
     {
         if (!Enum.IsDefined(recovery)) throw new ArgumentOutOfRangeException(nameof(recovery));
         if (!Enum.IsDefined(resolution)) throw new ArgumentOutOfRangeException(nameof(resolution));
@@ -34,6 +34,7 @@ internal static class FfmpegCommandBuilder
         if (assignedLuts is not null)
             filters.AddRange(assignedLuts.Select(path => $"lut3d=file='{EscapeFilterPath(path)}'"));
         if (options.Deinterlace) filters.Add("bwdif");
+        filters.AddRange(RotationFilters(rotation));
         if (options.FrameRate > 0) filters.Add($"fps={options.FrameRate.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         filters.AddRange(resolution switch
         {
@@ -70,6 +71,16 @@ internal static class FfmpegCommandBuilder
         OutputContainer.Mov => "mov",
         OutputContainer.Mkv => "matroska",
         _ => throw new ArgumentOutOfRangeException(nameof(container))
+    };
+
+    // FFmpeg's input autorotate applies the source display transform first. These filters apply only
+    // Lightflow's clockwise adjustment, before output scaling. Video always uses the normal encoder.
+    internal static IReadOnlyList<string> RotationFilters(VideoRotation rotation) => rotation.Degrees switch
+    {
+        90 => ["transpose=clock"],
+        180 => ["hflip", "vflip"],
+        270 => ["transpose=cclock"],
+        _ => []
     };
 
     private static void AddContainerCompatibility(List<string> args, EncodingOptions options)

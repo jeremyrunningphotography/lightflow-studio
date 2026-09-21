@@ -122,6 +122,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         {
             var count = _plan?.Items.Count ?? 0;
             var text = $"{count} {(count == 1 ? "file" : "files")} ready to export";
+            var rotated = ActiveInputs().Count(value => value.input.Rotation.Degrees != 0);
+            if (rotated > 0) text += $" · Lightflow rotation baked into {rotated} {(rotated == 1 ? "video" : "videos")}";
             return EstimateOutputBytes() is { } bytes ? $"{text} · Est. {FormatBytes(bytes)}" : text;
         }
     }
@@ -280,7 +282,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
                     metadata.AudioChannels, metadata.AudioChannelLayout),
                 NamingOriginalName: input.NamingOriginalName,
                 NamingIndexNumberBasis: input.NamingIndexNumberBasis,
-                ExportProvenance: input.ExportProvenance);
+                ExportProvenance: input.ExportProvenance, Rotation: input.Rotation);
         });
         var definition = EncodingJobPlanner.Define(options, sources);
         var plan = EncodingJobPlanner.Plan(definition, _inspectOutput, colorResources: _resourceStore);
@@ -385,6 +387,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             pair.First.FileSizeBytes == pair.Second.FileSizeBytes &&
             pair.First.InitialTrim == pair.Second.InitialTrim &&
             pair.First.AssignedColor == pair.Second.AssignedColor &&
+            pair.First.Rotation == pair.Second.Rotation &&
             pair.First.ExportProvenance == pair.Second.ExportProvenance);
 
     private IReadOnlyList<(EncodingHandoffInput input, int index)> ActiveInputs() => _handoff.Inputs

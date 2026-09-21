@@ -46,7 +46,7 @@ internal sealed class EncodingJobExecutor
             var manualLut = settings.Color is null && options.ColorMode == EncodingColorMode.OriginalOrManual ? options.LutPath : null;
             var args = FfmpegCommandBuilder.Encode(input, lifecycle.PartialPath, manualLut,
                 options.Recovery, settings.Resolution, options.DetailedOutput, settings.Encoding,
-                item.Definition.ResolvedRange, colorLuts);
+                item.Definition.ResolvedRange, colorLuts, settings.Rotation);
             var exit = await RunFfmpegAsync(item.Definition.Id, args, duration, progress, token).ConfigureAwait(false);
             var data = new EncodingItemResult(exit,
                 item.Definition.ResolvedRange?.RequestedRange.SourceDuration ?? item.Definition.MediaRange?.SourceDuration,

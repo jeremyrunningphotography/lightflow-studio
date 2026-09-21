@@ -191,7 +191,7 @@
     </Style></ListBox.ItemContainerStyle>
     <ListBox.ItemTemplate><DataTemplate><Grid>
      <TextBlock Text="{Binding Asset.Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="10"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Preview.HasThumbnail}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
-     <Image Source="{Binding Preview.ThumbnailPath}" Stretch="Uniform"/>
+     <local:OrientedPreviewImage AssetId="{Binding Asset.AssetId}" Source="{Binding Preview.ThumbnailPath}" Stretch="Uniform"/>
     </Grid></DataTemplate></ListBox.ItemTemplate>
    </ListBox></Grid>
 

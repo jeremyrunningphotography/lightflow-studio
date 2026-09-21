@@ -131,7 +131,11 @@ full Jobs workspace, so filesystem work cannot fall through an Export-shaped det
 stays separate from Export definitions, FFmpeg scheduling, and Encoding history. A small active-intent
 checkpoint becomes an explicit Interrupted provenance record on restart; transfers are never claimed to have resumed.
 
-`WindowsFileOperationPlatform` contains Recycle Bin mechanics; normal Delete never falls back to permanent deletion.
+`WindowsFileOperationPlatform` contains Recycle Bin mechanics; normal Delete never silently falls back to permanent deletion.
+`BrowserDeleteOperation` captures and preflights the complete selection before confirmation or Jobs admission.
+`WindowsRecycleCapability` queries the actual volume and performs a shell planning pass whose `PreDeleteItem` sink
+always aborts before mutation. If any target cannot safely recycle, one styled decision explicitly authorizes permanent
+deletion of the entire selection or cancels without creating work. The execution sink also vetoes permanent deletion.
 Lightflow-authored moves update `RootId + relative path` on the existing Catalog asset after filesystem success, so
 all `AssetId`-keyed user state remains attached. Copies enter new-asset reconciliation and never inherit the source
 `AssetId`. Filesystem watcher events remain hints and cannot become an alternative owner of these mutations.
@@ -293,6 +297,17 @@ Issue #107 adds Explorer-familiar, filesystem-first navigation without changing 
 Natural volume/share anchors may coexist with a more-specific managed library. Resolution always selects the most-specific containing root, preserving that library's stable asset identity within its boundary while the broader anchor serves other folders. Manual overlap protection remains for unrelated managed roots; natural anchors are the narrowly scoped exception needed for low-friction browsing and managed-root reconnect. Catalog assets continue to use stable `RootId + relative path`; WPF never writes Catalog rows directly.
 
 `BrowserNavigationSession` retains accepted logical locations and history while the user visits other Lightflow workspaces. Back, Forward, Up, and Refresh operate on filesystem-familiar absolute locations but resolve through the logical-root boundary again when crossing folders. Refresh does not add history. A per-request generation and linked cancellation token make navigation latest-request-wins and suppress late results. Unavailable volumes/roots, bad paths, and provider-neutral enumeration failures remain non-destructive workspace states. Path containment and reparse-point rejection stay behind existing services.
+
+Preview schema 3 adds an allowlisted `PreviewFailureReason` to the existing thumbnail component record, migrating
+schemas 1 and 2 in place. Grid and Details project the same persistent failure badge and sanitized tooltip; unknown
+and legacy failures use the generic message. Only the decoder boundary classifies engine output, and detailed
+diagnostics are written to Activity Log. Generating state suspends the badge; successful retry clears it. The failure
+classification is rebuildable Preview data, not Catalog intent. Source invalidation makes it stale with the component.
+
+Shared scrollbar templates use WPF Track's supported minimum metrics (56-DIP button metrics produce a 28-DIP thumb,
+24 DIPs of visible chrome). Track retains proportional sizing and computes drag mapping using the rendered length;
+scroll extents, input commands and virtualization are unchanged. Browser search removes its local vertical padding
+inside the 34-DIP toolbar chip; the shared TextBox template and search behavior remain unchanged.
 
 The Browser's left navigation owns the complete folder hierarchy. Selecting or expanding a drive, share, managed library, or child folder loads that location through the same authoritative navigation pipeline. Accepted Back, Forward, Up, and direct-path transitions expand and select the corresponding hierarchy node, including dynamically presenting an eligible UNC share first reached through the path field. The central #107 surface filters enumeration results to supported files only; directories never appear as central rows. `BrowserTreeModel` keeps this synchronization and file filtering independent of WPF. Issue #107 deliberately does not add thumbnail presentation, media selection, sorting/filtering/search, Player/Viewer presentation, Inspector/Color, or Browser-to-Encoding handoff; Issues #108–#112 extend this workspace.
 

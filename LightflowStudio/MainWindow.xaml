@@ -614,6 +614,21 @@
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Paste" InputGestureText="Ctrl+V" Click="BrowserPaste_Click"/>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Delete" InputGestureText="Delete" Click="BrowserDelete_Click"/>
                  </ContextMenu>
+  <Style x:Key="BrowserPreviewFailureBadge" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Width" Value="24"/><Setter Property="Height" Value="24"/>
+   <Setter Property="Margin" Value="4"/><Setter Property="Padding" Value="0"/>
+   <Setter Property="HorizontalAlignment" Value="Right"/><Setter Property="VerticalAlignment" Value="Center"/>
+   <Setter Property="Background" Value="#EE252019"/><Setter Property="Foreground" Value="{StaticResource OrangeBrush}"/>
+   <Setter Property="Content" Value="⚠"/><Setter Property="FontSize" Value="16"/>
+   <Setter Property="Visibility" Value="{Binding HasPreviewFailure, Converter={StaticResource BoolToVisibility}}"/>
+   <Setter Property="AutomationProperties.Name" Value="{Binding PreviewFailureAccessibleName}"/>
+   <Setter Property="ToolTip" Value="{Binding PreviewFailureMessage}"/>
+   <EventSetter Event="GotKeyboardFocus" Handler="PreviewFailureBadge_GotKeyboardFocus"/>
+   <EventSetter Event="LostKeyboardFocus" Handler="PreviewFailureBadge_LostKeyboardFocus"/>
+   <EventSetter Event="Unloaded" Handler="PreviewFailureBadge_LostKeyboardFocus"/>
+   <EventSetter Event="PreviewMouseLeftButtonDown" Handler="PreviewFailureBadge_MouseDown"/>
+   <EventSetter Event="PreviewKeyDown" Handler="PreviewFailureBadge_KeyDown"/>
+  </Style>
 <DataTemplate x:Key="BrowserThumbnailRowsTemplate" DataType="{x:Type local:BrowserGridRow}">
             <ItemsControl Background="Transparent" Focusable="False" ItemsSource="{Binding Tiles}">
              <!-- Horizontal, non-wrapping: each row already contains exactly as many tiles as
@@ -697,6 +712,7 @@
                    </Border>
                    <ProgressBar x:Name="BrowserThumbnailWorkingIndicator" Width="38" Height="4" Margin="0,0,0,7" HorizontalAlignment="Center" VerticalAlignment="Bottom"
                     IsIndeterminate="True" Visibility="{Binding IsThumbnailGenerating, Converter={StaticResource BoolToVisibility}}" ToolTip="Generating Preview" AutomationProperties.Name="Generating Preview"/>
+                   <Button Style="{StaticResource BrowserPreviewFailureBadge}"/>
                    <Border x:Name="BrowserUnavailableIndicator" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4" Padding="5,2" CornerRadius="3" Background="#D0332020"
                     ToolTip="Source unavailable; Collection membership and existing Preview are retained">
                     <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsUnavailable}" Value="True"/><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Info}"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsUnavailable}" Value="True"/><Condition Binding="{Binding ViewMode}" Value="{x:Static local:BrowserViewMode.Hybrid}"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></Border.Style>
@@ -744,6 +760,9 @@
     <Image Source="{Binding ThumbnailPath}" Stretch="Uniform"/>
     <TextBlock Text="{Binding CategoryGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Foreground="{StaticResource MutedTextBrush}"
      HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVisibility}}"/>
+    <ProgressBar Width="30" Height="4" VerticalAlignment="Bottom" IsIndeterminate="True"
+     Visibility="{Binding IsThumbnailGenerating, Converter={StaticResource BoolToVisibility}}" ToolTip="Generating Preview"/>
+    <Button Style="{StaticResource BrowserPreviewFailureBadge}"/>
    </Grid>
   </DataTemplate>
   <DataTemplate x:Key="BrowserDetailsRowsTemplate">
@@ -835,10 +854,8 @@
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
             <EventSetter Event="Expanded" Handler="BrowserFolderTreeItem_Expanded"/>
-            <Style.Triggers>
-             <DataTrigger Binding="{Binding IsFileDropTarget}" Value="True"><Setter Property="Background" Value="#443A89FF"/></DataTrigger>
-             <DataTrigger Binding="{Binding IsInvalidFileDropTarget}" Value="True"><Setter Property="Background" Value="#55B44A4A"/></DataTrigger>
-            </Style.Triggers>
+            <Setter Property="local:TreeDropPresentation.IsValid" Value="{Binding IsFileDropTarget}"/>
+            <Setter Property="local:TreeDropPresentation.IsInvalid" Value="{Binding IsInvalidFileDropTarget}"/>
            </Style>
           </TreeView.ItemContainerStyle>
           <TreeView.Resources>
@@ -1042,7 +1059,7 @@
             <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
              FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Text="&#xE721;"/>
             <Grid Grid.Column="1" Margin="7,0,10,0">
-             <TextBox x:Name="BrowserSearchBox" Background="Transparent" BorderThickness="0" Margin="0" Padding="0,7"
+             <TextBox x:Name="BrowserSearchBox" Background="Transparent" BorderThickness="0" Margin="0" Padding="0"
               VerticalAlignment="Center" ToolTip="Search filename or path within this scope (Ctrl+F)"
               AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged"/>
              <TextBlock VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{StaticResource MutedTextBrush}"

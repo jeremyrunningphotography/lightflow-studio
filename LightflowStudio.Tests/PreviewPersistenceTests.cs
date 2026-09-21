@@ -6,9 +6,58 @@ namespace LightflowStudio.Tests;
 
 public sealed class PreviewPersistenceTests : IAsyncLifetime
 {
+    [Fact]
+    public async Task FailureReason_ReopensAndClearsOnSuccessfulRetry()
+    {
+        var locations = LightflowStorageLocations.Create(_root);
+        var id = Guid.NewGuid();
+        await using (var store = new PreviewStoreService(locations))
+        {
+            await store.ObserveSourceAsync(id, Source());
+            await store.SetArtifactAsync(id, PreviewArtifactKind.Thumbnail,
+                new(1, PreviewComponentState.Failed, FailureReason: PreviewFailureReason.SourceUnreadable));
+        }
+        await using var reopened = new PreviewStoreService(locations);
+        var failed = (await reopened.GetAsync(id))!;
+        Assert.Equal(PreviewComponentState.Failed, failed.ThumbnailState);
+        Assert.Equal(PreviewFailureReason.SourceUnreadable, failed.ThumbnailFailureReason);
+        await reopened.SetArtifactAsync(id, PreviewArtifactKind.Thumbnail, new(1, PreviewComponentState.Current, "thumbnails/success.jpg"));
+        var success = (await reopened.GetAsync(id))!;
+        Assert.Equal(PreviewComponentState.Current, success.ThumbnailState);
+        Assert.Equal(PreviewFailureReason.Unknown, success.ThumbnailFailureReason);
+    }
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"lightflow-previews-{Guid.NewGuid():N}");
     private static PreviewSourceIdentity Source(string fingerprint = "abcdef0123456789", long size = 100, long write = 200) =>
         new(size, write, 1, fingerprint);
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task OlderPreviewSchemas_MigrateWithoutLosingKnownFailureOrArtifact(int version)
+    {
+        var locations = LightflowStorageLocations.Create(_root);
+        var id = Guid.NewGuid();
+        await using (var store = new PreviewStoreService(locations))
+        {
+            await store.ObserveSourceAsync(id, Source());
+            await store.SetArtifactAsync(id, PreviewArtifactKind.Thumbnail, new(1, PreviewComponentState.Failed, "thumbnails/retained.jpg"));
+        }
+        using (var connection = new SqliteConnection($"Data Source={locations.PreviewsDatabasePath};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "ALTER TABLE PreviewRecords DROP COLUMN ThumbnailFailureReason;" +
+                (version == 1 ? "ALTER TABLE PreviewRecords DROP COLUMN ThumbnailVisualIdentity; ALTER TABLE PreviewRecords DROP COLUMN StandardPreviewVisualIdentity;" : "") +
+                $"PRAGMA user_version={version};";
+            command.ExecuteNonQuery();
+        }
+        await using var migrated = new PreviewStoreService(locations);
+        var record = (await migrated.GetAsync(id))!;
+        Assert.Equal(PreviewComponentState.Failed, record.ThumbnailState);
+        Assert.Equal("thumbnails/retained.jpg", record.ThumbnailRelativePath);
+        Assert.Equal(PreviewFailureReason.Unknown, record.ThumbnailFailureReason);
+    }
 
     [Fact]
     public async Task Record_PersistsAcrossServiceReopen_ByStableAssetId()

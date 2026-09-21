@@ -6,6 +6,36 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserGridTests
 {
     [Fact]
+    public void PreviewFailure_PersistsUntilRetryAndComposesWithDurableIndicators()
+    {
+        var model = new BrowserGridModel();
+        var id = Guid.NewGuid();
+        var entry = Video(Guid.NewGuid(), "broken.mp4");
+        model.Populate([entry]);
+        model.ApplyAssetIdentities([new(id, entry.RelativePath, CatalogReconciliationItemStatus.New)]);
+        var tile = Assert.Single(model.Tiles);
+        Assert.False(tile.HasPreviewFailure);
+        model.ApplyPreviewFailure(id, PreviewFailureReason.NoVideoFrame);
+        Assert.True(tile.HasPreviewFailure);
+        Assert.Contains("broken.mp4", tile.PreviewFailureAccessibleName);
+        model.ApplyAssetStateFlag(id, BrowserAssetState.Color, true);
+        tile.IsSelected = true;
+        model.ApplyThumbnailGenerating(id, true);
+        Assert.False(tile.HasPreviewFailure);
+        Assert.True(tile.HasColorState);
+        model.ApplyPreviewFailure(id, PreviewFailureReason.CodecUnavailable);
+        model.ApplyThumbnailGenerating(id, false);
+        Assert.True(tile.HasPreviewFailure);
+        Assert.Equal("The video codec could not be decoded.", tile.PreviewFailureMessage);
+        model.ApplyThumbnailGenerating(id, true);
+        model.ApplyThumbnail(id, @"C:\previews\success.jpg");
+        model.ApplyThumbnailGenerating(id, false);
+        Assert.False(tile.HasPreviewFailure);
+        Assert.True(tile.IsSelected);
+        Assert.True(tile.HasColorState);
+    }
+
+    [Fact]
     public void MarkerPresence_SharedProjectionSurvivesViewSwitchesAndIndependentStateChanges()
     {
         var model = new BrowserGridModel(); var root = Guid.NewGuid(); var id = Guid.NewGuid();

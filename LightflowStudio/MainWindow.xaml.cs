@@ -1621,7 +1621,7 @@ public partial class MainWindow : Window
             System.Windows.DragDrop.DoDragDrop(BrowserGridRows, data,
                 System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
         }
-        finally { ClearFileDragAdorner(); ResetBrowserAssetGesture(); }
+        finally { ClearFolderDropFeedback(); ClearFileDragAdorner(); ResetBrowserAssetGesture(); }
     }
 
     private void BrowserGridTile_DragOver(object sender, System.Windows.DragEventArgs e)
@@ -1794,6 +1794,7 @@ public partial class MainWindow : Window
                 MessageBoxResult.No) != MessageBoxResult.Yes) return;
         BrowserRegenerateThumbnailsButton.IsEnabled = false;
         BrowserStatusText.Text = $"Regenerating {ids.Count} Preview{(ids.Count == 1 ? "" : "s")}…";
+        foreach (var id in ids) _browserGrid.ApplyThumbnailGenerating(id, true);
         try
         {
             var progress = new Progress<PreviewRegenerationCompleted>(ApplyCompletedPreview);
@@ -1808,7 +1809,11 @@ public partial class MainWindow : Window
             MessageBox.Show($"Preview regeneration failed: {exception.Message}", "Regenerate Previews",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        finally { UpdateBrowserSelectionActions(); }
+        finally
+        {
+            foreach (var id in ids) _browserGrid.ApplyThumbnailGenerating(id, _storage.ThumbnailActivity.IsGenerating(id));
+            UpdateBrowserSelectionActions();
+        }
     }
 
     private async void BrowserCameraLutCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
@@ -1898,8 +1903,36 @@ public partial class MainWindow : Window
     private void ApplyCompletedPreview(PreviewRegenerationCompleted completed)
     {
         InvalidateInspector();
+        _browserGrid.ApplyPreviewFailure(completed.AssetId, completed.Result.Succeeded ? null : completed.Result.FailureReason);
         if (completed.Result.Succeeded && completed.Result.ThumbnailPath is { } path)
             _browserGrid.ApplyThumbnail(completed.AssetId, path);
+    }
+
+    private void PreviewFailureBadge_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        ResetBrowserAssetGesture();
+        ((System.Windows.Controls.Button)sender).Focus();
+        e.Handled = true;
+    }
+
+    private void PreviewFailureBadge_GotKeyboardFocus(object sender, RoutedEventArgs e)
+    {
+        var badge = (System.Windows.Controls.Button)sender;
+        var tooltip = new System.Windows.Controls.ToolTip { PlacementTarget = badge,
+            Style = (Style)FindResource("LightflowToolTipStyle") };
+        tooltip.SetBinding(ContentControl.ContentProperty, new System.Windows.Data.Binding("DataContext.PreviewFailureMessage") { Source = badge });
+        badge.ToolTip = tooltip;
+        tooltip.IsOpen = true;
+    }
+
+    private void PreviewFailureBadge_LostKeyboardFocus(object sender, RoutedEventArgs e)
+    {
+        if (((System.Windows.Controls.Button)sender).ToolTip is System.Windows.Controls.ToolTip tooltip) tooltip.IsOpen = false;
+    }
+
+    private void PreviewFailureBadge_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is Key.Enter or Key.Space) e.Handled = true;
     }
 
     private async void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -2620,14 +2653,7 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 if (BrowserFolderTree.IsKeyboardFocusWithin && SelectedFolderOperationSource() is { } folder)
                 {
-                    var permanent = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
-                    var confirmed = permanent
-                        ? ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete this folder?",
-                            "The folder and all contents will be permanently removed.", "It will not go to the Recycle Bin.", "Delete permanently")
-                        : ConfirmationDialog.Confirm(this, "Move to Recycle Bin", "Move this folder to the Recycle Bin?",
-                            "The folder and all contents will be recycled.", "You can normally restore it from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep folder");
-                    if (confirmed)
-                        _ = ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, [folder], null);
+                    _ = DeleteFileSourcesAsync([folder], Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
                 }
                 else _ = DeleteBrowserSelectionAsync(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
                 return;
@@ -2735,15 +2761,14 @@ public partial class MainWindow : Window
     private async Task DeleteBrowserSelectionAsync(bool permanent)
     {
         var sources = await SelectedFileOperationSourcesAsync();
-        if (sources.Count == 0) return;
-        var confirmed = permanent
-            ? ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete selected items?",
-                $"{sources.Count} item(s) will be permanently removed.", "They will not go to the Recycle Bin and this cannot be undone.", "Delete permanently")
-            : ConfirmationDialog.Confirm(this, "Move to Recycle Bin", "Move selected items to the Recycle Bin?",
-                $"{sources.Count} item(s) will be recycled.", "You can normally restore them from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep files");
-        if (!confirmed) return;
-        await ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, sources, null);
+        await DeleteFileSourcesAsync(sources, permanent);
     }
+
+    private Task DeleteFileSourcesAsync(IReadOnlyList<FileOperationSource> sources, bool permanent) =>
+        BrowserDeleteOperation.RunAsync(sources, permanent, WindowsRecycleCapability.CanRecycle,
+            dialog => ConfirmationDialog.Confirm(this, dialog.Title, dialog.Heading, dialog.Description,
+                dialog.Warning, dialog.Action, dialog.Cancel),
+            (kind, captured) => ExecuteFileOperationAsync(kind, captured, null));
 
     private async Task SynchronizeFileSystemMutationsAsync(IReadOnlyList<FileSystemMutation> mutations)
     {
@@ -2929,10 +2954,7 @@ public partial class MainWindow : Window
     private async void BrowserFolderPaste_Click(object sender, RoutedEventArgs e) => await PasteBrowserClipboardAsync(_browserTree.SelectedNode?.AbsolutePath);
     private async void BrowserFolderDelete_Click(object sender, RoutedEventArgs e)
     {
-        if (SelectedFolderOperationSource() is not { } source || !ConfirmationDialog.Confirm(this, "Move to Recycle Bin",
-            "Move this folder to the Recycle Bin?", "The folder and all contents will be recycled.",
-            "You can normally restore it from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep folder")) return;
-        await ExecuteFileOperationAsync(FileOperationKind.Recycle, [source], null);
+        if (SelectedFolderOperationSource() is { } source) await DeleteFileSourcesAsync([source], false);
     }
 
     private async void BrowserFolderNew_Click(object sender, RoutedEventArgs e)
@@ -3535,6 +3557,10 @@ public partial class MainWindow : Window
                 _browserAppliedGeneratedThumbnails));
         var pendingMetadata = new HashSet<Guid>(
             BrowserDerivedWorkProjection.AssetsNeedingMetadataLookup(batch.Results, _browserGrid.HasMetadataApplied));
+        pendingThumbnails.UnionWith(batch.Results.Where(result => result.Thumbnail == DerivedWorkComponentOutcome.Failed)
+            .Select(result => result.AssetId));
+        foreach (var result in batch.Results.Where(result => result.Thumbnail == DerivedWorkComponentOutcome.Failed))
+            _browserGrid.ApplyPreviewFailure(result.AssetId, result.ThumbnailFailureReason);
         await ApplyBrowserPreviewRecordsAsync(pendingThumbnails, pendingMetadata, generation,
             () => ReferenceEquals(_activeBrowserDerivedWorkBatch, batch),
             thumbnailApplied: id => _browserAppliedGeneratedThumbnails.Add(id));
@@ -3561,6 +3587,9 @@ public partial class MainWindow : Window
             if (generation != _browserUiGeneration || !records.TryGetValue(assetId, out var record)) continue;
             if (sources is not null && (!sources.TryGetValue(assetId, out var source) ||
                 !BrowserPreviewReuse.Matches(source, record))) continue;
+
+            _browserGrid.ApplyPreviewFailure(assetId, record.ThumbnailState == PreviewComponentState.Failed
+                ? record.ThumbnailFailureReason : null);
 
             if (pendingThumbnails.Contains(assetId) && record.ThumbnailRelativePath is not null &&
                 (sources is null || record.ThumbnailGeneratorVersion == ThumbnailGenerationService.CurrentGeneratorVersion) &&
@@ -4638,6 +4667,8 @@ public partial class MainWindow : Window
         foreach (var (assetId, record) in records)
         {
             if (generation != _browserUiGeneration) return;
+            _browserGrid.ApplyPreviewFailure(assetId, record.ThumbnailState == PreviewComponentState.Failed
+                ? record.ThumbnailFailureReason : null);
             if (record.ThumbnailState == PreviewComponentState.Current && record.ThumbnailRelativePath is { } relative)
             {
                 try

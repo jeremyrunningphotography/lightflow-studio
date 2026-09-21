@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
-using Microsoft.VisualBasic.FileIO;
 
 namespace LightflowStudio;
 
@@ -208,9 +207,9 @@ internal sealed class WindowsFileOperationPlatform(Func<string, DriveType>? driv
     public void Recycle(string path)
     {
         WindowsRecyclePolicy.EnsureRecoverableLocation(path, driveTypeResolver);
-        if (Directory.Exists(path)) FileSystem.DeleteDirectory(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-        else if (File.Exists(path)) FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-        else throw new FileNotFoundException("The selected item is unavailable.", path);
+        if (!WindowsRecycleCapability.CanRecycle(path))
+            throw new NotSupportedException("Recoverable recycling is no longer available. No permanent deletion was attempted.");
+        WindowsRecycleOperation.Recycle(path);
     }
 
     public void PermanentlyDelete(string path)

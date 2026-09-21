@@ -28,8 +28,24 @@ internal static class CatalogMigrations
         new(13, "Creator-authored asset descriptions and overrides", ApplyVersion13),
         new(14, "Premiere destination projections and durable handoff intents", ApplyVersion14),
         new(15, "Premiere native Subclip destination projections", ApplyVersion15),
-        new(16, "Durable asset timeline point markers", ApplyVersion16)
+        new(16, "Durable asset timeline point markers", ApplyVersion16),
+        new(17, "Premiere point-marker destination projections", ApplyVersion17)
     ];
+
+    private static void ApplyVersion17(SqliteConnection connection, SqliteTransaction transaction, CatalogMigrationContext context) =>
+        Execute(connection, transaction, """
+            CREATE TABLE PremiereMarkerHandoffs (
+                OperationId TEXT NOT NULL PRIMARY KEY,
+                DestinationId TEXT NOT NULL,
+                AssetId TEXT NOT NULL REFERENCES MediaAssets(AssetId) ON DELETE RESTRICT,
+                MarkerId TEXT NOT NULL,
+                TargetKey TEXT NOT NULL,
+                IntentJson TEXT NOT NULL,
+                ReceiptJson TEXT NULL,
+                Dispatched INTEGER NOT NULL DEFAULT 0 CHECK (Dispatched IN (0,1)),
+                UNIQUE(DestinationId, MarkerId, TargetKey)
+            );
+            """);
 
     private static void ApplyVersion16(SqliteConnection connection, SqliteTransaction transaction, CatalogMigrationContext context) =>
         Execute(connection, transaction, """

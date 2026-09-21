@@ -10,21 +10,44 @@ public partial class PremiereIntegrationWindow : Window
     private readonly PremiereBridge _bridge;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private PremiereConnection _installation = new(PremiereConnectionState.ConnectionProblem, "Checking Adobe installation…");
+    private bool _checkingInstallation = true;
 
     internal PremiereIntegrationWindow(PremiereBridge bridge)
     {
         InitializeComponent();
         _bridge = bridge;
+        RefreshConnection();
         _timer.Tick += (_, _) => RefreshConnection();
         Loaded += async (_, _) => { _timer.Start(); await InspectAsync(); RefreshConnection(); };
         Closed += (_, _) => _timer.Stop();
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
     }
 
-    private async Task InspectAsync() { _installation = await PremiereInstallation.InspectAsync(); RefreshConnection(); }
+    private async Task InspectAsync()
+    {
+        _checkingInstallation = true;
+        RefreshConnection();
+        try
+        {
+            await _bridge.StartAsync();
+            _installation = await PremiereInstallation.InspectAsync();
+            ResultText.Text = "";
+        }
+        catch (Exception error) { ResultText.Text = $"Connection unavailable: {error.Message}"; }
+        finally { _checkingInstallation = false; }
+        RefreshConnection();
+    }
     private void RefreshConnection()
     {
         var live = _bridge.Connection;
+        if (_checkingInstallation && live.State == PremiereConnectionState.Ready)
+        {
+            ConnectionText.Text = "Checking installation…";
+            GuidanceText.Text = "Checking Adobe installation and companion version.";
+            InstallButton.Visibility = Visibility.Collapsed;
+            ProjectText.Text = "";
+            return;
+        }
         var connection = PremiereSendState.WithInstallation(live, _installation);
         ConnectionText.Text = connection.State switch
         {
@@ -33,7 +56,7 @@ public partial class PremiereIntegrationWindow : Window
             PremiereConnectionState.UpdateRequired => "Update required",
             PremiereConnectionState.ConnectionProblem => "Connection problem",
             PremiereConnectionState.Connected => connection.Message,
-            _ => "Ready"
+            _ => "Companion installed — not connected"
         };
         GuidanceText.Text = connection.State == PremiereConnectionState.Connected ? "Authenticated companion connection is healthy." : connection.Message;
         InstallButton.Visibility = connection.State is PremiereConnectionState.CompanionNotInstalled or PremiereConnectionState.UpdateRequired

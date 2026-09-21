@@ -7,7 +7,6 @@ public partial class MainWindow
     private bool _premiereClosing;
     private async Task ResumePremiereAsync()
     {
-        if (_storage.Locations.IsIsolated) return;
         if (!System.IO.File.Exists(System.IO.Path.Combine(_storage.Locations.PremierePairingDirectory, "lightflow-pairing.json"))) return;
         try { await EnsurePremiereAsync(); }
         catch (Exception error) { AppendLog($"Premiere automatic connection unavailable: {error.Message}"); }
@@ -28,20 +27,21 @@ public partial class MainWindow
     private readonly SemaphoreSlim _premiereStart = new(1, 1);
     private async Task EnsurePremiereAsync()
     {
-        if (_storage.Locations.IsIsolated)
-            throw new InvalidOperationException("Premiere connection is disabled for an isolated data-root profile.");
         await _premiereStart.WaitAsync();
         try
         {
-            if (_premiereBridge is not null || _premiereClosing) return;
-            var journal = new CatalogPremiereHandoffs(() => _storage.CatalogAvailable ? _storage.CatalogSession : null);
-            var bridge = new PremiereBridge(journal, _storage.Locations.PremierePairingDirectory);
-            await bridge.StartAsync();
-            if (_premiereClosing) { await bridge.DisposeAsync(); return; }
-            _premiereBridge = bridge;
-            _premiereJobs = new(journal, bridge);
-            _premiereJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
-            await _premiereJobs.RefreshHistoryAsync();
+            if (_premiereClosing) return;
+            if (_premiereBridge is null)
+            {
+                var journal = new CatalogPremiereHandoffs(() => _storage.CatalogAvailable ? _storage.CatalogSession : null);
+                // Retain the profile-owned bridge on startup failure so Settings can explain and retry it.
+                _premiereBridge = new PremiereBridge(journal, _storage.Locations);
+                _premiereJobs = new(journal, _premiereBridge);
+                _premiereJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
+            }
+            await _premiereBridge.StartAsync();
+            if (_premiereClosing) { await _premiereBridge.DisposeAsync(); return; }
+            await _premiereJobs!.RefreshHistoryAsync();
         }
         finally { _premiereStart.Release(); }
     }
@@ -51,55 +51,53 @@ public partial class MainWindow
     {
         try
         {
-            await EnsurePremiereAsync();
-            if (!send)
+            try { await EnsurePremiereAsync(); }
+            catch (Exception error) when (_premiereBridge is not null)
             {
-                new PremiereIntegrationWindow(_premiereBridge!) { Owner = this }.ShowDialog();
-                return;
+                AppendLog($"Premiere connection unavailable: {error}");
             }
-            var live = _premiereBridge!.Connection;
-            var connection = live;
-            if (live.State == PremiereConnectionState.Ready)
-            {
-                var installation = await PremiereInstallation.InspectAsync();
-                connection = PremiereSendState.WithInstallation(_premiereBridge.Connection, installation);
-            }
-            var route = PremiereSendState.Route(connection);
-            if (route != PremiereSendRoute.Send)
-            {
-                if (route == PremiereSendRoute.Settings || NoticeDialog.OfferAction(this,
-                    "Send to Premiere Pro", "Premiere is not connected",
-                    $"{connection.Message}\n\nOpen Integration Settings for setup and connection help.", "Open Integration Settings"))
-                    new PremiereIntegrationWindow(_premiereBridge) { Owner = this }.ShowDialog();
-                return;
-            }
-            var sources = new List<PremiereSource>();
-            var savedSubclips = new Dictionary<Guid, IReadOnlyList<Subclip>>();
-            foreach (var assetId in _browserGrid.SelectedAssetIdsInBrowserOrder)
-            {
-                var resolved = await _storage.MediaAssets.GetAsync(assetId);
-                if (resolved?.PhysicalPath is not { } path) throw new InvalidOperationException("A selected Catalog source is unavailable.");
-                PremiereRangeProjection? range = null;
-                string? rangeIssue = null;
-                if (PremiereSendPlanning.IsVideo(path) && await _storage.MediaRanges.RestoreAsync(assetId) is { } savedRange
-                    && !PremiereRangeProjection.TryCreate(savedRange, out range))
-                    rangeIssue = "Saved In/Out is too short for Premiere";
-                var source = new PremiereSource(assetId, path,
-                    resolved.Asset.FileSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    resolved.Asset.LastWriteUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture), range) { RangeIssue = rangeIssue };
-                CatalogPremiereHandoffs.ValidateSource(source);
-                sources.Add(source);
-                savedSubclips[assetId] = await _storage.Subclips.ListAsync(assetId);
-            }
-            var subclipPlan = PremiereSendPlanning.Subclips(sources, savedSubclips);
-            new PremiereSendWindow(_premiereBridge!, _premiereJobs!, sources, subclipPlan) { Owner = this }.ShowDialog();
-            if (_premiereJobs!.Jobs.Any(job => job.State is JobState.Queued or JobState.Running)) OpenJobsPanel();
+            if (_premiereClosing) return;
+            var route = send
+                ? await PremiereSendState.ResolveRouteAsync(() => _premiereBridge!.Connection,
+                    () => _premiereBridge!.HasCompletedSetup, PremiereInstallation.InspectAsync)
+                : PremiereSendRoute.Settings;
+            if (_premiereClosing) return;
+            await PremiereSendState.NavigateAsync(send,
+                route,
+                () => new PremiereIntegrationWindow(_premiereBridge!) { Owner = this }.ShowDialog(),
+                OpenPremiereSendAsync);
         }
         catch (Exception error)
         {
             var message = $"Premiere connection problem: {error.Message}";
             if (send) BrowserStatusText.Text = message;
             else SettingsMessage.Text = message;
+            NoticeDialog.Show(this, "Premiere Pro", "Premiere connection problem", message);
         }
+    }
+    private async Task OpenPremiereSendAsync()
+    {
+        if (_premiereClosing) return;
+        var sources = new List<PremiereSource>();
+        var savedSubclips = new Dictionary<Guid, IReadOnlyList<Subclip>>();
+        foreach (var assetId in _browserGrid.SelectedAssetIdsInBrowserOrder)
+        {
+            var resolved = await _storage.MediaAssets.GetAsync(assetId);
+            if (resolved?.PhysicalPath is not { } path) throw new InvalidOperationException("A selected Catalog source is unavailable.");
+            PremiereRangeProjection? range = null;
+            string? rangeIssue = null;
+            if (PremiereSendPlanning.IsVideo(path) && await _storage.MediaRanges.RestoreAsync(assetId) is { } savedRange
+                && !PremiereRangeProjection.TryCreate(savedRange, out range))
+                rangeIssue = "Saved In/Out is too short for Premiere";
+            var source = new PremiereSource(assetId, path,
+                resolved.Asset.FileSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                resolved.Asset.LastWriteUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture), range) { RangeIssue = rangeIssue };
+            CatalogPremiereHandoffs.ValidateSource(source);
+            sources.Add(source);
+            savedSubclips[assetId] = await _storage.Subclips.ListAsync(assetId);
+        }
+        var subclipPlan = PremiereSendPlanning.Subclips(sources, savedSubclips);
+        new PremiereSendWindow(_premiereBridge!, _premiereJobs!, sources, subclipPlan) { Owner = this }.ShowDialog();
+        if (_premiereJobs!.Jobs.Any(job => job.State is JobState.Queued or JobState.Running)) OpenJobsPanel();
     }
 }

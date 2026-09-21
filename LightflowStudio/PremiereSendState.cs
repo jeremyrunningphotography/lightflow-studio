@@ -2,7 +2,7 @@ using System.IO;
 
 namespace LightflowStudio;
 
-internal enum PremiereSendRoute { Settings, Disconnected, Send }
+internal enum PremiereSendRoute { Settings, Send }
 internal enum PremiereSendReadiness { Disconnected, ProjectRequired, DestinationRequired, Ready }
 
 internal sealed record PremiereSendPresentation(PremiereSendReadiness Readiness, string Badge, string Guidance,
@@ -20,13 +20,26 @@ internal sealed class PremiereSendState
     public string Message { get; private set; } = "";
     public static PremiereConnection WithInstallation(PremiereConnection live, PremiereConnection installation) =>
         live.State == PremiereConnectionState.Ready ? installation : live;
-    public static PremiereSendRoute Route(PremiereConnection connection) => connection.State switch
+    public static PremiereSendRoute Route(PremiereConnection connection, bool setupComplete = false) =>
+        setupComplete || connection.State == PremiereConnectionState.Connected ? PremiereSendRoute.Send : PremiereSendRoute.Settings;
+
+    public static async Task<PremiereSendRoute> ResolveRouteAsync(Func<PremiereConnection> connection,
+        Func<bool> setupComplete, Func<Task<PremiereConnection>> inspectInstallation)
     {
-        PremiereConnectionState.Connected => PremiereSendRoute.Send,
-        PremiereConnectionState.PremiereNotInstalled or PremiereConnectionState.CompanionNotInstalled
-            or PremiereConnectionState.UpdateRequired => PremiereSendRoute.Settings,
-        _ => PremiereSendRoute.Disconnected
-    };
+        if (Route(connection(), setupComplete()) == PremiereSendRoute.Send) return PremiereSendRoute.Send;
+        var installation = await inspectInstallation();
+        // Bridge Ready means waiting for a connection; inventory Ready means installation is complete.
+        // Neither grants permission to execute a handoff, which still requires live authentication.
+        return installation.State == PremiereConnectionState.Ready
+            ? PremiereSendRoute.Send : Route(connection(), setupComplete());
+    }
+
+    public static async Task NavigateAsync(bool send, PremiereSendRoute route, Action openSettings, Func<Task> openSend)
+    {
+        if (!send || route == PremiereSendRoute.Settings) openSettings();
+        // Done and window close finish the setup step, not the original Send request.
+        if (send) await openSend();
+    }
     public static PremiereSendPresentation Present(PremiereConnection connection)
     {
         if (connection.State != PremiereConnectionState.Connected)

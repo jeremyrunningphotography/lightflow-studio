@@ -1,4 +1,5 @@
 'use strict';
+const { executeMarker } = require('./markers.js');
 
 // Platform-independent reconciliation policy. The adapter owns every Premiere API call.
 const pathKey = value => value.replace(/\\/g, '/').replace(/^\/\/\?\/(?=[a-z]:\/)/i, '').replace(/\/$/, '').toLowerCase();
@@ -33,13 +34,14 @@ const subclipProjection = subclip => JSON.stringify({ name: subclip.name, revisi
   range: rangeKey(subclip.range), hardBoundaries: subclip.hardBoundaries,
   takeVideo: subclip.takeVideo, takeAudio: subclip.takeAudio });
 const temporarySubclipSourceVerification = 'temporary-subclip-source-v1';
+const unmappedSourceConflict = 'Unmapped media already exists in this project. No automatic adoption or duplicate import.';
 
 async function executeSubclip(command, adapter, journal, guard) {
   const intent = command.intent;
   const spec = intent.subclip;
   const projection = subclipProjection(spec);
   const receipt = (outcome, itemId, message) => ({ operationId: intent.operationId, outcome, itemId, message,
-    projectionKey: projection, verification: outcome === 'Verified' ? 'native-subclip-v3' : null });
+    projectionKey: projection, verification: outcome === 'Verified' ? 'native-subclip-v4' : null });
   let mutationStarted = false;
   try {
     await guard();
@@ -48,8 +50,8 @@ async function executeSubclip(command, adapter, journal, guard) {
       return receipt('Conflict', saved.itemId || null, 'Catalog Subclip identity changed; no mutation performed.');
     const itemId = saved?.itemId || command.previousReceipt?.itemId;
     const projected = saved?.projection || command.previousReceipt?.projectionKey;
-    const verified = ['native-subclip-v2', 'native-subclip-v3'].includes(saved?.verification)
-      || ['native-subclip-v2', 'native-subclip-v3'].includes(command.previousReceipt?.verification);
+    const verified = ['native-subclip-v2', 'native-subclip-v3', 'native-subclip-v4'].includes(saved?.verification)
+      || ['native-subclip-v2', 'native-subclip-v3', 'native-subclip-v4'].includes(command.previousReceipt?.verification);
     let recoverRemoved = false;
     let items = await adapter.items();
     const sources = items.filter(item => item.id === spec.sourceItemId);
@@ -62,6 +64,8 @@ async function executeSubclip(command, adapter, journal, guard) {
       if (projected && projected !== projection)
         return receipt('Conflict', itemId, 'The Lightflow Subclip changed after projection. The existing Premiere Subclip was preserved for review.');
       if (matches.length === 1) {
+        if ((saved?.verification || command.previousReceipt?.verification) !== 'native-subclip-v4')
+          return receipt('Conflict', itemId, 'This native Subclip predates corrected frame timing. It was preserved; send to a fresh project.');
         if (pathKey(matches[0].mediaPath || '') !== pathKey(intent.source.path))
           return receipt('Conflict', itemId, 'Mapped native Subclip was relinked. Restore its original media or delete it, then retry.');
         if (verified) {
@@ -78,7 +82,7 @@ async function executeSubclip(command, adapter, journal, guard) {
         }
         if (spec.removeSourceAfter) await adapter.removeItem(spec.sourceItemId);
         await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId, projection,
-          verification: 'native-subclip-v3' });
+          verification: 'native-subclip-v4' });
         return receipt('Verified', itemId, 'Existing native Premiere Subclip verified; editor name and organization preserved.');
       }
       if (!verified)
@@ -87,7 +91,7 @@ async function executeSubclip(command, adapter, journal, guard) {
         return receipt('Conflict', itemId, 'A replacement Premiere item already has this Subclip name and source. Delete that unmapped item or restore the original mapped item, then retry.');
       recoverRemoved = true;
       await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'removed', previousItemId: itemId, projection,
-        verification: 'native-subclip-v3' });
+        verification: 'native-subclip-v4' });
     }
     const reportedNoMutation = command.previousReceipt?.outcome === 'Failed' && !command.previousReceipt?.itemId;
     const safeFailedRetry = reportedNoMutation && (!saved || saved.phase === 'intent');
@@ -106,7 +110,7 @@ async function executeSubclip(command, adapter, journal, guard) {
     if (matches.length !== 1) return receipt('UnknownOutcome', null, 'Native Subclip readback was ambiguous; reconcile before any retry.');
     if (spec.removeSourceAfter) await adapter.removeItem(spec.sourceItemId);
     await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId: createdId, projection,
-      verification: 'native-subclip-v3' });
+      verification: 'native-subclip-v4' });
     await guard();
     return receipt('Verified', createdId, 'Native Premiere Subclip created and verified. Save your Premiere project to preserve it.');
   } catch (error) {
@@ -124,6 +128,7 @@ async function execute(command, adapter, journal) {
       throw new Error('Active project changed. Return to the accepted project and reconcile.');
     if (!adapter.connected()) throw new Error('Connection expired. Reconnect before continuing.');
   };
+  if (intent.marker) return executeMarker(command, adapter, journal, guard);
   if (intent.subclip) return executeSubclip(command, adapter, journal, guard);
   const reconcileRange = async (itemId, saved) => {
     // A later explicit Send may update or clear Lightflow's source-point projection. Editor
@@ -180,10 +185,18 @@ async function execute(command, adapter, journal) {
         phase: 'removed', previousItemId: itemId });
     }
     // There is no safe exactly-once import across two applications. Never infer identity from a path.
-    if ((command.previouslyDispatched || saved) && !recoverRemoved)
+    const prior = command.previousReceipt;
+    const blockedBeforeImport = saved?.phase === 'blocked-before-import'
+      || (!saved && prior?.operationId === intent.operationId && prior.outcome === 'Conflict'
+        && prior.itemId === null && prior.message === unmappedSourceConflict);
+    if ((command.previouslyDispatched || saved) && !recoverRemoved && !blockedBeforeImport)
       return receipt('UnknownOutcome', null, 'Prior import outcome is uncertain. Inspect the original project; automatic reimport is blocked.');
-    if (items.some(item => item.mediaPath && pathKey(item.mediaPath) === pathKey(intent.source.path)))
-      return receipt('Conflict', null, 'Unmapped media already exists in this project. No automatic adoption or duplicate import.');
+    if (items.some(item => item.mediaPath && pathKey(item.mediaPath) === pathKey(intent.source.path))) {
+      // Preserve positive evidence that no import began, even if the Conflict response is lost.
+      // The intent journal below replaces this phase before any subsequent import can begin.
+      await journal.write(intent.operationId, { identity: identity(intent), phase: 'blocked-before-import' });
+      return receipt('Conflict', null, unmappedSourceConflict);
+    }
     const before = new Set(items.map(item => item.id));
     await journal.write(intent.operationId, { intent: JSON.stringify(intent), identity: identity(intent), phase: 'intent' });
     await guard();

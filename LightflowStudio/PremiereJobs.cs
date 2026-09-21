@@ -67,7 +67,8 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
         PremiereOutcome.UnknownOutcome => "Needs reconciliation",
         _ => "Failed"
     };
-    internal static string UserMessage(PremiereReceipt receipt) => receipt.Outcome switch
+    internal static string UserMessage(PremiereReceipt receipt) => receipt.Message.StartsWith("Marker:", StringComparison.Ordinal)
+        ? receipt.Message : receipt.Outcome switch
     {
         PremiereOutcome.Verified => receipt.Message,
         PremiereOutcome.UnknownOutcome => "Premiere may have started this import but it could not be verified. Return to the original project and send the same source again.",
@@ -130,24 +131,40 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
         }
     }
     internal static IReadOnlyList<JobsWorkspaceItem> ProjectHistory(IEnumerable<PremiereCommand> history)
-        => history.Select(command =>
+    {
+        var commands = history.ToArray();
+        var markerIssues = commands.Where(command => command.Intent.Marker is not null
+            && command.PreviousReceipt?.Outcome != PremiereOutcome.Verified)
+            .ToLookup(command => (command.Intent.DestinationId, command.Intent.Marker!.TargetKey));
+        return commands.Where(command => command.Intent.Marker is null).Select(command =>
             {
                 var receipt = command.PreviousReceipt;
                 var state = receipt?.Outcome == PremiereOutcome.Verified ? JobState.Completed : JobState.Failed;
                 var message = receipt?.Message ?? (command.PreviouslyDispatched
                     ? "Interrupted handoff. Send the same source in the original project to reconcile."
                     : "Prepared but not dispatched. Send the source again to continue.");
+                var targetKey = command.Intent.Subclip?.SubclipId is { } id
+                    ? $"subclip:{id:D}" : $"asset:{command.Intent.Source.AssetId:D}";
+                if (receipt?.Outcome == PremiereOutcome.Verified
+                    && markerIssues[(command.Intent.DestinationId, targetKey)].FirstOrDefault() is { } markerIssue)
+                {
+                    state = JobState.CompletedWithWarnings;
+                    message += " Attached marker transfer needs attention. " + (markerIssue.PreviousReceipt?.Message
+                        ?? "Interrupted marker transfer; resend this item to reconcile.");
+                }
                 return new JobsWorkspaceItem(command.Intent.OperationId, null, null, false, false,
                     command.Intent.Subclip is { } subclip ? $"Premiere Subclip: {subclip.Name}" : $"Premiere: {Path.GetFileName(command.Intent.Source.Path)}", "Premiere handoff", state,
                     receipt is null ? 0 : 100, command.Intent.CreatedUtc.ToLocalTime().ToString("MMM d, HH:mm"),
                     command.Intent.Source.Path, command.Intent.Project.Path, message, message,
                     command.Intent.CreatedUtc, long.MaxValue, new JobMessageDetailsPresentation(message));
             }).ToArray();
+    }
 
     public void Enqueue(PremiereProject project, string binId, string? createName, IReadOnlyList<PremiereSource> sources)
     {
         if (sources.Count is < 1 or > 500) throw new InvalidOperationException("Select between 1 and 500 source assets.");
-        var job = new PremiereJob(Guid.NewGuid(), project, sources.ToArray(), JobState.Queued, 0, [], "", DateTimeOffset.UtcNow);
+        var job = new PremiereJob(Guid.NewGuid(), project, sources.ToArray(), JobState.Queued, 0, [], "", DateTimeOffset.UtcNow,
+            Items: sources.Select(source => new PremiereJobItem($"asset:{source.AssetId:D}", source.Name, PremiereJobItemState.Pending)).ToArray());
         var cts = new CancellationTokenSource();
         lock (_sync) { _jobs.Add(job); _cancellations[job.JobId] = cts; }
         Changed?.Invoke();
@@ -209,16 +226,19 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
                     result = new(Guid.Empty, PremiereOutcome.Failed, null, error.Message);
                 }
                 receipts.Add(result);
-                job = job with { Completed = receipts.Count, Receipts = receipts.ToArray(), Message = $"{Path.GetFileName(source.Path)}: {PremiereJob.UserMessage(result)}" };
+                job = job with { Completed = job.Completed + 1, Receipts = receipts.ToArray(),
+                    Items = job.Items!.Select(item => item.Key == $"asset:{source.AssetId:D}" ? item with { State = ItemState(result), Receipt = result } : item).ToArray(),
+                    Message = $"{Path.GetFileName(source.Path)}: {PremiereJob.UserMessage(result)}" };
                 Publish(job);
+                job = await RunMarkersAsync(job, source, null, result, binId, receipts, cts.Token).ConfigureAwait(false);
             }
             job = job with { State = receipts.All(receipt => receipt.Outcome == PremiereOutcome.Verified)
                 ? JobState.Completed : JobState.CompletedWithWarnings };
         }
         catch (OperationCanceledException)
-        { job = job with { State = JobState.Cancelled, Message = "Cancelled. Any import already in progress may remain in Premiere; resend the same selection to reconcile." }; }
+        { job = Jobs.Single(current => current.JobId == job.JobId) with { State = JobState.Cancelled, Message = "Cancelled. Any import already in progress may remain in Premiere; resend the same selection to reconcile." }; }
         catch (Exception error)
-        { job = job with { State = JobState.Failed, Message = error is TimeoutException ? "Companion did not finish in time. Reconnect and reconcile the original project." : error.Message }; }
+        { job = Jobs.Single(current => current.JobId == job.JobId) with { State = JobState.Failed, Message = error is TimeoutException ? "Companion did not finish in time. Reconnect and reconcile the original project." : error.Message }; }
         finally
         {
             if (entered) _serial.Release();
@@ -240,7 +260,7 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
     {
         var key = ItemKey(planned);
         var items = job.Items!.Select(item => item.Key == key ? item with { State = state, Receipt = receipt } : item).ToArray();
-        var completed = items.Count(item => item.IsTerminal);
+        var completed = items.Count(item => item.IsTerminal && !item.Key.StartsWith("marker:", StringComparison.Ordinal));
         return job with { Items = items, Completed = completed,
             Message = $"{planned.Projection.Name} — {items.Single(item => item.Key == key).StatusText}" };
     }
@@ -310,7 +330,43 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
                 earlierItemsVerified &= result.Outcome == PremiereOutcome.Verified;
                 job = UpdateItem(job with { Receipts = receipts.ToArray() }, item, ItemState(result), result);
                 Publish(job);
+                job = await RunMarkersAsync(job, item.Source, item.Projection, result, binId, receipts, cts.Token).ConfigureAwait(false);
             }
         }
+    }
+
+    private async Task<PremiereJob> RunMarkersAsync(PremiereJob job, PremiereSource source,
+        PremiereSubclipProjection? subclip, PremiereReceipt target, string binId, List<PremiereReceipt> receipts, CancellationToken token)
+    {
+        var markers = await journal.PlanMarkersAsync(source, target.ItemId ?? "unavailable", subclip, token).ConfigureAwait(false);
+        foreach (var marker in markers)
+        {
+            token.ThrowIfCancellationRequested();
+            PremiereReceipt receipt;
+            if (target.Outcome != PremiereOutcome.Verified || string.IsNullOrEmpty(target.ItemId))
+                receipt = new(Guid.Empty, target.Outcome, null, "Marker: target handoff did not verify; marker was not sent.");
+            else
+            {
+                var submitted = false;
+                try
+                {
+                    var command = await journal.PrepareMarkerAsync(job.Project, binId, source, marker, token).ConfigureAwait(false);
+                    submitted = true;
+                    receipt = await bridge.SendAsync(command, token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception error) { receipt = new(Guid.Empty, submitted ? PremiereOutcome.UnknownOutcome : PremiereOutcome.Failed,
+                    target.ItemId, "Marker: " + error.Message); }
+            }
+            receipts.Add(receipt);
+            // Markers remain durable handoffs, but Jobs presents only requested media items.
+            // Preserve an earlier parent failure; attach the first marker failure to a sent parent.
+            job = job with { Receipts = receipts.ToArray(), Items = job.Items!.Select(item =>
+                item.Key == marker.TargetKey && item.State == PremiereJobItemState.Sent
+                    && receipt.Outcome != PremiereOutcome.Verified
+                    ? item with { State = ItemState(receipt), Receipt = receipt } : item).ToArray() };
+            Publish(job);
+        }
+        return job;
     }
 }

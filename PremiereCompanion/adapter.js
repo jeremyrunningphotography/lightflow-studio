@@ -3,6 +3,21 @@
 // The production Premiere adapter is isolated so protocol tests exercise the same transaction,
 // readback and placement code shipped in the CCX rather than an optimistic in-memory substitute.
 function createAdapter(ppro, project, walk, id, nearestPremiereTicks, runtime) {
+  const { same } = require('./markers.js');
+  const { frameBoundaryTicks, markerPositionTicks } = require('./range.js');
+  const sourceFrameTicks = async clip => {
+    const interpretation = await clip.getFootageInterpretation();
+    const rate = await interpretation.getFrameRate();
+    if (!Number.isFinite(rate) || rate <= 0) throw new Error('Premiere source frame rate is unavailable.');
+    const ticks = ppro.FrameRate.createWithValue(rate).ticksPerFrame;
+    if (!Number.isSafeInteger(ticks) || ticks <= 0) throw new Error('Premiere source frame duration is unavailable.');
+    return String(ticks);
+  };
+  const markerSnapshot = marker => ({ guid: String(marker.guid), name: marker.getName(),
+    startTicks: String(marker.getStart().ticks), durationTicks: String(marker.getDuration().ticks),
+    type: marker.getType(), comments: marker.getComments(), colorIndex: marker.getColorIndex() });
+  const markerCollection = async itemId => ppro.Markers.getMarkers(ppro.ClipProjectItem.cast(
+    await findExactly(itemId, 'Mapped marker target is unavailable.')));
   const pathKey = value => value.replace(/\\/g, '/').replace(/^\/\/\?\/(?=[a-z]:\/)/i, '').replace(/\/$/, '').toLowerCase();
   const premiereTicks = value => ppro.TickTime.createWithTicks(nearestPremiereTicks(value));
   const transaction = (label, createActions) => {
@@ -50,6 +65,42 @@ function createAdapter(ppro, project, walk, id, nearestPremiereTicks, runtime) {
     return ppro.FolderItem.cast(matches[0]);
   };
   return {
+    async markerTiming(itemId, marker) {
+      const clip = ppro.ClipProjectItem.cast(await findExactly(itemId, 'Mapped marker target is unavailable.'));
+      const frameTicks = await sourceFrameTicks(clip);
+      return { frameTicks, startTicks: markerPositionTicks(marker, frameTicks) };
+    },
+    async markers(itemId) {
+      const collection = await markerCollection(itemId);
+      return collection.getMarkers().map(markerSnapshot);
+    },
+    async mutateMarker(itemId, spec, mapped, before, guard, timing) {
+      const collection = await markerCollection(itemId);
+      const active = await runtime.activeProject();
+      if (!active || active.guid !== String(project.guid) || pathKey(active.path) !== pathKey(project.path))
+        throw new Error('Active project changed before marker mutation.');
+      await guard();
+      transaction('project the Lightflow point marker', () => {
+        if (!runtime.connected() || String(project.guid) !== active.guid || pathKey(project.path) !== pathKey(active.path))
+          throw new Error('Destination changed before marker mutation.');
+        const markers = collection.getMarkers();
+        const current = markers.map(markerSnapshot);
+        if (current.length !== before.length || before.some(old => !current.some(m => same(m, old)))) {
+          const error = new Error('Marker state changed before the locked mutation; editor changes were preserved.');
+          error.markerConflict = true;
+          throw error;
+        }
+        if (mapped) {
+          const marker = markers.find(m => String(m.guid) === mapped.guid);
+          // The accepted domain supports rename, not position edits. Preserve GUID and color.
+          if (mapped.startTicks !== timing.startTicks)
+            throw new Error('Mapped marker timing differs; explicit reconciliation is required.');
+          return [marker.createSetNameAction(spec.name)];
+        }
+        return [collection.createAddMarkerAction(spec.name, 'Comment', ppro.TickTime.createWithTicks(timing.startTicks),
+          ppro.TickTime.createWithTicks('0'), '')];
+      });
+    },
     activeProject: runtime.activeProject,
     connected: runtime.connected,
     async items() {
@@ -113,8 +164,9 @@ function createAdapter(ppro, project, walk, id, nearestPremiereTicks, runtime) {
       const clip = ppro.ClipProjectItem.cast(sourceMatches[0]);
       const media = await clip.getMedia();
       const duration = await media.getDuration();
-      const start = spec.range ? premiereTicks(spec.range.inTicks) : ppro.TickTime.createWithTicks('0');
-      const end = spec.range ? premiereTicks(spec.range.outTicks) : duration;
+      const frameTicks = await sourceFrameTicks(clip);
+      const start = ppro.TickTime.createWithTicks(spec.range ? frameBoundaryTicks(spec.range.inTicks, frameTicks) : '0');
+      const end = spec.range ? ppro.TickTime.createWithTicks(frameBoundaryTicks(spec.range.outTicks, frameTicks)) : duration;
       if (BigInt(end.ticks) <= BigInt(start.ticks) || BigInt(end.ticks) > BigInt(duration.ticks))
         throw new Error('The native Subclip range is outside the imported source duration.');
       const before = new Set(beforeItems.map(id));

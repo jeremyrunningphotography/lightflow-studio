@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { execute, sameProject } = require('./handoff.js');
+const { nearestPremiereTicks } = require('./range.js');
 const { createAdapter } = require('./adapter.js');
 const vm = require('node:vm');
 const fsForPanel = require('node:fs');
@@ -67,12 +68,12 @@ function fixture() {
   return { command, adapter, journal, items, stored, imports: () => imports, removals: () => removals };
 }
 
-function productionFixture(executeActions = true) {
+function productionFixture(executeActions = true, frameTicks = 10584000000) {
   const root = folder('root', 'Root');
   const sourceBin = folder('source-bin', 'Existing sources');
   const targetBin = folder('target-bin', 'Selected destination');
   add(root, sourceBin); add(root, targetBin);
-  const source = clip('source-item', 'source.mov', 'C:/test/source.mov', '1000');
+  const source = clip('source-item', 'source.mov', 'C:/test/source.mov', nearestPremiereTicks('200000000'));
   add(sourceBin, source);
   let created = 0;
   function folder(itemId, name) {
@@ -83,8 +84,9 @@ function productionFixture(executeActions = true) {
   }
   function clip(itemId, name, mediaPath, durationTicks) {
     return { itemId, name, mediaPath, async getMediaFilePath() { return this.mediaPath; },
+      getFootageInterpretation: async () => ({ getFrameRate: () => 24 }),
       async getMedia() { return { getDuration: async () => ({ ticks: durationTicks }) }; },
-      createSubClipAction(subclipName) { return () => add(source.parent,
+      createSubClipAction(subclipName, start, end) { this.createdRange = { start: start.ticks, end: end.ticks }; return () => add(source.parent,
         clip(`native-${++created}`, subclipName, mediaPath, durationTicks)); },
       createSetInOutPointsAction() { return () => {}; }, createClearInOutPointsAction() { return () => {}; } };
   }
@@ -103,7 +105,7 @@ function productionFixture(executeActions = true) {
       if (executeActions) for (const action of actions) action();
       return true;
     }, importFiles: async () => true };
-  const ppro = { TickTime: { createWithTicks: ticks => ({ ticks: String(ticks) }) },
+  const ppro = { FrameRate: { createWithValue: () => ({ ticksPerFrame: frameTicks }) }, TickTime: { createWithTicks: ticks => ({ ticks: String(ticks) }) },
     Project: { getActiveProject: async () => project }, FolderItem: { cast: item => {
       if (!item.children) throw new Error('not a folder'); return item;
     } }, ClipProjectItem: { cast: item => {
@@ -112,7 +114,7 @@ function productionFixture(executeActions = true) {
       item.getParentBin ||= async () => item.parent;
       return item;
     } } };
-  const adapter = createAdapter(ppro, project, walk, item => item.itemId, value => String(value),
+  const adapter = createAdapter(ppro, project, walk, item => item.itemId, nearestPremiereTicks,
     { activeProject: async () => ({ guid: project.guid, path: project.path, name: project.name }), connected: () => true });
   return { adapter, project, source, sourceBin, targetBin, created: () => created };
 }
@@ -151,7 +153,7 @@ test('production dispatch reports Verified only after the real native-create sea
   const result = await execute({ intent, previouslyDispatched: false, previousReceipt: null }, f.adapter,
     { read: async key => stored.get(key), write: async (key, value) => stored.set(key, value) });
   assert.equal(result.outcome, 'Verified');
-  assert.equal(result.verification, 'native-subclip-v3');
+  assert.equal(result.verification, 'native-subclip-v4');
   assert.equal(f.created(), 1);
   assert.deepEqual((await f.targetBin.getItems()).map(item => item.itemId), [result.itemId]);
 });
@@ -342,6 +344,50 @@ test('unknown crash gap never blindly replays, including an empty destination', 
   assert.equal((await execute({ ...f.command, previouslyDispatched: true }, f.adapter, f.journal)).outcome, 'UnknownOutcome');
   assert.equal(f.imports(), 0);
 });
+test('resolved pre-import conflict retries without adopting existing media or duplicating an import', async () => {
+  const f = fixture(); f.items.push({ id: 'unmapped', mediaPath: 'C:/test/source.mov' });
+  const conflict = await execute(f.command, f.adapter, f.journal);
+  assert.equal(conflict.outcome, 'Conflict'); assert.equal(f.imports(), 0);
+  const retry = { ...f.command, previouslyDispatched: true, previousReceipt: conflict };
+  assert.equal((await execute(retry, f.adapter, f.journal)).outcome, 'Conflict');
+  assert.equal(f.imports(), 0);
+  f.items.length = 0;
+  const result = await execute(retry, f.adapter, f.journal);
+  assert.equal(result.outcome, 'Verified'); assert.equal(f.imports(), 1);
+  assert.equal((await execute({ ...retry, previousReceipt: result }, f.adapter, f.journal)).outcome, 'Verified');
+  assert.equal(f.imports(), 1);
+});
+
+test('legacy explicit no-import receipt permits retry only for that operation without a mutation journal', async () => {
+  for (const altered of [false, 'operation', 'outcome', 'message', 'journal']) {
+    const f = fixture();
+    const receipt = { operationId: f.command.intent.operationId, outcome: 'Conflict', itemId: null,
+      message: 'Unmapped media already exists in this project. No automatic adoption or duplicate import.' };
+    if (altered === 'operation') receipt.operationId = 'other';
+    if (altered === 'outcome') receipt.outcome = 'UnknownOutcome';
+    if (altered === 'message') receipt.message = 'Other conflict';
+    if (altered === 'journal') f.stored.set(f.command.intent.operationId, { intent: JSON.stringify(f.command.intent), phase: 'intent' });
+    const result = await execute({ ...f.command, previouslyDispatched: true, previousReceipt: receipt }, f.adapter, f.journal);
+    assert.equal(result.outcome, altered ? 'UnknownOutcome' : 'Verified');
+    assert.equal(f.imports(), altered ? 0 : 1);
+  }
+});
+
+test('blocked-phase proof survives a lost conflict response but is revoked before an uncertain import', async () => {
+  const f = fixture(); f.items.push({ id: 'unmapped', mediaPath: 'C:/test/source.mov' });
+  await execute(f.command, f.adapter, f.journal);
+  f.items.length = 0;
+  const importSource = f.adapter.importSource;
+  f.adapter.importSource = async (...args) => { await importSource(...args); throw Error('lost readback'); };
+  const retry = { ...f.command, previouslyDispatched: true }; // No receipt: recover only from durable blocked proof.
+  const result = await execute(retry, f.adapter, f.journal);
+  assert.equal(result.outcome, 'UnknownOutcome'); assert.equal(f.imports(), 1);
+  assert.equal(f.stored.get(f.command.intent.operationId).phase, 'intent');
+  f.items.length = 0; // Absence alone cannot prove the uncertain import is safe to repeat.
+  assert.equal((await execute({ ...retry, previousReceipt: result }, f.adapter, f.journal)).outcome, 'UnknownOutcome');
+  assert.equal(f.imports(), 1);
+});
+
 test('unmapped matching path is a conflict, never authoritative identity', async () => {
   const f = fixture(); f.items.push({ id: 'unmapped', mediaPath: 'c:\\test\\source.mov' });
   assert.equal((await execute(f.command, f.adapter, f.journal)).outcome, 'Conflict');
@@ -431,4 +477,26 @@ test('ambiguous import readback is not success', async () => {
     f.items.push({ id: 'one', mediaPath: path }, { id: 'two', mediaPath: path });
   };
   assert.equal((await execute(f.command, f.adapter, f.journal)).outcome, 'UnknownOutcome');
+});
+
+test('production native Subclip projects observed In and Out to source frame boundaries', async () => {
+  const f = productionFixture(true, 10594584000);
+  await f.adapter.createSubclip('source-item', { name: 'Frame exact', range: { inTicks: '32115416', outTicks: '116366249' },
+    hardBoundaries: true, takeVideo: true, takeAudio: true }, f.targetBin);
+  assert.deepEqual(f.source.createdRange, { start: '815782968000', end: String(279n * 10594584000n) });
+});
+
+test('legacy native Subclip remains untouched and requires fresh project', async () => {
+  const f = fixture();
+  const source = await execute(f.command, f.adapter, f.journal);
+  f.command.intent.subclip = { subclipId: 'clip', name: 'Native', revision: 1, sourceItemId: source.itemId,
+    range: { inTicks: '10', outTicks: '90', sourceDurationTicks: '1000' }, hardBoundaries: true, takeVideo: true, takeAudio: true };
+  f.command.intent.operationId = 'native-operation';
+  const first = await execute(f.command, f.adapter, f.journal);
+  assert.equal(first.outcome, 'Verified');
+  f.stored.get('native-operation').verification = 'native-subclip-v3';
+  const before = structuredClone(f.items);
+  const result = await execute(f.command, f.adapter, f.journal);
+  assert.equal(result.outcome, 'Conflict'); assert.match(result.message, /fresh project/);
+  assert.deepEqual(f.items, before);
 });

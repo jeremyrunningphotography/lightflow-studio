@@ -64,6 +64,30 @@ test('credential expiry is strict at the expiry instant', () => {
   const f = fixture(); assert.throws(() => validatePairing(f.value(), Date.parse(f.value().expiresUtc)), /renew/);
 });
 
+test('profile switching requires an explicit folder grant and never reads another profile as fallback', async () => {
+  const a = fixture(), b = fixture();
+  b.set({ ...b.value(), token: 'B'.repeat(64) });
+  await a.access.grant();
+  const original = JSON.stringify(a.value());
+  const selectedB = await b.fs.getFolder();
+  a.fs.getFolder = async () => selectedB;
+  a.fs.createPersistentToken = async entry => { assert.equal(entry, selectedB); return 'profile-b-grant'; };
+  a.fs.getEntryForPersistentToken = async token => {
+    assert.equal(token, 'profile-b-grant'); return selectedB;
+  };
+  // Making another profile available does not change the selected folder.
+  assert.equal((await a.access.read()).token, 'A'.repeat(64));
+  a.access.forget(); await a.access.grant();
+  const restarted = new PairingAccess(a.fs, a.store);
+  assert.equal(await restarted.restore(), true);
+  assert.equal((await restarted.read()).token, 'B'.repeat(64));
+  b.set({ ...b.value(), expiresUtc: '2020-01-01' });
+  await assert.rejects(restarted.read(), /renew/);
+  assert.equal(JSON.stringify(a.value()), original);
+  restarted.forget();
+  assert.equal(JSON.stringify(a.value()), original);
+});
+
 function panel(f) {
   const vm = require('node:vm'); const messages = [];
   const elements = Object.fromEntries(['pair', 'disconnect', 'status', 'forget', 'troubleshoot', 'recovery'].map(name => [name,

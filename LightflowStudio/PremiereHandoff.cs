@@ -12,7 +12,7 @@ internal static class PremiereProtocol
     public const int Version = 1;
     public const int Port = 47857;
     public const string Endpoint = "http://localhost:47857";
-    public const string CompanionVersion = "1.2.1";
+    public const string CompanionVersion = "1.2.2";
     public const string TemporarySubclipSourceVerification = "temporary-subclip-source-v1";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -271,7 +271,7 @@ internal sealed partial class CatalogPremiereHandoffs(Func<CatalogDatabaseSessio
             || receipt.Outcome == PremiereOutcome.Verified && string.IsNullOrWhiteSpace(receipt.ItemId)
             || intent.Subclip is { } subclip && receipt.Outcome == PremiereOutcome.Verified
                 && (receipt.ProjectionKey != PremiereProtocol.SubclipProjectionKey(subclip)
-                    || receipt.Verification != "native-subclip-v3"))
+                    || receipt.Verification != "native-subclip-v4"))
             throw new InvalidOperationException("Invalid companion receipt.");
         return UpdateAsync(intent, "UPDATE PremiereHandoffs SET ReceiptJson=$receipt WHERE OperationId=$id", receipt);
     }

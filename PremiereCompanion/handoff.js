@@ -41,7 +41,7 @@ async function executeSubclip(command, adapter, journal, guard) {
   const spec = intent.subclip;
   const projection = subclipProjection(spec);
   const receipt = (outcome, itemId, message) => ({ operationId: intent.operationId, outcome, itemId, message,
-    projectionKey: projection, verification: outcome === 'Verified' ? 'native-subclip-v3' : null });
+    projectionKey: projection, verification: outcome === 'Verified' ? 'native-subclip-v4' : null });
   let mutationStarted = false;
   try {
     await guard();
@@ -50,8 +50,8 @@ async function executeSubclip(command, adapter, journal, guard) {
       return receipt('Conflict', saved.itemId || null, 'Catalog Subclip identity changed; no mutation performed.');
     const itemId = saved?.itemId || command.previousReceipt?.itemId;
     const projected = saved?.projection || command.previousReceipt?.projectionKey;
-    const verified = ['native-subclip-v2', 'native-subclip-v3'].includes(saved?.verification)
-      || ['native-subclip-v2', 'native-subclip-v3'].includes(command.previousReceipt?.verification);
+    const verified = ['native-subclip-v2', 'native-subclip-v3', 'native-subclip-v4'].includes(saved?.verification)
+      || ['native-subclip-v2', 'native-subclip-v3', 'native-subclip-v4'].includes(command.previousReceipt?.verification);
     let recoverRemoved = false;
     let items = await adapter.items();
     const sources = items.filter(item => item.id === spec.sourceItemId);
@@ -64,6 +64,8 @@ async function executeSubclip(command, adapter, journal, guard) {
       if (projected && projected !== projection)
         return receipt('Conflict', itemId, 'The Lightflow Subclip changed after projection. The existing Premiere Subclip was preserved for review.');
       if (matches.length === 1) {
+        if ((saved?.verification || command.previousReceipt?.verification) !== 'native-subclip-v4')
+          return receipt('Conflict', itemId, 'This native Subclip predates corrected frame timing. It was preserved; send to a fresh project.');
         if (pathKey(matches[0].mediaPath || '') !== pathKey(intent.source.path))
           return receipt('Conflict', itemId, 'Mapped native Subclip was relinked. Restore its original media or delete it, then retry.');
         if (verified) {
@@ -80,7 +82,7 @@ async function executeSubclip(command, adapter, journal, guard) {
         }
         if (spec.removeSourceAfter) await adapter.removeItem(spec.sourceItemId);
         await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId, projection,
-          verification: 'native-subclip-v3' });
+          verification: 'native-subclip-v4' });
         return receipt('Verified', itemId, 'Existing native Premiere Subclip verified; editor name and organization preserved.');
       }
       if (!verified)
@@ -89,7 +91,7 @@ async function executeSubclip(command, adapter, journal, guard) {
         return receipt('Conflict', itemId, 'A replacement Premiere item already has this Subclip name and source. Delete that unmapped item or restore the original mapped item, then retry.');
       recoverRemoved = true;
       await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'removed', previousItemId: itemId, projection,
-        verification: 'native-subclip-v3' });
+        verification: 'native-subclip-v4' });
     }
     const reportedNoMutation = command.previousReceipt?.outcome === 'Failed' && !command.previousReceipt?.itemId;
     const safeFailedRetry = reportedNoMutation && (!saved || saved.phase === 'intent');
@@ -108,7 +110,7 @@ async function executeSubclip(command, adapter, journal, guard) {
     if (matches.length !== 1) return receipt('UnknownOutcome', null, 'Native Subclip readback was ambiguous; reconcile before any retry.');
     if (spec.removeSourceAfter) await adapter.removeItem(spec.sourceItemId);
     await journal.write(intent.operationId, { identity: subclipIdentity(intent), phase: 'created', itemId: createdId, projection,
-      verification: 'native-subclip-v3' });
+      verification: 'native-subclip-v4' });
     await guard();
     return receipt('Verified', createdId, 'Native Premiere Subclip created and verified. Save your Premiere project to preserve it.');
   } catch (error) {

@@ -6,9 +6,9 @@ const { createAdapter } = require('./adapter.js');
 const { nearestPremiereTicks } = require('./range.js');
 const assetId = '11111111-1111-4111-8111-111111111111';
 const markerId = '22222222-2222-4222-8222-222222222222';
-function fixture() {
+function fixture(frameTicks = 10584000000) {
   const project = { guid: 'project', path: 'C:/fixture/edit.prproj', name: 'edit' };
-  const item = { getId: () => 'target', getMediaFilePath: async () => 'C:/fixture/source.mov' };
+  const item = { getId: () => 'target', getFootageInterpretation: async () => ({ getFrameRate: () => 24 }), getMediaFilePath: async () => 'C:/fixture/source.mov' };
   const states = [], records = new Map();
   let next = 0, locked = false, mutations = 0, connected = true, noOp = false;
   let active = project;
@@ -23,7 +23,7 @@ function fixture() {
     }) };
   const host = { ...project, getRootItem: async () => ({}), lockedAccess: fn => { locked = true; try { fn(); } finally { locked = false; } },
     executeTransaction: fn => { assert.ok(locked); fn({ addAction: action => { if (!noOp) action(); } }); return true; } };
-  const ppro = { Markers: { getMarkers: async () => collection }, ClipProjectItem: { cast: value => value },
+  const ppro = { FrameRate: { createWithValue: () => ({ ticksPerFrame: frameTicks }) }, Markers: { getMarkers: async () => collection }, ClipProjectItem: { cast: value => value },
     ProjectItem: { cast: value => value }, TickTime: { createWithTicks: ticks => ({ ticks }) } };
   const adapter = createAdapter(ppro, host, async () => [item], value => value.getId(), nearestPremiereTicks,
     { activeProject: async () => active, connected: () => connected });
@@ -142,4 +142,34 @@ test('recreated targets permit only other durably mapped marker GUIDs', async ()
 test('extra Premiere domain fields are rejected rather than expanding point-marker scope', async () => {
   const f = fixture(); f.command.intent.marker.duration = '1';
   assert.equal((await f.run()).outcome, 'Failed'); assert.equal(f.mutations(), 0);
+});
+
+for (const [source, relative, expected, subclip] of [
+  ['40040000', '7924584', '201297096000', true],
+  ['14597916', '14597916', '370810440000', true],
+  ['14597916', '14597916', '370810440000', false],
+  ['40040000', '40040000', '1017080064000', false]
+]) test(`production marker frame timing: source ${source}, relative ${relative}, subclip ${subclip}`, async () => {
+  const f = fixture(10594584000);
+  Object.assign(f.command.intent.marker, { sourcePositionTicks: source, positionTicks: relative,
+    subclipId: subclip ? markerId : null, targetKey: subclip ? `subclip:${markerId}` : `asset:${assetId}` });
+  const result = await f.run();
+  assert.equal(result.outcome, 'Verified'); assert.equal(result.verification, 'point-marker-v2');
+  assert.equal(result.markerState.startTicks, expected); assert.equal(result.markerState.frameTicks, '10594584000');
+  assert.equal((await f.run()).markerState.guid, result.markerState.guid); assert.equal(f.mutations(), 1);
+});
+
+test('old mapped marker timing is preserved with conflict before mutation', async () => {
+  const f = fixture(10594584000);
+  Object.assign(f.command.intent.marker, { sourcePositionTicks: '14597916', positionTicks: '14597916' });
+  const first = await f.run(); f.records.clear();
+  f.states[0].startTicks = nearestPremiereTicks('14597916');
+  f.command.previousReceipt = { ...first, verification: 'point-marker-v1', markerState: { ...first.markerState, ...f.states[0], frameTicks: undefined } };
+  const result = await f.run(); assert.equal(result.outcome, 'Conflict');
+  assert.match(result.message, /fresh project/); assert.equal(f.mutations(), 1);
+  assert.equal(f.states[0].startTicks, '370810423066');
+});
+
+test('unavailable source frame duration blocks marker creation', async () => {
+  const f = fixture(NaN); assert.equal((await f.run()).outcome, 'Failed'); assert.equal(f.mutations(), 0);
 });

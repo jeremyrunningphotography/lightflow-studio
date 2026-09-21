@@ -4,6 +4,30 @@ namespace LightflowStudio.Tests;
 
 public sealed class PremiereReconciliationTests : IAsyncLifetime
 {
+    [Theory]
+    [InlineData("40040000", "7924584", "10594584000", "201297096000")]
+    [InlineData("14597916", "14597916", "10594584000", "370810440000")]
+    [InlineData("40040000", "40040000", "10594584000", "1017080064000")]
+    [InlineData("116366249", "116366249", "10594584000", "2955888936000")]
+    [InlineData("10000001", "10000001", "10584000000", "254016025402")]
+    [InlineData("11678333", "11678333", "8475667200", "296648352000")]
+    public async Task FrameBoundaryReceiptValidatesSourceAndOriginTogether(string source, string relative, string frame, string expected)
+    {
+        var marker = new PremiereMarkerProjection(Guid.NewGuid(), _source.AssetId, 1, "", source, relative,
+            source == relative ? null : Guid.NewGuid(), "target");
+        Assert.Equal(expected, PremiereMarkerTiming.Project(marker, frame));
+        var command = await _journal.PrepareMarkerAsync(_project, "root", _source, marker);
+        var state = new PremiereMarkerState("guid", "target", "", expected, "0", "Comment", "", 3, ["guid"], frame);
+        var receipt = new PremiereReceipt(command.Intent.OperationId, PremiereOutcome.Verified, "target", "verified",
+            Verification: "point-marker-v2", MarkerState: state);
+        await _journal.SaveReceiptAsync(command.Intent, receipt);
+        foreach (var invalid in new string?[] { null, "", "0", "-1", "01", "9007199254740992" })
+            await Assert.ThrowsAsync<InvalidOperationException>(() => _journal.SaveReceiptAsync(command.Intent,
+                receipt with { MarkerState = state with { FrameTicks = invalid } }));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _journal.SaveReceiptAsync(command.Intent,
+            receipt with { MarkerState = state with { StartTicks = (long.Parse(expected) - 1).ToString() } }));
+    }
+
     [Fact]
     public async Task MarkerCatalogPlanningAndIndependentTargetReceiptsSurviveRenameAndRepositoryRecreation()
     {
@@ -12,10 +36,10 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         var planned = Assert.Single(await _journal.PlanMarkersAsync(_source, "source-item"));
         Assert.Equal(marker.MarkerId, planned.MarkerId);
         var first = await _journal.PrepareMarkerAsync(_project, "root", _source, planned);
-        var state = new PremiereMarkerState("marker-guid", "source-item", "", "254016025402", "0", "Comment", "", 3, ["marker-guid"]);
+        var state = new PremiereMarkerState("marker-guid", "source-item", "", "254016025402", "0", "Comment", "", 3, ["marker-guid"], "10584000000");
         await _journal.MarkDispatchedAsync(first.Intent);
         await _journal.SaveReceiptAsync(first.Intent, new(first.Intent.OperationId, PremiereOutcome.Verified, "source-item", "Marker: verified",
-            Verification: "point-marker-v1", MarkerState: state));
+            Verification: "point-marker-v2", MarkerState: state));
         await markers.RenameAsync(marker.MarkerId, marker.Revision, "Renamed");
         var newJournal = new CatalogPremiereHandoffs(() => _session);
         var renamed = Assert.Single(await newJournal.PlanMarkersAsync(_source, "source-item"));
@@ -50,9 +74,9 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         var command = await _journal.PrepareMarkerAsync(_project, "root", _source, marker);
         await Assert.ThrowsAsync<InvalidOperationException>(() => _journal.SaveReceiptAsync(command.Intent,
             new(command.Intent.OperationId, PremiereOutcome.Verified, "source", "unproven")));
-        var state = new PremiereMarkerState("guid", "source", "", "3124398", "0", "Comment", "", 3, ["guid"]);
+        var state = new PremiereMarkerState("guid", "source", "", "3124398", "0", "Comment", "", 3, ["guid"], "10584000000");
         await Assert.ThrowsAsync<InvalidOperationException>(() => _journal.SaveReceiptAsync(command.Intent,
-            new(command.Intent.OperationId, PremiereOutcome.Verified, "source", "wrong timing", Verification: "point-marker-v1", MarkerState: state)));
+            new(command.Intent.OperationId, PremiereOutcome.Verified, "source", "wrong timing", Verification: "point-marker-v2", MarkerState: state)));
     }
 
     [Fact]
@@ -139,7 +163,7 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         Assert.NotEqual(first.Intent.OperationId, second.Intent.OperationId);
         await _journal.MarkDispatchedAsync(first.Intent);
         await _journal.SaveReceiptAsync(first.Intent, new(first.Intent.OperationId, PremiereOutcome.Verified,
-            "native-first", "created", PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip!), "native-subclip-v3"));
+            "native-first", "created", PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip!), "native-subclip-v4"));
         await _journal.SaveReceiptAsync(first.Intent, new(first.Intent.OperationId, PremiereOutcome.Failed,
             null, "transient failure"));
 
@@ -164,7 +188,7 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         await Assert.ThrowsAsync<InvalidOperationException>(() => _journal.SaveReceiptAsync(command.Intent,
             new(command.Intent.OperationId, PremiereOutcome.Verified, "native-item", "wrong projection", "wrong")));
         var receipt = new PremiereReceipt(command.Intent.OperationId, PremiereOutcome.Verified, "native-item", "created",
-            PremiereProtocol.SubclipProjectionKey(projection), "native-subclip-v3");
+            PremiereProtocol.SubclipProjectionKey(projection), "native-subclip-v4");
         await _journal.SaveReceiptAsync(command.Intent, receipt);
         Assert.Equal(receipt, (await _journal.PrepareSubclipAsync(_project, "root", null, _source, projection)).PreviousReceipt);
     }

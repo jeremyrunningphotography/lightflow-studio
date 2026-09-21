@@ -1,10 +1,9 @@
 'use strict';
-const { nearestPremiereTicks } = require('./range.js');
 const pathKey = value => value.replace(/\\/g, '/').replace(/^\/\/\?\/(?=[a-z]:\/)/i, '').replace(/\/$/, '').toLowerCase();
 const snapshot = marker => ({ guid: marker.guid, name: marker.name, startTicks: marker.startTicks,
   durationTicks: marker.durationTicks, type: marker.type, comments: marker.comments, colorIndex: marker.colorIndex });
 const same = (a, b) => JSON.stringify(snapshot(a)) === JSON.stringify(snapshot(b));
-const desired = (marker, state) => state.name === marker.name && state.startTicks === nearestPremiereTicks(marker.positionTicks)
+const desired = (marker, state, timing) => state.name === marker.name && state.startTicks === timing.startTicks
   && state.durationTicks === '0' && state.type === 'Comment' && state.comments === '';
 function validate(marker, source) {
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -27,7 +26,7 @@ async function executeMarker(command, adapter, journal, guard) {
   const intent = command.intent, marker = intent.marker;
   let mutationStarted = false;
   const receipt = (outcome, message, state = null) => ({ operationId: intent.operationId, outcome,
-    itemId: marker?.targetItemId || null, message: 'Marker: ' + message, markerState: state, verification: outcome === 'Verified' ? 'point-marker-v1' : null });
+    itemId: marker?.targetItemId || null, message: 'Marker: ' + message, markerState: state, verification: outcome === 'Verified' ? 'point-marker-v2' : null });
   try {
     validate(marker, intent.source);
     await guard();
@@ -39,6 +38,7 @@ async function executeMarker(command, adapter, journal, guard) {
     const items = await adapter.items();
     const target = items.filter(item => item.id === marker.targetItemId && pathKey(item.mediaPath || '') === pathKey(intent.source.path));
     if (target.length !== 1) return receipt('Conflict', 'Mapped marker target is missing or relinked.');
+    const timing = await adapter.markerTiming(marker.targetItemId, marker);
     let current = await adapter.markers(marker.targetItemId);
     if (current.length > 999 || new Set(current.map(m => m.guid)).size !== current.length || current.some(m => !m.guid))
       return receipt('Conflict', 'Marker enumeration is ambiguous or exceeds the supported limit.');
@@ -68,25 +68,27 @@ async function executeMarker(command, adapter, journal, guard) {
     if (!mapped && !recreate && (command.previouslyDispatched || saved)
         && !(command.previousReceipt?.outcome === 'Failed' && (!saved || saved.phase === 'ready')))
       return receipt('UnknownOutcome', 'Prior marker creation is uncertain; duplicate creation is blocked.');
-    if (!mapped || !desired(marker, mapped)) {
-      const expected = mapped ? { ...snapshot(mapped), name: marker.name, startTicks: nearestPremiereTicks(marker.positionTicks),
+    if (mapped && mapped.startTicks !== timing.startTicks)
+      return receipt('Conflict', 'Mapped marker uses different timing. It was preserved; send to a fresh project to apply corrected frame timing.');
+    if (!mapped || !desired(marker, mapped, timing)) {
+      const expected = mapped ? { ...snapshot(mapped), name: marker.name, startTicks: timing.startTicks,
         durationTicks: '0', type: 'Comment', comments: '' } : null;
       // Durable pre-mutation evidence prevents unsafe replay after crashes/lost receipts.
       await journal.write(intent.operationId, { identity, phase: 'mutating', state: previous, expected });
       await guard();
       mutationStarted = true;
-      await adapter.mutateMarker(marker.targetItemId, marker, mapped || null, current, guard);
+      await adapter.mutateMarker(marker.targetItemId, marker, mapped || null, current, guard, timing);
       await guard();
       const after = await adapter.markers(marker.targetItemId);
       const candidates = mapped ? after.filter(m => m.guid === mapped.guid)
         : after.filter(m => !current.some(old => old.guid === m.guid));
-      if (candidates.length !== 1 || !desired(marker, candidates[0])
+      if (candidates.length !== 1 || !desired(marker, candidates[0], timing)
           || (mapped && candidates[0].colorIndex !== mapped.colorIndex)
           || current.filter(m => !mapped || m.guid !== mapped.guid).some(old => !after.some(m => same(m, old))))
         return receipt('UnknownOutcome', 'Marker mutation could not be verified; automatic duplication is blocked.');
       mapped = candidates[0]; current = after;
     }
-    const state = { ...snapshot(mapped), targetItemId: marker.targetItemId, knownGuids: current.map(m => m.guid) };
+    const state = { ...snapshot(mapped), frameTicks: timing.frameTicks, targetItemId: marker.targetItemId, knownGuids: current.map(m => m.guid) };
     await journal.write(intent.operationId, { identity, phase: 'verified', state });
     await guard();
     return receipt('Verified', 'Point marker verified.', state);

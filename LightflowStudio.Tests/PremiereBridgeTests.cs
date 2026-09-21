@@ -52,7 +52,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         await PostReceipt(source, new(source.Intent.OperationId, PremiereOutcome.Verified, "source", "verified"));
         var first = await PollCommandAsync();
         await PostReceipt(first, new(first.Intent.OperationId, PremiereOutcome.Verified, "source", "Marker: verified",
-            Verification: "point-marker-v1", MarkerState: new("guid", "source", "", "0", "0", "Comment", "", 3, ["guid"])));
+            Verification: "point-marker-v2", MarkerState: new("guid", "source", "", "0", "0", "Comment", "", 3, ["guid"], "10584000000")));
         var second = await PollCommandAsync();
         Assert.Contains("guid", second.KnownMarkerGuids!);
         if (cancel) jobs.Cancel(jobs.Jobs[0].JobId);
@@ -91,7 +91,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
             Assert.Null(clip.Intent.Marker); Assert.True(clip.Intent.Subclip!.RemoveSourceAfter);
             targetId = "native";
             await PostReceipt(clip, new(clip.Intent.OperationId, PremiereOutcome.Verified, targetId, "verified",
-                PremiereProtocol.SubclipProjectionKey(clip.Intent.Subclip), "native-subclip-v3"));
+                PremiereProtocol.SubclipProjectionKey(clip.Intent.Subclip), "native-subclip-v4"));
         }
         for (var index = 0; index < (native ? 2 : 3); index++)
         {
@@ -107,9 +107,9 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
             else
             {
                 if (index == 0) Assert.Equal(first.MarkerId, marker.MarkerId);
-                var start = ((System.Numerics.BigInteger.Parse(marker.PositionTicks) * 127008 + 2) / 5).ToString();
+                var start = PremiereMarkerTiming.Project(marker, "10584000000");
                 await PostReceipt(command, new(command.Intent.OperationId, PremiereOutcome.Verified, targetId, "Marker: verified",
-                    Verification: "point-marker-v1", MarkerState: new("guid-" + index, targetId, "", start, "0", "Comment", "", 3, ["guid-" + index])));
+                    Verification: "point-marker-v2", MarkerState: new("guid-" + index, targetId, "", start, "0", "Comment", "", 3, ["guid-" + index], "10584000000")));
             }
         }
         for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State == JobState.Running; attempt++) await Task.Delay(20);
@@ -438,7 +438,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         Assert.False(native.Intent.Subclip!.RemoveSourceAfter);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(native,
             new(native.Intent.OperationId, PremiereOutcome.Verified, "native-item", "created",
-                PremiereProtocol.SubclipProjectionKey(native.Intent.Subclip), "native-subclip-v3"))).StatusCode);
+                PremiereProtocol.SubclipProjectionKey(native.Intent.Subclip), "native-subclip-v4"))).StatusCode);
         for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
             await Task.Delay(20);
 
@@ -469,14 +469,14 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         Assert.False(first.Intent.Subclip.RemoveSourceAfter);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(first,
             new(first.Intent.OperationId, PremiereOutcome.Verified, "native-first", "created",
-                PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip), "native-subclip-v3"))).StatusCode);
+                PremiereProtocol.SubclipProjectionKey(first.Intent.Subclip), "native-subclip-v4"))).StatusCode);
         var second = await PollCommandAsync();
         Assert.Equal(secondId, second.Intent.Subclip!.SubclipId);
         Assert.True(second.Intent.Subclip.RemoveSourceAfter);
         Assert.NotEqual(first.Intent.OperationId, second.Intent.OperationId);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(second,
             new(second.Intent.OperationId, PremiereOutcome.Verified, "native-second", "created",
-                PremiereProtocol.SubclipProjectionKey(second.Intent.Subclip), "native-subclip-v3"))).StatusCode);
+                PremiereProtocol.SubclipProjectionKey(second.Intent.Subclip), "native-subclip-v4"))).StatusCode);
         for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
             await Task.Delay(20);
 
@@ -514,7 +514,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         Assert.False(second.Intent.Subclip!.RemoveSourceAfter);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(second,
             new(second.Intent.OperationId, PremiereOutcome.Verified, "native-second", "created",
-                PremiereProtocol.SubclipProjectionKey(second.Intent.Subclip), "native-subclip-v3"))).StatusCode);
+                PremiereProtocol.SubclipProjectionKey(second.Intent.Subclip), "native-subclip-v4"))).StatusCode);
         for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State is JobState.Queued or JobState.Running; attempt++)
             await Task.Delay(20);
 
@@ -544,7 +544,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         Assert.True(native.Intent.Subclip!.RemoveSourceAfter);
         Assert.Equal(HttpStatusCode.OK, (await PostReceipt(native,
             new(native.Intent.OperationId, PremiereOutcome.Verified, "native-one", "created",
-                PremiereProtocol.SubclipProjectionKey(native.Intent.Subclip!), "native-subclip-v3"))).StatusCode);
+                PremiereProtocol.SubclipProjectionKey(native.Intent.Subclip!), "native-subclip-v4"))).StatusCode);
         var secondSource = await PollCommandAsync();
         Assert.Equal(fallbackSource.AssetId, secondSource.Intent.Source.AssetId);
         Assert.False(secondSource.Intent.Source.IsSubclipPrerequisite);
@@ -640,7 +640,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
     [Theory]
     [InlineData("0 extensions installed for Others", (int)PremiereConnectionState.PremiereNotInstalled)]
     [InlineData("0 extensions installed for Premiere Pro (ver 26.5.0)\n Status Extension Name Version\n", (int)PremiereConnectionState.CompanionNotInstalled)]
-    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.2.1\n", (int)PremiereConnectionState.Ready)]
+    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.2.2\n", (int)PremiereConnectionState.Ready)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.5\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.2\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.1\n", (int)PremiereConnectionState.UpdateRequired)]

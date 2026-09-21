@@ -1,6 +1,6 @@
 # Premiere point-marker handoff (#259)
 
-Status: implementation for review; real Premiere 26.5+ acceptance is **not yet performed**.
+Status: real Premiere 26.5+ transfer succeeded; corrected frame timing awaits hands-on acceptance.
 
 Videos send all current Catalog point markers to the reconciled source ProjectItem.
 Subclips send markers in `[In, Out)` to each durable native Subclip, using exact
@@ -20,8 +20,21 @@ The production adapter uses Comment type, zero duration, the actual optional nam
 and empty comments. It leaves Premiere's initial color choice alone and snapshots the
 result. Rename changes only the name Action and preserves GUID/color. All six observed
 properties (name, start, duration, type, comments, color index) participate in conflict
-detection. Marker time uses the established nearest-tick integer conversion
-`(LF * 127008 + 2) / 5`, never floating seconds/timecode/frame approximations.
+detection. Companion 1.2.2 reads the footage interpretation frame rate and Premiere
+FrameRate.ticksPerFrame. Integer conversion normally uses `(LF * 127008 + 2) / 5`;
+only source timestamps within one 100ns unit below an exact frame boundary are lifted
+to that boundary, recovering TimeSpan truncation and frame-step arithmetic precision.
+Native Subclip In/Out uses the same conversion. Marker local ticks are projected source
+position minus projected source In, not a separately rounded relative timestamp.
+Full-video targets use origin zero. Catalog positions and `[In, Out)` selection stay exact
+and unchanged. No source timecode or footage interpretation is modified.
+
+`point-marker-v2` receipts include the source frame duration for deterministic host
+validation. `native-subclip-v4` proves use of corrected creation timing plus existing
+item/placement readback; it does not claim native boundary readback unavailable in UXP.
+Existing older native Subclips and mapped markers with different timing are preserved
+and produce a conflict. Test this correction in a **new empty Premiere project**.
+Missing verified native mappings can still be recreated safely.
 
 Adobe's current [Markers API](https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/markers)
 and [Marker API](https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/marker)
@@ -100,8 +113,8 @@ bridge concurrently: the production endpoint remains fixed at localhost:47857.
 
 ## Jeremy's live steps (no computer control)
 
-1. Install the task package's `PremiereCompanion/LightflowStudio.ccx` (1.2.1) through
-   the existing documented install workflow. Confirm the running panel reports 1.2.1.
+1. Install the task package's `PremiereCompanion/LightflowStudio.ccx` (1.2.2) through
+   the existing documented install workflow. Confirm the running panel reports 1.2.2.
    Close any normal Lightflow connection yourself; the harness will fail a port collision.
 2. Use the prepared synthetic 30-second MOV at
    `.cache/premiere-acceptance/manual-259/media/source.mov`. Create a **new empty**

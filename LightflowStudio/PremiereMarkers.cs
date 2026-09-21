@@ -11,7 +11,27 @@ internal sealed record PremiereMarkerProjection(Guid MarkerId, Guid AssetId, lon
     public string TargetKey => SubclipId is { } id ? $"subclip:{id:D}" : $"asset:{AssetId:D}";
 }
 internal sealed record PremiereMarkerState(string Guid, string TargetItemId, string Name, string StartTicks,
-    string DurationTicks, string Type, string Comments, int ColorIndex, string[] KnownGuids);
+    string DurationTicks, string Type, string Comments, int ColorIndex, string[] KnownGuids, string? FrameTicks = null);
+
+internal static class PremiereMarkerTiming
+{
+    public static string Project(PremiereMarkerProjection marker, string? frameTicks)
+    {
+        if (frameTicks is null || !long.TryParse(frameTicks, NumberStyles.None, CultureInfo.InvariantCulture, out var frame)
+            || frame <= 0 || frame > 9007199254740991L || frame.ToString(CultureInfo.InvariantCulture) != frameTicks)
+            throw new InvalidOperationException("Marker receipt lacks valid source frame duration.");
+        var source = BigInteger.Parse(marker.SourcePositionTicks, CultureInfo.InvariantCulture);
+        var origin = source - BigInteger.Parse(marker.PositionTicks, CultureInfo.InvariantCulture);
+        BigInteger Boundary(BigInteger value)
+        {
+            var nearest = (value * 127008 + 2) / 5;
+            var boundary = (nearest + frame - 1) / frame * frame;
+            var distance = boundary * 5 - value * 127008;
+            return distance >= 0 && distance <= 127008 ? boundary : nearest;
+        }
+        return (Boundary(source) - Boundary(origin)).ToString(CultureInfo.InvariantCulture);
+    }
+}
 
 internal static class PremiereMarkerPlanning
 {
@@ -104,7 +124,7 @@ internal sealed partial class CatalogPremiereHandoffs
             while (reader.Read())
             {
                 var priorReceipt = JsonSerializer.Deserialize<PremiereReceipt>(reader.GetString(0), PremiereProtocol.Json);
-                if (priorReceipt is { Verification: "point-marker-v1", MarkerState: { } state } && state.TargetItemId == marker.TargetItemId)
+                if (priorReceipt is { Verification: "point-marker-v1" or "point-marker-v2", MarkerState: { } state } && state.TargetItemId == marker.TargetItemId)
                     knownGuids.Add(state.Guid);
             }
         transaction.Commit();
@@ -120,8 +140,8 @@ internal sealed partial class CatalogPremiereHandoffs
             return;
         }
         var state = receipt.MarkerState;
-        var ticks = ((BigInteger.Parse(marker.PositionTicks, CultureInfo.InvariantCulture) * 127008 + 2) / 5).ToString(CultureInfo.InvariantCulture);
-        if (receipt.Verification != "point-marker-v1" || receipt.ItemId != marker.TargetItemId || state is null
+        var ticks = PremiereMarkerTiming.Project(marker, state?.FrameTicks);
+        if (receipt.Verification != "point-marker-v2" || receipt.ItemId != marker.TargetItemId || state is null
             || string.IsNullOrWhiteSpace(state.Guid) || state.Guid.Length > 200 || state.TargetItemId != marker.TargetItemId
             || state.Name != marker.Name || state.StartTicks != ticks || state.DurationTicks != "0"
             || state.Type != "Comment" || state.Comments != "" || state.KnownGuids is null

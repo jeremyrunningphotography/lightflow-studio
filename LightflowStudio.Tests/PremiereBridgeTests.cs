@@ -65,9 +65,11 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         Assert.Contains(await _journal.ListAsync(), command => command.Intent.OperationId == second.Intent.OperationId && command.PreviouslyDispatched);
     }
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task MarkerMixedResultsUseProductionJobsAndNeverTargetTemporaryPrerequisite(bool native)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task MarkerMixedResultsUseProductionJobsAndNeverTargetTemporaryPrerequisite(bool native, bool conflict)
     {
         var markers = new CatalogMarkerService(() => _session);
         var first = (await markers.CreateAsync(_source.AssetId, TimeSpan.FromTicks(100))).Marker;
@@ -97,7 +99,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
             var marker = command.Intent.Marker!;
             Assert.NotNull(marker); Assert.Equal(targetId, marker.TargetItemId);
             Assert.False(command.Intent.Source.IsSubclipPrerequisite);
-            if (index == 1)
+            if (index == 1 && conflict)
             {
                 Assert.Equal(second.MarkerId, marker.MarkerId);
                 await PostReceipt(command, new(command.Intent.OperationId, PremiereOutcome.Conflict, targetId, "Marker: editor changed name"));
@@ -112,11 +114,16 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         }
         for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State == JobState.Running; attempt++) await Task.Delay(20);
         var job = Assert.Single(jobs.Jobs);
-        Assert.Equal(JobState.CompletedWithWarnings, job.State);
+        Assert.Equal(conflict ? JobState.CompletedWithWarnings : JobState.Completed, job.State);
         Assert.Equal(1, job.Completed); Assert.Equal(100, job.Progress);
-        Assert.Equal(native ? 3 : 4, job.Items!.Count);
-        Assert.Single(job.Items, item => item.State == PremiereJobItemState.Conflict);
-        Assert.Contains("editor changed name", job.Details);
+        Assert.Single(job.Items!);
+        Assert.DoesNotContain(job.Items!, item => item.Key.StartsWith("marker:", StringComparison.Ordinal));
+        Assert.Equal(conflict ? PremiereJobItemState.Conflict : PremiereJobItemState.Sent, job.Items![0].State);
+        if (conflict) Assert.Contains("editor changed name", job.Details);
+        else Assert.DoesNotContain("Marker:", job.Details);
+        var history = PremiereJobs.ProjectHistory(await _journal.ListAsync());
+        Assert.Equal(native ? 2 : 1, history.Count); // Source prerequisite plus Subclip, never marker jobs.
+        Assert.Equal(conflict ? 1 : 0, history.Count(item => item.State == JobState.CompletedWithWarnings));
         Assert.Equal(HttpStatusCode.NoContent, (await Post("/v1/poll", new { })).StatusCode);
     }
     [Fact]
@@ -633,7 +640,7 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
     [Theory]
     [InlineData("0 extensions installed for Others", (int)PremiereConnectionState.PremiereNotInstalled)]
     [InlineData("0 extensions installed for Premiere Pro (ver 26.5.0)\n Status Extension Name Version\n", (int)PremiereConnectionState.CompanionNotInstalled)]
-    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.2.0\n", (int)PremiereConnectionState.Ready)]
+    [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.2.1\n", (int)PremiereConnectionState.Ready)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.5\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.2\n", (int)PremiereConnectionState.UpdateRequired)]
     [InlineData("1 extension installed for Premiere Pro (ver 26.5.0)\n Enabled com.lightflowstudio.premiere 1.1.1\n", (int)PremiereConnectionState.UpdateRequired)]

@@ -131,20 +131,34 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
         }
     }
     internal static IReadOnlyList<JobsWorkspaceItem> ProjectHistory(IEnumerable<PremiereCommand> history)
-        => history.Select(command =>
+    {
+        var commands = history.ToArray();
+        var markerIssues = commands.Where(command => command.Intent.Marker is not null
+            && command.PreviousReceipt?.Outcome != PremiereOutcome.Verified)
+            .ToLookup(command => (command.Intent.DestinationId, command.Intent.Marker!.TargetKey));
+        return commands.Where(command => command.Intent.Marker is null).Select(command =>
             {
                 var receipt = command.PreviousReceipt;
                 var state = receipt?.Outcome == PremiereOutcome.Verified ? JobState.Completed : JobState.Failed;
                 var message = receipt?.Message ?? (command.PreviouslyDispatched
                     ? "Interrupted handoff. Send the same source in the original project to reconcile."
                     : "Prepared but not dispatched. Send the source again to continue.");
+                var targetKey = command.Intent.Subclip?.SubclipId is { } id
+                    ? $"subclip:{id:D}" : $"asset:{command.Intent.Source.AssetId:D}";
+                if (receipt?.Outcome == PremiereOutcome.Verified
+                    && markerIssues[(command.Intent.DestinationId, targetKey)].FirstOrDefault() is { } markerIssue)
+                {
+                    state = JobState.CompletedWithWarnings;
+                    message += " Attached marker transfer needs attention. " + (markerIssue.PreviousReceipt?.Message
+                        ?? "Interrupted marker transfer; resend this item to reconcile.");
+                }
                 return new JobsWorkspaceItem(command.Intent.OperationId, null, null, false, false,
-                    command.Intent.Marker is { } marker ? $"Premiere {(marker.SubclipId is null ? "video" : "Subclip")} marker: {(string.IsNullOrEmpty(marker.Name) ? "Unnamed marker" : marker.Name)} · {Path.GetFileName(command.Intent.Source.Path)}"
-                        : command.Intent.Subclip is { } subclip ? $"Premiere Subclip: {subclip.Name}" : $"Premiere: {Path.GetFileName(command.Intent.Source.Path)}", "Premiere handoff", state,
+                    command.Intent.Subclip is { } subclip ? $"Premiere Subclip: {subclip.Name}" : $"Premiere: {Path.GetFileName(command.Intent.Source.Path)}", "Premiere handoff", state,
                     receipt is null ? 0 : 100, command.Intent.CreatedUtc.ToLocalTime().ToString("MMM d, HH:mm"),
                     command.Intent.Source.Path, command.Intent.Project.Path, message, message,
                     command.Intent.CreatedUtc, long.MaxValue, new JobMessageDetailsPresentation(message));
             }).ToArray();
+    }
 
     public void Enqueue(PremiereProject project, string binId, string? createName, IReadOnlyList<PremiereSource> sources)
     {
@@ -345,10 +359,12 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
                     target.ItemId, "Marker: " + error.Message); }
             }
             receipts.Add(receipt);
-            var label = string.IsNullOrEmpty(marker.Name) ? "Unnamed marker" : marker.Name;
-            var parent = subclip?.Name ?? source.Name;
-            job = job with { Receipts = receipts.ToArray(), Items = [..job.Items!,
-                new PremiereJobItem($"marker:{marker.TargetKey}:{marker.MarkerId:D}", $"{parent} · {label}", ItemState(receipt), receipt)] };
+            // Markers remain durable handoffs, but Jobs presents only requested media items.
+            // Preserve an earlier parent failure; attach the first marker failure to a sent parent.
+            job = job with { Receipts = receipts.ToArray(), Items = job.Items!.Select(item =>
+                item.Key == marker.TargetKey && item.State == PremiereJobItemState.Sent
+                    && receipt.Outcome != PremiereOutcome.Verified
+                    ? item with { State = ItemState(receipt), Receipt = receipt } : item).ToArray() };
             Publish(job);
         }
         return job;

@@ -56,7 +56,7 @@ public partial class PremiereIntegrationWindow : Window
             PremiereConnectionState.UpdateRequired => "Update required",
             PremiereConnectionState.ConnectionProblem => "Connection problem",
             PremiereConnectionState.Connected => connection.Message,
-            _ => "Ready"
+            _ => "Companion installed — not connected"
         };
         GuidanceText.Text = connection.State == PremiereConnectionState.Connected ? "Authenticated companion connection is healthy." : connection.Message;
         InstallButton.Visibility = connection.State is PremiereConnectionState.CompanionNotInstalled or PremiereConnectionState.UpdateRequired

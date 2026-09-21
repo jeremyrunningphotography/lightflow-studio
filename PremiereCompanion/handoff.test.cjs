@@ -342,6 +342,50 @@ test('unknown crash gap never blindly replays, including an empty destination', 
   assert.equal((await execute({ ...f.command, previouslyDispatched: true }, f.adapter, f.journal)).outcome, 'UnknownOutcome');
   assert.equal(f.imports(), 0);
 });
+test('resolved pre-import conflict retries without adopting existing media or duplicating an import', async () => {
+  const f = fixture(); f.items.push({ id: 'unmapped', mediaPath: 'C:/test/source.mov' });
+  const conflict = await execute(f.command, f.adapter, f.journal);
+  assert.equal(conflict.outcome, 'Conflict'); assert.equal(f.imports(), 0);
+  const retry = { ...f.command, previouslyDispatched: true, previousReceipt: conflict };
+  assert.equal((await execute(retry, f.adapter, f.journal)).outcome, 'Conflict');
+  assert.equal(f.imports(), 0);
+  f.items.length = 0;
+  const result = await execute(retry, f.adapter, f.journal);
+  assert.equal(result.outcome, 'Verified'); assert.equal(f.imports(), 1);
+  assert.equal((await execute({ ...retry, previousReceipt: result }, f.adapter, f.journal)).outcome, 'Verified');
+  assert.equal(f.imports(), 1);
+});
+
+test('legacy explicit no-import receipt permits retry only for that operation without a mutation journal', async () => {
+  for (const altered of [false, 'operation', 'outcome', 'message', 'journal']) {
+    const f = fixture();
+    const receipt = { operationId: f.command.intent.operationId, outcome: 'Conflict', itemId: null,
+      message: 'Unmapped media already exists in this project. No automatic adoption or duplicate import.' };
+    if (altered === 'operation') receipt.operationId = 'other';
+    if (altered === 'outcome') receipt.outcome = 'UnknownOutcome';
+    if (altered === 'message') receipt.message = 'Other conflict';
+    if (altered === 'journal') f.stored.set(f.command.intent.operationId, { intent: JSON.stringify(f.command.intent), phase: 'intent' });
+    const result = await execute({ ...f.command, previouslyDispatched: true, previousReceipt: receipt }, f.adapter, f.journal);
+    assert.equal(result.outcome, altered ? 'UnknownOutcome' : 'Verified');
+    assert.equal(f.imports(), altered ? 0 : 1);
+  }
+});
+
+test('blocked-phase proof survives a lost conflict response but is revoked before an uncertain import', async () => {
+  const f = fixture(); f.items.push({ id: 'unmapped', mediaPath: 'C:/test/source.mov' });
+  await execute(f.command, f.adapter, f.journal);
+  f.items.length = 0;
+  const importSource = f.adapter.importSource;
+  f.adapter.importSource = async (...args) => { await importSource(...args); throw Error('lost readback'); };
+  const retry = { ...f.command, previouslyDispatched: true }; // No receipt: recover only from durable blocked proof.
+  const result = await execute(retry, f.adapter, f.journal);
+  assert.equal(result.outcome, 'UnknownOutcome'); assert.equal(f.imports(), 1);
+  assert.equal(f.stored.get(f.command.intent.operationId).phase, 'intent');
+  f.items.length = 0; // Absence alone cannot prove the uncertain import is safe to repeat.
+  assert.equal((await execute({ ...retry, previousReceipt: result }, f.adapter, f.journal)).outcome, 'UnknownOutcome');
+  assert.equal(f.imports(), 1);
+});
+
 test('unmapped matching path is a conflict, never authoritative identity', async () => {
   const f = fixture(); f.items.push({ id: 'unmapped', mediaPath: 'c:\\test\\source.mov' });
   assert.equal((await execute(f.command, f.adapter, f.journal)).outcome, 'Conflict');

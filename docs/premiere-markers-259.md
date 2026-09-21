@@ -46,8 +46,9 @@ Retry rules:
 - Lost create/readback/journal outcome: UnknownOutcome blocks automatic duplication.
   An interrupted update of a known GUID can recover only its exact durably recorded
   intended post-state. Never adopt an unowned lookalike.
-- Marker failures/conflicts remain independent Jobs item results. A verified video or
-  Subclip cannot make the overall Job successful when a requested marker failed.
+- Jobs lists only requested videos/Subclips. Successful markers add no rows or history
+  jobs; marker failures attach to the affected parent item and retain the overall warning.
+  Marker receipts and reconciliation remain independently durable.
 
 ## Packaged isolated acceptance (preferred)
 
@@ -99,8 +100,8 @@ bridge concurrently: the production endpoint remains fixed at localhost:47857.
 
 ## Jeremy's live steps (no computer control)
 
-1. Install the task package's `PremiereCompanion/LightflowStudio.ccx` (1.2.0) through
-   the existing documented install workflow. Confirm the running panel reports 1.2.0.
+1. Install the task package's `PremiereCompanion/LightflowStudio.ccx` (1.2.1) through
+   the existing documented install workflow. Confirm the running panel reports 1.2.1.
    Close any normal Lightflow connection yourself; the harness will fail a port collision.
 2. Use the prepared synthetic 30-second MOV at
    `.cache/premiere-acceptance/manual-259/media/source.mov`. Create a **new empty**

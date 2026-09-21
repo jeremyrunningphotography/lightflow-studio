@@ -34,6 +34,7 @@ const subclipProjection = subclip => JSON.stringify({ name: subclip.name, revisi
   range: rangeKey(subclip.range), hardBoundaries: subclip.hardBoundaries,
   takeVideo: subclip.takeVideo, takeAudio: subclip.takeAudio });
 const temporarySubclipSourceVerification = 'temporary-subclip-source-v1';
+const unmappedSourceConflict = 'Unmapped media already exists in this project. No automatic adoption or duplicate import.';
 
 async function executeSubclip(command, adapter, journal, guard) {
   const intent = command.intent;
@@ -182,10 +183,18 @@ async function execute(command, adapter, journal) {
         phase: 'removed', previousItemId: itemId });
     }
     // There is no safe exactly-once import across two applications. Never infer identity from a path.
-    if ((command.previouslyDispatched || saved) && !recoverRemoved)
+    const prior = command.previousReceipt;
+    const blockedBeforeImport = saved?.phase === 'blocked-before-import'
+      || (!saved && prior?.operationId === intent.operationId && prior.outcome === 'Conflict'
+        && prior.itemId === null && prior.message === unmappedSourceConflict);
+    if ((command.previouslyDispatched || saved) && !recoverRemoved && !blockedBeforeImport)
       return receipt('UnknownOutcome', null, 'Prior import outcome is uncertain. Inspect the original project; automatic reimport is blocked.');
-    if (items.some(item => item.mediaPath && pathKey(item.mediaPath) === pathKey(intent.source.path)))
-      return receipt('Conflict', null, 'Unmapped media already exists in this project. No automatic adoption or duplicate import.');
+    if (items.some(item => item.mediaPath && pathKey(item.mediaPath) === pathKey(intent.source.path))) {
+      // Preserve positive evidence that no import began, even if the Conflict response is lost.
+      // The intent journal below replaces this phase before any subsequent import can begin.
+      await journal.write(intent.operationId, { identity: identity(intent), phase: 'blocked-before-import' });
+      return receipt('Conflict', null, unmappedSourceConflict);
+    }
     const before = new Set(items.map(item => item.id));
     await journal.write(intent.operationId, { intent: JSON.stringify(intent), identity: identity(intent), phase: 'intent' });
     await guard();

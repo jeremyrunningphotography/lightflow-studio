@@ -162,7 +162,11 @@ public sealed class BrowserPolishTests
                 Assert.Equal(explicitPermanent ? 0 : count, inspected);
                 Assert.Contains("permanent", dialog.Action, StringComparison.OrdinalIgnoreCase);
                 Assert.Contains("Recycle Bin", dialog.Warning);
-                if (!explicitPermanent) Assert.Contains($"ALL {count}", dialog.Warning);
+                if (!explicitPermanent)
+                {
+                    Assert.Contains(count == 1 ? "the selected item." : $"all {count} selected items.", dialog.Warning);
+                    Assert.StartsWith(count == 1 ? "This item" : "These items", dialog.Heading);
+                }
                 Assert.Equal(0, executions);
                 return accept;
             }, (kind, captured) =>

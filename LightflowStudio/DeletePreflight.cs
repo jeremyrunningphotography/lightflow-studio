@@ -34,25 +34,31 @@ internal static class BrowserDeleteOperation
         var preflight = permanent ? new DeletePreflight(captured, 0)
             : await Task.Run(() => DeletePreflight.Inspect(captured, canRecycle));
         var count = captured.Length;
+        var single = count == 1;
+        var items = single ? "1 item" : $"{count} items";
+        var contents = captured.Any(source => source.IsDirectory) ? " Folders include all their contents." : "";
         DeleteConfirmation confirmation;
         if (preflight.RequiresPermanentDelete)
         {
             permanent = true;
-            confirmation = new("Permanent deletion required", "These items can’t be moved to the Recycle Bin",
+            confirmation = new("Permanent deletion required", single
+                    ? "This item can’t be moved to the Recycle Bin"
+                    : "These items can’t be moved to the Recycle Bin",
                 preflight.UnrecoverableCount == count
                     ? "Windows cannot guarantee that this selection can be moved to the Recycle Bin."
                     : $"{preflight.UnrecoverableCount} of {count} selected items cannot be safely moved to the Recycle Bin.",
-                $"Continuing permanently deletes ALL {count} selected item(s), including any folders and their contents. None will be recoverable from the Recycle Bin.",
+                (single
+                    ? "Continuing permanently deletes the selected item. It will not be recoverable from the Recycle Bin."
+                    : $"Continuing permanently deletes all {count} selected items. None will be recoverable from the Recycle Bin.") + contents,
                 "Delete Permanently", "Cancel");
         }
         else
         {
-            var contents = captured.Any(source => source.IsDirectory) ? " Folders include all their contents." : "";
             confirmation = permanent
-                ? new("Permanent Delete", "Permanently delete selected items?", $"{count} item(s) will be permanently removed.{contents}",
-                    "They will not go to the Recycle Bin and this cannot be undone.", "Delete permanently", "Cancel")
-                : new("Move to Recycle Bin", "Move selected items to the Recycle Bin?", $"{count} item(s) will be recycled.{contents}",
-                    "You can normally restore them from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep files");
+                ? new("Permanent Delete", single ? "Permanently delete the selected item?" : "Permanently delete selected items?", $"{items} will be permanently removed.{contents}",
+                    single ? "It will not go to the Recycle Bin and this cannot be undone." : "They will not go to the Recycle Bin and this cannot be undone.", "Delete permanently", "Cancel")
+                : new("Move to Recycle Bin", single ? "Move the selected item to the Recycle Bin?" : "Move selected items to the Recycle Bin?", $"{items} will be recycled.{contents}",
+                    single ? "You can normally restore it from the Windows Recycle Bin." : "You can normally restore them from the Windows Recycle Bin.", "Move to Recycle Bin", single ? "Keep item" : "Keep items");
         }
         if (confirm(confirmation))
             await execute(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, captured);

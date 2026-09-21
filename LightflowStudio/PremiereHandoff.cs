@@ -12,7 +12,7 @@ internal static class PremiereProtocol
     public const int Version = 1;
     public const int Port = 47857;
     public const string Endpoint = "http://localhost:47857";
-    public const string CompanionVersion = "1.1.5";
+    public const string CompanionVersion = "1.2.0";
     public const string TemporarySubclipSourceVerification = "temporary-subclip-source-v1";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -111,20 +111,21 @@ internal sealed record PremiereSubclipProjection(Guid? SubclipId, string Name, l
 }
 internal sealed record PremiereIntent(Guid OperationId, Guid CatalogId, string DestinationId,
     PremiereProject Project, string BinId, string? CreateBinName, PremiereSource Source,
-    PremiereSubclipProjection? Subclip = null)
+    PremiereSubclipProjection? Subclip = null, PremiereMarkerProjection? Marker = null)
 {
     public DateTimeOffset CreatedUtc { get; init; } = DateTimeOffset.UtcNow;
 }
 internal enum PremiereOutcome { Verified, Conflict, Failed, UnknownOutcome }
 internal sealed record PremiereReceipt(Guid OperationId, PremiereOutcome Outcome, string? ItemId, string Message,
-    string? ProjectionKey = null, string? Verification = null);
+    string? ProjectionKey = null, string? Verification = null, PremiereMarkerState? MarkerState = null);
 internal sealed record PremiereCommand(PremiereIntent Intent, bool PreviouslyDispatched, PremiereReceipt? PreviousReceipt)
 {
     public Guid DispatchId { get; init; } = Guid.NewGuid();
+    public IReadOnlyList<string>? KnownMarkerGuids { get; init; }
 }
 
 /// <summary>Projection state lives in the existing Catalog, including its migrations, backup and relocation.</summary>
-internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> session)
+internal sealed partial class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> session)
 {
     public Task<IReadOnlyList<PremiereCommand>> ListAsync() => Task.Run<IReadOnlyList<PremiereCommand>>(() =>
     {
@@ -133,7 +134,7 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
         using var connection = catalog.OpenConnection();
         using var query = connection.CreateCommand();
         var results = new List<PremiereCommand>();
-        foreach (var table in new[] { "PremiereHandoffs", "PremiereSubclipHandoffs" })
+        foreach (var table in new[] { "PremiereHandoffs", "PremiereSubclipHandoffs", "PremiereMarkerHandoffs" })
         {
             query.CommandText = $"SELECT IntentJson,Dispatched,ReceiptJson FROM {table} ORDER BY rowid DESC LIMIT 500";
             using var reader = query.ExecuteReader();
@@ -264,6 +265,7 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
 
     public Task SaveReceiptAsync(PremiereIntent intent, PremiereReceipt receipt)
     {
+        if (intent.Marker is not null) ValidateMarkerReceipt(intent.Marker, receipt);
         if (receipt.OperationId != intent.OperationId || receipt.Message is null || receipt.Message.Length > 2000
             || !Enum.IsDefined(receipt.Outcome) || receipt.ItemId?.Length > 200
             || receipt.Outcome == PremiereOutcome.Verified && string.IsNullOrWhiteSpace(receipt.ItemId)
@@ -280,7 +282,8 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
         if (catalog.Identity.CatalogId != intent.CatalogId) throw new InvalidOperationException("The active Catalog changed.");
         using var connection = catalog.OpenConnection();
         using var command = connection.CreateCommand();
-        var table = intent.Subclip is null ? "PremiereHandoffs" : "PremiereSubclipHandoffs";
+        var table = intent.Marker is not null ? "PremiereMarkerHandoffs"
+            : intent.Subclip is null ? "PremiereHandoffs" : "PremiereSubclipHandoffs";
         command.CommandText = sql.Replace("PremiereHandoffs", table, StringComparison.Ordinal);
         command.Parameters.AddWithValue("$id", intent.OperationId.ToString());
         if (receipt is not null)
@@ -296,7 +299,8 @@ internal sealed class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> sess
                 {
                     ItemId = receipt.ItemId ?? existing?.ItemId,
                     ProjectionKey = receipt.ProjectionKey ?? existing?.ProjectionKey,
-                    Verification = receipt.Verification ?? existing?.Verification
+                    Verification = receipt.Verification ?? existing?.Verification,
+                    MarkerState = receipt.MarkerState ?? existing?.MarkerState
                 };
             }
             command.Parameters.AddWithValue("$receipt", JsonSerializer.Serialize(receipt, PremiereProtocol.Json));

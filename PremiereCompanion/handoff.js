@@ -1,4 +1,5 @@
 'use strict';
+const { executeMarker } = require('./markers.js');
 
 // Platform-independent reconciliation policy. The adapter owns every Premiere API call.
 const pathKey = value => value.replace(/\\/g, '/').replace(/^\/\/\?\/(?=[a-z]:\/)/i, '').replace(/\/$/, '').toLowerCase();
@@ -124,6 +125,7 @@ async function execute(command, adapter, journal) {
       throw new Error('Active project changed. Return to the accepted project and reconcile.');
     if (!adapter.connected()) throw new Error('Connection expired. Reconnect before continuing.');
   };
+  if (intent.marker) return executeMarker(command, adapter, journal, guard);
   if (intent.subclip) return executeSubclip(command, adapter, journal, guard);
   const reconcileRange = async (itemId, saved) => {
     // A later explicit Send may update or clear Lightflow's source-point projection. Editor

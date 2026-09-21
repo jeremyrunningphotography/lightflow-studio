@@ -197,13 +197,11 @@ real Premiere/UI testing was performed for 1.0.3. General startup performance is
 separately in [#265](https://github.com/jeremyrunningphotography/lightflow-studio/issues/265).
 
 `PremiereLiveAcceptanceTests` is an explicitly opted-in driver, not a substitute for
-hands-on acceptance. Set `LIGHTFLOW_PREMIERE_ACCEPTANCE` to an isolated artifact directory
-containing `media/source.mov`, and `LIGHTFLOW_PREMIERE_PROJECT` to the exact disposable
-project path. Run only `InstalledCompanion_ProductionBridgeAcceptance`. Pair the installed
-companion with `%TEMP%/Lightflow-Premiere-acceptance-pairing`. Write `send`, `snapshot`,
-`rotate` or `stop` to `action.txt` in the artifact directory. It uses the production
-bridge/Catalog code and writes connection state and received handoff evidence without
-credentials. Stopping the driver successfully does not itself prove an import passed.
+hands-on acceptance. #259 hardens it with task-contained disposable project/media checks,
+a fresh run-owned Catalog, and unique pairing/evidence paths. The old shared TEMP pairing
+location is no longer used. Follow the [current split acceptance procedure](premiere-markers-259.md)
+for exact setup, commands and empirical gates. Stopping the driver successfully does not
+itself prove any import or marker passed.
 
 ## Acceptance checkpoint — 2026-09-14
 

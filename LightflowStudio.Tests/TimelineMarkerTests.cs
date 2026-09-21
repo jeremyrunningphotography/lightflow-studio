@@ -141,7 +141,7 @@ public sealed class TimelineMarkerTests : IAsyncLifetime
         Assert.True(opened.IsSuccess);
         await using var migrated = opened.Session!;
         Assert.Equal(identity, migrated.Identity.CatalogId);
-        Assert.Equal(16, migrated.SchemaVersion);
+        Assert.Equal(CatalogMigrations.All.Last().Version, migrated.SchemaVersion);
         Assert.Empty(await new CatalogMarkerService(() => migrated).ListAsync(_asset));
         var backup = Assert.Single(recovery.ListBackups(), b => b.Kind == CatalogBackupKind.Migration);
         using var connection = new SqliteConnection($"Data Source={backup.Path};Mode=ReadOnly;Pooling=False");

@@ -56,7 +56,7 @@ the shared width without an inner drawer border or redundant title. Switching su
 current-video selection; asset changes clear it. Saved Subclips and creation reveal the Subclips tab automatically.
 Outside applicable Player context the tab is hidden, with Inspector as the fallback; the preferred tab is remembered.
 
-The permanent shell treats Browser/Player as Home. It has no permanent module strip or peer capability rail. Focused actions and owned modals configure work from media context; the bottom status affordance enters secondary full Jobs; the shared Right Panel Jobs tab exposes compact global activity; and a restrained upper-right gear menu exposes only application utilities such as Settings and About. Back actions restore the already-live Home content. Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
+The permanent shell treats Browser/Player as Home. It has no permanent module strip or peer capability rail. Focused actions and owned modals configure work from media context; the bottom status affordance enters secondary full Jobs; the Browser-only Right Panel Jobs tab exposes compact global activity; and a restrained upper-right gear menu exposes only application utilities such as Settings and About. Back actions restore the already-live Home content. Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
 
 Settings uses a compact left category list and one scrollable contextual page rather than a permanent workspace rail
 or one long stack of unrelated cards. General, Color, Export, Storage, and Tools are stable conceptual homes; future

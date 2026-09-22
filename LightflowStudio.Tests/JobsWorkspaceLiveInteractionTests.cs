@@ -10,6 +10,25 @@ namespace LightflowStudio.Tests;
 public sealed class JobsWorkspaceLiveInteractionTests
 {
     [Fact]
+    public Task VisualIndexFinishedWhileJobsHiddenAppearsOnOpeningWorkspace() => RunAsync(0, async window =>
+    {
+        var jobs = (VisualIndexJobs)typeof(MainWindow).GetField("_visualIndexJobs",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(window)!;
+        // A missing source finishes quickly and exercises the real adapter's terminal notification.
+        jobs.Queue(new(VisualIndexJobs.Capability, [Guid.NewGuid()]), _ => "missing-index.mp4");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (jobs.Jobs.Count == 0 || jobs.Jobs.Any(job => !JobsPresentation.IsTerminal(job.State)))
+            await Task.Delay(10, timeout.Token);
+        await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+        Assert.Empty(window.HistoryList.Items);
+        RaiseClick(window.JobsStatusButton);
+        await RealizeJobsWorkspaceAsync(window);
+        var item = Assert.IsType<JobsWorkspaceItem>(Assert.Single(window.HistoryList.Items));
+        Assert.Equal(jobs.Jobs.Single().JobId, item.JobId);
+        Assert.Equal("missing-index.mp4", item.Name);
+    });
+
+    [Fact]
     public Task StartupCompletion_WaitsForHistoryAfterEarlyItemsSourceBinding() => StaDispatcher.RunAsync(async () =>
     {
         TestWpfApplication.EnsureLoaded();

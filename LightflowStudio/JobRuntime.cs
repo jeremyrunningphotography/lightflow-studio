@@ -40,7 +40,12 @@ internal sealed class ApplicationJobsRuntime<TOptions, TData> : IAsyncDisposable
 
     public IReadOnlyList<JobRuntimeSnapshot<TData>> Jobs
     {
-        get { lock (_sync) return _jobs.Values.Select(entry => entry.Runtime.Snapshot()).OrderBy(job => job.CreatedAt).ToList(); }
+        get
+        {
+            Entry[] entries;
+            lock (_sync) entries = _jobs.Values.ToArray();
+            return entries.Select(entry => entry.Runtime.Snapshot()).OrderBy(job => job.CreatedAt).ToList();
+        }
     }
 
     public JobRuntime<TOptions, TData> Queue(JobPlan<TOptions> plan, int parallelism,
@@ -181,7 +186,9 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
             _execution.MarkStarted(DateTimeOffset.Now);
             _execution.Queue();
             _activeClock.Start();
-            _run = RunCoreAsync();
+            // Workers publish aggregate application snapshots. Never invoke them while holding
+            // this Job's lock: concurrent Jobs could otherwise acquire each other's locks.
+            _run = Task.Run(RunCoreAsync);
         }
         Publish();
         return _run;

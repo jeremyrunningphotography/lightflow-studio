@@ -10,6 +10,59 @@ namespace LightflowStudio.Tests;
 [Collection("STA dispatcher tests")]
 public sealed class VideoRotationPixelTests
 {
+    [Theory]
+    [InlineData(90)]
+    [InlineData(270)]
+    public async Task VisualIndexUsesSharedRotationPresentationWithoutChangingColoredCachedPixels(int degrees)
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var store = new TestRotations(new(degrees));
+            var frames = new VisualIndexProjectionTests.EmptyFrames();
+            using var model = new VisualIndexModel(frames);
+            var view = new VisualIndexView();
+            OrientedPreviewImage.SetStore(view, store);
+            view.Initialize(model, 24);
+            model.SetContext(store.Id, TimeSpan.FromTicks(1), 25, 24, false);
+            // These are already Color-rendered, source-oriented pixels supplied by the frame service.
+            byte[] pixels = [0,0,255,255, 0,0,255,255, 0,255,0,255, 0,255,0,255,
+                255,0,0,255, 255,0,0,255, 0,255,255,255, 0,255,255,255];
+            var original = BitmapSource.Create(4, 2, 96, 96, PixelFormats.Bgra32, null, pixels, 16);
+            original.Freeze();
+            var card = Assert.Single(model.Cards);
+            card.Publish(original);
+            view.Measure(new System.Windows.Size(360, 600));
+            view.Arrange(new Rect(0, 0, 360, 600)); view.UpdateLayout();
+            OrientedPreviewImage? Find(DependencyObject owner)
+            {
+                if (owner is OrientedPreviewImage image) return image;
+                for (var i = 0; i < VisualTreeHelper.GetChildrenCount(owner); i++)
+                    if (Find(VisualTreeHelper.GetChild(owner, i)) is { } child) return child;
+                return null;
+            }
+            var preview = Assert.IsType<OrientedPreviewImage>(Find(view));
+            Assert.Equal(store.Id, preview.AssetId);
+            preview.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            try
+            {
+                await System.Windows.Threading.Dispatcher.Yield();
+                var displayed = Assert.IsAssignableFrom<BitmapSource>(preview.Source);
+                Assert.Equal((2, 4), (displayed.PixelWidth, displayed.PixelHeight));
+                AssertBitmap(displayed, new(degrees));
+                store.Update(new(360 - degrees), 2);
+                await System.Windows.Threading.Dispatcher.Yield();
+                AssertBitmap((BitmapSource)preview.Source, new(360 - degrees));
+                store.Update(default, 3);
+                await System.Windows.Threading.Dispatcher.Yield();
+                Assert.Same(original, preview.Source);
+                Assert.Same(original, card.Frame);
+                Assert.Equal(0, frames.Prepares); Assert.Equal(0, frames.Reads);
+            }
+            finally { preview.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent)); }
+        });
+    }
+
     [Fact]
     public async Task CachedPresentation_ReloadsLowerRevisionAfterRecovery_AndKeepsOriginalPixels()
     {

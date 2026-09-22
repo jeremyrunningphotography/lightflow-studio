@@ -34,7 +34,7 @@ public partial class MainWindow
         _inspector.SeekMarker = marker => _playerViewerHost?.SeekMarkerAsync(marker) ?? Task.CompletedTask;
         HomeRightPanel.AddSurface("inspector", "Inspector", _inspector);
         _compactJobsView = new CompactJobsView(this);
-        HomeRightPanel.AddGlobalSurface("jobs", "Jobs", _compactJobsView);
+        HomeRightPanel.AddSurface("jobs", "Jobs", _compactJobsView);
         _inspector.OpenFolder = OpenInspectorFolderAsync;
         HomeRightPanel.ActiveSurfaceChanged += (_, _) => ScheduleRightPanelSave();
         _inspectorRefreshTimer.Tick += (_, _) =>
@@ -54,6 +54,7 @@ public partial class MainWindow
     {
         if (_inspector is null) return;
         var player = _browserPresentation == BrowserPresentationMode.PlayerViewer;
+        HomeRightPanel.SetSurfaceAvailable("jobs", !player);
         IReadOnlyList<InspectorAsset> context = player
             ? _playerViewerHost?.CurrentAsset is { } asset
                 ? [new(asset.AssetId, asset.Name, asset.RelativePath, asset.Kind)] : []
@@ -68,9 +69,12 @@ public partial class MainWindow
         _inspectorRefreshTimer.Start();
     }
 
-    private void UpdateSubclipsSurfaceAvailability() => HomeRightPanel.SetSurfaceAvailable("subclips",
-        _browserPresentation == BrowserPresentationMode.PlayerViewer &&
-        _playerViewerHost?.CurrentAsset is { Kind: MediaPresentationKind.Video, AssetId: not null });
+    private void UpdateSubclipsSurfaceAvailability()
+    {
+        var available = _browserPresentation == BrowserPresentationMode.PlayerViewer &&
+            _playerViewerHost?.CurrentAsset is { Kind: MediaPresentationKind.Video, AssetId: not null };
+        HomeRightPanel.SetPlayerContext(_browserPresentation == BrowserPresentationMode.PlayerViewer, available);
+    }
 
     private async Task OpenInspectorFolderAsync()
     {

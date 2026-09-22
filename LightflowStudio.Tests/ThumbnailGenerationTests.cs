@@ -160,6 +160,99 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task VisualIndex_RealFramesCoverShortSourceReuseOfflineAndDoNotMutateSourceOrPosterIntent()
+    {
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()
+            ?? throw new InvalidOperationException("Run scripts/Get-PlaybackDependencies.ps1 before integration tests.");
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        var source = Path.Combine(fixture.MediaRoot, "visual-index.mkv");
+        Run(Path.Combine(dependencies, "ffmpeg.exe"), "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=10:duration=0.3", "-c:v", "ffv1", source);
+        var original = await File.ReadAllBytesAsync(source);
+        var id = await fixture.AddAssetAsync("visual-index.mkv", "video");
+        using var frames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            new CompositeThumbnailRenderer(new WicImageThumbnailRenderer(),
+                new FfmpegVideoThumbnailRenderer(Path.Combine(dependencies, "ffmpeg.exe"), new ProbeProcessRunner())));
+        var prepared = await frames.PrepareAsync(id, default);
+        var positions = VisualIndexSampling.Plan(TimeSpan.FromSeconds(0.3), 10, 48);
+        Assert.Equal(3, positions.Count);
+        var paths = new List<string>();
+        foreach (var position in positions)
+        {
+            var path = await frames.GetAsync(prepared, position, default);
+            Assert.NotNull(path); paths.Add(path!);
+            Assert.Equal((512, 288), ReadDimensions(path!));
+        }
+        Assert.Equal(3, paths.Distinct().Count());
+        Assert.Equal(original, await File.ReadAllBytesAsync(source));
+        Assert.Null(await fixture.Coordinator.PreferredPreviewFrames.GetAsync(id));
+        File.Delete(source);
+        var offline = await frames.PrepareAsync(id, default);
+        for (var i = 0; i < positions.Count; i++)
+            Assert.Equal(paths[i], await frames.GetAsync(offline, positions[i], default));
+        Assert.Null(await frames.GetAsync(offline, TimeSpan.FromSeconds(1), default));
+    }
+
+    [Fact]
+    public async Task VisualIndexFractionalCadence_AllDensitiesExtractIncludingFinalFrameWithAudioPadding()
+    {
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()!;
+        var executable = Path.Combine(dependencies, "ffmpeg.exe");
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        var source = Path.Combine(fixture.MediaRoot, "fractional.mp4");
+        Run(executable, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+            "testsrc2=size=160x90:rate=60000/1001", "-frames:v", "120", "-c:v", "mpeg4", "-bf", "2", "-pix_fmt", "yuv420p", source);
+        var id = await fixture.AddAssetAsync("fractional.mp4", "video");
+        using var frames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            new CompositeThumbnailRenderer(new WicImageThumbnailRenderer(), new FfmpegVideoThumbnailRenderer(executable, new ProbeProcessRunner())));
+        var context = await frames.PrepareContextAsync(id, default);
+        // DJI container/audio duration is slightly longer than the video stream.
+        foreach (var position in VisualIndexSampling.PlanAll(TimeSpan.FromSeconds(2.0125), 60000d / 1001))
+            Assert.NotNull(await frames.GetAsync(context, position, ThumbnailPriority.Visible, default));
+    }
+
+    [Fact]
+    public async Task VisualIndexRegenerate_RetiresEveryDensityAndColorVariantAndRejectsOldInflightWork()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, "clip.mp4"), "source");
+        var id = await fixture.AddAssetAsync("clip.mp4", "video");
+        var original = new AssetColorIntent(id, null, null, PreviewVisualIdentity.Original);
+        var colors = new MutableColorStore(original);
+        var lut = Guid.NewGuid();
+        var luts = new FakeLutCache(new Dictionary<Guid, string> { [lut] = "creative.cube" });
+        var colored = new AssetColorIntent(id, null, new(lut, "Creative", "cc", LutResourceAvailability.Available), "creative");
+        using var frames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            new ColorAwareRenderer(), colors: colors, luts: luts);
+        var positions = VisualIndexSampling.PlanAll(TimeSpan.FromSeconds(60), 25);
+        var before = await frames.PrepareContextAsync(id, default);
+        foreach (var p in positions) Assert.NotNull(await frames.GetAsync(before, p, ThumbnailPriority.Background, default));
+        colors.Intent = colored;
+        var beforeColor = await frames.PrepareContextAsync(id, default);
+        var oldColorPath = await frames.GetAsync(beforeColor, positions[0], ThumbnailPriority.Visible, default);
+
+        var renderer = new BlockingColorRenderer();
+        using var staleFrames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            renderer, colors: colors, luts: luts);
+        var inFlight = staleFrames.GetAsync(beforeColor, TimeSpan.FromTicks(1), ThumbnailPriority.Background, default);
+        await renderer.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await frames.InvalidateAsync(id, default);
+        renderer.Release.TrySetResult();
+        Assert.Null(await inFlight);
+        Assert.False(await frames.IsCurrentAsync(beforeColor, default));
+        var afterColor = await frames.PrepareContextAsync(id, default);
+        Assert.Null(await frames.FindCachedAsync(afterColor, positions[0], default));
+        var newColorPath = await frames.GetAsync(afterColor, positions[0], ThumbnailPriority.Visible, default);
+        Assert.NotEqual(oldColorPath, newColorPath);
+        colors.Intent = original;
+        var after = await frames.PrepareContextAsync(id, default);
+        foreach (var p in positions) Assert.Null(await frames.FindCachedAsync(after, p, default));
+        // Reset survives service recreation; ordinary LUT switching still reuses the new variant.
+        colors.Intent = colored;
+        Assert.Equal(newColorPath, await staleFrames.FindCachedAsync(await staleFrames.PrepareContextAsync(id, default), positions[0], default));
+    }
+
+    [Fact]
     public async Task PreferredFrame_UsesExactDecodedTimestampAndColorAwareIdentity()
     {
         await using var fixture = await ThumbnailFixture.CreateAsync(_root);
@@ -430,6 +523,56 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
         Assert.Equal("camera-then-creative", record.ThumbnailVisualIdentity);
         Assert.Equal(["camera.cube", "creative.cube"], renderer.LastColor!.OrderedLutPaths);
         Assert.Equal("unchanged source", await File.ReadAllTextAsync(source));
+    }
+
+    [Fact]
+    public async Task VisualIndexColor_UsesSharedStageOrderAndCacheIdentityAndRejectsStaleWork()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        var source = Path.Combine(fixture.MediaRoot, "clip.mp4");
+        await File.WriteAllTextAsync(source, "unchanged source");
+        var id = await fixture.AddAssetAsync("clip.mp4", "video");
+        var camera = Guid.NewGuid(); var creative = Guid.NewGuid();
+        var original = new AssetColorIntent(id, null, null, PreviewVisualIdentity.Original);
+        var colors = new MutableColorStore(original);
+        var luts = new FakeLutCache(new Dictionary<Guid, string> { [camera] = "camera.cube", [creative] = "creative.cube" });
+        var renderer = new ColorAwareRenderer();
+        using var frames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            renderer, colors: colors, luts: luts);
+        var firstContext = await frames.PrepareContextAsync(id, default);
+        var first = await frames.GetAsync(firstContext, TimeSpan.Zero, ThumbnailPriority.Visible, default);
+        Assert.NotNull(first);
+        colors.Intent = new(id, new(camera, "Camera", "aa", LutResourceAvailability.Available),
+            new(creative, "Creative", "bb", LutResourceAvailability.Available), "camera-creative");
+        var coloredContext = await frames.PrepareContextAsync(id, default);
+        var colored = await frames.GetAsync(coloredContext, TimeSpan.Zero, ThumbnailPriority.Background, default);
+        Assert.NotNull(colored); Assert.NotEqual(first, colored);
+        Assert.Equal(["camera.cube", "creative.cube"], renderer.LastColor!.OrderedLutPaths);
+        Assert.Null(await frames.FindCachedAsync(firstContext, TimeSpan.Zero, default));
+        Assert.Equal(colored, await frames.FindCachedAsync(coloredContext, TimeSpan.Zero, default));
+        foreach (var stage in new[] { ColorLutStage.Camera, ColorLutStage.Creative })
+        {
+            colors.Intent = new(id,
+                stage == ColorLutStage.Camera ? new(camera, "Camera", "aa", LutResourceAvailability.Available) : null,
+                stage == ColorLutStage.Creative ? new(creative, "Creative", "bb", LutResourceAvailability.Available) : null, stage.ToString());
+            var single = await frames.PrepareContextAsync(id, default);
+            Assert.NotNull(await frames.GetAsync(single, TimeSpan.Zero, ThumbnailPriority.Visible, default));
+            Assert.Equal([stage == ColorLutStage.Camera ? "camera.cube" : "creative.cube"], renderer.LastColor!.OrderedLutPaths);
+        }
+        colors.Intent = original;
+        Assert.Equal(first, await frames.FindCachedAsync(firstContext, TimeSpan.Zero, default));
+
+        var blocking = new BlockingColorRenderer();
+        using var pendingFrames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            blocking, colors: colors, luts: luts);
+        var pending = pendingFrames.GetAsync(firstContext, TimeSpan.FromSeconds(1), ThumbnailPriority.Background, default);
+        await blocking.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        colors.Intent = new(id, new(camera, "Camera", "aa", LutResourceAvailability.Available), null, "camera-only");
+        blocking.Release.TrySetResult();
+        Assert.Null(await pending);
+        Assert.False(await frames.IsCurrentAsync(firstContext, default));
+        Assert.Equal("unchanged source", await File.ReadAllTextAsync(source));
+        Assert.Empty(Directory.GetFiles(fixture.Coordinator.Locations.PreviewsDirectory, "*.lightflow", SearchOption.AllDirectories));
     }
 
     [Fact]

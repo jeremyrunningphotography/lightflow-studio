@@ -23,7 +23,7 @@ public sealed class JobsRadialProgress : FrameworkElement
         var center = new Point(RenderSize.Width / 2, RenderSize.Height / 2);
         var radius = Math.Max(1, Math.Min(RenderSize.Width, RenderSize.Height) / 2 - 2);
         var stateColor = StateColor(State);
-        var active = State is "Exporting" or "Sending";
+        var active = State is "Exporting" or "Sending" or "Generating";
         var determinate = IsDeterminateProgress(State, Progress);
         var ringPen = new Pen(new SolidColorBrush(determinate ? Color.FromRgb(91, 98, 108) : stateColor), 2);
         if (active && !determinate) ringPen.DashStyle = new DashStyle([2d, 1.5d], 0);
@@ -50,7 +50,7 @@ public sealed class JobsRadialProgress : FrameworkElement
 
     internal static Color StateColor(string state) => state switch
     {
-        "Exporting" or "Sending" => Color.FromRgb(255, 139, 31),
+        "Exporting" or "Sending" or "Generating" => Color.FromRgb(255, 139, 31),
         "Completed" => Color.FromRgb(69, 191, 120),
         "Completed with warnings" or "Needs attention" => Color.FromRgb(235, 184, 64),
         "Failed" => Color.FromRgb(221, 82, 102),
@@ -59,5 +59,5 @@ public sealed class JobsRadialProgress : FrameworkElement
     };
 
     internal static bool IsDeterminateProgress(string state, double progress)
-        => state is "Exporting" or "Sending" && progress > 0;
+        => state is "Exporting" or "Sending" or "Generating" && progress > 0;
 }

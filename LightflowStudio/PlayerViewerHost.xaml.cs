@@ -118,7 +118,7 @@ public partial class PlayerViewerHost : UserControl
     internal event EventHandler<AssetClassification>? ClassificationChanged;
     internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
     internal event EventHandler<PlayerViewerSubclipsExportRequestedEventArgs>? ExportSelectedSubclipsRequested;
-    internal event EventHandler? SubclipsRevealRequested;
+    internal event EventHandler<bool>? SubclipsRevealRequested;
     internal SubclipsView SubclipsContent { get; }
     internal System.Windows.Controls.Border SubclipsPanel => SubclipsContent.SubclipsPanel;
     internal System.Windows.Controls.Button AddSubclipButton => SubclipsContent.AddSubclipButton;
@@ -379,6 +379,9 @@ public partial class PlayerViewerHost : UserControl
         // wait for a step already genuinely in flight; that one native decode keeps running regardless (see
         // FrameStepQueue's own doc comment — there is no way to abort it), and MediaPlaybackService's existing
         // cancel-on-close/generation handling governs what happens when the close below reaches it.
+        ++_visualIndexContextGeneration;
+        _visualIndexCachedDuration = null;
+        _visualIndex?.SetContext(null, null, 0, VisualIndexContent.Count, false);
         _frameStepQueue.Reset();
         ResetReviewPresentation();
         _service?.SetColorPipeline(null, false);
@@ -747,6 +750,7 @@ public partial class PlayerViewerHost : UserControl
 
     private void UpdateFromSnapshot(MediaPlaybackSnapshot snapshot)
     {
+        RefreshVisualIndex();
         if (snapshot.DisplayedTimestamp is { } timestamp)
         {
             _updatingPosition = true;
@@ -1026,7 +1030,7 @@ public partial class PlayerViewerHost : UserControl
                 SubclipsList.SelectedItem = item;
                 SubclipsList.ScrollIntoView(item);
             }
-            SubclipsRevealRequested?.Invoke(this, EventArgs.Empty);
+            SubclipsRevealRequested?.Invoke(this, false);
             SubclipStateChanged?.Invoke(this, new(assetId, hasSubclips: true));
             SetStatus(result.Created ? $"{subclip.Name} created." : null);
         }
@@ -1227,7 +1231,7 @@ public partial class PlayerViewerHost : UserControl
                 _ = LoadPosterAsync(item, generation, token);
             }
             UpdateSubclipEmptyState();
-            if (subclips.Count > 0) SubclipsRevealRequested?.Invoke(this, EventArgs.Empty);
+            if (subclips.Count > 0) SubclipsRevealRequested?.Invoke(this, true);
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)
@@ -1660,8 +1664,9 @@ public partial class PlayerViewerHost : UserControl
     {
         while (element is not null)
         {
+            // Stop at Player before reaching the shell TabControl (a Selector).
             // Filmstrip traversal uses Ctrl+Arrow; plain arrows retain Player frame stepping.
-            if (ReferenceEquals(element, Filmstrip)) return false;
+            if (ReferenceEquals(element, this) || ReferenceEquals(element, Filmstrip)) return false;
             if (element is System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.Slider or
                 System.Windows.Controls.Primitives.Thumb or System.Windows.Controls.Primitives.Selector)
                 return true;

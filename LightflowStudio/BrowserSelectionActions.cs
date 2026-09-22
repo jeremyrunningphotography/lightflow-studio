@@ -9,6 +9,7 @@ internal sealed record BrowserSelectionActionState(
     bool CanAssignCreativeLut)
 {
     public bool HasSelection => SelectionCount > 0;
+    public bool CanCreateVisualIndex => CanExport;
     public bool CanRotate => CanExport;
 }
 

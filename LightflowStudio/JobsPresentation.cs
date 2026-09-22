@@ -202,7 +202,7 @@ internal sealed record ExportJobDetailsPresentation(string OutputPath, string Vi
 internal sealed record FileSystemJobDetailsPresentation(string Operation, string SourceSummary, string Destination,
     string ItemProgress, string CurrentItem, string ByteProgress, string ResultSummary,
     string FailureSummary) : JobDetailsPresentation;
-internal sealed record JobMessageDetailsPresentation(string Text) : JobDetailsPresentation;
+internal sealed record JobMessageDetailsPresentation(string Text, string? Success = null) : JobDetailsPresentation;
 internal sealed record PremiereJobItemDetailsPresentation(string Name, string Status, string Detail,
     PremiereJobItemState State);
 internal sealed record PremiereJobDetailsPresentation(string Project, string Progress,

@@ -195,7 +195,7 @@ mutexes, pipes, or WPF types into durable domain state or feature services.
 - **Presentation does not become application logic.** WPF may collect choices and present state, while reusable behavior lives behind typed services and contracts where practical.
 - **Filesystem identity is logical, not OS-path identity.** Stable `RootId + relative path` and `AssetId` semantics remain authoritative. Absolute Windows paths are runtime resolution details rather than durable asset identity.
 - **Subclips snapshot working ranges.** The Catalog's single `MediaAssetRanges` primary row remains mutable per-asset review intent. A durable `Subclip` copies an explicit saved In and Out into its own stable `SubclipId`, keyed only to `AssetId`, with an independent name. Exact `(AssetId, InTicks, OutTicks)` uniqueness is enforced by the Catalog service and database. Legacy `Ordinal` storage and typed reorder compatibility remain intact for migration/history safety, but current-product presentation and Export order is authoritative In timestamp ascending, then stable `SubclipId`; no schema rewrite is needed for that policy. Revision-checked mutations reject stale changes. Paths, output planning, Jobs, and Preview pixels never enter Subclip identity.
-- **Subclip review remains transient.** The Player keeps a desktop-style selected-ID set for management/future Export handoff plus one active Subclip review target layered over the existing playback range policy; activation seeks to its authoritative In and supplies its Out only while playback is armed. Double-click uses that same decoder and boundary path to seek and play immediately. Neither selection writes the asset's mutable working range or saved Subclips. The shell hosts the retained Subclips view beside Inspector in one shared Right Panel; Jobs is a globally owned peer tab, and only the shared panel owns width and open state. Posters are bounded, cancellable Preview work cached beneath the configured Previews root by observed source identity, stable `SubclipId`, generator version, and exact In ticks. Rename therefore reuses pixels, while source or In identity changes rebuild them.
+- **Subclip review remains transient.** The Player keeps a desktop-style selected-ID set for management/future Export handoff plus one active Subclip review target layered over the existing playback range policy; activation seeks to its authoritative In and supplies its Out only while playback is armed. Double-click uses that same decoder and boundary path to seek and play immediately. Neither selection writes the asset's mutable working range or saved Subclips. The shell hosts the retained Subclips view beside Inspector in one shared Right Panel; Jobs is a globally owned Browser-only peer tab, and only the shared panel owns width and open state. Posters are bounded, cancellable Preview work cached beneath the configured Previews root by observed source identity, stable `SubclipId`, generator version, and exact In ticks. Rename therefore reuses pixels, while source or In identity changes rebuild them.
 - **Platform-specific dependencies are isolated and documented.** Adding a Windows-only dependency or API requires recording the boundary that owns it, the shared contract it implements, whether durable state depends on it, and what another platform would need to replace.
 - **Portability is a design constraint, not a current product commitment.** Do not slow the Windows product with speculative duplicate implementations or premature abstraction. The architectural smell test is: *Could this platform-specific implementation be replaced without changing Lightflow's durable product semantics or migrating user intent?*
 
@@ -288,7 +288,7 @@ WPF views and code-behind currently own navigation, dialogs, accessibility behav
 
 `MainWindow` still coordinates the Encoding page while that feature is migrated incrementally. Its process pause/close behavior is intentionally retained rather than introducing a broad MVVM rewrite.
 
-`MainWindow` is the permanent Lightflow application shell, with Browser/Player as its stable home rather than one peer module among many. Focused actions such as Export open owned modals without replacing or rebuilding that home. The global bottom Jobs affordance opens the secondary full Jobs destination; its explicit Back action returns to the already-live Browser/Player context. The shared Right Panel Jobs tab exposes compact global activity using the same width, toggle, and resize boundary as Inspector/Subclips. A restrained upper-right application menu exposes Settings and About without recreating a module strip or capability launcher. `ShellDestination` maps only these supported transitions; retired or unknown tab identities resolve to Home. Legacy Review & Rerun alone may enter a hidden compatibility review surface after `EncodingHistoryRerun` revalidation, and that surface has no permanent navigation or persisted shell identity.
+`MainWindow` is the permanent Lightflow application shell, with Browser/Player as its stable home rather than one peer module among many. Focused actions such as Export open owned modals without replacing or rebuilding that home. The global bottom Jobs affordance opens the secondary full Jobs destination; its explicit Back action returns to the already-live Browser/Player context. The Browser-only Right Panel Jobs tab exposes compact global activity using the same width, toggle, and resize boundary as Inspector/Subclips. A restrained upper-right application menu exposes Settings and About without recreating a module strip or capability launcher. `ShellDestination` maps only these supported transitions; retired or unknown tab identities resolve to Home. Legacy Review & Rerun alone may enter a hidden compatibility review surface after `EncodingHistoryRerun` revalidation, and that surface has no permanent navigation or persisted shell identity.
 
 Settings remains a lightweight shell utility hosted alongside the live Home surface. Its presentation uses a compact
 keyboard-navigable category list with one contextual page for General folders, Color, Export, Storage, or Tools.
@@ -1100,8 +1100,8 @@ unchanged.
 
 `CompactJobsView` rehosts the existing virtualized cards and forwards actions to the existing shell handlers.
 `JobsPresentation`, keyed expansion/dismissal, scheduler subscriptions, concurrency, lifecycle, waiting reorder,
-and capability-specific details are reused. Jobs is registered as a global surface: contextual availability changes
-cannot hide it. Inspector/Subclips retain their own Browser/Player context; no Jobs media-context model is added.
+and capability-specific details are reused. Jobs has application-global ownership and a Browser-only Right Panel
+surface. Inspector remains available in both contexts; Player exposes Subclips and Visual Index.
 The shared 280–600 DIP width, open state, preferred surface, and accessible resize boundary are the only panel state.
 Old Jobs pull/body chrome, reserved gutter, splitter/column, width persistence, and toggle coordination are removed.
 Old workspace JSON fields are safely ignored; scheduler checkpoints and durable History are unchanged.
@@ -1180,3 +1180,53 @@ Both templates use the same click, Ctrl-click, Shift-click, context selection, d
 `WorkspaceLayoutState` adds layout mode and ordered stable column IDs with visibility and widths. WPF header resizing/reordering and the checked column menu update that same workspace service and its existing debounce/shutdown lifecycle. Unknown/duplicate IDs are ignored, widths are bounded, missing columns receive defaults, and at least one column remains visible. #247's existing `WorkspaceGridState` retains the one shared selection/anchor and top-asset/within-row scroll anchor, adding current AssetId and horizontal offset. Startup restores the chosen template before scope hydration; queued layout scroll restoration is rejected after newer input, layout intent, or Browser generation.
 
 `BrowserGridTile.DetailsRevision` publishes completed metadata/classification/asset-state updates to realized text bindings. Preview cells bind the same notifying `ThumbnailPath` as Grid and the Player filmstrip. Text conversion reads resident normalized values only, with empty text for missing/not-applicable technical metadata. Column configuration does not cause discovery or metadata probing. See `docs/performance/browser-227.md` for final validation coverage and performance limits.
+
+## Visual Index (#293)
+
+The current Catalog-backed video exposes Visual Index through the retained shared Right Panel. PlayerViewerHost
+owns context and exact source-relative seeking through its existing playback service/coordinator. No extra
+playback lease, Catalog image payload, source mutation, export workflow or annotation authority is introduced.
+The shell only registers the surface and persists its density in WorkspaceLayoutState with the preferred tab.
+
+VisualIndexSampling plans 12, 24 (default), or 48 uniform temporal samples. It uses integral ticks on nominal
+frame-cadence slots, includes zero, and reserves a complete interval before EOF; very short sources reduce the
+count to unique slots. Unknown duration remains empty until playback or current cached Preview metadata supplies
+it. A missing/invalid cadence uses a conservative 25 fps planning interval. These positions are exact seek
+requests, not claims of decoded presentation timestamps for variable-frame-rate media. No scene intelligence is
+implemented. Future strategies can replace planning without changing the card/generation/seek boundary.
+
+VisualIndexModel probes every requested position for a current cache hit before submitting missing frames.
+Cards remain stable while frames arrive; the panel shows `Generating x of y…` only while work is pending,
+and ends with a sanitized unavailable state on failure. Asset, density, visibility and Color revision changes
+cancel obsolete demand and reject stale completions. Nearest-position indication never changes the scroll offset.
+The responsive grid contains portraits, exact-position tooltips and keyboard-activatable timestamped buttons.
+
+PositionFrameService supplies both Player and Browser preparation through one application-owned instance.
+DerivedFrameDemands bounds decoding to two operations, coalesces identical keys, and selects visible demand before
+queued background demand. A new foreground subscriber promotes shared queued work; cancelling one subscriber
+leaves other subscribers intact. Abandoned work cancels and releases its Preview maintenance lease.
+
+DerivedFrameColor is shared with Browser thumbnails and resolves assigned Camera then Creative LUTs through
+IAssetColorStore and ILutLibraryCache. The existing IThumbnailRenderer performs rendering. Pixel identity includes
+observed source facts/fingerprint, exact position and applicable Color identity. Newly rendered files are checked
+against current source and Color before publication. Original frames preserve the marker cache namespace; colored
+frames use distinct identities. Density does not form part of pixel identity, so common samples are reused.
+The cache remains rebuildable under Previews/previews/markers, supports retained offline hits, and follows normal
+Preview cleanup. Preferred Browser poster intent, marker annotations and source media remain unchanged.
+
+Browser Create Visual Index uses the established context selection and a typed video.visual-index invocation.
+VisualIndexJobs is a capability adapter over ApplicationJobsRuntime, not another lifecycle/runtime. Each video
+gets one independent Job, preparing the distinct union of 12/24/48 positions with the same frame service.
+Progress counts completed unique positions; source/Color changes and unavailable frames produce retryable failures.
+Retry creates a fresh Job against current source/Color and reuses valid cached work. Session Job cards and results
+are projected into compact and full Jobs; cancel/clear/retry remain per Job. No generation occurs just from
+Catalog discovery, Browser selection, startup or an inactive Visual Index tab.
+
+The Right Panel exposes Inspector + Jobs in Browser, and Inspector + Subclips + Visual Index for Player video.
+Jobs remain application-global and continue across presentation changes. State notifications never navigate home
+or select a hidden Jobs tab. The existing global Jobs status count also includes Visual Index preparation.
+
+Visual Index consumes merged #287 through OrientedPreviewImage with the card's AssetId and the inherited Catalog
+rotation store. Color-rendered cached pixels retain source orientation; the shared control applies authored rotation
+exactly once, swaps 90/270-degree display dimensions, and reacts immediately to committed rotation changes. Rotation
+does not enter the pixel cache identity or cause another extraction. Visual Index owns no rotation math or store.

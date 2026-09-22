@@ -8,13 +8,14 @@ internal sealed record JobsWorkspaceItem(
     Guid JobId, Guid? HistoryRecordId, EncodingJobHistoryRecord? HistoryRecord, bool SchedulerOwned, bool IsLegacyProjection,
     string Name, string Capability, JobState State, double? Progress, string Timing, string SourcePath,
     string OutputPath, string Issue, string Details, DateTimeOffset SortTime, long QueueOrder,
-    JobDetailsPresentation? DetailPresentation = null, bool SupportsQueueControls = true)
+    JobDetailsPresentation? DetailPresentation = null, bool SupportsQueueControls = true, bool SupportsRetry = false)
 {
-    public string StateText => Capability == "Premiere handoff" && State == JobState.Running ? "Sending" : JobsPresentation.StateText(State);
+    public string StateText => Capability == "Visual Index" && State == JobState.Running ? "Generating"
+        : Capability == "Premiere handoff" && State == JobState.Running ? "Sending" : JobsPresentation.StateText(State);
     public bool IsCurrent => SchedulerOwned;
     public bool CanPause => SupportsQueueControls && IsCurrent && State == JobState.Queued;
     public bool CanResume => SupportsQueueControls && IsCurrent && State == JobState.Paused;
-    public bool CanRetry => SupportsQueueControls && IsCurrent && State == JobState.NeedsAttention;
+    public bool CanRetry => SupportsRetry || SupportsQueueControls && IsCurrent && State == JobState.NeedsAttention;
     public bool CanCancel => IsCurrent && State is JobState.Queued or JobState.Running or JobState.Paused or JobState.NeedsAttention;
     public bool CanReorder => SupportsQueueControls && IsCurrent && State == JobState.Queued;
     public bool CanReviewAndRerun => HistoryRecord is not null;

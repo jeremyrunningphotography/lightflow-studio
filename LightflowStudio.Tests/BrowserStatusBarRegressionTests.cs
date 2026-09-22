@@ -58,8 +58,7 @@ public sealed class BrowserStatusBarRegressionTests
         var source = Source();
         var methodStart = source.IndexOf("private void MainTabs_SelectionChanged", StringComparison.Ordinal);
         Assert.True(methodStart >= 0, "MainTabs_SelectionChanged not found");
-        var guardEnd = source.IndexOf(';', methodStart);
-        var methodEnd = source.IndexOf(';', guardEnd + 1);
+        var methodEnd = source.IndexOf("private void ApplicationMenu_Click", methodStart, StringComparison.Ordinal);
         var body = source[methodStart..methodEnd];
 
         Assert.Contains("if (!ReferenceEquals(e.Source, MainTabs)) return", body);

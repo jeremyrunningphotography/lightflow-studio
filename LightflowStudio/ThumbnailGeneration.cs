@@ -490,17 +490,8 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
                 FailureReason: failureReason), cancellationToken)
             .ConfigureAwait(false);
 
-    private async Task<ThumbnailColorRender> ResolveColorAsync(Guid assetId, CancellationToken cancellationToken)
-    {
-        if (_colors is null || _lutCache is null) return ThumbnailColorRender.Original;
-        var intent = await _colors.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
-        if (!intent.HasColor) return ThumbnailColorRender.Original;
-        var paths = new List<string>(2);
-        if (intent.Camera is { } camera) paths.Add(_lutCache.ResolvePath(ColorLutStage.Camera, camera.LutId));
-        if (intent.Creative is { } creative) paths.Add(_lutCache.ResolvePath(ColorLutStage.Creative, creative.LutId));
-        return new(intent.ColorIdentity, paths);
-    }
-
+    private Task<ThumbnailColorRender> ResolveColorAsync(Guid assetId, CancellationToken cancellationToken) =>
+        DerivedFrameColor.ResolveAsync(_colors, _lutCache, assetId, cancellationToken);
     private async Task<string> CurrentVisualIdentityAsync(Guid assetId, CancellationToken cancellationToken)
     {
         if (_colors is null) return PreviewVisualIdentity.Original;

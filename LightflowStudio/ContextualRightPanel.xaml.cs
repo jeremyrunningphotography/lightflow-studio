@@ -17,6 +17,12 @@ public partial class ContextualRightPanel : System.Windows.Controls.UserControl
     }
     internal string PreferredSurface { get; private set; } = "inspector";
     internal string ActiveSurface => (SurfaceTabs.SelectedItem as TabItem)?.Tag as string ?? "inspector";
+    internal void SetPlayerContext(bool player, bool video)
+    {
+        SetSurfaceAvailable("jobs", !player);
+        SetSurfaceAvailable("subclips", player && video);
+        SetSurfaceAvailable("visual-index", player && video);
+    }
     internal void AddSurface(string key, string title, FrameworkElement content, bool available = true)
     {
         var tab = new TabItem { Tag = key, Header = title, Content = content,

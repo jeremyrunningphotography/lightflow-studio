@@ -5,6 +5,18 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserSelectionActionTests
 {
     [Fact]
+    public void VisualIndexRequiresIdentifiedVideoSelectionAndSupportsMultipleVideos()
+    {
+        var video = Tile("clip.mov", MediaTypeCategory.Video);
+        Assert.True(BrowserSelectionActions.Evaluate([video]).CanCreateVisualIndex);
+        Assert.True(BrowserSelectionActions.Evaluate([video, Tile("second.mp4", MediaTypeCategory.Video)]).CanCreateVisualIndex);
+        Assert.False(BrowserSelectionActions.Evaluate([]).CanCreateVisualIndex);
+        Assert.False(BrowserSelectionActions.Evaluate([video, Tile("photo.jpg", MediaTypeCategory.StillImage)]).CanCreateVisualIndex);
+        Assert.False(BrowserSelectionActions.Evaluate([Tile("audio.wav", MediaTypeCategory.Audio)]).CanCreateVisualIndex);
+        Assert.False(BrowserSelectionActions.Evaluate([Tile("unknown", MediaTypeCategory.Unknown)]).CanCreateVisualIndex);
+        Assert.False(BrowserSelectionActions.Evaluate([Tile("clip.mov", MediaTypeCategory.Video, identified: false)]).CanCreateVisualIndex);
+    }
+    [Fact]
     public void Empty_selection_keeps_actions_visible_but_disabled()
     {
         var state = BrowserSelectionActions.Evaluate([]);

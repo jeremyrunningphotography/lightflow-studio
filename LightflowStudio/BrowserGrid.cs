@@ -164,6 +164,17 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     }
 
     public bool HasThumbnail => _thumbnailPath is not null;
+    private PreviewFailureReason? _previewFailure;
+    public bool HasPreviewFailure => _previewFailure.HasValue && !IsThumbnailGenerating;
+    public string PreviewFailureMessage => PreviewFailure.Message(_previewFailure ?? PreviewFailureReason.Unknown);
+    public string PreviewFailureAccessibleName => $"Preview generation failed for {Name}: {PreviewFailureMessage}";
+    public void SetPreviewFailure(PreviewFailureReason? reason)
+    {
+        _previewFailure = reason;
+        OnPropertyChanged(nameof(HasPreviewFailure));
+        OnPropertyChanged(nameof(PreviewFailureMessage));
+        OnPropertyChanged(nameof(PreviewFailureAccessibleName));
+    }
     public int DetailsRevision { get; private set; }
 
     /// <summary>Durable, user-authored Catalog state projected for Browser presentation; never Preview state.</summary>
@@ -211,7 +222,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     public bool IsThumbnailGenerating
     {
         get => _isThumbnailGenerating;
-        private set { if (_isThumbnailGenerating == value) return; _isThumbnailGenerating = value; OnPropertyChanged(); }
+        private set { if (_isThumbnailGenerating == value) return; _isThumbnailGenerating = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasPreviewFailure)); }
     }
 
     public string AssetStateLabel => string.Join("; ", new[]
@@ -696,7 +707,16 @@ internal sealed class BrowserGridModel
     /// <summary>Updates one tile's thumbnail in place. Never rebuilds rows/visible order or touches unrelated tiles.</summary>
     public void ApplyThumbnail(Guid assetId, string absoluteThumbnailPath)
     {
-        if (_tilesByAsset.TryGetValue(assetId, out var tile)) tile.ThumbnailPath = absoluteThumbnailPath;
+        if (_tilesByAsset.TryGetValue(assetId, out var tile))
+        {
+            tile.ThumbnailPath = absoluteThumbnailPath;
+            tile.SetPreviewFailure(null);
+        }
+    }
+
+    public void ApplyPreviewFailure(Guid assetId, PreviewFailureReason? reason)
+    {
+        if (_tilesByAsset.TryGetValue(assetId, out var tile)) tile.SetPreviewFailure(reason);
     }
 
     /// <summary>

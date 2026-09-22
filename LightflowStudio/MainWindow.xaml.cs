@@ -72,6 +72,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<BrowserStorageEntry> _browserStorageEntries = [];
     private readonly BrowserGridModel _browserGrid = new();
     private readonly BrowserTreeModel _browserTree = new();
+    private readonly HashSet<BrowserTreeNode> _browserTreeExpansionLoads = [];
     private readonly BrowserCollectionTreeModel _browserCollectionTree = new();
     private readonly BrowserCollectionScopeService _browserCollectionScopes;
     private readonly BrowserNavigationSession _browserNavigation;
@@ -659,65 +660,61 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Expanding a folder — via the disclosure chevron, a double-click, or the keyboard — materializes its real
-    /// children (siblings) for lazy-loading, exactly like <see cref="RevealBrowserTreeAncestorsAsync"/> already
-    /// does for ancestors, but never selects it or navigates into it: hierarchy exploration and
-    /// selection/navigation are deliberately separate actions, matching a conventional tree control. Only a row
-    /// click or keyboard selection (<see cref="BrowserFolderTree_SelectedItemChanged"/>) changes Browser scope/
-    /// contents. Previously this called <c>RunBrowserNavigationAsync</c> directly — reusing "navigate here" as
-    /// the mechanism for fetching a real listing — which also selected the row and replaced the grid/address
-    /// bar on every expand, and (since <see cref="BrowserTreeModel.EnsurePathChain"/> expands every ancestor
-    /// while revealing a deep restored/direct-path location) could race a startup restoration's own in-flight
-    /// navigation for a completely different, shallower folder — the root cause of a startup fallback and of a
-    /// concurrent recursive scan losing its progress and silently restarting. Requires the node to already
-    /// carry a <see cref="BrowserTreeNode.RootId"/>: a bare, not-yet-anchored Volume row (a raw drive letter
-    /// never yet navigated into) has none, so materialization cannot proceed until the row is clicked once to
-    /// establish its Catalog anchor — a narrow, honest trade-off (never silently mis-navigating) rather than
-    /// duplicating filesystem-listing logic in WPF just to materialize an unanchored drive's children without a
-    /// Catalog root. Every path that cannot materialize real children (missing anchor, a root that no longer
-    /// resolves to a physical path, an enumeration failure or exception) collapses the node back via
-    /// <see cref="CollapseUnmaterializableNode"/> rather than returning early and leaving its "Loading…"
-    /// placeholder child stuck showing forever with no further feedback — an honest closed/re-expandable
-    /// chevron, not a false promise of in-progress work.
+    /// Disclosure/keyboard expansion materializes children without selecting or navigating. A never-visited
+    /// volume first resolves its Catalog anchor through the same location service used by navigation.
+    /// One pending load per node handles rapid collapse/re-expand; completion never changes expansion intent.
     /// </summary>
     private async void BrowserFolderTreeItem_Expanded(object sender, RoutedEventArgs e)
     {
-        if (_restoringWorkspace || _synchronizingBrowserTree || (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node ||
-            node.IsPlaceholder || !node.Children.Any(child => child.IsPlaceholder))
-            return;
-        if (node.RootId is not { } rootId || node.RelativeFolder is not { } relativeFolder)
-        {
-            CollapseUnmaterializableNode(node);
-            return;
-        }
-
-        var root = await _storage.MediaRoots.GetAsync(rootId).ConfigureAwait(true);
-        if (root?.PhysicalPath is not { } rootPath)
-        {
-            CollapseUnmaterializableNode(node);
-            return;
-        }
-
-        MediaFolderEnumerationResult listing;
+        if (_restoringWorkspace || _synchronizingBrowserTree || !ReferenceEquals(sender, e.OriginalSource) ||
+            (sender as FrameworkElement)?.DataContext is not BrowserTreeNode node || node.IsPlaceholder ||
+            node.IsMaterialized || !_browserTreeExpansionLoads.Add(node)) return;
+        var requestedPath = node.AbsolutePath;
+        bool IsCurrent() => string.Equals(node.AbsolutePath, requestedPath, StringComparison.OrdinalIgnoreCase) &&
+            _browserTree.KnownFolders().Contains(node) && !node.IsMaterialized;
         try
         {
-            listing = await _storage.MediaFolders.EnumerateAsync(new(rootId, EmptyToNull(relativeFolder))).ConfigureAwait(true);
+            if (node.RootId is null || node.RelativeFolder is null)
+            {
+                var location = requestedPath is null ? null :
+                    await _storage.BrowserLocations.ResolveAsync(requestedPath).ConfigureAwait(true);
+                if (!IsCurrent()) return;
+                if (location is not { Succeeded: true, RootId: { } resolvedRootId, RelativeFolder: { } resolvedFolder })
+                {
+                    CollapseUnmaterializableNode(node);
+                    return;
+                }
+                node.SetIdentity(resolvedRootId, resolvedFolder);
+            }
+            if (node.RootId is not { } rootId || node.RelativeFolder is not { } relativeFolder)
+            {
+                CollapseUnmaterializableNode(node);
+                return;
+            }
+            var root = await _storage.MediaRoots.GetAsync(rootId).ConfigureAwait(true);
+            if (!IsCurrent()) return;
+            if (root?.PhysicalPath is not { } rootPath)
+            {
+                CollapseUnmaterializableNode(node);
+                return;
+            }
+            var listing = await _storage.MediaFolders.EnumerateAsync(new(rootId, EmptyToNull(relativeFolder))).ConfigureAwait(true);
+            if (!IsCurrent()) return;
+            if (!listing.Succeeded)
+            {
+                CollapseUnmaterializableNode(node);
+                return;
+            }
+            _synchronizingBrowserTree = true;
+            try { _browserTree.ApplyDirectoryListing(node, rootPath, listing.Entries); }
+            finally { _synchronizingBrowserTree = false; }
+            SyncBrowserTreeRecursiveIcons();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            CollapseUnmaterializableNode(node);
-            return;
+            if (IsCurrent()) CollapseUnmaterializableNode(node);
         }
-        if (!listing.Succeeded)
-        {
-            CollapseUnmaterializableNode(node);
-            return;
-        }
-
-        _synchronizingBrowserTree = true;
-        try { _browserTree.ApplyDirectoryListing(node, rootPath, listing.Entries); }
-        finally { _synchronizingBrowserTree = false; }
-        SyncBrowserTreeRecursiveIcons();
+        finally { _browserTreeExpansionLoads.Remove(node); }
     }
 
     /// <summary>
@@ -725,7 +722,7 @@ public partial class MainWindow : Window
     /// an expand attempt that could not materialize real children — never leaves the "Loading…" placeholder
     /// visibly stuck with no further feedback. The same reentrancy guard every other programmatic tree
     /// mutation uses keeps this from re-triggering <see cref="BrowserFolderTreeItem_Expanded"/> itself. A
-    /// later, genuine expand attempt (e.g. after the row's own click has established a Catalog anchor, or once
+    /// later, genuine expand attempt (e.g. once a location becomes available again, or once
     /// a transient enumeration failure has cleared) runs this handler fresh and can still succeed.
     /// </summary>
     private void CollapseUnmaterializableNode(BrowserTreeNode node)
@@ -1628,7 +1625,7 @@ public partial class MainWindow : Window
             System.Windows.DragDrop.DoDragDrop(BrowserGridRows, data,
                 System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move);
         }
-        finally { ClearFileDragAdorner(); ResetBrowserAssetGesture(); }
+        finally { ClearFolderDropFeedback(); ClearFileDragAdorner(); ResetBrowserAssetGesture(); }
     }
 
     private void BrowserGridTile_DragOver(object sender, System.Windows.DragEventArgs e)
@@ -1801,6 +1798,7 @@ public partial class MainWindow : Window
                 MessageBoxResult.No) != MessageBoxResult.Yes) return;
         BrowserRegenerateThumbnailsButton.IsEnabled = false;
         BrowserStatusText.Text = $"Regenerating {ids.Count} Preview{(ids.Count == 1 ? "" : "s")}…";
+        foreach (var id in ids) _browserGrid.ApplyThumbnailGenerating(id, true);
         try
         {
             var progress = new Progress<PreviewRegenerationCompleted>(ApplyCompletedPreview);
@@ -1815,7 +1813,11 @@ public partial class MainWindow : Window
             MessageBox.Show($"Preview regeneration failed: {exception.Message}", "Regenerate Previews",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        finally { UpdateBrowserSelectionActions(); }
+        finally
+        {
+            foreach (var id in ids) _browserGrid.ApplyThumbnailGenerating(id, _storage.ThumbnailActivity.IsGenerating(id));
+            UpdateBrowserSelectionActions();
+        }
     }
 
     private async void BrowserCameraLutCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
@@ -1906,8 +1908,36 @@ public partial class MainWindow : Window
     private void ApplyCompletedPreview(PreviewRegenerationCompleted completed)
     {
         InvalidateInspector();
+        _browserGrid.ApplyPreviewFailure(completed.AssetId, completed.Result.Succeeded ? null : completed.Result.FailureReason);
         if (completed.Result.Succeeded && completed.Result.ThumbnailPath is { } path)
             _browserGrid.ApplyThumbnail(completed.AssetId, path);
+    }
+
+    private void PreviewFailureBadge_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        ResetBrowserAssetGesture();
+        ((System.Windows.Controls.Button)sender).Focus();
+        e.Handled = true;
+    }
+
+    private void PreviewFailureBadge_GotKeyboardFocus(object sender, RoutedEventArgs e)
+    {
+        var badge = (System.Windows.Controls.Button)sender;
+        var tooltip = new System.Windows.Controls.ToolTip { PlacementTarget = badge,
+            Style = (Style)FindResource("LightflowToolTipStyle") };
+        tooltip.SetBinding(ContentControl.ContentProperty, new System.Windows.Data.Binding("DataContext.PreviewFailureMessage") { Source = badge });
+        badge.ToolTip = tooltip;
+        tooltip.IsOpen = true;
+    }
+
+    private void PreviewFailureBadge_LostKeyboardFocus(object sender, RoutedEventArgs e)
+    {
+        if (((System.Windows.Controls.Button)sender).ToolTip is System.Windows.Controls.ToolTip tooltip) tooltip.IsOpen = false;
+    }
+
+    private void PreviewFailureBadge_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is Key.Enter or Key.Space) e.Handled = true;
     }
 
     private async void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -2641,14 +2671,7 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 if (BrowserFolderTree.IsKeyboardFocusWithin && SelectedFolderOperationSource() is { } folder)
                 {
-                    var permanent = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
-                    var confirmed = permanent
-                        ? ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete this folder?",
-                            "The folder and all contents will be permanently removed.", "It will not go to the Recycle Bin.", "Delete permanently")
-                        : ConfirmationDialog.Confirm(this, "Move to Recycle Bin", "Move this folder to the Recycle Bin?",
-                            "The folder and all contents will be recycled.", "You can normally restore it from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep folder");
-                    if (confirmed)
-                        _ = ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, [folder], null);
+                    _ = DeleteFileSourcesAsync([folder], Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
                 }
                 else _ = DeleteBrowserSelectionAsync(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
                 return;
@@ -2756,15 +2779,14 @@ public partial class MainWindow : Window
     private async Task DeleteBrowserSelectionAsync(bool permanent)
     {
         var sources = await SelectedFileOperationSourcesAsync();
-        if (sources.Count == 0) return;
-        var confirmed = permanent
-            ? ConfirmationDialog.Confirm(this, "Permanent Delete", "Permanently delete selected items?",
-                $"{sources.Count} item(s) will be permanently removed.", "They will not go to the Recycle Bin and this cannot be undone.", "Delete permanently")
-            : ConfirmationDialog.Confirm(this, "Move to Recycle Bin", "Move selected items to the Recycle Bin?",
-                $"{sources.Count} item(s) will be recycled.", "You can normally restore them from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep files");
-        if (!confirmed) return;
-        await ExecuteFileOperationAsync(permanent ? FileOperationKind.PermanentDelete : FileOperationKind.Recycle, sources, null);
+        await DeleteFileSourcesAsync(sources, permanent);
     }
+
+    private Task DeleteFileSourcesAsync(IReadOnlyList<FileOperationSource> sources, bool permanent) =>
+        BrowserDeleteOperation.RunAsync(sources, permanent, WindowsRecycleCapability.CanRecycle,
+            dialog => ConfirmationDialog.Confirm(this, dialog.Title, dialog.Heading, dialog.Description,
+                dialog.Warning, dialog.Action, dialog.Cancel),
+            (kind, captured) => ExecuteFileOperationAsync(kind, captured, null));
 
     private async Task SynchronizeFileSystemMutationsAsync(IReadOnlyList<FileSystemMutation> mutations)
     {
@@ -2950,10 +2972,7 @@ public partial class MainWindow : Window
     private async void BrowserFolderPaste_Click(object sender, RoutedEventArgs e) => await PasteBrowserClipboardAsync(_browserTree.SelectedNode?.AbsolutePath);
     private async void BrowserFolderDelete_Click(object sender, RoutedEventArgs e)
     {
-        if (SelectedFolderOperationSource() is not { } source || !ConfirmationDialog.Confirm(this, "Move to Recycle Bin",
-            "Move this folder to the Recycle Bin?", "The folder and all contents will be recycled.",
-            "You can normally restore it from the Windows Recycle Bin.", "Move to Recycle Bin", "Keep folder")) return;
-        await ExecuteFileOperationAsync(FileOperationKind.Recycle, [source], null);
+        if (SelectedFolderOperationSource() is { } source) await DeleteFileSourcesAsync([source], false);
     }
 
     private async void BrowserFolderNew_Click(object sender, RoutedEventArgs e)
@@ -3556,6 +3575,10 @@ public partial class MainWindow : Window
                 _browserAppliedGeneratedThumbnails));
         var pendingMetadata = new HashSet<Guid>(
             BrowserDerivedWorkProjection.AssetsNeedingMetadataLookup(batch.Results, _browserGrid.HasMetadataApplied));
+        pendingThumbnails.UnionWith(batch.Results.Where(result => result.Thumbnail == DerivedWorkComponentOutcome.Failed)
+            .Select(result => result.AssetId));
+        foreach (var result in batch.Results.Where(result => result.Thumbnail == DerivedWorkComponentOutcome.Failed))
+            _browserGrid.ApplyPreviewFailure(result.AssetId, result.ThumbnailFailureReason);
         await ApplyBrowserPreviewRecordsAsync(pendingThumbnails, pendingMetadata, generation,
             () => ReferenceEquals(_activeBrowserDerivedWorkBatch, batch),
             thumbnailApplied: id => _browserAppliedGeneratedThumbnails.Add(id));
@@ -3582,6 +3605,9 @@ public partial class MainWindow : Window
             if (generation != _browserUiGeneration || !records.TryGetValue(assetId, out var record)) continue;
             if (sources is not null && (!sources.TryGetValue(assetId, out var source) ||
                 !BrowserPreviewReuse.Matches(source, record))) continue;
+
+            _browserGrid.ApplyPreviewFailure(assetId, record.ThumbnailState == PreviewComponentState.Failed
+                ? record.ThumbnailFailureReason : null);
 
             if (pendingThumbnails.Contains(assetId) && record.ThumbnailRelativePath is not null &&
                 (sources is null || record.ThumbnailGeneratorVersion == ThumbnailGenerationService.CurrentGeneratorVersion) &&
@@ -4659,6 +4685,8 @@ public partial class MainWindow : Window
         foreach (var (assetId, record) in records)
         {
             if (generation != _browserUiGeneration) return;
+            _browserGrid.ApplyPreviewFailure(assetId, record.ThumbnailState == PreviewComponentState.Failed
+                ? record.ThumbnailFailureReason : null);
             if (record.ThumbnailState == PreviewComponentState.Current && record.ThumbnailRelativePath is { } relative)
             {
                 try

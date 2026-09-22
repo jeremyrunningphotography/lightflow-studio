@@ -11,6 +11,36 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-thumbnails-").FullName;
 
     [Fact]
+    public async Task ClassifiedFailure_PersistsSanitizedReasonAndLogsDiagnosticsThenRetryClearsIt()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, "broken.mov"), "source");
+        var id = await fixture.AddAssetAsync("broken.mov", "video");
+        using (var service = fixture.Service(new FailedRenderer()))
+        {
+            var result = await service.GenerateAsync(new(id));
+            Assert.Equal(PreviewFailureReason.CodecUnavailable, result.FailureReason);
+            var record = (await fixture.Coordinator.Previews!.GetAsync(id))!;
+            Assert.Equal(result.FailureReason, record.ThumbnailFailureReason);
+            Assert.Equal(PreviewComponentState.Failed, record.ThumbnailState);
+            Assert.DoesNotContain("technical", PreviewFailure.Message(record.ThumbnailFailureReason));
+            Assert.Contains("technical decoder details", await File.ReadAllTextAsync(fixture.Coordinator.Locations.ActivityLogPath));
+        }
+        using var retry = fixture.Service(new FakeRenderer());
+        Assert.True((await retry.GenerateAsync(new(id, ForceRefresh: true))).Succeeded);
+        Assert.Equal(PreviewComponentState.Current, (await fixture.Coordinator.Previews!.GetAsync(id))!.ThumbnailState);
+        Assert.Equal(PreviewFailureReason.Unknown, (await fixture.Coordinator.Previews.GetAsync(id))!.ThumbnailFailureReason);
+    }
+
+    private sealed class FailedRenderer : IThumbnailRenderer
+    {
+        public Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan videoPosition,
+            string destinationPath, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ThumbnailRenderResult(ThumbnailGenerationStatus.InvalidOutput,
+                "technical decoder details\ncommand line and source path", PreviewFailureReason.CodecUnavailable));
+    }
+
+    [Fact]
     public async Task MultiAssetRegeneration_PublishesEachCompletedPreviewBeforeBatchCompletion()
     {
         var first = Guid.NewGuid(); var second = Guid.NewGuid();

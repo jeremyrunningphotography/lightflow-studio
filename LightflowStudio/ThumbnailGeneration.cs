@@ -25,12 +25,14 @@ internal sealed record ThumbnailRequest(Guid AssetId, bool ForceRefresh = false,
     ThumbnailPriority Priority = ThumbnailPriority.Normal);
 
 internal sealed record ThumbnailGenerationResult(ThumbnailGenerationStatus Status,
-    string? ThumbnailPath = null, string? Diagnostic = null)
+    string? ThumbnailPath = null, string? Diagnostic = null,
+    PreviewFailureReason FailureReason = PreviewFailureReason.Unknown)
 {
     public bool Succeeded => Status is ThumbnailGenerationStatus.Succeeded or ThumbnailGenerationStatus.Current;
 }
 
-internal sealed record ThumbnailRenderResult(ThumbnailGenerationStatus Status, string? Diagnostic = null);
+internal sealed record ThumbnailRenderResult(ThumbnailGenerationStatus Status, string? Diagnostic = null,
+    PreviewFailureReason FailureReason = PreviewFailureReason.Unknown);
 internal sealed record ThumbnailColorRender(string VisualIdentity, IReadOnlyList<string> OrderedLutPaths)
 {
     public static ThumbnailColorRender Original { get; } = new(PreviewVisualIdentity.Original, []);
@@ -287,10 +289,13 @@ internal sealed class FfmpegVideoThumbnailRenderer(string? executable, IProbePro
             return result.ExitCode == 0
                 ? new(ThumbnailGenerationStatus.Succeeded)
                 : new(ThumbnailGenerationStatus.InvalidOutput,
-                    result.StandardError.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim()
-                        ?? "FFmpeg could not decode a representative video frame.");
+                    result.StandardError, PreviewFailure.ClassifyDecoder(result.StandardError));
         }
         catch (OperationCanceledException) { throw; }
+        catch (TimeoutException exception)
+        {
+            return new(ThumbnailGenerationStatus.Failed, exception.Message, PreviewFailureReason.TimedOut);
+        }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException
             or System.ComponentModel.Win32Exception)
         {
@@ -346,6 +351,15 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
     public async Task<ThumbnailGenerationResult> GenerateAsync(ThumbnailRequest request,
         CancellationToken cancellationToken = default)
     {
+        var result = await GenerateCoreAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!result.Succeeded && result.Diagnostic is { Length: > 0 } diagnostic)
+            new ActivityLogFile(_locations.ActivityLogPath).TryAppend($"Preview {request.AssetId}: {diagnostic}");
+        return result;
+    }
+
+    private async Task<ThumbnailGenerationResult> GenerateCoreAsync(ThumbnailRequest request,
+        CancellationToken cancellationToken)
+    {
         using var operationLease = _operations is null ? null :
             await _operations.EnterOperationAsync(cancellationToken).ConfigureAwait(false);
         // Freshness and Color are intentionally resolved after this wait. A queued ensure-current request may
@@ -398,14 +412,16 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
                 temporaryPath, color, cancellationToken).ConfigureAwait(false);
             if (rendered.Status != ThumbnailGenerationStatus.Succeeded)
             {
-                await RecordFailureAsync(request.AssetId, preview, visualIdentity, cancellationToken).ConfigureAwait(false);
-                return new(rendered.Status, ResolveExisting(preview.ThumbnailRelativePath), rendered.Diagnostic);
+                await RecordFailureAsync(request.AssetId, preview, visualIdentity, cancellationToken, rendered.FailureReason).ConfigureAwait(false);
+                return new(rendered.Status, ResolveExisting(preview.ThumbnailRelativePath), rendered.Diagnostic, rendered.FailureReason);
             }
             if (!IsValidThumbnail(temporaryPath))
             {
-                await RecordFailureAsync(request.AssetId, preview, visualIdentity, cancellationToken).ConfigureAwait(false);
+                await RecordFailureAsync(request.AssetId, preview, visualIdentity, cancellationToken,
+                    asset.MediaType == "video" ? PreviewFailureReason.NoVideoFrame : PreviewFailureReason.Unknown).ConfigureAwait(false);
                 return new(ThumbnailGenerationStatus.InvalidOutput, ResolveExisting(preview.ThumbnailRelativePath),
-                    "The generated Preview was not a valid image.");
+                    "The generated Preview was not a valid image.",
+                    asset.MediaType == "video" ? PreviewFailureReason.NoVideoFrame : PreviewFailureReason.Unknown);
             }
 
             var verified = await _assets.ObserveAsync(request.AssetId, cancellationToken).ConfigureAwait(false);
@@ -467,9 +483,11 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
         return TimeSpan.FromSeconds(seconds);
     }
 
-    private async Task RecordFailureAsync(Guid assetId, PreviewRecord preview, string? visualIdentity, CancellationToken cancellationToken) =>
+    private async Task RecordFailureAsync(Guid assetId, PreviewRecord preview, string? visualIdentity, CancellationToken cancellationToken,
+        PreviewFailureReason failureReason = PreviewFailureReason.Unknown) =>
         await _previews.SetArtifactAsync(assetId, PreviewArtifactKind.Thumbnail,
-            new(CurrentGeneratorVersion, PreviewComponentState.Failed, preview.ThumbnailRelativePath, VisualIdentity: visualIdentity), cancellationToken)
+            new(CurrentGeneratorVersion, PreviewComponentState.Failed, preview.ThumbnailRelativePath, VisualIdentity: visualIdentity,
+                FailureReason: failureReason), cancellationToken)
             .ConfigureAwait(false);
 
     private Task<ThumbnailColorRender> ResolveColorAsync(Guid assetId, CancellationToken cancellationToken) =>

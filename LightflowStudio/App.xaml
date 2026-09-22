@@ -454,6 +454,12 @@
      <ControlTemplate TargetType="ScrollBar">
       <Grid x:Name="ScrollRoot" Background="{TemplateBinding Background}" Width="12">
        <Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True">
+        <Track.Resources>
+         <!-- Track uses half these metrics as its minimum thumb length and includes
+              that length in drag mapping. 28 DIPs leaves 24 DIPs of visible chrome. -->
+         <sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarButtonHeightKey}">56</sys:Double>
+         <sys:Double x:Key="{x:Static SystemParameters.HorizontalScrollBarButtonWidthKey}">56</sys:Double>
+        </Track.Resources>
         <Track.DecreaseRepeatButton><RepeatButton x:Name="DecreaseButton" Style="{StaticResource ScrollPageButton}" Command="{x:Static ScrollBar.PageUpCommand}"/></Track.DecreaseRepeatButton>
         <Track.Thumb><Thumb Style="{StaticResource ScrollThumb}"/></Track.Thumb>
         <Track.IncreaseRepeatButton><RepeatButton x:Name="IncreaseButton" Style="{StaticResource ScrollPageButton}" Command="{x:Static ScrollBar.PageDownCommand}"/></Track.IncreaseRepeatButton>
@@ -555,6 +561,13 @@
       </Grid>
       <ControlTemplate.Triggers>
        <Trigger Property="HasItems" Value="False"><Setter TargetName="Expander" Property="Visibility" Value="Hidden"/></Trigger>
+       <Trigger Property="local:TreeDropPresentation.IsValid" Value="True">
+        <Setter TargetName="HeaderChrome" Property="Background" Value="#33F97316"/>
+        <Setter TargetName="HeaderChrome" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/>
+       </Trigger>
+       <Trigger Property="local:TreeDropPresentation.IsInvalid" Value="True">
+        <Setter TargetName="HeaderChrome" Property="Background" Value="#55B44A4A"/>
+       </Trigger>
        <Trigger Property="IsExpanded" Value="False"><Setter TargetName="ItemsHost" Property="Visibility" Value="Collapsed"/></Trigger>
        <Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Trigger>
        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>

@@ -905,9 +905,10 @@ public class UiLayoutTests
             menu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")));
         Assert.Equal("BrowserFolderTree_MouseMove", (string?)tree.Attribute("MouseMove"));
         Assert.Equal("BrowserFolderTree_DragLeave", (string?)tree.Attribute("DragLeave"));
-        var triggers = tree.Descendants(ns + "DataTrigger").ToArray();
-        Assert.Contains(triggers, trigger => ((string?)trigger.Attribute("Binding"))?.Contains("IsFileDropTarget") == true);
-        Assert.Contains(triggers, trigger => ((string?)trigger.Attribute("Binding"))?.Contains("IsInvalidFileDropTarget") == true);
+        var shared = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
+        var triggers = Named(shared, "HeaderChrome").Ancestors(ns + "ControlTemplate").Single().Descendants(ns + "Trigger").ToArray();
+        Assert.Contains(triggers, trigger => ((string?)trigger.Attribute("Property"))?.Contains("TreeDropPresentation.IsValid") == true);
+        Assert.Contains(triggers, trigger => ((string?)trigger.Attribute("Property"))?.Contains("TreeDropPresentation.IsInvalid") == true);
         var backgroundMenu = tree.Document!.Descendants(ns + "ItemsControl").Single(item =>
             (string?)item.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "BrowserGridRows")
             .Element(ns + "ItemsControl.ContextMenu")!.Element(ns + "ContextMenu")!;

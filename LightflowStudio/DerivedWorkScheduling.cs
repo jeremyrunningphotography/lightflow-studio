@@ -10,7 +10,8 @@ internal sealed record DerivedWorkItemResult(
     DerivedWorkItemOutcome Outcome,
     DerivedWorkComponentOutcome Metadata,
     DerivedWorkComponentOutcome Thumbnail,
-    string? Diagnostic = null);
+    string? Diagnostic = null,
+    PreviewFailureReason ThumbnailFailureReason = PreviewFailureReason.Unknown);
 
 internal sealed record DerivedWorkProgress(
     Guid BatchId,
@@ -276,6 +277,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
 
         var metadata = DerivedWorkComponentOutcome.NotNeeded;
         var thumbnail = DerivedWorkComponentOutcome.NotNeeded;
+        var thumbnailFailure = PreviewFailureReason.Unknown;
         var diagnostics = new List<string>();
         if (needsMetadata)
         {
@@ -300,6 +302,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
                 var result = await _thumbnails.GenerateAsync(new(assetId, Priority: Map(priority)), cancellationToken)
                     .ConfigureAwait(false);
                 thumbnail = Map(result.Status);
+                thumbnailFailure = result.FailureReason;
                 if (!result.Succeeded && result.Status is not ThumbnailGenerationStatus.RootUnavailable and not ThumbnailGenerationStatus.SourceMissing)
                     diagnostics.Add(result.Diagnostic ?? $"Preview: {result.Status}");
             }
@@ -327,7 +330,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
             : generated ? DerivedWorkItemOutcome.Generated
             : DerivedWorkItemOutcome.Current;
         return new(assetId, outcome, metadata, thumbnail,
-            diagnostics.Count == 0 ? null : string.Join(" ", diagnostics));
+            diagnostics.Count == 0 ? null : string.Join(" ", diagnostics), thumbnailFailure);
     }
 
     private static ThumbnailPriority Map(DerivedWorkPriority priority) => priority switch

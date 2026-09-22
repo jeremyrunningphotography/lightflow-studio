@@ -13,7 +13,7 @@ Use the task-owned package and an isolated profile:
   with the arrow keys and Tab through controls; focus should remain visible.
 - Resize between the 1120 × 720 minimum and a wide/maximized window. Cards should stack
   in one column at every width, beside the category rail. The combined group is centered,
-  with the heading and footer aligned to the cards and no Categories label or horizontal clipping.
+  with the header and footer spanning both columns and no Categories label or horizontal clipping.
   Check the same behavior at the display's normal DPI. The footer remains reachable
   while Storage or Advanced scrolls.
 - General: choose a capture folder and save. Take a Player screengrab and verify its

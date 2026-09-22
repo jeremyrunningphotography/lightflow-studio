@@ -526,6 +526,8 @@ public sealed class JobsPresentationTests
         Assert.Contains("IsQueuePaused", MethodBody(MainWindowSource(), "internal void JobsQueueGate_Click"));
         Assert.NotEqual(JobsRadialProgress.StateColor("Exporting"), JobsRadialProgress.StateColor("Waiting"));
         Assert.True(JobsRadialProgress.IsDeterminateProgress("Sending", 50));
+        Assert.True(JobsRadialProgress.IsDeterminateProgress("Generating", 18));
+        Assert.Equal(JobsRadialProgress.StateColor("Exporting"), JobsRadialProgress.StateColor("Generating"));
         Assert.False(JobsRadialProgress.IsDeterminateProgress("Sending", 0));
         Assert.False(JobsRadialProgress.IsDeterminateProgress("Completed", 100));
     }

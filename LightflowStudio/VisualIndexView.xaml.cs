@@ -13,6 +13,9 @@ public partial class VisualIndexView : System.Windows.Controls.UserControl
     public double FrameHeight { get => (double)GetValue(FrameHeightProperty); private set => SetValue(FrameHeightProperty, value); }
     internal event EventHandler? DensityChanged;
     internal Func<VisualIndexCard, Task>? Seek;
+    internal Func<Task>? Regenerate;
+    private VisualIndexModel? _model;
+    private bool _regenerating;
     internal int Count => Density.SelectedItem is int count ? count : 24;
     public VisualIndexView()
     {
@@ -22,13 +25,23 @@ public partial class VisualIndexView : System.Windows.Controls.UserControl
     }
     internal void Initialize(VisualIndexModel model, int count)
     {
+        _model = model;
         Density.SelectedItem = VisualIndexSampling.NormalizeCount(count);
         model.ProgressChanged += (_, _) => GenerationStatus.Text = model.Status;
         model.Changed += (_, _) =>
         {
             Frames.ItemsSource = model.Cards;
             EmptyState.Visibility = model.Cards.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            RegenerateButton.IsEnabled = !_regenerating && model.Cards.Count > 0;
         };
+    }
+    private async void Regenerate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_regenerating || Regenerate is null) return;
+        _regenerating = true; RegenerateButton.IsEnabled = false;
+        try { await Regenerate(); }
+        catch { GenerationStatus.Text = "Visual Index could not be regenerated. Try again."; }
+        finally { _regenerating = false; RegenerateButton.IsEnabled = _model?.Cards.Count > 0; }
     }
     private void Density_SelectionChanged(object sender, SelectionChangedEventArgs e) => DensityChanged?.Invoke(this, EventArgs.Empty);
     private async void Frame_Click(object sender, RoutedEventArgs e)

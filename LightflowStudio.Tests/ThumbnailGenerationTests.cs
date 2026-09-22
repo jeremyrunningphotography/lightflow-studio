@@ -164,6 +164,65 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task VisualIndexFractionalCadence_AllDensitiesExtractIncludingFinalFrameWithAudioPadding()
+    {
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries()!;
+        var executable = Path.Combine(dependencies, "ffmpeg.exe");
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        var source = Path.Combine(fixture.MediaRoot, "fractional.mp4");
+        Run(executable, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+            "testsrc2=size=160x90:rate=60000/1001", "-frames:v", "120", "-c:v", "mpeg4", "-bf", "2", "-pix_fmt", "yuv420p", source);
+        var id = await fixture.AddAssetAsync("fractional.mp4", "video");
+        using var frames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            new CompositeThumbnailRenderer(new WicImageThumbnailRenderer(), new FfmpegVideoThumbnailRenderer(executable, new ProbeProcessRunner())));
+        var context = await frames.PrepareContextAsync(id, default);
+        // DJI container/audio duration is slightly longer than the video stream.
+        foreach (var position in VisualIndexSampling.PlanAll(TimeSpan.FromSeconds(2.0125), 60000d / 1001))
+            Assert.NotNull(await frames.GetAsync(context, position, ThumbnailPriority.Visible, default));
+    }
+
+    [Fact]
+    public async Task VisualIndexRegenerate_RetiresEveryDensityAndColorVariantAndRejectsOldInflightWork()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, "clip.mp4"), "source");
+        var id = await fixture.AddAssetAsync("clip.mp4", "video");
+        var original = new AssetColorIntent(id, null, null, PreviewVisualIdentity.Original);
+        var colors = new MutableColorStore(original);
+        var lut = Guid.NewGuid();
+        var luts = new FakeLutCache(new Dictionary<Guid, string> { [lut] = "creative.cube" });
+        var colored = new AssetColorIntent(id, null, new(lut, "Creative", "cc", LutResourceAvailability.Available), "creative");
+        using var frames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            new ColorAwareRenderer(), colors: colors, luts: luts);
+        var positions = VisualIndexSampling.PlanAll(TimeSpan.FromSeconds(60), 25);
+        var before = await frames.PrepareContextAsync(id, default);
+        foreach (var p in positions) Assert.NotNull(await frames.GetAsync(before, p, ThumbnailPriority.Background, default));
+        colors.Intent = colored;
+        var beforeColor = await frames.PrepareContextAsync(id, default);
+        var oldColorPath = await frames.GetAsync(beforeColor, positions[0], ThumbnailPriority.Visible, default);
+
+        var renderer = new BlockingColorRenderer();
+        using var staleFrames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            renderer, colors: colors, luts: luts);
+        var inFlight = staleFrames.GetAsync(beforeColor, TimeSpan.FromTicks(1), ThumbnailPriority.Background, default);
+        await renderer.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await frames.InvalidateAsync(id, default);
+        renderer.Release.TrySetResult();
+        Assert.Null(await inFlight);
+        Assert.False(await frames.IsCurrentAsync(beforeColor, default));
+        var afterColor = await frames.PrepareContextAsync(id, default);
+        Assert.Null(await frames.FindCachedAsync(afterColor, positions[0], default));
+        var newColorPath = await frames.GetAsync(afterColor, positions[0], ThumbnailPriority.Visible, default);
+        Assert.NotEqual(oldColorPath, newColorPath);
+        colors.Intent = original;
+        var after = await frames.PrepareContextAsync(id, default);
+        foreach (var p in positions) Assert.Null(await frames.FindCachedAsync(after, p, default));
+        // Reset survives service recreation; ordinary LUT switching still reuses the new variant.
+        colors.Intent = colored;
+        Assert.Equal(newColorPath, await staleFrames.FindCachedAsync(await staleFrames.PrepareContextAsync(id, default), positions[0], default));
+    }
+
+    [Fact]
     public async Task PreferredFrame_UsesExactDecodedTimestampAndColorAwareIdentity()
     {
         await using var fixture = await ThumbnailFixture.CreateAsync(_root);

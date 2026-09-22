@@ -109,6 +109,9 @@ public sealed class VisualIndexDemandTests
         var failed = jobs.Jobs.Single(j => j.Options.AssetId == bad);
         Assert.Equal(JobState.Completed, successful.State);
         Assert.Equal(JobState.Failed, failed.State);
+        Assert.Contains("Preparing 12, 24, and 48 frame indexes", failed.Detail);
+        Assert.DoesNotContain("assigned Color", failed.Detail);
+        Assert.DoesNotContain(failed.Issue, failed.Detail);
         Assert.True(failed.Card(false).CanRetry); Assert.True(failed.WorkspaceItem().CanRetry);
         Assert.DoesNotContain("decoder secret", failed.Detail);
         Assert.Equal(100, successful.Runtime.Progress.OverallPercent);
@@ -141,7 +144,7 @@ public sealed class VisualIndexDemandTests
         jobs.Cancel(jobs.Jobs.Single(j => j.Options.AssetId == blocked).JobId);
         await WaitUntilAsync(jobs, () => jobs.Jobs.All(j => JobsPresentation.IsTerminal(j.State)));
         Assert.Equal(JobState.Cancelled, jobs.Jobs.Single(j => j.Options.AssetId == blocked).State);
-        Assert.Contains("Color changed", jobs.Jobs.Single(j => j.Options.AssetId == good).Issue);
+        Assert.Contains("color changed", jobs.Jobs.Single(j => j.Options.AssetId == good).Issue);
     }
 
     private static DerivedMetadataResult Metadata() => new(DerivedMetadataStatus.Current,

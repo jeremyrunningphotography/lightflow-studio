@@ -8,8 +8,8 @@ internal sealed record VisualIndexJob(VisualIndexJobOptions Options, JobRuntimeS
     internal JobState State => Runtime.State;
     internal bool CanRetry => State is JobState.Failed or JobState.Cancelled or JobState.CompletedWithWarnings;
     internal string Issue => Runtime.Errors.FirstOrDefault() ?? "";
-    internal string Detail => $"Visual Index · {Options.Name}\nPrepares 12, 24 and 48 frames with assigned Color.\n" +
-        (Runtime.Items.FirstOrDefault()?.Data is { } result ? $"{result.Frames} unique frames; {result.Failed} unavailable.\n" : "") + Issue;
+    internal string Detail => $"Visual Index · {Options.Name}\nPreparing 12, 24, and 48 frame indexes\n" +
+        (Runtime.Items.FirstOrDefault()?.Data is { } result ? $"{result.Frames} unique frames; {result.Failed} unavailable." : "");
     internal string StateText => State == JobState.Running ? "Generating" : JobsPresentation.StateText(State);
     internal JobCardPresentation Card(bool expanded) => new(JobId, $"Visual Index · {Options.Name}",
         JobsPresentation.Glyph(State), StateText, Runtime.Progress.OverallPercent ?? 0, State == JobState.Running,
@@ -84,13 +84,13 @@ internal sealed class VisualIndexJobs(IPositionFrameService frames,
                 progress.Report(++completed * 100d / positions.Count);
             }
             if (!await frames.IsCurrentAsync(context, token).ConfigureAwait(false))
-                return Failed("The source or Color changed during preparation. Retry to prepare its current presentation.");
+                return Failed("The source or color changed during preparation. Retry to prepare its current presentation.");
             return new(itemId, failed == 0 ? JobState.Completed : JobState.Failed, [], [],
-                failed == 0 ? [] : [$"{failed} Visual Index frames are unavailable. Check the source and Color resources, then retry."],
+                failed == 0 ? [] : [$"{failed} Visual Index {(failed == 1 ? "frame is" : "frames are")} unavailable. Check the source and color resources, then retry."],
                 new(positions.Count, failed));
         }
         catch (OperationCanceledException) { throw; }
-        catch { return Failed("Visual Index could not be prepared. Check the source and Color resources, then retry."); }
+        catch { return Failed("Visual Index could not be prepared. Check the source and color resources, then retry."); }
         JobItemResult<VisualIndexJobResult> Failed(string message) => new(itemId, JobState.Failed, [], [], [message]);
     }
     public ValueTask DisposeAsync() => _runtime.DisposeAsync();

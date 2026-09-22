@@ -38,4 +38,11 @@ public partial class MainWindow
     {
         if (!_visualIndexJobs.Retry(id)) _exportScheduler.RetryNeedsAttention(id);
     }
+    private async Task RegenerateVisualIndexAsync(Guid id, string name)
+    {
+        foreach (var job in _visualIndexJobs.Jobs.Where(job => job.Options.AssetId == id && !JobsPresentation.IsTerminal(job.State)))
+            _visualIndexJobs.Cancel(job.JobId);
+        await Task.Run(() => _visualIndexFrames.InvalidateAsync(id, CancellationToken.None));
+        _visualIndexJobs.Queue(new(VisualIndexJobs.Capability, [id]), _ => name);
+    }
 }

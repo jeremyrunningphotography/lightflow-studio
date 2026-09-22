@@ -23,8 +23,27 @@ public sealed class VisualIndexSamplingTests
         Assert.Equal(plan.Order(), plan);
         Assert.All(plan, p => Assert.InRange(p.Ticks, 0, duration.Ticks - 1));
         var step = (long)Math.Ceiling(TimeSpan.TicksPerSecond / rate);
-        Assert.True(duration.Ticks - plan[^1].Ticks <= 2 * step);
-        Assert.All(plan, p => Assert.Equal(0, p.Ticks % step));
+        Assert.True(duration.Ticks - plan[^1].Ticks <= 2 * step + 10);
+        Assert.All(plan, p =>
+        {
+            Assert.Equal(0, p.Ticks % 10); // FFmpeg's microsecond seek precision.
+            var exactFrame = Math.Round(p.TotalSeconds * rate) / rate;
+            Assert.InRange(exactFrame - p.TotalSeconds, -0.0000001, 0.0000011);
+        });
+    }
+    [Theory]
+    [InlineData(43.370667, 2599)]
+    [InlineData(46.890667, 2810)]
+    [InlineData(2.0125, 120)]
+    public void FractionalCadenceDoesNotAccumulateRoundingBeyondLastFrame(double containerSeconds, int frames)
+    {
+        const double rate = 60000d / 1001;
+        var lastTimestamp = (frames - 1) / rate;
+        foreach (var count in VisualIndexSampling.Counts)
+        {
+            var last = VisualIndexSampling.Plan(TimeSpan.FromSeconds(containerSeconds), rate, count)[^1];
+            Assert.InRange(lastTimestamp - last.TotalSeconds, 0, 0.0000011);
+        }
     }
     [Fact]
     public void UnknownDurationAndInvalidCountAreSafeAndChangingDurationReplans()
@@ -277,6 +296,45 @@ public sealed class VisualIndexProjectionTests
 
 public sealed partial class PlayerViewerHostLeaseTests
 {
+    [Fact]
+    public async Task VisualIndexSeekReturnsSpaceToPlayerAndRegenerateRetiresCurrentCards()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var backend = new FakeBackend();
+            await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
+            var host = new PlayerViewerHost(coordinator, new FakeRangeStore(null));
+            host.InitializeVisualIndex(new VisualIndexProjectionTests.EmptyFrames(), () => null, 24);
+            var outside = new System.Windows.Controls.Button { Content = "Index focus" };
+            var layout = new System.Windows.Controls.StackPanel(); layout.Children.Add(host); layout.Children.Add(outside);
+            var window = new Window { Content = layout, Width = 640, Height = 480, Left = -32000, ShowInTaskbar = false };
+            window.Show();
+            try
+            {
+                var asset = ReviewAsset("index.mp4"); await host.OpenAsync(asset, ReviewPath(asset));
+                outside.Focus();
+                var card = host.VisualIndexContent.Frames.Items.Cast<VisualIndexCard>().ElementAt(7);
+                await host.SeekVisualIndexAsync(card);
+                Assert.Same(host, System.Windows.Input.FocusManager.GetFocusedElement(window));
+                Assert.Equal(card.Position, backend.SeekPositions[^1]);
+                host.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
+                    PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Space)
+                    { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent });
+                await WaitUntilAsync(() => backend.PlayCallCount == 1, "Space to play after Visual Index seek");
+                Guid? regenerated = null;
+                host.RegenerateVisualIndexRequested = (id, _) => { regenerated = id; return Task.CompletedTask; };
+                host.VisualIndexContent.RegenerateButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                await WaitUntilAsync(() => regenerated == asset.AssetId, "Visual Index regenerate action");
+                Assert.DoesNotContain(card, host.VisualIndexContent.Frames.Items.Cast<VisualIndexCard>());
+                var seeks = backend.SeekPositions.Count;
+                await host.SeekVisualIndexAsync(card);
+                Assert.Equal(seeks, backend.SeekPositions.Count);
+            }
+            finally { await host.CloseAsync(); window.Content = null; window.Close(); }
+        });
+    }
+
     [Fact]
     public async Task VisualIndexSeeksExactPositionThroughExistingPlayerAndRejectsOldCard()
     {

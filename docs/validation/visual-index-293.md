@@ -20,17 +20,23 @@ Hands-on checklist (all with the packaged executable and task-owned acceptance-d
 3. Confirm Camera-only, Creative-only and both assigned stages affect frames. Change/remove Color with VI visible;
    old colored frames must disappear and the current presentation must replace them. No Original color label.
 4. Watch `Generating x of y…`, including cached hits. Completion removes it; a missing source/LUT must end in a
-   sanitized unavailable state. Reopen to retry after repairing the source/resource.
+   sanitized unavailable state. Use the regenerate icon beside Frames to retry after repairing the source/resource.
 5. After a preparation Job completes, switch among 12/24/48: all sets should be cached. Rapidly navigate videos
    and densities while generating; no stale frames, extra tab clicks or scrolling jumps.
-6. Seek with pointer and keyboard; the existing Player/review context stays intact. Check short/long clips,
+6. Seek with pointer and keyboard, then press Space without clicking Player; the existing Player/review context stays intact. Check short/long clips,
    narrow/default/wide panels and portrait sources. The nearest Current indication follows playback.
 7. Verify lazy behavior with VI hidden and on startup. Clear Previews and reopen VI to rebuild. Retained offline
    frames remain useful. Return to Browser: Inspector and Jobs remain available with current Job results.
 
 Current main (8f9816c, merged #287) is reconciled locally. Check Rotate Left/Right with VI visible: display should
 update immediately, including portrait geometry, while Color remains applied and cached densities remain reusable.
-The separate polish issues remain outside this iteration.
+The accepted Browser polish changes from main are included in the next local package.
 
 Local iteration only: commit and package locally, then wait for Jeremy's hands-on feedback. The existing draft PR
 is a remote checkpoint and must not be pushed/updated again until explicitly authorized. #293 remains open.
+The Frames regenerate icon invalidates the current video's complete Visual Index generation across all densities
+and color variants, then queues all three sets. Persistent generation identities reject stale in-flight results
+without deleting pixels shared with markers. Ordinary LUT switching continues to reuse matching cached frames.
+Fractional-rate sampling calculates each timestamp independently and truncates to FFmpeg microsecond precision.
+Regression coverage includes final-frame extraction, generation invalidation, Space focus, and Generating job arcs.
+

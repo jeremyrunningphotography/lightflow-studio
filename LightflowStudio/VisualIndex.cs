@@ -17,11 +17,15 @@ internal static class VisualIndexSampling
         if (duration is null || duration <= TimeSpan.Zero) return [];
         count = NormalizeCount(count);
         var cadence = double.IsFinite(frameRate) && frameRate > 0 ? frameRate : 25;
-        var step = Math.Max(1L, (long)Math.Min(long.MaxValue, Math.Ceiling(TimeSpan.TicksPerSecond / cadence)));
-        var lastSlot = Math.Max(0, duration.Value.Ticks / step - 1);
+        // Do not round each interval up: at 60000/1001 fps the accumulated drift
+        // puts the final seek AFTER the last frame. FFmpeg seeks use microseconds.
+        var step = (decimal)Math.Clamp(TimeSpan.TicksPerSecond / cadence, 1, long.MaxValue);
+        var frameCount = duration.Value.Ticks * (decimal)Math.Min(cadence, TimeSpan.TicksPerSecond) / TimeSpan.TicksPerSecond;
+        var wholeFrames = Math.Abs(frameCount - Math.Round(frameCount)) < 0.0000001m ? Math.Round(frameCount) : Math.Floor(frameCount);
+        var lastSlot = Math.Max(0L, (long)wholeFrames - 1);
         var actual = (int)Math.Min(count, lastSlot + 1);
         return Enumerable.Range(0, actual).Select(i => TimeSpan.FromTicks(actual == 1 ? 0 :
-            (long)((decimal)lastSlot * i / (actual - 1)) * step)).ToArray();
+            (long)(Math.Floor((decimal)lastSlot * i / (actual - 1)) * step / 10) * 10)).Distinct().ToArray();
     }
     internal static int Columns(double width) => double.IsFinite(width) ? Math.Clamp((int)(width / 144), 1, 3) : 1;
 }
@@ -68,7 +72,7 @@ internal sealed class VisualIndexModel(IPositionFrameService frames) : IDisposab
     private long _revision;
     private bool _generating;
     internal string Status => _generating ? $"Generating {Cards.Count(card => card.Frame is not null)} of {Cards.Count}…"
-        : Cards.Any(card => card.Finished && card.Frame is null) ? "Some frames are unavailable. Reopen Visual Index to retry." : "";
+        : Cards.Any(card => card.Finished && card.Frame is null) ? "Some frames are unavailable. Regenerate Visual Index to retry." : "";
     internal event EventHandler? ProgressChanged;
     internal int Count { get; private set; } = 24;
     internal IReadOnlyList<VisualIndexCard> Cards { get; private set; } = [];

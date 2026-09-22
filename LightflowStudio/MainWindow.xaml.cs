@@ -2002,6 +2002,7 @@ public partial class MainWindow : Window
             rotations: _storage.VideoRotations);
         _playerViewerHost.InitializeVisualIndex(_visualIndexFrames, () => _storage.Previews,
             _workspaceState.Current.Layout?.VisualIndexCount ?? 24);
+        _playerViewerHost.RegenerateVisualIndexRequested = RegenerateVisualIndexAsync;
         _playerViewerHost.VisualIndexDensityChanged += (_, _) =>
         {
             _workspaceState.SetVisualIndexCount(_playerViewerHost.VisualIndexCount);

@@ -279,7 +279,7 @@ public sealed class JobsPresentationTests
         var button = Named(document, "JobsCancelAllButton");
         var header = combo.Parent!;
 
-        Assert.Contains(header.Elements(), element => (string?)element.Attribute("Text") == "Active exports");
+        Assert.Contains(header.Elements(), element => (string?)element.Attribute("Text") == "Active jobs");
         Assert.DoesNotContain(header.Descendants(), element => (string?)element.Attribute("Text") == "Maximum simultaneous exports");
         Assert.Equal("1", (string?)combo.Attribute("Grid.Column"));
         Assert.Equal("WrapPanel", button.Parent!.Name.LocalName);
@@ -521,7 +521,7 @@ public sealed class JobsPresentationTests
             var button = Named(document, name);
             Assert.Equal("Pause Queue", (string?)button.Attribute("Content"));
             Assert.Equal("JobsQueueGate_Click", (string?)button.Attribute("Click"));
-            Assert.Contains("running exports continue", (string?)button.Attribute("ToolTip"), StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("running jobs continue", (string?)button.Attribute("ToolTip"), StringComparison.OrdinalIgnoreCase);
             Assert.Equal("Pause Queue", (string?)button.Attribute("AutomationProperties.Name"));
         }
         Assert.Contains("IsQueuePaused", MethodBody(MainWindowSource(), "internal void JobsQueueGate_Click"));

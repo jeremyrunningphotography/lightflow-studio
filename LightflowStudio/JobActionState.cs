@@ -20,6 +20,7 @@ internal enum JobRemovalKind { Session, ExportHistory, FileOperationHistory, Ret
 
 internal sealed record JobsQueueActionState(bool IsPaused, bool CanToggle)
 {
+    public static JobsQueueActionState For(bool paused, bool hasWork) => new(paused, paused || hasWork);
     public static JobsQueueActionState For(bool paused, IEnumerable<ExportJobSnapshot> jobs) =>
         new(paused, paused || jobs.Any(job => job.State is JobState.Queued or JobState.Running));
 }

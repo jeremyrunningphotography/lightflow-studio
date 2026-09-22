@@ -103,7 +103,7 @@ internal sealed class ExportQueueStore(string path) : IExportQueueStore
     private sealed record QueueDocument(int Version, IReadOnlyList<ExportJobCheckpoint> Jobs);
 }
 
-/// <summary>One application-wide reservation, queue-order, concurrency, lifecycle, and recovery boundary.</summary>
+/// <summary>Export reservation, ordering, lifecycle and recovery; shared admission supplies execution slots.</summary>
 internal sealed class GlobalExportScheduler : IAsyncDisposable
 {
     private const int ProgressCheckpointStep = 5;
@@ -118,7 +118,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
     private readonly Action<int>? _persistMaximum;
     private readonly Action<bool>? _persistQueuePaused;
     private long _nextOrder;
-    private int _maximum;
+    public JobsAdmission Admission { get; }
     private bool _isQueuePaused;
     private bool _disposed;
     private bool _shuttingDown;
@@ -131,7 +131,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
         bool isQueuePaused = false,
         Action<bool>? persistQueuePaused = null)
     {
-        _maximum = EncodingJobConcurrency.Validate(maximum);
+        Admission = new(maximum, isQueuePaused);
         _executorFactory = executorFactory ?? throw new ArgumentNullException(nameof(executorFactory));
         _store = store;
         _revalidateRecovered = revalidateRecovered;
@@ -148,10 +148,11 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
 
     public int MaxSimultaneousExports
     {
-        get { lock (_sync) return _maximum; }
+        get => Admission.Maximum;
         set
         {
-            lock (_sync) { ThrowIfDisposed(); _maximum = EncodingJobConcurrency.Validate(value); PersistLocked(); }
+            lock (_sync) { ThrowIfDisposed(); EncodingJobConcurrency.Validate(value); PersistLocked(); }
+            Admission.Maximum = value;
             _persistMaximum?.Invoke(value);
             PublishAndSchedule();
         }
@@ -172,6 +173,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
             if (_isQueuePaused) return false;
             _isQueuePaused = true;
         }
+        Admission.IsPaused = true;
         _persistQueuePaused?.Invoke(true);
         Changed?.Invoke(Jobs);
         return true;
@@ -185,6 +187,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
             if (!_isQueuePaused) return false;
             _isQueuePaused = false;
         }
+        Admission.IsPaused = false;
         _persistQueuePaused?.Invoke(false);
         PublishAndSchedule();
         return true;
@@ -279,6 +282,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
             }
             else
             {
+                Admission.Remove(jobId);
                 entry.State = JobState.Cancelled;
                 entry.CompletedAt = DateTimeOffset.Now;
                 ReleaseLocked(entry.Definition);
@@ -299,6 +303,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
             var index = ordered.FindIndex(job => job.Definition.JobId == jobId);
             var target = index + delta;
             if (index < 0 || target < 0 || target >= ordered.Count) return false;
+            Admission.Swap(ordered[index].Definition.JobId, ordered[target].Definition.JobId);
             (ordered[index].Definition, ordered[target].Definition) =
                 (ordered[index].Definition with { QueueOrder = ordered[target].Definition.QueueOrder },
                  ordered[target].Definition with { QueueOrder = ordered[index].Definition.QueueOrder });
@@ -316,6 +321,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
             if (_disposed) return;
             _shuttingDown = true;
             _disposed = true;
+            foreach (var entry in _jobs) Admission.Remove(entry.Definition.JobId);
             active = _active.Values.ToArray();
             PersistLocked();
             foreach (var execution in active) execution.Cancellation.Cancel();
@@ -331,6 +337,7 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
         {
             var entry = _jobs.FirstOrDefault(job => job.Definition.JobId == jobId);
             if (entry?.State != required) return false;
+            if (!Admission.Hold(jobId, next == JobState.Paused)) return false;
             entry.State = next;
             PersistLocked();
         }
@@ -341,40 +348,52 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
     private void PublishAndSchedule()
     {
         Changed?.Invoke(Jobs);
-        List<(Entry Entry, ActiveExecution Active)> starts = [];
         lock (_sync)
         {
-            if (_disposed || _isQueuePaused) return;
-            while (_active.Count < _maximum)
+            if (_disposed) return;
+            // Register atomically with adapter state, but dispatch outside its lock. A stale queued
+            // snapshot must never re-register an already cancelled Job behind a paused global gate.
+            foreach (var entry in _jobs.Where(job => job.State is JobState.Queued or JobState.Paused)
+                .OrderBy(job => job.Definition.QueueOrder))
+                Admission.Submit(entry.Definition.JobId, slot => StartAdmitted(entry, slot),
+                    entry.State == JobState.Paused, pump: false);
+        }
+        Admission.Pump();
+    }
+
+    private void StartAdmitted(Entry entry, IDisposable slot)
+    {
+        ActiveExecution? active = null;
+        lock (_sync)
+        {
+            if (!_disposed && entry.State == JobState.Queued)
             {
-                var entry = _jobs.Where(job => job.State == JobState.Queued)
-                    .OrderBy(job => job.Definition.QueueOrder).FirstOrDefault();
-                if (entry is null) break;
-                entry.State = JobState.Running;
-                entry.StartedAt ??= DateTimeOffset.Now;
-                entry.ActiveStartedAt = DateTimeOffset.Now;
-                var cancellation = new CancellationTokenSource();
-                ExportExecutorLease lease;
-                try { lease = _executorFactory(); }
+                try
+                {
+                    var lease = _executorFactory();
+                    entry.State = JobState.Running;
+                    entry.StartedAt ??= DateTimeOffset.Now;
+                    entry.ActiveStartedAt = DateTimeOffset.Now;
+                    active = new ActiveExecution(lease, new CancellationTokenSource(), slot);
+                    _active.Add(entry.Definition.JobId, active);
+                    // Assign the task before shutdown can snapshot active executions.
+                    active.Task = Task.Run(() => ExecuteAsync(entry, active));
+                }
                 catch (Exception exception)
                 {
                     entry.State = JobState.NeedsAttention;
                     entry.Errors.Add($"The Export executor is unavailable: {exception.Message}");
-                    continue;
                 }
-                var active = new ActiveExecution(lease, cancellation);
-                _active.Add(entry.Definition.JobId, active);
-                starts.Add((entry, active));
+                PersistLocked();
             }
-            if (starts.Count > 0) PersistLocked();
         }
-        foreach (var (entry, active) in starts)
-            active.Task = Task.Run(() => ExecuteAsync(entry, active));
-        if (starts.Count > 0) Changed?.Invoke(Jobs);
+        if (active is null) slot.Dispose();
+        Changed?.Invoke(Jobs);
     }
 
     private async Task ExecuteAsync(Entry entry, ActiveExecution active)
     {
+        using var slot = active.Slot;
         JobItemResult<EncodingItemResult> result;
         try
         {
@@ -508,8 +527,9 @@ internal sealed class GlobalExportScheduler : IAsyncDisposable
         public int LastProgressCheckpointBucket { get; set; } = -1;
     }
 
-    private sealed class ActiveExecution(ExportExecutorLease lease, CancellationTokenSource cancellation)
+    private sealed class ActiveExecution(ExportExecutorLease lease, CancellationTokenSource cancellation, IDisposable slot)
     {
+        public IDisposable Slot { get; } = slot;
         public ExportExecutorLease Lease { get; } = lease;
         public CancellationTokenSource Cancellation { get; } = cancellation;
         public Task Task { get; set; } = Task.CompletedTask;

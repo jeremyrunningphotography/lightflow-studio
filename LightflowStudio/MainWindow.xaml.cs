@@ -213,11 +213,12 @@ public partial class MainWindow : Window
             storage.BrowserLocations, storage.AssetCopies);
         _fileOperationJobs = new FileOperationJobs(_fileOperationExecutor,
             new FileOperationHistoryStore(storage.Locations.FileOperationHistoryPath), result =>
-                Dispatcher.InvokeAsync(() => SynchronizeFileSystemMutationsAsync(result.CompletedMutations)).Task.Unwrap());
+                Dispatcher.InvokeAsync(() => SynchronizeFileSystemMutationsAsync(result.CompletedMutations)).Task.Unwrap(), _exportScheduler.Admission);
         _fileOperationJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
         InitializeVisualIndexJobs();
         _exportCoordinator.Completed += _ => Dispatcher.BeginInvoke(RefreshHistory);
         _exportScheduler.Changed += ExportScheduler_Changed;
+        _exportScheduler.Admission.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
         _exportScheduler.SubmissionAccepted += _ => Dispatcher.BeginInvoke(() =>
         {
             OpenJobsPanel();
@@ -343,6 +344,7 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _exportScheduler.Admission.IsPaused = true;
             _premiereClosing = true;
             _premiereJobs?.CancelAll();
             _premiereBridge?.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -6773,8 +6775,8 @@ public partial class MainWindow : Window
         AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs workspace.");
         JobsStatusButton.ToolTip = "Open full Jobs workspace";
         _compactJobsView.MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
-        ApplyQueueGatePresentation(FullJobsQueueGateButton, JobsQueueActionState.For(queuePaused, jobs));
-        ApplyQueueGatePresentation(_compactJobsView.JobsQueueGateButton, JobsQueueActionState.For(queuePaused, jobs));
+        ApplyQueueGatePresentation(FullJobsQueueGateButton, JobsQueueActionState.For(queuePaused, _exportScheduler.Admission.HasWork));
+        ApplyQueueGatePresentation(_compactJobsView.JobsQueueGateButton, JobsQueueActionState.For(queuePaused, _exportScheduler.Admission.HasWork));
         var visibleJobs = JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds);
         var cards = visibleJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId), _durableHistoryRecords.Any(record => record.JobId == job.JobId)))
             .Concat(fileJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.Intent.OperationId))))
@@ -6817,7 +6819,7 @@ public partial class MainWindow : Window
     internal void JobsQueueGate_Click(object sender, RoutedEventArgs e)
     {
         if (_exportScheduler.IsQueuePaused) _exportScheduler.ResumeQueue();
-        else if (JobsQueueActionState.For(false, _exportScheduler.Jobs).CanToggle) _exportScheduler.PauseQueue();
+        else if (JobsQueueActionState.For(false, _exportScheduler.Admission.HasWork).CanToggle) _exportScheduler.PauseQueue();
     }
 
     private static void ApplyQueueGatePresentation(System.Windows.Controls.Button button, JobsQueueActionState state)
@@ -6826,11 +6828,11 @@ public partial class MainWindow : Window
         button.IsEnabled = state.CanToggle;
         button.Content = paused ? "Resume Queue" : "Pause Queue";
         button.Tag = paused ? "Paused" : "Running";
-        button.ToolTip = paused ? "Resume starting queued exports" : "Hold queued exports; running exports continue";
+        button.ToolTip = paused ? "Resume starting queued jobs" : "Hold queued jobs; running jobs continue";
         AutomationProperties.SetName(button, paused ? "Resume Queue, queue paused" : "Pause Queue");
         AutomationProperties.SetHelpText(button, paused
-            ? "Allow eligible Waiting Jobs to start up to Active exports."
-            : "Hold queued Jobs before they start. Running exports continue.");
+            ? "Allow eligible Waiting Jobs to start up to Active jobs."
+            : "Hold queued Jobs before they start. Running jobs continue.");
         button.FontWeight = paused ? FontWeights.SemiBold : FontWeights.Normal;
         button.Opacity = paused ? 1 : 0.9;
         if (paused)

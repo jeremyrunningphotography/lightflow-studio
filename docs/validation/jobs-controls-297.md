@@ -29,8 +29,8 @@ Hands-on checks:
 4. Failed Visual Index offers Retry and uses its original video even if Browser selection changed. Failed Export
    offers Review & Rerun when History exists. Filesystem/Premiere do not offer unsupported Retry. Waiting Export
    offers Pause; paused Export offers Resume; running Export offers Cancel without an unsupported process Pause.
-5. Idle queue: Pause Queue is disabled in both views. Running/queued Export: enabled. While queue-paused, running
-   exports finish and new/waiting exports remain held. Resume remains available even if the queue became empty.
+5. Idle queue: Pause Queue is disabled in both views. Running/queued Jobs: enabled. While queue-paused, running
+   jobs finish and new/waiting jobs of every capability remain held. Resume remains available even if the queue became empty.
 6. Check compact/full selection, hover and keyboard focus at narrow and wide panel widths: restrained row treatment,
    distinct status indicators, no layout shift or stock teal rectangle. All header controls remain usable.
 7. Complete Visual Index while full Jobs is hidden and Player is open. Return to full Jobs: state/actions are current.
@@ -54,3 +54,19 @@ No push, Draft PR, issue closure, or merge is authorized until Jeremy accepts th
 Additional automated coverage exercises chronological mixed-capability ordering across lifecycle changes, retained
 scheduler reorder, inline action visibility, single-card Clear, output hyperlink routing (using an injected shell
 launcher so tests never open Explorer), and the real no-LUT context-menu Review & Rerun regression.
+
+### Shared Active jobs acceptance revision
+
+Both surfaces now use one admission limit for Export, Visual Index, promoted filesystem operations, and Premiere.
+Set Active jobs to 1, start a long Export and submit Visual Index: it must show Waiting without elapsed execution
+time. Increase to 2: Visual Index can start alongside Export. Lower to 1: running jobs finish normally and no new
+Job starts until capacity is available. Pause Queue, enqueue mixed capabilities, and verify every new Job waits;
+cancel a waiting job and confirm no executor-side mutation. Resume and verify shared FIFO admission. Premiere
+handoffs remain serial and do not reserve unused slots while waiting for another Premiere handoff. Check both
+compact and full controls, persistence across restart, cancellation/failure releasing capacity, and foreground
+Player responsiveness. Direct operations and foreground Player frame demands are not queued Jobs.
+
+Automated coverage includes actual Export plus Visual Index concurrency, waiting VI timestamps/cancellation,
+filesystem waiting cancellation with no mutations, Premiere waiting cancellation before journal dispatch,
+exclusive-lane capacity, and queue pause/live limit behavior. Existing Export recovery and foreground frame-priority
+regressions remain part of the full suite. Saved settings keys retain their legacy names for compatibility.

@@ -397,9 +397,10 @@ internal sealed class FileOperationJobs
     private readonly List<FileOperationJobSnapshot> _jobs = [];
     private readonly Dictionary<Guid, CancellationTokenSource> _cancellations = [];
     private readonly Func<FileOperationResult, Task>? _synchronizePresentation;
+    private readonly JobsAdmission? _admission;
     public FileOperationJobs(FileOperationExecutor executor, FileOperationHistoryStore history,
-        Func<FileOperationResult, Task>? synchronizePresentation = null)
-    { _executor = executor; _history = history; _synchronizePresentation = synchronizePresentation; _history.RecoverInterrupted(); }
+        Func<FileOperationResult, Task>? synchronizePresentation = null, JobsAdmission? admission = null)
+    { _admission = admission; _executor = executor; _history = history; _synchronizePresentation = synchronizePresentation; _history.RecoverInterrupted(); }
     public event Action? Changed;
     public IReadOnlyList<FileOperationJobSnapshot> Jobs { get { lock (_sync) return _jobs.ToArray(); } }
     public IReadOnlyList<FileOperationHistoryRecord> History => _history.Load();
@@ -407,41 +408,55 @@ internal sealed class FileOperationJobs
     public void Enqueue(FileOperationIntent intent)
     {
         _history.Begin(intent);
-        lock (_sync) _jobs.Add(new(intent, FileOperationState.Waiting, 0, 0, null, []));
+        var cts = new CancellationTokenSource();
+        lock (_sync) { _jobs.Add(new(intent, FileOperationState.Waiting, 0, 0, null, [])); _cancellations[intent.OperationId] = cts; }
         Changed?.Invoke();
-        _ = RunAsync(intent);
+        _ = RunAsync(intent, cts);
     }
     public void Cancel(Guid id) { lock (_sync) if (_cancellations.TryGetValue(id, out var cts)) cts.Cancel(); }
-    private async Task RunAsync(FileOperationIntent intent)
+    private async Task RunAsync(FileOperationIntent intent, CancellationTokenSource cts)
     {
-        var cts = new CancellationTokenSource();
-        lock (_sync) { _cancellations[intent.OperationId] = cts; Update(intent.OperationId, job => job with { State = FileOperationState.Running }); }
-        Changed?.Invoke();
-        var progress = new Progress<(int Items, long Bytes, string Current)>(value =>
-        { lock (_sync) Update(intent.OperationId, job => job with { CompletedItems = value.Items, CompletedBytes = value.Bytes, CurrentItem = value.Current }); Changed?.Invoke(); });
-        var result = await _executor.ExecuteAsync(intent, progress, cts.Token).ConfigureAwait(false);
-        if (_synchronizePresentation is not null && result.CompletedMutations.Count > 0)
+        IDisposable? slot = null;
+        FileOperationResult result;
+        try
         {
-            try { await _synchronizePresentation(result).ConfigureAwait(false); }
-            catch (Exception exception)
+            if (_admission is not null) slot = await _admission.AcquireAsync(intent.OperationId, cts.Token).ConfigureAwait(false);
+            cts.Token.ThrowIfCancellationRequested();
+            lock (_sync) Update(intent.OperationId, job => job with { State = FileOperationState.Running });
+            Changed?.Invoke();
+            var progress = new Progress<(int Items, long Bytes, string Current)>(value =>
+            { lock (_sync) Update(intent.OperationId, job => job with { CompletedItems = value.Items, CompletedBytes = value.Bytes, CurrentItem = value.Current }); Changed?.Invoke(); });
+            result = await _executor.ExecuteAsync(intent, progress, cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        { result = new(intent.OperationId, FileOperationState.Cancelled, 0, 0, [], DateTimeOffset.UtcNow); }
+        catch (Exception exception)
+        { result = new(intent.OperationId, FileOperationState.Failed, 0, 0, [new("", exception.Message)], DateTimeOffset.UtcNow); }
+        try
+        {
+            if (_synchronizePresentation is not null && result.CompletedMutations.Count > 0)
             {
-                result = result with
+                try { await _synchronizePresentation(result).ConfigureAwait(false); }
+                catch (Exception exception)
                 {
-                    State = FileOperationState.CompletedWithFailures,
-                    Failures = result.Failures.Concat([new FileOperationFailure("",
-                        $"The files changed, but Browser presentation could not be synchronized: {exception.Message}")]).ToArray()
-                };
+                    result = result with
+                    {
+                        State = FileOperationState.CompletedWithFailures,
+                        Failures = result.Failures.Concat([new FileOperationFailure("",
+                            $"The files changed, but Browser presentation could not be synchronized: {exception.Message}")]).ToArray()
+                    };
+                }
             }
+            lock (_sync)
+            {
+                _cancellations.Remove(intent.OperationId);
+                Update(intent.OperationId, job => job with { State = result.State, CompletedItems = result.CompletedItems,
+                    CompletedBytes = result.CompletedBytes, Failures = result.Failures, Result = result });
+            }
+            _history.Complete(intent, result);
+            Changed?.Invoke();
         }
-        lock (_sync)
-        {
-            _cancellations.Remove(intent.OperationId);
-            Update(intent.OperationId, job => job with { State = result.State, CompletedItems = result.CompletedItems,
-                CompletedBytes = result.CompletedBytes, Failures = result.Failures, Result = result });
-        }
-        _history.Complete(intent, result);
-        Changed?.Invoke();
-        cts.Dispose();
+        finally { slot?.Dispose(); cts.Dispose(); }
     }
     private void Update(Guid id, Func<FileOperationJobSnapshot, FileOperationJobSnapshot> update)
     { var index = _jobs.FindIndex(job => job.Intent.OperationId == id); if (index >= 0) _jobs[index] = update(_jobs[index]); }

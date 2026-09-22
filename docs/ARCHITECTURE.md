@@ -193,8 +193,19 @@ restart. That journal is never deleted as Jobs cleanup. No second persistence/hi
 Retry retains capability-owned semantics: Export NeedsAttention retries through scheduler revalidation; saved
 terminal Export records offer Review & Rerun, with existing immutable-history reconstruction and current validation;
 Visual Index retries the original AssetId through its current-source/Color adapter. Filesystem and Premiere have
-no generic Retry. Queue pause eligibility considers only queued/running Export scheduler work; an already-paused
-queue remains resumable even when empty. Its admission policy, per-Job pause/cancel, and VI demand priority are unchanged.
+no generic Retry. Queue pause eligibility now follows the shared admission authority; an already-paused queue
+remains resumable even when empty. Running operations continue; individual Export pause still holds waiting work.
+
+The later #297 hands-on decision replaces Export-only concurrency with **Active jobs**. `JobsAdmission` is the
+single application-wide start/slot authority used by modern Export, Visual Index, promoted filesystem operations,
+and Premiere Jobs. Adapters retain lifecycle, result, cancellation, reservation and durable recovery ownership.
+Waiting work acquires one slot per Job in admission order; it does not report Running or accrue execution time.
+Premiere's exclusive lane preserves serial dispatch without occupying slots for its waiting handoffs. Queue pause
+holds starts for all these capabilities. Lowering the ceiling drains existing work without interrupting it;
+increasing it starts additional eligible work. Completion, failure and cancellation release capacity. Export waiting
+reorder swaps its pending admission positions. The saved `MaxSimultaneousExports` and `IsExportQueuePaused` keys
+are retained for compatibility but now configure this shared policy. Foreground Player derived-frame demand and
+direct operations outside the Jobs queue remain independent; #293's foreground priority is preserved.
 
 Hands-on refinement: both surfaces merge capabilities by immutable creation/acceptance time, oldest first, with
 new Jobs appended at the bottom. Completion/start timestamps and terminal-state grouping never change row order.
@@ -1163,9 +1174,9 @@ Same-as-Source, Color/range snapshots, final paths, and within-submission collis
 knowledge. Acceptance then promotes every planned item into an independent `ExportJobDefinition`. `SubmissionId`
 is provenance only; it has no lifecycle, ordering, concurrency, reservation, or executor authority.
 
-The scheduler owns one global queue and `MaxSimultaneousExports` policy (1–8, default 2). Increasing it claims
-additional eligible Waiting Jobs immediately. Decreasing it never stops active FFmpeg work; it simply claims no
-new work until active count falls below the new ceiling. Only Waiting Jobs are eligible and reorderable. Paused
+Export retains its durable queue and reservation authority and shares the application-wide `JobsAdmission`
+Active jobs policy (1–8, default 2) described under #297 above. Increasing it claims additional eligible Waiting Jobs
+immediately. Decreasing it never stops active work; it claims no new work until active count falls below the ceiling. Only Waiting Jobs are eligible and reorderable. Paused
 and NeedsAttention Jobs retain reservations but are skipped, preventing starvation of healthy work behind them.
 
 Queue admission holds one synchronization boundary while it rechecks filesystem state, normalizes complete

@@ -412,6 +412,25 @@ public sealed class GlobalExportSchedulerTests
         Assert.Empty(restored.Jobs);
     }
 
+    [Fact]
+    public async Task ExportAndOtherCapabilityShareAdmissionAndQueuePause()
+    {
+        await using var harness = new Harness(1);
+        harness.Scheduler.Admit(Proposal("mixed-first", 1));
+        await WaitUntilAsync(() => harness.Running == 1);
+        var other = harness.Scheduler.Admission.AcquireAsync(Guid.NewGuid(), default);
+        var later = harness.Scheduler.Admit(Proposal("mixed-later", 1)).Jobs.Single().JobId;
+        Assert.False(other.IsCompleted);
+        harness.CompleteOne();
+        using var slot = await other.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(JobState.Queued, harness.Scheduler.Jobs.Single(job => job.JobId == later).State);
+        harness.Scheduler.PauseQueue();
+        slot.Dispose();
+        Assert.Equal(JobState.Queued, harness.Scheduler.Jobs.Single(job => job.JobId == later).State);
+        harness.Scheduler.ResumeQueue();
+        await WaitUntilAsync(() => harness.Scheduler.Jobs.Single(job => job.JobId == later).State == JobState.Running);
+    }
+
     private static ExportSubmissionProposal Proposal(string prefix, int count, string output = "C:\\output", string? sameName = null) =>
         ExportSubmissionProposal.FromPlan(Plan(prefix, count, output, sameName));
 

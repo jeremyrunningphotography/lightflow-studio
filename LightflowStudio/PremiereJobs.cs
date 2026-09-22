@@ -104,7 +104,7 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
 }
 
 /// <summary>Typed non-encoding executor; current progress is projected into the existing Jobs product.</summary>
-internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBridge bridge)
+internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBridge bridge, JobsAdmission? admission = null)
 {
     private readonly object _sync = new();
     private readonly List<PremiereJob> _jobs = [];
@@ -195,10 +195,12 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
     private async Task RunAsync(PremiereJob job, string binId, string? createName, CancellationTokenSource cts)
     {
         var entered = false;
+        IDisposable? slot = null;
         try
         {
-            await _serial.WaitAsync(cts.Token).ConfigureAwait(false);
-            entered = true;
+            if (admission is not null) slot = await admission.AcquireAsync(job.JobId, cts.Token, "premiere").ConfigureAwait(false);
+            else { await _serial.WaitAsync(cts.Token).ConfigureAwait(false); entered = true; }
+            cts.Token.ThrowIfCancellationRequested();
             job = job with { State = JobState.Running }; Publish(job);
             var receipts = new List<PremiereReceipt>();
             if (job.Subclips is not null)
@@ -244,6 +246,7 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
             if (entered) _serial.Release();
             lock (_sync) _cancellations.Remove(job.JobId);
             cts.Dispose(); Publish(job);
+            slot?.Dispose();
             try { await RefreshHistoryAsync().ConfigureAwait(false); } catch { /* Durable journal errors already surface on handoff; keep current result visible. */ }
         }
     }

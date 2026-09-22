@@ -23,10 +23,10 @@ internal sealed record VisualIndexJob(VisualIndexJobOptions Options, JobRuntimeS
 
 /// <summary>Capability adapter; lifecycle, progress and cancellation belong to the shared Jobs runtime.</summary>
 internal sealed class VisualIndexJobs(IPositionFrameService frames,
-    Func<Guid, CancellationToken, Task<DerivedMetadataResult>> metadata) : IAsyncDisposable
+    Func<Guid, CancellationToken, Task<DerivedMetadataResult>> metadata, JobsAdmission? admission = null) : IAsyncDisposable
 {
     internal const string Capability = "video.visual-index";
-    private readonly ApplicationJobsRuntime<VisualIndexJobOptions, VisualIndexJobResult> _runtime = new();
+    private readonly ApplicationJobsRuntime<VisualIndexJobOptions, VisualIndexJobResult> _runtime = new(admission: admission);
     private readonly Dictionary<Guid, VisualIndexJobOptions> _options = [];
     private readonly object _sync = new();
     internal event Action? Changed;

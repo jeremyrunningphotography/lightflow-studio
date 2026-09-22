@@ -55,5 +55,6 @@ The task's private-desktop validation wrapper lives under ignored `artifacts/val
 it never switches the interactive desktop. General #284 infrastructure is outside this change.
 Premiere tests requiring fixed localhost port 47857 cannot run while another Lightflow owns it.
 
-Implementation remains local until Jeremy accepts it for final PR review or requests a
-remote checkpoint. No PR acceptance or merge is implied by a review package.
+Jeremy accepted the packaged implementation on 2026-09-22 and authorized final PR review.
+The accepted layout uses a centered category rail and one vertical card stack with a
+header and footer spanning both columns. Merge remains a separate explicit action.

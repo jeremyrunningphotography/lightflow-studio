@@ -50,8 +50,9 @@ PreviewMaintenance, and architecture/design/profile documentation.
 
 General: Captures / Integrations. Color: Camera LUTs / Creative LUTs. Storage: Catalog /
 Previews / Backup & Recovery. Advanced: Requirements / FFmpeg. Retain rail and fixed
-Save/Restore footer; peer cards use one column when constrained and two when they have
-adequate width. Bounded text/path controls, existing dark styles, ordinary keyboard controls.
+Save/Restore footer. Accepted hands-on review supersedes the initial paired-card proposal:
+keep a centered category rail beside one vertical card stack at every width, with header
+and footer spanning both columns and no visible Categories label. Bounded text/path controls, existing dark styles, ordinary keyboard controls.
 No shared Jobs style changes.
 
 Automated validation stays on a noninteractive desktop; no computer control. Test retained

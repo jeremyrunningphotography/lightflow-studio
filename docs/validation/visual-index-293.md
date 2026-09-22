@@ -28,12 +28,11 @@ Hands-on checklist (all with the packaged executable and task-owned acceptance-d
 7. Verify lazy behavior with VI hidden and on startup. Clear Previews and reopen VI to rebuild. Retained offline
    frames remain useful. Return to Browser: Inspector and Jobs remain available with current Job results.
 
-Current main (8f9816c, merged #287) is reconciled locally. Check Rotate Left/Right with VI visible: display should
+Current main (6fecf36, including merged #287 and #302) is reconciled locally. Check Rotate Left/Right with VI visible: display should
 update immediately, including portrait geometry, while Color remains applied and cached densities remain reusable.
-The accepted Browser polish changes from main are included in the next local package.
+The accepted Browser polish changes from main are included in the accepted package.
 
-Local iteration only: commit and package locally, then wait for Jeremy's hands-on feedback. The existing draft PR
-is a remote checkpoint and must not be pushed/updated again until explicitly authorized. #293 remains open.
+Jeremy accepted packaged hands-on validation of 789269d on 2026-09-22 and authorized final PR preparation. Draft PR #301 is now the final architecture/integration review checkpoint. #293 remains open pending review and separately authorized merge. No product behavior changed after hands-on acceptance.
 The Frames regenerate icon invalidates the current video's complete Visual Index generation across all densities
 and color variants, then queues all three sets. Persistent generation identities reject stale in-flight results
 without deleting pixels shared with markers. Ordinary LUT switching continues to reuse matching cached frames.
@@ -45,4 +44,3 @@ Follow-up review coverage: Left/Right after index seek must reach frame stepping
 shell TabControl; sliders retain their own arrows. Opening full Jobs refreshes work completed while hidden.
 Completed Visual Index details end with green Visual Index complete in both views. Drawer hover brightens
 the card outline without the stock ListBox selection/hover background.
-

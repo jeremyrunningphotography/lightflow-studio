@@ -1664,8 +1664,9 @@ public partial class PlayerViewerHost : UserControl
     {
         while (element is not null)
         {
+            // Stop at Player before reaching the shell TabControl (a Selector).
             // Filmstrip traversal uses Ctrl+Arrow; plain arrows retain Player frame stepping.
-            if (ReferenceEquals(element, Filmstrip)) return false;
+            if (ReferenceEquals(element, this) || ReferenceEquals(element, Filmstrip)) return false;
             if (element is System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.Slider or
                 System.Windows.Controls.Primitives.Thumb or System.Windows.Controls.Primitives.Selector)
                 return true;

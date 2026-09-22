@@ -40,3 +40,9 @@ without deleting pixels shared with markers. Ordinary LUT switching continues to
 Fractional-rate sampling calculates each timestamp independently and truncates to FFmpeg microsecond precision.
 Regression coverage includes final-frame extraction, generation invalidation, Space focus, and Generating job arcs.
 
+
+Follow-up review coverage: Left/Right after index seek must reach frame stepping when Player is nested in the
+shell TabControl; sliders retain their own arrows. Opening full Jobs refreshes work completed while hidden.
+Completed Visual Index details end with green Visual Index complete in both views. Drawer hover brightens
+the card outline without the stock ListBox selection/hover background.
+

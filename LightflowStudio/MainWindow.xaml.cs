@@ -3450,6 +3450,7 @@ public partial class MainWindow : Window
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!ReferenceEquals(e.Source, MainTabs)) return;
+        if (IsLoaded && MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
         SyncBrowserStatusBarVisibility();
         if (RightPanelToggle is not null) RightPanelToggle.Visibility = MainTabs.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
         // #110: switching to another workspace while a video is open in the Player/Viewer must not leave it

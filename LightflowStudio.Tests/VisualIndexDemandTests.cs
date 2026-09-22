@@ -108,6 +108,9 @@ public sealed class VisualIndexDemandTests
         var successful = jobs.Jobs.Single(j => j.Options.AssetId == good);
         var failed = jobs.Jobs.Single(j => j.Options.AssetId == bad);
         Assert.Equal(JobState.Completed, successful.State);
+        Assert.Equal("Visual Index complete", Assert.IsType<JobMessageDetailsPresentation>(successful.Card(true).Details).Success);
+        Assert.Equal("Visual Index complete", Assert.IsType<JobMessageDetailsPresentation>(successful.WorkspaceItem().DetailPresentation).Success);
+        Assert.Null(Assert.IsType<JobMessageDetailsPresentation>(failed.Card(true).Details).Success);
         Assert.Equal(JobState.Failed, failed.State);
         Assert.Contains("Preparing 12, 24, and 48 frame indexes", failed.Detail);
         Assert.DoesNotContain("assigned Color", failed.Detail);

@@ -308,7 +308,9 @@ public sealed partial class PlayerViewerHostLeaseTests
             host.InitializeVisualIndex(new VisualIndexProjectionTests.EmptyFrames(), () => null, 24);
             var outside = new System.Windows.Controls.Button { Content = "Index focus" };
             var layout = new System.Windows.Controls.StackPanel(); layout.Children.Add(host); layout.Children.Add(outside);
-            var window = new Window { Content = layout, Width = 640, Height = 480, Left = -32000, ShowInTaskbar = false };
+            var shellTabs = new System.Windows.Controls.TabControl();
+            shellTabs.Items.Add(new System.Windows.Controls.TabItem { Header = "Player", Content = layout });
+            var window = new Window { Content = shellTabs, Width = 640, Height = 480, Left = -32000, ShowInTaskbar = false };
             window.Show();
             try
             {
@@ -322,6 +324,11 @@ public sealed partial class PlayerViewerHostLeaseTests
                     PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Space)
                     { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent });
                 await WaitUntilAsync(() => backend.PlayCallCount == 1, "Space to play after Visual Index seek");
+                Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.Right, host, System.Windows.Input.ModifierKeys.None));
+                await WaitUntilAsync(() => backend.Operations.Contains("forward"), "Right to step after index seek inside shell tabs");
+                Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.Left, host, System.Windows.Input.ModifierKeys.None));
+                await WaitUntilAsync(() => backend.Operations.Contains("backward"), "Left to step after index seek inside shell tabs");
+                Assert.False(host.TryHandleShortcut(System.Windows.Input.Key.Right, host.PositionSlider, System.Windows.Input.ModifierKeys.None));
                 Guid? regenerated = null;
                 host.RegenerateVisualIndexRequested = (id, _) => { regenerated = id; return Task.CompletedTask; };
                 host.VisualIndexContent.RegenerateButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));

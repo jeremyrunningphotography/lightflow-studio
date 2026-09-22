@@ -42,7 +42,7 @@
     <StackPanel Margin="0,5,0,0"><StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers><DataTrigger Binding="{Binding FailureSummary}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></StackPanel.Style><TextBlock Foreground="{StaticResource WarningBrush}" FontSize="9" Text="FAILURES"/><TextBlock Margin="0,1,0,0" Foreground="{StaticResource WarningBrush}" FontSize="10" Text="{Binding FailureSummary}" TextWrapping="Wrap"/></StackPanel>
    </StackPanel>
   </DataTemplate>
-  <DataTemplate DataType="{x:Type local:JobMessageDetailsPresentation}"><TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding Text}" TextWrapping="Wrap"/></DataTemplate>
+  <DataTemplate DataType="{x:Type local:JobMessageDetailsPresentation}"><StackPanel><TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding Text}" TextWrapping="Wrap"/><TextBlock Foreground="{StaticResource SuccessBrush}" Text="{Binding Success}" TextWrapping="Wrap"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Success}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></StackPanel></DataTemplate>
   <DataTemplate DataType="{x:Type local:PremiereJobDetailsPresentation}">
    <StackPanel>
     <TextBlock Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"><Run Text="Project: "/><Run Text="{Binding Project}"/></TextBlock>

@@ -154,7 +154,10 @@ public sealed class JobsPresentationTests
         Assert.Null(drawer.Attribute("MinWidth"));
         Assert.Null(drawer.Attribute("MaxWidth"));
         Assert.Equal("0,0,16,0", (string?)list.Attribute("Padding"));
-        Assert.Equal("{StaticResource DrawerCard}", (string?)card.Attribute("Style"));
+        var cardStyle = card.Descendants().First(element => element.Name.LocalName == "Style");
+        Assert.Equal("{StaticResource DrawerCard}", (string?)cardStyle.Attribute("BasedOn"));
+        var hover = cardStyle.Descendants().Single(element => (string?)element.Attribute("Property") == "IsMouseOver");
+        Assert.Equal("BorderBrush", (string?)Assert.Single(hover.Elements()).Attribute("Property"));
         Assert.Equal("0,0,0,7", (string?)card.Attribute("Margin"));
         Assert.Equal(2, reorder.Count);
         Assert.All(reorder, button => { Assert.Equal("22", (string?)button.Attribute("Width")); Assert.Equal("22", (string?)button.Attribute("Height")); });

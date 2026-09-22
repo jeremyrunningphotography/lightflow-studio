@@ -15,6 +15,7 @@ public partial class PlayerViewerHost
 
     internal void InitializeVisualIndex(IPositionFrameService frames, Func<IPreviewStoreService?> previews, int count)
     {
+        if (_rotations is not null) OrientedPreviewImage.SetStore(VisualIndexContent, _rotations);
         _visualIndex = new(frames);
         VisualIndexContent.Initialize(_visualIndex, count);
         VisualIndexContent.DensityChanged += (_, _) => { RefreshVisualIndex(); VisualIndexDensityChanged?.Invoke(this, EventArgs.Empty); };

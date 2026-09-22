@@ -16,9 +16,10 @@ public partial class PremiereSendWindow : Window
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool _refreshing;
     internal PremiereSendWindow(PremiereBridge bridge, PremiereJobs jobs, IReadOnlyList<PremiereSource> sources,
-        IReadOnlyList<PremierePlannedSubclip>? subclips = null)
+        IReadOnlyList<PremierePlannedSubclip>? subclips = null, bool hasLightflowRotation = false)
     {
         InitializeComponent();
+        RotationNotice.Visibility = hasLightflowRotation ? Visibility.Visible : Visibility.Collapsed;
         _bridge = bridge; _jobs = jobs; _sources = sources; _subclips = subclips ?? [];
         _media = new PremiereSendModel(sources, _subclips);
         SourceMediaRadio.IsChecked = true;

@@ -20,7 +20,7 @@ public class UiLayoutTests
         Assert.Contains("IsThumbnailGenerating", (string?)working.Attribute("Visibility"));
         Assert.Equal("True", (string?)working.Attribute("IsIndeterminate"));
         Assert.NotNull(working.Ancestors().FirstOrDefault(element => element.Name.LocalName == "Grid")?
-            .Elements().FirstOrDefault(element => element.Name.LocalName == "Image"));
+            .Elements().FirstOrDefault(element => element.Name.LocalName == "OrientedPreviewImage"));
     }
 
     [Fact]
@@ -883,7 +883,7 @@ public class UiLayoutTests
         Assert.Contains(app.Descendants(ns + "Style"), style => (string?)style.Attribute(x + "Key") == "LightflowMenuItemStyle");
         Assert.Equal(
             ["Open", "Add to Collection…", "Remove from this Collection", "Rating", "Flag", "Color label", "Keywords",
-                "Send To", "Export", "Regenerate Previews", "Create Visual Index", "Rename…", "Camera LUT", "Creative LUT", "Cut", "Copy", "Paste", "Delete"],
+                "Send To", "Export", "Rotate Left", "Rotate Right", "Regenerate Previews", "Create Visual Index", "Rename…", "Camera LUT", "Creative LUT", "Cut", "Copy", "Paste", "Delete"],
             contextMenu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")).ToList());
         Assert.Equal(["Premiere Pro"], contextMenu.Elements(ns + "MenuItem")
             .Single(item => (string?)item.Attribute("Header") == "Send To")

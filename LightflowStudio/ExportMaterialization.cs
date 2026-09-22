@@ -38,7 +38,9 @@ internal sealed record MaterializedExportSettings(
     MaterializedColorPipeline? Color,
     SourceMediaTraits? SourceTraits,
     EncodingQualityPolicy QualityPolicy = EncodingQualityPolicy.Automatic,
-    string? MaterializationProblem = null);
+    string? MaterializationProblem = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    VideoRotation Rotation = default);
 
 internal static class ExportSettingsMaterializer
 {
@@ -81,7 +83,7 @@ internal static class ExportSettingsMaterializer
         var color = policy is null ? source.AssignedColor : new MaterializedColorPipeline(
             camera is not null || creative is not null, camera, creative);
         return new(encoding, options.Resolution, audio, color, source.MediaTraits,
-            policy?.Quality ?? EncodingQualityPolicy.Explicit, problem);
+            policy?.Quality ?? EncodingQualityPolicy.Explicit, problem, source.Rotation);
     }
 
     private static bool TryResolveCodec(string? value, out VideoCodec codec)

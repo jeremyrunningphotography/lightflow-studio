@@ -26,8 +26,9 @@ internal static class VisualIndexSampling
     internal static int Columns(double width) => double.IsFinite(width) ? Math.Clamp((int)(width / 144), 1, 3) : 1;
 }
 
-internal sealed class VisualIndexCard(TimeSpan position) : INotifyPropertyChanged
+internal sealed class VisualIndexCard(TimeSpan position, Guid? assetId = null) : INotifyPropertyChanged
 {
+    public Guid? AssetId { get; } = assetId;
     public TimeSpan Position { get; } = position;
     public string Timestamp => $"{(long)Position.TotalHours:00}:{Position.Minutes:00}:{Position.Seconds:00}.{Position.Milliseconds:000}";
     public string NavigationLabel => $"Seek to {Position:c}";
@@ -83,7 +84,7 @@ internal sealed class VisualIndexModel(IPositionFrameService frames) : IDisposab
         Cancel();
         _revision = revision; _assetId = assetId; _duration = duration; _frameRate = frameRate; Count = count;
         if (changedPlan)
-            Cards = assetId is null ? [] : VisualIndexSampling.Plan(duration, frameRate, count).Select(p => new VisualIndexCard(p)).ToArray();
+            Cards = assetId is null ? [] : VisualIndexSampling.Plan(duration, frameRate, count).Select(p => new VisualIndexCard(p, assetId)).ToArray();
         UpdatePosition(_position);
         if (changedPlan) Changed?.Invoke(this, EventArgs.Empty);
         if (!active || assetId is null) return;

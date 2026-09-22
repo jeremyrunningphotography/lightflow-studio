@@ -83,7 +83,8 @@ public partial class PlayerViewerHost : UserControl
         Func<string>? cameraLutFolder = null, Func<string>? creativeLutFolder = null,
         Action<PlayerOpenMilestone>? openMilestone = null,
         IPreferredPreviewFrameStore? preferredPreviewFrames = null,
-        IAssetClassificationStore? classifications = null, IMarkerService? markers = null)
+        IAssetClassificationStore? classifications = null, IMarkerService? markers = null,
+        IAssetVideoRotationStore? rotations = null)
     {
         _markers = markers;
         _coordinator = coordinator;
@@ -100,6 +101,7 @@ public partial class PlayerViewerHost : UserControl
         _preferredPreviewFrames = preferredPreviewFrames;
         _classifications = classifications;
         InitializeComponent();
+        InitializeRotation(rotations);
         InitializeReviewControls();
         SubclipsContent = new SubclipsView(this);
         SubclipsList.DataContext = _subclipItems;
@@ -286,7 +288,10 @@ public partial class PlayerViewerHost : UserControl
             // earlier lets Flyleaf's already-open default/source-start frame become visible before the seek,
             // producing a brief flash. The player remains paused throughout; this changes presentation order,
             // not the shared playback/backend path or its authoritative decoded-timestamp semantics.
-            InitializeSourceReview(info.Width, info.Height, info.FrameRate);
+            await RestoreRotationAsync(generation, token);
+            if (generation != _generation || token.IsCancellationRequested) return;
+            var oriented = info.SourceRotation.Compose(_videoRotation).Dimensions(info.Width, info.Height);
+            InitializeSourceReview(oriented.Width, oriented.Height, info.FrameRate);
             if (continuation is not null)
             {
                 ApplyWorkspaceReview(continuation);

@@ -95,7 +95,7 @@ public sealed class PremiereReconciliationTests : IAsyncLifetime
         var opened = await new CatalogDatabaseService(locations, recovery).OpenExistingAsync();
         Assert.True(opened.IsSuccess);
         await using var migrated = opened.Session!;
-        Assert.Equal(17, migrated.SchemaVersion); Assert.Equal(identity, migrated.Identity.CatalogId);
+        Assert.Equal(CatalogMigrations.All[^1].Version, migrated.SchemaVersion); Assert.Equal(identity, migrated.Identity.CatalogId);
         Assert.Equal(marker, Assert.Single(await new CatalogMarkerService(() => migrated).ListAsync(asset.AssetId)));
         Assert.Empty(await new CatalogPremiereHandoffs(() => migrated).ListAsync());
         Assert.Single(recovery.ListBackups(), b => b.Kind == CatalogBackupKind.Migration);

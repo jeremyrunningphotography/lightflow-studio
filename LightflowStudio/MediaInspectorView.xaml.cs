@@ -79,6 +79,7 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
             FieldGroups.ItemsSource = null;
         }
         _displayedContext = _context;
+        PreviewImage.AssetId = _context.Count == 1 ? _context[0].AssetId : null;
         PreviewStatus.Text = "";
         OpenPlayerButton.Visibility = !_playerContext && _context.Count == 1 && _context[0].Kind == MediaPresentationKind.Video
             ? Visibility.Visible : Visibility.Collapsed;

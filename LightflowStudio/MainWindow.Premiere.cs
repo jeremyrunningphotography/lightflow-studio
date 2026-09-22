@@ -97,7 +97,9 @@ public partial class MainWindow
             savedSubclips[assetId] = await _storage.Subclips.ListAsync(assetId);
         }
         var subclipPlan = PremiereSendPlanning.Subclips(sources, savedSubclips);
-        new PremiereSendWindow(_premiereBridge!, _premiereJobs!, sources, subclipPlan) { Owner = this }.ShowDialog();
+        var rotations = await _storage.VideoRotations.GetAsync(sources.Select(source => source.AssetId).ToArray());
+        new PremiereSendWindow(_premiereBridge!, _premiereJobs!, sources, subclipPlan,
+            rotations.Values.Any(value => value.Rotation.Degrees != 0)) { Owner = this }.ShowDialog();
         if (_premiereJobs!.Jobs.Any(job => job.State is JobState.Queued or JobState.Running)) OpenJobsPanel();
     }
 }

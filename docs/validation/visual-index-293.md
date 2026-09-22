@@ -8,7 +8,7 @@ runtime and frame service; hiding Jobs in Player does not affect work.
 Automated coverage includes Color stage order/identity/stale rejection, union planning, per-video mixed outcomes,
 retry/cancellation, shared in-flight promotion, bounded priority, immediate cached progress, terminal failure,
 lazy visibility, stale asset/density/Color completion, exact seeking, Browser eligibility and panel transitions.
-Real FFmpeg coverage retains the existing source/orientation boundary. No computer control is used.
+Real FFmpeg coverage retains the shared source/orientation boundary. VI template tests verify 90/270-degree pixel orientation and dimensions, live adjustment, and unchanged cached pixels through OrientedPreviewImage. No computer control is used.
 Full tests and packaged smoke use a private Windows desktop that is never switched to the input desktop.
 
 Hands-on checklist (all with the packaged executable and task-owned acceptance-data root):
@@ -28,5 +28,9 @@ Hands-on checklist (all with the packaged executable and task-owned acceptance-d
 7. Verify lazy behavior with VI hidden and on startup. Clear Previews and reopen VI to rebuild. Retained offline
    frames remain useful. Return to Browser: Inspector and Jobs remain available with current Job results.
 
-#287 rotation and the separate polish issues remain outside this PR. Reconcile and validate combined presentation
-if either lands first. Draft PR #301 remains unmerged; #293 stays open pending architecture and hands-on acceptance.
+Current main (8f9816c, merged #287) is reconciled locally. Check Rotate Left/Right with VI visible: display should
+update immediately, including portrait geometry, while Color remains applied and cached densities remain reusable.
+The separate polish issues remain outside this iteration.
+
+Local iteration only: commit and package locally, then wait for Jeremy's hands-on feedback. The existing draft PR
+is a remote checkpoint and must not be pushed/updated again until explicitly authorized. #293 remains open.

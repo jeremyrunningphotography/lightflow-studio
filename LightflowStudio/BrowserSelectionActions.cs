@@ -10,6 +10,7 @@ internal sealed record BrowserSelectionActionState(
 {
     public bool HasSelection => SelectionCount > 0;
     public bool CanCreateVisualIndex => CanExport;
+    public bool CanRotate => CanExport;
 }
 
 internal sealed record BrowserLutActionOption(Guid? LutId, string Label, bool IsAction = true);

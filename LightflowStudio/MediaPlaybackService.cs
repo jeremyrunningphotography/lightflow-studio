@@ -37,6 +37,7 @@ internal sealed class MediaPlaybackService : IMediaPlaybackService
         new(_backend.CreatePresentationSurface(), _backend.ReleasePresentationSurface, _backend.CapturePresentedFrameAsync, _backend.GetInputSurface, _backend.SetPresentationOverlay);
 
     public void SetViewport(ViewerViewport viewport) => _backend.SetViewport(viewport);
+    public void SetVideoRotation(VideoRotation rotation) => _backend.SetVideoRotation(rotation);
 
     public Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default)
     {

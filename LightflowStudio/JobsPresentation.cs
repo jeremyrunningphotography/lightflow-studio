@@ -26,14 +26,7 @@ internal static class JobsPresentation
         return active.Where(job => cancellableIds.Contains(job.JobId)).ToList();
     }
 
-    public static bool IsDismissibleDrawerRow(JobState state) => IsTerminal(state) || state == JobState.NeedsAttention;
-
-    public static JobsBulkAction BulkAction(IEnumerable<ExportJobSnapshot> visibleJobs)
-    {
-        var jobs = visibleJobs.ToList();
-        if (BulkCancellableJobs(jobs).Count > 0) return JobsBulkAction.CancelAll;
-        return jobs.Any(job => IsDismissibleDrawerRow(job.State)) ? JobsBulkAction.ClearAll : JobsBulkAction.None;
-    }
+    public static bool IsDismissibleDrawerRow(JobState state) => IsTerminal(state);
 
     public static string StatusText(IEnumerable<ExportJobSnapshot> jobs, bool queuePaused = false)
     {
@@ -82,7 +75,7 @@ internal static class JobsPresentation
             && !(dismissedTerminalJobIds?.Contains(job.JobId) ?? false)).ToList();
     }
 
-    public static JobCardPresentation Card(ExportJobSnapshot job, bool expanded)
+    public static JobCardPresentation Card(ExportJobSnapshot job, bool expanded, bool hasHistory = false)
     {
         var settings = job.Definition.PlanItem.Definition.MaterializedExport
             ?? EncodingJobPlanner.LegacySettings(job.Definition.Recipe, job.Definition.PlanItem.Definition);
@@ -109,8 +102,7 @@ internal static class JobsPresentation
         return new(job.JobId, job.DisplayName, Glyph(job.State), StateText(job.State), job.ProgressPercent ?? 0,
             job.State == JobState.Running, FormatDuration(job.Elapsed), job.Eta is { } eta ? $"About {FormatDuration(eta)} remaining" : null,
             details, issue, expanded,
-            job.State == JobState.Queued, job.State == JobState.Paused, job.State == JobState.NeedsAttention,
-            !IsTerminal(job.State), job.State == JobState.Queued);
+            JobActionState.For(job.State, queueControls: true, reviewAndRerun: hasHistory));
     }
 
     public static JobCardPresentation Card(FileOperationJobSnapshot job, bool expanded)
@@ -129,9 +121,15 @@ internal static class JobsPresentation
         var elapsed = completedAt <= job.Intent.CreatedUtc ? TimeSpan.Zero : completedAt - job.Intent.CreatedUtc;
         return new(job.Intent.OperationId, $"{job.Intent.Kind} {job.Intent.Sources.Count} item{(job.Intent.Sources.Count == 1 ? "" : "s")}",
             glyph, state, progress, job.State == FileOperationState.Running, FormatDuration(elapsed), null, details,
-            job.Failures.FirstOrDefault()?.Diagnostic, expanded, false, false, false,
-            job.State is FileOperationState.Waiting or FileOperationState.Running, false);
+            job.Failures.FirstOrDefault()?.Diagnostic, expanded, JobActionState.For(FileOperationStateToJobState(job.State)));
     }
+
+    internal static JobState FileOperationStateToJobState(FileOperationState state) => state switch
+    {
+        FileOperationState.Waiting => JobState.Queued, FileOperationState.Running => JobState.Running,
+        FileOperationState.Completed => JobState.Completed, FileOperationState.CompletedWithFailures => JobState.CompletedWithWarnings,
+        FileOperationState.Cancelled => JobState.Cancelled, _ => JobState.Failed
+    };
 
     public static FileSystemJobDetailsPresentation FileSystemDetails(FileOperationJobSnapshot job)
     {
@@ -194,8 +192,6 @@ internal static class JobsPresentation
     private static string FormatDuration(TimeSpan value) => value.TotalHours >= 1 ? value.ToString(@"h\:mm\:ss") : value.ToString(@"m\:ss");
 }
 
-internal enum JobsBulkAction { None, CancelAll, ClearAll }
-
 internal abstract record JobDetailsPresentation;
 internal sealed record ExportJobDetailsPresentation(string OutputPath, string Video, string Format,
     string Quality, string Audio, string Color) : JobDetailsPresentation;
@@ -210,7 +206,7 @@ internal sealed record PremiereJobDetailsPresentation(string Project, string Pro
 
 internal sealed class JobCardPresentation(Guid jobId, string name, string glyph, string state, double progress,
     bool showProgress, string elapsed, string? eta, JobDetailsPresentation details, string? issue, bool isExpanded,
-    bool canPause, bool canResume, bool canRetry, bool canCancel, bool canReorder) : INotifyPropertyChanged
+    JobActionState actions) : INotifyPropertyChanged
 {
     public Guid JobId { get; } = jobId;
     public string Name { get; private set; } = name;
@@ -223,11 +219,14 @@ internal sealed class JobCardPresentation(Guid jobId, string name, string glyph,
     public JobDetailsPresentation Details { get; private set; } = details;
     public string? Issue { get; private set; } = issue;
     public bool IsExpanded { get; private set; } = isExpanded;
-    public bool CanPause { get; private set; } = canPause;
-    public bool CanResume { get; private set; } = canResume;
-    public bool CanRetry { get; private set; } = canRetry;
-    public bool CanCancel { get; private set; } = canCancel;
-    public bool CanReorder { get; private set; } = canReorder;
+    public JobActionState Actions { get; private set; } = actions;
+    public bool CanPause => Actions.CanPause;
+    public bool CanResume => Actions.CanResume;
+    public bool CanRetry => Actions.CanRetry;
+    public bool CanCancel => Actions.CanCancel;
+    public bool CanBulkCancel => Actions.CanBulkCancel;
+    public bool CanReorder => Actions.CanReorder;
+    public bool CanClear => Actions.CanClear;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -239,9 +238,14 @@ internal sealed class JobCardPresentation(Guid jobId, string name, string glyph,
         Set(ShowProgress, value.ShowProgress, next => ShowProgress = next); Set(Elapsed, value.Elapsed, next => Elapsed = next);
         Set(Eta, value.Eta, next => Eta = next); Set(Details, value.Details, next => Details = next);
         Set(Issue, value.Issue, next => Issue = next);
-        SetExpanded(value.IsExpanded); Set(CanPause, value.CanPause, next => CanPause = next);
-        Set(CanResume, value.CanResume, next => CanResume = next); Set(CanRetry, value.CanRetry, next => CanRetry = next);
-        Set(CanCancel, value.CanCancel, next => CanCancel = next); Set(CanReorder, value.CanReorder, next => CanReorder = next);
+        SetExpanded(value.IsExpanded);
+        if (Actions != value.Actions)
+        {
+            Actions = value.Actions;
+            foreach (var property in new[] { nameof(Actions), nameof(CanPause), nameof(CanResume), nameof(CanRetry),
+                         nameof(CanCancel), nameof(CanBulkCancel), nameof(CanReorder), nameof(CanClear) })
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+        }
     }
 
     public void SetExpanded(bool expanded) => Set(IsExpanded, expanded, next => IsExpanded = next);

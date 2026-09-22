@@ -171,6 +171,31 @@ document for explicit record IDs. It does not touch the modern scheduler checkpo
 checkpoint, exported/partial media, reservations, or output-identity artifacts. This is distinct from the compact
 drawer's session-only dismissal.
 
+### Jobs command eligibility and cleanup (#297)
+
+`JobActionState` projects each adapter's lifecycle and typed command contracts for both compact cards and full
+workspace rows. Selection aggregates each operation independently: selected removal requires every selected row
+to be removable, without requiring matching capability or result payloads. Context menus target their own stable
+JobId and recheck eligibility when invoked; right-clicking a selected row preserves the existing selection.
+
+Compact **Clear all** dismisses represented terminal cards for the session, independently of **Cancel all**;
+active and recoverable NeedsAttention work remains visible. Full **Clear all terminal Jobs** applies to the current
+search/filter and leaves nonterminal rows intact. Full removal delegates Export records to `IJobHistoryStore` and
+filesystem records to `FileOperationHistoryStore`, then suppresses removed terminal IDs in the session projection.
+Legacy Export records remain indivisible. Export History addition and removal share a store lock so background
+completions cannot overwrite a concurrent user deletion or lose an unrelated completion. Filesystem removal never
+touches the active-intent checkpoint. Neither action deletes media, output identity, reservations, or recovery.
+
+Visual Index results remain session-only. Premiere's handoff journal is required reconciliation provenance, so
+full-view clearing of those rows is explicitly session-only; the confirmation explains they can return after
+restart. That journal is never deleted as Jobs cleanup. No second persistence/history authority is introduced.
+
+Retry retains capability-owned semantics: Export NeedsAttention retries through scheduler revalidation; saved
+terminal Export records offer Review & Rerun, with existing immutable-history reconstruction and current validation;
+Visual Index retries the original AssetId through its current-source/Color adapter. Filesystem and Premiere have
+no generic Retry. Queue pause eligibility considers only queued/running Export scheduler work; an already-paused
+queue remains resumable even when empty. Its admission policy, per-Job pause/cancel, and VI demand priority are unchanged.
+
 ## Platform boundaries
 
 Lightflow Studio is Windows-first, not Windows-entangled. Shared product semantics remain platform-neutral wherever practical. Platform-specific implementations belong behind explicit boundaries; platform and runtime concepts must not leak into durable domain models or shared contracts.

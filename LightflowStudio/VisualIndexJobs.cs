@@ -14,7 +14,7 @@ internal sealed record VisualIndexJob(VisualIndexJobOptions Options, JobRuntimeS
     internal JobCardPresentation Card(bool expanded) => new(JobId, $"Visual Index · {Options.Name}",
         JobsPresentation.Glyph(State), StateText, Runtime.Progress.OverallPercent ?? 0, State == JobState.Running,
         Runtime.Elapsed.ToString(@"m\:ss"), null, new JobMessageDetailsPresentation(Detail, State == JobState.Completed ? "Visual Index complete" : null), Issue, expanded,
-        false, false, CanRetry, !JobsPresentation.IsTerminal(State), false);
+        JobActionState.For(State, retry: CanRetry));
     internal JobsWorkspaceItem WorkspaceItem() => new(JobId, null, null, true, false, Options.Name,
         "Visual Index", State, Runtime.Progress.OverallPercent, Runtime.Elapsed.ToString(@"m\:ss"),
         Options.Name, "", Issue, Detail, Runtime.CreatedAt, 0, new JobMessageDetailsPresentation(Detail, State == JobState.Completed ? "Visual Index complete" : null),

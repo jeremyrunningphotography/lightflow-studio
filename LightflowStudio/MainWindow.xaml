@@ -161,20 +161,27 @@
 
   <!-- Full Jobs owns conventional ListBox selection semantics, but supplies its own container chrome so
        WPF's system HighlightBrush never leaks into Lightflow. The persistent left rail is the non-color
-       selection cue; the thicker outer outline is reserved for keyboard focus. -->
+       selection cue; the neutral outer outline is reserved for keyboard focus without changing dimensions. -->
   <Style x:Key="JobsListItemStyle" TargetType="ListBoxItem">
+   <EventSetter Event="PreviewMouseRightButtonDown" Handler="JobRow_PreviewMouseRightButtonDown"/><EventSetter Event="ContextMenuOpening" Handler="JobRow_ContextMenuOpening"/>
+   <Setter Property="ContextMenu"><Setter.Value><ContextMenu Style="{StaticResource LightflowContextMenuStyle}"/></Setter.Value></Setter>
    <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Background" Value="Transparent"/>
    <Setter Property="BorderBrush" Value="Transparent"/><Setter Property="BorderThickness" Value="1"/>
    <Setter Property="Padding" Value="2"/><Setter Property="Margin" Value="0,1"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
     <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" SnapsToDevicePixels="True"><Grid><Border x:Name="SelectionRail" Width="3" HorizontalAlignment="Left" Margin="0,5" CornerRadius="1.5" Background="{StaticResource ShellFocusBrush}" Visibility="Collapsed"/><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/></Grid></Border>
     <ControlTemplate.Triggers>
-     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/></Trigger>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/></Trigger>
      <Trigger Property="IsSelected" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/><Setter TargetName="SelectionRail" Property="Visibility" Value="Visible"/></Trigger>
-     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/><Setter TargetName="Chrome" Property="BorderThickness" Value="2"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource MutedTextBrush}"/></Trigger>
      <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+
+  <Style x:Key="CompactJobsItemStyle" TargetType="ListBoxItem" BasedOn="{StaticResource JobsListItemStyle}">
+   <Setter Property="Background" Value="#15181E"/><Setter Property="BorderBrush" Value="#292E37"/>
+   <Setter Property="Padding" Value="7"/><Setter Property="Margin" Value="0,0,0,7"/>
   </Style>
 
   <!-- Shared dark "chip" chrome for every standalone Browser toolbar control (the search field, Sort, and
@@ -1518,7 +1525,7 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
      <Grid x:Name="JobsHeader" Margin="1,0,0,5"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <TextBlock Style="{StaticResource PageTitle}" Text="Jobs"/>
-      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button x:Name="JobsBackToBrowserButton" Style="{StaticResource JobsHeaderButtonStyle}" Content="← Back to Browser" Click="JobsBackToBrowser_Click"/><Border Width="8"/><Button x:Name="RefreshHistoryButton" Style="{StaticResource JobsHeaderButtonStyle}" Content="Refresh" Click="RefreshHistory_Click"/><Button x:Name="JobsClearHistoryButton" Style="{StaticResource JobsHeaderDangerButtonStyle}" Content="Delete selected Jobs…" IsEnabled="False" Click="ClearJobsHistory_Click"/></StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button x:Name="JobsBackToBrowserButton" Style="{StaticResource JobsHeaderButtonStyle}" Content="← Back to Browser" Click="JobsBackToBrowser_Click"/><Border Width="8"/><Button x:Name="RefreshHistoryButton" Style="{StaticResource JobsHeaderButtonStyle}" Content="Refresh" Click="RefreshHistory_Click"/><Button x:Name="JobsClearAllHistoryButton" Style="{StaticResource JobsHeaderDangerButtonStyle}" Content="Clear all terminal Jobs…" IsEnabled="False" ToolTip="Remove eligible terminal Jobs in the current search and filter; active Jobs remain" Click="ClearAllJobsHistory_Click"/><Button x:Name="JobsClearHistoryButton" Style="{StaticResource JobsHeaderDangerButtonStyle}" Content="Delete selected Jobs…" IsEnabled="False" Click="ClearJobsHistory_Click"/></StackPanel>
       <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitle}" Margin="0,2,0,0" Text="Manage current and saved Jobs in one place."/>
      </Grid>
      <Grid Grid.Row="1"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition x:Name="FullJobsListColumn" Width="430" MinWidth="340" MaxWidth="720"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*" MinWidth="320"/></Grid.ColumnDefinitions>

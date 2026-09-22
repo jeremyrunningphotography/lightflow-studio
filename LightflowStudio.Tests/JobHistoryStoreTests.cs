@@ -120,6 +120,22 @@ public sealed class JobHistoryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task RemovalDuringNewCompletionsPreservesEveryUnselectedRecord()
+    {
+        var store = new JobHistoryStore(StorePath);
+        var removed = Enumerable.Range(0, 20).Select(_ => Record(JobState.Failed, DateTimeOffset.UtcNow)).ToArray();
+        foreach (var record in removed) store.Add(record);
+        var added = Enumerable.Range(0, 20).Select(_ => Record(JobState.Completed, DateTimeOffset.UtcNow)).ToArray();
+        await Task.WhenAll(added.Select((record, index) => Task.Run(() =>
+        {
+            store.Add(record);
+            store.Remove(new HashSet<Guid> { removed[index].JobId });
+        })));
+        Assert.Equal(added.Select(record => record.JobId).Order(), store.Load().Select(record => record.JobId).Order());
+        Assert.False(File.Exists(StorePath + ".tmp"));
+    }
+
+    [Fact]
     public void Remove_UnknownOrEmptyScopeDoesNotRewriteHistory()
     {
         var store = new JobHistoryStore(StorePath);

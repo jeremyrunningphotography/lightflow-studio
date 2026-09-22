@@ -154,11 +154,12 @@ public sealed class JobsPresentationTests
         Assert.Null(drawer.Attribute("MinWidth"));
         Assert.Null(drawer.Attribute("MaxWidth"));
         Assert.Equal("0,0,16,0", (string?)list.Attribute("Padding"));
-        var cardStyle = card.Descendants().First(element => element.Name.LocalName == "Style");
-        Assert.Equal("{StaticResource DrawerCard}", (string?)cardStyle.Attribute("BasedOn"));
-        var hover = cardStyle.Descendants().Single(element => (string?)element.Attribute("Property") == "IsMouseOver");
-        Assert.Equal("BorderBrush", (string?)Assert.Single(hover.Elements()).Attribute("Property"));
-        Assert.Equal("0,0,0,7", (string?)card.Attribute("Margin"));
+        Assert.Equal("{StaticResource CompactJobsItemStyle}", (string?)list.Attribute("ItemContainerStyle"));
+        var cardStyle = document.Descendants().Single(element =>
+            (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "CompactJobsItemStyle");
+        Assert.Equal("{StaticResource JobsListItemStyle}", (string?)cardStyle.Attribute("BasedOn"));
+        Assert.Contains(cardStyle.Descendants(), element => (string?)element.Attribute("Property") == "Margin"
+            && (string?)element.Attribute("Value") == "0,0,0,7");
         Assert.Equal(2, reorder.Count);
         Assert.All(reorder, button => { Assert.Equal("22", (string?)button.Attribute("Width")); Assert.Equal("22", (string?)button.Attribute("Height")); });
         Assert.All(reorder, button => Assert.NotNull(button.Attribute("ToolTip")));
@@ -214,20 +215,14 @@ public sealed class JobsPresentationTests
         Assert.Equal([JobState.Queued, JobState.Paused, JobState.Running], bulkCancellable.Select(job => job.State));
 
         var source = MainWindowSource();
-        Assert.Contains("JobsPresentation.BulkCancellableJobs(jobs).Select(job => job.JobId).ToList()", source);
-        Assert.Contains("else if (!_visualIndexJobs.Cancel(id)) _exportScheduler.Cancel(id);", source);
-        Assert.Contains("Cancel all {intended.Count} active", source);
-        Assert.Contains("job.OutputPath", source);
-
+        Assert.Contains("_compactJobsCards.Where(card => card.CanBulkCancel)", source);
+        Assert.Contains("Cancel all {intended.Length} active", source);
         var apply = MethodBody(source, "private void ApplyJobsPresentation");
-        Assert.Contains("JobsPresentation.BulkCancellableJobs(jobs)", apply);
-        Assert.Contains("JobsCancelAllButton.Content = cancelAll ? \"Cancel all\" : \"Clear all\"", apply);
-        Assert.Contains("JobsCancelAllButton.IsEnabled = bulkAction != JobsBulkAction.None", apply);
+        Assert.Contains("JobsCancelAllButton.IsEnabled = cards.Any(card => card.CanBulkCancel)", apply);
+        Assert.Contains("JobsClearAllButton.IsEnabled = cards.Any(card => card.CanClear)", apply);
         Assert.DoesNotContain("JobsCancelAllButton.Visibility", apply);
-        var button = Named(DrawerDocument(), "JobsCancelAllButton");
-        Assert.Equal("Clear all", (string?)button.Attribute("Content"));
-        Assert.Equal("False", (string?)button.Attribute("IsEnabled"));
-        Assert.Null(button.Attribute("Visibility"));
+        Assert.Equal("Cancel all…", (string?)Named(DrawerDocument(), "JobsCancelAllButton").Attribute("Content"));
+        Assert.Equal("Clear all", (string?)Named(DrawerDocument(), "JobsClearAllButton").Attribute("Content"));
     }
 
     [Theory]
@@ -240,7 +235,7 @@ public sealed class JobsPresentationTests
         Assert.Equal(expected, JobsPresentation.IsBulkActive((JobState)state));
 
     [Theory]
-    [InlineData((int)JobState.NeedsAttention, true)]
+    [InlineData((int)JobState.NeedsAttention, false)]
     [InlineData((int)JobState.Completed, true)]
     [InlineData((int)JobState.CompletedWithWarnings, true)]
     [InlineData((int)JobState.Skipped, true)]
@@ -253,16 +248,15 @@ public sealed class JobsPresentationTests
         Assert.Equal(expected, JobsPresentation.IsDismissibleDrawerRow((JobState)state));
 
     [Fact]
-    public void BulkAction_ContextRulesCoverActiveRecoveryTerminalMixedAndEmptySnapshots()
+    public void BulkActionsIndependentlyClearTerminalAndCancelActiveJobs()
     {
-        Assert.Equal(JobsBulkAction.CancelAll, JobsPresentation.BulkAction([Snapshot(1, JobState.Running)]));
-        Assert.Equal(JobsBulkAction.CancelAll, JobsPresentation.BulkAction([Snapshot(1, JobState.Queued)]));
-        Assert.Equal(JobsBulkAction.CancelAll, JobsPresentation.BulkAction([Snapshot(1, JobState.Paused)]));
-        Assert.Equal(JobsBulkAction.ClearAll, JobsPresentation.BulkAction([Snapshot(1, JobState.NeedsAttention)]));
-        Assert.Equal(JobsBulkAction.ClearAll, JobsPresentation.BulkAction([Snapshot(1, JobState.Completed)]));
-        Assert.Equal(JobsBulkAction.CancelAll, JobsPresentation.BulkAction([
-            Snapshot(1, JobState.Running), Snapshot(2, JobState.NeedsAttention), Snapshot(3, JobState.Failed)]));
-        Assert.Equal(JobsBulkAction.None, JobsPresentation.BulkAction([]));
+        var cards = new[] { Snapshot(1, JobState.Running), Snapshot(2, JobState.NeedsAttention), Snapshot(3, JobState.Failed) }
+            .Select(job => JobsPresentation.Card(job, false)).ToArray();
+        Assert.Single(cards, card => card.CanClear);
+        Assert.Single(cards, card => card.CanBulkCancel);
+        Assert.True(cards[1].CanCancel);
+        Assert.False(cards[1].CanClear);
+        Assert.True(cards[2].CanClear);
     }
 
     [Fact]
@@ -501,7 +495,10 @@ public sealed class JobsPresentationTests
             (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "JobsListItemStyle");
         var text = style.ToString();
         Assert.Contains("ShellSelectionBrush", text);
-        Assert.Contains("ShellRaisedBrush", text);
+        Assert.Contains("ShellDividerBrush", text);
+        Assert.Contains("MutedTextBrush", text);
+        Assert.DoesNotContain(style.Descendants(), element => (string?)element.Attribute("Property") == "BorderThickness"
+            && (string?)element.Attribute("Value") == "2");
         Assert.Contains("ShellFocusBrush", text);
         Assert.Contains("SelectionRail", text);
         Assert.DoesNotContain("HighlightBrush", text, StringComparison.OrdinalIgnoreCase);
@@ -571,10 +568,10 @@ public sealed class JobsPresentationTests
     }
 
     [Fact]
-    public void ClearAll_IsTransientAndCanDismissNeedsAttentionButNeverActiveWork()
+    public void ClearAll_IsTransientAndNeverDismissesRecoverableOrActiveWork()
     {
         Assert.True(JobsPresentation.IsDismissibleDrawerRow(JobState.Completed));
-        Assert.True(JobsPresentation.IsDismissibleDrawerRow(JobState.NeedsAttention));
+        Assert.False(JobsPresentation.IsDismissibleDrawerRow(JobState.NeedsAttention));
         Assert.False(JobsPresentation.IsDismissibleDrawerRow(JobState.Queued));
         Assert.False(JobsPresentation.IsDismissibleDrawerRow(JobState.Running));
         Assert.False(JobsPresentation.IsDismissibleDrawerRow(JobState.Paused));
@@ -583,9 +580,9 @@ public sealed class JobsPresentationTests
         var waiting = Snapshot(2, JobState.Queued);
         Assert.Equal([waiting.JobId], JobsPresentation.VisibleJobs([completed, waiting], new HashSet<Guid> { completed.JobId }).Select(job => job.JobId));
         var source = MainWindowSource();
-        Assert.Contains("_dismissedTerminalJobIds.Add(job.JobId)", source);
-        var bulk = MethodBody(source, "internal void JobsCancelAll_Click");
-        Assert.Contains("IsDismissibleDrawerRow", bulk);
+        var bulk = MethodBody(File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.Jobs.cs")), "internal void JobsClearAll_Click");
+        Assert.Contains("card.CanClear", bulk);
+        Assert.Contains("_dismissedTerminalJobIds.Add(card.JobId)", bulk);
         Assert.DoesNotContain("_jobHistory", bulk);
         Assert.DoesNotContain(DrawerDocument().Descendants(), element => (string?)element.Attribute("Content") == "Clear finished");
     }
@@ -763,6 +760,25 @@ public sealed class JobsPresentationTests
         Assert.Equal(selected.ToHashSet(), JobsWorkspacePresentation.SurvivingSelection(selected, [first, second]));
         Assert.Equal(new HashSet<Guid> { second.JobId }, JobsWorkspacePresentation.SurvivingSelection(selected, [second]));
         Assert.Empty(JobsWorkspacePresentation.SurvivingSelection(selected, []));
+    }
+
+    [Theory]
+    [InlineData((int)JobState.Queued, true)]
+    [InlineData((int)JobState.Running, true)]
+    [InlineData((int)JobState.Paused, false)]
+    [InlineData((int)JobState.NeedsAttention, false)]
+    [InlineData((int)JobState.Completed, false)]
+    [InlineData((int)JobState.Failed, false)]
+    public void QueueGateUsesOnlyWorkTheExportSchedulerCanAdmit(int state, bool canPause)
+    {
+        var job = Snapshot(1, (JobState)state);
+        Assert.Equal(canPause, JobsQueueActionState.For(false, [job]).CanToggle);
+        Assert.True(JobsQueueActionState.For(true, [job]).CanToggle);
+        Assert.False(JobsQueueActionState.For(false, []).CanToggle);
+        Assert.True(JobsQueueActionState.For(true, []).CanToggle);
+        var card = JobsPresentation.Card(job, false);
+        var full = Assert.Single(JobsWorkspacePresentation.Project([job], []));
+        Assert.Equal(card.Actions, full.Actions);
     }
 
     private static XDocument DrawerDocument()

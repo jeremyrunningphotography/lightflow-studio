@@ -403,6 +403,7 @@ internal sealed class FileOperationJobs
     public event Action? Changed;
     public IReadOnlyList<FileOperationJobSnapshot> Jobs { get { lock (_sync) return _jobs.ToArray(); } }
     public IReadOnlyList<FileOperationHistoryRecord> History => _history.Load();
+    public int RemoveHistory(IReadOnlySet<Guid> ids) => _history.Remove(ids);
     public void Enqueue(FileOperationIntent intent)
     {
         _history.Begin(intent);
@@ -461,6 +462,19 @@ internal sealed class FileOperationHistoryStore(string path)
         }
     }
     private string ActivePath => path + ".active";
+    public int Remove(IReadOnlySet<Guid> ids)
+    {
+        lock (_sync)
+        {
+            var active = LoadDocument<FileOperationIntent>(ActivePath).Select(intent => intent.OperationId).ToHashSet();
+            var records = Load();
+            var retained = records.Where(record => !ids.Contains(record.Intent.OperationId)
+                || active.Contains(record.Intent.OperationId)
+                || record.Result.State is FileOperationState.Waiting or FileOperationState.Running).ToArray();
+            if (retained.Length != records.Count) SaveDocument(path, retained);
+            return records.Count - retained.Length;
+        }
+    }
     public void Begin(FileOperationIntent intent)
     {
         lock (_sync)

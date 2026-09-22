@@ -96,12 +96,11 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
     };
     public JobCardPresentation Card(bool expanded) => new(JobId, Name, JobsPresentation.Glyph(State),
         State == JobState.Running ? "Sending" : JobsPresentation.StateText(State), Progress, State == JobState.Running,
-        "", null, DetailPresentation, Issue, expanded, false, false, false,
-        State is JobState.Queued or JobState.Running, false);
+        "", null, DetailPresentation, Issue, expanded, JobActionState.For(State));
     public JobsWorkspaceItem WorkspaceItem() => new(JobId, null, null, State is JobState.Queued or JobState.Running,
         false, Name, "Premiere handoff", State, Progress, CreatedUtc.ToLocalTime().ToString("MMM d, HH:mm"),
         Sources.FirstOrDefault()?.Path ?? "", Project.Path, Issue ?? "", Details, CreatedUtc, long.MaxValue,
-        DetailPresentation, SupportsQueueControls: false);
+        DetailPresentation, SupportsQueueControls: false, RemovalKind: JobRemovalKind.RetainedProvenance);
 }
 
 /// <summary>Typed non-encoding executor; current progress is projected into the existing Jobs product.</summary>
@@ -156,7 +155,8 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
                     command.Intent.Subclip is { } subclip ? $"Premiere Subclip: {subclip.Name}" : $"Premiere: {Path.GetFileName(command.Intent.Source.Path)}", "Premiere handoff", state,
                     receipt is null ? 0 : 100, command.Intent.CreatedUtc.ToLocalTime().ToString("MMM d, HH:mm"),
                     command.Intent.Source.Path, command.Intent.Project.Path, message, message,
-                    command.Intent.CreatedUtc, long.MaxValue, new JobMessageDetailsPresentation(message));
+                    command.Intent.CreatedUtc, long.MaxValue, new JobMessageDetailsPresentation(message), SupportsQueueControls: false,
+                    RemovalKind: JobRemovalKind.RetainedProvenance);
             }).ToArray();
     }
 

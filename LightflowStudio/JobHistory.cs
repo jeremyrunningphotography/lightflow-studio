@@ -29,44 +29,54 @@ internal sealed class JobHistoryStore : IJobHistoryStore
     public const int MaximumRecords = 100;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, Converters = { new JsonStringEnumConverter() } };
     private readonly string _path;
+    private readonly object _sync = new();
 
     public JobHistoryStore(string path) => _path = path;
     public static string StorePath => LightflowStorageLocations.Current.JobHistoryPath;
 
     public IReadOnlyList<EncodingJobHistoryRecord> Load()
     {
-        try
+        lock (_sync)
         {
-            if (!File.Exists(_path)) return [];
-            using var document = JsonDocument.Parse(File.ReadAllText(_path));
-            var root = document.RootElement;
-            if (!root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number
-                || !version.TryGetInt32(out var schemaVersion) || schemaVersion != SchemaVersion
-                || !root.TryGetProperty("records", out var records) || records.ValueKind != JsonValueKind.Array) return [];
-            return records.EnumerateArray().Select(TryRead).Where(record => record is not null)
-                .Cast<EncodingJobHistoryRecord>().OrderByDescending(record => record.CompletedAt).Take(MaximumRecords).ToList();
+            try
+            {
+                if (!File.Exists(_path)) return [];
+                using var document = JsonDocument.Parse(File.ReadAllText(_path));
+                var root = document.RootElement;
+                if (!root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number
+                    || !version.TryGetInt32(out var schemaVersion) || schemaVersion != SchemaVersion
+                    || !root.TryGetProperty("records", out var records) || records.ValueKind != JsonValueKind.Array) return [];
+                return records.EnumerateArray().Select(TryRead).Where(record => record is not null)
+                    .Cast<EncodingJobHistoryRecord>().OrderByDescending(record => record.CompletedAt).Take(MaximumRecords).ToList();
+            }
+            catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException) { return []; }
         }
-        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException) { return []; }
     }
 
     public void Add(EncodingJobHistoryRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
-        var records = Load().Where(existing => existing.JobId != record.JobId).Append(record)
-            .OrderByDescending(existing => existing.CompletedAt).Take(MaximumRecords).ToList();
-        Write(records);
+        lock (_sync)
+        {
+            var records = Load().Where(existing => existing.JobId != record.JobId).Append(record)
+                .OrderByDescending(existing => existing.CompletedAt).Take(MaximumRecords).ToList();
+            Write(records);
+        }
     }
 
     public int Remove(IReadOnlySet<Guid> recordIds)
     {
         ArgumentNullException.ThrowIfNull(recordIds);
         if (recordIds.Count == 0) return 0;
-        var existing = Load();
-        var retained = existing.Where(record => !recordIds.Contains(record.JobId)).ToList();
-        var removed = existing.Count - retained.Count;
-        if (removed == 0) return 0;
-        Write(retained);
-        return removed;
+        lock (_sync)
+        {
+            var existing = Load();
+            var retained = existing.Where(record => !recordIds.Contains(record.JobId)).ToList();
+            var removed = existing.Count - retained.Count;
+            if (removed == 0) return 0;
+            Write(retained);
+            return removed;
+        }
     }
 
     private void Write(IReadOnlyList<EncodingJobHistoryRecord> records)

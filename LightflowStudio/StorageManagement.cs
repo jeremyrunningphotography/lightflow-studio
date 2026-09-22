@@ -109,6 +109,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         BrowserAssetStates = new CatalogBrowserAssetStateStore(() => _catalogSession);
         AssetClassifications = new CatalogAssetClassificationStore(() => _catalogSession);
         AssetDescriptions = new CatalogAssetDescriptionStore(() => _catalogSession);
+        _videoRotations = new CatalogAssetVideoRotationStore(() => _catalogSession);
         AssetCopies = new AssetCopyDataService(() => _catalogSession, previews);
         ThumbnailActivity = new ThumbnailGenerationActivity();
         DerivedWork = CreateDerivedWorkScheduler();
@@ -136,6 +137,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public IBrowserAssetStateStore BrowserAssetStates { get; }
     public IAssetClassificationStore AssetClassifications { get; }
     public IAssetDescriptionStore AssetDescriptions { get; }
+    private readonly CatalogAssetVideoRotationStore _videoRotations;
+    public IAssetVideoRotationStore VideoRotations => _videoRotations;
     public IAssetCopyDataService AssetCopies { get; }
     public ILutLibrary Luts { get; }
     public ILutLibraryCache LutCache { get; }
@@ -320,6 +323,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                 if (!committed.Succeeded) throw new IOException(committed.Diagnostic);
                 _catalogSession = replacementSession;
                 replacementSession = null;
+                _videoRotations.NotifyCatalogRestored();
                 return committed;
             }
             catch (Exception exception) when (exception is not OperationCanceledException)

@@ -1,5 +1,15 @@
 # Architecture
 
+## Non-destructive video rotation (#287)
+
+Catalog rotation is an AssetId-keyed clockwise quarter-turn adjustment after source orientation. The shared
+`VideoRotation` contract feeds native Player presentation, source-oriented cached-frame presentation, and
+immutable Export materialization. Migration 18 stores only authored degrees/revision/timestamps. Cached
+frames retain source orientation and use `OrientedPreviewImage` for the adjustment, so rotation is immediate
+without regenerating Previews. Native snapshots and baked Export pixels already include the adjustment.
+See [the orientation contract and adapter research](VIDEO_ROTATION.md) for composition, geometry, concurrency,
+cache ownership, Export reproducibility, and explicit Premiere limitations.
+
 ## Application identity and startup presentation (#241)
 
 `App` owns the splash window and shutdown. After acquiring the primary-instance mutex, it shows

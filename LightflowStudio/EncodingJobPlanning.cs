@@ -51,7 +51,7 @@ internal sealed record EncodingSource(
     MaterializedName? RestoredName = null,
     string? NamingOriginalName = null,
     string? NamingIndexNumberBasis = null,
-    ExportItemProvenance? ExportProvenance = null);
+    ExportItemProvenance? ExportProvenance = null, VideoRotation Rotation = default);
 
 internal sealed record EncodingItemResult(
     int ExitCode,

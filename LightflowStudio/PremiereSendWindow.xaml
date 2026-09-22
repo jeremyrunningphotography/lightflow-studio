@@ -29,6 +29,7 @@
     <RadioButton x:Name="SubclipsRadio" Grid.Column="1" Margin="4,0,0,0" Style="{StaticResource RepresentationModeRadio}" GroupName="SendRepresentation" Checked="RepresentationMode_Changed" AutomationProperties.Name="Send Subclips"><StackPanel><TextBlock FontWeight="SemiBold" Text="Subclips"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Send saved Subclips"/></StackPanel></RadioButton>
    </Grid>
    <TextBlock x:Name="RepresentationHelpText" Margin="0,7,0,8" Style="{StaticResource PageSubtitle}" TextWrapping="Wrap"/>
+   <TextBlock x:Name="RotationNotice" Margin="0,0,0,8" Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap" Visibility="Collapsed" Text="Lightflow rotation is not applied in Premiere. These videos and Subclips use the original source orientation. Export from Lightflow to create media with the rotation applied."/>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <TextBlock x:Name="MediaHeading" Text="Media being sent" Style="{StaticResource SectionTitle}"/>
     <CheckBox x:Name="GlobalUseRangesCheck" Grid.Column="1" VerticalAlignment="Center" Content="Use In/Out points" IsThreeState="False" Checked="GlobalUseRanges_Changed" Unchecked="GlobalUseRanges_Changed" AutomationProperties.Name="Use In and Out points for applicable videos"/>

@@ -12,7 +12,7 @@ internal sealed record EncodingHandoffInput(Guid AssetId, Guid RootId, string So
     ExportItemProvenance? ExportProvenance = null,
     string? NamingOriginalName = null,
     string? NamingIndexNumberBasis = null,
-    bool RangeIsFixed = false);
+    bool RangeIsFixed = false, VideoRotation Rotation = default);
 
 internal sealed record EncodingHandoffResult(IReadOnlyList<EncodingHandoffInput> Inputs,
     IReadOnlyList<string> Errors, string? InputFolder = null, bool IncludeSubfolders = false)
@@ -108,12 +108,14 @@ internal sealed class EncodingCapabilityHandoff
     private readonly IAssetColorStore? _colors;
     private readonly ILutLibraryCache? _lutCache;
     private readonly IEncodingLutResourceStore? _resourceStore;
+    private readonly IAssetVideoRotationStore? _rotations;
 
     public EncodingCapabilityHandoff(IMediaAssetService assets, IMediaRootService roots, IMediaRangeStore ranges)
         : this(assets, roots, ranges, null, null, null) { }
 
     public EncodingCapabilityHandoff(IMediaAssetService assets, IMediaRootService roots, IMediaRangeStore ranges,
-        IAssetColorStore? colors, ILutLibraryCache? lutCache, IEncodingLutResourceStore? resourceStore)
+        IAssetColorStore? colors, ILutLibraryCache? lutCache, IEncodingLutResourceStore? resourceStore,
+        IAssetVideoRotationStore? rotations = null)
     {
         _assets = assets;
         _roots = roots;
@@ -121,6 +123,7 @@ internal sealed class EncodingCapabilityHandoff
         _colors = colors;
         _lutCache = lutCache;
         _resourceStore = resourceStore;
+        _rotations = rotations;
     }
 
     public async Task<EncodingHandoffResult> MaterializeAsync(CapabilityInvocation invocation,
@@ -159,9 +162,11 @@ internal sealed class EncodingCapabilityHandoff
 
             var range = await _ranges.RestoreAsync(assetId, cancellationToken).ConfigureAwait(false);
             var color = await MaterializeColorAsync(assetId, cancellationToken).ConfigureAwait(false);
+            var rotations = _rotations is null ? null : await _rotations.GetAsync([assetId], cancellationToken).ConfigureAwait(false);
+            var rotation = rotations?.GetValueOrDefault(assetId)?.Rotation ?? default;
             inputs.Add(new(assetId, resolved.Asset.RootId, resolved.PhysicalPath, name,
                 resolved.Asset.FileSizeBytes, Snapshot(range), color,
-                new(ExportItemKind.OrdinarySource, assetId)));
+                new(ExportItemKind.OrdinarySource, assetId), Rotation: rotation));
         }
 
         if (errors.Count != 0) return new([], errors);

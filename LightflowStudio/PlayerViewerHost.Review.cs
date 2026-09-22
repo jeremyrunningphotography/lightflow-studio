@@ -48,6 +48,7 @@ public partial class PlayerViewerHost
             if (view is null || !ReferenceEquals(view, _mediaView) || !view.IsLoaded) return;
             _nativeInput?.Dispose();
             _nativeInput = CreateSurfaceInput(view.InputSurface);
+            if (_rotations is not null) InstallRotationMenu(view.InputSurface);
             if (IsFullscreen) AttachFullscreenOverlay();
             ApplyViewport();
         });

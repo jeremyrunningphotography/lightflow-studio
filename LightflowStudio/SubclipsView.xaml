@@ -41,7 +41,7 @@
          <Grid>
           <TextBlock Text="&#xE714;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="20"
            Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-          <Image Source="{Binding Poster}" Stretch="UniformToFill"/>
+          <local:OrientedPreviewImage AssetId="{Binding Subclip.AssetId}" Source="{Binding Poster}" Stretch="UniformToFill"/>
          </Grid>
         </Border>
         <Grid Grid.Column="1" Margin="8,0,0,0">

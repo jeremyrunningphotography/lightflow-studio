@@ -29,8 +29,20 @@ internal static class CatalogMigrations
         new(14, "Premiere destination projections and durable handoff intents", ApplyVersion14),
         new(15, "Premiere native Subclip destination projections", ApplyVersion15),
         new(16, "Durable asset timeline point markers", ApplyVersion16),
-        new(17, "Premiere point-marker destination projections", ApplyVersion17)
+        new(17, "Premiere point-marker destination projections", ApplyVersion17),
+        new(18, "Durable non-destructive video rotation", ApplyVersion18)
     ];
+
+    private static void ApplyVersion18(SqliteConnection connection, SqliteTransaction transaction, CatalogMigrationContext context) =>
+        Execute(connection, transaction, """
+            CREATE TABLE MediaAssetVideoRotation (
+                AssetId TEXT NOT NULL PRIMARY KEY REFERENCES MediaAssets(AssetId) ON DELETE RESTRICT,
+                Degrees INTEGER NOT NULL CHECK(Degrees IN (0,90,180,270)),
+                Revision INTEGER NOT NULL CHECK(Revision > 0),
+                CreatedUtc TEXT NOT NULL,
+                UpdatedUtc TEXT NOT NULL
+            );
+            """);
 
     private static void ApplyVersion17(SqliteConnection connection, SqliteTransaction transaction, CatalogMigrationContext context) =>
         Execute(connection, transaction, """

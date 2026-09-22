@@ -118,6 +118,14 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         player.RequestRender();
     });
 
+    public void SetVideoRotation(VideoRotation rotation) => RunOnUi(() =>
+    {
+        if (_player is not { } player) return;
+        // Flyleaf adds Config.Video.Rotation to the source display-matrix rotation exactly once.
+        player.Config.Video.Rotation = (uint)rotation.Degrees;
+        player.RequestRender();
+    });
+
     public bool SetPresentationOverlay(FrameworkElement surface, FrameworkElement? content) => RunOnUi(() =>
     {
         if (surface is not FlyleafHost host) return false;
@@ -228,7 +236,8 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             player.Video.VideoAcceleration)
         {
             OpenMetrics = new(sourceOpenTimer.Elapsed, firstFrameTimer.Elapsed, totalTimer.Elapsed),
-            FrameRate = selectedVideo?.FPS ?? 0
+            FrameRate = selectedVideo?.FPS ?? 0,
+            SourceRotation = new((int)(selectedVideo?.Rotation ?? 0))
         };
         Trace.WriteLine(
             $"Playback open {Path.GetFileName(sourcePath)}: source={sourceOpenTimer.Elapsed.TotalMilliseconds:n0}ms, " +
@@ -419,7 +428,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             // installs its decoded RendererFrame synchronously before Flyleaf raises SeekCompleted.
             await EnsureOffscreenSurfaceAsync(token).ConfigureAwait(false);
             var timestamp = await SeekPlayerAsync(player, position, token).ConfigureAwait(false);
-            var bitmap = RunOnUi(() => player.TakeSnapshotToBitmapSource()
+            var bitmap = RunOnUi(() => CaptureOrientedBitmap(player)
                 ?? throw new InvalidOperationException("No decoded video frame is available."));
             var converted = EnsureBgra32(bitmap);
             var stride = converted.PixelWidth * 4;
@@ -445,7 +454,7 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
         var player = RequirePlayer();
         return Task.FromResult(RunOnUi(() =>
         {
-            var bitmap = player.TakeSnapshotToBitmapSource()
+            var bitmap = CaptureOrientedBitmap(player)
                 ?? throw new InvalidOperationException("No presented video frame is available.");
             var converted = EnsureBgra32(bitmap);
             var stride = converted.PixelWidth * 4;
@@ -454,6 +463,15 @@ internal sealed class FlyleafPlaybackBackend : IMediaPlaybackBackend
             return new MediaDecodedFrame(
                 Timestamp(player.CurTime), converted.PixelWidth, converted.PixelHeight, stride, pixels);
         }));
+    }
+
+    private static BitmapSource? CaptureOrientedBitmap(Player player)
+    {
+        var stream = player.Video.Streams?.FirstOrDefault(value => value.StreamIndex == player.Video.StreamIndex);
+        var effective = new VideoRotation((int)(stream?.Rotation ?? 0)).Compose(new((int)player.Config.Video.Rotation));
+        var size = effective.Dimensions((int)player.Renderer.VisibleWidth, (int)player.Renderer.VisibleHeight);
+        // Flyleaf's zero-argument snapshot defaults to unrotated dimensions even when its renderer rotates.
+        return player.TakeSnapshotToBitmapSource((uint)size.Width, (uint)size.Height);
     }
 
     private Player CreatePlayer()

@@ -44,7 +44,17 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
             try
             {
                 window.Show();
-                await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0);
+                await window.PresentationReady.WaitAsync(TimeSpan.FromSeconds(30));
+                // An unanchored storage row backed by our known-readable fixture avoids depending on
+                // host drive ordering, permissions or readiness (which differ on hosted CI).
+                var fixture = new BrowserTreeModel();
+                fixture.SetStorageEntries([new("fixture-volume", "Fixture volume", _mediaRoot,
+                    BrowserStorageKind.Volume, MediaRootAvailability.Online)]);
+                var roots = Assert.IsType<System.Collections.ObjectModel.ObservableCollection<BrowserTreeNode>>(
+                    window.BrowserFolderTree.ItemsSource);
+                roots.Clear();
+                roots.Add(Assert.Single(fixture.Roots));
+                await SettleAsync(window);
 
                 var volumeContainer = FindContainer(window.BrowserFolderTree,
                     node => node.Storage?.Kind == BrowserStorageKind.Volume && node.RootId is null);
@@ -92,7 +102,7 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
             try
             {
                 window.Show();
-                await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0);
+                await window.PresentationReady.WaitAsync(TimeSpan.FromSeconds(30));
 
                 var libraryContainer = FindContainer(window.BrowserFolderTree,
                     node => string.Equals(node.AbsolutePath, _mediaRoot, StringComparison.OrdinalIgnoreCase));
@@ -178,6 +188,8 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
     {
         item.ApplyTemplate();
         var caret = (ToggleButton)item.Template.FindName("Expander", item);
+        caret.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+            { RoutedEvent = Mouse.PreviewMouseDownEvent });
         // Invoke WPF's real toggle/binding/event path, without sending desktop input.
         var peer = new ToggleButtonAutomationPeer(caret);
         ((IToggleProvider)peer.GetPattern(PatternInterface.Toggle)).Toggle();

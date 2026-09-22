@@ -23,6 +23,7 @@ public partial class VisualIndexView : System.Windows.Controls.UserControl
     internal void Initialize(VisualIndexModel model, int count)
     {
         Density.SelectedItem = VisualIndexSampling.NormalizeCount(count);
+        model.ProgressChanged += (_, _) => GenerationStatus.Text = model.Status;
         model.Changed += (_, _) =>
         {
             Frames.ItemsSource = model.Cards;

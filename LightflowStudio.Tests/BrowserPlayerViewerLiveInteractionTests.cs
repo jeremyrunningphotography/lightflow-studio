@@ -148,7 +148,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Inspector_PreservesHomeAndPlayerContext_ResizesAndRestores_WithGlobalJobs()
+    public async Task Inspector_PreservesHomeAndPlayerContext_ResizesAndRestores_WithBrowserJobs()
     {
         await StaDispatcher.RunAsync(async () =>
         {
@@ -240,13 +240,19 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 window.OpenJobsPanel();
                 window.Width = 1120; window.UpdateLayout();
                 Assert.True(window.HomeRightPanel.IsVisible);
-                Assert.Equal("jobs", window.HomeRightPanel.ActiveSurface);
+                Assert.Equal("inspector", window.HomeRightPanel.ActiveSurface);
+                var jobsTab = window.HomeRightPanel.SurfaceTabs.Items.Cast<TabItem>().Single(tab => Equals(tab.Tag, "jobs"));
+                Assert.Equal(Visibility.Collapsed, jobsTab.Visibility);
                 Assert.Same(player, window.BrowserPlayerHost.Content);
                 AssertContained(window.HomeRightPanel, window.BrowserWorkspaceRoot);
                 Assert.True(window.BrowserCenter.ActualWidth >= 200);
                 window.HomeRightPanel.SelectSurface("inspector");
                 RaiseClick(player.BackButton);
                 await WaitUntilAsync(() => !inspector.IsPlayerContext, "return context");
+                window.OpenJobsPanel();
+                Assert.Equal(Visibility.Visible, jobsTab.Visibility);
+                Assert.Equal("jobs", window.HomeRightPanel.ActiveSurface);
+                window.HomeRightPanel.SelectSurface("inspector");
                 Assert.True(tile.IsSelected);
                 Assert.Same(rows, window.BrowserGridRows.ItemsSource);
                 window.Close();
@@ -397,6 +403,9 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 Assert.Equal(ExpectedSelectionActionRow(window), Grid.GetRow(window.BrowserSelectionActionToolbar));
 
                 window.OpenJobsPanel();
+                Assert.Equal(Visibility.Collapsed, window.HomeRightPanel.Visibility);
+                window.RightPanelToggle.IsChecked = true;
+                RaiseClick(window.RightPanelToggle);
                 window.UpdateLayout();
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                 window.UpdateLayout();

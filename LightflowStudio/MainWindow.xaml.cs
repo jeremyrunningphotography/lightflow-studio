@@ -214,6 +214,7 @@ public partial class MainWindow : Window
             new FileOperationHistoryStore(storage.Locations.FileOperationHistoryPath), result =>
                 Dispatcher.InvokeAsync(() => SynchronizeFileSystemMutationsAsync(result.CompletedMutations)).Task.Unwrap());
         _fileOperationJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
+        InitializeVisualIndexJobs();
         _exportCoordinator.Completed += _ => Dispatcher.BeginInvoke(RefreshHistory);
         _exportScheduler.Changed += ExportScheduler_Changed;
         _exportScheduler.SubmissionAccepted += _ => Dispatcher.BeginInvoke(() =>
@@ -346,6 +347,8 @@ public partial class MainWindow : Window
             ResetBrowserAssetGesture();
             _inspectorRefreshTimer.Stop();
             _inspector?.Dispose();
+            _visualIndexJobs.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            _visualIndexFrames.Dispose();
             _exportCoordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
             _activeJobExecutor?.TerminateAll();
             _browserEncodingHandoffCts?.Cancel();
@@ -1567,6 +1570,7 @@ public partial class MainWindow : Window
         Enable("Send To", state.CanExport);
         Enable("Export", state.CanExport);
         Enable("Regenerate Previews", state.CanRegenerateThumbnails);
+        Enable("Create Visual Index", state.CanCreateVisualIndex);
         Enable("Camera LUT", state.CanAssignCameraLut && BrowserCameraLutCombo.IsEnabled);
         Enable("Creative LUT", state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled);
     }
@@ -1883,6 +1887,7 @@ public partial class MainWindow : Window
 
     private async Task RegenerateColorThumbnailsAsync(IReadOnlyList<Guid> ids)
     {
+        foreach (var id in ids) _playerViewerHost?.InvalidateVisualIndexColor(id);
         try
         {
             await _storage.RegenerateThumbnailsAsync(ids,
@@ -1991,7 +1996,7 @@ public partial class MainWindow : Window
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder,
             preferredPreviewFrames: _storage.PreferredPreviewFrames,
             classifications: _storage.AssetClassifications, markers: _storage.Markers);
-        _playerViewerHost.InitializeVisualIndex(_storage.CreatePositionFrameService(), () => _storage.Previews,
+        _playerViewerHost.InitializeVisualIndex(_visualIndexFrames, () => _storage.Previews,
             _workspaceState.Current.Layout?.VisualIndexCount ?? 24);
         _playerViewerHost.VisualIndexDensityChanged += (_, _) =>
         {
@@ -2013,9 +2018,10 @@ public partial class MainWindow : Window
         };
         _playerViewerHost.ExportRequested += PlayerViewerHost_ExportRequested;
         _playerViewerHost.ExportSelectedSubclipsRequested += PlayerViewerHost_ExportSelectedSubclipsRequested;
-        _playerViewerHost.SubclipsRevealRequested += (_, _) =>
+        _playerViewerHost.SubclipsRevealRequested += (_, automatic) =>
         {
             UpdateSubclipsSurfaceAvailability();
+            if (automatic && HomeRightPanel.PreferredSurface == "visual-index") return;
             HomeRightPanel.SelectSurface("subclips");
             SetRightPanelOpen(true);
         };
@@ -2178,6 +2184,7 @@ public partial class MainWindow : Window
         if (!TryLeaveInspectorContext()) return;
         HomeRightPanel.SetSurfaceAvailable("subclips", false);
         HomeRightPanel.SetSurfaceAvailable("visual-index", false);
+        HomeRightPanel.SetSurfaceAvailable("jobs", true);
         var playerViewerHost = _playerViewerHost;
         Guid? revealAssetId = null;
         if (restoreScrollOffset && playerViewerHost?.ReviewSet?.IsSelectionSubset == true && _playerBrowserGrid is { } openingGrid)
@@ -6238,6 +6245,9 @@ public partial class MainWindow : Window
                 JobsSearchText?.Text, filter, _deletedFullJobsTerminalJobIds)
             .Concat(JobsWorkspacePresentation.ProjectFileOperations(_fileOperationJobs.Jobs, _fileOperationJobs.History,
                 JobsSearchText?.Text, filter))
+            .Concat(_visualIndexJobs.Jobs.Select(job => job.WorkspaceItem())
+                .Where(item => JobsWorkspacePresentation.Matches(item.State, filter)
+                    && (string.IsNullOrWhiteSpace(JobsSearchText?.Text) || item.Name.Contains(JobsSearchText.Text, StringComparison.OrdinalIgnoreCase))))
             .Concat((_premiereJobs?.Jobs ?? []).Where(job => job.State is JobState.Queued or JobState.Running || job.Receipts.Count == 0).Select(job => job.WorkspaceItem())
                 .Where(item => JobsWorkspacePresentation.Matches(item.State, filter)
                     && (string.IsNullOrWhiteSpace(JobsSearchText?.Text) || item.Name.Contains(JobsSearchText.Text, StringComparison.OrdinalIgnoreCase))))
@@ -6385,7 +6395,7 @@ public partial class MainWindow : Window
         if (!selection.CanResume) return;
         foreach (var id in selection.Items.Select(item => item.JobId).ToList()) _exportScheduler.Resume(id);
     }
-    private void FullJobsRetry_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) _exportScheduler.RetryNeedsAttention(item.JobId); }
+    private void FullJobsRetry_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) RetryVisualIndexOrExport(item.JobId); }
     private void FullJobsMoveEarlier_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) _exportScheduler.MoveWaiting(item.JobId, -1); }
     private void FullJobsMoveLater_Click(object sender, RoutedEventArgs e) { if (HistoryList.SelectedItem is JobsWorkspaceItem item) _exportScheduler.MoveWaiting(item.JobId, 1); }
     private void FullJobsCancel_Click(object sender, RoutedEventArgs e)
@@ -6400,7 +6410,7 @@ public partial class MainWindow : Window
             foreach (var id in intended)
                 if (_fileOperationJobs.Jobs.Any(job => job.Intent.OperationId == id)) _fileOperationJobs.Cancel(id);
                 else if (_premiereJobs?.Jobs.Any(job => job.JobId == id) == true) _premiereJobs.Cancel(id);
-                else _exportScheduler.Cancel(id);
+                else if (!_visualIndexJobs.Cancel(id)) _exportScheduler.Cancel(id);
     }
 
     private void JobsBackToBrowser_Click(object sender, RoutedEventArgs e) =>
@@ -6717,18 +6727,22 @@ public partial class MainWindow : Window
         var activeFileJobs = fileJobs.Count(job => job.State is FileOperationState.Waiting or FileOperationState.Running);
         var premiereJobs = (_premiereJobs?.Jobs ?? []).Where(job => !_dismissedTerminalJobIds.Contains(job.JobId)).ToArray();
         var activePremiereJobs = premiereJobs.Count(job => job.State is JobState.Queued or JobState.Running);
+        var visualIndexJobs = _visualIndexJobs.Jobs.Where(job => !_dismissedTerminalJobIds.Contains(job.JobId)).ToArray();
+        var activeVisualIndexJobs = visualIndexJobs.Count(job => !JobsPresentation.IsTerminal(job.State));
         JobsStatusButton.Content = activeFileJobs == 0 ? JobsPresentation.StatusText(jobs, queuePaused)
             : $"{JobsPresentation.StatusText(jobs, queuePaused)} · {activeFileJobs} file {(activeFileJobs == 1 ? "operation" : "operations")}";
         if (activePremiereJobs > 0) JobsStatusButton.Content += $" · {activePremiereJobs} Premiere handoff(s)";
+        if (activeVisualIndexJobs > 0) JobsStatusButton.Content += $" · {activeVisualIndexJobs} Visual Index";
         AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs workspace.");
         JobsStatusButton.ToolTip = "Open full Jobs workspace";
         _compactJobsView.MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         ApplyQueueGatePresentation(FullJobsQueueGateButton, queuePaused);
         ApplyQueueGatePresentation(_compactJobsView.JobsQueueGateButton, queuePaused);
         var visibleJobs = JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds);
-        var cancellableCount = JobsPresentation.BulkCancellableJobs(jobs).Count + activePremiereJobs;
+        var cancellableCount = JobsPresentation.BulkCancellableJobs(jobs).Count + activePremiereJobs + activeVisualIndexJobs;
         var clearableCount = visibleJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State))
-            + premiereJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State));
+            + premiereJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State))
+            + visualIndexJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State));
         var bulkAction = cancellableCount > 0 ? JobsBulkAction.CancelAll : clearableCount > 0 ? JobsBulkAction.ClearAll : JobsBulkAction.None;
         var cancelAll = bulkAction == JobsBulkAction.CancelAll;
         _compactJobsView.JobsCancelAllButton.Content = cancelAll ? "Cancel all" : "Clear all";
@@ -6741,7 +6755,8 @@ public partial class MainWindow : Window
             : clearableCount > 0 ? $"Clear all {clearableCount} dismissible Jobs from panel" : "Clear all, no Jobs to clear");
         var cards = visibleJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId)))
             .Concat(fileJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.Intent.OperationId))))
-            .Concat(premiereJobs.Select(job => job.Card(_expandedJobIds.Contains(job.JobId)))).ToList();
+            .Concat(premiereJobs.Select(job => job.Card(_expandedJobIds.Contains(job.JobId))))
+            .Concat(visualIndexJobs.Select(job => job.Card(_expandedJobIds.Contains(job.JobId)))).ToList();
         JobsPresentation.Reconcile(_compactJobsCards, cards);
         if (MainTabs?.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
     }
@@ -6753,6 +6768,7 @@ public partial class MainWindow : Window
 
     internal void OpenJobsPanel()
     {
+        if (_browserPresentation == BrowserPresentationMode.PlayerViewer) return;
         HomeRightPanel.SelectSurface("jobs");
         SetRightPanelOpen(true);
     }
@@ -6804,12 +6820,13 @@ public partial class MainWindow : Window
     private Guid? JobIdFrom(object sender) => (sender as FrameworkElement)?.Tag is Guid id ? id : null;
     internal void JobsPause_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.Pause(id); }
     internal void JobsResume_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.Resume(id); }
-    internal void JobsRetry_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.RetryNeedsAttention(id); }
+    internal void JobsRetry_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) RetryVisualIndexOrExport(id); }
     internal void JobsMoveUp_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.MoveWaiting(id, -1); }
     internal void JobsMoveDown_Click(object sender, RoutedEventArgs e) { if (JobIdFrom(sender) is { } id) _exportScheduler.MoveWaiting(id, 1); }
     internal void JobsCancel_Click(object sender, RoutedEventArgs e)
     {
         if (JobIdFrom(sender) is not { } id) return;
+        if (_visualIndexJobs.Cancel(id)) return;
         if (_premiereJobs?.Jobs.Any(job => job.JobId == id) == true)
         {
             _premiereJobs.Cancel(id);
@@ -6836,6 +6853,7 @@ public partial class MainWindow : Window
         var jobs = _exportScheduler.Jobs;
         var intended = JobsPresentation.BulkCancellableJobs(jobs).Select(job => job.JobId).ToList();
         intended.AddRange((_premiereJobs?.Jobs ?? []).Where(job => job.State is JobState.Queued or JobState.Running).Select(job => job.JobId));
+        intended.AddRange(_visualIndexJobs.Jobs.Where(job => !JobsPresentation.IsTerminal(job.State)).Select(job => job.JobId));
         if (intended.Count > 0)
         {
             var noun = intended.Count == 1 ? "Job" : "Jobs";
@@ -6847,13 +6865,15 @@ public partial class MainWindow : Window
             foreach (var id in intended)
                 if (_fileOperationJobs.Jobs.Any(job => job.Intent.OperationId == id)) _fileOperationJobs.Cancel(id);
                 else if (_premiereJobs?.Jobs.Any(job => job.JobId == id) == true) _premiereJobs.Cancel(id);
-                else _exportScheduler.Cancel(id);
+                else if (!_visualIndexJobs.Cancel(id)) _exportScheduler.Cancel(id);
             return;
         }
         foreach (var job in JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds)
                      .Where(job => JobsPresentation.IsDismissibleDrawerRow(job.State)))
             _dismissedTerminalJobIds.Add(job.JobId);
         foreach (var job in (_premiereJobs?.Jobs ?? []).Where(job => JobsPresentation.IsDismissibleDrawerRow(job.State)))
+            _dismissedTerminalJobIds.Add(job.JobId);
+        foreach (var job in _visualIndexJobs.Jobs.Where(job => JobsPresentation.IsDismissibleDrawerRow(job.State)))
             _dismissedTerminalJobIds.Add(job.JobId);
         ApplyJobsPresentation(_exportScheduler.Jobs);
     }

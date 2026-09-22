@@ -9,6 +9,24 @@ public sealed class JobRuntimeTests : IDisposable
 
     public JobRuntimeTests() => Directory.CreateDirectory(_root);
 
+    [Fact]
+    public async Task ParallelApplicationJobsCanPublishAggregateSnapshotsWithoutLockInversion()
+    {
+        await using var jobs = new ApplicationJobsRuntime<EncodingJobOptions, int>();
+        var snapshots = 0;
+        jobs.Changed += _ => { _ = jobs.Jobs; Interlocked.Increment(ref snapshots); };
+        var submitted = await Task.WhenAll(Enumerable.Range(0, 24).Select(_ => Task.Run(() =>
+            jobs.Queue(Plan(2), 2, (item, progress, token) =>
+            {
+                progress.Report(50);
+                return Task.FromResult(Completed(item));
+            })))).WaitAsync(TimeSpan.FromSeconds(10));
+        await Task.WhenAll(submitted.Select(job => job.Completion)).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(24, jobs.Jobs.Count);
+        Assert.All(jobs.Jobs, job => Assert.Equal(JobState.Completed, job.State));
+        Assert.True(snapshots >= 24);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(9)]
@@ -168,7 +186,8 @@ public sealed class JobRuntimeTests : IDisposable
                                                 && snapshot.Counts.Completed == 1);
 
         runtime.Cancel();
-        var cancelling = await observer.WaitForAsync(snapshot => snapshot.State == JobState.Cancelling);
+        // Cancellation may finish before its notification is published; both observations are valid.
+        var cancelling = await observer.WaitForAsync(snapshot => snapshot.State is JobState.Cancelling or JobState.Cancelled);
         var result = await completion;
 
         Assert.Null(cancelling.Eta);

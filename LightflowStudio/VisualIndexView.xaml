@@ -8,8 +8,7 @@
    <TextBlock Text="Frames" VerticalAlignment="Center" Margin="0,0,8,0"/>
    <ComboBox x:Name="Density" Width="76" SelectionChanged="Density_SelectionChanged" AutomationProperties.Name="Visual Index frame count"/>
   </DockPanel>
-  <TextBlock Grid.Row="1" Text="Original color" Foreground="{DynamicResource MutedTextBrush}" Margin="0,6,0,8"
-   ToolTip="Like marker and Subclip thumbnails, these frames show Original color."/>
+  <TextBlock x:Name="GenerationStatus" Grid.Row="1" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}" Margin="0,6,0,8"/>
   <TextBlock x:Name="EmptyState" Grid.Row="2" Text="Waiting for video duration…" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"/>
   <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" SizeChanged="Grid_SizeChanged">
    <ItemsControl x:Name="Frames" Loaded="Frames_Loaded">

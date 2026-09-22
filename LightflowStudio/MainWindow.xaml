@@ -600,6 +600,7 @@
                    <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export Subclips…" Click="BrowserContextExportSubclips_Click"/>
                   </MenuItem>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Regenerate Previews" Click="BrowserContextRegenerateThumbnails_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Create Visual Index" Click="BrowserContextCreateVisualIndex_Click"/>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename…" Click="BrowserRename_Click"/>
                   <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Camera LUT" SubmenuOpened="BrowserContextCameraLut_SubmenuOpened">

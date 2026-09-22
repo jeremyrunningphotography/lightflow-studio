@@ -437,6 +437,56 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task VisualIndexColor_UsesSharedStageOrderAndCacheIdentityAndRejectsStaleWork()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        var source = Path.Combine(fixture.MediaRoot, "clip.mp4");
+        await File.WriteAllTextAsync(source, "unchanged source");
+        var id = await fixture.AddAssetAsync("clip.mp4", "video");
+        var camera = Guid.NewGuid(); var creative = Guid.NewGuid();
+        var original = new AssetColorIntent(id, null, null, PreviewVisualIdentity.Original);
+        var colors = new MutableColorStore(original);
+        var luts = new FakeLutCache(new Dictionary<Guid, string> { [camera] = "camera.cube", [creative] = "creative.cube" });
+        var renderer = new ColorAwareRenderer();
+        using var frames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            renderer, colors: colors, luts: luts);
+        var firstContext = await frames.PrepareContextAsync(id, default);
+        var first = await frames.GetAsync(firstContext, TimeSpan.Zero, ThumbnailPriority.Visible, default);
+        Assert.NotNull(first);
+        colors.Intent = new(id, new(camera, "Camera", "aa", LutResourceAvailability.Available),
+            new(creative, "Creative", "bb", LutResourceAvailability.Available), "camera-creative");
+        var coloredContext = await frames.PrepareContextAsync(id, default);
+        var colored = await frames.GetAsync(coloredContext, TimeSpan.Zero, ThumbnailPriority.Background, default);
+        Assert.NotNull(colored); Assert.NotEqual(first, colored);
+        Assert.Equal(["camera.cube", "creative.cube"], renderer.LastColor!.OrderedLutPaths);
+        Assert.Null(await frames.FindCachedAsync(firstContext, TimeSpan.Zero, default));
+        Assert.Equal(colored, await frames.FindCachedAsync(coloredContext, TimeSpan.Zero, default));
+        foreach (var stage in new[] { ColorLutStage.Camera, ColorLutStage.Creative })
+        {
+            colors.Intent = new(id,
+                stage == ColorLutStage.Camera ? new(camera, "Camera", "aa", LutResourceAvailability.Available) : null,
+                stage == ColorLutStage.Creative ? new(creative, "Creative", "bb", LutResourceAvailability.Available) : null, stage.ToString());
+            var single = await frames.PrepareContextAsync(id, default);
+            Assert.NotNull(await frames.GetAsync(single, TimeSpan.Zero, ThumbnailPriority.Visible, default));
+            Assert.Equal([stage == ColorLutStage.Camera ? "camera.cube" : "creative.cube"], renderer.LastColor!.OrderedLutPaths);
+        }
+        colors.Intent = original;
+        Assert.Equal(first, await frames.FindCachedAsync(firstContext, TimeSpan.Zero, default));
+
+        var blocking = new BlockingColorRenderer();
+        using var pendingFrames = new PositionFrameService(fixture.Coordinator.MediaAssets, () => fixture.Coordinator.Locations,
+            blocking, colors: colors, luts: luts);
+        var pending = pendingFrames.GetAsync(firstContext, TimeSpan.FromSeconds(1), ThumbnailPriority.Background, default);
+        await blocking.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        colors.Intent = new(id, new(camera, "Camera", "aa", LutResourceAvailability.Available), null, "camera-only");
+        blocking.Release.TrySetResult();
+        Assert.Null(await pending);
+        Assert.False(await frames.IsCurrentAsync(firstContext, default));
+        Assert.Equal("unchanged source", await File.ReadAllTextAsync(source));
+        Assert.Empty(Directory.GetFiles(fixture.Coordinator.Locations.PreviewsDirectory, "*.lightflow", SearchOption.AllDirectories));
+    }
+
+    [Fact]
     public async Task ColorChangeDuringGeneration_DoesNotOverwritePriorThumbnail_AndActivityAlwaysClears()
     {
         await using var fixture = await ThumbnailFixture.CreateAsync(_root);

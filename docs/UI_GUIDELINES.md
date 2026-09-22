@@ -3,7 +3,7 @@
 ## Jobs surfaces
 
 - The bottom status-bar Jobs affordance always navigates to the secondary full Jobs destination. The shared Right Panel
-  Jobs tab presents compact global activity, and Back restores the already-live Browser/Player home.
+  Jobs tab is Browser-only and presents compact global activity, and Back restores the already-live Browser/Player home.
 - The full workspace combines scheduler-current and durable historical per-file Jobs in a virtualized list + details
   layout. Search and status filters apply across both sources; waiting order and concurrency controls call the one
   global scheduler.
@@ -45,7 +45,7 @@ deliberately less intimidating than the tools it wraps.
 
 Browser/Player is Home, not a tab in a permanent module strip. Invoke capabilities as focused actions or modals from
 the media context. Full Jobs is the only secondary operational destination and is entered from the bottom status
-affordance. Compact Jobs shares the Right Panel with contextual Inspector/Subclips while retaining global ownership. Put rare application utilities—currently Settings and About—
+affordance. Compact Jobs appears beside Inspector in Browser; Player exposes Inspector/Subclips/Visual Index. Jobs retains global ownership. Put rare application utilities—currently Settings and About—
 behind the lightweight upper-right application menu; do not turn that menu into a capability launcher.
 
 ## Standard tool layout

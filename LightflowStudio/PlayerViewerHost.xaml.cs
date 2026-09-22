@@ -116,7 +116,7 @@ public partial class PlayerViewerHost : UserControl
     internal event EventHandler<AssetClassification>? ClassificationChanged;
     internal event EventHandler<PlayerViewerExportRequestedEventArgs>? ExportRequested;
     internal event EventHandler<PlayerViewerSubclipsExportRequestedEventArgs>? ExportSelectedSubclipsRequested;
-    internal event EventHandler? SubclipsRevealRequested;
+    internal event EventHandler<bool>? SubclipsRevealRequested;
     internal SubclipsView SubclipsContent { get; }
     internal System.Windows.Controls.Border SubclipsPanel => SubclipsContent.SubclipsPanel;
     internal System.Windows.Controls.Button AddSubclipButton => SubclipsContent.AddSubclipButton;
@@ -1025,7 +1025,7 @@ public partial class PlayerViewerHost : UserControl
                 SubclipsList.SelectedItem = item;
                 SubclipsList.ScrollIntoView(item);
             }
-            SubclipsRevealRequested?.Invoke(this, EventArgs.Empty);
+            SubclipsRevealRequested?.Invoke(this, false);
             SubclipStateChanged?.Invoke(this, new(assetId, hasSubclips: true));
             SetStatus(result.Created ? $"{subclip.Name} created." : null);
         }
@@ -1226,7 +1226,7 @@ public partial class PlayerViewerHost : UserControl
                 _ = LoadPosterAsync(item, generation, token);
             }
             UpdateSubclipEmptyState();
-            if (subclips.Count > 0) SubclipsRevealRequested?.Invoke(this, EventArgs.Empty);
+            if (subclips.Count > 0) SubclipsRevealRequested?.Invoke(this, true);
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)

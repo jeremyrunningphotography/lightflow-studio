@@ -9,6 +9,7 @@ public partial class PlayerViewerHost
     private TimeSpan? _visualIndexCachedDuration;
     private double _visualIndexCachedRate;
     private long _visualIndexContextGeneration;
+    private long _visualIndexColorRevision;
     internal event EventHandler? VisualIndexDensityChanged;
     internal int VisualIndexCount => VisualIndexContent.Count;
 
@@ -39,11 +40,17 @@ public partial class PlayerViewerHost
             catch { /* Missing rebuildable metadata leaves an honest unknown-duration state. */ }
         };
     }
+    internal void InvalidateVisualIndexColor(Guid assetId)
+    {
+        if (_currentAsset?.AssetId != assetId) return;
+        ++_visualIndexColorRevision;
+        RefreshVisualIndex();
+    }
     private void RefreshVisualIndex()
     {
         var id = _currentAsset is { Kind: MediaPresentationKind.Video } ? _currentAsset.AssetId : null;
         _visualIndex?.SetContext(id, _service?.SourceInfo?.Duration ?? _visualIndexCachedDuration,
-            _service?.SourceInfo?.FrameRate ?? _visualIndexCachedRate, VisualIndexContent.Count, VisualIndexContent.IsVisible);
+            _service?.SourceInfo?.FrameRate ?? _visualIndexCachedRate, VisualIndexContent.Count, VisualIndexContent.IsVisible, _visualIndexColorRevision);
         _visualIndex?.UpdatePosition(_service?.Snapshot.DisplayedTimestamp?.Position ?? TimeSpan.Zero);
     }
     internal async Task SeekVisualIndexAsync(VisualIndexCard card)

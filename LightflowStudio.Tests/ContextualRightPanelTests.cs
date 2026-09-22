@@ -8,6 +8,37 @@ namespace LightflowStudio.Tests;
 public sealed class ContextualRightPanelTests
 {
     [Fact]
+    public async Task BrowserJobsAndPlayerReviewSurfacesRetainContentAcrossContextChanges()
+    {
+        await StaDispatcher.RunAsync(() =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var panel = new ContextualRightPanel();
+            var jobs = new ListBox { ItemsSource = new[] { "Running job" } };
+            panel.AddSurface("inspector", "Inspector", new Border());
+            panel.AddSurface("jobs", "Jobs", jobs);
+            panel.AddSurface("subclips", "Subclips", new Border());
+            panel.AddSurface("visual-index", "Visual Index", new Border());
+            string[] Visible() => panel.SurfaceTabs.Items.Cast<TabItem>().Where(t => t.Visibility == Visibility.Visible).Select(t => (string)t.Tag).ToArray();
+            panel.SetPlayerContext(false, false);
+            Assert.Equal(["inspector", "jobs"], Visible());
+            panel.SelectSurface("jobs");
+            panel.SetPlayerContext(true, true);
+            Assert.Equal(["inspector", "subclips", "visual-index"], Visible());
+            Assert.Equal("inspector", panel.ActiveSurface);
+            panel.SelectSurface("visual-index");
+            panel.SetPlayerContext(false, false);
+            Assert.Equal("inspector", panel.ActiveSurface);
+            panel.SetPlayerContext(true, true);
+            Assert.Equal("visual-index", panel.ActiveSurface);
+            panel.SetPlayerContext(false, false);
+            panel.SelectSurface("jobs");
+            Assert.Same(jobs, ((TabItem)panel.SurfaceTabs.SelectedItem).Content);
+            Assert.Single(jobs.Items);
+            return Task.CompletedTask;
+        });
+    }
+    [Fact]
     public async Task UnavailableSurfaceFallsBackWithoutLosingPreferenceOrRecreatingContent()
     {
         await StaDispatcher.RunAsync(() =>

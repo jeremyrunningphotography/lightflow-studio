@@ -61,6 +61,62 @@ public sealed class VisualIndexSamplingTests
 public sealed class VisualIndexProjectionTests
 {
     [Fact]
+    public async Task CachedLaterFramesPublishBeforeMissingFirstFrameAndFailureEndsGenerating()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            var path = Path.Combine(Path.GetTempPath(), "visual-index-cache-" + Guid.NewGuid() + ".jpg");
+            try
+            {
+                var image = System.Windows.Media.Imaging.BitmapSource.Create(1, 1, 96, 96,
+                    System.Windows.Media.PixelFormats.Bgr24, null, new byte[] { 10, 20, 30 }, 3);
+                var encoder = new System.Windows.Media.Imaging.JpegBitmapEncoder();
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
+                using (var output = File.Create(path)) encoder.Save(output);
+                var frames = new CachedFrames(path);
+                using var model = new VisualIndexModel(frames);
+                var id = Guid.NewGuid();
+                model.SetContext(id, TimeSpan.FromSeconds(60), 25, 12, true);
+                await frames.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.Equal("Generating 11 of 12…", model.Status);
+                Assert.All(model.Cards.Skip(1), card => Assert.NotNull(card.Frame));
+                frames.Release.SetResult();
+                await model.Pending;
+                Assert.DoesNotContain("Generating", model.Status);
+                Assert.Contains("unavailable", model.Status);
+                Assert.Equal(1, frames.Misses);
+                model.SetContext(id, TimeSpan.FromSeconds(60), 25, 24, true);
+                await model.Pending;
+                Assert.Equal(2, frames.Misses);
+                Assert.All(frames.Priorities, p => Assert.Equal(ThumbnailPriority.Visible, p));
+                var before = model.Cards;
+                model.SetContext(id, TimeSpan.FromSeconds(60), 25, 24, false, revision: 1);
+                Assert.NotSame(before, model.Cards);
+                Assert.All(model.Cards, card => Assert.Null(card.Frame));
+                Assert.Equal(2, frames.Misses);
+            }
+            finally { File.Delete(path); }
+        });
+    }
+
+    private sealed class CachedFrames(string path) : IPositionFrameService
+    {
+        internal readonly TaskCompletionSource Entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal readonly TaskCompletionSource Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal int Misses;
+        internal readonly List<ThumbnailPriority> Priorities = [];
+        public Task<MediaAssetResolution?> PrepareAsync(Guid id, CancellationToken token) => Task.FromResult<MediaAssetResolution?>(null);
+        public Task<string?> FindCachedAsync(PositionFrameContext context, TimeSpan position, CancellationToken token) =>
+            Task.FromResult(position == TimeSpan.Zero ? null : path);
+        public Task<string?> GetAsync(MediaAssetResolution? source, TimeSpan position, CancellationToken token) => throw new NotSupportedException();
+        public async Task<string?> GetAsync(PositionFrameContext context, TimeSpan position, ThumbnailPriority priority, CancellationToken token)
+        {
+            Interlocked.Increment(ref Misses); Priorities.Add(priority);
+            Entered.TrySetResult(); await Release.Task.WaitAsync(token); return null;
+        }
+        public void Dispose() { }
+    }
+    [Fact]
     public async Task FramesPublishProgressivelyOffDispatcherWithoutReplacingOrScrollingCards()
     {
         await StaDispatcher.RunAsync(async () =>
@@ -78,14 +134,19 @@ public sealed class VisualIndexProjectionTests
                 using var model = new VisualIndexModel(frames);
                 var id = Guid.NewGuid();
                 var dispatcherThread = Environment.CurrentManagedThreadId;
+                var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                model.ProgressChanged += (_, _) => { if (model.Cards.FirstOrDefault()?.Frame is not null) published.TrySetResult(); };
                 model.SetContext(id, TimeSpan.FromSeconds(60), 25, 12, true);
                 var cards = model.Cards;
                 await frames.SecondEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                await published.Task.WaitAsync(TimeSpan.FromSeconds(5));
                 Assert.NotEqual(dispatcherThread, frames.WorkerThread);
                 Assert.NotNull(cards[0].Frame); Assert.True(cards[0].Frame!.IsFrozen);
                 Assert.Equal("Generating…", cards[1].Status);
                 Assert.Same(cards, model.Cards);
+                Assert.Equal("Generating 1 of 12…", model.Status);
                 frames.Release.SetResult(); await model.Pending;
+                Assert.Equal("", model.Status);
                 Assert.All(cards, card => Assert.NotNull(card.Frame));
                 model.SetContext(id, TimeSpan.FromSeconds(60), 25, 12, false);
                 Assert.Same(cards, model.Cards); Assert.NotNull(cards[0].Frame);
@@ -188,12 +249,11 @@ public sealed class VisualIndexProjectionTests
         public TaskCompletionSource SecondEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int WorkerThread;
-        private int _reads;
         public Task<MediaAssetResolution?> PrepareAsync(Guid id, CancellationToken token) => Task.FromResult<MediaAssetResolution?>(null);
         public async Task<string?> GetAsync(MediaAssetResolution? source, TimeSpan position, CancellationToken token)
         {
             WorkerThread = Environment.CurrentManagedThreadId;
-            if (Interlocked.Increment(ref _reads) == 2) { SecondEntered.SetResult(); await Release.Task.WaitAsync(token); }
+            if (position != TimeSpan.Zero) { SecondEntered.TrySetResult(); await Release.Task.WaitAsync(token); }
             return path;
         }
         public void Dispose() { }
@@ -207,7 +267,8 @@ public sealed class VisualIndexProjectionTests
         public Task<MediaAssetResolution?> PrepareAsync(Guid id, CancellationToken token) => Task.FromResult<MediaAssetResolution?>(null);
         public async Task<string?> GetAsync(MediaAssetResolution? source, TimeSpan position, CancellationToken token)
         {
-            if (Interlocked.Increment(ref _reads) == 1) { FirstToken = token; Entered.SetResult(); await Release.Task; }
+            if (Interlocked.Increment(ref _reads) == 1) { FirstToken = token; Entered.SetResult(); }
+            await Release.Task;
             return null;
         }
         public void Dispose() { }

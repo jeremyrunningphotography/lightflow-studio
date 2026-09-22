@@ -562,7 +562,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     }
 
     internal IPositionFrameService CreatePositionFrameService() =>
-        new PositionFrameService(MediaAssets, () => Locations, SubclipPosterFactory.CreateRenderer(Settings), _previewOperations);
+        new PositionFrameService(MediaAssets, () => Locations, SubclipPosterFactory.CreateRenderer(Settings), _previewOperations, AssetColors, LutCache);
 
     internal IMarkerThumbnailService CreateMarkerThumbnailService() =>
         new MarkerThumbnailService(MediaAssets, () => Locations, SubclipPosterFactory.CreateRenderer(Settings), _previewOperations);

@@ -196,6 +196,14 @@ Visual Index retries the original AssetId through its current-source/Color adapt
 no generic Retry. Queue pause eligibility considers only queued/running Export scheduler work; an already-paused
 queue remains resumable even when empty. Its admission policy, per-Job pause/cancel, and VI demand priority are unchanged.
 
+Hands-on refinement: both surfaces merge capabilities by immutable creation/acceptance time, oldest first, with
+new Jobs appended at the bottom. Completion/start timestamps and terminal-state grouping never change row order.
+Explicit Export scheduler ordering is retained within its existing list slots, including after waiting work starts.
+Inline lifecycle controls are visible only while applicable to unfinished work; terminal cards expose only Clear.
+Typed terminal Retry/Review & Rerun remain context actions. The shared Export output path opens Explorer with the
+existing output selected; missing files and shell failures produce a styled explanation. Legacy Review & Rerun
+uses the existing LUT catalog selection helper (No LUT has an empty path, not a null path).
+
 ## Platform boundaries
 
 Lightflow Studio is Windows-first, not Windows-entangled. Shared product semantics remain platform-neutral wherever practical. Platform-specific implementations belong behind explicit boundaries; platform and runtime concepts must not leak into durable domain models or shared contracts.

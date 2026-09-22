@@ -28,6 +28,17 @@ internal static class JobsPresentation
 
     public static bool IsDismissibleDrawerRow(JobState state) => IsTerminal(state);
 
+    // State changes never reorder rows. Explicit scheduler order stays in Export slots even after work starts.
+    public static IReadOnlyList<T> InAddedOrder<T>(IEnumerable<T> source, Func<T, DateTimeOffset> addedAt,
+        Func<T, long> queueOrder)
+    {
+        var rows = source.OrderBy(addedAt).ToArray();
+        var schedulerRows = new Queue<T>(rows.Where(row => queueOrder(row) != long.MaxValue).OrderBy(queueOrder));
+        for (var index = 0; index < rows.Length; index++)
+            if (queueOrder(rows[index]) != long.MaxValue) rows[index] = schedulerRows.Dequeue();
+        return rows;
+    }
+
     public static string StatusText(IEnumerable<ExportJobSnapshot> jobs, bool queuePaused = false)
     {
         var current = jobs.Where(job => !IsTerminal(job.State)).ToList();
@@ -102,7 +113,7 @@ internal static class JobsPresentation
         return new(job.JobId, job.DisplayName, Glyph(job.State), StateText(job.State), job.ProgressPercent ?? 0,
             job.State == JobState.Running, FormatDuration(job.Elapsed), job.Eta is { } eta ? $"About {FormatDuration(eta)} remaining" : null,
             details, issue, expanded,
-            JobActionState.For(job.State, queueControls: true, reviewAndRerun: hasHistory));
+            JobActionState.For(job.State, queueControls: true, reviewAndRerun: hasHistory), job.Definition.AcceptedAt, job.QueueOrder);
     }
 
     public static JobCardPresentation Card(FileOperationJobSnapshot job, bool expanded)
@@ -121,7 +132,7 @@ internal static class JobsPresentation
         var elapsed = completedAt <= job.Intent.CreatedUtc ? TimeSpan.Zero : completedAt - job.Intent.CreatedUtc;
         return new(job.Intent.OperationId, $"{job.Intent.Kind} {job.Intent.Sources.Count} item{(job.Intent.Sources.Count == 1 ? "" : "s")}",
             glyph, state, progress, job.State == FileOperationState.Running, FormatDuration(elapsed), null, details,
-            job.Failures.FirstOrDefault()?.Diagnostic, expanded, JobActionState.For(FileOperationStateToJobState(job.State)));
+            job.Failures.FirstOrDefault()?.Diagnostic, expanded, JobActionState.For(FileOperationStateToJobState(job.State)), job.Intent.CreatedUtc);
     }
 
     internal static JobState FileOperationStateToJobState(FileOperationState state) => state switch
@@ -206,7 +217,7 @@ internal sealed record PremiereJobDetailsPresentation(string Project, string Pro
 
 internal sealed class JobCardPresentation(Guid jobId, string name, string glyph, string state, double progress,
     bool showProgress, string elapsed, string? eta, JobDetailsPresentation details, string? issue, bool isExpanded,
-    JobActionState actions) : INotifyPropertyChanged
+    JobActionState actions, DateTimeOffset addedAt, long queueOrder = long.MaxValue) : INotifyPropertyChanged
 {
     public Guid JobId { get; } = jobId;
     public string Name { get; private set; } = name;
@@ -219,6 +230,8 @@ internal sealed class JobCardPresentation(Guid jobId, string name, string glyph,
     public JobDetailsPresentation Details { get; private set; } = details;
     public string? Issue { get; private set; } = issue;
     public bool IsExpanded { get; private set; } = isExpanded;
+    public DateTimeOffset AddedAt { get; private set; } = addedAt;
+    public long QueueOrder { get; private set; } = queueOrder;
     public JobActionState Actions { get; private set; } = actions;
     public bool CanPause => Actions.CanPause;
     public bool CanResume => Actions.CanResume;
@@ -227,6 +240,7 @@ internal sealed class JobCardPresentation(Guid jobId, string name, string glyph,
     public bool CanBulkCancel => Actions.CanBulkCancel;
     public bool CanReorder => Actions.CanReorder;
     public bool CanClear => Actions.CanClear;
+    public bool ShowInlineRetry => CanRetry && !CanClear;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -239,11 +253,13 @@ internal sealed class JobCardPresentation(Guid jobId, string name, string glyph,
         Set(Eta, value.Eta, next => Eta = next); Set(Details, value.Details, next => Details = next);
         Set(Issue, value.Issue, next => Issue = next);
         SetExpanded(value.IsExpanded);
+        AddedAt = value.AddedAt;
+        QueueOrder = value.QueueOrder;
         if (Actions != value.Actions)
         {
             Actions = value.Actions;
             foreach (var property in new[] { nameof(Actions), nameof(CanPause), nameof(CanResume), nameof(CanRetry),
-                         nameof(CanCancel), nameof(CanBulkCancel), nameof(CanReorder), nameof(CanClear) })
+                         nameof(CanCancel), nameof(CanBulkCancel), nameof(CanReorder), nameof(CanClear), nameof(ShowInlineRetry) })
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         }
     }

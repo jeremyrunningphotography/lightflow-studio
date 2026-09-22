@@ -170,13 +170,14 @@ public sealed class JobsPresentationTests
     {
         var template = Named(DrawerDocument(), "CompactJobsList").Descendants()
             .Single(element => element.Name.LocalName == "DataTemplate");
-        var path = DrawerDocument().Descendants().Single(element => (string?)element.Attribute("Text") == "{Binding OutputPath}");
+        var path = DrawerDocument().Descendants().Single(element => element.Name.LocalName == "Hyperlink" && (string?)element.Attribute("Tag") == "{Binding OutputPath}");
         var progress = template.Descendants().Single(element => element.Name.LocalName == "ProgressBar");
         var percentage = template.Descendants().Single(element => ((string?)element.Attribute("Text"))?.Contains("Progress, StringFormat", StringComparison.Ordinal) == true);
         var timingGrid = percentage.Parent!;
 
-        Assert.Equal("Wrap", (string?)path.Attribute("TextWrapping"));
-        Assert.Equal("{Binding OutputPath}", (string?)path.Attribute("ToolTip"));
+        Assert.Equal("Wrap", (string?)path.Parent!.Attribute("TextWrapping"));
+        Assert.Equal("JobOutputPath_Click", (string?)path.Attribute("Click"));
+        Assert.Equal("{Binding OutputPath}", (string?)Assert.Single(path.Elements()).Attribute("Text"));
         Assert.Equal("{Binding Progress, Mode=OneWay}", (string?)progress.Attribute("Value"));
         Assert.Contains("{Binding Progress", (string?)percentage.Attribute("Text"));
         Assert.Equal("1", (string?)percentage.Attribute("Grid.Column"));
@@ -347,7 +348,7 @@ public sealed class JobsPresentationTests
 
         var source = MainWindowSource();
         var apply = MethodBody(source, "private void ApplyJobsPresentation");
-        Assert.Contains("JobsPresentation.Reconcile(_compactJobsCards, cards)", apply);
+        Assert.Contains("JobsPresentation.Reconcile(_compactJobsCards, JobsPresentation.InAddedOrder(cards", apply);
         Assert.DoesNotContain("_compactJobsCards.Clear", apply);
     }
 
@@ -779,6 +780,50 @@ public sealed class JobsPresentationTests
         var card = JobsPresentation.Card(job, false);
         var full = Assert.Single(JobsWorkspacePresentation.Project([job], []));
         Assert.Equal(card.Actions, full.Actions);
+    }
+
+    [Fact]
+    public void AddedOrderMergesCapabilitiesAndNeverSortsByCompletionOrState()
+    {
+        var time = DateTimeOffset.UtcNow;
+        var export = Snapshot(1, JobState.Running);
+        export = export with { Definition = export.Definition with { AcceptedAt = time.AddMinutes(-3) }, StartedAt = time };
+        var olderHistory = History(export.Definition.PlanItem.Definition, Guid.NewGuid(), JobState.Completed) with
+            { CreatedAt = time.AddMinutes(-5), CompletedAt = time.AddMinutes(1) };
+        var projected = JobsWorkspacePresentation.Project([export], [olderHistory]);
+        Assert.Equal(new[] { olderHistory.CreatedAt, export.Definition.AcceptedAt }, projected.Select(item => item.SortTime));
+        var other = WorkspaceItem(99, JobState.Completed, false) with { SortTime = time.AddMinutes(-2), QueueOrder = long.MaxValue, Capability = "Visual Index" };
+        var newest = WorkspaceItem(100, JobState.Queued, true) with { SortTime = time, QueueOrder = 2 };
+        var rows = JobsPresentation.InAddedOrder(new[] { newest, other }.Concat(projected), item => item.SortTime, item => item.QueueOrder);
+        Assert.Equal(new[] { projected[0].JobId, export.JobId, other.JobId, newest.JobId }, rows.Select(item => item.JobId));
+        var completed = JobsWorkspacePresentation.Project([export with { State = JobState.Completed, CompletedAt = time.AddHours(1) }], [olderHistory]);
+        var refreshed = JobsPresentation.InAddedOrder(new[] { newest, other }.Concat(completed), item => item.SortTime, item => item.QueueOrder);
+        Assert.Equal(rows.Select(item => item.JobId), refreshed.Select(item => item.JobId));
+        var reordered = JobsPresentation.InAddedOrder(rows.Select(item => item.JobId == newest.JobId ? item with { QueueOrder = 0 } : item), item => item.SortTime, item => item.QueueOrder);
+        Assert.Equal(new[] { projected[0].JobId, newest.JobId, other.JobId, export.JobId }, reordered.Select(item => item.JobId));
+    }
+
+    [Fact]
+    public void TerminalInlineActionsAreClearOnlyWhileContextRetryRemainsTyped()
+    {
+        var document = DrawerDocument();
+        var card = Named(document, "CompactJobsList");
+        foreach (var name in new[] { "Pause", "Resume", "Cancel" })
+        {
+            var button = card.Descendants().Single(element => (string?)element.Attribute("Click") == $"Jobs{name}_Click");
+            Assert.Equal($"{{Binding Can{name}, Converter={{StaticResource BoolToVisibility}}}}", (string?)button.Attribute("Visibility"));
+        }
+        var retry = card.Descendants().Single(element => (string?)element.Attribute("Click") == "JobsRetry_Click");
+        Assert.Equal("{Binding ShowInlineRetry, Converter={StaticResource BoolToVisibility}}", (string?)retry.Attribute("Visibility"));
+        foreach (var state in new[] { JobState.Completed, JobState.Failed, JobState.Cancelled, JobState.CompletedWithWarnings })
+        {
+            var presentation = JobsPresentation.Card(Snapshot(1, state), true);
+            Assert.True(presentation.CanClear);
+            Assert.False(presentation.ShowInlineRetry);
+            Assert.False(presentation.CanPause || presentation.CanResume || presentation.CanCancel);
+        }
+        var clear = card.Descendants().Single(element => (string?)element.Attribute("Click") == "JobsClear_Click");
+        Assert.Equal("{Binding CanClear, Converter={StaticResource BoolToVisibility}}", (string?)clear.Attribute("Visibility"));
     }
 
     private static XDocument DrawerDocument()

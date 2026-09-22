@@ -8,6 +8,37 @@ namespace LightflowStudio;
 
 public partial class MainWindow
 {
+    internal Action<System.Diagnostics.ProcessStartInfo> OpenJobOutputFolder { get; set; } =
+        request => System.Diagnostics.Process.Start(request);
+
+    private void JobOutputPath_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkContentElement { Tag: string path }) RevealJobOutput(path);
+    }
+
+    private void RevealJobOutput(string path)
+    {
+        try
+        {
+            if (JobOutputLocation.RevealRequest(path) is { } request) OpenJobOutputFolder(request);
+            else ConfirmationDialog.Confirm(this, "Output unavailable", "This output file is not available",
+                "The Export may not have finished, or its output may have moved or been removed.", path, "Close");
+        }
+        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or IOException
+            or UnauthorizedAccessException or ArgumentException)
+        {
+            ConfirmationDialog.Confirm(this, "Could not open output folder", "The output folder could not be opened",
+                exception.Message, path, "Close");
+        }
+    }
+
+    internal void JobsClear_Click(object sender, RoutedEventArgs e)
+    {
+        if (JobIdFrom(sender) is not { } id || _compactJobsCards.FirstOrDefault(card => card.JobId == id)?.CanClear != true) return;
+        _dismissedTerminalJobIds.Add(id);
+        ApplyJobsPresentation(_exportScheduler.Jobs);
+    }
+
     internal void JobsClearAll_Click(object sender, RoutedEventArgs e)
     {
         foreach (var card in _compactJobsCards.Where(card => card.CanClear))

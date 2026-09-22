@@ -75,7 +75,7 @@ internal static class JobsWorkspacePresentation
             $"{job.Intent.Kind} {job.Intent.Sources.Count} item{(job.Intent.Sources.Count == 1 ? "" : "s")}", "File operation", state, progress,
             job.Result?.CompletedUtc.ToLocalTime().ToString("MMM d, HH:mm") ?? "Active",
             job.Intent.Sources.FirstOrDefault()?.Path ?? "", job.Intent.Destination ?? "",
-            job.Failures.FirstOrDefault()?.Diagnostic ?? "", detail, job.Result?.CompletedUtc ?? job.Intent.CreatedUtc,
+            job.Failures.FirstOrDefault()?.Diagnostic ?? "", detail, job.Intent.CreatedUtc,
             long.MaxValue, JobsPresentation.FileSystemDetails(job), SupportsQueueControls: false,
             RemovalKind: JobRemovalKind.FileOperationHistory);
     }
@@ -99,9 +99,7 @@ internal static class JobsWorkspacePresentation
                 || item.StateText.Contains(value, StringComparison.OrdinalIgnoreCase));
         }
         items = items.Where(item => Matches(item.State, filter));
-        return items.OrderBy(item => JobsPresentation.IsTerminal(item.State) ? 1 : 0)
-            .ThenBy(item => item.State == JobState.Queued ? item.QueueOrder : long.MinValue)
-            .ThenBy(item => item.IsCurrent ? 0 : 1).ThenByDescending(item => item.SortTime).ToList();
+        return JobsPresentation.InAddedOrder(items, item => item.SortTime, item => item.QueueOrder);
     }
 
     public static IReadOnlySet<Guid> BackingHistoryRecordIds(IEnumerable<JobsWorkspaceItem> items) =>
@@ -146,7 +144,7 @@ internal static class JobsWorkspacePresentation
         return new(job.JobId, history?.JobId, history, true, false, job.DisplayName, "Export", job.State, job.ProgressPercent,
             job.State == JobState.Running && job.Eta is { } eta ? $"ETA {eta:hh\\:mm\\:ss}" : CompactTimestamp(job.Definition.AcceptedAt),
             source, job.OutputPath, job.Errors.FirstOrDefault() ?? job.Warnings.FirstOrDefault() ?? "",
-            string.Join(Environment.NewLine, details), job.StartedAt ?? job.Definition.AcceptedAt, job.QueueOrder, cardDetails, RemovalKind: history is null ? JobRemovalKind.Session : JobRemovalKind.ExportHistory);
+            string.Join(Environment.NewLine, details), job.Definition.AcceptedAt, job.QueueOrder, cardDetails, RemovalKind: history is null ? JobRemovalKind.Session : JobRemovalKind.ExportHistory);
     }
 
     private static IEnumerable<JobsWorkspaceItem> FromHistory(EncodingJobHistoryRecord record)
@@ -182,7 +180,7 @@ internal static class JobsWorkspacePresentation
                 Path.GetFileName(output.Length == 0 ? item.Definition.SourceIdentity : output), "Export", state, 100,
                 CompactTimestamp(record.CompletedAt), item.Definition.SourceIdentity, output,
                 result?.Errors.FirstOrDefault() ?? result?.Warnings.FirstOrDefault() ?? "",
-                record.DetailDisplay, record.CompletedAt, long.MaxValue, detailPresentation, RemovalKind: JobRemovalKind.ExportHistory);
+                record.DetailDisplay, record.CreatedAt, long.MaxValue, detailPresentation, RemovalKind: JobRemovalKind.ExportHistory);
         }
     }
 

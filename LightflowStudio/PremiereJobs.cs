@@ -96,7 +96,7 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
     };
     public JobCardPresentation Card(bool expanded) => new(JobId, Name, JobsPresentation.Glyph(State),
         State == JobState.Running ? "Sending" : JobsPresentation.StateText(State), Progress, State == JobState.Running,
-        "", null, DetailPresentation, Issue, expanded, JobActionState.For(State));
+        "", null, DetailPresentation, Issue, expanded, JobActionState.For(State), CreatedUtc);
     public JobsWorkspaceItem WorkspaceItem() => new(JobId, null, null, State is JobState.Queued or JobState.Running,
         false, Name, "Premiere handoff", State, Progress, CreatedUtc.ToLocalTime().ToString("MMM d, HH:mm"),
         Sources.FirstOrDefault()?.Path ?? "", Project.Path, Issue ?? "", Details, CreatedUtc, long.MaxValue,

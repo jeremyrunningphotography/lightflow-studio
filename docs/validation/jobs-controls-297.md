@@ -39,3 +39,18 @@ Hands-on checks:
    may return after restart. Visual Index results are also session-only, as before #297.
 
 No push, Draft PR, issue closure, or merge is authorized until Jeremy accepts the local implementation for PR review.
+
+## Hands-on revision after 14bb955
+
+- Queue mixed capabilities and multiple Export submissions. New Jobs appear at the bottom in both surfaces;
+  finishing or starting work does not move rows. Explicit waiting-Export reorder remains authoritative.
+- Expand terminal cards: only Clear remains in the inline action row. Failed Visual Index can still Retry through
+  its context menu. Waiting Export exposes Pause; held Export exposes Resume; running Export exposes Cancel.
+- Click an Export output path in either surface. Explorer selects that output. Missing outputs produce a styled
+  explanation and never close the application.
+- Right-click a completed Export and choose Review & Rerun with no LUT folder configured. It opens the established
+  review flow without crashing, preserves original source/configuration validation, and does not immediately execute.
+
+Additional automated coverage exercises chronological mixed-capability ordering across lifecycle changes, retained
+scheduler reorder, inline action visibility, single-card Clear, output hyperlink routing (using an injected shell
+launcher so tests never open Explorer), and the real no-LUT context-menu Review & Rerun regression.

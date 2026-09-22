@@ -6289,8 +6289,8 @@ public partial class MainWindow : Window
             .Concat((_premiereJobs?.History ?? _premiereHistory).Where(item => JobsWorkspacePresentation.Matches(item.State, filter)
                 && (string.IsNullOrWhiteSpace(JobsSearchText?.Text) || item.Name.Contains(JobsSearchText.Text, StringComparison.OrdinalIgnoreCase))))
             .Where(item => !JobsPresentation.IsTerminal(item.State) || !_deletedFullJobsTerminalJobIds.Contains(item.JobId))
-            .OrderBy(item => JobsPresentation.IsTerminal(item.State) ? 1 : 0)
-            .ThenByDescending(item => item.SortTime).ToArray();
+            .ToArray();
+        projected = JobsPresentation.InAddedOrder(projected, item => item.SortTime, item => item.QueueOrder).ToArray();
         FullJobsMaximumExports.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         ReconcileJobsWorkspace(projected);
         JobsClearAllHistoryButton.IsEnabled = projected.Any(item => item.CanRemove);
@@ -6382,6 +6382,15 @@ public partial class MainWindow : Window
         AutomationProperties.SetHelpText(JobsPauseButton, JobsPauseButton.ToolTip.ToString()!);
         AutomationProperties.SetHelpText(JobsResumeButton, JobsResumeButton.ToolTip.ToString()!);
         JobsCancelButton.Content = selection.Items.Count > 1 ? "Cancel selected…" : "Cancel…";
+        JobsPauseButton.Visibility = selection.CanPause ? Visibility.Visible : Visibility.Collapsed;
+        JobsResumeButton.Visibility = selection.CanResume ? Visibility.Visible : Visibility.Collapsed;
+        JobsCancelButton.Visibility = selection.CanCancel ? Visibility.Visible : Visibility.Collapsed;
+        JobsRetryButton.Visibility = item?.CanRetry == true && !JobsPresentation.IsTerminal(item.State) ? Visibility.Visible : Visibility.Collapsed;
+        JobsMoveEarlierButton.Visibility = JobsMoveLaterButton.Visibility = item?.CanReorder == true ? Visibility.Visible : Visibility.Collapsed;
+        HistoryRerunButton.Visibility = Visibility.Collapsed; // typed rerun remains in the row context menu
+        JobsRevealOutputButton.Visibility = Visibility.Collapsed; // the shared output path is now the reveal target
+        JobsClearButton.Visibility = selection.CanClearHistory ? Visibility.Visible : Visibility.Collapsed;
+        JobsClearButton.Content = selection.Items.Count > 1 ? "Clear selected" : "Clear";
     }
 
     private void RefreshHistory_Click(object sender, RoutedEventArgs e) => RefreshHistory();
@@ -6404,7 +6413,7 @@ public partial class MainWindow : Window
     private void RevealJobOutput_Click(object sender, RoutedEventArgs e)
     {
         if (HistoryList.SelectedItem is not JobsWorkspaceItem item || !File.Exists(item.OutputPath)) return;
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.OutputPath}\"") { UseShellExecute = true });
+        RevealJobOutput(item.OutputPath);
     }
 
     private void FullJobsPause_Click(object sender, RoutedEventArgs e)
@@ -6474,9 +6483,7 @@ public partial class MainWindow : Window
         OutputFilenameSuffix.Text = options.FilenameSuffix;
         UpdateOutputModeUi();
         RefreshLuts();
-        LutSelection.SelectedItem = LutSelection.Items.Cast<LutOption>().FirstOrDefault(option =>
-            string.Equals(option.FilePath, options.LutPath, StringComparison.OrdinalIgnoreCase))
-            ?? LutSelection.Items.Cast<LutOption>().First(option => option.FilePath is null);
+        LutSelection.SelectedItem = LutCatalog.SelectPreferred(_lutOptions, options.LutPath);
         _batchFolderRefreshTimer.Stop();
         _batchMetadataCts?.Cancel();
         _batchMetadataCts?.Dispose();
@@ -6776,7 +6783,7 @@ public partial class MainWindow : Window
         _compactJobsView.JobsCancelAllButton.IsEnabled = cards.Any(card => card.CanBulkCancel);
         _compactJobsView.JobsClearAllButton.IsEnabled = cards.Any(card => card.CanClear);
         _compactJobsView.JobsClearAllButton.ToolTip = "Clear terminal Jobs from this panel only; active Jobs and saved history remain";
-        JobsPresentation.Reconcile(_compactJobsCards, cards);
+        JobsPresentation.Reconcile(_compactJobsCards, JobsPresentation.InAddedOrder(cards, card => card.AddedAt, card => card.QueueOrder));
         if (MainTabs?.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
     }
 

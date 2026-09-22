@@ -102,46 +102,5 @@ public sealed class SettingsAuthorityTests : IDisposable
         });
     }
 
-    [Theory]
-    [InlineData(840, 1)]
-    [InlineData(896, 2)]
-    [InlineData(1600, 2)]
-    public void CardsReflowWithoutRecreatingControls(double width, int expectedColumns)
-    {
-        Exception? failure = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                var panel = new SettingsCardsPanel();
-                var first = new Border { Height = 120 };
-                var second = new Border { Height = 200 };
-                var third = new Border { Height = 100 };
-                panel.Children.Add(first); panel.Children.Add(second); panel.Children.Add(third);
-                foreach (var scale in new[] { 1.0, 1.25, 1.5, 2.0 })
-                {
-                    System.Windows.Media.VisualTreeHelper.SetRootDpi(panel, new DpiScale(scale, scale));
-                    var dips = width;
-                    panel.Measure(new Size(dips, double.PositiveInfinity));
-                    panel.Arrange(new Rect(0, 0, dips, panel.DesiredSize.Height));
-                    var secondPosition = second.TranslatePoint(new Point(), panel);
-                    Assert.Equal(expectedColumns, SettingsCardsPanel.ColumnsFor(dips));
-                    Assert.Equal(expectedColumns == 2, secondPosition.X > 0);
-                    Assert.Equal(expectedColumns == 1, secondPosition.Y > 0);
-                    Assert.True(secondPosition.X + second.ActualWidth <= dips);
-                    Assert.True(third.TranslatePoint(new Point(), panel).Y > 0);
-                }
-                panel.Measure(new Size(500, double.PositiveInfinity));
-                panel.Arrange(new Rect(0, 0, 500, panel.DesiredSize.Height));
-                Assert.Same(second, panel.Children[1]);
-                Assert.Equal(0, second.TranslatePoint(new Point(), panel).X);
-            }
-            catch (Exception exception) { failure = exception; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start(); thread.Join();
-        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
-    }
-
     public void Dispose() { if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true); }
 }

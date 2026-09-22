@@ -75,8 +75,8 @@ dark indicator with explicit checked, hover, disabled, and two-pixel keyboard-fo
 ordinary maintenance actions use one restrained raised secondary button family. Refresh-like actions may be quiet;
 rebuild actions use a warm outline without implying danger; destructive Clear/Restore actions use `DangerButton`-based
 chrome and confirmation. Nested Settings groups prefer dividers and whitespace over stacking multiple bordered cards,
-and location connection/rename commands belong to Browser Locations. Settings peer cards use two columns
-when at least 896 DIPs are available, otherwise one; a shared 1800-DIP bound prevents extreme stretching.
+and location connection/rename commands belong to Browser Locations. Settings cards always form one vertical stack beside the category rail. The combined group is centered
+with a 1040-DIP bound; the heading and footer align with the cards. The rail has no redundant Categories label.
 The category rail and Save/Restore footer stay in place. Preferences are staged; maintenance and integration
 actions are immediate. Restore Defaults never changes storage identity, queue state, or integrations.
 

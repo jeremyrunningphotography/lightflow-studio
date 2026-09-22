@@ -104,7 +104,7 @@ public sealed class SettingsExperienceTests
     }
 
     [Fact]
-    public void CategoryPagesShareOneStretchingContentWidthStrategy()
+    public void CategoryPagesShareOneCenteredSingleColumnLayout()
     {
         var document = LoadWindow();
         foreach (var name in new[] { "SettingsGeneralPage", "SettingsColorPage",
@@ -114,7 +114,7 @@ public sealed class SettingsExperienceTests
             Assert.Equal("{StaticResource SettingsPageScrollViewerStyle}", (string?)page.Attribute("Style"));
             var content = page.Elements().Single();
             Assert.Null(content.Attribute("MaxWidth"));
-            Assert.Single(content.Elements(), element => element.Name.LocalName == "SettingsCardsPanel");
+            Assert.Single(content.Elements(), element => element.Name.LocalName == "StackPanel");
             Assert.Equal("Stretch", (string?)content.Attribute("HorizontalAlignment"));
         }
     }

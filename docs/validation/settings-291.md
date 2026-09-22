@@ -12,7 +12,8 @@ Use the task-owned package and an isolated profile:
   be easy to scan. Back to Browser restores the live workspace. Use the category rail
   with the arrow keys and Tab through controls; focus should remain visible.
 - Resize between the 1120 × 720 minimum and a wide/maximized window. Cards should stack
-  at narrow widths and form balanced pairs at wider widths, with no horizontal clipping.
+  in one column at every width, beside the category rail. The combined group is centered,
+  with the heading and footer aligned to the cards and no Categories label or horizontal clipping.
   Check the same behavior at the display's normal DPI. The footer remains reachable
   while Storage or Advanced scrolls.
 - General: choose a capture folder and save. Take a Player screengrab and verify its
@@ -44,7 +45,7 @@ Use the task-owned package and an isolated profile:
 ## Automated evidence
 
 `SettingsAuthorityTests` covers old-profile migration, migration failure, repeat-load safety,
-preference reset isolation, offline Location targeting, and real card measure/arrange.
+preference reset isolation and offline Location targeting.
 `SettingsLayoutTests` renders the actual Settings markup without a Window at narrow/wide
 sizes and 100/150/200% DPI, checks horizontal containment and keyboard-reachable controls.
 Settings source contracts, persistence, existing Export, storage, LUT, dependency and profile

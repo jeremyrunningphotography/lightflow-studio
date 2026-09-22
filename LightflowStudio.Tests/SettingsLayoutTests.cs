@@ -37,7 +37,8 @@ public sealed class SettingsLayoutTests
                          attribute.Name.LocalName is "Click" or "TextChanged" or "SelectionChanged" or "Checked" or
                              "Unchecked" or "MouseEnter" or "MouseLeave" or "MouseLeftButtonUp").ToArray()) attribute.Remove();
             var grid = (Grid)XamlReader.Parse(settings.ToString().Replace("clr-namespace:LightflowStudio\"", "clr-namespace:LightflowStudio;assembly=LightflowStudio\""));
-            grid.Background = (Brush)System.Windows.Application.Current.FindResource("WindowBrush");
+            var host = new Grid { Background = (Brush)System.Windows.Application.Current.FindResource("WindowBrush") };
+            host.Children.Add(grid);
             foreach (var name in new[] { "SettingsScreengrabDirectory", "SettingsCameraLutFolder", "SettingsCreativeLutFolder", "SettingsCatalogDirectory", "SettingsPreviewsDirectory" })
                 ((TextBox)grid.FindName(name)).Text = @"C:\Lightflow isolated profile\Example collection\Long folder name";
             ((TextBox)grid.FindName("SettingsPreviewCacheQuotaGb")).Text = "20";
@@ -51,11 +52,22 @@ public sealed class SettingsLayoutTests
             var capture = Environment.GetEnvironmentVariable("LIGHTFLOW_SETTINGS_CAPTURE");
             foreach (var (width, height, scale) in new[] { (1090d, 590d, 1d), (1890d, 890d, 1d), (1090d, 590d, 1.5d), (1090d, 590d, 2d) })
             {
-                VisualTreeHelper.SetRootDpi(grid, new DpiScale(scale, scale));
+                VisualTreeHelper.SetRootDpi(host, new DpiScale(scale, scale));
                 foreach (var page in pages)
                 {
                     foreach (var other in pages) other.Visibility = other == page ? Visibility.Visible : Visibility.Collapsed;
-                    grid.Measure(new Size(width, height)); grid.Arrange(new Rect(0, 0, width, height)); grid.UpdateLayout();
+                    host.Measure(new Size(width, height)); host.Arrange(new Rect(0, 0, width, height)); host.UpdateLayout();
+                    var groupLeft = grid.TranslatePoint(new Point(), host).X;
+                    Assert.Equal((width - grid.ActualWidth) / 2, groupLeft, 1);
+                    var cards = ((StackPanel)page.Content).Children.OfType<StackPanel>().Single();
+                    var borders = cards.Children.OfType<Border>().ToArray();
+                    for (var i = 1; i < borders.Length; i++)
+                    {
+                        var previous = borders[i - 1].TranslatePoint(new Point(), cards);
+                        var current = borders[i].TranslatePoint(new Point(), cards);
+                        Assert.Equal(previous.X, current.X);
+                        Assert.True(current.Y >= previous.Y + borders[i - 1].ActualHeight);
+                    }
                     Assert.True(page.ViewportWidth > 0);
                     Assert.Equal(0, page.ScrollableWidth);
                     foreach (var control in Descendants(page).OfType<Control>().Where(control => control is TextBox or Button))
@@ -69,7 +81,7 @@ public sealed class SettingsLayoutTests
                     {
                         Directory.CreateDirectory(capture);
                         var bitmap = new RenderTargetBitmap((int)(width * scale), (int)(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
-                        bitmap.Render(grid);
+                        bitmap.Render(host);
                         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                         using var output = File.Create(Path.Combine(capture, $"{page.Name}-{width}-{scale}.png")); encoder.Save(output);
                     }

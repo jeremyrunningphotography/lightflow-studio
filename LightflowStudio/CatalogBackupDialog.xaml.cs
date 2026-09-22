@@ -13,7 +13,7 @@ public partial class CatalogBackupDialog : Window
     private CancellationTokenSource? _cancellation;
     internal bool ExitApproved { get; private set; }
 
-    internal CatalogBackupDialog(LightflowStorageCoordinator storage, Action<string> log, bool exit = true)
+    internal CatalogBackupDialog(LightflowStorageCoordinator storage, Action<string> log, bool exit = true, string? destination = null)
     {
         InitializeComponent();
         _storage = storage;
@@ -26,7 +26,7 @@ public partial class CatalogBackupDialog : Window
             StayButton.Content = "Cancel";
             SkipButton.Visibility = Visibility.Collapsed;
         }
-        Destination.Text = storage.BackupDirectory;
+        Destination.Text = destination ?? storage.BackupDirectory;
         StatusText.Text = storage.CatalogAvailable ? "" : "The Catalog is unavailable. Restore it in Settings, or explicitly skip this backup.";
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
     }

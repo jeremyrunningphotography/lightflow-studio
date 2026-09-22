@@ -329,6 +329,42 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         });
     }
 
+    [Fact]
+    public void BackupChoiceShowsLocalDateAndActualFileSize()
+    {
+        var path = Path.Combine(_root, "backup.db");
+        File.WriteAllBytes(path, new byte[256 * 1024]);
+        var backup = new CatalogBackup(path, 18, DateTimeOffset.UtcNow, CatalogBackupKind.UserRequested);
+        Assert.Equal($"{backup.CreatedUtc.LocalDateTime:g} — 256 KB", MainWindow.CatalogBackupDisplayName(backup));
+        File.Delete(path);
+        Assert.Equal($"{backup.CreatedUtc.LocalDateTime:g} — Size unavailable", MainWindow.CatalogBackupDisplayName(backup));
+    }
+
+    [Fact]
+    public async Task ManualBackupUsesAndPersistsUnsavedDestinationWithoutSavingOtherSettings()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+            await using var storage = startup.Coordinator!;
+            var original = storage.BackupDirectory;
+            var edited = Path.Combine(_root, "Edited destination");
+            var cancelled = new CatalogBackupDialog(storage, _ => { }, exit: false, destination: edited);
+            Assert.Equal(edited, ((System.Windows.Controls.TextBox)cancelled.FindName("Destination")).Text);
+            Click(cancelled, "StayButton");
+            Assert.Equal(original, storage.BackupDirectory);
+
+            var dialog = new CatalogBackupDialog(storage, _ => { }, exit: false, destination: edited);
+            Click(dialog, "BackupButton");
+            await Until(() => dialog.ExitApproved);
+            Assert.Equal(edited, storage.BackupDirectory);
+            Assert.Single(Directory.GetFiles(edited, "*.db"));
+            Assert.True(storage.Settings.BackupCatalogOnClose);
+            await storage.Collections.CreateSetAsync("Manual backup leaves Catalog writable");
+        });
+    }
+
     private static void Click(CatalogBackupDialog dialog, string name) =>
         ((System.Windows.Controls.Button)dialog.FindName(name)).RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
     private static async Task Until(Func<bool> condition)

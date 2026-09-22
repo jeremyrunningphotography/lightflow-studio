@@ -72,3 +72,5 @@ Launch with `--data-root "C:\Git\Agents\issue-272-catalog-backup\artifacts\accep
 Default acceptance destination: `C:\Git\Agents\issue-272-catalog-backup\artifacts\acceptance-data\Catalog Backups`.
 
 Check enabled/disabled close, Skip This Time without disabling the preference, destination persistence, successful backup/exit, cancellation while accepted work drains or SQLite is running, failure/retry/change folder/explicit skip, manual backup without exit, and Settings/dialog visual consistency. Network/removable physical device behavior requires an available user-selected device/share; automated coverage uses task-owned disappearing/write-failure fixtures. No normal-profile data is needed.
+
+Settings backup/recovery choices display local date/time and the backup database file size; schema and internal backup-kind names remain implementation metadata. Back Up Now takes the current Settings destination edit without requiring Save Settings. The dialog validates and persists that destination when backing up, while cancelling without saving a destination preserves the pending Settings edit.

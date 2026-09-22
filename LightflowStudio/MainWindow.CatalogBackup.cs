@@ -31,10 +31,13 @@ public partial class MainWindow
 
     private void BackupCatalog_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new CatalogBackupDialog(_storage, message => _activityLogFile.TryAppend(message), exit: false) { Owner = this };
+        var previousDestination = _storage.BackupDirectory;
+        var dialog = new CatalogBackupDialog(_storage, message => _activityLogFile.TryAppend(message),
+            exit: false, destination: SettingsCatalogBackupDirectory.Text) { Owner = this };
         dialog.ShowDialog();
         _settings = _storage.Settings;
-        SettingsCatalogBackupDirectory.Text = _storage.BackupDirectory;
+        if (_storage.BackupDirectory != previousDestination || dialog.ExitApproved)
+            SettingsCatalogBackupDirectory.Text = _storage.BackupDirectory;
         RefreshCatalogBackups();
     }
 }

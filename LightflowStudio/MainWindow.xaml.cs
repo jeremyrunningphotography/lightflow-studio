@@ -5827,17 +5827,25 @@ public partial class MainWindow : Window
 
     private sealed record CatalogBackupDisplay(CatalogBackup Backup, string DisplayName);
 
+    internal static string CatalogBackupDisplayName(CatalogBackup backup)
+    {
+        string size;
+        try { size = FormatBytes(new FileInfo(backup.Path).Length); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        { size = "Size unavailable"; }
+        return $"{backup.CreatedUtc.LocalDateTime:g} — {size}";
+    }
+
     private int _backupHistoryRevision;
     private async void RefreshCatalogBackups()
     {
         var revision = ++_backupHistoryRevision;
         try
         {
-            var backups = await Task.Run(() => _storage.CatalogBackups);
+            var backups = await Task.Run(() => _storage.CatalogBackups
+                .Select(x => new CatalogBackupDisplay(x, CatalogBackupDisplayName(x))).ToArray());
             if (_workspaceClosed || revision != _backupHistoryRevision) return;
-            CatalogBackupSelection.ItemsSource = backups
-                .Select(x => new CatalogBackupDisplay(x, $"{x.CreatedUtc.LocalDateTime:g} — {x.Kind} — schema {x.SchemaVersion}"))
-                .ToArray();
+            CatalogBackupSelection.ItemsSource = backups;
             CatalogBackupSelection.SelectedIndex = CatalogBackupSelection.Items.Count > 0 ? 0 : -1;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

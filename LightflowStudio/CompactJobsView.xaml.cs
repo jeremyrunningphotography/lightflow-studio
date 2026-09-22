@@ -16,6 +16,8 @@ public partial class CompactJobsView : System.Windows.Controls.UserControl
     private void ShowAllJobs_Click(object sender, RoutedEventArgs e) => _owner.JobsStatus_Click(sender, e);
     private void MaximumExports_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => _owner.MaximumExports_SelectionChanged(sender, e);
     private void JobsQueueGate_Click(object sender, RoutedEventArgs e) => _owner.JobsQueueGate_Click(sender, e);
+    private void JobsClear_Click(object sender, RoutedEventArgs e) => _owner.JobsClear_Click(sender, e);
+    private void JobsClearAll_Click(object sender, RoutedEventArgs e) => _owner.JobsClearAll_Click(sender, e);
     private void JobsCancelAll_Click(object sender, RoutedEventArgs e) => _owner.JobsCancelAll_Click(sender, e);
     private void JobExpansionToggle_Click(object sender, RoutedEventArgs e) => _owner.JobExpansionToggle_Click(sender, e);
     private void JobsMoveUp_Click(object sender, RoutedEventArgs e) => _owner.JobsMoveUp_Click(sender, e);

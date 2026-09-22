@@ -727,13 +727,13 @@ public class UiLayoutTests
         Assert.True(double.Parse((string?)document.Root!.Attribute("MinWidth") ?? "0") >= 1120);
     }
     [Fact]
-    public void ExportRequirements_UseAnchoredActionableHelp()
+    public void AdvancedRequirements_UseAnchoredActionableHelp()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
 
         Assert.Contains(document.Descendants(ns + "TextBlock"), element =>
-            (string?)element.Attribute("Text") == "Export Requirements");
+            (string?)element.Attribute("Text") == "Requirements");
         Assert.DoesNotContain(document.Descendants(ns + "TextBlock"), element =>
             (string?)element.Attribute("Text") == "Encoding Readiness");
         var button = document.Descendants(ns + "ToggleButton").Single(element =>
@@ -901,7 +901,7 @@ public class UiLayoutTests
         var ns = document.Root!.Name.Namespace;
         var tree = Named(document, "BrowserFolderTree");
         var menu = tree.Element(ns + "TreeView.ContextMenu")!.Element(ns + "ContextMenu")!;
-        Assert.Equal(["New Folder…", "Rename…", "Cut", "Copy", "Paste into folder", "Delete"],
+        Assert.Equal(["Add Location…", "Rename Location…", "Reconnect Location…", "New Folder…", "Rename…", "Cut", "Copy", "Paste into folder", "Delete"],
             menu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")));
         Assert.Equal("BrowserFolderTree_MouseMove", (string?)tree.Attribute("MouseMove"));
         Assert.Equal("BrowserFolderTree_DragLeave", (string?)tree.Attribute("DragLeave"));
@@ -1045,7 +1045,7 @@ public class UiLayoutTests
         Assert.Null(title.Attribute("Grid.Row"));
         Assert.Equal("1", (string?)subtitle.Attribute("Grid.Row"));
         Assert.Equal("1", (string?)actions.Attribute("Grid.Column"));
-        Assert.Equal(new[] { "JobsBackToBrowserButton", "RefreshHistoryButton", "JobsClearHistoryButton" },
+        Assert.Equal(new[] { "JobsBackToBrowserButton", "RefreshHistoryButton", "JobsClearAllHistoryButton", "JobsClearHistoryButton" },
             actions.Elements(ns + "Button").Select(button => (string?)button.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name")));
     }
 

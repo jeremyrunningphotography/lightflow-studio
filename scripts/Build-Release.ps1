@@ -83,37 +83,7 @@ try {
         throw "Empty isolated smoke profile inherited media or LUT preferences."
     }
     Write-Host "Packaged Browser startup, workspace presentation/splash handoff, and full Jobs workspace activation passed." -ForegroundColor Green
-    # Process.MainWindowHandle can select Flyleaf's untitled native host on a private
-    # test desktop. Close the actual WPF shell, restricted to this smoke process.
-    Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-public static class LightflowSmokeWindow {
-    private delegate bool EnumWindow(IntPtr window, IntPtr state);
-    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindow callback, IntPtr state);
-    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
-    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr window, StringBuilder text, int count);
-    [DllImport("user32.dll", SetLastError=true)] private static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
-    public static bool Close(int process) {
-        IntPtr shell = IntPtr.Zero;
-        EnumWindows((window, state) => {
-            uint owner;
-            GetWindowThreadProcessId(window, out owner);
-            if (owner != (uint)process) return true;
-            var title = new StringBuilder(256);
-            GetWindowText(window, title, title.Capacity);
-            if (title.ToString() != "Lightflow Studio") return true;
-            shell = window;
-            return false;
-        }, IntPtr.Zero);
-        return shell != IntPtr.Zero && PostMessage(shell, 0x0010, IntPtr.Zero, IntPtr.Zero);
-    }
-}
-"@
-    if (-not [LightflowSmokeWindow]::Close($startupSmoke.Id)) {
-        throw "Could not request shutdown of the packaged Lightflow shell."
-    }
+    & (Join-Path $PSScriptRoot "Close-PackageSmokeWindow.ps1") -ProcessId $startupSmoke.Id
     if (-not $startupSmoke.WaitForExit(5000)) {
         throw "Packaged application did not exit gracefully within five seconds after closing. Cleanup will terminate the smoke process."
     }

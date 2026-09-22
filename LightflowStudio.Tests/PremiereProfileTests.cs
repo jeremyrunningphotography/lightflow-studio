@@ -59,8 +59,8 @@ public sealed class PremiereProfileTests : IDisposable
         await using var a = (await LightflowStorageCoordinator.StartAsync(profile: first)).Coordinator!;
         await using var b = (await LightflowStorageCoordinator.StartAsync(profile: second)).Coordinator!;
         Assert.NotNull(a); Assert.NotNull(b);
-        a.SaveSettings(a.Settings with { DefaultVideoFolder = "first-only" });
-        Assert.NotEqual("first-only", b.Settings.DefaultVideoFolder);
+        a.SaveSettings(a.Settings with { ScreengrabDirectory = "first-only" });
+        Assert.NotEqual("first-only", b.Settings.ScreengrabDirectory);
         Assert.NotEqual(a.CatalogSession.Identity.CatalogId, b.CatalogSession.Identity.CatalogId);
         var journalA = new CatalogPremiereHandoffs(() => a.CatalogSession);
         var journalB = new CatalogPremiereHandoffs(() => b.CatalogSession);
@@ -106,7 +106,7 @@ public sealed class PremiereProfileTests : IDisposable
         Assert.Equal(bytesA, await File.ReadAllBytesAsync(pairingA));
         Assert.Equal(handoffA.Intent.OperationId, Assert.Single(await journalA.ListAsync()).Intent.OperationId);
         Assert.Equal(handoffB.Intent.OperationId, Assert.Single(await journalB.ListAsync()).Intent.OperationId);
-        Assert.Equal("first-only", AppSettingsStore.Load(first.SettingsPath).DefaultVideoFolder);
+        Assert.Equal("first-only", AppSettingsStore.Load(first.SettingsPath).ScreengrabDirectory);
     }
 
     private static string Authorization(byte[] json)

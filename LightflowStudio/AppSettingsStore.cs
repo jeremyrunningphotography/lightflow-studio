@@ -19,7 +19,6 @@ internal sealed record AppSettings
         }
     }
 
-    public string DefaultVideoFolder { get; init; } = "";
     public string ScreengrabDirectory { get; init; } = DefaultScreengrabDirectory;
     // LutFolder is retained only as the read-time migration source for pre-#146 settings files.
     // New saves use the two stage-specific preferences below.
@@ -30,14 +29,6 @@ internal sealed record AppSettings
     public string CreativeLutFolder { get; init; } = "";
     public bool CreativeLutIncludeSubfolders { get; init; }
     public string FfmpegPath { get; init; } = "";
-    public OutputResolution DefaultResolution { get; init; } = OutputResolution.FullHd;
-    public RecoveryStrategy DefaultRecovery { get; init; } = RecoveryStrategy.Normal;
-    public bool IncludeSubfolders { get; init; }
-    public bool PreserveFolderStructure { get; init; } = true;
-    public bool OverwriteExistingFiles { get; init; }
-    public bool DetailedActivityLogging { get; init; }
-    public EncodingPreset EncodingPreset { get; init; } = EncodingPreset.Recommended;
-    public EncodingOptions Encoding { get; init; } = EncodingPresetCatalog.Recommended;
     public string? CatalogDirectory { get; init; }
     public string? PreviewsDirectory { get; init; }
     public int PreviewCacheQuotaGb { get; init; } = 20;
@@ -50,13 +41,25 @@ internal sealed record AppSettings
     public AppSettings() { }
     public AppSettings(string lutFolder) => CameraLutFolder = CreativeLutFolder = LutFolder = lutFolder;
 
+    public static AppSettings ApplyPreferences(AppSettings current, AppSettings preferences) => Normalize(current with
+    {
+        BackupCatalogOnClose = preferences.BackupCatalogOnClose,
+        CatalogBackupDirectory = preferences.CatalogBackupDirectory,
+        ScreengrabDirectory = preferences.ScreengrabDirectory,
+        CameraLutFolder = preferences.CameraLutFolder,
+        CameraLutIncludeSubfolders = preferences.CameraLutIncludeSubfolders,
+        CreativeLutFolder = preferences.CreativeLutFolder,
+        CreativeLutIncludeSubfolders = preferences.CreativeLutIncludeSubfolders,
+        FfmpegPath = preferences.FfmpegPath,
+        PreviewCacheQuotaGb = preferences.PreviewCacheQuotaGb
+    });
+
     public static AppSettings Normalize(AppSettings? settings, bool? isolated = null)
     {
         var isIsolated = isolated ?? LightflowStorageLocations.Current.IsIsolated;
         if (settings is null) return new AppSettings();
         return settings with
         {
-            DefaultVideoFolder = settings.DefaultVideoFolder?.Trim() ?? "",
             ScreengrabDirectory = string.IsNullOrWhiteSpace(settings.ScreengrabDirectory)
                 ? DefaultScreengrabDirectory
                 : settings.ScreengrabDirectory.Trim(),
@@ -69,11 +72,7 @@ internal sealed record AppSettings
             CatalogBackupDirectory = NormalizeStorageDirectory(settings.CatalogBackupDirectory),
             PreviewCacheQuotaGb = Math.Clamp(settings.PreviewCacheQuotaGb, 1, 1024),
             MaxSimultaneousExports = Math.Clamp(settings.MaxSimultaneousExports,
-                EncodingJobConcurrency.Minimum, EncodingJobConcurrency.Maximum),
-            DefaultResolution = Enum.IsDefined(settings.DefaultResolution) ? settings.DefaultResolution : OutputResolution.FullHd,
-            DefaultRecovery = Enum.IsDefined(settings.DefaultRecovery) ? settings.DefaultRecovery : RecoveryStrategy.Normal,
-            EncodingPreset = Enum.IsDefined(settings.EncodingPreset) ? settings.EncodingPreset : EncodingPreset.Recommended,
-            Encoding = EncodingOptions.Normalize(settings.Encoding)
+                EncodingJobConcurrency.Minimum, EncodingJobConcurrency.Maximum)
         };
     }
 
@@ -96,7 +95,7 @@ internal static class AppSettingsStore
         try
         {
             if (!File.Exists(path)) return AppSettings.Normalize(new AppSettings());
-            return AppSettings.Normalize(JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path)));
+            return Read(path, null);
         }
         catch (JsonException)
         {
@@ -110,6 +109,17 @@ internal static class AppSettingsStore
         {
             return AppSettings.Normalize(new AppSettings());
         }
+    }
+
+    private static AppSettings Read(string path, bool? isolated)
+    {
+        var json = File.ReadAllText(path);
+        var settings = AppSettings.Normalize(JsonSerializer.Deserialize<AppSettings>(json), isolated);
+        using var document = JsonDocument.Parse(json);
+        // Complete migration before any caller can save the simplified Settings schema.
+        if (document.RootElement.ValueKind == JsonValueKind.Object)
+            ExportDefaultsStore.Migrate(path, document.RootElement);
+        return settings;
     }
 
     public static void Save(string path, AppSettings settings, bool? isolated = null)
@@ -136,7 +146,7 @@ internal static class AppSettingsStore
         try
         {
             if (!File.Exists(path)) return true;
-            settings = AppSettings.Normalize(JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path)), isolated);
+            settings = Read(path, isolated);
             return true;
         }
         catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)

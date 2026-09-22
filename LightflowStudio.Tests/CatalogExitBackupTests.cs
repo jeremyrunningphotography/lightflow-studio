@@ -426,6 +426,50 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         });
     }
 
+    [Fact]
+    public async Task QueuedFileJobDoesNotBlockBackupAndRunningJobDrainsThroughPublication()
+    {
+        var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+        await using var storage = startup.Coordinator!;
+        var queue = new JobsAdmission(1, paused: true);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var jobs = new FileOperationJobs(new FileOperationExecutor(new NoOpFiles(), storage.MediaAssets, storage.BrowserLocations),
+            new FileOperationHistoryStore(Path.Combine(_root, "jobs.json")), async _ =>
+            {
+                await storage.Collections.CreateSetAsync("Before publication wait");
+                entered.SetResult();
+                await finish.Task;
+                await storage.Collections.CreateSetAsync("After publication wait");
+            }, queue);
+        jobs.Enqueue(new(Guid.NewGuid(), FileOperationKind.Recycle, [new(null, Path.Combine(_root, "fixture.mov"))],
+            null, DateTimeOffset.UtcNow, 0, false, FileOperationExecution.Job));
+        var pausedBackup = await storage.BackupCatalogAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(pausedBackup.Succeeded);
+        Assert.False(entered.Task.IsCompleted);
+        queue.IsPaused = false;
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var draining = storage.BackupCatalogAsync();
+        Assert.False(draining.IsCompleted);
+        finish.SetResult();
+        var completed = await draining.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(completed.Succeeded);
+        using var copy = new SqliteConnection($"Data Source={completed.Backup!.Path};Mode=ReadOnly;Pooling=False");
+        copy.Open();
+        using var query = copy.CreateCommand();
+        query.CommandText = "SELECT count(*) FROM CollectionSets;";
+        Assert.Equal(2L, query.ExecuteScalar());
+        await Until(() => jobs.Jobs.Single().State == FileOperationState.Completed);
+    }
+
+    private sealed class NoOpFiles : IFileOperationPlatform
+    {
+        public Task CopyFileAsync(string source, string destination, IProgress<long>? progress, CancellationToken cancellationToken) => Task.CompletedTask;
+        public void Move(string source, string destination) { }
+        public void Recycle(string path) { }
+        public void PermanentlyDelete(string path) { }
+    }
+
     private static void Click(CatalogBackupDialog dialog, string name) =>
         ((System.Windows.Controls.Button)dialog.FindName(name)).RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
     private static async Task Until(Func<bool> condition)

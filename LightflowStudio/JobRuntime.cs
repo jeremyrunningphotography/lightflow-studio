@@ -32,9 +32,10 @@ internal sealed class ApplicationJobsRuntime<TOptions, TData> : IAsyncDisposable
     private readonly object _sync = new();
     private readonly Dictionary<Guid, Entry> _jobs = [];
     private readonly Action<JobPlan<TOptions>, JobRuntimeSnapshot<TData>, bool>? _checkpoint;
+    private readonly JobsAdmission? _admission;
 
-    public ApplicationJobsRuntime(Action<JobPlan<TOptions>, JobRuntimeSnapshot<TData>, bool>? checkpoint = null) =>
-        _checkpoint = checkpoint;
+    public ApplicationJobsRuntime(Action<JobPlan<TOptions>, JobRuntimeSnapshot<TData>, bool>? checkpoint = null, JobsAdmission? admission = null)
+    { _checkpoint = checkpoint; _admission = admission; }
 
     public event Action<IReadOnlyList<JobRuntimeSnapshot<TData>>>? Changed;
 
@@ -51,7 +52,7 @@ internal sealed class ApplicationJobsRuntime<TOptions, TData> : IAsyncDisposable
     public JobRuntime<TOptions, TData> Queue(JobPlan<TOptions> plan, int parallelism,
         Func<JobPlanItem, IProgress<double>, CancellationToken, Task<JobItemResult<TData>>> executor)
     {
-        var runtime = new JobRuntime<TOptions, TData>(plan, parallelism, executor);
+        var runtime = new JobRuntime<TOptions, TData>(plan, parallelism, executor, admission: _admission);
         var observer = new Observer(this, runtime);
         var subscription = runtime.Subscribe(observer);
         lock (_sync)
@@ -143,6 +144,7 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
     private readonly CancellationTokenSource _cancellation = new();
     private readonly SemaphoreSlim _resumeSignal;
     private readonly IJobActiveClock _activeClock;
+    private readonly JobsAdmission? _admission;
     private readonly DateTimeOffset?[] _itemStarted;
     private readonly DateTimeOffset?[] _itemCompleted;
     private readonly List<IJobRuntimeObserver<TData>> _observers = [];
@@ -155,13 +157,14 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
 
     public JobRuntime(JobPlan<TOptions> plan, int parallelism,
         Func<JobPlanItem, IProgress<double>, CancellationToken, Task<JobItemResult<TData>>> executor,
-        IJobActiveClock? activeClock = null)
+        IJobActiveClock? activeClock = null, JobsAdmission? admission = null)
     {
         _parallelism = EncodingJobConcurrency.Validate(parallelism);
         _resumeSignal = new SemaphoreSlim(0, _parallelism);
         _execution = new JobExecution<TOptions, TData>(plan);
         _executor = executor ?? throw new ArgumentNullException(nameof(executor));
         _activeClock = activeClock ?? new StopwatchJobActiveClock();
+        _admission = admission;
         _itemStarted = new DateTimeOffset?[plan.Items.Count];
         _itemCompleted = new DateTimeOffset?[plan.Items.Count];
     }
@@ -183,12 +186,12 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
         lock (_sync)
         {
             if (_run is not null) return _run;
-            _execution.MarkStarted(DateTimeOffset.Now);
             _execution.Queue();
-            _activeClock.Start();
+            if (_admission is null) { _execution.MarkStarted(DateTimeOffset.Now); _activeClock.Start(); }
             // Workers publish aggregate application snapshots. Never invoke them while holding
             // this Job's lock: concurrent Jobs could otherwise acquire each other's locks.
-            _run = Task.Run(RunCoreAsync);
+            var admission = _admission?.AcquireAsync(Plan.Definition.Id, _cancellation.Token);
+            _run = Task.Run(() => RunAdmittedAsync(admission));
         }
         Publish();
         return _run;
@@ -265,6 +268,29 @@ internal sealed class JobRuntime<TOptions, TData> : IAsyncDisposable
         if (_run is not null) try { await _run.ConfigureAwait(false); } catch { }
         _cancellation.Dispose();
         _resumeSignal.Dispose();
+    }
+
+    private async Task<JobResult<TData>> RunAdmittedAsync(Task<IDisposable>? admission)
+    {
+        IDisposable? slot = null;
+        try
+        {
+            if (admission is not null)
+            {
+                try
+                {
+                    slot = await admission.ConfigureAwait(false);
+                    lock (_sync)
+                    {
+                        if (!_cancellation.IsCancellationRequested)
+                        { _execution.MarkStarted(DateTimeOffset.Now); _activeClock.Start(); }
+                    }
+                }
+                catch (OperationCanceledException) when (_cancellation.IsCancellationRequested) { }
+            }
+            return await RunCoreAsync().ConfigureAwait(false);
+        }
+        finally { slot?.Dispose(); }
     }
 
     private async Task<JobResult<TData>> RunCoreAsync()

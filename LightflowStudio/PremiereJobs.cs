@@ -96,16 +96,15 @@ internal sealed record PremiereJob(Guid JobId, PremiereProject Project, IReadOnl
     };
     public JobCardPresentation Card(bool expanded) => new(JobId, Name, JobsPresentation.Glyph(State),
         State == JobState.Running ? "Sending" : JobsPresentation.StateText(State), Progress, State == JobState.Running,
-        "", null, DetailPresentation, Issue, expanded, false, false, false,
-        State is JobState.Queued or JobState.Running, false);
+        "", null, DetailPresentation, Issue, expanded, JobActionState.For(State), CreatedUtc);
     public JobsWorkspaceItem WorkspaceItem() => new(JobId, null, null, State is JobState.Queued or JobState.Running,
         false, Name, "Premiere handoff", State, Progress, CreatedUtc.ToLocalTime().ToString("MMM d, HH:mm"),
         Sources.FirstOrDefault()?.Path ?? "", Project.Path, Issue ?? "", Details, CreatedUtc, long.MaxValue,
-        DetailPresentation, SupportsQueueControls: false);
+        DetailPresentation, SupportsQueueControls: false, RemovalKind: JobRemovalKind.RetainedProvenance);
 }
 
 /// <summary>Typed non-encoding executor; current progress is projected into the existing Jobs product.</summary>
-internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBridge bridge)
+internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBridge bridge, JobsAdmission? admission = null)
 {
     private readonly object _sync = new();
     private readonly List<PremiereJob> _jobs = [];
@@ -156,7 +155,8 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
                     command.Intent.Subclip is { } subclip ? $"Premiere Subclip: {subclip.Name}" : $"Premiere: {Path.GetFileName(command.Intent.Source.Path)}", "Premiere handoff", state,
                     receipt is null ? 0 : 100, command.Intent.CreatedUtc.ToLocalTime().ToString("MMM d, HH:mm"),
                     command.Intent.Source.Path, command.Intent.Project.Path, message, message,
-                    command.Intent.CreatedUtc, long.MaxValue, new JobMessageDetailsPresentation(message));
+                    command.Intent.CreatedUtc, long.MaxValue, new JobMessageDetailsPresentation(message), SupportsQueueControls: false,
+                    RemovalKind: JobRemovalKind.RetainedProvenance);
             }).ToArray();
     }
 
@@ -194,12 +194,14 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
     }
     private async Task RunAsync(PremiereJob job, string binId, string? createName, CancellationTokenSource cts)
     {
-        await journal.MutationLifecycle.RunAsync(async () => {
         var entered = false;
+        IDisposable? slot = null;
         try
         {
-            await _serial.WaitAsync(cts.Token).ConfigureAwait(false);
-            entered = true;
+            if (admission is not null) slot = await admission.AcquireAsync(job.JobId, cts.Token, "premiere").ConfigureAwait(false);
+            else { await _serial.WaitAsync(cts.Token).ConfigureAwait(false); entered = true; }
+            cts.Token.ThrowIfCancellationRequested();
+            await journal.MutationLifecycle.RunAsync(async () => {
             job = job with { State = JobState.Running }; Publish(job);
             var receipts = new List<PremiereReceipt>();
             if (job.Subclips is not null)
@@ -235,6 +237,7 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
             }
             job = job with { State = receipts.All(receipt => receipt.Outcome == PremiereOutcome.Verified)
                 ? JobState.Completed : JobState.CompletedWithWarnings };
+            }, cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         { job = Jobs.Single(current => current.JobId == job.JobId) with { State = JobState.Cancelled, Message = "Cancelled. Any import already in progress may remain in Premiere; resend the same selection to reconcile." }; }
@@ -245,9 +248,9 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
             if (entered) _serial.Release();
             lock (_sync) _cancellations.Remove(job.JobId);
             cts.Dispose(); Publish(job);
+            slot?.Dispose();
             try { await RefreshHistoryAsync().ConfigureAwait(false); } catch { /* Durable journal errors already surface on handoff; keep current result visible. */ }
         }
-    }, default);
     }
     private static string ItemKey(PremierePlannedSubclip item) => item.Projection.SubclipId is { } subclipId
         ? $"subclip:{subclipId:D}" : $"asset:{item.Source.AssetId:D}";

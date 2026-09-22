@@ -14,19 +14,19 @@ internal sealed record VisualIndexJob(VisualIndexJobOptions Options, JobRuntimeS
     internal JobCardPresentation Card(bool expanded) => new(JobId, $"Visual Index · {Options.Name}",
         JobsPresentation.Glyph(State), StateText, Runtime.Progress.OverallPercent ?? 0, State == JobState.Running,
         Runtime.Elapsed.ToString(@"m\:ss"), null, new JobMessageDetailsPresentation(Detail, State == JobState.Completed ? "Visual Index complete" : null), Issue, expanded,
-        false, false, CanRetry, !JobsPresentation.IsTerminal(State), false);
+        JobActionState.For(State, retry: CanRetry), Runtime.CreatedAt);
     internal JobsWorkspaceItem WorkspaceItem() => new(JobId, null, null, true, false, Options.Name,
         "Visual Index", State, Runtime.Progress.OverallPercent, Runtime.Elapsed.ToString(@"m\:ss"),
-        Options.Name, "", Issue, Detail, Runtime.CreatedAt, 0, new JobMessageDetailsPresentation(Detail, State == JobState.Completed ? "Visual Index complete" : null),
+        Options.Name, "", Issue, Detail, Runtime.CreatedAt, long.MaxValue, new JobMessageDetailsPresentation(Detail, State == JobState.Completed ? "Visual Index complete" : null),
         SupportsQueueControls: false, SupportsRetry: CanRetry);
 }
 
 /// <summary>Capability adapter; lifecycle, progress and cancellation belong to the shared Jobs runtime.</summary>
 internal sealed class VisualIndexJobs(IPositionFrameService frames,
-    Func<Guid, CancellationToken, Task<DerivedMetadataResult>> metadata) : IAsyncDisposable
+    Func<Guid, CancellationToken, Task<DerivedMetadataResult>> metadata, JobsAdmission? admission = null) : IAsyncDisposable
 {
     internal const string Capability = "video.visual-index";
-    private readonly ApplicationJobsRuntime<VisualIndexJobOptions, VisualIndexJobResult> _runtime = new();
+    private readonly ApplicationJobsRuntime<VisualIndexJobOptions, VisualIndexJobResult> _runtime = new(admission: admission);
     private readonly Dictionary<Guid, VisualIndexJobOptions> _options = [];
     private readonly object _sync = new();
     internal event Action? Changed;

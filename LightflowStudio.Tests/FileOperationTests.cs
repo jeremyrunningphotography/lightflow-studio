@@ -65,6 +65,32 @@ public sealed class FileOperationTests
             FileOperationPromotionPolicy.Decide(FileOperationKind.Move, 8, FileOperationPromotionPolicy.MaximumDirectBytes, false, false));
     }
 
+    [Fact]
+    public async Task PromotedJobsWaitForSharedAdmissionAndCancelWithoutChangingFiles()
+    {
+        var temporary = Path.Combine(Path.GetTempPath(), $"lightflow-file-admission-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(temporary);
+        try
+        {
+            var admission = new JobsAdmission(1, paused: true);
+            var executor = new FileOperationExecutor(new FakePlatform(), null!, null!, mutations: new CatalogMutationLifecycle());
+            var jobs = new FileOperationJobs(executor, new FileOperationHistoryStore(Path.Combine(temporary, "history.json")), admission: admission);
+            var intent = new FileOperationIntent(Guid.NewGuid(), FileOperationKind.Recycle,
+                [new(null, @"C:\media\clip.mov", 10)], null, DateTimeOffset.UtcNow, 10, false, FileOperationExecution.Job);
+            jobs.Enqueue(intent);
+            Assert.Equal(FileOperationState.Waiting, Assert.Single(jobs.Jobs).State);
+            jobs.Cancel(intent.OperationId);
+            await WaitUntilAsync(() => jobs.Jobs.Single().State == FileOperationState.Cancelled);
+            Assert.Empty(jobs.Jobs.Single().Result!.CompletedMutations);
+            jobs.Enqueue(intent with { OperationId = Guid.NewGuid() });
+            Assert.Equal(FileOperationState.Waiting, jobs.Jobs[1].State);
+            admission.IsPaused = false;
+            await WaitUntilAsync(() => jobs.Jobs[1].State == FileOperationState.Completed);
+            Assert.Single(jobs.Jobs[1].Result!.CompletedMutations);
+        }
+        finally { Directory.Delete(temporary, true); }
+    }
+
     [Theory]
     [InlineData(9, 1024, false, false)]
     [InlineData(1, 268435457, false, false)]

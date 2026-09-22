@@ -226,6 +226,7 @@ public partial class MainWindow : Window
         InitializeBrowserQuickFilterButtons();
         SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
+        OrientedPreviewImage.SetStore(this, _storage.VideoRotations);
         InitializeBrowserDetails();
         InitializeWorkspaceContinuation();
         // End stale tile gestures even when release is handled by chrome or lands outside the tile.
@@ -1563,6 +1564,8 @@ public partial class MainWindow : Window
         Enable("Remove from this Collection", state.SelectionCount > 0 && _activeCollectionScope is not null);
         Enable("Send To", state.CanExport);
         Enable("Export", state.CanExport);
+        Enable("Rotate Left", state.CanRotate);
+        Enable("Rotate Right", state.CanRotate);
         Enable("Regenerate Previews", state.CanRegenerateThumbnails);
         Enable("Camera LUT", state.CanAssignCameraLut && BrowserCameraLutCombo.IsEnabled);
         Enable("Creative LUT", state.CanAssignCreativeLut && BrowserCreativeLutCombo.IsEnabled);
@@ -2020,7 +2023,8 @@ public partial class MainWindow : Window
             assetColors: _storage.AssetColors, cameraLutFolder: () => _storage.Settings.CameraLutFolder,
             creativeLutFolder: () => _storage.Settings.CreativeLutFolder,
             preferredPreviewFrames: _storage.PreferredPreviewFrames,
-            classifications: _storage.AssetClassifications, markers: _storage.Markers);
+            classifications: _storage.AssetClassifications, markers: _storage.Markers,
+            rotations: _storage.VideoRotations);
         _playerViewerHost.MarkersChanged += (_, assetId) => OnMarkerStateChanged(assetId);
         _playerViewerHost.BackRequested += (_, _) => _ = ReturnToBrowserGridAsync();
         _playerViewerHost.FilmstripVisible = _workspaceState.Current.Layout?.PlayerFilmstripVisible ?? true;
@@ -3643,7 +3647,7 @@ public partial class MainWindow : Window
         {
             var result = await new EncodingCapabilityHandoff(_storage.MediaAssets, _storage.MediaRoots,
                     _storage.MediaRanges, _storage.AssetColors, _storage.LutCache,
-                    new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory))
+                    new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory), _storage.VideoRotations)
                 .MaterializeAsync(invocation, cancellation.Token).ConfigureAwait(true);
             if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return;
             if (!result.Succeeded)
@@ -3693,7 +3697,7 @@ public partial class MainWindow : Window
         {
             var sourceHandoff = new EncodingCapabilityHandoff(_storage.MediaAssets, _storage.MediaRoots,
                 _storage.MediaRanges, _storage.AssetColors, _storage.LutCache,
-                new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory));
+                new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory), _storage.VideoRotations);
             var result = await new SubclipExportCapabilityHandoff(sourceHandoff, _storage.Subclips)
                 .MaterializeAsync(invocation, cancellation.Token).ConfigureAwait(true);
             if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return;
@@ -3710,7 +3714,7 @@ public partial class MainWindow : Window
                 _storage.LutCache.Snapshot(ColorLutStage.Creative).Resources, resourceStore,
                 revalidate: async (includeNoSubclipSources, token) => await new SubclipExportCapabilityHandoff(
                     new EncodingCapabilityHandoff(_storage.MediaAssets, _storage.MediaRoots,
-                        _storage.MediaRanges, _storage.AssetColors, _storage.LutCache, resourceStore),
+                        _storage.MediaRanges, _storage.AssetColors, _storage.LutCache, resourceStore, _storage.VideoRotations),
                     _storage.Subclips).MaterializeAsync(invocation with
                     {
                         IncludeNoSubclipSources = invocation.EntryKind == SubclipExportEntryKind.BrowserSources &&

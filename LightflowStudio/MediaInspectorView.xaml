@@ -1,6 +1,7 @@
 <UserControl x:Class="LightflowStudio.MediaInspectorView"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:LightflowStudio"
  Foreground="{DynamicResource TextBrush}" AutomationProperties.Name="Media Inspector" IsVisibleChanged="Inspector_IsVisibleChanged">
  <UserControl.Resources><ResourceDictionary>
   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Themes/AnnotationActions.xaml"/></ResourceDictionary.MergedDictionaries>
@@ -20,7 +21,7 @@
   </StackPanel>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
      <StackPanel>
-      <Image x:Name="PreviewImage" MaxHeight="260" Stretch="Uniform" Margin="0,8" AutomationProperties.Name="Cached media Preview"/>
+      <local:OrientedPreviewImage x:Name="PreviewImage" MaxHeight="260" Stretch="Uniform" Margin="0,8" AutomationProperties.Name="Cached media Preview"/>
       <TextBlock x:Name="PreviewStatus" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" FontSize="11">
        <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style>
       </TextBlock>
@@ -101,7 +102,7 @@
           <Grid x:Name="MarkerCardLayout">
            <Grid.ColumnDefinitions><ColumnDefinition Width="74"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*" MinWidth="0"/></Grid.ColumnDefinitions>
            <Button x:Name="MarkerThumbnailButton" Grid.Column="0" Width="74" Height="42" Margin="0" VerticalAlignment="Top" Click="InspectorMarker_Click" Padding="0" BorderThickness="0" Background="Transparent" ToolTip="Seek to marker" AutomationProperties.Name="Seek to marker">
-            <Grid Width="74" Height="42" Background="{DynamicResource ShellSurfaceBrush}"><TextBlock Text="◆" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource MutedTextBrush}"/><Image x:Name="MarkerThumbnailImage" Width="74" Height="42" Source="{Binding Thumbnail}" Stretch="Uniform"/><Grid.ToolTip><ToolTip Content="{Binding ThumbnailStatus}"/></Grid.ToolTip></Grid>
+            <Grid Width="74" Height="42" Background="{DynamicResource ShellSurfaceBrush}"><TextBlock Text="◆" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource MutedTextBrush}"/><local:OrientedPreviewImage AssetId="{Binding Marker.AssetId}" x:Name="MarkerThumbnailImage" Width="74" Height="42" Source="{Binding Thumbnail}" Stretch="Uniform"/><Grid.ToolTip><ToolTip Content="{Binding ThumbnailStatus}"/></Grid.ToolTip></Grid>
            </Button>
            <Grid Grid.Column="2">
             <Grid.RowDefinitions><RowDefinition Height="34"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>

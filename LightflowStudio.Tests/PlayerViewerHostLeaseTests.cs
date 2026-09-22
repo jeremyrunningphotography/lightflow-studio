@@ -996,6 +996,8 @@ public sealed partial class PlayerViewerHostLeaseTests
         public Action? ReviewOptionsApplied { get; set; }
         public Task SetReviewOptionsAsync(PlaybackReviewOptions options, CancellationToken token = default) { Options = options; ReviewOptionsApplied?.Invoke(); return Task.CompletedTask; }
         public void SetViewport(ViewerViewport viewport) => Viewport = viewport;
+        public VideoRotation Rotation { get; private set; }
+        public void SetVideoRotation(VideoRotation rotation) => Rotation = rotation;
         public event EventHandler<MediaPlaybackError>? Failed { add { } remove { } }
         public int Volume { get; set; } = 100;
         public bool Mute { get; set; }

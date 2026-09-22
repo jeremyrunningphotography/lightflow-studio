@@ -151,7 +151,7 @@ public sealed class WorkspaceRestorationRegressionTests
         foreach (var laterCall in new[]
         {
             "RefreshCatalogBackups();", "RefreshHistory();", "LocateTools();", "await RefreshDependencyHealthAsync();",
-            "RefreshBatchFiles();", "RefreshLuts();", "await RefreshMediaRootsAsync();", "await RefreshPreviewUsageAsync();"
+            "RefreshBatchFiles();", "RefreshLuts();", "await RefreshPreviewUsageAsync();"
         })
         {
             // Search only within the Loaded handler: the same method names are also referenced elsewhere

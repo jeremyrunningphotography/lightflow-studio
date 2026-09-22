@@ -16,49 +16,47 @@ public sealed class SettingsExperienceTests
 
         Assert.Equal("0", (string?)categories.Attribute("SelectedIndex"));
         Assert.Equal("SettingsCategoryList_SelectionChanged", (string?)categories.Attribute("SelectionChanged"));
-        Assert.Equal(["General", "Color", "Export", "Storage", "Tools"],
+        Assert.Equal(["General", "Color", "Storage", "Advanced"],
             items.Select(item => (string?)item.Attribute("Tag")));
         Assert.All(items, item => Assert.False(string.IsNullOrWhiteSpace(
             (string?)item.Attribute("AutomationProperties.Name"))));
 
         Assert.Null(Named(document, "SettingsGeneralPage").Attribute("Visibility"));
-        Assert.All(new[] { "SettingsColorPage", "SettingsExportPage", "SettingsStoragePage", "SettingsToolsPage" },
+        Assert.All(new[] { "SettingsColorPage", "SettingsStoragePage", "SettingsAdvancedPage" },
             name => Assert.Equal("Collapsed", (string?)Named(document, name).Attribute("Visibility")));
     }
 
     [Fact]
-    public void SettingsSeparatesRoutinePreferencesFromMaintenanceAndAdvancedEncoding()
+    public void SettingsSeparatesPreferencesFromAdministrationAndRemovesLegacyControls()
     {
         var document = LoadWindow();
 
         Assert.Contains(Named(document, "SettingsGeneralPage").Descendants(),
-            element => Name(element) == "SettingsDefaultVideoFolder");
+            element => Name(element) == "SettingsScreengrabDirectory");
         Assert.Contains(Named(document, "SettingsColorPage").Descendants(),
             element => Name(element) == "SettingsCameraLutFolder");
-        Assert.Contains(Named(document, "SettingsExportPage").Descendants(),
-            element => Name(element) == "SettingsAdvancedExportOptions");
         Assert.Contains(Named(document, "SettingsStoragePage").Descendants(),
             element => Name(element) == "ClearPreviewsButton");
-        Assert.Contains(Named(document, "SettingsToolsPage").Descendants(),
+        Assert.Contains(Named(document, "SettingsAdvancedPage").Descendants(),
             element => Name(element) == "SettingsFfmpegPath");
 
-        var advanced = Named(document, "SettingsAdvancedExportOptions");
-        Assert.Equal("Advanced encoder options", (string?)advanced.Attribute("AutomationProperties.Name"));
-        Assert.Null(advanced.Attribute("IsExpanded"));
+        Assert.DoesNotContain(document.Descendants(), element => Name(element) is
+            "SettingsExportPage" or "SettingsDefaultVideoFolder" or "MediaRootsList");
+
     }
 
     [Fact]
     public void PathFieldsAndPersistentFooterExposeAccessibleActionsAndHonestStatus()
     {
         var document = LoadWindow();
-        foreach (var name in new[] { "SettingsDefaultVideoFolder", "SettingsScreengrabDirectory", "SettingsFfmpegPath" })
+        foreach (var name in new[] { "SettingsScreengrabDirectory", "SettingsFfmpegPath" })
         {
             var field = Named(document, name);
             Assert.False(string.IsNullOrWhiteSpace((string?)field.Attribute("AutomationProperties.Name")));
             Assert.Equal("{StaticResource SettingsPathTextBoxStyle}", (string?)field.Attribute("Style"));
         }
 
-        Assert.NotNull(Named(document, "SettingsDefaultVideoFolderStatus"));
+        Assert.NotNull(Named(document, "SettingsScreengrabDirectoryStatus"));
         Assert.NotNull(Named(document, "SettingsScreengrabDirectoryStatus"));
         Assert.NotNull(Named(document, "SettingsFfmpegPathStatus"));
         Assert.Equal("Save settings", (string?)Named(document, "SaveSettingsButton")
@@ -109,13 +107,14 @@ public sealed class SettingsExperienceTests
     public void CategoryPagesShareOneStretchingContentWidthStrategy()
     {
         var document = LoadWindow();
-        foreach (var name in new[] { "SettingsGeneralPage", "SettingsColorPage", "SettingsExportPage",
-                     "SettingsStoragePage", "SettingsToolsPage" })
+        foreach (var name in new[] { "SettingsGeneralPage", "SettingsColorPage",
+                     "SettingsStoragePage", "SettingsAdvancedPage" })
         {
             var page = Named(document, name);
             Assert.Equal("{StaticResource SettingsPageScrollViewerStyle}", (string?)page.Attribute("Style"));
             var content = page.Elements().Single();
-            Assert.Equal("900", (string?)content.Attribute("MaxWidth"));
+            Assert.Null(content.Attribute("MaxWidth"));
+            Assert.Single(content.Elements(), element => element.Name.LocalName == "SettingsCardsPanel");
             Assert.Equal("Stretch", (string?)content.Attribute("HorizontalAlignment"));
         }
     }

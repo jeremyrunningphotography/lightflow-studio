@@ -59,7 +59,7 @@ Outside applicable Player context the tab is hidden, with Inspector as the fallb
 The permanent shell treats Browser/Player as Home. It has no permanent module strip or peer capability rail. Focused actions and owned modals configure work from media context; the bottom status affordance enters secondary full Jobs; the Browser-only Right Panel Jobs tab exposes compact global activity; and a restrained upper-right gear menu exposes only application utilities such as Settings and About. Back actions restore the already-live Home content. Catalog, Preview, discovery, playback, and capability services remain behind Lightflow-owned contracts.
 
 Settings uses a compact left category list and one scrollable contextual page rather than a permanent workspace rail
-or one long stack of unrelated cards. General, Color, Export, Storage, and Tools are stable conceptual homes; future
+or one long stack of unrelated cards. General, Color, Storage, and Advanced are stable conceptual homes; future
 preferences should extend the closest category before adding another. Category rows use the shared dark
 selection/focus language and remain ordinary keyboard-reachable list items. Preference pages use a short title and
 description, aligned path fields with trailing Browse/Change actions, restrained inset panels for related operations,
@@ -75,8 +75,10 @@ dark indicator with explicit checked, hover, disabled, and two-pixel keyboard-fo
 ordinary maintenance actions use one restrained raised secondary button family. Refresh-like actions may be quiet;
 rebuild actions use a warm outline without implying danger; destructive Clear/Restore actions use `DangerButton`-based
 chrome and confirmation. Nested Settings groups prefer dividers and whitespace over stacking multiple bordered cards,
-and Media Root availability is inline supporting text rather than a competing status badge. Every category uses the
-same stretching, maximum-width content strategy so switching pages does not change the utility's visual geometry.
+and location connection/rename commands belong to Browser Locations. Settings peer cards use two columns
+when at least 896 DIPs are available, otherwise one; a shared 1800-DIP bound prevents extreme stretching.
+The category rail and Save/Restore footer stay in place. Preferences are staged; maintenance and integration
+actions are immediate. Restore Defaults never changes storage identity, queue state, or integrations.
 
 Subclips is a contextual peer of Inspector in the shared Right Panel. Player supplies one retained presentation control, while the shell owns generic tab availability and shared width/open state. Cards retain quiet posters, readable semantic names, exact range/duration text, desktop multi-selection, double-click quick review, and keyboard-reachable rename/delete actions; missing posters retain a deterministic media glyph. Catalog ordering is In timestamp ascending, then stable SubclipId.
 

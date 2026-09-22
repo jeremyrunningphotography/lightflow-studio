@@ -150,6 +150,74 @@ public sealed class VisualIndexDemandTests
         Assert.Contains("color changed", jobs.Jobs.Single(j => j.Options.AssetId == good).Issue);
     }
 
+    [Fact]
+    public async Task ExportAndVisualIndexCannotExceedTheSelectedJobLimit()
+    {
+        await using var exports = new GlobalExportScheduler(1, () => new(async (item, _, _, token) =>
+        {
+            await Task.Delay(Timeout.Infinite, token);
+            return new JobItemResult<EncodingItemResult>(item.Definition.Id, JobState.Completed, [], [], [], null);
+        }, () => { }));
+        var options = new EncodingJobOptions(@"C:\input", @"C:\output", OutputResolution.Source,
+            RecoveryStrategy.Normal, new EncodingOptions(), null, "", false, true, false);
+        var definition = EncodingJobPlanner.Define(options,
+            [new EncodingSource(@"C:\input\shared.mov", 1, TimeSpan.FromSeconds(1))]);
+        exports.Admit(ExportSubmissionProposal.FromPlan(EncodingJobPlanner.Plan(definition, _ => new(false, 0))));
+        Assert.Equal(JobState.Running, Assert.Single(exports.Jobs).State);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var indexes = new VisualIndexJobs(new Frames(), async (_, token) =>
+        {
+            entered.TrySetResult();
+            await Task.Delay(Timeout.Infinite, token);
+            return Metadata();
+        }, exports.Admission);
+        indexes.Initialize();
+        indexes.Queue(new(VisualIndexJobs.Capability, [Guid.NewGuid()]), _ => "shared.mov");
+        Assert.Equal(JobState.Queued, Assert.Single(indexes.Jobs).State);
+        Assert.False(entered.Task.IsCompleted);
+        exports.MaxSimultaneousExports = 2;
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(JobState.Running, indexes.Jobs[0].State);
+        exports.MaxSimultaneousExports = 1;
+        Assert.Equal(JobState.Running, indexes.Jobs[0].State);
+        Assert.Equal(JobState.Running, exports.Jobs[0].State);
+        exports.PauseQueue();
+        indexes.Queue(new(VisualIndexJobs.Capability, [Guid.NewGuid()]), _ => "next.mov");
+        indexes.Cancel(indexes.Jobs[0].JobId);
+        await WaitUntilAsync(indexes, () => indexes.Jobs[0].State == JobState.Cancelled);
+        Assert.Equal(JobState.Queued, indexes.Jobs[1].State);
+        exports.Cancel(exports.Jobs[0].JobId);
+        indexes.Cancel(indexes.Jobs[1].JobId);
+        await WaitUntilAsync(indexes, () => indexes.Jobs[1].State == JobState.Cancelled);
+    }
+
+    [Fact]
+    public async Task VisualIndexWaitsForSharedSlotWithoutStartingClockAndCanCancelWhileWaiting()
+    {
+        var admission = new JobsAdmission(1);
+        using var occupied = await admission.AcquireAsync(Guid.NewGuid(), default);
+        var frames = new Frames();
+        await using var jobs = new VisualIndexJobs(frames, (_, _) => Task.FromResult(Metadata()), admission);
+        jobs.Initialize();
+        jobs.Queue(new(VisualIndexJobs.Capability, [Guid.NewGuid(), Guid.NewGuid()]), _ => "clip.mov");
+        Assert.All(jobs.Jobs, job =>
+        {
+            Assert.Equal(JobState.Queued, job.State);
+            Assert.Equal(TimeSpan.Zero, job.Runtime.Elapsed);
+            Assert.Null(job.Runtime.StartedAt);
+            Assert.Equal("Waiting", job.StateText);
+        });
+        Assert.Empty(frames.Requests);
+        jobs.Cancel(jobs.Jobs[0].JobId);
+        await WaitUntilAsync(jobs, () => jobs.Jobs[0].State == JobState.Cancelled);
+        admission.IsPaused = true;
+        occupied.Dispose();
+        Assert.Equal(JobState.Queued, jobs.Jobs[1].State);
+        admission.IsPaused = false;
+        await WaitUntilAsync(jobs, () => jobs.Jobs[1].State == JobState.Completed);
+        Assert.Single(frames.Requests);
+    }
+
     private static DerivedMetadataResult Metadata() => new(DerivedMetadataStatus.Current,
         new(DerivedMediaKind.Video, "mov", 60, 0, 10, null, new("h264", null, 100, 100, 25, null, null, null, null, null), null, null));
     private static async Task WaitUntilAsync(VisualIndexJobs jobs, Func<bool> predicate)

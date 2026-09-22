@@ -8,18 +8,22 @@ internal sealed record JobsWorkspaceItem(
     Guid JobId, Guid? HistoryRecordId, EncodingJobHistoryRecord? HistoryRecord, bool SchedulerOwned, bool IsLegacyProjection,
     string Name, string Capability, JobState State, double? Progress, string Timing, string SourcePath,
     string OutputPath, string Issue, string Details, DateTimeOffset SortTime, long QueueOrder,
-    JobDetailsPresentation? DetailPresentation = null, bool SupportsQueueControls = true, bool SupportsRetry = false)
+    JobDetailsPresentation? DetailPresentation = null, bool SupportsQueueControls = true, bool SupportsRetry = false,
+    JobRemovalKind RemovalKind = JobRemovalKind.Session, bool Removable = true)
 {
     public string StateText => Capability == "Visual Index" && State == JobState.Running ? "Generating"
         : Capability == "Premiere handoff" && State == JobState.Running ? "Sending" : JobsPresentation.StateText(State);
     public bool IsCurrent => SchedulerOwned;
-    public bool CanPause => SupportsQueueControls && IsCurrent && State == JobState.Queued;
-    public bool CanResume => SupportsQueueControls && IsCurrent && State == JobState.Paused;
-    public bool CanRetry => SupportsRetry || SupportsQueueControls && IsCurrent && State == JobState.NeedsAttention;
-    public bool CanCancel => IsCurrent && State is JobState.Queued or JobState.Running or JobState.Paused or JobState.NeedsAttention;
-    public bool CanReorder => SupportsQueueControls && IsCurrent && State == JobState.Queued;
-    public bool CanReviewAndRerun => HistoryRecord is not null;
-    public bool CanRemoveHistory => HistoryRecordId is not null && (!SchedulerOwned || JobsPresentation.IsTerminal(State));
+    public JobActionState Actions => JobActionState.For(State, IsCurrent, SupportsQueueControls, SupportsRetry,
+        HistoryRecord is not null, Removable);
+    public bool CanPause => Actions.CanPause;
+    public bool CanResume => Actions.CanResume;
+    public bool CanRetry => Actions.CanRetry;
+    public bool CanCancel => Actions.CanCancel;
+    public bool CanReorder => Actions.CanReorder;
+    public bool CanReviewAndRerun => Actions.CanReviewAndRerun;
+    public bool CanRemoveHistory => HistoryRecordId is not null && Actions.CanClear;
+    public bool CanRemove => Actions.CanClear;
     public string LegacyNote => IsLegacyProjection ? "Older Jobs saved together · group-level Review & Rerun and removal" : "";
 }
 
@@ -35,7 +39,7 @@ internal sealed record JobsSelectionEligibility(
             items.Count > 0 && items.All(item => item.CanPause),
             items.Count > 0 && items.All(item => item.CanResume),
             items.Count > 0 && items.All(item => item.CanCancel),
-            items.Count > 0 && items.All(item => item.CanRemoveHistory));
+            items.Count > 0 && items.All(item => item.CanRemove));
     }
 }
 
@@ -46,7 +50,8 @@ internal static class JobsWorkspacePresentation
         string? search = null, JobsWorkspaceFilter filter = JobsWorkspaceFilter.All)
     {
         var currentIds = current.Select(job => job.Intent.OperationId).ToHashSet();
-        var items = current.Select(FromFileOperation).Concat(history.Where(record => !currentIds.Contains(record.Intent.OperationId))
+        var savedIds = history.Select(record => record.Intent.OperationId).ToHashSet();
+        var items = current.Select(job => FromFileOperation(job) with { Removable = savedIds.Contains(job.Intent.OperationId) }).Concat(history.Where(record => !currentIds.Contains(record.Intent.OperationId))
             .Select(record => FromFileOperation(new(record.Intent, record.Result.State, record.Result.CompletedItems,
                 record.Result.CompletedBytes, null, record.Result.Failures, record.Result))));
         if (!string.IsNullOrWhiteSpace(search))
@@ -60,20 +65,19 @@ internal static class JobsWorkspacePresentation
 
     private static JobsWorkspaceItem FromFileOperation(FileOperationJobSnapshot job)
     {
-        var state = job.State switch { FileOperationState.Waiting => JobState.Queued, FileOperationState.Running => JobState.Running,
-            FileOperationState.Completed => JobState.Completed, FileOperationState.CompletedWithFailures => JobState.CompletedWithWarnings,
-            FileOperationState.Cancelled => JobState.Cancelled, _ => JobState.Failed };
+        var state = JobsPresentation.FileOperationStateToJobState(job.State);
         var progress = job.Intent.EstimatedBytes is > 0 ? job.CompletedBytes * 100d / job.Intent.EstimatedBytes.Value :
             job.Intent.Sources.Count > 0 ? job.CompletedItems * 100d / job.Intent.Sources.Count : 0;
         var detail = string.Join(Environment.NewLine, new[] { $"Job: {job.Intent.OperationId}", $"Operation: {job.Intent.Kind}",
             $"Items: {job.CompletedItems} of {job.Intent.Sources.Count}", $"Bytes: {job.CompletedBytes:N0}",
             $"Destination: {job.Intent.Destination}" }.Concat(job.Failures.Select(failure => $"Failed: {failure.Path} — {failure.Diagnostic}")));
         return new(job.Intent.OperationId, null, null, job.Result is null, false,
-            $"{job.Intent.Kind} {job.Intent.Sources.Count} item(s)", "File operation", state, progress,
+            $"{job.Intent.Kind} {job.Intent.Sources.Count} item{(job.Intent.Sources.Count == 1 ? "" : "s")}", "File operation", state, progress,
             job.Result?.CompletedUtc.ToLocalTime().ToString("MMM d, HH:mm") ?? "Active",
             job.Intent.Sources.FirstOrDefault()?.Path ?? "", job.Intent.Destination ?? "",
-            job.Failures.FirstOrDefault()?.Diagnostic ?? "", detail, job.Result?.CompletedUtc ?? job.Intent.CreatedUtc,
-            long.MaxValue, JobsPresentation.FileSystemDetails(job));
+            job.Failures.FirstOrDefault()?.Diagnostic ?? "", detail, job.Intent.CreatedUtc,
+            long.MaxValue, JobsPresentation.FileSystemDetails(job), SupportsQueueControls: false,
+            RemovalKind: JobRemovalKind.FileOperationHistory);
     }
     public static IReadOnlyList<JobsWorkspaceItem> Project(IReadOnlyList<ExportJobSnapshot> current,
         IReadOnlyList<EncodingJobHistoryRecord> history, string? search = null,
@@ -95,9 +99,7 @@ internal static class JobsWorkspacePresentation
                 || item.StateText.Contains(value, StringComparison.OrdinalIgnoreCase));
         }
         items = items.Where(item => Matches(item.State, filter));
-        return items.OrderBy(item => JobsPresentation.IsTerminal(item.State) ? 1 : 0)
-            .ThenBy(item => item.State == JobState.Queued ? item.QueueOrder : long.MinValue)
-            .ThenBy(item => item.IsCurrent ? 0 : 1).ThenByDescending(item => item.SortTime).ToList();
+        return JobsPresentation.InAddedOrder(items, item => item.SortTime, item => item.QueueOrder);
     }
 
     public static IReadOnlySet<Guid> BackingHistoryRecordIds(IEnumerable<JobsWorkspaceItem> items) =>
@@ -142,7 +144,7 @@ internal static class JobsWorkspacePresentation
         return new(job.JobId, history?.JobId, history, true, false, job.DisplayName, "Export", job.State, job.ProgressPercent,
             job.State == JobState.Running && job.Eta is { } eta ? $"ETA {eta:hh\\:mm\\:ss}" : CompactTimestamp(job.Definition.AcceptedAt),
             source, job.OutputPath, job.Errors.FirstOrDefault() ?? job.Warnings.FirstOrDefault() ?? "",
-            string.Join(Environment.NewLine, details), job.StartedAt ?? job.Definition.AcceptedAt, job.QueueOrder, cardDetails);
+            string.Join(Environment.NewLine, details), job.Definition.AcceptedAt, job.QueueOrder, cardDetails, RemovalKind: history is null ? JobRemovalKind.Session : JobRemovalKind.ExportHistory);
     }
 
     private static IEnumerable<JobsWorkspaceItem> FromHistory(EncodingJobHistoryRecord record)
@@ -178,7 +180,7 @@ internal static class JobsWorkspacePresentation
                 Path.GetFileName(output.Length == 0 ? item.Definition.SourceIdentity : output), "Export", state, 100,
                 CompactTimestamp(record.CompletedAt), item.Definition.SourceIdentity, output,
                 result?.Errors.FirstOrDefault() ?? result?.Warnings.FirstOrDefault() ?? "",
-                record.DetailDisplay, record.CompletedAt, long.MaxValue, detailPresentation);
+                record.DetailDisplay, record.CreatedAt, long.MaxValue, detailPresentation, RemovalKind: JobRemovalKind.ExportHistory);
         }
     }
 

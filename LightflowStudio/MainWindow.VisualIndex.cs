@@ -21,7 +21,7 @@ public partial class MainWindow
                 return await metadata.ProbeAsync(id, cancellationToken: token).ConfigureAwait(false);
             }
             finally { _visualIndexMetadataGate.Release(); }
-        });
+        }, _exportScheduler.Admission);
         _visualIndexJobs.Initialize();
         _visualIndexJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
     }

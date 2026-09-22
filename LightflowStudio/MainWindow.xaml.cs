@@ -211,11 +211,12 @@ public partial class MainWindow : Window
             storage.BrowserLocations, storage.AssetCopies);
         _fileOperationJobs = new FileOperationJobs(_fileOperationExecutor,
             new FileOperationHistoryStore(storage.Locations.FileOperationHistoryPath), result =>
-                Dispatcher.InvokeAsync(() => SynchronizeFileSystemMutationsAsync(result.CompletedMutations)).Task.Unwrap());
+                Dispatcher.InvokeAsync(() => SynchronizeFileSystemMutationsAsync(result.CompletedMutations)).Task.Unwrap(), _exportScheduler.Admission);
         _fileOperationJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
         InitializeVisualIndexJobs();
         _exportCoordinator.Completed += _ => Dispatcher.BeginInvoke(RefreshHistory);
         _exportScheduler.Changed += ExportScheduler_Changed;
+        _exportScheduler.Admission.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
         _exportScheduler.SubmissionAccepted += _ => Dispatcher.BeginInvoke(() =>
         {
             OpenJobsPanel();
@@ -339,6 +340,7 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _exportScheduler.Admission.IsPaused = true;
             _premiereClosing = true;
             _premiereJobs?.CancelAll();
             _premiereBridge?.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -6098,7 +6100,8 @@ public partial class MainWindow : Window
     private void RefreshHistory()
     {
         _durableHistoryRecords = _jobHistory.Load();
-        RefreshJobsWorkspace();
+        ApplyJobsPresentation(_exportScheduler.Jobs);
+        if (MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
     }
 
     private void RefreshJobsWorkspace()
@@ -6119,10 +6122,12 @@ public partial class MainWindow : Window
                     && (string.IsNullOrWhiteSpace(JobsSearchText?.Text) || item.Name.Contains(JobsSearchText.Text, StringComparison.OrdinalIgnoreCase))))
             .Concat((_premiereJobs?.History ?? _premiereHistory).Where(item => JobsWorkspacePresentation.Matches(item.State, filter)
                 && (string.IsNullOrWhiteSpace(JobsSearchText?.Text) || item.Name.Contains(JobsSearchText.Text, StringComparison.OrdinalIgnoreCase))))
-            .OrderBy(item => JobsPresentation.IsTerminal(item.State) ? 1 : 0)
-            .ThenByDescending(item => item.SortTime).ToArray();
+            .Where(item => !JobsPresentation.IsTerminal(item.State) || !_deletedFullJobsTerminalJobIds.Contains(item.JobId))
+            .ToArray();
+        projected = JobsPresentation.InAddedOrder(projected, item => item.SortTime, item => item.QueueOrder).ToArray();
         FullJobsMaximumExports.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
         ReconcileJobsWorkspace(projected);
+        JobsClearAllHistoryButton.IsEnabled = projected.Any(item => item.CanRemove);
         HistoryEmptyText.Visibility = _historyRecords.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         RestoreJobsSelection(JobsWorkspacePresentation.SurvivingSelection(selectedIds, _historyRecords), focusedJobId);
     }
@@ -6211,6 +6216,15 @@ public partial class MainWindow : Window
         AutomationProperties.SetHelpText(JobsPauseButton, JobsPauseButton.ToolTip.ToString()!);
         AutomationProperties.SetHelpText(JobsResumeButton, JobsResumeButton.ToolTip.ToString()!);
         JobsCancelButton.Content = selection.Items.Count > 1 ? "Cancel selected…" : "Cancel…";
+        JobsPauseButton.Visibility = selection.CanPause ? Visibility.Visible : Visibility.Collapsed;
+        JobsResumeButton.Visibility = selection.CanResume ? Visibility.Visible : Visibility.Collapsed;
+        JobsCancelButton.Visibility = selection.CanCancel ? Visibility.Visible : Visibility.Collapsed;
+        JobsRetryButton.Visibility = item?.CanRetry == true && !JobsPresentation.IsTerminal(item.State) ? Visibility.Visible : Visibility.Collapsed;
+        JobsMoveEarlierButton.Visibility = JobsMoveLaterButton.Visibility = item?.CanReorder == true ? Visibility.Visible : Visibility.Collapsed;
+        HistoryRerunButton.Visibility = Visibility.Collapsed; // typed rerun remains in the row context menu
+        JobsRevealOutputButton.Visibility = Visibility.Collapsed; // the shared output path is now the reveal target
+        JobsClearButton.Visibility = selection.CanClearHistory ? Visibility.Visible : Visibility.Collapsed;
+        JobsClearButton.Content = selection.Items.Count > 1 ? "Clear selected" : "Clear";
     }
 
     private void RefreshHistory_Click(object sender, RoutedEventArgs e) => RefreshHistory();
@@ -6227,26 +6241,13 @@ public partial class MainWindow : Window
     {
         var selection = CurrentJobsSelection();
         if (!selection.CanClearHistory) return;
-        var candidates = selection.Items;
-        var ids = JobsWorkspacePresentation.BackingHistoryRecordIds(candidates);
-        var records = _durableHistoryRecords.Where(record => ids.Contains(record.JobId)).ToList();
-        if (records.Count == 0) return;
-        var legacy = records.Count(record => record.Plan.Items.Count != 1);
-        var detail = "Their saved Lightflow details, provenance, and Review & Rerun availability will be removed. " +
-                     "Exported media, active Jobs, recovery state, and output identity are not deleted." +
-                     (legacy > 0 ? " Some selected older Jobs were originally saved together and must be deleted together; all Jobs in those saved groups will be removed." : "");
-        if (!ConfirmationDialog.Confirm(this, "Delete selected Jobs",
-                JobsWorkspacePresentation.RemovalScope(records), detail, null, "Delete Jobs")) return;
-        var terminalSchedulerJobIds = JobsWorkspacePresentation.TerminalSchedulerJobIdsForDeletedHistory(candidates, ids);
-        _jobHistory.Remove(ids);
-        _deletedFullJobsTerminalJobIds.UnionWith(terminalSchedulerJobIds);
-        RefreshHistory();
+        RemoveFullJobs(selection.Items);
     }
 
     private void RevealJobOutput_Click(object sender, RoutedEventArgs e)
     {
         if (HistoryList.SelectedItem is not JobsWorkspaceItem item || !File.Exists(item.OutputPath)) return;
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.OutputPath}\"") { UseShellExecute = true });
+        RevealJobOutput(item.OutputPath);
     }
 
     private void FullJobsPause_Click(object sender, RoutedEventArgs e)
@@ -6270,7 +6271,7 @@ public partial class MainWindow : Window
         if (!selection.CanCancel) return;
         var intended = selection.Items.Select(item => item.JobId).ToList();
         var single = selection.IsSingle ? selection.Items[0] : null;
-        if (ConfirmationDialog.Confirm(this, selection.IsSingle ? "Cancel Export Job" : "Cancel Selected Export Jobs",
+        if (ConfirmationDialog.Confirm(this, selection.IsSingle ? "Cancel Job" : "Cancel selected Jobs",
                 selection.IsSingle ? $"Cancel {single!.Name}?" : $"Cancel all {intended.Count} selected Jobs?",
                 "Incomplete output uses the existing cleanup policy.", single?.OutputPath, selection.IsSingle ? "Cancel Job" : "Cancel selected"))
             foreach (var id in intended)
@@ -6285,11 +6286,17 @@ public partial class MainWindow : Window
     private void RerunHistory_Click(object sender, RoutedEventArgs e)
     {
         if (HistoryList.SelectedItem is not JobsWorkspaceItem { HistoryRecord: { } record }) return;
+        ReviewAndRerun(record);
+    }
+
+    private void ReviewAndRerun(EncodingJobHistoryRecord record)
+    {
         var preparation = EncodingHistoryRerun.Prepare(record);
         var restoration = EncodingHistoryRerun.Materialize(preparation);
         if (restoration.Restored.Count == 0)
         {
-            MessageBox.Show("None of the original source files are still available and unchanged.", "Review Export job", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ConfirmationDialog.Confirm(this, "Review Export Job", "Original sources are unavailable",
+                "None of the original source files are still available and unchanged.", null, "Close");
             return;
         }
 
@@ -6310,9 +6317,7 @@ public partial class MainWindow : Window
         OutputFilenameSuffix.Text = options.FilenameSuffix;
         UpdateOutputModeUi();
         RefreshLuts();
-        LutSelection.SelectedItem = LutSelection.Items.Cast<LutOption>().FirstOrDefault(option =>
-            string.Equals(option.FilePath, options.LutPath, StringComparison.OrdinalIgnoreCase))
-            ?? LutSelection.Items.Cast<LutOption>().First(option => option.FilePath is null);
+        LutSelection.SelectedItem = LutCatalog.SelectPreferred(_lutOptions, options.LutPath);
         _batchFolderRefreshTimer.Stop();
         _batchMetadataCts?.Cancel();
         _batchMetadataCts?.Dispose();
@@ -6589,7 +6594,7 @@ public partial class MainWindow : Window
     {
         if (JobsStatusButton is null) return;
         var queuePaused = _exportScheduler.IsQueuePaused;
-        var fileJobs = _fileOperationJobs.Jobs;
+        var fileJobs = _fileOperationJobs.Jobs.Where(job => !_dismissedTerminalJobIds.Contains(job.Intent.OperationId)).ToArray();
         var activeFileJobs = fileJobs.Count(job => job.State is FileOperationState.Waiting or FileOperationState.Running);
         var premiereJobs = (_premiereJobs?.Jobs ?? []).Where(job => !_dismissedTerminalJobIds.Contains(job.JobId)).ToArray();
         var activePremiereJobs = premiereJobs.Count(job => job.State is JobState.Queued or JobState.Running);
@@ -6602,28 +6607,17 @@ public partial class MainWindow : Window
         AutomationProperties.SetName(JobsStatusButton, $"{JobsStatusButton.Content}. Open full Jobs workspace.");
         JobsStatusButton.ToolTip = "Open full Jobs workspace";
         _compactJobsView.MaximumExportsCombo.SelectedIndex = _exportScheduler.MaxSimultaneousExports - EncodingJobConcurrency.Minimum;
-        ApplyQueueGatePresentation(FullJobsQueueGateButton, queuePaused);
-        ApplyQueueGatePresentation(_compactJobsView.JobsQueueGateButton, queuePaused);
+        ApplyQueueGatePresentation(FullJobsQueueGateButton, JobsQueueActionState.For(queuePaused, _exportScheduler.Admission.HasWork));
+        ApplyQueueGatePresentation(_compactJobsView.JobsQueueGateButton, JobsQueueActionState.For(queuePaused, _exportScheduler.Admission.HasWork));
         var visibleJobs = JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds);
-        var cancellableCount = JobsPresentation.BulkCancellableJobs(jobs).Count + activePremiereJobs + activeVisualIndexJobs;
-        var clearableCount = visibleJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State))
-            + premiereJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State))
-            + visualIndexJobs.Count(job => JobsPresentation.IsDismissibleDrawerRow(job.State));
-        var bulkAction = cancellableCount > 0 ? JobsBulkAction.CancelAll : clearableCount > 0 ? JobsBulkAction.ClearAll : JobsBulkAction.None;
-        var cancelAll = bulkAction == JobsBulkAction.CancelAll;
-        _compactJobsView.JobsCancelAllButton.Content = cancelAll ? "Cancel all" : "Clear all";
-        _compactJobsView.JobsCancelAllButton.IsEnabled = bulkAction != JobsBulkAction.None;
-        _compactJobsView.JobsCancelAllButton.ToolTip = cancelAll
-            ? $"Cancel {cancellableCount} active Jobs"
-            : clearableCount > 0 ? $"Remove {clearableCount} Jobs from this panel only" : "No Jobs to clear";
-        AutomationProperties.SetName(_compactJobsView.JobsCancelAllButton, cancelAll
-            ? $"Cancel all {cancellableCount} active Jobs"
-            : clearableCount > 0 ? $"Clear all {clearableCount} dismissible Jobs from panel" : "Clear all, no Jobs to clear");
-        var cards = visibleJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId)))
+        var cards = visibleJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.JobId), _durableHistoryRecords.Any(record => record.JobId == job.JobId)))
             .Concat(fileJobs.Select(job => JobsPresentation.Card(job, _expandedJobIds.Contains(job.Intent.OperationId))))
             .Concat(premiereJobs.Select(job => job.Card(_expandedJobIds.Contains(job.JobId))))
             .Concat(visualIndexJobs.Select(job => job.Card(_expandedJobIds.Contains(job.JobId)))).ToList();
-        JobsPresentation.Reconcile(_compactJobsCards, cards);
+        _compactJobsView.JobsCancelAllButton.IsEnabled = cards.Any(card => card.CanBulkCancel);
+        _compactJobsView.JobsClearAllButton.IsEnabled = cards.Any(card => card.CanClear);
+        _compactJobsView.JobsClearAllButton.ToolTip = "Clear terminal Jobs from this panel only; active Jobs and saved history remain";
+        JobsPresentation.Reconcile(_compactJobsCards, JobsPresentation.InAddedOrder(cards, card => card.AddedAt, card => card.QueueOrder));
         if (MainTabs?.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
     }
 
@@ -6657,18 +6651,20 @@ public partial class MainWindow : Window
     internal void JobsQueueGate_Click(object sender, RoutedEventArgs e)
     {
         if (_exportScheduler.IsQueuePaused) _exportScheduler.ResumeQueue();
-        else _exportScheduler.PauseQueue();
+        else if (JobsQueueActionState.For(false, _exportScheduler.Admission.HasWork).CanToggle) _exportScheduler.PauseQueue();
     }
 
-    private static void ApplyQueueGatePresentation(System.Windows.Controls.Button button, bool paused)
+    private static void ApplyQueueGatePresentation(System.Windows.Controls.Button button, JobsQueueActionState state)
     {
+        var paused = state.IsPaused;
+        button.IsEnabled = state.CanToggle;
         button.Content = paused ? "Resume Queue" : "Pause Queue";
         button.Tag = paused ? "Paused" : "Running";
-        button.ToolTip = paused ? "Resume starting queued Jobs" : "Hold queued Jobs; running exports continue";
+        button.ToolTip = paused ? "Resume starting queued jobs" : "Hold queued jobs; running jobs continue";
         AutomationProperties.SetName(button, paused ? "Resume Queue, queue paused" : "Pause Queue");
         AutomationProperties.SetHelpText(button, paused
-            ? "Allow eligible Waiting Jobs to start up to Active exports."
-            : "Hold queued Jobs before they start. Running exports continue.");
+            ? "Allow eligible Waiting Jobs to start up to Active jobs."
+            : "Hold queued Jobs before they start. Running jobs continue.");
         button.FontWeight = paused ? FontWeights.SemiBold : FontWeights.Normal;
         button.Opacity = paused ? 1 : 0.9;
         if (paused)
@@ -6716,32 +6712,12 @@ public partial class MainWindow : Window
 
     internal void JobsCancelAll_Click(object sender, RoutedEventArgs e)
     {
-        var jobs = _exportScheduler.Jobs;
-        var intended = JobsPresentation.BulkCancellableJobs(jobs).Select(job => job.JobId).ToList();
-        intended.AddRange((_premiereJobs?.Jobs ?? []).Where(job => job.State is JobState.Queued or JobState.Running).Select(job => job.JobId));
-        intended.AddRange(_visualIndexJobs.Jobs.Where(job => !JobsPresentation.IsTerminal(job.State)).Select(job => job.JobId));
-        if (intended.Count > 0)
-        {
-            var noun = intended.Count == 1 ? "Job" : "Jobs";
-            if (!ConfirmationDialog.Confirm(this, "Cancel all Jobs", $"Cancel all {intended.Count} active {noun}?",
-                _premiereJobs?.Jobs.Any(job => intended.Contains(job.JobId)) == true
-                    ? "An in-flight Premiere import may remain. Resend the same Catalog selection to reconcile it. Incomplete exports use the existing cleanup policy."
-                    : "Needs-attention and terminal Jobs are unaffected. Incomplete outputs use the existing cleanup policy.",
+        var intended = _compactJobsCards.Where(card => card.CanBulkCancel).Select(card => card.JobId).ToArray();
+        if (intended.Length == 0) return;
+        if (!ConfirmationDialog.Confirm(this, "Cancel all Jobs", $"Cancel all {intended.Length} active {(intended.Length == 1 ? "Job" : "Jobs")}?",
+                "Completed work remains. An in-flight Premiere handoff may need reconciliation. Incomplete exports use the existing cleanup policy.",
                 null, "Cancel all")) return;
-            foreach (var id in intended)
-                if (_fileOperationJobs.Jobs.Any(job => job.Intent.OperationId == id)) _fileOperationJobs.Cancel(id);
-                else if (_premiereJobs?.Jobs.Any(job => job.JobId == id) == true) _premiereJobs.Cancel(id);
-                else if (!_visualIndexJobs.Cancel(id)) _exportScheduler.Cancel(id);
-            return;
-        }
-        foreach (var job in JobsPresentation.VisibleJobs(jobs, _dismissedTerminalJobIds)
-                     .Where(job => JobsPresentation.IsDismissibleDrawerRow(job.State)))
-            _dismissedTerminalJobIds.Add(job.JobId);
-        foreach (var job in (_premiereJobs?.Jobs ?? []).Where(job => JobsPresentation.IsDismissibleDrawerRow(job.State)))
-            _dismissedTerminalJobIds.Add(job.JobId);
-        foreach (var job in _visualIndexJobs.Jobs.Where(job => JobsPresentation.IsDismissibleDrawerRow(job.State)))
-            _dismissedTerminalJobIds.Add(job.JobId);
-        ApplyJobsPresentation(_exportScheduler.Jobs);
+        foreach (var id in intended) CancelJob(id);
     }
 
     private void Window_Closing(object? sender, CancelEventArgs e)

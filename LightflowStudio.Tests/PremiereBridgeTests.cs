@@ -15,6 +15,32 @@ public class PremiereBridgeCollection;
 public sealed class PremiereBridgeTests : IAsyncLifetime
 {
     [Fact]
+    public async Task SharedAdmissionKeepsPremiereQueuedAndCancellationDoesNotDispatch()
+    {
+        await Post("/v1/heartbeat", Hello);
+        var admission = new JobsAdmission(1);
+        using var occupied = await admission.AcquireAsync(Guid.NewGuid(), default);
+        var jobs = new PremiereJobs(_journal, _bridge, admission);
+        jobs.Enqueue(_project, "root", null, [_source]);
+        Assert.Equal(JobState.Queued, Assert.Single(jobs.Jobs).State);
+        Assert.Empty(await _journal.ListAsync());
+        jobs.Cancel(jobs.Jobs[0].JobId);
+        for (var attempt = 0; attempt < 100 && jobs.Jobs[0].State != JobState.Cancelled; attempt++) await Task.Delay(20);
+        Assert.Equal(JobState.Cancelled, jobs.Jobs[0].State);
+        Assert.Empty(await _journal.ListAsync());
+        jobs.Enqueue(_project, "root", null, [_source]);
+        admission.IsPaused = true;
+        occupied.Dispose();
+        Assert.Equal(JobState.Queued, jobs.Jobs[1].State);
+        admission.IsPaused = false;
+        var command = await PollCommandAsync();
+        Assert.Equal(JobState.Running, jobs.Jobs[1].State);
+        await PostReceipt(command, new(command.Intent.OperationId, PremiereOutcome.Verified, "source", "verified"));
+        for (var attempt = 0; attempt < 100 && jobs.Jobs[1].State == JobState.Running; attempt++) await Task.Delay(20);
+        Assert.Equal(JobState.Completed, jobs.Jobs[1].State);
+    }
+
+    [Fact]
     public async Task SuccessfulSetupPersistsAcrossDisconnectResetAndRestartButDoesNotAuthorizeSend()
     {
         Assert.False(_bridge.HasCompletedSetup); // Publishing credentials alone is not setup completion.

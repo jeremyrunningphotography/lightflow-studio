@@ -26,6 +26,183 @@ public sealed class JobsWorkspaceLiveInteractionTests
         var item = Assert.IsType<JobsWorkspaceItem>(Assert.Single(window.HistoryList.Items));
         Assert.Equal(jobs.Jobs.Single().JobId, item.JobId);
         Assert.Equal("missing-index.mp4", item.Name);
+        var card = Assert.IsType<JobCardPresentation>(Assert.Single(CompactJobs(window).CompactJobsList.Items));
+        Assert.True(card.CanRetry);
+        Assert.False(card.ShowInlineRetry);
+        Assert.True(card.CanClear);
+        window.JobsClear_Click(new System.Windows.Controls.Button { Tag = card.JobId }, new RoutedEventArgs());
+        Assert.Empty(CompactJobs(window).CompactJobsList.Items);
+        Assert.Single(window.HistoryList.Items); // compact Clear never removes the full-view result
+    });
+
+    [Fact]
+    public Task ContextMenusTargetTheirRowPreserveSelectionAndMixedCleanupUsesTypedStores() => RunAsync(2, async window =>
+    {
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var visual = (VisualIndexJobs)typeof(MainWindow).GetField("_visualIndexJobs", flags)!.GetValue(window)!;
+        var files = (FileOperationJobs)typeof(MainWindow).GetField("_fileOperationJobs", flags)!.GetValue(window)!;
+        var fileHistory = (FileOperationHistoryStore)typeof(FileOperationJobs).GetField("_history", flags)!.GetValue(files)!;
+        var intent = new FileOperationIntent(Guid.NewGuid(), FileOperationKind.Move, [new(null, @"C:\original.mov")],
+            @"C:\outputs", DateTimeOffset.UtcNow, null, false, FileOperationExecution.Job);
+        fileHistory.Complete(intent, new(intent.OperationId, FileOperationState.Completed, 1, 10, [], DateTimeOffset.UtcNow));
+        var assetId = Guid.NewGuid();
+        visual.Queue(new(VisualIndexJobs.Capability, [assetId]), _ => "missing-index.mp4");
+        await WaitUntilAsync(() => visual.Jobs.Count == 1 && JobsPresentation.IsTerminal(visual.Jobs[0].State));
+        RaiseClick(window.JobsStatusButton);
+        await RealizeJobsWorkspaceAsync(window);
+        Assert.Equal(4, window.HistoryList.Items.Count);
+        window.HistoryList.SelectAll();
+        Assert.True(window.JobsClearHistoryButton.IsEnabled);
+        var visualItem = window.HistoryList.Items.Cast<JobsWorkspaceItem>().Single(item => item.Capability == "Visual Index");
+        var row = Assert.IsType<ListBoxItem>(window.HistoryList.ItemContainerGenerator.ContainerFromItem(visualItem));
+        window.JobRow_PreviewMouseRightButtonDown(row, new System.Windows.Input.MouseButtonEventArgs(
+            System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Right)
+            { RoutedEvent = UIElement.PreviewMouseRightButtonDownEvent });
+        Assert.Equal(4, window.HistoryList.SelectedItems.Count);
+        window.JobRow_ContextMenuOpening(row, null!);
+        Assert.Equal(new[] { "Retry", "Remove Job…" }, row.ContextMenu.Items.Cast<MenuItem>().Select(item => item.Header));
+        row.ContextMenu.Items.Cast<MenuItem>().Single(item => Equals(item.Header, "Retry"))
+            .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        await WaitUntilAsync(() => visual.Jobs.Count == 2 && visual.Jobs.All(job => JobsPresentation.IsTerminal(job.State)));
+        Assert.All(visual.Jobs, job => Assert.Equal(assetId, job.Options.AssetId));
+        await RealizeJobsWorkspaceAsync(window);
+
+        var fileItem = window.HistoryList.Items.Cast<JobsWorkspaceItem>().Single(item => item.JobId == intent.OperationId);
+        var fileRow = Assert.IsType<ListBoxItem>(window.HistoryList.ItemContainerGenerator.ContainerFromItem(fileItem));
+        window.JobRow_ContextMenuOpening(fileRow, null!);
+        Assert.Equal("Remove Job…", Assert.IsType<MenuItem>(Assert.Single(fileRow.ContextMenu.Items)).Header);
+        window.HistoryList.UnselectAll();
+        window.HistoryList.SelectedItem = visualItem;
+        window.JobRow_PreviewMouseRightButtonDown(fileRow, new System.Windows.Input.MouseButtonEventArgs(
+            System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Right)
+            { RoutedEvent = UIElement.PreviewMouseRightButtonDownEvent });
+        Assert.Equal(intent.OperationId, Assert.IsType<JobsWorkspaceItem>(Assert.Single(window.HistoryList.SelectedItems)).JobId);
+
+        window.HistoryList.SelectAll();
+        Assert.True(window.JobsClearHistoryButton.IsEnabled);
+        var confirmation = window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            var dialog = Assert.Single(System.Windows.Application.Current.Windows.OfType<ConfirmationDialog>());
+            RaiseClick(dialog.ConfirmButton);
+        }));
+        RaiseClick(window.JobsClearHistoryButton);
+        await confirmation;
+        await RealizeJobsWorkspaceAsync(window);
+        Assert.Empty(window.HistoryList.Items);
+        Assert.Empty(fileHistory.Load());
+        RaiseClick(window.RefreshHistoryButton);
+        Assert.Empty(window.HistoryList.Items);
+        Assert.Equal(2, visual.Jobs.Count); // presentation cleanup never destroys capability results
+        Assert.Equal(2, CompactJobs(window).CompactJobsList.Items.Count);
+        RaiseClick(CompactJobs(window).JobsClearAllButton);
+        Assert.Empty(CompactJobs(window).CompactJobsList.Items);
+    });
+
+    [Fact]
+    public Task ClearAllProtectsWaitingWorkAndDoesNotChangeQueueGateOrRecovery() => RunAsync(1, async window =>
+    {
+        var scheduler = (GlobalExportScheduler)typeof(MainWindow).GetField("_exportScheduler",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(window)!;
+        scheduler.PauseQueue();
+        Guid QueueWaiting()
+        {
+            var record = HistoryRecord();
+            var target = Path.Combine(Path.GetTempPath(), $"jobs-queue-{Guid.NewGuid():N}.mp4");
+            var item = record.Plan.Items[0] with
+            {
+                Definition = record.Plan.Items[0].Definition with { SourceIdentity = target + ".source" },
+                OutputPaths = [target]
+            };
+            var plan = record.Plan with { Definition = record.Definition with { Items = [item.Definition] }, Items = [item] };
+            var admission = scheduler.Admit(ExportSubmissionProposal.FromPlan(plan));
+            Assert.True(admission.Accepted);
+            return Assert.Single(admission.Jobs).JobId;
+        }
+        var waitingId = QueueWaiting();
+        var cancelledId = QueueWaiting();
+        scheduler.Cancel(cancelledId);
+        await WaitUntilAsync(() => CompactJobs(window).CompactJobsList.Items.Count == 2);
+        await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+        Assert.True(CompactJobs(window).JobsClearAllButton.IsEnabled);
+        Assert.True(CompactJobs(window).JobsCancelAllButton.IsEnabled);
+        RaiseClick(CompactJobs(window).JobsClearAllButton);
+        Assert.Equal(waitingId, Assert.IsType<JobCardPresentation>(Assert.Single(CompactJobs(window).CompactJobsList.Items)).JobId);
+        Assert.Equal(JobState.Queued, scheduler.Jobs.Single(job => job.JobId == waitingId).State);
+        Assert.True(scheduler.IsQueuePaused);
+
+        RaiseClick(window.JobsStatusButton);
+        await RealizeJobsWorkspaceAsync(window);
+        Assert.Equal(3, window.HistoryList.Items.Count);
+        window.HistoryList.SelectAll();
+        Assert.False(window.JobsClearHistoryButton.IsEnabled);
+        Assert.True(window.JobsClearAllHistoryButton.IsEnabled);
+        var confirmation = window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+            RaiseClick(Assert.Single(System.Windows.Application.Current.Windows.OfType<ConfirmationDialog>()).ConfirmButton)));
+        RaiseClick(window.JobsClearAllHistoryButton);
+        await confirmation;
+        await RealizeJobsWorkspaceAsync(window);
+        Assert.Equal(waitingId, Assert.IsType<JobsWorkspaceItem>(Assert.Single(window.HistoryList.Items)).JobId);
+        RaiseClick(window.RefreshHistoryButton);
+        Assert.Single(window.HistoryList.Items);
+        Assert.True(scheduler.IsQueuePaused);
+        Assert.Equal(JobState.Queued, scheduler.Jobs.Single(job => job.JobId == waitingId).State);
+        Assert.Equal(JobState.Cancelled, scheduler.Jobs.Single(job => job.JobId == cancelledId).State);
+        scheduler.Cancel(waitingId);
+    });
+
+    [Fact]
+    public Task ExportOutputLinkAndContextRerunWorkWithNoLutFolder() => RunAsync(0, async window =>
+    {
+        var root = Path.Combine(Path.GetTempPath(), "jobs-rerun-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var source = Path.Combine(root, "original.mp4");
+            var output = Path.Combine(root, "output with spaces.mp4");
+            File.WriteAllBytes(source, new byte[100]);
+            File.WriteAllText(output, "completed output");
+            var history = (IJobHistoryStore)typeof(MainWindow).GetField("_jobHistory",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(window)!;
+            history.Add(HistoryRecord(source, output));
+            RaiseClick(window.RefreshHistoryButton);
+            RaiseClick(window.JobsStatusButton);
+            await RealizeJobsWorkspaceAsync(window);
+            window.HistoryList.SelectedIndex = 0;
+            await RealizeJobsWorkspaceAsync(window);
+            Assert.Equal(Visibility.Visible, window.JobsClearButton.Visibility);
+            Assert.All(new[] { window.JobsPauseButton, window.JobsResumeButton, window.JobsRetryButton,
+                window.JobsCancelButton, window.HistoryRerunButton }, button => Assert.Equal(Visibility.Collapsed, button.Visibility));
+            System.Diagnostics.ProcessStartInfo? request = null;
+            window.OpenJobOutputFolder = value => request = value;
+            var path = Descendants(window.HistoryDetails).OfType<TextBlock>()
+                .SelectMany(block => block.Inlines.OfType<System.Windows.Documents.Hyperlink>()).Single();
+            path.RaiseEvent(new RoutedEventArgs(System.Windows.Documents.Hyperlink.ClickEvent));
+            Assert.NotNull(request);
+            Assert.Equal("explorer.exe", request.FileName);
+            Assert.Equal($"/select,\"{output}\"", request.Arguments);
+            Assert.True(request.UseShellExecute);
+            Assert.Null(JobOutputLocation.RevealRequest(Path.Combine(root, "missing.mp4")));
+            var row = Assert.IsType<ListBoxItem>(window.HistoryList.ItemContainerGenerator.ContainerFromIndex(0));
+            window.JobRow_ContextMenuOpening(row, null!);
+            row.ContextMenu.Items.Cast<MenuItem>().Single(item => Equals(item.Header, "Review & Rerun…"))
+                .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert.Equal(ShellDestinationSelection.Index(ShellDestination.CompatibilityExportReview), window.MainTabs.SelectedIndex);
+            Assert.Equal(LutCatalog.NoLut, window.LutSelection.SelectedItem);
+            Assert.True(window.IsVisible);
+            Assert.Equal("completed output", File.ReadAllText(output));
+        }
+        finally { Directory.Delete(root, true); }
+
+        static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
+        {
+            for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); index++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, index);
+                yield return child;
+                foreach (var value in Descendants(child)) yield return value;
+            }
+        }
     });
 
     [Fact]
@@ -93,7 +270,14 @@ public sealed class JobsWorkspaceLiveInteractionTests
             Assert.True(window.IsVisible);
             Assert.Equal(Visibility.Collapsed, window.HomeRightPanel.Visibility);
 
+            Assert.False(window.FullJobsQueueGateButton.IsEnabled);
+            Assert.False(CompactJobs(window).JobsQueueGateButton.IsEnabled);
             RaiseClick(window.FullJobsQueueGateButton);
+            Assert.Equal("Pause Queue", window.FullJobsQueueGateButton.Content);
+            // A persisted pause must remain resumable even after its work finishes.
+            var scheduler = (GlobalExportScheduler)typeof(MainWindow).GetField("_exportScheduler",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(window)!;
+            scheduler.PauseQueue();
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert.Equal("Resume Queue", window.FullJobsQueueGateButton.Content);
             Assert.Equal("Resume Queue", CompactJobs(window).JobsQueueGateButton.Content);
@@ -163,7 +347,8 @@ public sealed class JobsWorkspaceLiveInteractionTests
             containers[0].Focus();
             await Dispatcher.Yield(DispatcherPriority.Render);
             var focusedChrome = Assert.IsType<Border>(containers[0].Template.FindName("Chrome", containers[0]));
-            Assert.Equal(new Thickness(2), focusedChrome.BorderThickness);
+            Assert.Equal(new Thickness(1), focusedChrome.BorderThickness);
+            Assert.Same(window.FindResource("MutedTextBrush"), focusedChrome.BorderBrush);
 
             window.JobsSearchText.Text = "source";
             await Dispatcher.Yield(DispatcherPriority.DataBind);
@@ -518,17 +703,17 @@ public sealed class JobsWorkspaceLiveInteractionTests
         }
     }
 
-    private static EncodingJobHistoryRecord HistoryRecord()
+    private static EncodingJobHistoryRecord HistoryRecord(string? sourcePath = null, string? outputPath = null)
     {
         var id = Guid.NewGuid();
         var itemId = Guid.NewGuid();
         var completed = DateTimeOffset.Now;
-        var item = new JobItemDefinition(itemId, @"C:\media\source.mp4", 100,
-            new MediaRange(TimeSpan.FromMinutes(1)));
+        var item = new JobItemDefinition(itemId, sourcePath ?? @"C:\media\source.mp4", 100,
+            new MediaRange(TimeSpan.FromMinutes(1)), SourceLastWriteUtcTicks: sourcePath is null ? null : File.GetLastWriteTimeUtc(sourcePath).Ticks);
         var options = new EncodingJobOptions(@"C:\media", @"C:\output", OutputResolution.FullHd,
             RecoveryStrategy.Normal, new EncodingOptions(), null, "", false, true, false);
         var definition = new JobDefinition<EncodingJobOptions>(id, "video.encode", completed.AddMinutes(-2), options, [item]);
-        var planItem = new JobPlanItem(item, [@"C:\output\source.mp4"], JobPlanDisposition.Process,
+        var planItem = new JobPlanItem(item, [outputPath ?? @"C:\output\source.mp4"], JobPlanDisposition.Process,
             JobWorkEstimate.Determinate(JobWorkUnit.MediaDuration, 60), []);
         var plan = new JobPlan<EncodingJobOptions>(definition, completed.AddMinutes(-1), [planItem], [], JobWorkUnit.MediaDuration);
         var itemResult = new JobItemResult<EncodingItemResult>(itemId, JobState.Completed,

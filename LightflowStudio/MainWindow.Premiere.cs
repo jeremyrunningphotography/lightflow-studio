@@ -36,7 +36,7 @@ public partial class MainWindow
                 var journal = new CatalogPremiereHandoffs(() => _storage.CatalogAvailable ? _storage.CatalogSession : null);
                 // Retain the profile-owned bridge on startup failure so Settings can explain and retry it.
                 _premiereBridge = new PremiereBridge(journal, _storage.Locations);
-                _premiereJobs = new(journal, _premiereBridge);
+                _premiereJobs = new(journal, _premiereBridge, _exportScheduler.Admission);
                 _premiereJobs.Changed += () => Dispatcher.BeginInvoke(() => ApplyJobsPresentation(_exportScheduler.Jobs));
             }
             await _premiereBridge.StartAsync();

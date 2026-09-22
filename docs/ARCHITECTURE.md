@@ -171,6 +171,50 @@ document for explicit record IDs. It does not touch the modern scheduler checkpo
 checkpoint, exported/partial media, reservations, or output-identity artifacts. This is distinct from the compact
 drawer's session-only dismissal.
 
+### Jobs command eligibility and cleanup (#297)
+
+`JobActionState` projects each adapter's lifecycle and typed command contracts for both compact cards and full
+workspace rows. Selection aggregates each operation independently: selected removal requires every selected row
+to be removable, without requiring matching capability or result payloads. Context menus target their own stable
+JobId and recheck eligibility when invoked; right-clicking a selected row preserves the existing selection.
+
+Compact **Clear all** dismisses represented terminal cards for the session, independently of **Cancel all**;
+active and recoverable NeedsAttention work remains visible. Full **Clear all terminal Jobs** applies to the current
+search/filter and leaves nonterminal rows intact. Full removal delegates Export records to `IJobHistoryStore` and
+filesystem records to `FileOperationHistoryStore`, then suppresses removed terminal IDs in the session projection.
+Legacy Export records remain indivisible. Export History addition and removal share a store lock so background
+completions cannot overwrite a concurrent user deletion or lose an unrelated completion. Filesystem removal never
+touches the active-intent checkpoint. Neither action deletes media, output identity, reservations, or recovery.
+
+Visual Index results remain session-only. Premiere's handoff journal is required reconciliation provenance, so
+full-view clearing of those rows is explicitly session-only; the confirmation explains they can return after
+restart. That journal is never deleted as Jobs cleanup. No second persistence/history authority is introduced.
+
+Retry retains capability-owned semantics: Export NeedsAttention retries through scheduler revalidation; saved
+terminal Export records offer Review & Rerun, with existing immutable-history reconstruction and current validation;
+Visual Index retries the original AssetId through its current-source/Color adapter. Filesystem and Premiere have
+no generic Retry. Queue pause eligibility now follows the shared admission authority; an already-paused queue
+remains resumable even when empty. Running operations continue; individual Export pause still holds waiting work.
+
+The later #297 hands-on decision replaces Export-only concurrency with **Active jobs**. `JobsAdmission` is the
+single application-wide start/slot authority used by modern Export, Visual Index, promoted filesystem operations,
+and Premiere Jobs. Adapters retain lifecycle, result, cancellation, reservation and durable recovery ownership.
+Waiting work acquires one slot per Job in admission order; it does not report Running or accrue execution time.
+Premiere's exclusive lane preserves serial dispatch without occupying slots for its waiting handoffs. Queue pause
+holds starts for all these capabilities. Lowering the ceiling drains existing work without interrupting it;
+increasing it starts additional eligible work. Completion, failure and cancellation release capacity. Export waiting
+reorder swaps its pending admission positions. The saved `MaxSimultaneousExports` and `IsExportQueuePaused` keys
+are retained for compatibility but now configure this shared policy. Foreground Player derived-frame demand and
+direct operations outside the Jobs queue remain independent; #293's foreground priority is preserved.
+
+Hands-on refinement: both surfaces merge capabilities by immutable creation/acceptance time, oldest first, with
+new Jobs appended at the bottom. Completion/start timestamps and terminal-state grouping never change row order.
+Explicit Export scheduler ordering is retained within its existing list slots, including after waiting work starts.
+Inline lifecycle controls are visible only while applicable to unfinished work; terminal cards expose only Clear.
+Typed terminal Retry/Review & Rerun remain context actions. The shared Export output path opens Explorer with the
+existing output selected; missing files and shell failures produce a styled explanation. Legacy Review & Rerun
+uses the existing LUT catalog selection helper (No LUT has an empty path, not a null path).
+
 ## Platform boundaries
 
 Lightflow Studio is Windows-first, not Windows-entangled. Shared product semantics remain platform-neutral wherever practical. Platform-specific implementations belong behind explicit boundaries; platform and runtime concepts must not leak into durable domain models or shared contracts.
@@ -1130,9 +1174,9 @@ Same-as-Source, Color/range snapshots, final paths, and within-submission collis
 knowledge. Acceptance then promotes every planned item into an independent `ExportJobDefinition`. `SubmissionId`
 is provenance only; it has no lifecycle, ordering, concurrency, reservation, or executor authority.
 
-The scheduler owns one global queue and `MaxSimultaneousExports` policy (1–8, default 2). Increasing it claims
-additional eligible Waiting Jobs immediately. Decreasing it never stops active FFmpeg work; it simply claims no
-new work until active count falls below the new ceiling. Only Waiting Jobs are eligible and reorderable. Paused
+Export retains its durable queue and reservation authority and shares the application-wide `JobsAdmission`
+Active jobs policy (1–8, default 2) described under #297 above. Increasing it claims additional eligible Waiting Jobs
+immediately. Decreasing it never stops active work; it claims no new work until active count falls below the ceiling. Only Waiting Jobs are eligible and reorderable. Paused
 and NeedsAttention Jobs retain reservations but are skipped, preventing starvation of healthy work behind them.
 
 Queue admission holds one synchronization boundary while it rechecks filesystem state, normalizes complete

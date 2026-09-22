@@ -1045,7 +1045,7 @@ public class UiLayoutTests
         Assert.Null(title.Attribute("Grid.Row"));
         Assert.Equal("1", (string?)subtitle.Attribute("Grid.Row"));
         Assert.Equal("1", (string?)actions.Attribute("Grid.Column"));
-        Assert.Equal(new[] { "JobsBackToBrowserButton", "RefreshHistoryButton", "JobsClearHistoryButton" },
+        Assert.Equal(new[] { "JobsBackToBrowserButton", "RefreshHistoryButton", "JobsClearAllHistoryButton", "JobsClearHistoryButton" },
             actions.Elements(ns + "Button").Select(button => (string?)button.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name")));
     }
 

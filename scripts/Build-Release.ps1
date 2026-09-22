@@ -83,7 +83,7 @@ try {
         throw "Empty isolated smoke profile inherited media or LUT preferences."
     }
     Write-Host "Packaged Browser startup, workspace presentation/splash handoff, and full Jobs workspace activation passed." -ForegroundColor Green
-    $null = $startupSmoke.CloseMainWindow()
+    & (Join-Path $PSScriptRoot "Close-PackageSmokeWindow.ps1") -ProcessId $startupSmoke.Id
     if (-not $startupSmoke.WaitForExit(5000)) {
         throw "Packaged application did not exit gracefully within five seconds after closing. Cleanup will terminate the smoke process."
     }

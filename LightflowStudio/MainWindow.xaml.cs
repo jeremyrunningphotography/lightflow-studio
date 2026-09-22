@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     // Loaded/ItemsSource can be visible before its asynchronous initialization reaches history/restoration.
     // Completion covers that handler; independently scheduled location/Preview work retains its own lifetime.
     internal Task<bool> StartupCompletion => _startupCompletion.Task;
+    private EncodingOptions _legacyReviewEncoding = EncodingPresetCatalog.Recommended;
     private AppSettings _settings = new();
     private AppState _state = new();
     private Process? _activeEncodingProcess;
@@ -66,7 +67,6 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<JobsWorkspaceItem> _historyRecords = [];
     private bool _synchronizingJobsSelection;
     private IReadOnlyList<EncodingJobHistoryRecord> _durableHistoryRecords = [];
-    private readonly ObservableCollection<MediaRootInfo> _mediaRoots = [];
     private IReadOnlyList<LutOption> _lutOptions = [LutCatalog.NoLut];
     private long _lutSettingsRevision;
     private readonly ObservableCollection<BrowserStorageEntry> _browserStorageEntries = [];
@@ -88,8 +88,6 @@ public partial class MainWindow : Window
     private bool _updatingSubfolderName;
     private bool _filenameSuffixUsesResolutionDefault = true;
     private bool _updatingFilenameSuffix;
-    private static readonly double[] FrameRateValues = [0, 23.976, 24, 25, 29.97, 30, 50, 59.94, 60];
-    private static readonly int[] AudioSampleRates = [0, 44100, 48000, 96000];
     private long _browserUiGeneration;
     private long _browserAssetStateRevision;
     private readonly Dictionary<Guid, long> _browserAssetStateRevisions = [];
@@ -286,7 +284,7 @@ public partial class MainWindow : Window
                 _settings = _storage.Settings;
                 _state = AppStateStore.Load(_storage.Locations.StatePath);
                 PopulateSettingsControls(_settings);
-                ApplySettingsToBatch(_settings);
+                InitializeLegacyReview();
                 ApplyStateToBatch(_state);
                 if (_commandLineFolder is not null)
                 {
@@ -295,7 +293,6 @@ public partial class MainWindow : Window
                 BatchFileList.ItemsSource = _batchFiles;
                 HistoryList.ItemsSource = _historyRecords;
                 _compactJobsView.CompactJobsList.ItemsSource = _compactJobsCards;
-                MediaRootsList.ItemsSource = _mediaRoots;
                 BrowserFolderTree.ItemsSource = _browserTree.Roots;
                 BrowserCollectionTree.ItemsSource = _browserCollectionTree.Roots;
                 BrowserGridRows.ItemsSource = _browserGrid.Rows;
@@ -321,7 +318,6 @@ public partial class MainWindow : Window
                 RefreshBatchFiles();
                 _ = InitializeLutsAsync();
                 RefreshLuts();
-                await RefreshMediaRootsAsync();
                 await RefreshPreviewUsageAsync();
                 if (_storageStartupStatus != StorageStartupStatus.Ready)
                     SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
@@ -3480,9 +3476,8 @@ public partial class MainWindow : Window
         var category = (SettingsCategoryList.SelectedItem as ListBoxItem)?.Tag as string ?? "General";
         SettingsGeneralPage.Visibility = category == "General" ? Visibility.Visible : Visibility.Collapsed;
         SettingsColorPage.Visibility = category == "Color" ? Visibility.Visible : Visibility.Collapsed;
-        SettingsExportPage.Visibility = category == "Export" ? Visibility.Visible : Visibility.Collapsed;
         SettingsStoragePage.Visibility = category == "Storage" ? Visibility.Visible : Visibility.Collapsed;
-        SettingsToolsPage.Visibility = category == "Tools" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsAdvancedPage.Visibility = category == "Advanced" ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OpenAbout_Click(object sender, RoutedEventArgs e) =>
@@ -3684,7 +3679,7 @@ public partial class MainWindow : Window
             }
 
             var resourceStore = new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory);
-            var model = new ExportDialogModel(result, _settings.Encoding,
+            var model = new ExportDialogModel(result, ExportDefaultsStore.Load(_storage.Locations.SettingsPath),
                 _storage.LutCache.Snapshot(ColorLutStage.Camera).Resources,
                 _storage.LutCache.Snapshot(ColorLutStage.Creative).Resources, resourceStore);
             var dialog = new ExportDialog(model, _exportCoordinator, _ffprobe) { Owner = this };
@@ -3729,7 +3724,7 @@ public partial class MainWindow : Window
                 return;
             }
             var resourceStore = new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory);
-            var model = new ExportDialogModel(result, _settings.Encoding,
+            var model = new ExportDialogModel(result, ExportDefaultsStore.Load(_storage.Locations.SettingsPath),
                 _storage.LutCache.Snapshot(ColorLutStage.Camera).Resources,
                 _storage.LutCache.Snapshot(ColorLutStage.Creative).Resources, resourceStore,
                 revalidate: async (includeNoSubclipSources, token) => await new SubclipExportCapabilityHandoff(
@@ -3801,7 +3796,7 @@ public partial class MainWindow : Window
     }
     private async void CheckDependencies_Click(object sender, RoutedEventArgs e)
     {
-        LocateTools(SettingsFfmpegPath.Text);
+        LocateTools();
         await RefreshDependencyHealthAsync();
     }
     private static string? PickFolder(string description, string? initialFolder = null)
@@ -3919,13 +3914,6 @@ public partial class MainWindow : Window
         _browserEncodingInvocation = null;
         UpdatePreserveFolderStructureUi();
         RefreshBatchFiles();
-    }
-    private void SettingsRecursive_Changed(object sender, RoutedEventArgs e)
-    {
-        if (!IsLoaded) return;
-        SettingsPreserveFolderStructure.Visibility = SettingsRecursive.IsChecked == true
-            ? Visibility.Visible
-            : Visibility.Collapsed;
     }
     private async void RefreshBatchFiles_Click(object sender, RoutedEventArgs e)
     {
@@ -4147,12 +4135,6 @@ public partial class MainWindow : Window
         LutSelection.IsEnabled = CurrentEncodingColorMode == EncodingColorMode.OriginalOrManual;
     }
 
-    private void BrowseDefaultVideoFolder_Click(object sender, RoutedEventArgs e)
-    {
-        if (PickFolder("Select the default video folder", SettingsDefaultVideoFolder.Text) is { } folder)
-            SettingsDefaultVideoFolder.Text = folder;
-    }
-
     private void BrowseScreengrabFolder_Click(object sender, RoutedEventArgs e)
     {
         if (PickFolder("Select the folder for full-resolution screengrabs", SettingsScreengrabDirectory.Text) is { } folder)
@@ -4161,13 +4143,12 @@ public partial class MainWindow : Window
 
     private void SettingsPath_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (!IsInitialized || SettingsDefaultVideoFolderStatus is null) return;
+        if (!IsInitialized || SettingsScreengrabDirectoryStatus is null || SettingsFfmpegPathStatus is null) return;
         RefreshSettingsPathStatuses();
     }
 
     private void RefreshSettingsPathStatuses()
     {
-        SettingsDefaultVideoFolderStatus.Text = SettingsFolderStatus(SettingsDefaultVideoFolder.Text);
         SettingsScreengrabDirectoryStatus.Text = SettingsFolderStatus(SettingsScreengrabDirectory.Text);
         SettingsFfmpegPathStatus.Text = string.IsNullOrWhiteSpace(SettingsFfmpegPath.Text)
             ? "Using bundled FFmpeg when available, then the first copy on PATH."
@@ -4311,39 +4292,35 @@ public partial class MainWindow : Window
     {
         if (!_storage.CatalogAvailable)
         {
-            MessageBox.Show("The configured Catalog is not currently available. Lightflow will not replace or redirect it. Restore access to the configured location before relocating it.",
-                "Catalog unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            NoticeDialog.Show(this, "Catalog unavailable", "Catalog unavailable", "The configured Catalog is not currently available. Lightflow will not replace or redirect it. Restore access to the configured location before relocating it.");
             return;
         }
         var destination = PickFolder("Choose the new Catalog folder", _storage.Locations.CatalogDirectory);
         if (destination is null) return;
-        var confirmation = MessageBox.Show(
-            "Lightflow will safely copy and validate the Catalog, switch only after validation succeeds, and retain the original as a recovery source. Continue?",
-            "Move Catalog", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        if (confirmation != MessageBoxResult.Yes) return;
+        if (!ConfirmationDialog.Confirm(this, "Move Catalog", "Move the Catalog to this folder?",
+            "Lightflow will copy and validate the Catalog before switching. The original is retained as a recovery source.",
+            destination, "Move Catalog")) return;
         SettingsMessage.Text = "Moving and validating the Catalog…";
         var result = await _storage.RelocateCatalogAsync(destination);
         SettingsCatalogDirectory.Text = _storage.Locations.CatalogDirectory;
         SettingsMessage.Text = result.Succeeded
             ? result.Diagnostic ?? "Catalog moved successfully. The original Catalog was retained."
             : result.Diagnostic;
-        if (!result.Succeeded) MessageBox.Show(result.Diagnostic, "Catalog was not moved", MessageBoxButton.OK, MessageBoxImage.Error);
+        if (!result.Succeeded) NoticeDialog.Show(this, "Catalog was not moved", "Catalog was not moved", result.Diagnostic ?? "Try again.");
     }
 
     private async void ChangePreviewsLocation_Click(object sender, RoutedEventArgs e)
     {
         var destination = PickFolder("Choose the new Previews folder", _storage.Locations.PreviewsDirectory);
         if (destination is null) return;
-        var choice = MessageBox.Show(
-            "Choose Yes to move existing Previews. Choose No to use the new location and rebuild Previews as needed. Choose Cancel to keep the current location.",
-            "Change Previews Location", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-        if (choice == MessageBoxResult.Cancel) return;
-        var mode = choice == MessageBoxResult.Yes ? PreviewRelocationMode.MoveExisting : PreviewRelocationMode.SwitchAndRebuild;
+        var choice = PreviewLocationDialog.Choose(this, destination);
+        if (choice is null) return;
+        var mode = choice.Value;
         SettingsMessage.Text = mode == PreviewRelocationMode.MoveExisting ? "Moving Previews…" : "Changing Previews location…";
         var result = await _storage.RelocatePreviewsAsync(destination, mode);
         SettingsPreviewsDirectory.Text = _storage.Locations.PreviewsDirectory;
         SettingsMessage.Text = result.Succeeded ? "Previews location changed successfully." : result.Diagnostic;
-        if (!result.Succeeded) MessageBox.Show(result.Diagnostic, "Previews location was not changed", MessageBoxButton.OK, MessageBoxImage.Error);
+        if (!result.Succeeded) NoticeDialog.Show(this, "Previews location was not changed", "Previews location was not changed", result.Diagnostic ?? "Try again.");
         await RefreshPreviewUsageAsync();
     }
 
@@ -4385,8 +4362,9 @@ public partial class MainWindow : Window
 
     private async void ClearPreviews_Click(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show("Clear all rebuildable Preview metadata and generated images? Catalog data and source media will not be changed.",
-            "Clear Previews", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (!ConfirmationDialog.Confirm(this, "Clear Previews", "Clear all Previews?",
+            "This removes rebuildable Preview metadata and generated images. Catalog data and source media are preserved.",
+            null, "Clear Previews")) return;
         await RunPreviewMaintenanceAsync(async token =>
         {
             PreviewMaintenanceStatus.Text = "Clearing Previews…";
@@ -4397,8 +4375,9 @@ public partial class MainWindow : Window
 
     private async void RebuildPreviews_Click(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show("Clear and rebuild Preview metadata and visual Previews for all available Catalog assets? Offline sources will be skipped and can be rebuilt later.",
-            "Rebuild Previews", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (!ConfirmationDialog.Confirm(this, "Rebuild Previews", "Clear and rebuild Previews?",
+            "Previews will be regenerated for available Catalog assets. Offline sources can be rebuilt later.",
+            null, "Rebuild Previews")) return;
         await RunPreviewMaintenanceAsync(async token =>
         {
             PreviewMaintenanceProgress.Visibility = Visibility.Visible;
@@ -4458,28 +4437,6 @@ public partial class MainWindow : Window
         var unit = 0;
         while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
         return $"{value:0.#} {units[unit]}";
-    }
-
-    private async Task RefreshMediaRootsAsync()
-    {
-        _mediaRoots.Clear();
-        if (!_storage.CatalogAvailable)
-        {
-            MediaRootsEmptyText.Text = "The Catalog is unavailable. Export remains available, but Media Roots cannot be managed.";
-            MediaRootsEmptyText.Visibility = Visibility.Visible;
-            return;
-        }
-        try
-        {
-            foreach (var root in await _storage.MediaRoots.ListAsync()) _mediaRoots.Add(root);
-            MediaRootsEmptyText.Text = "No Media Roots yet. Add one to give media a stable Catalog identity.";
-            MediaRootsEmptyText.Visibility = _mediaRoots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        }
-        catch (Exception exception)
-        {
-            MediaRootsEmptyText.Text = $"Media Roots could not be loaded: {exception.Message}";
-            MediaRootsEmptyText.Visibility = Visibility.Visible;
-        }
     }
 
     private async Task RefreshBrowserStorageAsync()
@@ -5551,87 +5508,82 @@ public partial class MainWindow : Window
 
     private BrowserCollectionNode? CollectionActionNode => _browserCollectionActionNode ?? _browserCollectionTree.SelectedNode;
 
-    private async void AddMediaRoot_Click(object sender, RoutedEventArgs e)
+    private BrowserTreeNode? _locationActionNode;
+
+    private void BrowserFolderTree_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        _locationActionNode = LocationNodeFromElement(e.OriginalSource as DependencyObject)
+            ?? (e.CursorLeft < 0 ? _browserTree.SelectedNode : null);
+        var canManage = _storage.CatalogAvailable && _locationActionNode?.Storage?.RootId is not null;
+        RenameLocationMenuItem.IsEnabled = ReconnectLocationMenuItem.IsEnabled = canManage;
+    }
+
+    internal static BrowserTreeNode? LocationNodeFromElement(DependencyObject? element)
+    {
+        // Unlike a drag target, an offline Location need not have a current physical path.
+        while (element is not null)
+        {
+            if (element is TreeViewItem { DataContext: BrowserTreeNode node }) return node;
+            if (element is System.Windows.Controls.TreeView) return null;
+            element = element is System.Windows.Media.Visual
+                ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element);
+        }
+        return null;
+    }
+
+    private async void AddLocation_Click(object sender, RoutedEventArgs e)
     {
         if (!_storage.CatalogAvailable) return;
-        var folder = PickFolder("Choose a Media Root folder", _settings.DefaultVideoFolder);
+        var folder = PickFolder("Choose a location", _browserTree.SelectedNode?.AbsolutePath);
         if (folder is null) return;
-        var suggested = new DirectoryInfo(folder).Name;
-        var name = PromptForMediaRootName("Add Media Root", "Name this Media Root", suggested);
+        var name = TextEntryDialog.Prompt(this, "Add Location", "Location name", new DirectoryInfo(folder).Name);
         if (name is null) return;
-        var result = await _storage.MediaRoots.CreateAsync(name, folder);
-        await ShowMediaRootResultAsync(result, "Media Root added.");
+        await ChangeLocationAsync(() => _storage.MediaRoots.CreateAsync(name, folder), "Location added.");
     }
 
-    private async void RenameMediaRoot_Click(object sender, RoutedEventArgs e)
+    private async void RenameLocation_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not MediaRootInfo root) return;
-        var name = PromptForMediaRootName("Rename Media Root", "Media Root name", root.DisplayName);
+        if (_locationActionNode?.Storage is not { RootId: { } id } location) return;
+        var name = TextEntryDialog.Prompt(this, "Rename Location", "Location name", location.DisplayName);
         if (name is null) return;
-        var result = await _storage.MediaRoots.RenameAsync(root.RootId, name);
-        await ShowMediaRootResultAsync(result, "Media Root renamed.");
+        await ChangeLocationAsync(() => _storage.MediaRoots.RenameAsync(id, name), "Location renamed.");
     }
 
-    private async void ReconnectMediaRoot_Click(object sender, RoutedEventArgs e)
+    private async void ReconnectLocation_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not MediaRootInfo root) return;
-        var folder = PickFolder($"Reconnect {root.DisplayName}", root.PhysicalPath ?? _settings.DefaultVideoFolder);
+        if (_locationActionNode?.Storage is not { RootId: { } id } location) return;
+        var folder = PickFolder($"Reconnect {location.DisplayName}", location.PhysicalPath);
         if (folder is null) return;
-        var result = await _storage.MediaRoots.RemapAsync(root.RootId, folder);
-        await ShowMediaRootResultAsync(result, "Media Root connected.");
+        await ChangeLocationAsync(() => _storage.MediaRoots.RemapAsync(id, folder), "Location connected.");
     }
 
-    private async Task ShowMediaRootResultAsync(MediaRootChangeResult result, string success)
+    private async Task ChangeLocationAsync(Func<Task<MediaRootChangeResult>> change, string success)
     {
-        SettingsMessage.Text = result.Succeeded ? success : result.Diagnostic;
-        if (!result.Succeeded)
-            MessageBox.Show(result.Diagnostic, "Media Root was not changed", MessageBoxButton.OK, MessageBoxImage.Warning);
-        await RefreshMediaRootsAsync();
-        await RefreshBrowserStorageAsync();
-    }
-
-    private string? PromptForMediaRootName(string title, string prompt, string initial)
-    {
-        var input = new System.Windows.Controls.TextBox { Text = initial, MinWidth = 320, Margin = new Thickness(0, 8, 0, 14) };
-        var ok = new System.Windows.Controls.Button { Content = "Save", IsDefault = true, MinWidth = 82 };
-        var cancel = new System.Windows.Controls.Button { Content = "Cancel", IsCancel = true, MinWidth = 82 };
-        var buttons = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
-        buttons.Children.Add(cancel); buttons.Children.Add(ok);
-        var content = new System.Windows.Controls.StackPanel { Margin = new Thickness(20) };
-        content.Children.Add(new System.Windows.Controls.TextBlock { Text = prompt, Foreground = (System.Windows.Media.Brush)FindResource("TextBrush") });
-        content.Children.Add(input); content.Children.Add(buttons);
-        var dialog = new Window
+        try
         {
-            Title = title,
-            Owner = this,
-            Content = content,
-            SizeToContent = SizeToContent.WidthAndHeight,
-            ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(23, 26, 32))
-        };
-        ok.Click += (_, _) => { if (!string.IsNullOrWhiteSpace(input.Text)) dialog.DialogResult = true; };
-        input.SelectAll(); input.Focus();
-        return dialog.ShowDialog() == true ? input.Text.Trim() : null;
+            var result = await change();
+            BrowserStatusText.Text = result.Succeeded ? success : result.Diagnostic;
+            if (!result.Succeeded)
+                NoticeDialog.Show(this, "Location", "The location was not changed", result.Diagnostic ?? "Try again.");
+            await RefreshBrowserStorageAsync();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)
+        {
+            NoticeDialog.Show(this, "Location", "The location was not changed", exception.Message);
+        }
     }
 
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryReadEncodingControls(out var encoding, out var encodingError))
-        {
-            MessageBox.Show(encodingError, "Export settings", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
         if (!int.TryParse(SettingsPreviewCacheQuotaGb.Text, out var previewQuota) || previewQuota is < 1 or > 1024)
         {
-            MessageBox.Show("Preview cache limit must be a whole number from 1 to 1024 GB.", "Preview settings",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            NoticeDialog.Show(this, "Preview settings", "Preview settings", "Preview cache limit must be a whole number from 1 to 1024 GB.");
             return;
         }
-        var settings = ReadSettingsControls(encoding);
+        var settings = ReadSettingsControls();
         if (!string.IsNullOrWhiteSpace(settings.FfmpegPath) && !File.Exists(settings.FfmpegPath))
         {
-            MessageBox.Show("The configured FFmpeg executable does not exist.", "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            NoticeDialog.Show(this, "Settings", "Settings", "The configured FFmpeg executable does not exist.");
             return;
         }
 
@@ -5648,10 +5600,8 @@ public partial class MainWindow : Window
             var creativeChanged = !string.Equals(previousCreativeFolder, _settings.CreativeLutFolder, StringComparison.OrdinalIgnoreCase)
                                   || previousCreativeRecursive != _settings.CreativeLutIncludeSubfolders;
             var lutSettingsRevision = ++_lutSettingsRevision;
-            ApplySettingsToBatch(settings);
             LocateTools();
             await RefreshDependencyHealthAsync();
-            RefreshBatchFiles();
             var lutCount = await RefreshLutsAsync(cameraChanged, creativeChanged);
             if (lutSettingsRevision != _lutSettingsRevision) return;
             if (_playerViewerHost is not null)
@@ -5661,7 +5611,7 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _activityLogFile.TryAppend($"[App] Could not save settings: {ex}");
-            MessageBox.Show(ex.Message, "Could not save settings", MessageBoxButton.OK, MessageBoxImage.Error);
+            NoticeDialog.Show(this, "Could not save settings", "Could not save settings", ex.Message);
         }
     }
 
@@ -5671,116 +5621,28 @@ public partial class MainWindow : Window
         SettingsMessage.Text = "Default values loaded. Select Save Settings to apply them.";
     }
 
-    private AppSettings ReadSettingsControls(EncodingOptions encoding)
+    private AppSettings ReadSettingsControls() => AppSettings.ApplyPreferences(_storage.Settings, new AppSettings
     {
-        var selectedPreset = (EncodingPreset)Math.Clamp(SettingsEncodingPreset.SelectedIndex, 0, 4);
-        if (selectedPreset != EncodingPreset.Custom && encoding != EncodingPresetCatalog.Get(selectedPreset))
-            selectedPreset = EncodingPreset.Custom;
-        return AppSettings.Normalize(new AppSettings
-        {
-            DefaultVideoFolder = SettingsDefaultVideoFolder.Text,
-            ScreengrabDirectory = SettingsScreengrabDirectory.Text,
-            CameraLutFolder = SettingsCameraLutFolder.Text,
-            CameraLutIncludeSubfolders = SettingsCameraLutIncludeSubfolders.IsChecked == true,
-            CreativeLutFolder = SettingsCreativeLutFolder.Text,
-            CreativeLutIncludeSubfolders = SettingsCreativeLutIncludeSubfolders.IsChecked == true,
-            FfmpegPath = SettingsFfmpegPath.Text,
-            DefaultResolution = (OutputResolution)SettingsResolution.SelectedIndex,
-            DefaultRecovery = (RecoveryStrategy)SettingsRecoveryMode.SelectedIndex,
-            IncludeSubfolders = SettingsRecursive.IsChecked == true,
-            PreserveFolderStructure = SettingsPreserveFolderStructure.IsChecked == true,
-            OverwriteExistingFiles = SettingsOverwriteExisting.IsChecked == true,
-            DetailedActivityLogging = ShowEncodingDetails.IsChecked == true,
-            EncodingPreset = selectedPreset,
-            PreviewCacheQuotaGb = int.TryParse(SettingsPreviewCacheQuotaGb.Text, out var quota) ? quota : 20,
-            Encoding = encoding
-        });
-    }
+        ScreengrabDirectory = SettingsScreengrabDirectory.Text,
+        CameraLutFolder = SettingsCameraLutFolder.Text,
+        CameraLutIncludeSubfolders = SettingsCameraLutIncludeSubfolders.IsChecked == true,
+        CreativeLutFolder = SettingsCreativeLutFolder.Text,
+        CreativeLutIncludeSubfolders = SettingsCreativeLutIncludeSubfolders.IsChecked == true,
+        FfmpegPath = SettingsFfmpegPath.Text,
+        PreviewCacheQuotaGb = int.Parse(SettingsPreviewCacheQuotaGb.Text, CultureInfo.InvariantCulture)
+    });
 
-    private bool TryReadEncodingControls(out EncodingOptions options, out string error)
-    {
-        options = EncodingPresetCatalog.Recommended;
-        error = "";
-        if (!TryReadInt(SettingsEncoderPreset.Text, "NVENC preset", out var encoderPreset)
-            || !TryReadInt(SettingsQuality.Text, "Quality", out var quality)
-            || !TryReadInt(SettingsTargetBitrate.Text, "Target bitrate", out var targetBitrate)
-            || !TryReadInt(SettingsMaxBitrate.Text, "Maximum bitrate", out var maxBitrate)
-            || !TryReadInt(SettingsAqStrength.Text, "AQ strength", out var aqStrength)
-            || !TryReadInt(SettingsAudioBitrate.Text, "AAC bitrate", out var audioBitrate))
-        {
-            error = _numericSettingError;
-            return false;
-        }
-
-        options = new EncodingOptions
-        {
-            Backend = EncoderBackend.NvidiaNvenc,
-            Codec = (VideoCodec)SettingsVideoCodec.SelectedIndex,
-            EncoderPreset = encoderPreset,
-            Tune = (EncoderTune)SettingsTune.SelectedIndex,
-            RateControl = (RateControlMode)SettingsRateControl.SelectedIndex,
-            Quality = quality,
-            TargetBitrateMbps = targetBitrate,
-            MaxBitrateMbps = maxBitrate,
-            Multipass = (MultipassMode)SettingsMultipass.SelectedIndex,
-            SpatialAq = SettingsSpatialAq.IsChecked == true,
-            TemporalAq = SettingsTemporalAq.IsChecked == true,
-            AqStrength = aqStrength,
-            PixelFormat = (VideoPixelFormat)SettingsPixelFormat.SelectedIndex,
-            FrameRate = FrameRateValues[Math.Clamp(SettingsFrameRate.SelectedIndex, 0, FrameRateValues.Length - 1)],
-            Deinterlace = SettingsDeinterlace.IsChecked == true,
-            AudioMode = (AudioEncodingMode)SettingsAudioMode.SelectedIndex,
-            AudioBitrateKbps = audioBitrate,
-            AudioSampleRate = AudioSampleRates[Math.Clamp(SettingsAudioSampleRate.SelectedIndex, 0, AudioSampleRates.Length - 1)],
-            AudioChannels = Math.Clamp(SettingsAudioChannels.SelectedIndex, 0, 2),
-            Container = (OutputContainer)SettingsContainer.SelectedIndex,
-            FastStart = SettingsFastStart.IsChecked == true
-        };
-        var errors = EncodingOptionValidator.Validate(options);
-        if (errors.Count == 0) return true;
-        error = string.Join(Environment.NewLine, errors);
-        return false;
-    }
-
-    private string _numericSettingError = "";
-    private bool TryReadInt(string text, string label, out int value)
-    {
-        if (int.TryParse(text, out value)) return true;
-        _numericSettingError = $"{label} must be a whole number.";
-        return false;
-    }
-
-    private void ApplyEncodingPreset_Click(object sender, RoutedEventArgs e)
-    {
-        if (SettingsEncodingPreset.SelectedIndex == (int)EncodingPreset.Custom)
-        {
-            SettingsMessage.Text = "Custom settings are already displayed; choose a named preset to replace them.";
-            return;
-        }
-        var preset = (EncodingPreset)Math.Clamp(SettingsEncodingPreset.SelectedIndex, 0, 3);
-        PopulateEncodingControls(EncodingPresetCatalog.Get(preset));
-        SettingsMessage.Text = $"{SettingsEncodingPreset.Text} preset loaded. Select Save Settings to apply it.";
-    }
     private void PopulateSettingsControls(AppSettings settings)
     {
         SettingsCatalogDirectory.Text = _storage.Locations.CatalogDirectory;
         SettingsPreviewsDirectory.Text = _storage.Locations.PreviewsDirectory;
         SettingsPreviewCacheQuotaGb.Text = settings.PreviewCacheQuotaGb.ToString(CultureInfo.InvariantCulture);
-        SettingsDefaultVideoFolder.Text = settings.DefaultVideoFolder;
         SettingsScreengrabDirectory.Text = settings.ScreengrabDirectory;
         SettingsCameraLutFolder.Text = settings.CameraLutFolder;
         SettingsCameraLutIncludeSubfolders.IsChecked = settings.CameraLutIncludeSubfolders;
         SettingsCreativeLutFolder.Text = settings.CreativeLutFolder;
         SettingsCreativeLutIncludeSubfolders.IsChecked = settings.CreativeLutIncludeSubfolders;
         SettingsFfmpegPath.Text = settings.FfmpegPath;
-        SettingsResolution.SelectedIndex = (int)settings.DefaultResolution;
-        SettingsRecoveryMode.SelectedIndex = (int)settings.DefaultRecovery;
-        SettingsRecursive.IsChecked = settings.IncludeSubfolders;
-        SettingsPreserveFolderStructure.IsChecked = settings.PreserveFolderStructure;
-        SettingsOverwriteExisting.IsChecked = settings.OverwriteExistingFiles;
-        ShowEncodingDetails.IsChecked = settings.DetailedActivityLogging;
-        SettingsEncodingPreset.SelectedIndex = (int)settings.EncodingPreset;
-        PopulateEncodingControls(settings.Encoding);
         RefreshSettingsPathStatuses();
     }
 
@@ -5799,63 +5661,33 @@ public partial class MainWindow : Window
         SettingsMessage.Text = "Creating and validating Catalog backup…";
         var result = await _storage.BackupCatalogAsync();
         SettingsMessage.Text = result.Succeeded ? "Catalog backup created and validated." : result.Diagnostic;
-        if (!result.Succeeded) MessageBox.Show(result.Diagnostic, "Catalog backup failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        if (!result.Succeeded) NoticeDialog.Show(this, "Catalog backup failed", "Catalog backup failed", result.Diagnostic ?? "Try again.");
         RefreshCatalogBackups();
     }
 
     private async void RestoreCatalog_Click(object sender, RoutedEventArgs e)
     {
         if (CatalogBackupSelection.SelectedItem is not CatalogBackupDisplay selected) return;
-        if (MessageBox.Show("Restore this validated backup? Lightflow will protect the current Catalog first. Previews are not changed.",
-            "Restore Catalog", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (!ConfirmationDialog.Confirm(this, "Restore Catalog", "Restore this Catalog backup?",
+            "Lightflow will protect the current Catalog first. Previews are preserved.",
+            selected.Backup.Path, "Restore Catalog")) return;
         SettingsMessage.Text = "Validating and restoring Catalog…";
         var result = await _storage.RestoreCatalogAsync(selected.Backup.Path);
         SettingsMessage.Text = result.Diagnostic ?? (result.Succeeded ? "Catalog restored successfully." : "Catalog restore failed.");
-        MessageBox.Show(SettingsMessage.Text, result.Succeeded ? "Catalog restored" : "Catalog restore failed",
-            MessageBoxButton.OK, result.Succeeded ? MessageBoxImage.Information : MessageBoxImage.Error);
+        NoticeDialog.Show(this, "Catalog recovery", result.Succeeded ? "Catalog restored" : "Catalog restore failed", SettingsMessage.Text);
         RefreshCatalogBackups();
-        if (result.Succeeded) await RefreshMediaRootsAsync();
+        if (result.Succeeded) await RefreshBrowserStorageAsync();
     }
 
-    private void PopulateEncodingControls(EncodingOptions options)
+    private void InitializeLegacyReview()
     {
-        SettingsEncoderBackend.SelectedIndex = 0;
-        SettingsVideoCodec.SelectedIndex = (int)options.Codec;
-        SettingsContainer.SelectedIndex = (int)options.Container;
-        SettingsAudioMode.SelectedIndex = (int)options.AudioMode;
-        SettingsEncoderPreset.Text = options.EncoderPreset.ToString();
-        SettingsTune.SelectedIndex = (int)options.Tune;
-        SettingsRateControl.SelectedIndex = (int)options.RateControl;
-        SettingsMultipass.SelectedIndex = (int)options.Multipass;
-        SettingsQuality.Text = options.Quality.ToString();
-        SettingsTargetBitrate.Text = options.TargetBitrateMbps.ToString();
-        SettingsMaxBitrate.Text = options.MaxBitrateMbps.ToString();
-        SettingsAqStrength.Text = options.AqStrength.ToString();
-        SettingsPixelFormat.SelectedIndex = (int)options.PixelFormat;
-        SettingsFrameRate.SelectedIndex = Array.IndexOf(FrameRateValues, options.FrameRate) is var frameIndex && frameIndex >= 0 ? frameIndex : 0;
-        SettingsAudioBitrate.Text = options.AudioBitrateKbps.ToString();
-        SettingsAudioSampleRate.SelectedIndex = Array.IndexOf(AudioSampleRates, options.AudioSampleRate) is var sampleIndex && sampleIndex >= 0 ? sampleIndex : 0;
-        SettingsAudioChannels.SelectedIndex = options.AudioChannels;
-        SettingsDeinterlace.IsChecked = options.Deinterlace;
-        SettingsSpatialAq.IsChecked = options.SpatialAq;
-        SettingsTemporalAq.IsChecked = options.TemporalAq;
-        SettingsFastStart.IsChecked = options.FastStart;
-    }
-
-    private void ApplySettingsToBatch(AppSettings settings)
-    {
-        InputFolder.Text = settings.DefaultVideoFolder;
-        Resolution.SelectedIndex = (int)settings.DefaultResolution;
-        RecoveryMode.SelectedIndex = (int)settings.DefaultRecovery;
-        Recursive.IsChecked = settings.IncludeSubfolders;
-        PreserveFolderStructure.IsChecked = settings.PreserveFolderStructure;
-        OverwriteExisting.IsChecked = settings.OverwriteExistingFiles;
+        Resolution.SelectedIndex = (int)OutputResolution.FullHd;
+        RecoveryMode.SelectedIndex = (int)RecoveryStrategy.Normal;
+        PreserveFolderStructure.IsChecked = true;
         OutputMode.SelectedIndex = (int)OutputDestinationMode.Subfolder;
-        OutputSpecificFolder.Text = "";
         SetResolutionSubfolderName();
         SetResolutionFilenameSuffix();
         UpdateOutputModeUi();
-        if (IsLoaded) RefreshBatchFiles();
     }
 
     private void ApplyStateToBatch(AppState state)
@@ -5990,7 +5822,7 @@ public partial class MainWindow : Window
             AppendLog(BatchLogFormatter.Started(total, outputRoot, resolution, recovery, sourceDuration, startedAt));
             AppendDetailedLog($"LUT: {(string.IsNullOrEmpty(SelectedLutPath) ? "None" : SelectedLutPath)}");
             AppendDetailedLog($"Input folder: {InputFolder.Text}");
-            AppendDetailedLog($"Encoder: {_settings.Encoding.Codec} via NVIDIA NVENC; preset P{_settings.Encoding.EncoderPreset}; {_settings.Encoding.RateControl}; {_settings.Encoding.Container}");
+            AppendDetailedLog($"Encoder: {_legacyReviewEncoding.Codec} via NVIDIA NVENC; preset P{_legacyReviewEncoding.EncoderPreset}; {_legacyReviewEncoding.RateControl}; {_legacyReviewEncoding.Container}");
             AppendDetailedLog($"Scanning subfolders: {(Recursive.IsChecked == true ? "Yes" : "No")}; preserve folder structure: {(ShouldPreserveFolderStructure() ? "Yes" : "No")}; overwrite existing files: {(OverwriteExisting.IsChecked == true ? "Yes" : "No")}");
 
             if (JobsRuntimeEnabled)
@@ -6469,7 +6301,7 @@ public partial class MainWindow : Window
         }
 
         var options = preparation.Options;
-        _settings = _settings with { Encoding = EncodingOptions.Normalize(options.Encoding) };
+        _legacyReviewEncoding = EncodingOptions.Normalize(options.Encoding);
         InputFolder.Text = options.InputFolder;
         Resolution.SelectedIndex = (int)options.Resolution;
         RecoveryMode.SelectedIndex = (int)options.Recovery;
@@ -6530,7 +6362,7 @@ public partial class MainWindow : Window
             outputRoot,
             resolution,
             recovery,
-            _settings.Encoding,
+            _legacyReviewEncoding,
             CurrentEncodingColorMode == EncodingColorMode.OriginalOrManual ? SelectedLutPath : null,
             suffix,
             ShouldPreserveFolderStructure(),
@@ -7019,19 +6851,6 @@ public partial class MainWindow : Window
         if (ShowEncodingDetails.IsChecked == true) ShowInActivityLog(line);
     }
 
-    private void ShowEncodingDetails_Changed(object sender, RoutedEventArgs e)
-    {
-        if (!IsLoaded) return;
-        _settings = _settings with { DetailedActivityLogging = ShowEncodingDetails.IsChecked == true };
-        try
-        {
-            _storage.SaveSettings(_settings);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            AppendLog($"Could not save the export-details preference: {ex.Message}");
-        }
-    }
     private static string FormatDuration(double seconds) =>
         seconds > 0 ? TimeSpan.FromSeconds(seconds).ToString(@"hh\:mm\:ss\.fff") : "Unavailable";
 

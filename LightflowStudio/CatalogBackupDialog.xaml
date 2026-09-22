@@ -8,7 +8,7 @@
   <StackPanel>
    <TextBlock Style="{StaticResource PageTitle}" FontSize="21" Text="Back Up Catalog"/>
    <TextBlock x:Name="Explanation" Margin="0,8,0,12" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"
-    Text="Save a validated copy of your Lightflow Catalog before closing. Original media and rebuildable Previews are not included."/>
+    Text="Save a backup of your Lightflow Catalog before closing. Original media and rebuildable Previews are not included."/>
    <TextBlock Style="{StaticResource FieldLabel}" Text="BACKUP LOCATION"/>
    <DockPanel>
     <Button x:Name="BrowseButton" DockPanel.Dock="Right" Content="Change…" Click="Browse_Click"/>

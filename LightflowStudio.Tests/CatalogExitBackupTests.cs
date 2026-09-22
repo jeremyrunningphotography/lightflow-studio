@@ -365,6 +365,67 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         });
     }
 
+    [Fact]
+    public async Task RestoreFromPreviousFolderKeepsDestinationAndBacksUpCurrentState()
+    {
+        var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+        await using var storage = startup.Coordinator!;
+        await storage.Collections.CreateSetAsync("Original state");
+        var original = await storage.BackupCatalogAsync();
+        Assert.True(original.Succeeded);
+        var newerFolder = Path.Combine(_root, "New backup folder");
+        await storage.SaveBackupDestinationAsync(newerFolder, CancellationToken.None);
+        await storage.Collections.CreateSetAsync("Later edit");
+        Assert.True((await storage.BackupCatalogAsync()).Succeeded);
+        Assert.DoesNotContain(storage.CatalogBackups, x => x.Path == original.Backup!.Path);
+        var restored = await storage.RestoreCatalogAsync(original.Backup!.Path);
+        Assert.True(restored.Succeeded, restored.Diagnostic);
+        Assert.Single(await storage.Collections.ListSetsAsync());
+        Assert.Equal(newerFolder, storage.BackupDirectory);
+        var safety = Assert.Single(storage.CatalogBackups, x => x.Kind == CatalogBackupKind.Recovery);
+        using var copy = new SqliteConnection($"Data Source={safety.Path};Mode=ReadOnly;Pooling=False");
+        copy.Open();
+        using var query = copy.CreateCommand();
+        query.CommandText = "SELECT count(*) FROM CollectionSets;";
+        Assert.Equal(2L, query.ExecuteScalar());
+    }
+
+    [Fact]
+    public async Task ExpandedBackupSectionAndRestoreConfirmationRenderWithLightflowResources()
+    {
+        await StaDispatcher.RunAsync(() =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var dialog = new ConfirmationDialog("Restore Backup", "Restore your Catalog from this backup?",
+                "Your Catalog will return to the state saved in this backup. Lightflow will first save a safety backup of its current state.",
+                "9/22/2026 11:11 AM — 332 KB", "Restore Backup");
+            var expander = new System.Windows.Controls.Expander
+            {
+                Header = "Catalog backup and recovery", IsExpanded = true,
+                Style = (System.Windows.Style)System.Windows.Application.Current.FindResource("SettingsExpanderStyle"),
+                Content = new System.Windows.Controls.TextBlock { Text = "9/22/2026 11:11 AM — 332 KB", Foreground = System.Windows.Media.Brushes.White }
+            };
+            var panel = new System.Windows.Controls.StackPanel { Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("ShellSurfaceBrush") };
+            var content = (System.Windows.FrameworkElement)dialog.Content;
+            dialog.Content = null;
+            panel.Children.Add(content);
+            panel.Children.Add(expander);
+            panel.Measure(new System.Windows.Size(650, double.PositiveInfinity));
+            panel.Arrange(new System.Windows.Rect(new System.Windows.Point(), panel.DesiredSize));
+            panel.UpdateLayout();
+            var expanded = (System.Windows.Controls.Border)expander.Template.FindName("ExpandSite", expander);
+            Assert.Equal(System.Windows.Visibility.Visible, expanded.Visibility);
+            Assert.True(expanded.ActualHeight > 0);
+            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(650, (int)Math.Ceiling(panel.ActualHeight), 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bitmap.Render(panel);
+            var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+            using (var file = File.Create(Path.Combine(Path.GetDirectoryName(_root)!, "restore-and-expander.png"))) png.Save(file);
+            dialog.Close();
+            return Task.CompletedTask;
+        });
+    }
+
     private static void Click(CatalogBackupDialog dialog, string name) =>
         ((System.Windows.Controls.Button)dialog.FindName(name)).RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
     private static async Task Until(Func<bool> condition)

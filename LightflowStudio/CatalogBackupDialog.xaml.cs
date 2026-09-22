@@ -21,7 +21,7 @@ public partial class CatalogBackupDialog : Window
         _exit = exit;
         if (!exit)
         {
-            Explanation.Text = "Save a validated copy of your Lightflow Catalog. Original media and rebuildable Previews are not included.";
+            Explanation.Text = "Save a backup of your Lightflow Catalog. Original media and rebuildable Previews are not included.";
             BackupButton.Content = "Back Up Catalog";
             StayButton.Content = "Cancel";
             SkipButton.Visibility = Visibility.Collapsed;

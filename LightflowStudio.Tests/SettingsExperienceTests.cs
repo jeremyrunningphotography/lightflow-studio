@@ -85,7 +85,7 @@ public sealed class SettingsExperienceTests
         Assert.Contains("ShellDividerBrush", input.ToString());
         Assert.Contains("IsKeyboardFocused", input.ToString());
         Assert.Contains("IsKeyboardFocusWithin", combo.ToString());
-        Assert.Contains("IsKeyboardFocused", expanderToggle.ToString());
+        Assert.Contains("FocusVisualStyle", expanderToggle.ToString());
         Assert.Contains("ShellFocusBrush", expanderToggle.ToString());
     }
 

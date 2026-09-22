@@ -5855,13 +5855,14 @@ public partial class MainWindow : Window
     private async void RestoreCatalog_Click(object sender, RoutedEventArgs e)
     {
         if (CatalogBackupSelection.SelectedItem is not CatalogBackupDisplay selected) return;
-        if (MessageBox.Show("Restore this validated backup? Lightflow will protect the current Catalog first. Previews are not changed.",
-            "Restore Catalog", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-        SettingsMessage.Text = "Validating and restoring Catalog…";
+        if (!ConfirmationDialog.Confirm(this, "Restore Backup", "Restore your Catalog from this backup?",
+            "Your Catalog will return to the state saved in this backup. Lightflow will first save a safety backup of its current state.",
+            selected.DisplayName, "Restore Backup")) return;
+        SettingsMessage.Text = "Restoring your Catalog…";
         var result = await _storage.RestoreCatalogAsync(selected.Backup.Path);
         SettingsMessage.Text = result.Diagnostic ?? (result.Succeeded ? "Catalog restored successfully." : "Catalog restore failed.");
-        MessageBox.Show(SettingsMessage.Text, result.Succeeded ? "Catalog restored" : "Catalog restore failed",
-            MessageBoxButton.OK, result.Succeeded ? MessageBoxImage.Information : MessageBoxImage.Error);
+        NoticeDialog.Show(this, "Restore Backup", result.Succeeded ? "Catalog restored" : "Could not restore backup",
+            SettingsMessage.Text);
         RefreshCatalogBackups();
         if (result.Succeeded) await RefreshMediaRootsAsync();
     }

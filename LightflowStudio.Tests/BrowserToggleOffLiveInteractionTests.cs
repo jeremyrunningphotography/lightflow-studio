@@ -63,6 +63,7 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
                 try
                 {
                     window.Show();
+                    Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)), "Window startup failed.");
                     await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0, "storage entries to populate");
                     trace.Add("window shown, Locations tree populated");
 
@@ -73,6 +74,11 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
                         "navigation to folder B to settle");
                     await WaitUntilAsync(() => window.BrowserIncludeSubfoldersButton.IsChecked == true,
                         "toggle to reflect B's inherited recursive mode");
+                    // Navigation/toggle publication precedes deferred WPF container selection.
+                    // Test toggle-off only once the expected initial selection is actually realized.
+                    await WaitUntilAsync(() => window.BrowserFolderTree.SelectedItem is BrowserTreeNode selected &&
+                        string.Equals(selected.AbsolutePath, _folderB, StringComparison.OrdinalIgnoreCase),
+                        "folder B's deferred tree selection to be realized");
                     trace.Add($"navigated to B; toggle IsChecked={window.BrowserIncludeSubfoldersButton.IsChecked}; " +
                         $"tree SelectedItem={Describe(window.BrowserFolderTree.SelectedItem)}");
 
@@ -141,6 +147,7 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
                 try
                 {
                     window.Show();
+                    Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)), "Window startup failed.");
                     await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0, "storage entries to populate");
 
                     // Real click on the Media Root itself, then a real chevron-expand click (selecting a row

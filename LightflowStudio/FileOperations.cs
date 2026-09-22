@@ -222,11 +222,13 @@ internal sealed class WindowsFileOperationPlatform(Func<string, DriveType>? driv
 }
 
 internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMediaAssetService assets,
-    IBrowserLocationResolver locations, IAssetCopyDataService? copies = null)
+    IBrowserLocationResolver locations, IAssetCopyDataService? copies = null, CatalogMutationLifecycle? mutations = null)
 {
+    internal CatalogMutationLifecycle Mutations { get; } = mutations ?? CatalogMutationLifecycle.From(assets);
     public async Task<FileOperationResult> ExecuteAsync(FileOperationIntent intent,
         IProgress<(int Items, long Bytes, string Current)>? progress = null, CancellationToken cancellationToken = default)
     {
+        return await Mutations.RunAsync<FileOperationResult>(async () => {
         var failures = new List<FileOperationFailure>();
         var mutations = new List<FileSystemMutation>();
         var completedItems = 0;
@@ -290,10 +292,12 @@ internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMe
         var state = cancellationToken.IsCancellationRequested ? FileOperationState.Cancelled : failures.Count == 0
             ? FileOperationState.Completed : completedItems > 0 ? FileOperationState.CompletedWithFailures : FileOperationState.Failed;
         return new(intent.OperationId, state, completedItems, completedBytes, failures, DateTimeOffset.UtcNow, mutations);
+    }, cancellationToken);
     }
 
     public async Task<FileSystemMutation> RenameAsync(FileOperationSource source, string newName, CancellationToken cancellationToken = default)
     {
+        return await Mutations.RunAsync<FileSystemMutation>(async () => {
         var name = WindowsFileNamePolicy.Validate(newName);
         var destination = Path.Combine(Path.GetDirectoryName(source.Path)!, name);
         if (File.Exists(destination) || Directory.Exists(destination)) throw new IOException("A sibling already has that name. Nothing was overwritten.");
@@ -305,6 +309,7 @@ internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMe
             if (!relocation.Succeeded) throw new IOException(relocation.Diagnostic);
         }
         return new(FileOperationKind.Rename, source.Path, destination, source.IsDirectory, source.AssetId);
+    }, cancellationToken);
     }
 
     public Task<FileSystemMutation> CreateFolderAsync(string parent, string name)
@@ -422,11 +427,27 @@ internal sealed class FileOperationJobs
         {
             if (_admission is not null) slot = await _admission.AcquireAsync(intent.OperationId, cts.Token).ConfigureAwait(false);
             cts.Token.ThrowIfCancellationRequested();
+            result = await _executor.Mutations.RunAsync(async () => {
             lock (_sync) Update(intent.OperationId, job => job with { State = FileOperationState.Running });
             Changed?.Invoke();
             var progress = new Progress<(int Items, long Bytes, string Current)>(value =>
             { lock (_sync) Update(intent.OperationId, job => job with { CompletedItems = value.Items, CompletedBytes = value.Bytes, CurrentItem = value.Current }); Changed?.Invoke(); });
-            result = await _executor.ExecuteAsync(intent, progress, cts.Token).ConfigureAwait(false);
+            var executed = await _executor.ExecuteAsync(intent, progress, cts.Token).ConfigureAwait(false);
+            if (_synchronizePresentation is not null && executed.CompletedMutations.Count > 0)
+            {
+                try { await _synchronizePresentation(executed).ConfigureAwait(false); }
+                catch (Exception exception)
+                {
+                    executed = executed with
+                    {
+                        State = FileOperationState.CompletedWithFailures,
+                        Failures = executed.Failures.Concat([new FileOperationFailure("",
+                            $"The files changed, but Browser presentation could not be synchronized: {exception.Message}")]).ToArray()
+                    };
+                }
+            }
+            return executed;
+            }, cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         { result = new(intent.OperationId, FileOperationState.Cancelled, 0, 0, [], DateTimeOffset.UtcNow); }
@@ -434,19 +455,6 @@ internal sealed class FileOperationJobs
         { result = new(intent.OperationId, FileOperationState.Failed, 0, 0, [new("", exception.Message)], DateTimeOffset.UtcNow); }
         try
         {
-            if (_synchronizePresentation is not null && result.CompletedMutations.Count > 0)
-            {
-                try { await _synchronizePresentation(result).ConfigureAwait(false); }
-                catch (Exception exception)
-                {
-                    result = result with
-                    {
-                        State = FileOperationState.CompletedWithFailures,
-                        Failures = result.Failures.Concat([new FileOperationFailure("",
-                            $"The files changed, but Browser presentation could not be synchronized: {exception.Message}")]).ToArray()
-                    };
-                }
-            }
             lock (_sync)
             {
                 _cancellations.Remove(intent.OperationId);

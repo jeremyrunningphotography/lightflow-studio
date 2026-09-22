@@ -62,7 +62,8 @@ internal sealed partial class CatalogPremiereHandoffs
         PremiereMarkerPlanning.Plan(await new CatalogMarkerService(session).ListAsync(source.AssetId, token), source.AssetId, itemId, subclip);
 
     public Task<PremiereCommand> PrepareMarkerAsync(PremiereProject project, string binId, PremiereSource source,
-        PremiereMarkerProjection marker, CancellationToken token = default) => Task.Run(() =>
+        PremiereMarkerProjection marker, CancellationToken token = default) {
+        return MutationLifecycle.RunAsync<PremiereCommand>(() => { return Task.Run(() =>
     {
         ValidateSource(source);
         if (source.IsSubclipPrerequisite || marker.AssetId != source.AssetId || marker.MarkerId == Guid.Empty
@@ -129,7 +130,8 @@ internal sealed partial class CatalogPremiereHandoffs
             }
         transaction.Commit();
         return new PremiereCommand(intent, dispatched, receipt) { KnownMarkerGuids = knownGuids.Distinct().ToArray() };
-    }, token);
+    }, token); }, token);
+    }
 
     private static void ValidateMarkerReceipt(PremiereMarkerProjection marker, PremiereReceipt receipt)
     {

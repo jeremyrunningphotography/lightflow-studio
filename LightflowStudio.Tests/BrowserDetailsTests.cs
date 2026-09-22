@@ -159,6 +159,7 @@ public sealed class BrowserDetailsWpfTests(ITestOutputHelper output)
             var directory = Path.Combine(Path.GetTempPath(), "lightflow-details-" + Guid.NewGuid().ToString("N"));
             var startup = await LightflowStorageCoordinator.StartAsync(directory);
             var storage = startup.Coordinator!;
+            storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic)
             { Left = -32000, Top = -32000, ShowInTaskbar = false, Width = 1440, Height = 900, WindowStartupLocation = WindowStartupLocation.Manual };
             try

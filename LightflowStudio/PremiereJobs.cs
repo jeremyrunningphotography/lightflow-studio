@@ -201,6 +201,7 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
             if (admission is not null) slot = await admission.AcquireAsync(job.JobId, cts.Token, "premiere").ConfigureAwait(false);
             else { await _serial.WaitAsync(cts.Token).ConfigureAwait(false); entered = true; }
             cts.Token.ThrowIfCancellationRequested();
+            await journal.MutationLifecycle.RunAsync(async () => {
             job = job with { State = JobState.Running }; Publish(job);
             var receipts = new List<PremiereReceipt>();
             if (job.Subclips is not null)
@@ -236,6 +237,7 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
             }
             job = job with { State = receipts.All(receipt => receipt.Outcome == PremiereOutcome.Verified)
                 ? JobState.Completed : JobState.CompletedWithWarnings };
+            }, cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         { job = Jobs.Single(current => current.JobId == job.JobId) with { State = JobState.Cancelled, Message = "Cancelled. Any import already in progress may remain in Premiere; resend the same selection to reconcile." }; }

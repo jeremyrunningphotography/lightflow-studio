@@ -268,8 +268,9 @@ public sealed class BrowserRecursiveRootServiceTests
         Assert.Equal("2026/August", Assert.Single(await service.ListAsync()).RelativeFolder);
     }
 
-    private sealed class InMemoryRepository : IBrowserRecursiveRootRepository
+    private sealed class InMemoryRepository : IBrowserRecursiveRootRepository, ICatalogMutationParticipant
     {
+        public CatalogMutationLifecycle Mutations { get; } = new();
         private readonly List<BrowserRecursiveRoot> _roots = [];
         public List<IReadOnlyCollection<Guid>> DeleteCalls { get; } = [];
 

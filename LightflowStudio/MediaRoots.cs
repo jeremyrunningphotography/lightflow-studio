@@ -211,6 +211,7 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
     private async Task<MediaRootChangeResult> CreateCoreAsync(string displayName, string physicalPath,
         bool allowManagedOverlap, CancellationToken cancellationToken)
     {
+        return await RequireSession().Mutations.RunAsync<MediaRootChangeResult>(async () => {
         var name = NormalizeName(displayName);
         string path;
         try { path = await ProbeAsync(physicalPath, cancellationToken).ConfigureAwait(false); }
@@ -237,6 +238,7 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
             transaction.Commit();
             return new MediaRootChangeResult(true, Observe(rootId, name, path));
         }, cancellationToken).ConfigureAwait(false);
+    }, cancellationToken);
     }
 
     private static Guid? FindExactMapping(SqliteConnection connection, SqliteTransaction transaction,
@@ -254,7 +256,8 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
         return null;
     }
 
-    public Task<MediaRootChangeResult> RenameAsync(Guid rootId, string displayName, CancellationToken cancellationToken = default) => RunChangeAsync(() =>
+    public Task<MediaRootChangeResult> RenameAsync(Guid rootId, string displayName, CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync<MediaRootChangeResult>(() => { return RunChangeAsync(() =>
     {
         var name = NormalizeName(displayName);
         var machineId = machine.GetMachineId();
@@ -262,10 +265,12 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
         var changed = Execute(connection, null, "UPDATE MediaRoots SET DisplayName=$name, UpdatedUtc=$now WHERE RootId=$id;",
             ("$name", name), ("$now", UtcTimestamp()), ("$id", rootId.ToString("D")));
         return changed == 0 ? new(false, Diagnostic: "The Media Root no longer exists.") : new(true, Read(connection, rootId, machineId));
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
     public async Task<MediaRootChangeResult> RemapAsync(Guid rootId, string physicalPath, CancellationToken cancellationToken = default)
     {
+        return await RequireSession().Mutations.RunAsync<MediaRootChangeResult>(async () => {
         string path;
         try { path = await ProbeAsync(physicalPath, cancellationToken).ConfigureAwait(false); }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException) { return new(false, Diagnostic: ex.Message); }
@@ -289,6 +294,7 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
             transaction.Commit();
             return new(true, Read(connection, rootId, machineId));
         }, cancellationToken).ConfigureAwait(false);
+    }, cancellationToken);
     }
 
     public Task<MediaPathResolution> ResolveAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default) => RunAsync<MediaPathResolution>(() =>

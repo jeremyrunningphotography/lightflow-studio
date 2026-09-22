@@ -336,8 +336,9 @@ public sealed class EncodingCapabilityHandoffTests
         }
     }
 
-    private sealed class FakeAssets(params MediaAssetResolution[] values) : IMediaAssetService
+    private sealed class FakeAssets(params MediaAssetResolution[] values) : IMediaAssetService, ICatalogMutationParticipant
     {
+        public CatalogMutationLifecycle Mutations { get; } = new();
         private readonly Dictionary<Guid, MediaAssetResolution> _values = values.ToDictionary(value => value.Asset.AssetId);
         public Guid RootIdFor(Guid assetId) => _values[assetId].Asset.RootId;
         public void SetRootId(Guid assetId, Guid rootId)

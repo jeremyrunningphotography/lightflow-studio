@@ -48,6 +48,7 @@ public sealed class BrowserCatalogPresentationLiveTests(ITestOutputHelper output
                         VisualIdentity: PreviewVisualIdentity.Original));
                 await storage.Previews.SetMetadataAsync(asset.AssetId, new(1, PreviewComponentState.Current, PayloadJson: "{}"));
             }
+            storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic)
             {
                 Left = -32000, Top = -32000, ShowInTaskbar = false, Width = 1440, Height = 900,

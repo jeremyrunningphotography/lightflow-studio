@@ -90,6 +90,7 @@ internal sealed class CatalogAssetDescriptionStore(Func<CatalogDatabaseSession?>
     public Task ApplyAsync(IReadOnlyDictionary<Guid, long> expectedRevisions, AssetDescriptionPatch patch,
         CancellationToken cancellationToken = default)
     {
+        return RequireSession().Mutations.RunAsync(() => {
         // Capture caller-owned collections before crossing the asynchronous boundary.
         var expected = expectedRevisions.ToArray();
         var values = new AssetDescriptionPatch(patch.Values.ToDictionary(p => p.Key, p => p.Value));
@@ -133,6 +134,7 @@ internal sealed class CatalogAssetDescriptionStore(Func<CatalogDatabaseSession?>
             cancellationToken.ThrowIfCancellationRequested();
             transaction.Commit();
         }, cancellationToken);
+    }, cancellationToken);
     }
 
     private CatalogDatabaseSession RequireSession() => session() ?? throw new InvalidOperationException("The Catalog is unavailable.");

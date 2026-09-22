@@ -126,8 +126,9 @@ internal interface IMediaAssetRepository
         DateTimeOffset observedUtc, CancellationToken cancellationToken = default);
 }
 
-internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> session) : IMediaAssetRepository
+internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> session, CatalogMutationLifecycle? mutations = null) : IMediaAssetRepository, ICatalogMutationParticipant
 {
+    public CatalogMutationLifecycle Mutations => mutations ?? RequireSession().Mutations;
     public Task<IReadOnlyList<MediaAsset>> ListScopeAsync(Guid rootId, string folder, bool recursive,
         CancellationToken cancellationToken = default) => RunAsync<IReadOnlyList<MediaAsset>>(() =>
     {
@@ -179,7 +180,8 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         return ReadOne(command);
     }, cancellationToken);
 
-    public Task<MediaAssetOperationStatus> CreateAsync(MediaAsset asset, CancellationToken cancellationToken = default) => RunAsync(() =>
+    public Task<MediaAssetOperationStatus> CreateAsync(MediaAsset asset, CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync<MediaAssetOperationStatus>(() => { return RunAsync(() =>
     {
         using var connection = RequireSession().OpenConnection();
         using var transaction = connection.BeginTransaction();
@@ -204,10 +206,12 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
             transaction.Rollback();
             return MediaAssetOperationStatus.AlreadyExists;
         }
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
     public Task<bool> UpdateObservationAsync(Guid assetId, long size, long lastWriteUtcTicks,
-        SourceFingerprint fingerprint, DateTimeOffset observedUtc, CancellationToken cancellationToken = default) => RunAsync(() =>
+        SourceFingerprint fingerprint, DateTimeOffset observedUtc, CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync<bool>(() => { return RunAsync(() =>
     {
         using var connection = RequireSession().OpenConnection();
         using var command = connection.CreateCommand();
@@ -223,9 +227,11 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         command.Parameters.AddWithValue("$now", Timestamp(observedUtc));
         command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
         return command.ExecuteNonQuery() == 1;
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
-    public Task<bool> MarkMissingAsync(Guid assetId, DateTimeOffset observedUtc, CancellationToken cancellationToken = default) => RunAsync(() =>
+    public Task<bool> MarkMissingAsync(Guid assetId, DateTimeOffset observedUtc, CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync<bool>(() => { return RunAsync(() =>
     {
         using var connection = RequireSession().OpenConnection();
         using var command = connection.CreateCommand();
@@ -233,10 +239,12 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         command.Parameters.AddWithValue("$now", Timestamp(observedUtc));
         command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
         return command.ExecuteNonQuery() == 1;
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
     public Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds, DateTimeOffset observedUtc,
-        CancellationToken cancellationToken = default) => RunAsync(() =>
+        CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync<int>(() => { return RunAsync(() =>
     {
         if (assetIds.Count == 0) return 0;
         using var connection = RequireSession().OpenConnection();
@@ -255,10 +263,12 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         cancellationToken.ThrowIfCancellationRequested();
         transaction.Commit();
         return updated;
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
     public Task<MediaAssetOperationStatus> RelocateAsync(Guid assetId, Guid rootId, string relativePath,
-        DateTimeOffset observedUtc, CancellationToken cancellationToken = default) => RunAsync(() =>
+        DateTimeOffset observedUtc, CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync<MediaAssetOperationStatus>(() => { return RunAsync(() =>
     {
         var normalized = MediaPathSemantics.NormalizeRelativePath(relativePath);
         using var connection = RequireSession().OpenConnection();
@@ -275,7 +285,8 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         try { return command.ExecuteNonQuery() == 1 ? MediaAssetOperationStatus.Succeeded : MediaAssetOperationStatus.NotFound; }
         catch (SqliteException exception) when (exception.SqliteExtendedErrorCode == 2067)
         { return MediaAssetOperationStatus.AlreadyExists; }
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
     private CatalogDatabaseSession RequireSession() => session() ?? throw new InvalidOperationException("The Catalog is unavailable.");
 
@@ -350,13 +361,15 @@ internal interface IMediaAssetService
 }
 
 internal sealed class MediaAssetService(IMediaAssetRepository repository, IMediaRootService roots,
-    ISourceFingerprintService fingerprints) : IMediaAssetService
+    ISourceFingerprintService fingerprints) : IMediaAssetService, ICatalogMutationParticipant
 {
+    public CatalogMutationLifecycle Mutations { get; } = CatalogMutationLifecycle.From(repository);
     public Task<IReadOnlyList<MediaAsset>> ListScopeAsync(Guid rootId, string folder, bool recursive,
         CancellationToken cancellationToken = default) => repository.ListScopeAsync(rootId, folder, recursive, cancellationToken);
     public async Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown",
         CancellationToken cancellationToken = default)
     {
+        return await Mutations.RunAsync<MediaAssetOperationResult>(async () => {
         var normalized = MediaPathSemantics.NormalizeRelativePath(relativePath);
         var key = MediaPathSemantics.RelativePathKey(normalized);
         if (await repository.FindAsync(rootId, key, cancellationToken).ConfigureAwait(false) is not null)
@@ -392,6 +405,7 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
         {
             return new(MediaAssetOperationStatus.Failed, Diagnostic: $"The asset could not be saved: {exception.Message}");
         }
+    }, cancellationToken);
     }
 
     public async Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default)
@@ -412,6 +426,7 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
 
     public async Task<MediaAssetOperationResult> ObserveAsync(Guid assetId, CancellationToken cancellationToken = default)
     {
+        return await Mutations.RunAsync<MediaAssetOperationResult>(async () => {
         var asset = await repository.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
         if (asset is null) return new(MediaAssetOperationStatus.NotFound, Diagnostic: "The asset no longer exists.");
         var resolved = await roots.ResolveAsync(asset.RootId, asset.RelativePath, cancellationToken).ConfigureAwait(false);
@@ -442,15 +457,18 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
             return new(MediaAssetOperationStatus.Failed,
                 new(asset, MediaRootAvailability.Online, resolved.PhysicalPath, false), exception.Message);
         }
+    }, cancellationToken);
     }
 
     public Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds,
-        CancellationToken cancellationToken = default) =>
-        repository.MarkMissingAsync(assetIds, DateTimeOffset.UtcNow, cancellationToken);
+        CancellationToken cancellationToken = default) {
+        return Mutations.RunAsync<int>(() => { return repository.MarkMissingAsync(assetIds, DateTimeOffset.UtcNow, cancellationToken); }, cancellationToken);
+    }
 
     public async Task<MediaAssetOperationResult> RelocateAsync(Guid assetId, Guid rootId, string relativePath,
         CancellationToken cancellationToken = default)
     {
+        return await Mutations.RunAsync<MediaAssetOperationResult>(async () => {
         var normalized = MediaPathSemantics.NormalizeRelativePath(relativePath);
         var existing = await repository.FindAsync(rootId, MediaPathSemantics.RelativePathKey(normalized), cancellationToken)
             .ConfigureAwait(false);
@@ -460,6 +478,7 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
             .ConfigureAwait(false);
         if (status != MediaAssetOperationStatus.Succeeded) return new(status, Diagnostic: "The Catalog location could not be updated.");
         return await ObserveAsync(assetId, cancellationToken).ConfigureAwait(false);
+    }, cancellationToken);
     }
 
     private async Task<MediaAssetResolution> ResolveAsync(MediaAsset asset, CancellationToken cancellationToken)

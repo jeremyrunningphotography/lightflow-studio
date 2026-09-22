@@ -146,11 +146,21 @@
   </Style>
   <!-- Kept local for the Settings family; the same shared template is also available to owned dialogs. -->
   <Style x:Key="SettingsExpanderToggleStyle" TargetType="ToggleButton">
-   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="10,8"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton"><Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock x:Name="Glyph" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="▸"/><ContentPresenter Grid.Column="1" VerticalAlignment="Center" RecognizesAccessKey="True"/></Grid></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSurfaceBrush}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/><Setter TargetName="Glyph" Property="Text" Value="▾"/><Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource ShellFocusBrush}"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/><Setter TargetName="Chrome" Property="BorderThickness" Value="2"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/><Setter Property="Cursor" Value="Arrow"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="10,8"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="FocusVisualStyle"><Setter.Value><Style TargetType="Control"><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Control"><Border Margin="2" BorderBrush="{StaticResource ShellFocusBrush}" BorderThickness="1" CornerRadius="4"/></ControlTemplate></Setter.Value></Setter></Style></Setter.Value></Setter>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+    <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock x:Name="Glyph" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="▸"/><ContentPresenter Grid.Column="1" VerticalAlignment="Center" RecognizesAccessKey="True"/></Grid></Border>
+    <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter TargetName="Glyph" Property="Text" Value="▾"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/><Setter Property="Cursor" Value="Arrow"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="SettingsExpanderStyle" TargetType="Expander">
-   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander"><StackPanel><ToggleButton Style="{StaticResource SettingsExpanderToggleStyle}" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/><ContentPresenter x:Name="ExpandSite" Margin="0,8,0,0" Visibility="Collapsed" ContentSource="Content"/></StackPanel><ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="ExpandSite" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander">
+    <Border BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="6" Background="{StaticResource ShellSurfaceBrush}"><StackPanel>
+     <ToggleButton Style="{StaticResource SettingsExpanderToggleStyle}" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+     <Border x:Name="ExpandSite" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,1,0,0" Padding="10,8" Visibility="Collapsed"><ContentPresenter ContentSource="Content"/></Border>
+    </StackPanel></Border>
+    <ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="ExpandSite" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
   </Style>
 
   <Style x:Key="JobsRowHeaderButtonStyle" TargetType="Button">
@@ -1693,12 +1703,15 @@
           <Border Style="{StaticResource SettingsSectionStyle}" Margin="0,0,0,16" VerticalAlignment="Top">
            <StackPanel>
             <TextBlock Style="{StaticResource SectionTitle}" Text="Backup &amp; Recovery"/>
-            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="Validated Catalog backups are separate from rebuildable Previews. Restore protects the current Catalog before making changes."/>
-            <ComboBox x:Name="CatalogBackupSelection" DisplayMemberPath="DisplayName" AutomationProperties.Name="Catalog backup selection"/>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-             <Button Content="Back Up Now" Click="BackupCatalog_Click"/>
-             <Button Style="{StaticResource SettingsDangerButtonStyle}" Content="Restore Selected…" Click="RestoreCatalog_Click"/>
-            </StackPanel>
+          <Border Style="{StaticResource SettingsInsetPanelStyle}" Margin="0,12,0,0"><StackPanel>
+           <TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="Catalog Backup"/>
+           <CheckBox x:Name="SettingsBackupCatalogOnClose" Margin="0,8,0,8" Content="Back up Catalog when Lightflow Studio closes"/>
+           <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="Choose whether to back up on each normal exit. Copies include the Catalog, not original media or Previews. Each backup is kept until you delete it."/>
+           <DockPanel Margin="0,8,0,0"><Button DockPanel.Dock="Right" Content="Change…" Click="ChooseCatalogBackupDirectory_Click"/>
+            <TextBox x:Name="SettingsCatalogBackupDirectory" Style="{StaticResource SettingsPathTextBoxStyle}" AutomationProperties.Name="Catalog backup destination"/>
+           </DockPanel>
+          </StackPanel></Border>
+          <Expander Margin="0,12,0,0" Header="Catalog backup and recovery" Foreground="{StaticResource TextBrush}" AutomationProperties.Name="Catalog backup and recovery"><Border Style="{StaticResource SettingsInsetPanelStyle}" BorderThickness="0"><StackPanel><TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="Restore your Catalog to an earlier backup. Lightflow saves a safety backup of its current state first."/><ComboBox x:Name="CatalogBackupSelection" DisplayMemberPath="DisplayName" AutomationProperties.Name="Catalog backup selection"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0"><Button Content="Back Up Now" Click="BackupCatalog_Click"/><Button Style="{StaticResource SettingsDangerButtonStyle}" Content="Restore Selected…" Click="RestoreCatalog_Click"/></StackPanel></StackPanel></Border></Expander>
            </StackPanel>
           </Border>
          </StackPanel>
@@ -1774,6 +1787,7 @@
          </StackPanel>
         </StackPanel>
        </ScrollViewer>
+
       </Grid>
      </Grid>
      <Border Grid.Row="2" Margin="0,10,0,0" Padding="0,10,0,0" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,1,0,0"><DockPanel><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Content="Restore Defaults" AutomationProperties.Name="Restore default settings" Click="ResetSettings_Click"/><Button x:Name="SaveSettingsButton" Style="{StaticResource SettingsPrimaryButtonStyle}" Content="Save Settings" AutomationProperties.Name="Save settings" Click="SaveSettings_Click"/></StackPanel><TextBlock x:Name="SettingsMessage" Text="Preferences apply when you save. Administration actions apply immediately." Margin="4,0,12,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/></DockPanel></Border>

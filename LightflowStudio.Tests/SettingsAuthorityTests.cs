@@ -71,6 +71,14 @@ public sealed class SettingsAuthorityTests : IDisposable
         Assert.Equal(current.PreviewsDirectory, reset.PreviewsDirectory);
         Assert.Equal(current.MaxSimultaneousExports, reset.MaxSimultaneousExports);
         Assert.True(reset.IsExportQueuePaused);
+        var backupPreferences = AppSettings.ApplyPreferences(current, defaults with
+        {
+            BackupCatalogOnClose = false, CatalogBackupDirectory = Path.Combine(_root, "Backups")
+        });
+        Assert.False(backupPreferences.BackupCatalogOnClose);
+        Assert.Equal(Path.Combine(_root, "Backups"), backupPreferences.CatalogBackupDirectory);
+        Assert.Equal(current.MaxSimultaneousExports, backupPreferences.MaxSimultaneousExports);
+        Assert.True(backupPreferences.IsExportQueuePaused);
         Assert.Equal(defaults.ScreengrabDirectory, reset.ScreengrabDirectory);
         Assert.Equal(defaults.PreviewCacheQuotaGb, reset.PreviewCacheQuotaGb);
         Assert.False(Directory.Exists(_root)); // pure preference operation, no Catalog/filesystem side effects

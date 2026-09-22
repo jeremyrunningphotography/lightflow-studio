@@ -233,8 +233,9 @@ public sealed class BrowserLocationRestorationTests
         FakeFileSystem fileSystem) => new(roots, new BrowserLocationResolver(roots, fileSystem), discovery, folders,
         new BrowserRecursiveRootService(new InMemoryRecursiveRootRepository()));
 
-    private sealed class InMemoryRecursiveRootRepository : IBrowserRecursiveRootRepository
+    private sealed class InMemoryRecursiveRootRepository : IBrowserRecursiveRootRepository, ICatalogMutationParticipant
     {
+        public CatalogMutationLifecycle Mutations { get; } = new();
         private readonly List<BrowserRecursiveRoot> _roots = [];
 
         public Task<IReadOnlyList<BrowserRecursiveRoot>> ListAsync(CancellationToken cancellationToken = default) =>

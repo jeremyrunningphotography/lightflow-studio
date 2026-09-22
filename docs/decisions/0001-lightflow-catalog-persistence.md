@@ -131,6 +131,8 @@ These are accepted runtime requirements, not behavior implemented by #78. #80 im
 
 ### 9. Backup and recovery
 
+**#272 supersedes routine automatic daily backups below:** the current workflow is explicit backup-on-close, with a configurable profile-owned destination and operation-level Catalog mutation drain. User-requested copies are kept until deleted by the user and use a separate naming convention; the original managed retention still applies to internal safety copies. See [the current writer and backup contract](../catalog-backup-272.md).
+
 #83 will implement backups with `SqliteConnection.BackupDatabase`, not a raw copy of an active database/WAL pair.
 
 - Create a validated backup before every migration of an existing Catalog.

@@ -14,6 +14,7 @@ internal sealed class AssetCopyDataService(Func<CatalogDatabaseSession?> session
     public async Task CloneAsync(Guid sourceAssetId, MediaAsset destination,
         CancellationToken cancellationToken = default)
     {
+        await (session() ?? throw new InvalidOperationException("The Catalog is unavailable.")).Mutations.RunAsync(async () => {
         await Task.Run(() => CloneCatalog(sourceAssetId, destination.AssetId, cancellationToken), cancellationToken)
             .ConfigureAwait(false);
         if (previews is null) return;
@@ -28,6 +29,7 @@ internal sealed class AssetCopyDataService(Func<CatalogDatabaseSession?> session
         await previews.SetMetadataAsync(destination.AssetId, new(version, source.MetadataState,
             PayloadJson: source.MetadataJson, RawPayloadJson: source.RawMetadataJson), cancellationToken)
             .ConfigureAwait(false);
+    }, cancellationToken);
     }
 
     private void CloneCatalog(Guid source, Guid destination, CancellationToken cancellationToken)

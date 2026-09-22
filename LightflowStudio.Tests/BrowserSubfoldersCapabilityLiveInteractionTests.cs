@@ -179,14 +179,17 @@ public sealed class BrowserSubfoldersCapabilityLiveInteractionTests : IAsyncLife
         });
     }
 
-    private static MainWindow NewOffscreenWindow(LightflowStorageCoordinator storage, StorageStartupResult startup) =>
-        new(storage, startup.Status, startup.Diagnostic)
+    private static MainWindow NewOffscreenWindow(LightflowStorageCoordinator storage, StorageStartupResult startup)
+    {
+        storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
+        return new(storage, startup.Status, startup.Diagnostic)
         {
             WindowStartupLocation = WindowStartupLocation.Manual,
             Left = -32000,
             Top = -32000,
             ShowInTaskbar = false
         };
+    }
 
     private static void RaiseClick(System.Windows.Controls.Primitives.ButtonBase button) =>
         button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));

@@ -190,10 +190,14 @@ public sealed class CatalogRecoveryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Startup_CreatesAutomaticBackup_AndCorruptRestartStillExposesIt()
+    public async Task StartupDoesNotCreateRoutineBackup_AndCorruptRestartStillExposesSafetyCopies()
     {
         var started = await LightflowStorageCoordinator.StartAsync(_root);
         var coordinator = started.Coordinator!;
+        Assert.Empty(coordinator.CatalogBackups);
+        var safety = await new SqliteCatalogRecoveryService(coordinator.Locations).CreateBackupAsync(
+            coordinator.Locations.CatalogDatabasePath, CatalogBackupKind.Migration);
+        Assert.True(safety.Succeeded);
         var backups = coordinator.CatalogBackups;
         var catalogPath = coordinator.Locations.CatalogDatabasePath;
         await coordinator.DisposeAsync();

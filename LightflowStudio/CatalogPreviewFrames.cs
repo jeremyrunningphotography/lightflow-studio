@@ -37,6 +37,7 @@ internal sealed class CatalogPreferredPreviewFrameStore(Func<CatalogDatabaseSess
     public Task<PreferredPreviewFrame> SetAsync(Guid assetId, MediaPresentationTimestamp timestamp,
         TimeSpan sourceDuration, CancellationToken cancellationToken = default)
     {
+        return RequireSession().Mutations.RunAsync<PreferredPreviewFrame>(() => {
         ArgumentNullException.ThrowIfNull(timestamp);
         if (!timestamp.IsDecodedPresentationTimestamp)
             throw new ArgumentException("The preferred Preview frame must use a decoded presentation timestamp.", nameof(timestamp));
@@ -67,16 +68,19 @@ internal sealed class CatalogPreferredPreviewFrameStore(Func<CatalogDatabaseSess
             transaction.Commit();
             return GetRequired(assetId, connection);
         }, cancellationToken);
+    }, cancellationToken);
     }
 
-    public Task ResetAsync(Guid assetId, CancellationToken cancellationToken = default) => Task.Run(() =>
+    public Task ResetAsync(Guid assetId, CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync(() => { return Task.Run(() =>
     {
         using var connection = RequireSession().OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM MediaAssetPreferredFrames WHERE AssetId=$asset;";
         command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
         command.ExecuteNonQuery();
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
     private static PreferredPreviewFrame GetRequired(Guid assetId, SqliteConnection connection)
     {

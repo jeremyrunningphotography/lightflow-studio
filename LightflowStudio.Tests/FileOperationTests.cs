@@ -19,7 +19,7 @@ public sealed class FileOperationTests
     public async Task Executor_ReturnsSuccessfulMutationsAsOneCompletionBatch()
     {
         var platform = new FakePlatform();
-        var executor = new FileOperationExecutor(platform, null!, null!);
+        var executor = new FileOperationExecutor(platform, null!, null!, mutations: new CatalogMutationLifecycle());
         var source = new FileOperationSource(null, @"C:\media\clip.mov", 10);
         var intent = new FileOperationIntent(Guid.NewGuid(), FileOperationKind.Recycle, [source], null,
             DateTimeOffset.UtcNow, 10, false, FileOperationExecution.Direct);
@@ -40,7 +40,7 @@ public sealed class FileOperationTests
         {
             var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var executor = new FileOperationExecutor(new FakePlatform(), null!, null!);
+            var executor = new FileOperationExecutor(new FakePlatform(), null!, null!, mutations: new CatalogMutationLifecycle());
             var jobs = new FileOperationJobs(executor, new FileOperationHistoryStore(Path.Combine(temporary, "history.json")),
                 async _ => { entered.TrySetResult(); await release.Task; });
             var source = new FileOperationSource(null, @"C:\media\clip.mov", 10);
@@ -73,7 +73,7 @@ public sealed class FileOperationTests
         try
         {
             var admission = new JobsAdmission(1, paused: true);
-            var executor = new FileOperationExecutor(new FakePlatform(), null!, null!);
+            var executor = new FileOperationExecutor(new FakePlatform(), null!, null!, mutations: new CatalogMutationLifecycle());
             var jobs = new FileOperationJobs(executor, new FileOperationHistoryStore(Path.Combine(temporary, "history.json")), admission: admission);
             var intent = new FileOperationIntent(Guid.NewGuid(), FileOperationKind.Recycle,
                 [new(null, @"C:\media\clip.mov", 10)], null, DateTimeOffset.UtcNow, 10, false, FileOperationExecution.Job);

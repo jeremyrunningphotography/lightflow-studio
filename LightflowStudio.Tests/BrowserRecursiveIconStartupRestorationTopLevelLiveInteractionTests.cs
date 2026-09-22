@@ -158,14 +158,17 @@ public sealed class BrowserRecursiveIconStartupRestorationTopLevelLiveInteractio
         return $"state: {string.Join(" | ", parts)}; BrowserCurrentPath='{window.BrowserCurrentPath.Text}'";
     }
 
-    private static MainWindow NewOffscreenWindow(LightflowStorageCoordinator storage, StorageStartupResult startup) =>
-        new(storage, startup.Status, startup.Diagnostic)
+    private static MainWindow NewOffscreenWindow(LightflowStorageCoordinator storage, StorageStartupResult startup)
+    {
+        storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
+        return new(storage, startup.Status, startup.Diagnostic)
         {
             WindowStartupLocation = WindowStartupLocation.Manual,
             Left = -32000,
             Top = -32000,
             ShowInTaskbar = false
         };
+    }
 
     private static async Task SettleAsync(MainWindow window)
     {

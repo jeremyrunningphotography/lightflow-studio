@@ -80,8 +80,8 @@ public sealed class FileOperationPresentationRegressionTests
         Assert.Contains("finally { _fileSystemMutationPresentationDepth--; }", main);
         Assert.Contains("_activeCollectionScope is not null || _fileSystemMutationPresentationDepth > 0", main);
         Assert.Contains("synchronizePresentation", operations);
-        Assert.Contains("await _synchronizePresentation(result)", operations);
-        Assert.True(operations.IndexOf("await _synchronizePresentation(result)", StringComparison.Ordinal) <
+        Assert.Contains("await _synchronizePresentation(executed)", operations);
+        Assert.True(operations.IndexOf("await _synchronizePresentation(executed)", StringComparison.Ordinal) <
                     operations.IndexOf("State = result.State", StringComparison.Ordinal));
     }
 

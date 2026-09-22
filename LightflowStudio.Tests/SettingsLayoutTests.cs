@@ -57,6 +57,8 @@ public sealed class SettingsLayoutTests
                 {
                     foreach (var other in pages) other.Visibility = other == page ? Visibility.Visible : Visibility.Collapsed;
                     host.Measure(new Size(width, height)); host.Arrange(new Rect(0, 0, width, height)); host.UpdateLayout();
+                    foreach (var expander in Descendants(page).OfType<Expander>()) expander.IsExpanded = true;
+                    host.UpdateLayout();
                     var groupLeft = grid.TranslatePoint(new Point(), host).X;
                     Assert.Equal((width - grid.ActualWidth) / 2, groupLeft, 1);
                     var cards = ((StackPanel)page.Content).Children.OfType<StackPanel>().Single();

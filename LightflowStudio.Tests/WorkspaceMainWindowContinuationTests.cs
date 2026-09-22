@@ -12,6 +12,7 @@ public sealed class WorkspaceMainWindowContinuationTests
     {
         await WithStorage((_, storage, startup) =>
         {
+            storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic);
             Assert.False(window.PresentationReady.IsCompleted);
             window.Close();
@@ -53,6 +54,7 @@ public sealed class WorkspaceMainWindowContinuationTests
             }
             if (scenario == "deleted") File.Delete(Path.Combine(media, "old.png"));
             if (scenario == "offline") Directory.Move(media, Path.Combine(directory, "disconnected"));
+            storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic);
             try
             {
@@ -110,6 +112,7 @@ public sealed class WorkspaceMainWindowContinuationTests
                 Grid = new() { SelectedAssetIds = [.. ids, Guid.NewGuid()], AnchorAssetId = ids[1], CurrentAssetId = ids[1] }
             });
             workspace.Save();
+            storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic);
             try
             {
@@ -179,6 +182,7 @@ public sealed class WorkspaceMainWindowContinuationTests
                 Player = new() { Asset = assets[0] }
             });
             workspace.Save();
+            storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic);
             try
             {
@@ -258,7 +262,8 @@ public sealed class WorkspaceMainWindowContinuationTests
                     ExpandedFolders = [new() { RootId = root.RootId }, new() { RootId = root.RootId, RelativeFolder = "archive" }]
                 });
                 workspace.Save();
-                var window = new MainWindow(storage, startup.Status, startup.Diagnostic);
+                storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
+            var window = new MainWindow(storage, startup.Status, startup.Diagnostic);
                 try
                 {
                     // Call the same startup boundary without opening a desktop window or replaying mouse actions.

@@ -8,6 +8,7 @@ public partial class MainWindow
     private void BrowserRotateRight_Click(object sender, RoutedEventArgs e) => _ = RotateBrowserAsync(true);
     private async Task RotateBrowserAsync(bool right)
     {
+        await _storage.Mutations.RunAsync(async () => {
         if (!CurrentBrowserSelectionActions().CanRotate) return;
         var ids = _browserGrid.SelectedAssetIdsInBrowserOrder.ToArray();
         try
@@ -17,5 +18,6 @@ public partial class MainWindow
             await _storage.VideoRotations.RotateAsync(values.ToDictionary(p => p.Key, p => p.Value.Revision), right);
         }
         catch (Exception error) { BrowserStatusText.Text = error.Message; }
+        });
     }
 }

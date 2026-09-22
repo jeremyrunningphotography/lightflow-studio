@@ -32,10 +32,16 @@ public sealed class PremiereBridgeTests : IAsyncLifetime
         admission.IsPaused = true;
         occupied.Dispose();
         Assert.Equal(JobState.Queued, jobs.Jobs[1].State);
+        using (var quiet = await _journal.MutationLifecycle.QuiesceAsync().WaitAsync(TimeSpan.FromSeconds(5)))
+            Assert.Empty(await _journal.ListAsync());
         admission.IsPaused = false;
         var command = await PollCommandAsync();
         Assert.Equal(JobState.Running, jobs.Jobs[1].State);
+        var draining = _journal.MutationLifecycle.QuiesceAsync();
+        Assert.False(draining.IsCompleted);
         await PostReceipt(command, new(command.Intent.OperationId, PremiereOutcome.Verified, "source", "verified"));
+        using var finished = await draining.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PremiereOutcome.Verified, Assert.Single(await _journal.ListAsync()).PreviousReceipt!.Outcome);
         for (var attempt = 0; attempt < 100 && jobs.Jobs[1].State == JobState.Running; attempt++) await Task.Delay(20);
         Assert.Equal(JobState.Completed, jobs.Jobs[1].State);
     }

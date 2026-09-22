@@ -66,7 +66,8 @@ internal sealed class CatalogAssetClassificationStore(Func<CatalogDatabaseSessio
         return result;
     }, cancellationToken);
 
-    public Task SaveAsync(AssetClassification classification, CancellationToken cancellationToken = default) => Task.Run(() =>
+    public Task SaveAsync(AssetClassification classification, CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync(() => { return Task.Run(() =>
     {
         if (classification.Rating is < 0 or > 5) throw new ArgumentOutOfRangeException(nameof(classification));
         if (!Enum.IsDefined(classification.Flag) || classification.ColorLabel is { } label && !Enum.IsDefined(label))
@@ -102,7 +103,8 @@ internal sealed class CatalogAssetClassificationStore(Func<CatalogDatabaseSessio
             command.ExecuteNonQuery();
         }
         transaction.Commit();
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
     private CatalogDatabaseSession RequireSession() => session() ?? throw new InvalidOperationException("The Catalog is unavailable.");
 }

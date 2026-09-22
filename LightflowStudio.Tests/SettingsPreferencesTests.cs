@@ -13,7 +13,6 @@ public sealed class SettingsPreferencesTests : IDisposable
     {
         var expected = new AppSettings
         {
-            DefaultVideoFolder = @"D:\Video Projects",
             ScreengrabDirectory = @"D:\Screengrabs",
             LutFolder = null,
             CameraLutFolder = @"D:\Camera LUTs",
@@ -21,21 +20,7 @@ public sealed class SettingsPreferencesTests : IDisposable
             CreativeLutFolder = @"D:\Creative LUTs",
             CreativeLutIncludeSubfolders = true,
             FfmpegPath = @"D:\Tools\ffmpeg.exe",
-            DefaultResolution = OutputResolution.UltraHd,
-            DefaultRecovery = RecoveryStrategy.Salvage,
-            IncludeSubfolders = true,
-            PreserveFolderStructure = false,
-            OverwriteExistingFiles = true,
-            DetailedActivityLogging = true,
-            PreviewCacheQuotaGb = 64,
-            EncodingPreset = EncodingPreset.EfficientHevc,
-            Encoding = EncodingPresetCatalog.Get(EncodingPreset.EfficientHevc) with
-            {
-                RateControl = RateControlMode.VariableBitrate,
-                TargetBitrateMbps = 35,
-                MaxBitrateMbps = 70,
-                Container = OutputContainer.Mkv
-            }
+            PreviewCacheQuotaGb = 64
         };
 
         AppSettingsStore.Save(SettingsPath, expected);
@@ -56,15 +41,8 @@ public sealed class SettingsPreferencesTests : IDisposable
         Assert.Equal(@"D:\Legacy LUTs", settings.CreativeLutFolder);
         Assert.False(settings.CameraLutIncludeSubfolders);
         Assert.False(settings.CreativeLutIncludeSubfolders);
-        Assert.Equal("", settings.DefaultVideoFolder);
         Assert.Equal(AppSettings.DefaultScreengrabDirectory, settings.ScreengrabDirectory);
         Assert.Equal("", settings.FfmpegPath);
-        Assert.Equal(OutputResolution.FullHd, settings.DefaultResolution);
-        Assert.Equal(RecoveryStrategy.Normal, settings.DefaultRecovery);
-        Assert.False(settings.IncludeSubfolders);
-        Assert.True(settings.PreserveFolderStructure);
-        Assert.False(settings.OverwriteExistingFiles);
-        Assert.False(settings.DetailedActivityLogging);
         Assert.Equal(20, settings.PreviewCacheQuotaGb);
     }
 
@@ -80,27 +58,21 @@ public sealed class SettingsPreferencesTests : IDisposable
     }
 
     [Fact]
-    public void Normalize_TrimsPathsAndRepairsInvalidEnumValues()
+    public void Normalize_TrimsRetainedPaths()
     {
         var settings = AppSettings.Normalize(new AppSettings
         {
-            DefaultVideoFolder = "  D:\\Videos  ",
             ScreengrabDirectory = "  D:\\Screengrabs  ",
             LutFolder = null,
             CameraLutFolder = "  D:\\Camera LUTs  ",
             CreativeLutFolder = "  D:\\Creative LUTs  ",
             FfmpegPath = "  D:\\ffmpeg.exe  ",
-            DefaultResolution = (OutputResolution)99,
-            DefaultRecovery = (RecoveryStrategy)99
         });
 
-        Assert.Equal(@"D:\Videos", settings.DefaultVideoFolder);
         Assert.Equal(@"D:\Screengrabs", settings.ScreengrabDirectory);
         Assert.Equal(@"D:\Camera LUTs", settings.CameraLutFolder);
         Assert.Equal(@"D:\Creative LUTs", settings.CreativeLutFolder);
         Assert.Equal(@"D:\ffmpeg.exe", settings.FfmpegPath);
-        Assert.Equal(OutputResolution.FullHd, settings.DefaultResolution);
-        Assert.Equal(RecoveryStrategy.Normal, settings.DefaultRecovery);
     }
 
     [Fact]

@@ -1230,3 +1230,31 @@ Visual Index consumes merged #287 through OrientedPreviewImage with the card's A
 rotation store. Color-rendered cached pixels retain source orientation; the shared control applies authored rotation
 exactly once, swaps 90/270-degree display dimensions, and reacts immediately to committed rotation changes. Rotation
 does not enter the pixel cache identity or cause another extraction. Visual Index owns no rotation math or store.
+
+
+## Settings authority (#291)
+
+Settings owns capture-folder, stage-specific LUT-folder/recursion, FFmpeg override, and Preview quota
+preferences plus application administration. General, Color, Storage, and Advanced reuse the shell styles
+and a responsive peer-card panel. Save applies only these preferences to the latest storage settings;
+Restore Defaults stages only these preferences. Storage identity, Jobs policy and Premiere pairing are
+preserved. Dependency checks use the saved override, never an unsaved text-field value.
+
+Legacy Batch defaults and global encoder controls are removed. Old JSON fields remain safely ignorable;
+new saves omit them. Before Settings can be saved, an existing Encoding payload is atomically migrated to
+profile-local `export-defaults.json` if that file does not exist. Failure blocks startup rather than losing
+the existing settings. Export reads that typed recipe; its existing Source resolution/container/codec,
+copy-audio and frame-rate initialization remain unchanged. Settings cannot change this recipe. Fresh
+profiles use EncodingPresetCatalog.Recommended. Existing History/AppState schemas remain intact, and
+legacy Review & Rerun uses its own in-memory recipe instead of mutating future Export defaults.
+
+The legacy Show export details checkbox stays contextual to compatibility review and its typed History
+recipe. It no longer writes a misleading global DetailedActivityLogging preference; activity-file logging
+already occurs independently of that checkbox.
+
+Browser Locations exposes Add Location, Rename Location and Reconnect Location through the existing
+IMediaRootService. RootId, relative-path identity and machine mappings are unchanged. Opening Settings
+or changing categories does not enumerate or mutate Media Roots. Storage relocation/Preview maintenance
+and manual backup/restore retain existing services; #271/#272 remain separate future work.
+
+See [the source authority audit](validation/settings-291-authority.md) for the complete control inventory.

@@ -79,7 +79,7 @@ public sealed class StartupStorageValidationTests : IDisposable
             Assert.NotNull(await store.GetAsync(asset));
             Assert.Single(lines, x => x.Contains("Preview quick check: begin"));
         }
-        Execute(locations.PreviewsDatabasePath, "ALTER TABLE PreviewRecords DROP COLUMN ThumbnailVisualIdentity; ALTER TABLE PreviewRecords DROP COLUMN StandardPreviewVisualIdentity; PRAGMA user_version=1;");
+        Execute(locations.PreviewsDatabasePath, "ALTER TABLE PreviewRecords DROP COLUMN ThumbnailVisualIdentity; ALTER TABLE PreviewRecords DROP COLUMN StandardPreviewVisualIdentity; ALTER TABLE PreviewRecords DROP COLUMN ThumbnailFailureReason; PRAGMA user_version=1;");
         var migrationLines = new ConcurrentQueue<string>();
         using (var diagnostics = new StartupDiagnostics(migrationLines.Enqueue))
         await using (var store = new PreviewStoreService(locations))

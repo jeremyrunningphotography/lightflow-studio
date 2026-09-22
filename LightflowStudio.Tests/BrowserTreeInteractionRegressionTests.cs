@@ -36,42 +36,20 @@ public sealed class BrowserTreeInteractionRegressionTests
         Assert.Contains("_storage.MediaFolders.EnumerateAsync(", body);
         Assert.Contains("_browserTree.ApplyDirectoryListing(node, rootPath, listing.Entries);", body);
         Assert.Contains("SyncBrowserTreeRecursiveIcons();", body);
-        // Guarded by the same reentrancy flag as every other programmatic tree mutation, and only proceeds for
-        // a node that still has an unmaterialized (placeholder) child — a no-op for an already-materialized
-        // or already-expanded node, exactly like before.
+        // Reuse materialized children; resolve never-visited Locations without navigation.
         Assert.Contains("_synchronizingBrowserTree", body);
-        Assert.Contains("node.Children.Any(child => child.IsPlaceholder)", body);
+        Assert.Contains("node.IsMaterialized", body);
+        Assert.Contains("_storage.BrowserLocations.ResolveAsync(requestedPath)", body);
     }
 
     [Fact]
     public void BrowserFolderTreeItemExpanded_NeverLeavesTheLoadingPlaceholderStuckOnAFailedMaterialization()
     {
-        // #124: every early-return path in this method (no Catalog anchor yet — a bare, never-clicked Volume
-        // row; the anchor no longer resolves to a physical path; an enumeration exception; an unsuccessful
-        // listing) used to simply `return`, leaving the node's "Loading…" placeholder child visibly stuck
-        // forever with no further feedback — reported as some top-level/source folders' disclosure expansion
-        // getting permanently stuck on "Loading…". Every one of those paths must instead collapse the node
-        // back to a closed, re-expandable state.
         var body = MethodBody("private async void BrowserFolderTreeItem_Expanded");
-
-        var noAnchor = body.IndexOf("node.RootId is not { } rootId || node.RelativeFolder is not { } relativeFolder)", StringComparison.Ordinal);
-        var noPhysicalPath = body.IndexOf("root?.PhysicalPath is not { } rootPath)", StringComparison.Ordinal);
-        var enumerationException = body.IndexOf("catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)", StringComparison.Ordinal);
-        var unsuccessfulListing = body.IndexOf("if (!listing.Succeeded)", StringComparison.Ordinal);
-        Assert.True(noAnchor >= 0 && noPhysicalPath > noAnchor && enumerationException > noPhysicalPath &&
-            unsuccessfulListing > enumerationException, "Expected all four early-return sites, in order, in BrowserFolderTreeItem_Expanded.");
-
-        // Every one of the four sites calls CollapseUnmaterializableNode before its own next early-return path
-        // begins (or, for the last, before the method body ends) — none of the four falls through to a bare
-        // `return;` on its own.
-        var afterNoAnchor = body[noAnchor..noPhysicalPath];
-        var afterNoPhysicalPath = body[noPhysicalPath..enumerationException];
-        var afterEnumerationException = body[enumerationException..unsuccessfulListing];
-        var afterUnsuccessfulListing = body[unsuccessfulListing..];
-        Assert.Contains("CollapseUnmaterializableNode(node);", afterNoAnchor);
-        Assert.Contains("CollapseUnmaterializableNode(node);", afterNoPhysicalPath);
-        Assert.Contains("CollapseUnmaterializableNode(node);", afterEnumerationException);
-        Assert.Contains("CollapseUnmaterializableNode(node);", afterUnsuccessfulListing);
+        Assert.Contains("CollapseUnmaterializableNode(node);", body);
+        Assert.Contains("if (!listing.Succeeded)", body);
+        Assert.Contains("if (!IsCurrent()) return;", body);
+        Assert.Contains("finally { _browserTreeExpansionLoads.Remove(node); }", body);
     }
 
     [Fact]

@@ -40,7 +40,8 @@ public sealed class JobsWorkspaceLiveInteractionTests
         // Replace only the fixture's storage enumeration, holding startup at its real first asynchronous boundary.
         typeof(LightflowStorageCoordinator).GetField("<BrowserStorage>k__BackingField",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(storage, gate);
-        var window = new MainWindow(storage, startup.Status, startup.Diagnostic)
+        storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
+            var window = new MainWindow(storage, startup.Status, startup.Diagnostic)
             { Left = -32000, Top = -32000, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual };
         try
         {
@@ -440,6 +441,7 @@ public sealed class JobsWorkspaceLiveInteractionTests
                         BrowserLocationsPaneWidth = persistedLocationsWidth, RightPanelWidth = persistedPanelWidth } });
             var history = new JobHistoryStore(storage.Locations.JobHistoryPath);
             for (var index = 0; index < seedHistoryCount; index++) history.Add(HistoryRecord());
+            storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic)
             {
                 WindowStartupLocation = WindowStartupLocation.Manual,

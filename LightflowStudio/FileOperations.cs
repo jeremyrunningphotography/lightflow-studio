@@ -222,11 +222,13 @@ internal sealed class WindowsFileOperationPlatform(Func<string, DriveType>? driv
 }
 
 internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMediaAssetService assets,
-    IBrowserLocationResolver locations, IAssetCopyDataService? copies = null)
+    IBrowserLocationResolver locations, IAssetCopyDataService? copies = null, CatalogMutationLifecycle? mutations = null)
 {
+    internal CatalogMutationLifecycle Mutations { get; } = mutations ?? CatalogMutationLifecycle.From(assets);
     public async Task<FileOperationResult> ExecuteAsync(FileOperationIntent intent,
         IProgress<(int Items, long Bytes, string Current)>? progress = null, CancellationToken cancellationToken = default)
     {
+        return await Mutations.RunAsync<FileOperationResult>(async () => {
         var failures = new List<FileOperationFailure>();
         var mutations = new List<FileSystemMutation>();
         var completedItems = 0;
@@ -290,10 +292,12 @@ internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMe
         var state = cancellationToken.IsCancellationRequested ? FileOperationState.Cancelled : failures.Count == 0
             ? FileOperationState.Completed : completedItems > 0 ? FileOperationState.CompletedWithFailures : FileOperationState.Failed;
         return new(intent.OperationId, state, completedItems, completedBytes, failures, DateTimeOffset.UtcNow, mutations);
+    }, cancellationToken);
     }
 
     public async Task<FileSystemMutation> RenameAsync(FileOperationSource source, string newName, CancellationToken cancellationToken = default)
     {
+        return await Mutations.RunAsync<FileSystemMutation>(async () => {
         var name = WindowsFileNamePolicy.Validate(newName);
         var destination = Path.Combine(Path.GetDirectoryName(source.Path)!, name);
         if (File.Exists(destination) || Directory.Exists(destination)) throw new IOException("A sibling already has that name. Nothing was overwritten.");
@@ -305,6 +309,7 @@ internal sealed class FileOperationExecutor(IFileOperationPlatform platform, IMe
             if (!relocation.Succeeded) throw new IOException(relocation.Diagnostic);
         }
         return new(FileOperationKind.Rename, source.Path, destination, source.IsDirectory, source.AssetId);
+    }, cancellationToken);
     }
 
     public Task<FileSystemMutation> CreateFolderAsync(string parent, string name)
@@ -413,6 +418,7 @@ internal sealed class FileOperationJobs
     public void Cancel(Guid id) { lock (_sync) if (_cancellations.TryGetValue(id, out var cts)) cts.Cancel(); }
     private async Task RunAsync(FileOperationIntent intent)
     {
+        await _executor.Mutations.RunAsync(async () => {
         var cts = new CancellationTokenSource();
         lock (_sync) { _cancellations[intent.OperationId] = cts; Update(intent.OperationId, job => job with { State = FileOperationState.Running }); }
         Changed?.Invoke();
@@ -441,6 +447,7 @@ internal sealed class FileOperationJobs
         _history.Complete(intent, result);
         Changed?.Invoke();
         cts.Dispose();
+    }, default);
     }
     private void Update(Guid id, Func<FileOperationJobSnapshot, FileOperationJobSnapshot> update)
     { var index = _jobs.FindIndex(job => job.Intent.OperationId == id); if (index >= 0) _jobs[index] = update(_jobs[index]); }

@@ -78,6 +78,7 @@ internal sealed class CatalogDatabaseSession : IAsyncDisposable
     public int SchemaVersion { get; }
     public CatalogIdentity Identity { get; }
     public CatalogRuntimePolicy RuntimePolicy { get; }
+    internal CatalogMutationLifecycle Mutations { get; set; } = new();
 
     internal Microsoft.Data.Sqlite.SqliteConnection OpenConnection()
     {

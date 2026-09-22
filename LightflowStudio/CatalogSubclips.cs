@@ -107,6 +107,7 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
 
     public async Task<SubclipCreateResult> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
     {
+        return await RequireSession().Mutations.RunAsync<SubclipCreateResult>(async () => {
         workingRange = SubclipCreationEligibility.Materialize(workingRange);
         ValidateExplicitRange(workingRange);
         await _mutations.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -150,11 +151,13 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
             }, cancellationToken).ConfigureAwait(false);
         }
         finally { _mutations.Release(); }
+    }, cancellationToken);
     }
 
     public async Task<Subclip> RenameAsync(Guid subclipId, long expectedRevision, string name,
         CancellationToken cancellationToken = default)
     {
+        return await RequireSession().Mutations.RunAsync<Subclip>(async () => {
         name = name?.Trim() ?? "";
         if (name.Length == 0) throw new ArgumentException("A Subclip name is required.", nameof(name));
         await _mutations.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -181,10 +184,12 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
             }, cancellationToken).ConfigureAwait(false);
         }
         finally { _mutations.Release(); }
+    }, cancellationToken);
     }
 
     public async Task DeleteAsync(Guid subclipId, long expectedRevision, CancellationToken cancellationToken = default)
     {
+        await RequireSession().Mutations.RunAsync(async () => {
         await _mutations.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -206,11 +211,13 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
             }, cancellationToken).ConfigureAwait(false);
         }
         finally { _mutations.Release(); }
+    }, cancellationToken);
     }
 
     public async Task DeleteAsync(Guid assetId, IReadOnlyList<SubclipOrder> subclips,
         CancellationToken cancellationToken = default)
     {
+        await RequireSession().Mutations.RunAsync(async () => {
         ArgumentNullException.ThrowIfNull(subclips);
         if (subclips.Count == 0) return;
         if (subclips.Select(item => item.SubclipId).Distinct().Count() != subclips.Count)
@@ -243,11 +250,13 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
             }, cancellationToken).ConfigureAwait(false);
         }
         finally { _mutations.Release(); }
+    }, cancellationToken);
     }
 
     public async Task<IReadOnlyList<Subclip>> ReorderAsync(Guid assetId, IReadOnlyList<SubclipOrder> order,
         CancellationToken cancellationToken = default)
     {
+        return await RequireSession().Mutations.RunAsync<IReadOnlyList<Subclip>>(async () => {
         ArgumentNullException.ThrowIfNull(order);
         if (order.Select(item => item.SubclipId).Distinct().Count() != order.Count)
             throw new ArgumentException("Subclip order cannot contain duplicate identities.", nameof(order));
@@ -282,6 +291,7 @@ internal sealed class CatalogSubclipService(Func<CatalogDatabaseSession?> sessio
             }, cancellationToken).ConfigureAwait(false);
         }
         finally { _mutations.Release(); }
+    }, cancellationToken);
     }
 
     private static void ValidateExplicitRange(MediaRange range)

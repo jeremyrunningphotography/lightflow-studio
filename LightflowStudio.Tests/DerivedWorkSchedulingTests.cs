@@ -418,8 +418,9 @@ public sealed class DerivedWorkSchedulingTests
             CancellationToken cancellationToken = default) => Task.FromResult(result);
     }
 
-    private sealed class FakeAssets(params MediaAssetResolution[] assets) : IMediaAssetService
+    private sealed class FakeAssets(params MediaAssetResolution[] assets) : IMediaAssetService, ICatalogMutationParticipant
     {
+        public CatalogMutationLifecycle Mutations { get; } = new();
         private readonly Dictionary<Guid, MediaAssetResolution> _assets = assets.ToDictionary(asset => asset.Asset.AssetId);
         public Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_assets.GetValueOrDefault(assetId));

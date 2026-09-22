@@ -44,6 +44,8 @@ internal sealed record AppSettings
     public int MaxSimultaneousExports { get; init; } = EncodingJobConcurrency.Default;
     public bool IsExportQueuePaused { get; init; }
     public Guid? CatalogId { get; init; }
+    public bool BackupCatalogOnClose { get; init; } = true;
+    public string? CatalogBackupDirectory { get; init; }
 
     public AppSettings() { }
     public AppSettings(string lutFolder) => CameraLutFolder = CreativeLutFolder = LutFolder = lutFolder;
@@ -64,6 +66,7 @@ internal sealed record AppSettings
             FfmpegPath = settings.FfmpegPath?.Trim() ?? "",
             CatalogDirectory = NormalizeStorageDirectory(settings.CatalogDirectory),
             PreviewsDirectory = NormalizeStorageDirectory(settings.PreviewsDirectory),
+            CatalogBackupDirectory = NormalizeStorageDirectory(settings.CatalogBackupDirectory),
             PreviewCacheQuotaGb = Math.Clamp(settings.PreviewCacheQuotaGb, 1, 1024),
             MaxSimultaneousExports = Math.Clamp(settings.MaxSimultaneousExports,
                 EncodingJobConcurrency.Minimum, EncodingJobConcurrency.Maximum),

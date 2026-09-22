@@ -28,6 +28,7 @@ internal sealed record PreviewFrameIntentChangedEventArgs(Guid AssetId, TimeSpan
 /// </summary>
 public partial class PlayerViewerHost : UserControl
 {
+    internal CatalogMutationLifecycle CatalogMutations { get; set; } = new();
     private readonly MediaPlaybackCoordinator _coordinator;
     private readonly IMediaRangeStore? _rangeStore;
     private readonly ISubclipService? _subclips;
@@ -1117,6 +1118,7 @@ public partial class PlayerViewerHost : UserControl
 
     private async void SetPreviewFrame_Click(object sender, RoutedEventArgs e)
     {
+        await CatalogMutations.RunAsync(async () => {
         if (_preferredPreviewFrames is null || _currentAsset?.AssetId is not Guid assetId ||
             _service?.SourceInfo is not { } source || !SetPreviewFrameButton.IsEnabled) return;
         var generation = _generation;
@@ -1144,6 +1146,7 @@ public partial class PlayerViewerHost : UserControl
         {
             if (generation == _generation) { _previewFrameBusy = false; UpdatePausedFrameActions(); }
         }
+        });
     }
 
     private async void ResetPreviewFrame_Click(object sender, RoutedEventArgs e)

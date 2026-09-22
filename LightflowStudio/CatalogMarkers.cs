@@ -62,6 +62,7 @@ internal sealed class CatalogMarkerService(Func<CatalogDatabaseSession?> session
 
     public Task<MarkerCreateResult> CreateAsync(Guid assetId, TimeSpan position, CancellationToken token = default)
     {
+        return Session.Mutations.RunAsync<MarkerCreateResult>(() => {
         if (position < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(position));
         return Task.Run(() =>
         {
@@ -82,13 +83,15 @@ internal sealed class CatalogMarkerService(Func<CatalogDatabaseSession?> session
             transaction.Commit();
             return new MarkerCreateResult(marker, true);
         }, token);
+    }, token);
     }
 
     public Task RenameAsync(Guid markerId, long revision, string name, CancellationToken token = default) =>
         MutateAsync(markerId, revision, name?.Trim() ?? "", token);
     public Task DeleteAsync(Guid markerId, long revision, CancellationToken token = default) =>
         MutateAsync(markerId, revision, null, token);
-    private Task MutateAsync(Guid markerId, long revision, string? name, CancellationToken token) => Task.Run(() =>
+    private Task MutateAsync(Guid markerId, long revision, string? name, CancellationToken token) {
+        return Session.Mutations.RunAsync(() => { return Task.Run(() =>
     {
         using var connection = Session.OpenConnection();
         using var command = connection.CreateCommand();
@@ -102,7 +105,8 @@ internal sealed class CatalogMarkerService(Func<CatalogDatabaseSession?> session
             command.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
         }
         if (command.ExecuteNonQuery() != 1) throw new MarkerConcurrencyException();
-    }, token);
+    }, token); }, token);
+    }
 
     private static List<TimelineMarker> Read(SqliteConnection connection, SqliteTransaction? transaction, Guid assetId)
     {

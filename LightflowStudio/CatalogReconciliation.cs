@@ -51,9 +51,11 @@ internal sealed class CatalogReconciliationService(
     IMediaFolderEnumerator folders,
     IMediaAssetService assets) : ICatalogReconciliationService
 {
+    private CatalogMutationLifecycle Mutations { get; } = CatalogMutationLifecycle.From(assets);
     public async Task<CatalogReconciliationResult> ReconcileAsync(MediaFolderEnumerationRequest request,
         CancellationToken cancellationToken = default)
     {
+        return await Mutations.RunAsync<CatalogReconciliationResult>(async () => {
         using var timing = BrowserPerformance.Measure("reconciliation");
         var folder = request.RelativeFolder?.Trim() ?? string.Empty;
         MediaFolderEnumerationResult enumeration;
@@ -153,6 +155,7 @@ internal sealed class CatalogReconciliationService(
 
         return new(CatalogReconciliationStatus.Succeeded, request.RootId, folder, changes,
             unsupportedCount);
+    }, cancellationToken);
     }
 
     private static string MediaTypeName(MediaTypeCategory category) => category switch

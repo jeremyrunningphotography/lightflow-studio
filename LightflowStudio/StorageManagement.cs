@@ -70,7 +70,13 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     private readonly PreviewOperationCoordinator _previewOperations = new();
     private readonly SemaphoreSlim _thumbnailRegenerationGate = new(2, 2);
     private readonly AssetPreviewGenerationGate _assetPreviewGenerationGate = new();
-    private CatalogDatabaseSession? _catalogSession;
+    internal CatalogMutationLifecycle Mutations { get; } = new();
+    private CatalogDatabaseSession? _session;
+    private CatalogDatabaseSession? _catalogSession
+    {
+        get => _session;
+        set { _session = value; if (value is not null) value.Mutations = Mutations; }
+    }
 
     private LightflowStorageCoordinator(IStorageConfigurationStore configuration, AppSettings settings,
         LightflowStorageLocations locations, CatalogDatabaseSession? session, ICatalogRelocationTransfer transfer,
@@ -91,10 +97,10 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             new MachineIdentityProvider(locations.MachineIdentityPath), new MediaRootFileSystem());
         BrowserStorage = new BrowserStorageProvider(MediaRoots, new WindowsBrowserVolumeProvider());
         BrowserLocations = new BrowserLocationResolver(MediaRoots, new BrowserLocationFileSystem());
-        MediaAssets = new MediaAssetService(new CatalogMediaAssetRepository(() => _catalogSession),
+        MediaAssets = new MediaAssetService(new CatalogMediaAssetRepository(() => _catalogSession, Mutations),
             MediaRoots, new SampledSourceFingerprintService());
         BrowserRecursiveRoots = new BrowserRecursiveRootService(
-            new CatalogBrowserRecursiveRootRepository(() => _catalogSession));
+            new CatalogBrowserRecursiveRootRepository(() => _catalogSession, Mutations));
         MediaTypes = MediaTypeRegistry.CreateDefault();
         MediaFolders = new MediaFolderEnumerator(MediaRoots, MediaTypes, new MediaFolderFileSystem());
         CatalogReconciliation = new CatalogReconciliationService(MediaFolders, MediaAssets);
@@ -154,7 +160,9 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public IRecursiveMediaDiscoveryService RecursiveMediaDiscovery { get; }
     public IMediaRootMonitoringService? MediaMonitoring { get; private set; }
     public IPreviewStoreService? Previews { get; private set; }
-    public IReadOnlyList<CatalogBackup> CatalogBackups => _recovery.ListBackups();
+    public IReadOnlyList<CatalogBackup> CatalogBackups => _recovery.ListBackups()
+        .Concat(SqliteCatalogRecoveryService.ListUserBackups(Locations, BackupDirectory))
+        .OrderByDescending(backup => backup.CreatedUtc).ToArray();
 
     public static async Task<StorageStartupResult> StartAsync(string? localApplicationData = null,
         CancellationToken cancellationToken = default, ICatalogRelocationTransfer? transfer = null,
@@ -185,6 +193,12 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         }
 
         recovery ??= new SqliteCatalogRecoveryService(locations);
+        var needsBackupConfiguration = settings.CatalogBackupDirectory is null;
+        if (settings.CatalogBackupDirectory is null)
+        {
+            // Deterministic new/existing-profile migration. Preserve all managed recovery copies.
+            settings = settings with { CatalogBackupDirectory = CatalogBackupDestination.Default(locations) };
+        }
         var database = new CatalogDatabaseService(locations, recovery);
         CatalogOpenResult opened;
         if (!File.Exists(locations.CatalogDatabasePath) && settings.CatalogId is null && settings.CatalogDirectory is null)
@@ -235,15 +249,16 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                 throw;
             }
         }
+        if (needsBackupConfiguration)
+        {
+            try { configuration.Save(settings); }
+            catch { await opened.Session!.DisposeAsync().ConfigureAwait(false); throw; }
+        }
         var (previews, previewDiagnostic) = await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
         var coordinator = new LightflowStorageCoordinator(configuration, settings, locations, opened.Session, transfer,
             activator, recovery, previews, previewDiagnostic);
         using (StartupDiagnostics.Stage("Media-root monitoring", "Checking media locations…"))
             await coordinator.MediaMonitoring!.StartAsync(cancellationToken).ConfigureAwait(false);
-        var automaticBackup = await recovery.CreateBackupAsync(locations.CatalogDatabasePath, CatalogBackupKind.Automatic,
-            onlyIfNeededToday: true, cancellationToken).ConfigureAwait(false);
-        if (!automaticBackup.Succeeded)
-            coordinator.RecoveryDiagnostic = $"Automatic Catalog backup failed: {automaticBackup.Diagnostic}";
         return new(StorageStartupStatus.Ready, coordinator);
     }
 
@@ -269,18 +284,51 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
 
     public async Task<CatalogBackupResult> BackupCatalogAsync(CancellationToken cancellationToken = default)
     {
-        await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return await BackupForExitAsync(BackupDirectory, false, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal string BackupDirectory => Settings.CatalogBackupDirectory ?? CatalogBackupDestination.Default(Locations);
+    private CatalogMutationLifecycle.Quiescence? _exitQuiescence;
+
+    internal async Task<CatalogBackupResult> BackupForExitAsync(string destination, bool keepQuiescent,
+        IProgress<string>? progress = null, CancellationToken cancellationToken = default)
+    {
+        progress?.Report("Finishing accepted Catalog changes…");
+        var quiet = await Mutations.QuiesceAsync(cancellationToken).ConfigureAwait(false);
+        var keep = false;
         try
         {
+            // Catalog relocation/restore participate in admission, so the session is stable here.
+            // Do not take the Preview maintenance lock: its workers can legitimately be waiting
+            // to publish a new Catalog observation after this snapshot boundary reopens.
             if (_catalogSession is null) return new(false, Diagnostic: "The Catalog is unavailable.");
-            return await _recovery.CreateBackupAsync(Locations.CatalogDatabasePath, CatalogBackupKind.Automatic,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
+            var result = await new SqliteCatalogRecoveryService(Locations).CreateUserBackupAsync(
+                Locations.CatalogDatabasePath, destination, _catalogSession.Identity.CatalogId,
+                _catalogSession.SchemaVersion, progress, cancellationToken).ConfigureAwait(false);
+            if (result.Succeeded && keepQuiescent) { _exitQuiescence = quiet; keep = true; }
+            return result;
+        }
+        finally { if (!keep) quiet.Dispose(); }
+    }
+
+    internal void CancelPreparedExit() { _exitQuiescence?.Dispose(); _exitQuiescence = null; }
+    internal void CompletePreparedExit() { _exitQuiescence?.CompleteShutdown(); _exitQuiescence = null; }
+
+    internal async Task SaveBackupDestinationAsync(string destination, CancellationToken token)
+    {
+        await _mutationGate.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            var settings = Settings with { CatalogBackupDirectory = destination };
+            await Task.Run(() => _configuration.Save(settings), token).ConfigureAwait(false);
+            Settings = settings;
         }
         finally { _mutationGate.Release(); }
     }
 
     public async Task<CatalogRestoreResult> RestoreCatalogAsync(string backupPath, CancellationToken cancellationToken = default)
     {
+        return await Mutations.RunAsync<CatalogRestoreResult>(async () => {
         await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -347,6 +395,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             }
             finally { _mutationGate.Release(); }
         }
+    }, cancellationToken);
     }
 
     private async Task<CatalogRestoreResult> TryReactivateCatalogAsync()
@@ -369,6 +418,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public async Task<StorageChangeResult> RelocateCatalogAsync(string destinationDirectory,
         CancellationToken cancellationToken = default)
     {
+        return await Mutations.RunAsync<StorageChangeResult>(async () => {
         await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -385,6 +435,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             }
             finally { _mutationGate.Release(); }
         }
+    }, cancellationToken);
     }
 
     private async Task<StorageChangeResult> RelocateCatalogCoreAsync(string destinationDirectory,
@@ -780,6 +831,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             _mutationGate.Release();
             _mutationGate.Dispose();
             _readShutdown.Dispose();
+            Mutations.Dispose();
         }
     }
 

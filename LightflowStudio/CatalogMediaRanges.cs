@@ -40,8 +40,8 @@ internal sealed class CatalogMediaRangeStore(Func<CatalogDatabaseSession?> sessi
             catch (ArgumentOutOfRangeException) { return null; }
         }, cancellationToken);
 
-    public Task SaveAsync(Guid assetId, MediaRange? range, CancellationToken cancellationToken = default) =>
-        Task.Run(() =>
+    public Task SaveAsync(Guid assetId, MediaRange? range, CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync(() => { return Task.Run(() =>
         {
             if (range is { } invalid && (invalid.IsFullSource || invalid.Validate().Count != 0))
                 throw new ArgumentException("The saved media range must contain at least one valid boundary.", nameof(range));
@@ -71,7 +71,8 @@ internal sealed class CatalogMediaRangeStore(Func<CatalogDatabaseSession?> sessi
             }
             command.ExecuteNonQuery();
             transaction.Commit();
-        }, cancellationToken);
+        }, cancellationToken); }, cancellationToken);
+    }
 
     private CatalogDatabaseSession RequireSession() => session() ??
         throw new InvalidOperationException("The Catalog is unavailable.");

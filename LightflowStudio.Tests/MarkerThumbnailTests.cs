@@ -92,8 +92,9 @@ public sealed class MarkerThumbnailTests
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
-    private sealed class Assets(MediaAsset source) : IMediaAssetService
+    private sealed class Assets(MediaAsset source) : IMediaAssetService, ICatalogMutationParticipant
     {
+        public CatalogMutationLifecycle Mutations { get; } = new();
         public MediaAsset Source = source;
         public bool Available = true;
         public Task<MediaAssetOperationResult> ObserveAsync(Guid id, CancellationToken token = default) =>

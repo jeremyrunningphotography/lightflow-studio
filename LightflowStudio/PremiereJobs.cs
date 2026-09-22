@@ -194,6 +194,7 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
     }
     private async Task RunAsync(PremiereJob job, string binId, string? createName, CancellationTokenSource cts)
     {
+        await journal.MutationLifecycle.RunAsync(async () => {
         var entered = false;
         try
         {
@@ -246,6 +247,7 @@ internal sealed class PremiereJobs(CatalogPremiereHandoffs journal, PremiereBrid
             cts.Dispose(); Publish(job);
             try { await RefreshHistoryAsync().ConfigureAwait(false); } catch { /* Durable journal errors already surface on handoff; keep current result visible. */ }
         }
+    }, default);
     }
     private static string ItemKey(PremierePlannedSubclip item) => item.Projection.SubclipId is { } subclipId
         ? $"subclip:{subclipId:D}" : $"asset:{item.Source.AssetId:D}";

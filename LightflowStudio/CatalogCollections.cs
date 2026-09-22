@@ -366,6 +366,7 @@ internal sealed class CatalogCollectionOrganizationService(
     private async Task<T> MutateAsync<T>(Func<SqliteConnection, SqliteTransaction, T> operation,
         CancellationToken cancellationToken)
     {
+        return await RequireSession().Mutations.RunAsync<T>(async () => {
         await _mutations.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -380,6 +381,7 @@ internal sealed class CatalogCollectionOrganizationService(
             }, cancellationToken).ConfigureAwait(false);
         }
         finally { _mutations.Release(); }
+    }, cancellationToken);
     }
 
     private static Task<T> RunReadAsync<T>(Func<T> operation, CancellationToken cancellationToken) =>

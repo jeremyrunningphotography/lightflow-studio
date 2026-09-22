@@ -6,7 +6,7 @@ using Microsoft.Data.Sqlite;
 
 namespace LightflowStudio;
 
-internal enum CatalogBackupKind { Automatic, Migration, Recovery }
+internal enum CatalogBackupKind { Automatic, Migration, Recovery, UserRequested }
 internal sealed record CatalogBackup(string Path, int SchemaVersion, DateTimeOffset CreatedUtc, CatalogBackupKind Kind);
 internal sealed record CatalogIntegrityResult(bool IsValid, string? Diagnostic = null, int? SchemaVersion = null, Guid? CatalogId = null);
 internal sealed record CatalogBackupResult(bool Succeeded, CatalogBackup? Backup = null, string? Diagnostic = null);
@@ -204,7 +204,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
     }
 
     private CatalogIntegrityResult Inspect(string path, bool full, CancellationToken cancellationToken,
-        string stage = "Recovery full check")
+        string stage = "Recovery full check", bool verifyPages = true)
     {
         using var timing = StartupDiagnostics.Stage(stage, "Validating Catalog backup…");
         try
@@ -213,8 +213,11 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
             if (!File.Exists(path)) return new(false, $"Catalog file does not exist: {path}");
             using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
             connection.Open();
-            using var integrity = connection.CreateCommand(); integrity.CommandText = full ? "PRAGMA integrity_check;" : "PRAGMA quick_check;";
-            if (!string.Equals(Convert.ToString(integrity.ExecuteScalar()), "ok", StringComparison.OrdinalIgnoreCase)) return new(false, "SQLite integrity checking reported corruption.");
+            if (verifyPages)
+            {
+                using var integrity = connection.CreateCommand(); integrity.CommandText = full ? "PRAGMA integrity_check;" : "PRAGMA quick_check;";
+                if (!string.Equals(Convert.ToString(integrity.ExecuteScalar()), "ok", StringComparison.OrdinalIgnoreCase)) return new(false, "SQLite integrity checking reported corruption.");
+            }
             using var app = connection.CreateCommand(); app.CommandText = "PRAGMA application_id;";
             if (Convert.ToInt32(app.ExecuteScalar()) != CatalogDatabaseService.SqliteApplicationId) return new(false, "The file is not a Lightflow Catalog.");
             using var version = connection.CreateCommand(); version.CommandText = "PRAGMA user_version;";

@@ -78,8 +78,10 @@ public sealed class ApplicationDataProfileTests : IDisposable
         Assert.Empty(a.Settings.CameraLutFolder);
         Assert.Empty(a.Settings.CreativeLutFolder);
         Assert.StartsWith(first.ApplicationDataDirectory, a.Settings.ScreengrabDirectory);
-        Assert.NotEmpty(a.CatalogBackups);
-        Assert.NotEmpty(b.CatalogBackups);
+        Assert.Empty(a.CatalogBackups);
+        Assert.Empty(b.CatalogBackups);
+        Assert.StartsWith(first.ApplicationDataDirectory, a.BackupDirectory);
+        Assert.StartsWith(second.ApplicationDataDirectory, b.BackupDirectory);
         a.SaveSettings(a.Settings with { DefaultVideoFolder = "only-first-profile" });
         Assert.NotEqual("only-first-profile", AppSettingsStore.Load(second.SettingsPath).DefaultVideoFolder);
         foreach (var profile in new[] { first, second })

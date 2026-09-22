@@ -127,6 +127,8 @@ internal sealed record PremiereCommand(PremiereIntent Intent, bool PreviouslyDis
 /// <summary>Projection state lives in the existing Catalog, including its migrations, backup and relocation.</summary>
 internal sealed partial class CatalogPremiereHandoffs(Func<CatalogDatabaseSession?> session)
 {
+    internal CatalogMutationLifecycle MutationLifecycle =>
+        (session() ?? throw new InvalidOperationException("The Catalog is unavailable.")).Mutations;
     public Task<IReadOnlyList<PremiereCommand>> ListAsync() => Task.Run<IReadOnlyList<PremiereCommand>>(() =>
     {
         var catalog = session();
@@ -145,7 +147,8 @@ internal sealed partial class CatalogPremiereHandoffs(Func<CatalogDatabaseSessio
     });
 
     public Task<PremiereCommand> PrepareAsync(PremiereProject project, string binId, string? createBinName,
-        PremiereSource source, CancellationToken cancellationToken = default) => Task.Run(() =>
+        PremiereSource source, CancellationToken cancellationToken = default) {
+        return MutationLifecycle.RunAsync<PremiereCommand>(() => { return Task.Run(() =>
     {
         var catalog = session() ?? throw new InvalidOperationException("The Catalog is unavailable.");
         if (source.AssetId == Guid.Empty || string.IsNullOrWhiteSpace(binId)
@@ -205,10 +208,12 @@ internal sealed partial class CatalogPremiereHandoffs(Func<CatalogDatabaseSessio
         insert.ExecuteNonQuery();
         transaction.Commit();
         return new PremiereCommand(intent, false, null);
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
     public Task<PremiereCommand> PrepareSubclipAsync(PremiereProject project, string binId, string? createBinName,
-        PremiereSource source, PremiereSubclipProjection subclip, CancellationToken cancellationToken = default) => Task.Run(() =>
+        PremiereSource source, PremiereSubclipProjection subclip, CancellationToken cancellationToken = default) {
+        return MutationLifecycle.RunAsync<PremiereCommand>(() => { return Task.Run(() =>
     {
         var catalog = session() ?? throw new InvalidOperationException("The Catalog is unavailable.");
         ValidateSource(source);
@@ -258,7 +263,8 @@ internal sealed partial class CatalogPremiereHandoffs(Func<CatalogDatabaseSessio
         if (write.ExecuteNonQuery() != 1) throw new InvalidOperationException("Subclip handoff intent could not be saved.");
         transaction.Commit();
         return new PremiereCommand(intent, dispatched, priorReceipt);
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
     public Task MarkDispatchedAsync(PremiereIntent intent) => UpdateAsync(intent,
         "UPDATE PremiereHandoffs SET Dispatched=1 WHERE OperationId=$id", null);
@@ -276,7 +282,8 @@ internal sealed partial class CatalogPremiereHandoffs(Func<CatalogDatabaseSessio
         return UpdateAsync(intent, "UPDATE PremiereHandoffs SET ReceiptJson=$receipt WHERE OperationId=$id", receipt);
     }
 
-    private Task UpdateAsync(PremiereIntent intent, string sql, PremiereReceipt? receipt) => Task.Run(() =>
+    private Task UpdateAsync(PremiereIntent intent, string sql, PremiereReceipt? receipt) {
+        return MutationLifecycle.RunAsync(() => { return Task.Run(() =>
     {
         var catalog = session() ?? throw new InvalidOperationException("The Catalog is unavailable.");
         if (catalog.Identity.CatalogId != intent.CatalogId) throw new InvalidOperationException("The active Catalog changed.");
@@ -306,7 +313,8 @@ internal sealed partial class CatalogPremiereHandoffs(Func<CatalogDatabaseSessio
             command.Parameters.AddWithValue("$receipt", JsonSerializer.Serialize(receipt, PremiereProtocol.Json));
         }
         if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("Handoff intent is missing from the Catalog.");
-    });
+    }); }, default);
+    }
 
     public static void ValidateSource(PremiereSource source)
     {

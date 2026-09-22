@@ -197,13 +197,13 @@ public partial class MainWindow : Window
         }, new ExportQueueStore(modernQueuePath), definition => EncodingJobRecovery.Revalidate(
             definition.PlanItem, definition.Recipe, _storage.Locations.OutputIdentityDirectory), persistMaximum: maximum =>
         {
-            _settings = _settings with { MaxSimultaneousExports = maximum };
+            _settings = _storage.Settings with { MaxSimultaneousExports = maximum };
             try { _storage.SaveSettings(_settings); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             { _activityLogFile.TryAppend($"[App] Could not save global Export concurrency: {exception.Message}"); }
         }, isQueuePaused: storage.Settings.IsExportQueuePaused, persistQueuePaused: paused =>
         {
-            _settings = _settings with { IsExportQueuePaused = paused };
+            _settings = _storage.Settings with { IsExportQueuePaused = paused };
             try { _storage.SaveSettings(_settings); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             { _activityLogFile.TryAppend($"[App] Could not save the Export queue pause policy: {exception.Message}"); }
@@ -343,6 +343,7 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _storage.CompletePreparedExit();
             _premiereClosing = true;
             _premiereJobs?.CancelAll();
             _premiereBridge?.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -1675,6 +1676,7 @@ public partial class MainWindow : Window
 
     private async Task AddBrowserSelectionToCollectionsAsync()
     {
+        await _storage.Mutations.RunAsync(async () => {
         var assetIds = _browserGrid.SelectedAssetIdsInBrowserOrder;
         if (assetIds.Count == 0) return;
         var choices = BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
@@ -1694,6 +1696,7 @@ public partial class MainWindow : Window
             BrowserStatusText.Text = CollectionMembershipFeedback.ForAdd(added, duplicates,
                 assetIds.Count, dialog.SelectedCollectionIds.Count, destinationName);
         });
+    }, default);
     }
 
     private string CollectionDisplayPath(Guid collectionId)
@@ -1724,6 +1727,7 @@ public partial class MainWindow : Window
 
     private async Task RemoveBrowserSelectionFromActiveCollectionAsync()
     {
+        await _storage.Mutations.RunAsync(async () => {
         if (_activeCollectionScope is null) return;
         var selected = _browserGrid.SelectedAssetIdsInBrowserOrder.ToHashSet();
         var memberships = await _storage.Collections.ListMembershipsAsync(_activeCollectionScope.Collection.CollectionId);
@@ -1742,6 +1746,7 @@ public partial class MainWindow : Window
             await LoadCollectionScopeAsync(collectionId);
             BrowserStatusText.Text = $"Removed {removing.Length} media item{(removing.Length == 1 ? "" : "s")} from {collectionName}";
         });
+    }, default);
     }
 
     private async void BrowserExport_Click(object sender, RoutedEventArgs e) => await ExportBrowserSelectionAsync();
@@ -2030,6 +2035,7 @@ public partial class MainWindow : Window
             preferredPreviewFrames: _storage.PreferredPreviewFrames,
             classifications: _storage.AssetClassifications, markers: _storage.Markers,
             rotations: _storage.VideoRotations);
+        _playerViewerHost.CatalogMutations = _storage.Mutations;
         _playerViewerHost.InitializeVisualIndex(_visualIndexFrames, () => _storage.Previews,
             _workspaceState.Current.Layout?.VisualIndexCount ?? 24);
         _playerViewerHost.RegenerateVisualIndexRequested = RegenerateVisualIndexAsync;
@@ -3136,11 +3142,13 @@ public partial class MainWindow : Window
 
     private async Task SetSelectedBrowserRatingsAsync(int rating)
     {
+        await _storage.Mutations.RunAsync(async () => {
         foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
         {
             var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
             await CommitBrowserClassificationAsync(value with { Rating = rating }).ConfigureAwait(true);
         }
+    }, default);
     }
 
     private void BrowserRating_Click(object sender, RoutedEventArgs e)
@@ -3151,12 +3159,14 @@ public partial class MainWindow : Window
 
     private async Task SetSelectedBrowserRatingsFromMenuAsync(int rating)
     {
+        await _storage.Mutations.RunAsync(async () => {
         foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
         {
             var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
             await CommitBrowserClassificationAsync(value with
                 { Rating = AssetClassificationCommandPolicy.SetRating(value.Rating, rating, toggleCurrent: true) }).ConfigureAwait(true);
         }
+    }, default);
     }
 
     private void BrowserFlag_Click(object sender, RoutedEventArgs e)
@@ -3167,11 +3177,13 @@ public partial class MainWindow : Window
 
     private async Task SetSelectedBrowserFlagsAsync(AssetFlag flag)
     {
+        await _storage.Mutations.RunAsync(async () => {
         foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
         {
             var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
             await CommitBrowserClassificationAsync(value with { Flag = flag }).ConfigureAwait(true);
         }
+    }, default);
     }
 
     private void BrowserColorLabel_Click(object sender, RoutedEventArgs e)
@@ -3183,11 +3195,13 @@ public partial class MainWindow : Window
 
     private async Task SetSelectedBrowserColorLabelsAsync(AssetColorLabel? label)
     {
+        await _storage.Mutations.RunAsync(async () => {
         foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
         {
             var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
             await CommitBrowserClassificationAsync(value with { ColorLabel = label }).ConfigureAwait(true);
         }
+    }, default);
     }
 
     private void BrowserAddKeyword_Click(object sender, RoutedEventArgs e)
@@ -3200,32 +3214,38 @@ public partial class MainWindow : Window
 
     private async Task AddSelectedBrowserKeywordAsync(string keyword)
     {
+        await _storage.Mutations.RunAsync(async () => {
         foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
         {
             var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
             await CommitBrowserClassificationAsync(value with { Keywords = [.. value.Keywords, keyword] }).ConfigureAwait(true);
         }
+    }, default);
     }
 
     private void BrowserClearKeywords_Click(object sender, RoutedEventArgs e) => _ = ClearSelectedBrowserKeywordsAsync();
 
     private async Task ClearSelectedBrowserKeywordsAsync()
     {
+        await _storage.Mutations.RunAsync(async () => {
         foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
         {
             var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
             await CommitBrowserClassificationAsync(value with { Keywords = [] }).ConfigureAwait(true);
         }
+    }, default);
     }
 
     private async Task StepSelectedBrowserFlagsAsync(int delta)
     {
+        await _storage.Mutations.RunAsync(async () => {
         foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
         {
             var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
             await CommitBrowserClassificationAsync(value with
                 { Flag = AssetClassificationCommandPolicy.StepFlag(value.Flag, delta) }).ConfigureAwait(true);
         }
+    }, default);
     }
 
     private async Task CommitBrowserClassificationAsync(AssetClassification value)
@@ -4845,6 +4865,7 @@ public partial class MainWindow : Window
 
     private async Task ReorderCollectionNodeAsync(int delta)
     {
+        await _storage.Mutations.RunAsync(async () => {
         if (CollectionActionNode is not { } node) return;
         var siblings = CollectionSiblings(node);
         var index = siblings.FindIndex(item => item.Id == node.Id);
@@ -4857,6 +4878,7 @@ public partial class MainWindow : Window
             await _storage.Collections.ReorderHierarchyAsync(node.ParentSetId, order);
             await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
         });
+    }, default);
     }
 
     private List<BrowserCollectionNode> CollectionSiblings(BrowserCollectionNode node) =>
@@ -4877,8 +4899,10 @@ public partial class MainWindow : Window
 
     private async Task RunCollectionActionAsync(Func<Task> action)
     {
+        await _storage.Mutations.RunAsync(async () => {
         try { await action(); }
         catch (Exception exception) when (IsCollectionActionFailure(exception)) { await HandleCollectionActionFailureAsync(exception); }
+    }, default);
     }
 
     private static bool IsCollectionActionFailure(Exception exception) => exception is InvalidOperationException or
@@ -5176,6 +5200,7 @@ public partial class MainWindow : Window
     private async Task ReorderCollectionNodeAsync(BrowserCollectionNode dragged,
         BrowserCollectionInsertionDestination destination)
     {
+        await _storage.Mutations.RunAsync(async () => {
         var destinationParent = destination.ParentSetId;
         var siblings = BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
             .Where(node => node.ParentSetId == destinationParent && node.Id != dragged.Id)
@@ -5194,6 +5219,7 @@ public partial class MainWindow : Window
             await _storage.Collections.ReorderHierarchyAsync(destinationParent, order);
             await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
         });
+    }, default);
     }
 
     private static CollectionHierarchyOrder HierarchyOrder(BrowserCollectionNode node) => new(
@@ -5492,16 +5518,18 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private async Task ReparentCollectionNodeAsync(BrowserCollectionNode node, Guid? parent) =>
-        await RunCollectionActionAsync(async () =>
+    private async Task ReparentCollectionNodeAsync(BrowserCollectionNode node, Guid? parent) {
+        await _storage.Mutations.RunAsync(async () => { await RunCollectionActionAsync(async () =>
         {
             if (node.IsSet) await _storage.Collections.ReparentSetAsync(node.Id, node.Revision, parent);
             else await _storage.Collections.ReparentCollectionAsync(node.Id, node.Revision, parent);
             await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
-        });
+        }); }, default);
+    }
 
     private async Task MoveIntoCollectionSetAsync(BrowserCollectionNode node, BrowserCollectionNode target)
     {
+        await _storage.Mutations.RunAsync(async () => {
         var expandAfterMove = !target.IsExpanded;
         await RunCollectionActionAsync(async () =>
         {
@@ -5517,6 +5545,7 @@ public partial class MainWindow : Window
             await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
             if (expandAfterMove) await RevealCollectionNodeAsync(node.Id);
         });
+    }, default);
     }
 
     private async Task RevealCollectionNodeAsync(Guid nodeId)
@@ -5627,6 +5656,16 @@ public partial class MainWindow : Window
             return;
         }
         var settings = ReadSettingsControls(encoding);
+        try
+        {
+            var requested = SettingsCatalogBackupDirectory.Text;
+            await Task.Run(() => CatalogBackupDestination.Validate(_storage.Locations, requested));
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            SettingsMessage.Text = $"Choose a usable Catalog backup location. {ex.Message}";
+            return;
+        }
         if (!string.IsNullOrWhiteSpace(settings.FfmpegPath) && !File.Exists(settings.FfmpegPath))
         {
             MessageBox.Show("The configured FFmpeg executable does not exist.", "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -5676,6 +5715,8 @@ public partial class MainWindow : Window
             selectedPreset = EncodingPreset.Custom;
         return AppSettings.Normalize(new AppSettings
         {
+            BackupCatalogOnClose = SettingsBackupCatalogOnClose.IsChecked == true,
+            CatalogBackupDirectory = SettingsCatalogBackupDirectory.Text,
             DefaultVideoFolder = SettingsDefaultVideoFolder.Text,
             ScreengrabDirectory = SettingsScreengrabDirectory.Text,
             CameraLutFolder = SettingsCameraLutFolder.Text,
@@ -5761,6 +5802,8 @@ public partial class MainWindow : Window
     }
     private void PopulateSettingsControls(AppSettings settings)
     {
+        SettingsBackupCatalogOnClose.IsChecked = settings.BackupCatalogOnClose;
+        SettingsCatalogBackupDirectory.Text = settings.CatalogBackupDirectory ?? CatalogBackupDestination.Default(_storage.Locations);
         SettingsCatalogDirectory.Text = _storage.Locations.CatalogDirectory;
         SettingsPreviewsDirectory.Text = _storage.Locations.PreviewsDirectory;
         SettingsPreviewCacheQuotaGb.Text = settings.PreviewCacheQuotaGb.ToString(CultureInfo.InvariantCulture);
@@ -5784,21 +5827,21 @@ public partial class MainWindow : Window
 
     private sealed record CatalogBackupDisplay(CatalogBackup Backup, string DisplayName);
 
-    private void RefreshCatalogBackups()
+    private int _backupHistoryRevision;
+    private async void RefreshCatalogBackups()
     {
-        CatalogBackupSelection.ItemsSource = _storage.CatalogBackups
-            .Select(x => new CatalogBackupDisplay(x, $"{x.CreatedUtc.LocalDateTime:g} — {x.Kind} — schema {x.SchemaVersion}"))
-            .ToArray();
-        CatalogBackupSelection.SelectedIndex = CatalogBackupSelection.Items.Count > 0 ? 0 : -1;
-    }
-
-    private async void BackupCatalog_Click(object sender, RoutedEventArgs e)
-    {
-        SettingsMessage.Text = "Creating and validating Catalog backup…";
-        var result = await _storage.BackupCatalogAsync();
-        SettingsMessage.Text = result.Succeeded ? "Catalog backup created and validated." : result.Diagnostic;
-        if (!result.Succeeded) MessageBox.Show(result.Diagnostic, "Catalog backup failed", MessageBoxButton.OK, MessageBoxImage.Error);
-        RefreshCatalogBackups();
+        var revision = ++_backupHistoryRevision;
+        try
+        {
+            var backups = await Task.Run(() => _storage.CatalogBackups);
+            if (_workspaceClosed || revision != _backupHistoryRevision) return;
+            CatalogBackupSelection.ItemsSource = backups
+                .Select(x => new CatalogBackupDisplay(x, $"{x.CreatedUtc.LocalDateTime:g} — {x.Kind} — schema {x.SchemaVersion}"))
+                .ToArray();
+            CatalogBackupSelection.SelectedIndex = CatalogBackupSelection.Items.Count > 0 ? 0 : -1;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        { _activityLogFile.TryAppend($"Could not read Catalog backup history: {ex}"); }
     }
 
     private async void RestoreCatalog_Click(object sender, RoutedEventArgs e)
@@ -6914,6 +6957,7 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
+        if (_catalogCloseDialogActive) { e.Cancel = true; return; }
         _playerViewerHost?.ExitFullscreen();
         if (!TryLeaveInspectorContext()) { e.Cancel = true; return; }
         if (!_forceClose && _premiereBridge?.HasUnresolvedDispatchedHandoff == true)
@@ -6938,7 +6982,12 @@ public partial class MainWindow : Window
             }
             return;
         }
-        if (_jobCancellation is null || _forceClose) return;
+        if (_jobCancellation is null || _forceClose)
+        {
+            if (!TryPrepareCatalogExit()) e.Cancel = true;
+            else { SaveBatchState(); SaveWorkspaceState(); }
+            return;
+        }
 
         e.Cancel = true;
         if (_activeJobRuntime is { } runtime)
@@ -7046,7 +7095,7 @@ public partial class MainWindow : Window
     private void ShowEncodingDetails_Changed(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded) return;
-        _settings = _settings with { DetailedActivityLogging = ShowEncodingDetails.IsChecked == true };
+        _settings = _storage.Settings with { DetailedActivityLogging = ShowEncodingDetails.IsChecked == true };
         try
         {
             _storage.SaveSettings(_settings);

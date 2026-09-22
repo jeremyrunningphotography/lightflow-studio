@@ -55,9 +55,10 @@ internal interface IBrowserRecursiveRootRepository
 /// <see cref="BrowserNavigationSession"/>'s existing generic failure handling already converts into an honest
 /// Browser failure state, so no second Catalog-unavailable UI path is needed for this feature.
 /// </summary>
-internal sealed class CatalogBrowserRecursiveRootRepository(Func<CatalogDatabaseSession?> session)
-    : IBrowserRecursiveRootRepository
+internal sealed class CatalogBrowserRecursiveRootRepository(Func<CatalogDatabaseSession?> session, CatalogMutationLifecycle? mutations = null)
+    : IBrowserRecursiveRootRepository, ICatalogMutationParticipant
 {
+    public CatalogMutationLifecycle Mutations => mutations ?? RequireSession().Mutations;
     public Task<IReadOnlyList<BrowserRecursiveRoot>> ListAsync(CancellationToken cancellationToken = default) =>
         RunAsync<IReadOnlyList<BrowserRecursiveRoot>>(() =>
         {
@@ -71,8 +72,8 @@ internal sealed class CatalogBrowserRecursiveRootRepository(Func<CatalogDatabase
             return results;
         }, cancellationToken);
 
-    public Task CreateAsync(Guid rootId, string relativeFolder, CancellationToken cancellationToken = default) =>
-        RunAsync(() =>
+    public Task CreateAsync(Guid rootId, string relativeFolder, CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync(() => { return RunAsync(() =>
         {
             using var connection = RequireSession().OpenConnection();
             using var command = connection.CreateCommand();
@@ -88,10 +89,11 @@ internal sealed class CatalogBrowserRecursiveRootRepository(Func<CatalogDatabase
             command.Parameters.AddWithValue("$key", relativeFolder.ToUpperInvariant());
             command.Parameters.AddWithValue("$now", now);
             command.ExecuteNonQuery();
-        }, cancellationToken);
+        }, cancellationToken); }, cancellationToken);
+    }
 
-    public Task<int> DeleteAsync(IReadOnlyCollection<Guid> scopeIds, CancellationToken cancellationToken = default) =>
-        RunAsync(() =>
+    public Task<int> DeleteAsync(IReadOnlyCollection<Guid> scopeIds, CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync<int>(() => { return RunAsync(() =>
         {
             if (scopeIds.Count == 0) return 0;
             using var connection = RequireSession().OpenConnection();
@@ -108,7 +110,8 @@ internal sealed class CatalogBrowserRecursiveRootRepository(Func<CatalogDatabase
             }
             transaction.Commit();
             return deleted;
-        }, cancellationToken);
+        }, cancellationToken); }, cancellationToken);
+    }
 
     private CatalogDatabaseSession RequireSession() =>
         session() ?? throw new InvalidOperationException("The Catalog is unavailable.");
@@ -145,11 +148,13 @@ internal interface IBrowserRecursiveRootService
 
 internal sealed class BrowserRecursiveRootService(IBrowserRecursiveRootRepository repository) : IBrowserRecursiveRootService
 {
+    private CatalogMutationLifecycle Mutations { get; } = CatalogMutationLifecycle.From(repository);
     public Task<IReadOnlyList<BrowserRecursiveRoot>> ListAsync(CancellationToken cancellationToken = default) =>
         repository.ListAsync(cancellationToken);
 
     public async Task EnableAsync(Guid rootId, string relativeFolder, CancellationToken cancellationToken = default)
     {
+        await Mutations.RunAsync(async () => {
         var normalized = NormalizeFolder(relativeFolder);
         var existing = await repository.ListAsync(cancellationToken).ConfigureAwait(false);
         if (BrowserRecursiveRootLogic.IsEffectivelyRecursive(existing, rootId, normalized)) return;
@@ -158,15 +163,18 @@ internal sealed class BrowserRecursiveRootService(IBrowserRecursiveRootRepositor
         if (redundant.Count > 0)
             await repository.DeleteAsync([.. redundant.Select(root => root.ScopeId)], cancellationToken).ConfigureAwait(false);
         await repository.CreateAsync(rootId, normalized, cancellationToken).ConfigureAwait(false);
+    }, cancellationToken);
     }
 
     public async Task DisableAsync(Guid rootId, string relativeFolder, CancellationToken cancellationToken = default)
     {
+        await Mutations.RunAsync(async () => {
         var normalized = NormalizeFolder(relativeFolder);
         var existing = await repository.ListAsync(cancellationToken).ConfigureAwait(false);
         var governing = BrowserRecursiveRootLogic.GoverningRoots(existing, rootId, normalized);
         if (governing.Count == 0) return;
         await repository.DeleteAsync([.. governing.Select(root => root.ScopeId)], cancellationToken).ConfigureAwait(false);
+    }, cancellationToken);
     }
 
     private static string NormalizeFolder(string relativeFolder) =>

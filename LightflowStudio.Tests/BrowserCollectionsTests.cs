@@ -572,8 +572,9 @@ public sealed class BrowserCollectionsTests
         new(Guid.NewGuid(), Guid.NewGuid(), path, path.ToUpperInvariant(), "image", 10, DateTimeOffset.UtcNow.UtcTicks,
             null, status, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
-    private sealed class FakeAssets(IReadOnlyList<MediaAsset> assets) : IMediaAssetService
+    private sealed class FakeAssets(IReadOnlyList<MediaAsset> assets) : IMediaAssetService, ICatalogMutationParticipant
     {
+        public CatalogMutationLifecycle Mutations { get; } = new();
         public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) => Task.FromResult(assets);
         public Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown", CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

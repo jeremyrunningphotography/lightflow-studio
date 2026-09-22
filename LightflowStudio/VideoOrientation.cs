@@ -74,6 +74,7 @@ internal sealed class CatalogAssetVideoRotationStore(Func<CatalogDatabaseSession
     public async Task RotateAsync(IReadOnlyDictionary<Guid, long> expectedRevisions, bool right,
         CancellationToken cancellationToken = default)
     {
+        await RequireSession().Mutations.RunAsync(async () => {
         var expected = expectedRevisions.ToArray();
         var changed = await Task.Run(() =>
         {
@@ -115,6 +116,7 @@ internal sealed class CatalogAssetVideoRotationStore(Func<CatalogDatabaseSession
             return result;
         }, cancellationToken).ConfigureAwait(false);
         Changed?.Invoke(this, changed);
+    }, cancellationToken);
     }
 
     private CatalogDatabaseSession RequireSession() => session() ?? throw new InvalidOperationException("The Catalog is unavailable.");

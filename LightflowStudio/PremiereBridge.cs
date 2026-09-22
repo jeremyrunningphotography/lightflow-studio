@@ -291,7 +291,8 @@ internal sealed class PremiereBridge : IAsyncDisposable
                 CatalogPremiereHandoffs.ValidateSource(pending.Intent.Source);
                 if (pending.Intent.Subclip is { } subclip) CatalogPremiereHandoffs.ValidateSubclip(subclip);
                 // Persist intent as dispatched before giving Premiere permission to mutate.
-                await _journal.MarkDispatchedAsync(pending.Intent).ConfigureAwait(false);
+                await (_catalogContinuation ?? throw new InvalidOperationException("The handoff has ended."))(
+                    () => _journal.MarkDispatchedAsync(pending.Intent)).ConfigureAwait(false);
                 _dispatchSession = _hello.InstanceId;
                 _pending = null;
                 await context.Response.WriteAsJsonAsync(pending, PremiereProtocol.Json, timeout.Token);
@@ -303,7 +304,8 @@ internal sealed class PremiereBridge : IAsyncDisposable
                     || request.Headers["X-Lightflow-Dispatch"].ToString() != _dispatchId.ToString()
                     || receipt.OperationId != _activeIntent.OperationId)
                 { context.Response.StatusCode = 409; return; }
-                await _journal.SaveReceiptAsync(_activeIntent, receipt).ConfigureAwait(false);
+                await (_catalogContinuation ?? throw new InvalidOperationException("The handoff has ended."))(
+                    () => _journal.SaveReceiptAsync(_activeIntent, receipt)).ConfigureAwait(false);
                 _completion?.TrySetResult(receipt);
                 await context.Response.WriteAsJsonAsync(new { accepted = true }, PremiereProtocol.Json, timeout.Token);
             }
@@ -317,8 +319,10 @@ internal sealed class PremiereBridge : IAsyncDisposable
     }
 
     private PremiereIntent? _activeIntent;
+    private Func<Func<Task>, Task>? _catalogContinuation;
     public async Task<PremiereReceipt> SendAsync(PremiereCommand command, CancellationToken cancellationToken)
     {
+        return await _journal.MutationLifecycle.RunAsync<PremiereReceipt>(async () => {
         await _send.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -330,6 +334,7 @@ internal sealed class PremiereBridge : IAsyncDisposable
                     throw new InvalidOperationException("Reconnect to the original Premiere project before sending.");
                 _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 _activeIntent = command.Intent;
+                _catalogContinuation = _journal.MutationLifecycle.CaptureContinuation();
                 _pending = command;
                 _dispatchId = command.DispatchId;
                 _dispatchSession = null;
@@ -341,9 +346,10 @@ internal sealed class PremiereBridge : IAsyncDisposable
         finally
         {
             await _gate.WaitAsync().ConfigureAwait(false);
-            try { _pending = null; _completion = null; _activeIntent = null; }
+            try { _pending = null; _completion = null; _activeIntent = null; _catalogContinuation = null; }
             finally { _gate.Release(); _send.Release(); }
         }
+    }, cancellationToken);
     }
 
     internal static bool SameProject(PremiereProject? left, PremiereProject right) => left is not null

@@ -87,6 +87,7 @@ public partial class PlayerViewerHost
 
     private async Task RotateCurrentAsync(bool right)
     {
+        await CatalogMutations.RunAsync(async () => {
         if (_rotations is null || _currentAsset?.AssetId is not Guid id || _currentAsset.Kind != MediaPresentationKind.Video) return;
         try
         {
@@ -96,5 +97,6 @@ public partial class PlayerViewerHost
             await _rotations.RotateAsync(new Dictionary<Guid, long> { [id] = value.Revision }, right);
         }
         catch (Exception error) { if (_currentAsset?.AssetId == id) SetStatus(error.Message); }
+        });
     }
 }

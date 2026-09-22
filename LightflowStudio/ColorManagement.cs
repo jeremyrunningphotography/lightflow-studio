@@ -231,11 +231,14 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     public async Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default)
-        => await RefreshAsync(folder, false, cancellationToken).ConfigureAwait(false);
+        {
+        return await RequireSession().Mutations.RunAsync<LutLibrarySnapshot>(async () => { return await RefreshAsync(folder, false, cancellationToken).ConfigureAwait(false); }, cancellationToken);
+    }
 
     public async Task<LutLibrarySnapshot> RefreshAsync(string folder, bool includeSubfolders,
         CancellationToken cancellationToken = default)
     {
+        return await RequireSession().Mutations.RunAsync<LutLibrarySnapshot>(async () => {
         await _refreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -290,6 +293,7 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
             }, cancellationToken).ConfigureAwait(false);
         }
         finally { _refreshGate.Release(); }
+    }, cancellationToken);
     }
 
     private static ManagedLutResource? FindByHash(SqliteConnection connection, SqliteTransaction transaction, string hash)
@@ -599,7 +603,8 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
     }, cancellationToken);
 
     public Task SetStageAsync(IReadOnlyCollection<Guid> assetIds, ColorLutStage stage, Guid? lutId,
-        CancellationToken cancellationToken = default) => Task.Run(() =>
+        CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync(() => { return Task.Run(() =>
     {
         var ids = assetIds.Distinct().ToArray();
         if (ids.Length == 0) return;
@@ -637,10 +642,12 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
             command.ExecuteNonQuery();
         }
         transaction.Commit();
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
     public Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes,
-        CancellationToken cancellationToken = default) => Task.Run(() =>
+        CancellationToken cancellationToken = default) {
+        return RequireSession().Mutations.RunAsync(() => { return Task.Run(() =>
     {
         var normalized = changes.GroupBy(change => change.AssetId).Select(group => group.Last()).ToArray();
         if (normalized.Length == 0) return;
@@ -676,7 +683,8 @@ internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> sessi
             command.ExecuteNonQuery();
         }
         transaction.Commit();
-    }, cancellationToken);
+    }, cancellationToken); }, cancellationToken);
+    }
 
     private static void EnsureExists(SqliteConnection connection, SqliteTransaction transaction, string table,
         string column, Guid id, string label)

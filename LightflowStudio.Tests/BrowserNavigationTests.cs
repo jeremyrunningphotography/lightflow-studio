@@ -645,8 +645,9 @@ public sealed class BrowserNavigationTests
 
     /// <summary>Blocks only its first ListAsync call (the "obsolete" generation) — later calls (a superseding generation) return immediately, otherwise the test itself would deadlock waiting for a release that comes after the superseding call.</summary>
     private sealed class GatedRecursiveRootRepository(TaskCompletionSource entered, TaskCompletionSource release)
-        : IBrowserRecursiveRootRepository
+        : IBrowserRecursiveRootRepository, ICatalogMutationParticipant
     {
+        public CatalogMutationLifecycle Mutations { get; } = new();
         private int _calls;
 
         public async Task<IReadOnlyList<BrowserRecursiveRoot>> ListAsync(CancellationToken cancellationToken = default)
@@ -672,8 +673,9 @@ public sealed class BrowserNavigationTests
             recursiveRoots ?? new BrowserRecursiveRootService(new InMemoryRecursiveRootRepository()), recursiveDiscovery);
 
     /// <summary>In-memory <see cref="IBrowserRecursiveRootRepository"/> — reuses the real <see cref="BrowserRecursiveRootService"/> normalization logic rather than duplicating it in test doubles.</summary>
-    private sealed class InMemoryRecursiveRootRepository(params BrowserRecursiveRoot[] seed) : IBrowserRecursiveRootRepository
+    private sealed class InMemoryRecursiveRootRepository(params BrowserRecursiveRoot[] seed) : IBrowserRecursiveRootRepository, ICatalogMutationParticipant
     {
+        public CatalogMutationLifecycle Mutations { get; } = new();
         private readonly List<BrowserRecursiveRoot> _roots = [.. seed];
 
         public Task<IReadOnlyList<BrowserRecursiveRoot>> ListAsync(CancellationToken cancellationToken = default) =>

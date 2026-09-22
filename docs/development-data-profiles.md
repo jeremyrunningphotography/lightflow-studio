@@ -13,7 +13,7 @@ Existing links/junctions in the profile or its ancestors are rejected before ope
 | State | Isolated behavior |
 | --- | --- |
 | Durable Catalog, SQLite sidecars and locks | `Catalog\LightflowCatalog.db`; existing migration/locking/durability services remain in use |
-| Catalog recovery and backups | `Catalog\Backups`; recovery uses the selected Catalog locations |
+| Catalog recovery and backups | Managed safety copies remain in `Catalog\Backups`; user-requested backups default to profile `Catalog Backups`, and configured isolated destinations must stay beneath the profile root |
 | Generated Preview database, thumbnails, standard previews, maintenance staging | `Previews` and `Temporary` |
 | Settings, legacy application state, workspace continuation | `settings.json`, `state.json`, `workspace-state.json`; no production settings are loaded |
 | Jobs, export queue, durable operation/trim history, output identity cache | Profile-relative existing filenames, including `jobs-runtime.json`, `export-jobs.v2.json`, history files and `output-identities` |

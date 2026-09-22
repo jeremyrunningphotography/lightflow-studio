@@ -227,14 +227,17 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
         }
     }
 
-    private static MainWindow NewOffscreenWindow(LightflowStorageCoordinator storage, StorageStartupResult startup) =>
-        new(storage, startup.Status, startup.Diagnostic)
+    private static MainWindow NewOffscreenWindow(LightflowStorageCoordinator storage, StorageStartupResult startup)
+    {
+        storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
+        return new(storage, startup.Status, startup.Diagnostic)
         {
             WindowStartupLocation = WindowStartupLocation.Manual,
             Left = -32000,
             Top = -32000,
             ShowInTaskbar = false
         };
+    }
 
     /// <summary>
     /// Real click, not a model/property shortcut: focuses the button first (matching real mouse-click focus

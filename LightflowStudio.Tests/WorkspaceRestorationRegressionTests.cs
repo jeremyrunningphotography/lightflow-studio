@@ -26,7 +26,7 @@ public sealed class WorkspaceRestorationRegressionTests
     {
         var source = Source();
         var closingStart = source.IndexOf("private void Window_Closing", StringComparison.Ordinal);
-        var earlyReturn = source.IndexOf("if (_jobCancellation is null || _forceClose) return;", closingStart, StringComparison.Ordinal);
+        var earlyReturn = source.IndexOf("if (_jobCancellation is null || _forceClose)", closingStart, StringComparison.Ordinal);
         var saveCall = source.IndexOf("SaveWorkspaceState();", closingStart, StringComparison.Ordinal);
 
         Assert.True(closingStart >= 0 && earlyReturn > closingStart && saveCall > closingStart,

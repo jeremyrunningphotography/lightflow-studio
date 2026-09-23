@@ -24,7 +24,7 @@ internal sealed class ShellFolderLauncher : IFolderLauncher
     public void Open(string directory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
-        Process.Start(new ProcessStartInfo(Path.GetFullPath(directory)) { UseShellExecute = true });
+        ExplorerShell.Launch(ExplorerShell.Request(directory, selectFile: false));
     }
 }
 

@@ -1498,6 +1498,9 @@ public partial class MainWindow : Window
     private void BrowserGridTile_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
         if (((FrameworkElement)sender).ContextMenu is not { } menu) return;
+        var contextTile = ((FrameworkElement)sender).DataContext as BrowserGridTile;
+        _ = UpdateExplorerMenuAsync(menu.Items.OfType<MenuItem>().First(item => Equals(item.Header, "Open containing folder")),
+            contextTile is null ? null : ExplorerTarget.Media(contextTile));
         var state = CurrentBrowserSelectionActions();
         void Enable(string header, bool enabled) => menu.Items.OfType<MenuItem>().First(item => Equals(item.Header, header)).IsEnabled = enabled;
         Enable("Open", state.SelectionCount > 0);
@@ -5484,6 +5487,8 @@ public partial class MainWindow : Window
     {
         _locationActionNode = LocationNodeFromElement(e.OriginalSource as DependencyObject)
             ?? (e.CursorLeft < 0 ? _browserTree.SelectedNode : null);
+        _folderExplorerTarget = ExplorerTarget.Folder(_locationActionNode);
+        _ = UpdateExplorerMenuAsync(BrowserFolderOpenExplorerMenu, _folderExplorerTarget);
         var canManage = _storage.CatalogAvailable && _locationActionNode?.Storage?.RootId is not null;
         RenameLocationMenuItem.IsEnabled = ReconnectLocationMenuItem.IsEnabled = canManage;
     }

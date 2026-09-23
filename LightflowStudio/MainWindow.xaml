@@ -580,6 +580,7 @@
   </Style>
 <ContextMenu x:Key="BrowserAssetContextMenu" x:Shared="False" Style="{StaticResource LightflowContextMenuStyle}">
                   <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Open" InputGestureText="Enter" Click="BrowserContextOpen_Click"/>
+                  <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Open containing folder" Click="BrowserOpenContainingFolder_Click"/>
                   <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
                   <MenuItem x:Name="BrowserAddToCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Add to Collection…" Click="BrowserAddToCollection_Click"/>
                   <MenuItem x:Name="BrowserRemoveFromCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Remove from this Collection" Click="BrowserRemoveFromCollection_Click"/>
@@ -863,6 +864,7 @@
             <MenuItem x:Name="RenameLocationMenuItem" Style="{StaticResource LightflowMenuItemStyle}" Header="Rename Location…" Click="RenameLocation_Click"/>
             <MenuItem x:Name="ReconnectLocationMenuItem" Style="{StaticResource LightflowMenuItemStyle}" Header="Reconnect Location…" Click="ReconnectLocation_Click"/>
             <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
+            <MenuItem x:Name="BrowserFolderOpenExplorerMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Open in Explorer" Click="BrowserFolderOpenExplorer_Click"/>
             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="New Folder…" Click="BrowserFolderNew_Click"/>
             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename…" Click="BrowserFolderRename_Click"/>
             <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>

@@ -6,6 +6,6 @@ namespace LightflowStudio;
 internal static class JobOutputLocation
 {
     internal static ProcessStartInfo? RevealRequest(string path) => File.Exists(path)
-        ? new("explorer.exe", $"/select,\"{Path.GetFullPath(path)}\"") { UseShellExecute = true }
+        ? ExplorerShell.Request(path, selectFile: true)
         : null;
 }

@@ -4710,13 +4710,21 @@ public partial class MainWindow : Window
     private async void BrowserCollectionRename_Click(object sender, RoutedEventArgs e)
     {
         if (CollectionActionNode is not { } node) return;
-        var name = TextEntryDialog.Prompt(this, $"Rename {(node.IsSet ? "Collection Set" : "Collection")}", "Name", node.Name);
+        var name = TextEntryDialog.Prompt(this, $"Rename {(node.IsSet ? "Collection Set" : node.IsSmartCollection ? "Smart Collection" : "Collection")}", "Name", node.Name);
         if (name is null) return;
         await RunCollectionActionAsync(async () =>
         {
             if (node.IsSet) await _storage.Collections.RenameSetAsync(node.Id, node.Revision, name);
             else await _storage.Collections.RenameCollectionAsync(node.Id, node.Revision, name);
-            if (!node.IsSet && _activeCollectionScope?.Collection.CollectionId == node.Id)
+            if (node.IsSmartCollection && _activeSmartCollection?.SmartCollectionId == node.Id)
+            {
+                _activeSmartCollection = await _storage.SmartCollections.GetSmartCollectionAsync(node.Id);
+                if (_activeCollectionScope is { } scope && _activeSmartCollection is { } smart)
+                    _activeCollectionScope = scope with { Collection = smart.Organization };
+                BrowserCurrentPath.Text = $"Collections / {name}";
+                await RefreshCollectionsAsync(node.Id);
+            }
+            else if (!node.IsSet && _activeCollectionScope?.Collection.CollectionId == node.Id)
                 await LoadCollectionScopeAsync(node.Id);
             else
                 await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);

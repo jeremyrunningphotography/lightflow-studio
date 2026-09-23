@@ -13,7 +13,7 @@
    <ComboBox x:Name="SourceKindCombo" SelectionChanged="SourceKindChanged" AutomationProperties.Name="Source type">
     <ComboBoxItem Content="Folder"/><ComboBoxItem Content="Static Collection"/>
    </ComboBox>
-   <StackPanel x:Name="FolderPanel" Margin="0,6,0,0">
+   <StackPanel x:Name="FolderPanel" Margin="0,6,0,0" Visibility="Collapsed">
     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <TextBox x:Name="FolderText" IsReadOnly="True" AutomationProperties.Name="Source folder" VerticalContentAlignment="Center"/>
      <Button Grid.Column="1" Content="Choose Folder…" Click="ChooseFolder_Click"/>

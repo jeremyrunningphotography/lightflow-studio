@@ -36,6 +36,7 @@ public sealed class SmartCollectionDialogTests
         var choices = (ComboBox)dialog.FindName("SourceCollectionCombo"); choices.SelectedIndex = 0;
         Assert.Equal(collection, dialog.Source!.CollectionId); Assert.False(dialog.Source.IncludeSubfolders);
         type.SelectedIndex = -1; Assert.Null(dialog.Source);
+        Assert.Equal(Visibility.Collapsed, ((StackPanel)dialog.FindName("FolderPanel")).Visibility);
         return Task.CompletedTask;
     });
 

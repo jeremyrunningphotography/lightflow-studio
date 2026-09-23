@@ -139,6 +139,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public ISubclipService Subclips { get; }
     public IMarkerService Markers { get; }
     public ICollectionOrganizationService Collections { get; }
+    public CatalogCollectionOrganizationService SmartCollections => (CatalogCollectionOrganizationService)Collections;
     public IPreferredPreviewFrameStore PreferredPreviewFrames { get; }
     public IBrowserAssetStateStore BrowserAssetStates { get; }
     public IAssetClassificationStore AssetClassifications { get; }

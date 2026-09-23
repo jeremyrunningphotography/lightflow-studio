@@ -549,11 +549,14 @@ internal sealed class BrowserGridModel
     /// <summary>The current query's visible, ordered projection — what is actually rendered.</summary>
     public IReadOnlyList<BrowserGridTile> Tiles => _visibleTiles;
 
-    public int TotalCount => _allTiles.Count;
+    public BrowserQuery? DefiningQuery { get; private set; }
+    private IReadOnlyList<BrowserGridTile> Members { get; set; } = [];
+    public void SetDefiningQuery(BrowserQuery? query) { DefiningQuery = query; RecomputeVisible(); }
+    public int TotalCount => Members.Count;
     internal IReadOnlyList<Guid> ScopeAssetIds => _allTiles.Where(tile => tile.AssetId is not null)
         .Select(tile => tile.AssetId!.Value).ToArray();
     public IReadOnlyList<BrowserGridTile> AdvancedFilterContextTiles =>
-        BrowserQueryEngine.ApplyAdvancedFilterContext(_allTiles, Query);
+        BrowserQueryEngine.ApplyAdvancedFilterContext(Members, Query);
     public int VisibleCount => _visibleTiles.Count;
     public BrowserQuery Query { get; private set; } = BrowserQuery.Default;
     public IReadOnlySet<string> SelectedKeys => _selection.Snapshot();
@@ -857,7 +860,14 @@ internal sealed class BrowserGridModel
         using var timing = BrowserPerformance.Measure("query.project");
         var anchorKey = _selection.AnchorIndex is { } anchor && anchor >= 0 && anchor < _visibleTiles.Count
             ? _visibleTiles[anchor].Key : null;
-        _visibleTiles = BrowserQueryEngine.Apply(_allTiles, Query).ToList();
+        var members = Members = DefiningQuery is null ? _allTiles : BrowserQueryEngine.Filter(_allTiles, DefiningQuery);
+        if (DefiningQuery is not null)
+        {
+            var memberKeys = members.Select(tile => tile.Key).ToHashSet(StringComparer.Ordinal);
+            _selection.Restore(_selection.Snapshot().Where(memberKeys.Contains), null);
+            foreach (var tile in _allTiles) tile.IsSelected = _selection.IsSelected(tile.Key);
+        }
+        _visibleTiles = BrowserQueryEngine.Apply(members, Query).ToList();
         for (var index = 0; index < _visibleTiles.Count; index++) _visibleTiles[index].Index = index;
         var anchorIndex = _visibleTiles.FindIndex(tile => tile.Key == anchorKey);
         _selection.Restore(_selection.Snapshot(), anchorIndex >= 0 ? anchorIndex : null);

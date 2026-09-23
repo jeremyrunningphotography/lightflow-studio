@@ -914,7 +914,7 @@ public class UiLayoutTests
         var backgroundMenu = tree.Document!.Descendants(ns + "ItemsControl").Single(item =>
             (string?)item.Attribute(XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml") + "Name") == "BrowserGridRows")
             .Element(ns + "ItemsControl.ContextMenu")!.Element(ns + "ContextMenu")!;
-        Assert.Equal("Paste", (string?)backgroundMenu.Element(ns + "MenuItem")!.Attribute("Header"));
+        Assert.Contains(backgroundMenu.Elements(ns + "MenuItem"), item => (string?)item.Attribute("Header") == "Paste");
         Assert.Equal("BrowserGridBackground_ContextMenuOpening", (string?)Named(document, "BrowserGridRows").Attribute("ContextMenuOpening"));
     }
 

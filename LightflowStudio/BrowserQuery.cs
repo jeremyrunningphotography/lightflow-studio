@@ -5,6 +5,7 @@ namespace LightflowStudio;
 
 internal enum BrowserSortMode { Name, CaptureDate, ModifiedDate, MediaType, FileSize, Duration, Manual, Rating, Flag, Dimensions, FrameRate }
 internal enum BrowserNumberComparison { GreaterThanOrEqual, LessThan, LessThanOrEqual, Equal, GreaterThan }
+internal enum BrowserMatchMode { All, Any }
 
 /// <summary>
 /// Browser-only creator-facing frame-rate normalization. Authoritative Preview metadata keeps its precise
@@ -216,6 +217,7 @@ internal sealed record BrowserQuery
     public IReadOnlyList<BrowserFilterPredicate> Filters { get; init; } = [];
 
     public string SearchText { get; init; } = "";
+    public BrowserMatchMode MatchMode { get; init; }
 
     public static BrowserQuery Default { get; } = new();
 
@@ -284,14 +286,19 @@ internal static class BrowserQueryEngine
     private static readonly string[] ExifDateFormats = ["yyyy:MM:dd HH:mm:ss", "yyyy:MM:dd"];
 
     public static IReadOnlyList<BrowserGridTile> Apply(IReadOnlyList<BrowserGridTile> tiles, BrowserQuery query)
+        => Sort(Filter(tiles, query).ToArray(), query.SortMode, query.SortDescending);
+
+    public static IReadOnlyList<BrowserGridTile> Filter(IReadOnlyList<BrowserGridTile> tiles, BrowserQuery query)
     {
         IEnumerable<BrowserGridTile> filtered = tiles;
         // Predicates for the SAME field are alternative values of one facet and OR together (checking both
         // "Images" and "RAW" means either is acceptable — a still-photos view, not an impossible
         // intersection); predicates for DIFFERENT fields AND together, each narrowing the previous group's
         // result further (e.g. "Video" AND "Duration > 1:00"). This mirrors ordinary faceted search and is
-        // never exposed to the user as an explicit AND/OR choice — only which values are checked where.
-        foreach (var group in query.Filters.GroupBy(predicate => predicate.Field))
+        // Match All keeps this faceted behavior. Match Any shares the same predicates with OR across rules.
+        if (query.MatchMode == BrowserMatchMode.Any && query.Filters.Count > 0)
+            filtered = filtered.Where(tile => query.Filters.Any(predicate => predicate.Matches(tile)));
+        else foreach (var group in query.Filters.GroupBy(predicate => predicate.Field))
         {
             var predicatesInGroup = group.ToArray();
             filtered = filtered.Where(tile => predicatesInGroup.Any(predicate => predicate.Matches(tile)));
@@ -302,7 +309,7 @@ internal static class BrowserQueryEngine
             filtered = filtered.Where(tile => tile.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                 tile.RelativePath.Contains(search, StringComparison.OrdinalIgnoreCase));
 
-        return Sort(filtered.ToArray(), query.SortMode, query.SortDescending);
+        return filtered.ToArray();
     }
 
     /// <summary>

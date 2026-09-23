@@ -255,6 +255,8 @@ public partial class MainWindow : Window
             SaveWorkspaceState();
         };
         _collectionDragHoverTimer.Tick += (_, _) => ExpandHoveredCollectionSet();
+        _storage.SmartCollections.MembershipChanged += SmartSourceMembershipChanged;
+        Closed += (_, _) => { _storage.SmartCollections.MembershipChanged -= SmartSourceMembershipChanged; _smartNavigation?.Dispose(); };
         _browserSearchDebounceTimer.Tick += (_, _) =>
         {
             _browserSearchDebounceTimer.Stop();
@@ -439,6 +441,12 @@ public partial class MainWindow : Window
 
     private async Task UpdateBrowserWorkingIndicatorAsync()
     {
+        if (_activeSmartCollection is not null)
+        {
+            BrowserWorkingIndicator.Visibility = _smartUpdating && MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home)
+                ? Visibility.Visible : Visibility.Collapsed;
+            return;
+        }
         var generation = _browserNavigation.WorkingGeneration;
         if (_browserWorkingDisplayGeneration != generation)
         {
@@ -563,6 +571,14 @@ public partial class MainWindow : Window
 
     private async Task SynchronizeMonitoredFolderAsync(MediaFolderEnumerationRequest request)
     {
+        if (_activeSmartCollection is { Source.Kind: SmartCollectionSourceKind.Folder } smart)
+        {
+            if (smart.Source.RootId == request.RootId && (smart.Source.IncludeSubfolders
+                ? BrowserScope.IsWithinFolderScope(request.RelativeFolder, smart.Source.RelativeFolder!)
+                : string.Equals(request.RelativeFolder ?? "", smart.Source.RelativeFolder, StringComparison.OrdinalIgnoreCase)))
+                await RefreshSmartCandidatesAsync(smart);
+            return;
+        }
         if (_activeCollectionScope is not null || _fileSystemMutationPresentationDepth > 0) return;
         var location = _browserNavigation.ActiveLocation;
         if (location is null || location.RootId != request.RootId) return;
@@ -1087,6 +1103,7 @@ public partial class MainWindow : Window
         _pendingWorkspaceGrid = null;
         using var timing = BrowserPerformance.Measure("ui.navigation");
         if (!TryLeaveInspectorContext()) { RestoreLoadedBrowserSelection(); return; }
+        _collectionScopeCts?.Cancel(); _smartNavigation?.Dispose(); _smartNavigation = null; _smartUpdating = false;
         using var editing = _inspector?.SuspendEditing();
         var generation = ++_browserUiGeneration;
         _browserNavigationInFlightGeneration = generation;
@@ -1150,6 +1167,8 @@ public partial class MainWindow : Window
             !TryLeaveInspectorContext()) return;
         ActivateFolderScopeSelection();
         _activeCollectionScope = null;
+        _activeSmartCollection = null; _smartUpdating = false; _smartNavigation?.Dispose(); _smartNavigation = null;
+        _browserGrid.SetDefiningQuery(null);
         BrowserCurrentPath.IsReadOnly = false;
         _workspaceState.SetBrowserCollectionState(null, _browserCollectionTree.ExpandedSetIds());
         _synchronizingCollectionTree = true;
@@ -1272,7 +1291,7 @@ public partial class MainWindow : Window
                 if (BrowserAssetStateRevisionPolicy.CanApply(revision, changedAt))
                     _browserGrid.ApplyAssetState(assetId, state);
             }
-            if (_browserGrid.Query.SortMode is BrowserSortMode.Rating or BrowserSortMode.Flag ||
+            if (_browserGrid.DefiningQuery is not null || _browserGrid.Query.SortMode is BrowserSortMode.Rating or BrowserSortMode.Flag ||
                 _browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.ColorState or
                 BrowserFilterField.CameraLutState or BrowserFilterField.CreativeLutState or
                 BrowserFilterField.ReviewRangeState or BrowserFilterField.SubclipState or BrowserFilterField.Rating or
@@ -1498,6 +1517,14 @@ public partial class MainWindow : Window
     private void BrowserGridTile_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
         if (((FrameworkElement)sender).ContextMenu is not { } menu) return;
+        if (!menu.Items.OfType<MenuItem>().Any(item => Equals(item.Header, "Create Smart Collection…")))
+        {
+            var create = new MenuItem { Header = "Create Smart Collection…", Style = (Style)FindResource("LightflowMenuItemStyle") };
+            create.Click += BrowserCreateSmartCollection_Click;
+            menu.Items.Add(create);
+        }
+        menu.Items.OfType<MenuItem>().First(item => Equals(item.Header, "Remove from this Collection")).Visibility =
+            _activeSmartCollection is null ? Visibility.Visible : Visibility.Collapsed;
         var contextTile = ((FrameworkElement)sender).DataContext as BrowserGridTile;
         _ = UpdateExplorerMenuAsync(menu.Items.OfType<MenuItem>().First(item => Equals(item.Header, "Open containing folder")),
             contextTile is null ? null : ExplorerTarget.Media(contextTile));
@@ -1505,7 +1532,7 @@ public partial class MainWindow : Window
         void Enable(string header, bool enabled) => menu.Items.OfType<MenuItem>().First(item => Equals(item.Header, header)).IsEnabled = enabled;
         Enable("Open", state.SelectionCount > 0);
         Enable("Add to Collection…", state.SelectionCount > 0 && _browserGrid.SelectedAssetIdsInBrowserOrder.Count == state.SelectionCount);
-        Enable("Remove from this Collection", state.SelectionCount > 0 && _activeCollectionScope is not null);
+        Enable("Remove from this Collection", state.SelectionCount > 0 && _activeCollectionScope is not null && _activeSmartCollection is null);
         Enable("Send To", state.CanExport);
         Enable("Export", state.CanExport);
         Enable("Rotate Left", state.CanRotate);
@@ -1608,7 +1635,7 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private bool CanManuallyReorderCollection() => _activeCollectionScope is not null &&
+    private bool CanManuallyReorderCollection() => _activeCollectionScope is not null && _activeSmartCollection is null &&
         _browserGrid.Query.SortMode == BrowserSortMode.Manual && _browserGrid.Query.Filters.Count == 0 &&
         string.IsNullOrWhiteSpace(_browserGrid.Query.SearchText);
 
@@ -1668,7 +1695,7 @@ public partial class MainWindow : Window
     private async Task RemoveBrowserSelectionFromActiveCollectionAsync()
     {
         await _storage.Mutations.RunAsync(async () => {
-        if (_activeCollectionScope is null) return;
+        if (_activeCollectionScope is null || _activeSmartCollection is not null) return;
         var selected = _browserGrid.SelectedAssetIdsInBrowserOrder.ToHashSet();
         var memberships = await _storage.Collections.ListMembershipsAsync(_activeCollectionScope.Collection.CollectionId);
         var removing = memberships.Where(item => selected.Contains(item.AssetId))
@@ -1895,7 +1922,7 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
-        if (e.Key == Key.Delete && _activeCollectionScope is not null && _browserGrid.SelectedKeys.Count > 0)
+        if (e.Key == Key.Delete && _activeCollectionScope is not null && _activeSmartCollection is null && _browserGrid.SelectedKeys.Count > 0)
         {
             e.Handled = true;
             await RemoveBrowserSelectionFromActiveCollectionAsync();
@@ -2885,7 +2912,7 @@ public partial class MainWindow : Window
         await PasteBrowserClipboardAsync(_browserNavigation.ActiveLocation?.AbsolutePath);
     private void BrowserGridBackground_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        if (BrowserGridRows.ContextMenu?.Items[0] is MenuItem paste)
+        if (BrowserGridRows.ContextMenu?.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Header, "Paste")) is { } paste)
             paste.IsEnabled = _activeCollectionScope is null && _browserNavigation.ActiveLocation is not null &&
                 System.Windows.Clipboard.ContainsFileDropList();
     }
@@ -3215,6 +3242,12 @@ public partial class MainWindow : Window
             _browserGrid.SelectedKeys.Count, _browserGrid.SelectedTotalSizeBytes, isGenerating, remaining);
         if (_activeCollectionScope is { UnavailableCount: > 0 } scope)
             BrowserStatusText.Text += $" • {scope.UnavailableCount} unavailable";
+        if (_activeSmartCollection is not null)
+        {
+            UpdateSmartCollectionEmptyState();
+            BrowserStatusText.Text += _smartUpdating ? " • Updating Smart Collection…" :
+                _browserValidationFailure is { } failure ? $" • {failure}" : "";
+        }
         if (_lastLoadedBrowserState?.IsRevalidating == true && _activeCollectionScope is null)
             BrowserStatusText.Text += " • " + (_browserValidationFailure ?? "Known media • Checking for changes…");
         UpdateBrowserSelectionActions();
@@ -3594,7 +3627,7 @@ public partial class MainWindow : Window
         }
 
         UpdateBrowserStatusText();
-        var hasMetadataFilter = _browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.Camera or
+        var hasMetadataFilter = _browserGrid.DefiningQuery is not null || _browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.Camera or
             BrowserFilterField.Lens or BrowserFilterField.CaptureDate or BrowserFilterField.Duration or
             BrowserFilterField.Resolution or BrowserFilterField.FrameRate);
         if (sortRelevantMetadataChanged && (_browserGrid.Query.SortMode is BrowserSortMode.CaptureDate or BrowserSortMode.Duration
@@ -4469,10 +4502,10 @@ public partial class MainWindow : Window
         }
         if (interactive && ReferenceEquals(node, _browserCollectionTreeRevealedNode))
             _browserCollectionTreeRevealedNode = null;
-        _browserCollectionTree.Select(node);
         _browserCollectionActionNode = node;
-        if (node.IsCollection)
+        if (!node.IsSet)
         {
+            _browserCollectionTree.Select(node);
             ActivateCollectionScopeSelection(node);
             await LoadCollectionScopeAsync(node.Id);
         }
@@ -4534,11 +4567,30 @@ public partial class MainWindow : Window
     }
 
     private Task LoadCollectionScopeAsync(Guid collectionId) => LoadCollectionScopeCoreAsync(collectionId);
+    private long _collectionDefinitionRequest;
 
     private async Task LoadCollectionScopeCoreAsync(Guid collectionId, CancellationToken token = default, bool restoring = false)
     {
+        var definitionRequest = ++_collectionDefinitionRequest;
+        var beforeReadGeneration = _browserUiGeneration;
+        SmartCollectionDefinition? smart;
+        try { smart = await _storage.SmartCollections.GetSmartCollectionAsync(collectionId, token); }
+        catch (Exception ex) when (ex is ArgumentException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            if (!restoring) NoticeDialog.Show(this, "Smart Collection unavailable", "The saved definition could not be opened.", ex.Message);
+            return;
+        }
+        if (definitionRequest != _collectionDefinitionRequest || beforeReadGeneration != _browserUiGeneration) return;
+        if (smart is not null)
+        {
+            await LoadSmartCollectionScopeAsync(smart, token, restoring);
+            return;
+        }
         if (!restoring) { WorkspaceUserInteraction(); _pendingWorkspaceGrid = null; }
         if (!TryLeaveInspectorContext()) { RestoreLoadedBrowserSelection(); return; }
+        _activeSmartCollection = null; _smartUpdating = false; _smartNavigation?.Dispose(); _smartNavigation = null;
+        _browserGrid.SetDefiningQuery(null);
+        _browserNavigation.CancelPending();
         using var editing = _inspector?.SuspendEditing();
         _collectionScopeCts?.Cancel();
         _collectionScopeCts?.Dispose();
@@ -4566,7 +4618,7 @@ public partial class MainWindow : Window
         ActivateCollectionScopeSelection(BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
             .FirstOrDefault(node => node.Id == scope.Collection.CollectionId));
         var queryScope = $"collection:{scope.Collection.CollectionId:D}";
-        if (queryScope != _browserQueryScope) ResetBrowserQueryToolbar(BrowserSortMode.Manual);
+        if (queryScope != _browserQueryScope) ResetBrowserQueryToolbar(scope.Collection.IsSmartCollection ? BrowserSortMode.Name : BrowserSortMode.Manual);
         _browserQueryScope = queryScope;
         if (!_restoringWorkspace && queryScope != _browserScopeIdentity && _browserPresentation == BrowserPresentationMode.PlayerViewer)
             _ = ReturnToBrowserGridAsync(restoreScrollOffset: false, focusGrid: false);
@@ -4575,6 +4627,7 @@ public partial class MainWindow : Window
         _activeCollectionScope = scope;
         _lastLoadedBrowserState = null;
         _browserGrid.Populate(scope.Entries);
+        _browserGrid.ApplyAssetIdentities(scope.Assets);
         UpdateBrowserGridColumns();
         _ = LoadCollectionPreviewStateAsync(scope.Assets.Select(item => item.AssetId).ToArray(), generation);
         _ = LoadBrowserAssetStatesAsync(scope.Assets, generation, _browserAssetStateRevision);
@@ -4631,7 +4684,7 @@ public partial class MainWindow : Window
     private async void BrowserNewCollection_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new NewCollectionDialog(BrowserCollectionPlacement.Options(_browserCollectionTree.Roots),
-            BrowserCollectionPlacement.SuggestedParent(_browserCollectionTree.SelectedNode)) { Owner = this };
+            BrowserCollectionPlacement.SuggestedParent(sender is MenuItem ? CollectionActionNode : _browserCollectionTree.SelectedNode)) { Owner = this };
         if (dialog.ShowDialog() != true) return;
         await RunCollectionActionAsync(async () =>
         {
@@ -4643,7 +4696,7 @@ public partial class MainWindow : Window
     private async void BrowserNewCollectionSet_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new NewCollectionDialog(BrowserCollectionPlacement.Options(_browserCollectionTree.Roots),
-            BrowserCollectionPlacement.SuggestedParent(_browserCollectionTree.SelectedNode), createSet: true) { Owner = this };
+            BrowserCollectionPlacement.SuggestedParent(sender is MenuItem ? CollectionActionNode : _browserCollectionTree.SelectedNode), createSet: true) { Owner = this };
         if (dialog.ShowDialog() != true) return;
         await RunCollectionActionAsync(async () =>
         {
@@ -4663,7 +4716,7 @@ public partial class MainWindow : Window
         {
             if (node.IsSet) await _storage.Collections.RenameSetAsync(node.Id, node.Revision, name);
             else await _storage.Collections.RenameCollectionAsync(node.Id, node.Revision, name);
-            if (node.IsCollection && _activeCollectionScope?.Collection.CollectionId == node.Id)
+            if (!node.IsSet && _activeCollectionScope?.Collection.CollectionId == node.Id)
                 await LoadCollectionScopeAsync(node.Id);
             else
                 await RefreshCollectionsAsync(_activeCollectionScope?.Collection.CollectionId);
@@ -4673,25 +4726,31 @@ public partial class MainWindow : Window
     private async void BrowserCollectionDelete_Click(object sender, RoutedEventArgs e)
     {
         if (CollectionActionNode is not { } node) return;
-        var kind = node.IsSet ? "Collection Set" : "Collection";
+        var kind = node.IsSet ? "Collection Set" : node.IsSmartCollection ? "Smart Collection" : "Collection";
         if (node.IsSet && node.Children.Count > 0)
         {
             NoticeDialog.Show(this, "Collection Set not empty", $"“{node.Name}” can’t be deleted yet.",
                 "Move or delete every nested Collection and Collection Set first, then try again.");
             return;
         }
-        var detail = node.IsCollection ? "This removes Collection membership only. Source media will not be deleted."
+        var detail = node.IsSmartCollection ? "This removes the saved Source and defining filters. Source media will not be deleted." :
+            node.IsCollection ? "This removes Collection membership only. Source media will not be deleted."
             : "Only this empty organizational Set will be removed.";
         if (!ConfirmationDialog.Confirm(this, $"Delete {kind}", $"Delete “{node.Name}”?", detail, null, "Delete")) return;
         try
         {
             if (node.IsSet) await _storage.Collections.DeleteSetAsync(node.Id, node.Revision);
             else await _storage.Collections.DeleteCollectionAsync(node.Id, node.Revision);
-            if (node.IsCollection && _activeCollectionScope?.Collection.CollectionId == node.Id)
+            if (!node.IsSet && _activeCollectionScope?.Collection.CollectionId == node.Id)
             {
                 _activeCollectionScope = null;
+                _activeSmartCollection = null; _smartUpdating = false;
+                _collectionScopeCts?.Cancel(); _smartNavigation?.Dispose(); _smartNavigation = null;
+                _browserGrid.SetDefiningQuery(null);
+                _workspaceState.SetBrowserCollectionState(null, _browserCollectionTree.ExpandedSetIds());
                 _browserGrid.Populate([]);
                 await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
+                if (_browserNavigation.State.Location is null) ShowDefaultBrowserEmptyState();
             }
             await RefreshCollectionsAsync();
         }
@@ -4707,6 +4766,10 @@ public partial class MainWindow : Window
     {
         var node = CollectionActionNode;
         if (node is null) { e.Handled = true; return; }
+        BrowserEditSmartMenu.Visibility = node.IsSmartCollection ? Visibility.Visible : Visibility.Collapsed;
+        BrowserSetNewCollectionMenu.Visibility = node.IsSet ? Visibility.Visible : Visibility.Collapsed;
+        BrowserSetNewSmartMenu.Visibility = node.IsSet ? Visibility.Visible : Visibility.Collapsed;
+        BrowserSetNewSetMenu.Visibility = node.IsSet ? Visibility.Visible : Visibility.Collapsed;
         BrowserCollectionMoveMenu.Items.Clear();
         AddCollectionMoveTarget("Top level", null);
         var descendants = node.IsSet ? BrowserCollectionTreeModel.Flatten(node.Children).Select(child => child.Id).ToHashSet() : [];
@@ -4809,7 +4872,7 @@ public partial class MainWindow : Window
     }
 
     private static bool IsCollectionActionFailure(Exception exception) => exception is InvalidOperationException or
-        ArgumentException or IOException or UnauthorizedAccessException or SqliteException;
+        ArgumentException or IOException or UnauthorizedAccessException or SqliteException or System.Text.Json.JsonException;
 
     private async Task HandleCollectionActionFailureAsync(Exception exception)
     {

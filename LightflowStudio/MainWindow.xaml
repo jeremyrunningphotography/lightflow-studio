@@ -937,7 +937,7 @@
         </Grid>
         <Grid x:Name="BrowserCollectionsTopLevelDropTarget" Margin="0,10,0,4" AllowDrop="True"
          DragEnter="BrowserCollectionsTopLevel_DragEnter" DragOver="BrowserCollectionsTopLevel_DragEnter" DragLeave="BrowserCollectionsTopLevel_DragLeave" Drop="BrowserCollectionsTopLevel_Drop">
-         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
          <ToggleButton x:Name="BrowserCollectionsSectionToggle" Style="{StaticResource BrowserSectionToggleButtonStyle}"
           IsChecked="True" HorizontalContentAlignment="Left" FontSize="14" VerticalAlignment="Center"
           Checked="BrowserScopeSectionToggle_Changed" Unchecked="BrowserScopeSectionToggle_Changed">
@@ -957,6 +957,7 @@
           AutomationProperties.Name="New Collection Set" Click="BrowserNewCollectionSet_Click">
           <Viewbox Width="14" Height="14"><Canvas Width="18" Height="18"><Path Fill="{StaticResource MutedTextBrush}" Data="M2,4 L7,4 L9,6 L16,6 L16,15 L2,15 Z M4,2 L14,2 L14,5 L9.5,5 L7.5,3 L4,3 Z M5,8 L13,8 L13,13 L5,13 Z M7,9 L11,9 L11,12 L7,12 Z"/></Canvas></Viewbox>
          </Button>
+         <Button Grid.Column="3" Width="26" Height="24" Padding="0" Margin="4,0,0,0" ToolTip="New Smart Collection" AutomationProperties.Name="New Smart Collection" Click="BrowserNewSmartCollection_Click"><Viewbox Width="14" Height="14"><Path Fill="{StaticResource MutedTextBrush}" Data="M2,1 L12,1 L12,15 L2,15 Z M4,4 L10,4 L10,6 L4,6 Z M12,6 L13.5,10 L17,11.5 L13.5,13 L12,17 L10.5,13 L7,11.5 L10.5,10 Z"/></Viewbox></Button>
         </Grid>
         <Grid x:Name="BrowserCollectionsSectionContent">
          <TreeView x:Name="BrowserCollectionTree" BorderThickness="0" Background="Transparent" Padding="0,0,0,96"
@@ -969,6 +970,10 @@
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
           <TreeView.ContextMenu>
            <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+            <MenuItem x:Name="BrowserSetNewCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="New Collection…" Click="BrowserNewCollection_Click"/>
+            <MenuItem x:Name="BrowserSetNewSmartMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="New Smart Collection…" Click="BrowserNewSmartCollection_Click"/>
+            <MenuItem x:Name="BrowserSetNewSetMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="New Collection Set…" Click="BrowserNewCollectionSet_Click"/>
+            <MenuItem x:Name="BrowserEditSmartMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Edit Smart Collection…" Click="BrowserEditSmartCollection_Click"/>
             <MenuItem x:Name="BrowserCollectionRenameMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Rename" Click="BrowserCollectionRename_Click"/>
             <MenuItem x:Name="BrowserCollectionMoveMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Move to"/>
             <Separator/>
@@ -1001,6 +1006,7 @@
              <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
             </Grid>
             <HierarchicalDataTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsSmartCollection}" Value="True"><Setter TargetName="CollectionIconPath" Property="Data" Value="M2,1 L12,1 L12,15 L2,15 Z M4,4 L10,4 L10,6 L4,6 Z M12,6 L13.5,10 L17,11.5 L13.5,13 L12,17 L10.5,13 L7,11.5 L10.5,10 Z"/></DataTrigger>
             <DataTrigger Binding="{Binding IsSet}" Value="True"><Setter TargetName="CollectionIcon" Property="Visibility" Value="Collapsed"/><Setter TargetName="CollectionSetIcon" Property="Visibility" Value="Visible"/></DataTrigger>
              <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter TargetName="CollectionIconPath" Property="Fill" Value="{StaticResource ShellFocusBrush}"/><Setter TargetName="CollectionSetIconPath" Property="Fill" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
              <DataTrigger Binding="{Binding IsAssetDropTarget}" Value="True"><Setter TargetName="CollectionRow" Property="Background" Value="{StaticResource ShellSelectionBrush}"/><Setter TargetName="CollectionIconPath" Property="Fill" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
@@ -1048,6 +1054,7 @@
        <Border Grid.Row="2" Grid.Column="0" x:Name="BrowserQueryToolbar" Style="{StaticResource ShellPanel}" Padding="5,4" IsEnabled="False">
        <StackPanel>
         <DockPanel LastChildFill="True">
+         <Button DockPanel.Dock="Right" Width="34" Height="32" Margin="4,0,0,4" ToolTip="Create Smart Collection from this view" AutomationProperties.Name="Create Smart Collection" Click="BrowserCreateSmartCollection_Click"><Viewbox Width="16" Height="16"><Path Stroke="{StaticResource MutedTextBrush}" StrokeThickness="1.5" Data="M2,1 L12,1 L12,15 L2,15 Z M5,5 L9,5 M5,8 L9,8 M12,6 L13.5,10 L17,11.5 L13.5,13 L12,17 L10.5,13 L7,11.5 L10.5,10 Z"/></Viewbox></Button>
          <ToggleButton DockPanel.Dock="Right" x:Name="BrowserQueryLockButton" Style="{StaticResource BrowserToolbarToggleButtonStyle}" Width="34" Height="32" Margin="8,0,0,4"
           Click="BrowserQueryLockButton_Click" ToolTip="Keep these filters when changing folders or Collections." AutomationProperties.Name="Keep filters across folders and Collections">
           <Viewbox Width="15" Height="15" Stretch="Uniform">
@@ -1309,6 +1316,7 @@
           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">
           <ItemsControl.ContextMenu>
            <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Create Smart Collection…" Click="BrowserCreateSmartCollection_Click"/>
             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Paste" InputGestureText="Ctrl+V" Click="BrowserBackgroundPaste_Click"/>
            </ContextMenu>
           </ItemsControl.ContextMenu>

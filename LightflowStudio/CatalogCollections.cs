@@ -9,7 +9,10 @@ internal sealed record CollectionSet(
 
 internal sealed record MediaCollection(
     Guid CollectionId, Guid? ParentCollectionSetId, string Name, int Ordinal, long Revision,
-    DateTimeOffset CreatedUtc, DateTimeOffset UpdatedUtc);
+    DateTimeOffset CreatedUtc, DateTimeOffset UpdatedUtc)
+{
+    public bool IsSmartCollection { get; init; }
+}
 
 internal sealed record CollectionMembership(
     Guid CollectionId, Guid AssetId, int Ordinal, long Revision,
@@ -51,7 +54,7 @@ internal interface ICollectionOrganizationService
 /// Catalog-only boundary for precious manual Collection organization. Paths, Preview state, Browser state,
 /// and saved-query semantics deliberately do not enter these contracts.
 /// </summary>
-internal sealed class CatalogCollectionOrganizationService(
+internal sealed partial class CatalogCollectionOrganizationService(
     Func<CatalogDatabaseSession?> session, Func<DateTimeOffset>? utcNow = null) : ICollectionOrganizationService
 {
     private readonly Func<DateTimeOffset> _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
@@ -214,6 +217,9 @@ internal sealed class CatalogCollectionOrganizationService(
     {
         var current = ReadCollection(connection, transaction, collectionId) ?? throw Changed("Collection", "deletion");
         if (current.Revision != expectedRevision) throw Changed("Collection", "deletion");
+        if (ScalarLong(connection, transaction, "SELECT count(*) FROM SmartCollectionDefinitions WHERE SourceCollectionId=$id;",
+            ("$id", collectionId.ToString("D"))) > 0)
+            throw new CollectionHierarchyException("This Collection is a Smart Collection Source. Change or delete those Smart Collections before deleting this Source.");
         Execute(connection, transaction, "DELETE FROM CollectionAssets WHERE CollectionId=$id;",
             ("$id", collectionId.ToString("D")));
         if (Execute(connection, transaction,
@@ -266,7 +272,7 @@ internal sealed class CatalogCollectionOrganizationService(
             throw new ArgumentException("Assets to add cannot contain duplicate identities.", nameof(assetIds));
         if (assetIds.Count == 0)
             return Task.FromResult<IReadOnlyList<CollectionMembershipCreateResult>>([]);
-        return MutateAsync<IReadOnlyList<CollectionMembershipCreateResult>>((connection, transaction) =>
+        return MutateMembershipAsync<IReadOnlyList<CollectionMembershipCreateResult>>(collectionId, (connection, transaction) =>
         {
             EnsureCollectionExists(connection, transaction, collectionId);
             var results = new List<CollectionMembershipCreateResult>(assetIds.Count);
@@ -308,7 +314,7 @@ internal sealed class CatalogCollectionOrganizationService(
         ArgumentNullException.ThrowIfNull(memberships);
         ValidateOrder(memberships);
         if (memberships.Count == 0) return Task.CompletedTask;
-        return MutateAsync<object?>((connection, transaction) =>
+        return MutateMembershipAsync<object?>(collectionId, (connection, transaction) =>
         {
             var current = ReadMemberships(connection, transaction, collectionId)
                 .ToDictionary(item => item.AssetId, item => item.Revision);
@@ -384,6 +390,15 @@ internal sealed class CatalogCollectionOrganizationService(
     }, cancellationToken);
     }
 
+    public event EventHandler<Guid>? MembershipChanged;
+    private async Task<T> MutateMembershipAsync<T>(Guid collectionId, Func<SqliteConnection, SqliteTransaction, T> operation,
+        CancellationToken token)
+    {
+        var result = await MutateAsync(operation, token).ConfigureAwait(false);
+        MembershipChanged?.Invoke(this, collectionId);
+        return result;
+    }
+
     private static Task<T> RunReadAsync<T>(Func<T> operation, CancellationToken cancellationToken) =>
         Task.Run(() => { cancellationToken.ThrowIfCancellationRequested(); return operation(); }, cancellationToken);
 
@@ -397,6 +412,8 @@ internal sealed class CatalogCollectionOrganizationService(
 
     private static void EnsureCollectionExists(SqliteConnection connection, SqliteTransaction transaction, Guid id)
     {
+        if (ReadCollection(connection, transaction, id)?.IsSmartCollection == true)
+            throw new ArgumentException("Smart Collection membership is computed from its Source and defining filters.");
         if (ScalarLong(connection, transaction,
                 "SELECT count(*) FROM Collections WHERE CollectionId=$id;", ("$id", id.ToString("D"))) != 1)
             throw new CollectionConcurrencyException("The Collection no longer exists.");
@@ -543,12 +560,12 @@ internal sealed class CatalogCollectionOrganizationService(
     private static List<MediaCollection> ReadCollections(SqliteConnection connection, SqliteTransaction? transaction, Guid? parent)
     {
         using var command = connection.CreateCommand(); command.Transaction = transaction;
-        command.CommandText = $"SELECT CollectionId,ParentCollectionSetId,Name,Ordinal,Revision,CreatedUtc,UpdatedUtc FROM Collections WHERE {ScopePredicate("ParentCollectionSetId")} ORDER BY Ordinal,CollectionId;";
+        command.CommandText = $"SELECT CollectionId,ParentCollectionSetId,Name,Ordinal,Revision,CreatedUtc,UpdatedUtc,IsSmartCollection FROM Collections WHERE {ScopePredicate("ParentCollectionSetId")} ORDER BY Ordinal,CollectionId;";
         AddScope(command, "ParentCollectionSetId", parent);
         using var reader = command.ExecuteReader();
         var result = new List<MediaCollection>();
         while (reader.Read()) result.Add(new(Guid.Parse(reader.GetString(0)), NullableGuid(reader, 1), reader.GetString(2),
-            reader.GetInt32(3), reader.GetInt64(4), ParseUtc(reader.GetString(5)), ParseUtc(reader.GetString(6))));
+            reader.GetInt32(3), reader.GetInt64(4), ParseUtc(reader.GetString(5)), ParseUtc(reader.GetString(6))) { IsSmartCollection = reader.GetBoolean(7) });
         return result;
     }
 
@@ -572,9 +589,9 @@ internal sealed class CatalogCollectionOrganizationService(
 
     private static MediaCollection? ReadCollection(SqliteConnection connection, SqliteTransaction? transaction, Guid id) =>
         ReadSingle(connection, transaction,
-            "SELECT CollectionId,ParentCollectionSetId,Name,Ordinal,Revision,CreatedUtc,UpdatedUtc FROM Collections WHERE CollectionId=$id;",
+            "SELECT CollectionId,ParentCollectionSetId,Name,Ordinal,Revision,CreatedUtc,UpdatedUtc,IsSmartCollection FROM Collections WHERE CollectionId=$id;",
             id, reader => new MediaCollection(Guid.Parse(reader.GetString(0)), NullableGuid(reader, 1), reader.GetString(2),
-                reader.GetInt32(3), reader.GetInt64(4), ParseUtc(reader.GetString(5)), ParseUtc(reader.GetString(6))));
+                reader.GetInt32(3), reader.GetInt64(4), ParseUtc(reader.GetString(5)), ParseUtc(reader.GetString(6))) { IsSmartCollection = reader.GetBoolean(7) });
 
     private static CollectionMembership? ReadMembership(SqliteConnection connection, SqliteTransaction transaction,
         Guid collectionId, Guid assetId)

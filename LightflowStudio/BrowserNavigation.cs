@@ -151,6 +151,11 @@ internal sealed class BrowserNavigationSession(
     /// </summary>
     public event EventHandler<RecursiveScopeProgress>? RecursiveScopeProgressChanged;
 
+    private long _workingGeneration;
+    /// <summary>Discovery/reconciliation only; Preview batches have an independent lifetime.</summary>
+    public long WorkingGeneration { get { lock (_sync) return _workingGeneration; } }
+    public event EventHandler? WorkingChanged;
+
     public BrowserLocation? BackTarget
     {
         get { lock (_sync) return _back.Count == 0 ? null : _back[^1]; }
@@ -208,6 +213,7 @@ internal sealed class BrowserNavigationSession(
             cancellationToken.ThrowIfCancellationRequested();
             return null;
         }
+        finally { FinishWorking(operation.Generation); }
     }
 
     public Task<BrowserFolderState?> NavigateToFolderAsync(MediaFolderEntry entry,
@@ -292,6 +298,7 @@ internal sealed class BrowserNavigationSession(
             cancellationToken.ThrowIfCancellationRequested();
             return null;
         }
+        finally { FinishWorking(operation.Generation); }
     }
 
     private async Task<BrowserFolderState?> NavigateResolvedAsync(string absoluteFolder,
@@ -314,6 +321,7 @@ internal sealed class BrowserNavigationSession(
             cancellationToken.ThrowIfCancellationRequested();
             return null;
         }
+        finally { FinishWorking(operation.Generation); }
     }
 
     private async Task<BrowserFolderState?> NavigateKnownAsync(BrowserLocation location,
@@ -326,6 +334,7 @@ internal sealed class BrowserNavigationSession(
             cancellationToken.ThrowIfCancellationRequested();
             return null;
         }
+        finally { FinishWorking(operation.Generation); }
     }
 
     private async Task<BrowserFolderState?> LoadAndCommitAsync(Operation operation, BrowserLocation location,
@@ -428,14 +437,29 @@ internal sealed class BrowserNavigationSession(
 
     private Operation Begin(CancellationToken cancellationToken)
     {
+        Operation operation;
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _activeRequest?.Cancel();
             _activeRequest?.Dispose();
             _activeRequest = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            return new(_activeRequest, ++_generation);
+            operation = new(_activeRequest, ++_generation);
+            _workingGeneration = operation.Generation;
         }
+        WorkingChanged?.Invoke(this, EventArgs.Empty);
+        operation.Token.Register(() => FinishWorking(operation.Generation));
+        return operation;
+    }
+
+    private void FinishWorking(long generation)
+    {
+        lock (_sync)
+        {
+            if (_workingGeneration != generation) return;
+            _workingGeneration = 0;
+        }
+        WorkingChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private BrowserFolderState? Commit(long generation, BrowserLocation location, NavigationKind kind,

@@ -1331,18 +1331,6 @@
           <TextBlock x:Name="BrowserEmptyTitle" Style="{StaticResource ShellPlaceholderTitle}" Text="Choose a storage location"/>
           <TextBlock x:Name="BrowserEmptyMessage" Style="{StaticResource ShellPlaceholderText}" Margin="0,8,0,0" Text="Select a drive, mapped location, or managed library to browse its folders and supported media."/>
          </StackPanel>
-         <Border Grid.RowSpan="2" x:Name="BrowserLoadingOverlay" Background="#B00D0F13" Visibility="Collapsed">
-          <!-- #124: a real progress indicator, not a decorative accent line — MainWindow.RunBrowserNavigationAsync
-               resets it to indeterminate at the start of every navigation, and
-               MainWindow.ApplyRecursiveScopeLoadingProgress switches it to determinate only once
-               BrowserNavigationSession.RecursiveScopeProgressChanged reports enough of the recursive walk is
-               known to be a truthful, non-fake percentage (see RecursiveScopeProgress). Direct-mode
-               navigation never receives progress events at all, so it stays indeterminate throughout. -->
-          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-           <ProgressBar x:Name="BrowserLoadingProgressBar" Width="180" Height="4" IsIndeterminate="True"/>
-           <TextBlock x:Name="BrowserLoadingText" Margin="0,12,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Loading folder…"/>
-          </StackPanel>
-         </Border>
         </Grid>
       </Border>
       <!-- #110: the Browser's Player/Viewer presentation state. A sibling occupying the exact same cell as
@@ -1853,6 +1841,29 @@
       Content="&#xE80A;" ToolTip="Increase Preview size" AutomationProperties.Name="Increase Preview size"
       Click="BrowserThumbnailSizeIncreaseButton_Click"/>
     </StackPanel>
+    <Border x:Name="BrowserWorkingIndicator" DockPanel.Dock="Right" Visibility="Collapsed" Margin="0,0,14,0"
+     ToolTip="Discovering media and checking this Browser folder scope for changes. Preview generation can continue afterward."
+     AutomationProperties.Name="Checking Browser folder scope">
+     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+      <local:JobsRadialProgress Width="16" Height="16" State="Generating" RenderTransformOrigin="0.5,0.5">
+       <local:JobsRadialProgress.RenderTransform><RotateTransform/></local:JobsRadialProgress.RenderTransform>
+       <local:JobsRadialProgress.Style>
+        <Style TargetType="local:JobsRadialProgress">
+         <Style.Triggers>
+          <Trigger Property="IsVisible" Value="True">
+           <Trigger.EnterActions><BeginStoryboard Name="WorkingRotation"><Storyboard>
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+             From="0" To="360" Duration="0:0:1.2" RepeatBehavior="Forever"/>
+           </Storyboard></BeginStoryboard></Trigger.EnterActions>
+           <Trigger.ExitActions><RemoveStoryboard BeginStoryboardName="WorkingRotation"/></Trigger.ExitActions>
+          </Trigger>
+         </Style.Triggers>
+        </Style>
+       </local:JobsRadialProgress.Style>
+      </local:JobsRadialProgress>
+      <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Text="Checking folder…"/>
+     </StackPanel>
+    </Border>
     <TextBlock x:Name="BrowserStatusText" DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
      FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="380" Margin="0,0,14,0" Visibility="Collapsed"/>
     <Border x:Name="BrowserStatusDivider" DockPanel.Dock="Right" Width="1" Margin="0,9,14,9" Background="{StaticResource ShellDividerBrush}" Visibility="Collapsed"/>

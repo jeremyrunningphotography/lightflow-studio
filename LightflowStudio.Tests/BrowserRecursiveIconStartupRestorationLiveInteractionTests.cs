@@ -78,7 +78,7 @@ public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests :
                 try
                 {
                     window.Show();
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _restoredLeaf, StringComparison.OrdinalIgnoreCase),
                         "startup restoration to settle on the saved leaf");
                     await SettleAsync(window);
@@ -91,7 +91,7 @@ public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests :
                         node => string.Equals(node.AbsolutePath, _folderA, StringComparison.OrdinalIgnoreCase));
                     Assert.NotNull(aContainer);
                     aContainer!.IsSelected = true;
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _folderA, StringComparison.OrdinalIgnoreCase),
                         "navigation to A to settle");
                     await SettleAsync(window);
@@ -104,7 +104,7 @@ public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests :
                     Directory.CreateDirectory(folderD);
                     window.BrowserCurrentPath.Text = folderD;
                     RaiseClick(window.BrowserGoButton);
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, folderD, StringComparison.OrdinalIgnoreCase),
                         "navigation to the unrelated folder to settle");
                     await SettleAsync(window);
@@ -116,7 +116,7 @@ public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests :
                         node => string.Equals(node.AbsolutePath, _folderB, StringComparison.OrdinalIgnoreCase));
                     Assert.NotNull(bContainer);
                     bContainer!.IsSelected = true;
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _folderB, StringComparison.OrdinalIgnoreCase),
                         "navigation to B to settle");
                     await SettleAsync(window);
@@ -129,7 +129,7 @@ public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests :
                     window.BrowserIncludeSubfoldersButton.IsChecked = false;
                     RaiseClick(window.BrowserIncludeSubfoldersButton);
                     await WaitUntilAsync(() => window.BrowserIncludeSubfoldersButton.IsChecked == false &&
-                        window.BrowserLoadingOverlay.Visibility != Visibility.Visible, "toggle OFF to settle");
+                        !window.BrowserNavigationPending, "toggle OFF to settle");
                     await SettleAsync(window);
                     var rootsAfterOff = await relaunchedStorage.BrowserRecursiveRoots.ListAsync();
                     trace.Add($"after toggle OFF from B: recursiveRoots remaining={rootsAfterOff.Count}");
@@ -139,7 +139,7 @@ public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests :
                     window.BrowserIncludeSubfoldersButton.IsChecked = true;
                     RaiseClick(window.BrowserIncludeSubfoldersButton);
                     await WaitUntilAsync(() => window.BrowserIncludeSubfoldersButton.IsChecked == true &&
-                        window.BrowserLoadingOverlay.Visibility != Visibility.Visible, "toggle ON to settle");
+                        !window.BrowserNavigationPending, "toggle ON to settle");
                     await SettleAsync(window);
                     var rootsAfterOn = await relaunchedStorage.BrowserRecursiveRoots.ListAsync();
                     trace.Add($"after toggle ON from B: recursiveRoots={string.Join(", ", rootsAfterOn.Select(r => r.RelativeFolder))}");
@@ -150,7 +150,7 @@ public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests :
                         node => string.Equals(node.AbsolutePath, _restoredLeaf, StringComparison.OrdinalIgnoreCase));
                     Assert.NotNull(cContainerAfterReToggle);
                     cContainerAfterReToggle!.IsSelected = true;
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _restoredLeaf, StringComparison.OrdinalIgnoreCase),
                         "navigation back to the restored leaf to settle");
                     await SettleAsync(window);

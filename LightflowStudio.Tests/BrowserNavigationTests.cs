@@ -6,6 +6,112 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserNavigationTests
 {
     [Fact]
+    public async Task PreviewStillRunningOrFailedDoesNotExtendDiscoveryWorkingLifetime()
+    {
+        var id = Guid.NewGuid();
+        DerivedWorkBatch? batch = null;
+        using var session = Session(new FakeRoots(), new FakeDiscovery((request, _, _, _) =>
+        {
+            var reconciliation = new CatalogReconciliationResult(CatalogReconciliationStatus.Succeeded,
+                request.RootId, request.RelativeFolder ?? "", [new(id, "clip.mp4", CatalogReconciliationItemStatus.New)]);
+            batch = new(reconciliation, value => value.CancelPending());
+            batch.AddPending(id); batch.Seal(); batch.MarkRunning(id);
+            return Task.FromResult(new MediaDiscoveryRefreshResult(reconciliation, batch));
+        }), EmptyFolders());
+        await session.NavigateToPathAsync(@"C:\A");
+        Assert.False(batch!.Completion.IsCompleted);
+        Assert.Equal(0, session.WorkingGeneration);
+        batch.Complete(id, new(id, DerivedWorkItemOutcome.Failed, DerivedWorkComponentOutcome.Failed,
+            DerivedWorkComponentOutcome.Failed, ThumbnailFailureReason: PreviewFailureReason.Unknown));
+        await batch.Completion;
+        Assert.Equal(0, session.WorkingGeneration);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task WorkingLifetimeIsSharedByDirectRecursiveAndRestoredNavigation(bool recursive, bool restored)
+    {
+        var root = Root("Library", @"C:\Library");
+        var roots = new FakeRoots(root);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recursiveRoots = new BrowserRecursiveRootService(new InMemoryRecursiveRootRepository());
+        if (recursive) await recursiveRoots.EnableAsync(root.RootId, "");
+        var discovery = new FakeDiscovery(async (request, _, _, _) =>
+        {
+            entered.TrySetResult();
+            await release.Task;
+            return DiscoverySuccess(request);
+        });
+        var folders = EmptyFolders();
+        using var session = Session(roots, discovery, folders,
+            new RecursiveMediaDiscoveryService(folders, discovery), recursiveRoots);
+        var states = new List<long>();
+        session.WorkingChanged += (_, _) => states.Add(session.WorkingGeneration);
+        Task loading = restored
+            ? BrowserLocationRestoration.RestoreAsync(session, roots, new() { RootId = root.RootId, RelativeFolder = "" })
+            : session.NavigateToRootAsync(root.RootId);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(session.WorkingGeneration > 0);
+        Assert.Single(states);
+        release.SetResult();
+        await loading.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(0, session.WorkingGeneration);
+        Assert.Equal(2, states.Count);
+    }
+
+    [Fact]
+    public async Task SupersededAAndBCompletionCannotRetireCWorkingState()
+    {
+        var gates = Enumerable.Range(0, 3).Select(_ => new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously)).ToArray();
+        var entered = Enumerable.Range(0, 3).Select(_ => new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously)).ToArray();
+        var index = 0;
+        var discovery = new FakeDiscovery(async (request, _, _, _) =>
+        {
+            var currentIndex = index++;
+            var gate = gates[currentIndex];
+            entered[currentIndex].SetResult();
+            await gate.Task; // deliberately ignore cancellation
+            return DiscoverySuccess(request);
+        });
+        using var session = Session(new FakeRoots(), discovery, EmptyFolders());
+        var a = session.NavigateToPathAsync(@"C:\A");
+        await entered[0].Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var b = session.NavigateToPathAsync(@"C:\B");
+        await entered[1].Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var c = session.NavigateToPathAsync(@"C:\C");
+        await entered[2].Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var current = session.WorkingGeneration;
+        Assert.True(current > 0);
+        gates[0].SetResult(); gates[1].SetResult();
+        Assert.Null(await a); Assert.Null(await b);
+        Assert.Equal(current, session.WorkingGeneration);
+        gates[2].SetResult();
+        await c;
+        Assert.Equal(0, session.WorkingGeneration);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailureAndCancellationRetireWorkingWithoutWaitingForPreviews(bool throws)
+    {
+        using var session = Session(new FakeRoots(), new FakeDiscovery((request, _, _, _) =>
+            throws ? throw new IOException("unavailable") : Task.FromResult(DiscoverySuccess(request))), EmptyFolders());
+        await session.NavigateToPathAsync(@"C:\A");
+        Assert.Equal(0, session.WorkingGeneration);
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.NavigateToPathAsync(@"C:\B", canceled.Token));
+        Assert.Equal(0, session.WorkingGeneration);
+    }
+
+    [Fact]
     public async Task ZeroManagedRoots_LocalFolderCreatesVolumeAnchorAndReconcilesOnlyVisitedFolder()
     {
         var roots = new FakeRoots();

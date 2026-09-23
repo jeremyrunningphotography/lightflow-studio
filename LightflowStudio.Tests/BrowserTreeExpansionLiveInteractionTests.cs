@@ -148,7 +148,7 @@ public sealed class BrowserTreeExpansionLiveInteractionTests : IAsyncLifetime
                     { RoutedEvent = Mouse.PreviewMouseDownEvent });
                 header.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
                     { RoutedEvent = Mouse.MouseDownEvent });
-                await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                     string.Equals(window.BrowserCurrentPath.Text, _mediaRoot, StringComparison.OrdinalIgnoreCase));
                 await SettleAsync(window);
                 Assert.Same(libraryNode, window.BrowserFolderTree.SelectedItem);

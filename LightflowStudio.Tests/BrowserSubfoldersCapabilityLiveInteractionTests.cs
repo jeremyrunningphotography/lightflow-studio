@@ -81,7 +81,7 @@ public sealed class BrowserSubfoldersCapabilityLiveInteractionTests : IAsyncLife
             window.BrowserIncludeSubfoldersButton.IsChecked = true;
             RaiseClick(window.BrowserIncludeSubfoldersButton);
             await WaitUntilAsync(() => window.BrowserIncludeSubfoldersButton.IsChecked == true &&
-                window.BrowserLoadingOverlay.Visibility != Visibility.Visible);
+                !window.BrowserNavigationPending);
 
             Assert.True(window.BrowserIncludeSubfoldersButton.IsEnabled);
         });
@@ -147,7 +147,7 @@ public sealed class BrowserSubfoldersCapabilityLiveInteractionTests : IAsyncLife
     {
         window.BrowserCurrentPath.Text = folder;
         RaiseClick(window.BrowserGoButton);
-        await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+        await WaitUntilAsync(() => !window.BrowserNavigationPending &&
             string.Equals(window.BrowserCurrentPath.Text, folder, StringComparison.OrdinalIgnoreCase));
         await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
     }

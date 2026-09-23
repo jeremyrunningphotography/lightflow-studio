@@ -124,13 +124,9 @@ public sealed class WorkspaceRestorationRegressionTests
         var body = source[methodStart..methodEnd];
 
         Assert.DoesNotContain("await", body);
-        var textSet = body.IndexOf("BrowserLoadingText.Text = label;", StringComparison.Ordinal);
-        var emptyHidden = body.IndexOf("BrowserEmptyState.Visibility = Visibility.Collapsed;", StringComparison.Ordinal);
-        var progressReset = body.IndexOf("ResetBrowserLoadingProgress();", StringComparison.Ordinal);
-        var overlayShown = body.IndexOf("BrowserLoadingOverlay.Visibility = Visibility.Visible;", StringComparison.Ordinal);
-        Assert.True(textSet >= 0 && emptyHidden > textSet && progressReset > emptyHidden && overlayShown > progressReset,
-            "A new loading sequence must retire the stale empty/failure state and begin indeterminate before " +
-            "the overlay appears, so empty/failure and loading presentations can never render simultaneously.");
+        Assert.Contains("BrowserEmptyState.Visibility = Visibility.Collapsed;", body);
+        Assert.Contains("BrowserGridRows.Visibility = Visibility.Collapsed;", body);
+        Assert.Contains("BrowserWorkingIndicator.Visibility = Visibility.Collapsed;", body);
     }
 
     [Fact]
@@ -241,7 +237,7 @@ public sealed class WorkspaceRestorationRegressionTests
     }
 
     [Fact]
-    public void RunBrowserNavigationAsync_ResetsTheLoadingLabelSoRestorationsCustomTextNeverLeaksIntoOrdinaryNavigation()
+    public void RunBrowserNavigationAsync_RetiresStalePresentationThroughTheSharedEntryPoint()
     {
         var source = Source();
         var methodStart = source.IndexOf("private async Task RunBrowserNavigationAsync", StringComparison.Ordinal);
@@ -251,7 +247,7 @@ public sealed class WorkspaceRestorationRegressionTests
         // and passed straight into ShowBrowserLoadingState, which now owns clearing any stale presentation —
         // this only asserts the direct-mode text still exists and is routed through that shared entry point.
         Assert.Contains("ShowBrowserLoadingState(", body);
-        Assert.Contains("\"Loading folder…\"", body);
+        Assert.DoesNotContain("scopeModeOverride", body);
     }
 
     [Fact]

@@ -144,7 +144,7 @@ public sealed class BrowserTreeInteractionRegressionTests
         // silently reset FoldersVisited to zero, making one continuous recursive scan look like it keeps
         // restarting every time a descendant folder is touched.
         var body = MethodBody("private async Task SynchronizeMonitoredFolderAsync");
-        var loadingGuard = body.IndexOf("if (BrowserLoadingOverlay.Visibility == Visibility.Visible) return;", StringComparison.Ordinal);
+        var loadingGuard = body.IndexOf("if (BrowserNavigationPending) return;", StringComparison.Ordinal);
         var refreshCall = body.IndexOf("await RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());", StringComparison.Ordinal);
         Assert.True(loadingGuard >= 0 && refreshCall > loadingGuard,
             "The already-loading guard must run before an exact-folder projection refresh.");
@@ -219,7 +219,7 @@ public sealed class BrowserTreeInteractionRegressionTests
     [Fact]
     public void ShowBrowserLoadingState_HidesTheStalePreviousGridInsteadOfLettingItShowThroughTheOverlay()
     {
-        // #124: BrowserLoadingOverlay's own background is deliberately semi-transparent (so the progress bar
+        // #124: BrowserWorkingIndicator's own background is deliberately semi-transparent (so the progress bar
         // it hosts stays legible against the shell) — that previously let the previous folder's media tiles
         // remain faintly visible underneath it while a new scope loaded. Hiding the grid outright here, not
         // merely painting over it, is what "the prior scope stops being presented" actually requires.
@@ -227,7 +227,7 @@ public sealed class BrowserTreeInteractionRegressionTests
 
         var emptyHidden = body.IndexOf("BrowserEmptyState.Visibility = Visibility.Collapsed;", StringComparison.Ordinal);
         var gridHidden = body.IndexOf("BrowserGridRows.Visibility = Visibility.Collapsed;", StringComparison.Ordinal);
-        var overlayShown = body.IndexOf("BrowserLoadingOverlay.Visibility = Visibility.Visible;", StringComparison.Ordinal);
+        var overlayShown = body.IndexOf("BrowserWorkingIndicator.Visibility = Visibility.Collapsed;", StringComparison.Ordinal);
         Assert.True(emptyHidden >= 0, "ShowBrowserLoadingState must hide the stale empty state.");
         Assert.True(gridHidden >= 0, "ShowBrowserLoadingState must hide the stale grid content.");
         Assert.True(overlayShown > gridHidden,

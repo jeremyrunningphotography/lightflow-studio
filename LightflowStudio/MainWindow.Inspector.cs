@@ -90,7 +90,7 @@ public partial class MainWindow
         var start = InspectorFolderStartInfo(resolved);
         if (!await Task.Run(() => System.IO.Directory.Exists(start.ArgumentList[0])))
             throw new System.IO.DirectoryNotFoundException("The containing folder is unavailable.");
-        System.Diagnostics.Process.Start(start);
+        await Task.Run(() => ExplorerShell.Launch(start));
     }
 
     internal static System.Diagnostics.ProcessStartInfo InspectorFolderStartInfo(MediaPathResolution resolved)
@@ -99,9 +99,7 @@ public partial class MainWindow
             throw new System.IO.DirectoryNotFoundException("The containing folder is unavailable. Connect the media root and try again.");
         var folder = System.IO.Path.GetDirectoryName(resolved.PhysicalPath)
             ?? throw new System.IO.DirectoryNotFoundException("The containing folder is unavailable.");
-        var start = new System.Diagnostics.ProcessStartInfo("explorer.exe") { UseShellExecute = true };
-        start.ArgumentList.Add(folder);
-        return start;
+        return ExplorerShell.Request(folder, selectFile: false);
     }
 
     private void RightPanelToggle_Click(object sender, RoutedEventArgs e) => SetRightPanelOpen(RightPanelToggle.IsChecked == true);

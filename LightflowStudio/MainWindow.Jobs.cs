@@ -9,7 +9,7 @@ namespace LightflowStudio;
 public partial class MainWindow
 {
     internal Action<System.Diagnostics.ProcessStartInfo> OpenJobOutputFolder { get; set; } =
-        request => System.Diagnostics.Process.Start(request);
+        ExplorerShell.Launch;
 
     private void JobOutputPath_Click(object sender, RoutedEventArgs e)
     {

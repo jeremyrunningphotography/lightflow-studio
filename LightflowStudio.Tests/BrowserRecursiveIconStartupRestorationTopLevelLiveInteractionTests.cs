@@ -72,7 +72,7 @@ public sealed class BrowserRecursiveIconStartupRestorationTopLevelLiveInteractio
                 try
                 {
                     window.Show();
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _restoredLeaf, StringComparison.OrdinalIgnoreCase),
                         "startup restoration to settle on the saved leaf");
                     await SettleAsync(window);
@@ -84,7 +84,7 @@ public sealed class BrowserRecursiveIconStartupRestorationTopLevelLiveInteractio
                         node => string.Equals(node.AbsolutePath, _folderA, StringComparison.OrdinalIgnoreCase));
                     Assert.NotNull(aContainer);
                     aContainer!.IsSelected = true;
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _folderA, StringComparison.OrdinalIgnoreCase),
                         "navigation to A to settle");
                     await SettleAsync(window);
@@ -96,7 +96,7 @@ public sealed class BrowserRecursiveIconStartupRestorationTopLevelLiveInteractio
                         node => string.Equals(node.AbsolutePath, _folderB, StringComparison.OrdinalIgnoreCase));
                     Assert.NotNull(bContainer);
                     bContainer!.IsSelected = true;
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _folderB, StringComparison.OrdinalIgnoreCase),
                         "navigation to B to settle");
                     await SettleAsync(window);

@@ -142,8 +142,6 @@ public partial class MainWindow : Window
     private readonly BrowserCollectionDragHover _collectionDragHover = new();
     private readonly DispatcherTimer _collectionDragHoverTimer = new() { Interval = BrowserCollectionDragHover.Dwell };
     private bool _synchronizingBrowserScopeMode;
-    /// <summary>Denominator as of the last recursive-progress report, so <see cref="ApplyRecursiveScopeLoadingProgress"/> can tell whether discovery is still actively growing. Reset alongside everything else in <see cref="ResetBrowserLoadingProgress"/>.</summary>
-    private int _browserRecursiveProgressLastDiscovered;
     // #124 (revised): every stored Catalog recursive root, as of the most recent navigation — see
     // BrowserFolderState.RecursiveRoots. Cached here so Locations-tree icon sync never needs its own Catalog
     // round-trip; refreshed unconditionally in ApplyBrowserState alongside everything else that state drives.
@@ -176,7 +174,7 @@ public partial class MainWindow : Window
             storage.MediaDiscovery, storage.MediaFolders, storage.BrowserRecursiveRoots, storage.RecursiveMediaDiscovery,
             storage.MediaAssets, storage.MediaTypes);
         _browserNavigation.EffectiveScopeDetermined += BrowserNavigation_EffectiveScopeDetermined;
-        _browserNavigation.RecursiveScopeProgressChanged += BrowserNavigation_RecursiveScopeProgressChanged;
+        _browserNavigation.WorkingChanged += BrowserNavigation_WorkingChanged;
         _browserNavigation.KnownContentAvailable += BrowserNavigation_KnownContentAvailable;
         _browserCollectionScopes = new(storage.Collections, storage.MediaAssets, storage.MediaRoots, storage.MediaTypes, () => storage.DerivedWork);
         _trimHistory = new TrimHistoryStore(storage.Locations.TrimHistoryPath);
@@ -357,7 +355,7 @@ public partial class MainWindow : Window
             _collectionScopeCts?.Cancel();
             _collectionScopeCts?.Dispose();
             if (_storage.MediaMonitoring is { } monitoring) monitoring.FolderRefreshed -= BrowserMonitoring_FolderRefreshed;
-            _browserNavigation.RecursiveScopeProgressChanged -= BrowserNavigation_RecursiveScopeProgressChanged;
+            _browserNavigation.WorkingChanged -= BrowserNavigation_WorkingChanged;
             _browserNavigation.EffectiveScopeDetermined -= BrowserNavigation_EffectiveScopeDetermined;
             _browserNavigation.KnownContentAvailable -= BrowserNavigation_KnownContentAvailable;
             _workspaceSaveTimer.Stop();
@@ -422,52 +420,39 @@ public partial class MainWindow : Window
     /// </summary>
     private void ShowBrowserRestoringState(WorkspaceBrowserLocationState saved)
     {
-        var label = BrowserLocationRestoration.DescribeSavedLocation(saved);
         if (!string.IsNullOrWhiteSpace(saved.LastResolvedAbsolutePath)) BrowserCurrentPath.Text = saved.LastResolvedAbsolutePath;
-        ShowBrowserLoadingState(label is null ? "Restoring your last location…" : $"Loading {label}…");
+        ShowBrowserLoadingState();
     }
 
-    /// <summary>
-    /// The single authoritative entry point into the Browser center presentation's Loading state — the one
-    /// place a new navigation generation retires whatever the previous generation was showing. The Browser
-    /// center presentation (<see cref="BrowserEmptyState"/>/<see cref="BrowserGridRows"/>/<see cref="BrowserLoadingOverlay"/>)
-    /// represents exactly one authoritative state at a time; a completed scope's content, empty, or failure
-    /// presentation must never remain visible once a new navigation begins — <see cref="BrowserLoadingOverlay"/>'s
-    /// own background is deliberately semi-transparent (so the truthful progress bar it hosts stays legible
-    /// against the shell), which previously let a previous folder's media tiles show faintly through it rather
-    /// than actually disappearing; hiding the grid outright here, not merely painting over it, is what "the
-    /// prior scope stops being presented" actually requires. <see cref="BrowserGridModel"/>'s own tile data is
-    /// untouched — only its visual presentation is collapsed — so a same-folder refresh or a failure that falls
-    /// back to the last-loaded content never has to re-fetch or repopulate anything. Only
-    /// <see cref="ApplyBrowserState"/>/<see cref="ApplyBrowserNavigationFailure"/> — themselves already gated on
-    /// the current <see cref="_browserUiGeneration"/> — are allowed to show <see cref="BrowserEmptyState"/> or
-    /// <see cref="BrowserGridRows"/> again, once this same generation's loading actually finishes. Called at
-    /// every point a new loading sequence starts (an ordinary navigation via <see cref="RunBrowserNavigationAsync"/>,
-    /// and workspace restoration via <see cref="ShowBrowserRestoringState"/>), so both paths retire the
-    /// previous presentation identically.
-    /// </summary>
-    private void ShowBrowserLoadingState(string label)
+    /// <summary>Retires stale scope presentation; Catalog-backed results can reappear while discovery continues.</summary>
+    private void ShowBrowserLoadingState()
     {
-        BrowserLoadingText.Text = label;
         BrowserEmptyState.Visibility = Visibility.Collapsed;
         BrowserGridRows.Visibility = Visibility.Collapsed;
-        ResetBrowserLoadingProgress();
-        BrowserLoadingOverlay.Visibility = Visibility.Visible;
+        BrowserWorkingIndicator.Visibility = Visibility.Collapsed;
     }
 
-    /// <summary>
-    /// #124: begins every loading sequence indeterminate — "begin indeterminate, transition to determinate
-    /// only once the traversal naturally knows enough" — regardless of whether this turns out to be a direct
-    /// or recursive load, or an ordinary navigation vs. workspace restoration. Never called mid-load; only at
-    /// the point a new loading sequence starts, before anything about its actual progress is known.
-    /// </summary>
-    private void ResetBrowserLoadingProgress()
+    // The delay suppresses flicker only. It neither starts work nor extends its lifetime.
+    private long _browserWorkingDisplayGeneration;
+    private void BrowserNavigation_WorkingChanged(object? sender, EventArgs e) =>
+        Dispatcher.BeginInvoke(() => _ = UpdateBrowserWorkingIndicatorAsync());
+
+    private async Task UpdateBrowserWorkingIndicatorAsync()
     {
-        BrowserLoadingProgressBar.IsIndeterminate = true;
-        BrowserLoadingProgressBar.Value = 0;
-        _browserRecursiveProgressLastDiscovered = 0;
+        var generation = _browserNavigation.WorkingGeneration;
+        if (_browserWorkingDisplayGeneration != generation)
+        {
+            _browserWorkingDisplayGeneration = generation;
+            BrowserWorkingIndicator.Visibility = Visibility.Collapsed;
+        }
+        if (generation == 0) return;
+        var uiGeneration = _browserUiGeneration;
+        await Task.Delay(150);
+        if (generation != _browserNavigation.WorkingGeneration || uiGeneration != _browserUiGeneration ||
+            _browserNavigationInFlightGeneration != uiGeneration) return;
+        BrowserWorkingIndicator.Visibility = MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home)
+            ? Visibility.Visible : Visibility.Collapsed;
     }
-
     /// <summary>Restores the default, honest "no location open" Browser state, e.g. when restoration resolves nothing to show.</summary>
     private void ShowDefaultBrowserEmptyState()
     {
@@ -525,9 +510,8 @@ public partial class MainWindow : Window
         _browserNavigationInFlightGeneration = generation;
         _browserRefreshPending = false;
         _browserValidationFailure = null;
-        // Already showing from ShowBrowserRestoringState (called before Loaded even fires); re-asserted
-        // here so this method stays correct regardless of what state the canvas was left in beforehand.
-        BrowserLoadingOverlay.Visibility = Visibility.Visible;
+        // The navigation session supplies the same working lifecycle for restoration and manual navigation.
+        BrowserWorkingIndicator.Visibility = Visibility.Collapsed;
         try
         {
             // #124 (revised): recursive mode is no longer a session field to pre-set before restoring —
@@ -564,7 +548,7 @@ public partial class MainWindow : Window
         {
             if (generation == _browserUiGeneration)
             {
-                BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+                BrowserWorkingIndicator.Visibility = Visibility.Collapsed;
                 FinishBrowserRevalidation(generation);
             }
         }
@@ -596,7 +580,7 @@ public partial class MainWindow : Window
         var listing = await _storage.MediaFolders.EnumerateAsync(new(request.RootId, relative));
         if (generation != _browserUiGeneration || _activeCollectionScope is not null) return;
         if (listing.Succeeded) _browserTree.ApplyDirectoryListing(absolute, location.RootPath, listing.Entries);
-        if (BrowserLoadingOverlay.Visibility == Visibility.Visible) return;
+        if (BrowserNavigationPending) return;
         if (state.Mode == BrowserScopeMode.DirectFolder)
         {
             if (string.Equals(location.RelativeFolder, relative, StringComparison.OrdinalIgnoreCase))
@@ -1043,8 +1027,7 @@ public partial class MainWindow : Window
     {
         if (_synchronizingBrowserScopeMode) return;
         var enabled = BrowserIncludeSubfoldersButton.IsChecked == true;
-        var mode = enabled ? BrowserScopeMode.IncludeSubfolders : BrowserScopeMode.DirectFolder;
-        await RunBrowserNavigationAsync(() => _browserNavigation.SetIncludeSubfoldersAsync(enabled), mode);
+        await RunBrowserNavigationAsync(() => _browserNavigation.SetIncludeSubfoldersAsync(enabled));
     }
 
     /// <summary>Applies a successful navigation result and reveals its Locations-tree ancestors. Returns false (without side effects) for a stale, null, or non-success state.</summary>
@@ -1058,6 +1041,8 @@ public partial class MainWindow : Window
         return true;
     }
 
+    internal bool BrowserNavigationPending => _browserNavigationInFlightGeneration != 0 &&
+        _browserNavigationInFlightGeneration == _browserUiGeneration;
     private long _browserNavigationInFlightGeneration;
     private bool _browserRefreshPending;
     private string? _browserValidationFailure;
@@ -1070,7 +1055,6 @@ public partial class MainWindow : Window
             if (generation != _browserUiGeneration || !_browserNavigation.CanPresentKnownContent(state) ||
                 _browserScopeSelection.Active == BrowserScopeSelectionKind.Collection) return;
             ApplyBrowserState(state);
-            BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
             _ = ApplyKnownBrowserPreviewsAsync(state, generation);
         });
     }
@@ -1096,17 +1080,8 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// Drives one navigation/scope operation through the shared loading-overlay/generation machinery.
-    /// <paramref name="scopeModeOverride"/> lets a caller that is about to *change* the scope mode (the
-    /// Include Subfolders toggle) show the right label immediately, since effective mode for the folder about
-    /// to load is not known synchronously — it is derived live from the Catalog partway through
-    /// <paramref name="navigate"/> — every other caller passes nothing and simply reflects whichever mode the
-    /// last successfully committed state (<see cref="BrowserFolderState.Mode"/>) already showed, a reasonable
-    /// best-available guess for the label that self-corrects once the load actually completes.
-    /// </summary>
-    private async Task RunBrowserNavigationAsync(Func<Task<BrowserFolderState?>> navigate,
-        BrowserScopeMode? scopeModeOverride = null)
+    /// <summary>Drives one navigation/scope operation through the shared generation and presentation lifecycle.</summary>
+    private async Task RunBrowserNavigationAsync(Func<Task<BrowserFolderState?>> navigate)
     {
         WorkspaceUserInteraction();
         _pendingWorkspaceGrid = null;
@@ -1117,8 +1092,7 @@ public partial class MainWindow : Window
         _browserNavigationInFlightGeneration = generation;
         _browserValidationFailure = null;
         _browserRefreshPending = false;
-        ShowBrowserLoadingState((scopeModeOverride ?? _browserNavigation.State.Mode) == BrowserScopeMode.IncludeSubfolders
-            ? "Scanning folder and subfolders…" : "Loading folder…");
+        ShowBrowserLoadingState();
         try
         {
             var state = await navigate();
@@ -1146,22 +1120,11 @@ public partial class MainWindow : Window
         {
             if (generation == _browserUiGeneration)
             {
-                BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+                BrowserWorkingIndicator.Visibility = Visibility.Collapsed;
                 FinishBrowserRevalidation(generation);
             }
         }
     }
-
-    /// <summary>
-    /// Checks the originating navigation generation again after the dispatcher delay, so queued progress
-    /// cannot reach a newer folder even if it was current when the service emitted it.
-    /// </summary>
-    private void BrowserNavigation_RecursiveScopeProgressChanged(object? sender, RecursiveScopeProgress progress) =>
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (_browserNavigation.IsCurrentGeneration(progress.NavigationGeneration) && _activeCollectionScope is null)
-                ApplyRecursiveScopeLoadingProgress(progress);
-        });
 
     private void FinishBrowserRevalidation(long generation)
     {
@@ -1173,30 +1136,6 @@ public partial class MainWindow : Window
             if (generation == _browserUiGeneration && _activeCollectionScope is null)
                 _ = RunBrowserNavigationAsync(() => _browserNavigation.RefreshAsync());
         });
-    }
-
-    /// <summary>
-    /// Applies one live recursive-walk progress report to the shared loading progress bar. Stays indeterminate
-    /// until <see cref="RecursiveScopeProgress.FoldersDiscovered"/> grows past the trivial single-folder case,
-    /// so a small recursive scope (nothing left to discover beyond the base folder) never flashes a
-    /// near-instant, uninformative "1 of 1" determinate bar before the overlay disappears — and, just as
-    /// importantly, stays indeterminate for as long as the denominator is still actively growing report to
-    /// report, via <see cref="_browserRecursiveProgressLastDiscovered"/>: flipping to determinate the instant
-    /// <see cref="RecursiveScopeProgress.FoldersDiscovered"/> first reaches 2 previously produced a jarring
-    /// visual — a brief, misleadingly high percentage immediately followed by a hard leftward jump as the rest
-    /// of a wide folder's siblings were discovered a moment later, in the very next report. Waiting for
-    /// discovery to hold steady for at least one report keeps the percentage honest without ever showing a
-    /// value that is about to be immediately superseded by a much larger denominator. Never fabricates a
-    /// percentage: both values come directly from the service-layer walk, never counted here.
-    /// </summary>
-    private void ApplyRecursiveScopeLoadingProgress(RecursiveScopeProgress progress)
-    {
-        var stillDiscovering = progress.FoldersDiscovered > _browserRecursiveProgressLastDiscovered;
-        _browserRecursiveProgressLastDiscovered = progress.FoldersDiscovered;
-        if (progress.FoldersDiscovered < 2 || stillDiscovering) { BrowserLoadingProgressBar.IsIndeterminate = true; return; }
-        BrowserLoadingProgressBar.IsIndeterminate = false;
-        BrowserLoadingProgressBar.Maximum = progress.FoldersDiscovered;
-        BrowserLoadingProgressBar.Value = Math.Min(progress.FoldersVisited, progress.FoldersDiscovered);
     }
 
     private void ApplyBrowserState(BrowserFolderState state)
@@ -3530,6 +3469,8 @@ public partial class MainWindow : Window
         // exactly as it is already hidden outside the Browser tab entirely.
         BrowserPresentationControls.Visibility = isBrowserActive && _browserPresentation == BrowserPresentationMode.Grid
             ? Visibility.Visible : Visibility.Collapsed;
+        if (!isBrowserActive) BrowserWorkingIndicator.Visibility = Visibility.Collapsed;
+        else _ = UpdateBrowserWorkingIndicatorAsync();
         if (isBrowserActive) UpdateBrowserStatusText();
     }
 
@@ -4600,7 +4541,7 @@ public partial class MainWindow : Window
         _collectionScopeCts?.Dispose();
         var request = _collectionScopeCts = CancellationTokenSource.CreateLinkedTokenSource(token);
         var generation = ++_browserUiGeneration;
-        ShowBrowserLoadingState("Loading Collection…");
+        ShowBrowserLoadingState();
         try
         {
             var scope = await _browserCollectionScopes.LoadAsync(collectionId, request.Token).ConfigureAwait(true);
@@ -4611,7 +4552,7 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) { }
         catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException or IOException)
         {
-            BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+            BrowserWorkingIndicator.Visibility = Visibility.Collapsed;
             if (!restoring) MessageBox.Show(exception.Message, "Collection could not be opened", MessageBoxButton.OK, MessageBoxImage.Warning);
             await RefreshCollectionsAsync();
         }
@@ -4645,7 +4586,7 @@ public partial class MainWindow : Window
         BrowserIncludeSubfoldersButton.IsChecked = false;
         BrowserIncludeSubfoldersButton.IsEnabled = false;
         BrowserGridRows.Visibility = Visibility.Visible;
-        BrowserLoadingOverlay.Visibility = Visibility.Collapsed;
+        BrowserWorkingIndicator.Visibility = Visibility.Collapsed;
         BrowserEmptyState.Visibility = _browserGrid.TotalCount == 0 ? Visibility.Visible : Visibility.Collapsed;
         BrowserEmptyTitle.Text = "No media in this Collection";
         BrowserEmptyMessage.Text = "Media membership is managed separately; Collection Sets organize Collections and do not contain media directly.";

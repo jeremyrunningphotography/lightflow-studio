@@ -74,10 +74,31 @@ public sealed class BrowserCatalogPresentationLiveTests(ITestOutputHelper output
                 Assert.NotEmpty(window.BrowserFolderTree.Items);
                 var clock = Stopwatch.StartNew();
                 var loading = Navigate(media);
-                await Until(() => window.BrowserLoadingOverlay.Visibility == Visibility.Collapsed && grid.TotalCount == 200 &&
+                await Until(() => grid.TotalCount == 200 &&
                     Children(window.BrowserGridRows).OfType<Image>().Any(image => image.Source is BitmapSource));
                 var renderMs = clock.Elapsed.TotalMilliseconds;
                 Assert.False(loading.IsCompleted);
+                await Until(() => window.BrowserWorkingIndicator.Visibility == Visibility.Visible);
+                Assert.True(window.BrowserGridRows.IsVisible);
+                if (Environment.GetEnvironmentVariable("LIGHTFLOW_BROWSER_STATUS_RENDER") is { Length: > 0 } renderDirectory)
+                {
+                    Directory.CreateDirectory(renderDirectory);
+                    foreach (var width in new[] { 1440, 1120 })
+                    {
+                        window.Width = width;
+                        window.UpdateLayout();
+                        var status = (FrameworkElement)window.BrowserWorkingIndicator.Parent;
+                        var render = new RenderTargetBitmap((int)Math.Ceiling(status.ActualWidth),
+                            (int)Math.Ceiling(status.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                        render.Render(status);
+                        var png = new PngBitmapEncoder();
+                        png.Frames.Add(BitmapFrame.Create(render));
+                        using var file = File.Create(Path.Combine(renderDirectory, $"browser-status-{width}.png"));
+                        png.Save(file);
+                    }
+                    window.Width = 1440;
+                    window.UpdateLayout();
+                }
                 Assert.Contains("Checking for changes", window.BrowserStatusText.Text);
                 Assert.True(Children(window.BrowserGridRows).OfType<Image>().Count() < 200);
                 await Hint();
@@ -106,7 +127,7 @@ public sealed class BrowserCatalogPresentationLiveTests(ITestOutputHelper output
                 var beforeReplay = knownNotifications;
                 clock.Restart();
                 var revisit = Navigate(media);
-                await Until(() => window.BrowserLoadingOverlay.Visibility == Visibility.Collapsed && grid.TotalCount == 200 &&
+                await Until(() => grid.TotalCount == 200 &&
                     Children(window.BrowserGridRows).OfType<Image>().Any(image => image.Source is BitmapSource));
                 var revisitMs = clock.Elapsed.TotalMilliseconds;
                 Assert.False(revisit.IsCompleted);
@@ -118,7 +139,7 @@ public sealed class BrowserCatalogPresentationLiveTests(ITestOutputHelper output
                 release.Set();
                 await revisit.WaitAsync(TimeSpan.FromSeconds(10));
                 await Until(() => knownNotifications == beforeReplay + 2 && !navigation.State.IsRevalidating &&
-                    window.BrowserLoadingOverlay.Visibility == Visibility.Collapsed);
+                    window.BrowserWorkingIndicator.Visibility == Visibility.Collapsed);
                 Assert.DoesNotContain("Checking for changes", window.BrowserStatusText.Text);
 
                 // Conservative before-ordering control: suppress only early UI presentation; keep the same
@@ -131,7 +152,7 @@ public sealed class BrowserCatalogPresentationLiveTests(ITestOutputHelper output
                 await Navigate(other);
                 clock.Restart();
                 var blocking = Navigate(media);
-                await Until(() => window.BrowserLoadingOverlay.Visibility == Visibility.Collapsed && grid.TotalCount == 200 &&
+                await Until(() => grid.TotalCount == 200 &&
                     Children(window.BrowserGridRows).OfType<Image>().Any(image => image.Source is BitmapSource));
                 var blockingMs = clock.Elapsed.TotalMilliseconds;
                 await blocking;
@@ -145,7 +166,7 @@ public sealed class BrowserCatalogPresentationLiveTests(ITestOutputHelper output
                     Keyboard.Focus(window.BrowserCurrentPath);
                     typeof(MainWindow).GetMethod("RequestBrowserTreeSelection", flags, [typeof(string)])!.Invoke(window, [path]);
                     return (Task)typeof(MainWindow).GetMethod("RunBrowserNavigationAsync", flags)!
-                        .Invoke(window, [new Func<Task<BrowserFolderState?>>(() => navigation.NavigateToPathAsync(path)), null])!;
+                        .Invoke(window, [new Func<Task<BrowserFolderState?>>(() => navigation.NavigateToPathAsync(path))])!;
                 }
 
                 Task Hint() => (Task)typeof(MainWindow).GetMethod("SynchronizeMonitoredFolderAsync", flags)!

@@ -214,19 +214,21 @@ public class UiLayoutTests
     }
 
     [Fact]
-    public void BrowserLoadingOverlay_IsARestrainedInCanvasIndicatorRatherThanAModalOrSplashSurface()
+    public void BrowserWorkingIndicator_IsARestrainedInCanvasIndicatorRatherThanAModalOrSplashSurface()
     {
         var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml"));
         var ns = document.Root!.Name.Namespace;
-        var overlay = Named(document, "BrowserLoadingOverlay");
-        var loadingText = Named(document, "BrowserLoadingText");
+        var overlay = Named(document, "BrowserWorkingIndicator");
+        var ring = Named(document, "BrowserWorkingIndicator").Descendants().Single(element => element.Name.LocalName == "JobsRadialProgress");
 
         Assert.Equal("Border", overlay.Name.LocalName);
-        Assert.Equal(Named(document, "BrowserGridHost"), overlay.Ancestors(ns + "Border").First());
+        Assert.DoesNotContain(Named(document, "BrowserGridHost"), overlay.Ancestors());
         Assert.DoesNotContain(document.Descendants(ns + "Window"), element => !ReferenceEquals(element, document.Root));
         Assert.DoesNotContain(document.Descendants(ns + "Popup"), element => overlay.Ancestors().Contains(element) || element.Descendants().Contains(overlay));
-        Assert.Contains(overlay.Descendants(ns + "ProgressBar"), bar => (string?)bar.Attribute("IsIndeterminate") == "True");
-        Assert.Equal(overlay, loadingText.Ancestors(ns + "Border").First());
+        Assert.Empty(overlay.Descendants(ns + "ProgressBar"));
+        Assert.Null(ring.Attribute("Progress"));
+        Assert.Equal("Generating", (string?)ring.Attribute("State"));
+        Assert.Contains(ring.Descendants(ns + "DoubleAnimation"), animation => (string?)animation.Attribute("RepeatBehavior") == "Forever");
     }
 
     [Fact]

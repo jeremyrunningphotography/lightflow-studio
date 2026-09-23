@@ -43,6 +43,23 @@ hash, and requires the startup process to report `presentation-ready; splash-clo
 handoff verification to the existing process-survival/Jobs activation smoke test; it does not await the
 broader shell/background initialization tail. Smoke-test timeout limits test execution, not splash duration.
 
+## Browser discovery activity (#130)
+
+`BrowserNavigationSession.WorkingGeneration` represents one active folder discovery/reconciliation operation,
+including direct and recursive scope and workspace restoration. Begin/cancellation/finally own the transitions;
+obsolete completion cannot retire another generation. Preview batches have an independent lifetime.
+The shell rechecks that authority after dispatcher delivery and a 150 ms display-only debounce, and presents
+the existing Jobs radial visual with rotation in the existing status bar. Completion/cancellation has no
+minimum display duration. There is no blocking overlay, recursive percentage, or traversal for counting.
+Known Catalog results stay usable while the ring is visible. The tooltip explicitly distinguishes scope
+discovery/reconciliation from later Preview generation. Tests awaiting navigation use operation state,
+never the debounced visual's visibility as a completion signal.
+
+The #180 investigation leaves Preview scheduling unchanged: each successfully reconciled folder immediately
+submits to the existing bounded scheduler, including during an unfinished recursive walk. Metadata precedes
+thumbnail generation where required; cached components are reused. The historical 10–20 second delay was
+not reproduced. See [the evidence and disposition](performance/browser-loading-130-180.md).
+
 ## Catalog-backed Browser revisits (#131)
 
 `BrowserNavigationSession` can now present a provisional Catalog snapshot before its existing authoritative

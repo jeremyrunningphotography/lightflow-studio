@@ -69,7 +69,7 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
 
                     window.BrowserCurrentPath.Text = _folderB;
                     RaiseClick(window.BrowserGoButton);
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _folderB, StringComparison.OrdinalIgnoreCase),
                         "navigation to folder B to settle");
                     await WaitUntilAsync(() => window.BrowserIncludeSubfoldersButton.IsChecked == true,
@@ -90,7 +90,7 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
 
                     await WaitUntilAsync(() => window.BrowserIncludeSubfoldersButton.IsChecked == false,
                         "toggle to reflect the OFF click");
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible,
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending,
                         "the resulting reload to finish");
                     // Let any further deferred (DispatcherPriority.Loaded/Background) reveal/focus callbacks drain.
                     await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
@@ -157,7 +157,7 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
                     // during layout entirely, so WPF never generates containers for a collapsed row's children.
                     window.BrowserCurrentPath.Text = _mediaRoot;
                     RaiseClick(window.BrowserGoButton);
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _mediaRoot, StringComparison.OrdinalIgnoreCase),
                         "navigation to the media root to settle");
                     await SettleLayoutAsync(window);
@@ -172,7 +172,7 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
                         node => string.Equals(node.AbsolutePath, folderA, StringComparison.OrdinalIgnoreCase));
                     Assert.NotNull(aContainer);
                     aContainer!.IsSelected = true; // a real TreeViewItem selection, exactly what a mouse click sets
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, folderA, StringComparison.OrdinalIgnoreCase),
                         "navigation to A to settle");
                     await WaitUntilAsync(() => window.BrowserIncludeSubfoldersButton.IsChecked == true,
@@ -192,7 +192,7 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
                         node => string.Equals(node.AbsolutePath, _folderB, StringComparison.OrdinalIgnoreCase));
                     Assert.NotNull(bContainer);
                     bContainer!.IsSelected = true; // real click on B
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _folderB, StringComparison.OrdinalIgnoreCase),
                         "navigation to B to settle");
                     await WaitUntilAsync(() => window.BrowserIncludeSubfoldersButton.IsChecked == true,
@@ -209,7 +209,7 @@ public sealed class BrowserToggleOffLiveInteractionTests : IAsyncLifetime
 
                     await WaitUntilAsync(() => window.BrowserIncludeSubfoldersButton.IsChecked == false,
                         "toggle to reflect the OFF click");
-                    await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible,
+                    await WaitUntilAsync(() => !window.BrowserNavigationPending,
                         "the resulting reload to finish");
                     await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
 

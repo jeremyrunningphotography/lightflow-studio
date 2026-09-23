@@ -55,6 +55,7 @@ public sealed class BrowserCatalogPresentationTests : IAsyncLifetime
         var initial = await presented.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.False(loading.IsCompleted);
+        Assert.True(navigation.WorkingGeneration > 0);
         Assert.True(initial.IsRevalidating);
         var grid = new BrowserGridModel();
         grid.Populate(initial.RecursiveMediaEntries ?? initial.Entries);
@@ -66,6 +67,7 @@ public sealed class BrowserCatalogPresentationTests : IAsyncLifetime
         grid.SetQuery(query);
         gate.Release.TrySetResult();
         var final = (await loading.WaitAsync(TimeSpan.FromSeconds(10)))!;
+        Assert.Equal(0, navigation.WorkingGeneration);
         Assert.False(final.IsRevalidating);
         Assert.NotNull(final.Reconciliation);
         grid.InvalidateChangedAssets(final.Reconciliation.Items);
@@ -111,6 +113,7 @@ public sealed class BrowserCatalogPresentationTests : IAsyncLifetime
         await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         var initial = navigation.State;
         if (dispose) navigation.Dispose(); else cancellation.Cancel();
+        Assert.Equal(0, navigation.WorkingGeneration); // provider has not returned yet
         Assert.False(navigation.IsCurrent(initial));
         gate.Release.TrySetResult();
         if (dispose) Assert.Null(await pending.WaitAsync(TimeSpan.FromSeconds(10)));

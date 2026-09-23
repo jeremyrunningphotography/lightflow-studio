@@ -164,7 +164,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0, "storage");
                 window.BrowserCurrentPath.Text = _mediaRoot;
                 RaiseClick(window.BrowserGoButton);
-                await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible && window.BrowserGridRows.Items.Count > 0, "media");
+                await WaitUntilAsync(() => !window.BrowserNavigationPending && window.BrowserGridRows.Items.Count > 0, "media");
                 var tile = await WaitForTileAsync(window);
                 window.RightPanelToggle.IsChecked = true;
                 RaiseClick(window.RightPanelToggle);
@@ -294,7 +294,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 window.Show();
                 await WaitUntilAsync(() => window.BrowserFolderTree.Items.Count > 0, "storage");
                 window.BrowserCurrentPath.Text = _mediaRoot; RaiseClick(window.BrowserGoButton);
-                await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible && window.BrowserGridRows.Items.Count > 0, "media");
+                await WaitUntilAsync(() => !window.BrowserNavigationPending && window.BrowserGridRows.Items.Count > 0, "media");
                 var first = (await WaitForTileAsync(window))!;
                 var second = window.BrowserGridRows.Items.Cast<BrowserGridRow>().SelectMany(row => row.Tiles)
                     .First(tile => tile.Key != first.Key);
@@ -372,7 +372,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
 
                 window.BrowserCurrentPath.Text = _mediaRoot;
                 RaiseClick(window.BrowserGoButton);
-                await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                     string.Equals(window.BrowserCurrentPath.Text, _mediaRoot, StringComparison.OrdinalIgnoreCase),
                     "navigation to the media root to settle");
 
@@ -798,7 +798,7 @@ public sealed class BrowserPlayerViewerLiveInteractionTests : IAsyncLifetime
                 Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)), "Window startup failed.");
                 window.BrowserCurrentPath.Text = _mediaRoot;
                 RaiseClick(window.BrowserGoButton);
-                await WaitUntilAsync(() => window.BrowserLoadingOverlay.Visibility != Visibility.Visible &&
+                await WaitUntilAsync(() => !window.BrowserNavigationPending &&
                     window.BrowserGridRows.Items.Count > 0, "media");
                 var tile = (await WaitForTileAsync(window))!;
                 await test(window, tile);

@@ -143,13 +143,13 @@ public sealed class BrowserRecursiveScopeRegressionTests
     }
 
     [Fact]
-    public void Constructor_SubscribesToRecursiveScopeProgressChangedRightAfterConstructingTheSession()
+    public void Constructor_SubscribesToWorkingChangedRightAfterConstructingTheSession()
     {
         var source = Source();
         var constructed = source.IndexOf(
             "_browserNavigation = new BrowserNavigationSession(", StringComparison.Ordinal);
         var subscribed = source.IndexOf(
-            "_browserNavigation.RecursiveScopeProgressChanged += BrowserNavigation_RecursiveScopeProgressChanged;",
+            "_browserNavigation.WorkingChanged += BrowserNavigation_WorkingChanged;",
             StringComparison.Ordinal);
         Assert.True(constructed >= 0 && subscribed >= 0);
         Assert.True(subscribed > constructed && subscribed - constructed < 400,
@@ -179,11 +179,11 @@ public sealed class BrowserRecursiveScopeRegressionTests
     }
 
     [Fact]
-    public void Closed_UnsubscribesFromRecursiveScopeProgressChangedBeforeDisposingTheSession()
+    public void Closed_UnsubscribesFromWorkingChangedBeforeDisposingTheSession()
     {
         var body = MethodBody("Closed += (_, _) =>");
         var unsubscribed = body.IndexOf(
-            "_browserNavigation.RecursiveScopeProgressChanged -= BrowserNavigation_RecursiveScopeProgressChanged;",
+            "_browserNavigation.WorkingChanged -= BrowserNavigation_WorkingChanged;",
             StringComparison.Ordinal);
         var disposed = body.IndexOf("_browserNavigation.Dispose();", StringComparison.Ordinal);
         Assert.True(unsubscribed >= 0 && disposed >= 0);
@@ -215,22 +215,6 @@ public sealed class BrowserRecursiveScopeRegressionTests
     }
 
     [Fact]
-    public void ResetBrowserLoadingProgress_SetsIndeterminateRatherThanLeavingAStaleDeterminateValue()
-    {
-        var body = MethodBody("private void ResetBrowserLoadingProgress");
-        Assert.Contains("BrowserLoadingProgressBar.IsIndeterminate = true;", body);
-    }
-
-    [Fact]
-    public void BrowserNavigationRecursiveScopeProgressChanged_MarshalsToTheUiThreadBeforeTouchingTheProgressBar()
-    {
-        var body = MethodBody("private void BrowserNavigation_RecursiveScopeProgressChanged");
-        Assert.Contains("Dispatcher.BeginInvoke(() =>", body);
-        Assert.Contains("IsCurrentGeneration(progress.NavigationGeneration)", body);
-        Assert.Contains("ApplyRecursiveScopeLoadingProgress(progress);", body);
-    }
-
-    [Fact]
     public void BrowserNavigationEffectiveScopeDetermined_MarshalsToTheUiThreadAndUpdatesIconsAndToggleWithoutWaitingForDiscovery()
     {
         var body = MethodBody("private void BrowserNavigation_EffectiveScopeDetermined");
@@ -252,30 +236,6 @@ public sealed class BrowserRecursiveScopeRegressionTests
         var body = MethodBody("private void BrowserNavigation_EffectiveScopeDetermined");
         Assert.Contains("RequestBrowserTreeSelection(scope.Location);", body);
         Assert.Contains("RevealBrowserTreeAncestorsAsync(scope.Location, _browserUiGeneration);", body);
-    }
-
-    [Fact]
-    public void ApplyRecursiveScopeLoadingProgress_NeverFabricatesAPercentageAndStaysIndeterminateBelowThreshold()
-    {
-        var body = MethodBody("private void ApplyRecursiveScopeLoadingProgress");
-        Assert.Contains("if (progress.FoldersDiscovered < 2 || stillDiscovering) { BrowserLoadingProgressBar.IsIndeterminate = true; return; }", body);
-        Assert.Contains("BrowserLoadingProgressBar.Maximum = progress.FoldersDiscovered;", body);
-        Assert.Contains("BrowserLoadingProgressBar.Value = Math.Min(progress.FoldersVisited, progress.FoldersDiscovered);", body);
-    }
-
-    [Fact]
-    public void ApplyRecursiveScopeLoadingProgress_StaysIndeterminateWhileTheDenominatorIsStillActivelyGrowing()
-    {
-        // A wide folder's siblings are typically all discovered within a rapid burst of consecutive reports —
-        // flipping to determinate the instant FoldersDiscovered first reaches 2 produced a jarring visual: a
-        // brief, misleadingly high percentage immediately followed by a hard leftward jump moments later as
-        // the rest of the burst arrived. Only trust the denominator once it has held steady for a report.
-        var body = MethodBody("private void ApplyRecursiveScopeLoadingProgress");
-        Assert.Contains("var stillDiscovering = progress.FoldersDiscovered > _browserRecursiveProgressLastDiscovered;", body);
-        Assert.Contains("_browserRecursiveProgressLastDiscovered = progress.FoldersDiscovered;", body);
-
-        var resetBody = MethodBody("private void ResetBrowserLoadingProgress");
-        Assert.Contains("_browserRecursiveProgressLastDiscovered = 0;", resetBody);
     }
 
     [Fact]

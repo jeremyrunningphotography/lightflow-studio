@@ -5,6 +5,67 @@ namespace LightflowStudio.Tests;
 
 public sealed class DerivedWorkSchedulingTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FirstVisitWakesPreviewWorkerBeforeRecursiveDiscoveryCompletes(bool recursive)
+    {
+        var asset = Asset("video");
+        var metadata = new FakeMetadata { Block = true };
+        var thumbnails = new FakeThumbnails();
+        await using var scheduler = new DerivedWorkScheduler(new FakeAssets(asset), new FakePreviews(),
+            metadata, thumbnails, maximumConcurrency: 1);
+        var reconciliation = Reconciliation((asset.Asset.AssetId, CatalogReconciliationItemStatus.New));
+        var discovery = new MediaDiscoveryRefreshService(new FakeReconciliation(reconciliation), () => scheduler);
+        var folders = new GatedDescendantFolders(asset.Asset.RootId);
+        using var cancellation = new CancellationTokenSource();
+        var walk = recursive ? new RecursiveMediaDiscoveryService(folders, discovery).DiscoverAsync(
+            new(asset.Asset.RootId), DerivedWorkPriority.Visible, cancellation.Token, cancellation.Token) : null;
+        var direct = recursive ? null : await discovery.RefreshAsync(new(asset.Asset.RootId),
+            DerivedWorkPriority.Visible, cancellation.Token, cancellation.Token);
+        try
+        {
+            await metadata.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (recursive)
+            {
+                await folders.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.False(walk!.IsCompleted);
+            }
+            Assert.Empty(thumbnails.Calls); // prerequisite work, not an idle queue or a full-tree gate
+            metadata.Release.TrySetResult();
+            if (recursive)
+            {
+                // The actual thumbnail service must be entered while the descendant remains blocked.
+                await thumbnails.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.False(walk!.IsCompleted);
+            }
+            else await direct!.DerivedWork!.Completion.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Single(thumbnails.Calls);
+        }
+        finally
+        {
+            metadata.Release.TrySetResult();
+            cancellation.Cancel();
+            if (walk is not null) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => walk);
+        }
+    }
+
+    private sealed class GatedDescendantFolders(Guid rootId) : IMediaFolderEnumerator
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<MediaFolderEnumerationResult> EnumerateAsync(MediaFolderEnumerationRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (request.RelativeFolder is "slow")
+            {
+                Entered.TrySetResult();
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+            return new(MediaFolderEnumerationStatus.Succeeded, "", [new(rootId, "slow", "SLOW", "slow",
+                true, MediaTypeClassification.Unknown, null, default)]);
+        }
+    }
+
     [Fact]
     public async Task AggregateProgress_ConcurrentNavigationCancellationAndWorkerCompletion_DoNotDeadlock()
     {
@@ -480,10 +541,12 @@ public sealed class DerivedWorkSchedulingTests
     private sealed class FakeThumbnails : IThumbnailGenerationService
     {
         public List<ThumbnailRequest> Calls { get; } = [];
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task<ThumbnailGenerationResult> GenerateAsync(ThumbnailRequest request,
             CancellationToken cancellationToken = default)
         {
             lock (Calls) Calls.Add(request);
+            Started.TrySetResult();
             return Task.FromResult(new ThumbnailGenerationResult(ThumbnailGenerationStatus.Succeeded));
         }
         public void Dispose() { }

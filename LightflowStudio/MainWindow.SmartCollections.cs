@@ -63,15 +63,48 @@ public partial class MainWindow
             editing: await _storage.SmartCollections.GetSmartCollectionAsync(node.Id)));
     }
 
-    private async Task ShowSmartCollectionEditorAsync(bool saveView = false, Guid? parent = null, SmartCollectionDefinition? editing = null)
+    private async void BrowserFolderNewSmartCollection_Click(object sender, RoutedEventArgs e)
+    {
+        if (_locationActionNode is not { RootId: { } rootId, RelativeFolder: { } relative }) return;
+        var current = CurrentSmartSource();
+        var source = new SmartCollectionSource(SmartCollectionSourceKind.Folder, rootId, relative,
+            IncludeSubfolders: current is { Kind: SmartCollectionSourceKind.Folder } && current.RootId == rootId &&
+                string.Equals(current.RelativeFolder, relative, StringComparison.OrdinalIgnoreCase) && current.IncludeSubfolders);
+        await RunCollectionActionAsync(() => ShowSmartCollectionEditorAsync(sourceOverride: source));
+    }
+
+    private async Task<IReadOnlyList<BrowserGridTile>> LoadSmartFilterValuesAsync(SmartCollectionSource source)
+    {
+        // Catalog/Preview reads only: choosing a Source in the editor does not navigate or start discovery.
+        IReadOnlyList<MediaAsset> assets;
+        if (source.Kind == SmartCollectionSourceKind.Folder)
+            assets = await _storage.MediaAssets.ListScopeAsync(source.RootId!.Value, source.RelativeFolder!, source.IncludeSubfolders);
+        else
+        {
+            var ids = (await _storage.Collections.ListMembershipsAsync(source.CollectionId!.Value)).Select(m => m.AssetId).ToHashSet();
+            assets = (await _storage.MediaAssets.ListAsync()).Where(a => ids.Contains(a.AssetId)).ToArray();
+        }
+        var model = new BrowserGridModel();
+        model.Populate(BrowserCatalogScope.Entries(assets, _storage.MediaTypes));
+        var assetIds = assets.Select(a => a.AssetId).ToArray();
+        model.ApplyAssetIdentities(assets.Select(a => new CatalogReconciliationItem(a.AssetId, a.RelativePath, CatalogReconciliationItemStatus.Unchanged)).ToArray());
+        model.ApplyAssetStates(await _storage.BrowserAssetStates.GetQueryStatesAsync(assetIds));
+        if (_storage.Previews is { } previews)
+            foreach (var (id, record) in await previews.GetManyAsync(assetIds))
+                if (record.MetadataState == PreviewComponentState.Current)
+                    model.ApplyMetadata(id, BrowserQueryEngine.ExtractMetadata(record.MetadataJson));
+        return model.Tiles;
+    }
+
+    private async Task ShowSmartCollectionEditorAsync(bool saveView = false, Guid? parent = null, SmartCollectionDefinition? editing = null, SmartCollectionSource? sourceOverride = null)
     {
         var nodes = BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots);
         var dialog = new SmartCollectionDialog(_storage.BrowserLocations, await _storage.MediaRoots.ListAsync(),
             BrowserCollectionPlacement.Options(_browserCollectionTree.Roots),
             nodes.Where(node => node.IsCollection).Select(node => (node.Id, CollectionDisplayPath(node.Id))).ToArray(),
             editing?.Organization.Name ?? "", editing?.Organization.ParentCollectionSetId ?? parent,
-            editing?.Source ?? CurrentSmartSource(), editing?.Query ?? (saveView ? BrowserQueryIntent.Capture(_browserGrid.Query with { SearchText = BrowserSearchBox.Text }) : new()),
-            editing is not null) { Owner = this };
+            editing?.Source ?? sourceOverride ?? CurrentSmartSource(), editing?.Query ?? (saveView ? BrowserQueryIntent.Capture(_browserGrid.Query with { SearchText = BrowserSearchBox.Text }) : new()),
+            editing is not null, LoadSmartFilterValuesAsync) { Owner = this };
         if (dialog.ShowDialog() != true) return;
         await RunCollectionActionAsync(async () =>
         {
@@ -83,7 +116,7 @@ public partial class MainWindow
                 _activeSmartCollection = saved;
                 _browserGrid.SetDefiningQuery(saved.Query.ToQuery());
                 if (_activeCollectionScope is { } scope) _activeCollectionScope = scope with { Collection = saved.Organization };
-                BrowserCurrentPath.Text = $"Collections / {saved.Organization.Name}";
+                BrowserCurrentPath.Text = $"Collections / {CollectionDisplayPath(saved.SmartCollectionId)}";
                 UpdateBrowserStatusText();
             }
             else if (editing is null || _activeSmartCollection?.SmartCollectionId == saved.SmartCollectionId)

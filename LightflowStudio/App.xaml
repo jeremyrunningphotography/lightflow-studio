@@ -645,6 +645,26 @@
     </Setter.Value>
    </Setter>
   </Style>
+  <!-- Shared structured date input for Browser and saved-filter rows. -->
+  <Style x:Key="BrowserFilterDatePickerStyle" TargetType="DatePicker">
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+   <Setter Property="Background" Value="{StaticResource WindowBrush}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DatePicker">
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="3">
+     <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <DatePickerTextBox x:Name="PART_TextBox" Foreground="{TemplateBinding Foreground}" Background="Transparent" BorderThickness="0" Padding="4,3" VerticalContentAlignment="Center">
+       <DatePickerTextBox.Template><ControlTemplate TargetType="DatePickerTextBox">
+        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/>
+       </ControlTemplate></DatePickerTextBox.Template>
+      </DatePickerTextBox>
+      <Button x:Name="PART_Button" Grid.Column="1" Content="▦" Padding="5,1" Margin="0" ToolTip="Choose date" AutomationProperties.Name="Choose date"/>
+      <Popup x:Name="PART_Popup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True"/>
+     </Grid>
+    </Border>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
   </ResourceDictionary>
  </Application.Resources>
 </Application>

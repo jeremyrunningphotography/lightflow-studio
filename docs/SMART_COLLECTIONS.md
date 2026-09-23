@@ -10,13 +10,19 @@ Sources are either a logical `RootId` and normalized relative folder with explic
 
 ## Shared query contracts
 
-`BrowserQueryIntent` version 1 stores Search, Match mode, and the existing `BrowserFilterPredicate` data with named enum values. Sort is presentation and is omitted. Missing/unsupported versions, fields, and document properties fail visibly rather than falling back to a different meaning.
+`BrowserQueryIntent` version 2 stores Match mode and shared `BrowserFilterPredicate` alternatives with named enum values. Each distinct Field is one visible row; alternatives OR within that row, and Match All/Any combines rows with AND/OR. This is a fixed composition model, not a recursive Boolean tree. The editor prevents duplicate field rows. Sort remains presentation and is omitted.
 
-`BrowserQueryEngine.Filter` owns all predicate execution. Match All preserves normal Browser faceting: alternatives within one field, intersection between fields. Match Any accepts any rule. Filename/relative-path Search narrows either mode. Empty rules and Search accept the Source universe.
+File or path is an ordinary `FileOrPath` predicate with literal case-insensitive substring matching against filename or relative path. It participates normally in All/Any. Save current eligible Browser view starts at All, groups same-field alternatives into a single row, and projects Browser search into FileOrPath, preserving `(Images OR RAW) AND Picked AND search`. The ordinary Browser search box still ANDs search with its facets; it is normalized only when captured as a definition. Version 1 development documents are read and normalize their SearchText into the ordinary field. This intentionally changes old development-era Any+search behavior; no hidden legacy conjunction is retained. Writes emit version 2 without SearchText. Missing/unsupported versions, fields, and document properties fail visibly.
+
+`BrowserQueryEngine.Filter` remains the sole predicate executor. Empty definitions accept the Source universe.
 
 `BrowserGridModel` retains candidate tiles for metadata/state hydration, caches the defining-query membership projection, and applies the independent transient view query afterward. A view-filter change cannot write a Catalog definition. Metadata and authored-state updates reapply both stages. Selection is removed when an asset leaves defined membership; normal view-filter selection behavior remains intact.
 
-`BrowserPredicateEditor` converts rule input into shared predicates; it does not evaluate them. The dialog enumerates `BrowserFilterField`. Future text predicates, including #299 Camera Profile/Gamut, use the existing text value path and shared matching implementation. A new value type extends the shared Browser editor, never a Smart-specific evaluator. Query persistence does not contain a second field list. Verify the final #299 integration again if it merges before publication.
+`BrowserFilterDescriptors` shares field labels, editor kinds and value sources between Browser faceting and `BrowserFilterRowEditor`. Known multi-value choices use supported media types, classification states and source metadata/keywords; selected saved values remain editable even if absent from the current known Source. Rating uses its shared operator/threshold predicate; date rows preserve multiple structured ranges. FileOrPath uses arbitrary text. Source value discovery reads Catalog/Preview/authored state asynchronously without navigating or triggering discovery. A source change rejects stale value results.
+
+Future #299 Camera Profile/Gamut fields register their value source in this shared descriptor registry and their evaluator in the existing predicate contract, not in a Smart-specific list or query engine. Query persistence has no separate field list. Verify #299 integration again if it merges before publication.
+
+The Match sentence and embedded ComboBox live in one replaceable WPF DataTemplate, with semantic enum values independent of lowercase English labels. This follows #233's standard WPF resource direction without attempting the application-wide localization migration. The row editor replaces the former generic string parser. Browser and Smart date inputs share Lightflow chrome.
 
 ## Source loading
 
@@ -26,14 +32,16 @@ The existing bounded direct/recursive discovery services remain authoritative. R
 
 Static Sources use `BrowserCollectionScopeService` without filesystem enumeration. Catalog membership notifications refresh an active dependent Smart Collection. Relevant Folder monitoring events refresh current Catalog candidates. Creating definitions never scans all saved Sources; only opening/restoring the selected Smart Collection triggers its discovery.
 
-Editing rules/name/Location with an unchanged Source reprojects current candidates without scanning. Source or recursion changes reload and reconcile. The existing workspace Collection identity restores Smart selections through the same load dispatch.
+Editing filters/name/Location with an unchanged Source reprojects current candidates without scanning. Source or recursion changes reload and reconcile. The existing workspace Collection identity restores Smart selections through the same load dispatch.
 
 ## Interaction
 
 - Browser toolbar (beside Lock Filters) and display-area context menu save current eligible Source, recursion, Search, and filters.
-- Collections header and Collection Set context menu start with blank rules and current eligible Source. The Set context supplies organizational Location.
+- Collections header and Collection Set context menu start with no filters and current eligible Source. The Set context supplies organizational Location.
+- Folder context → New Smart Collection uses that Folder, no filters, and top-level organizational Location. Recursion is copied only when that Folder is the currently displayed ordinary Folder; otherwise it starts off. Right-click does not navigate.
 - Current Smart scopes cannot supply a Source; the required Source remains blank.
 - Collection Sets receive focus and context targeting without becoming Browser asset scopes. Their caret, keyboard navigation, hierarchy operations, and three creation actions remain available.
+- Collection breadcrumbs resolve all organizational parent Sets, including after rename/reparent. The previous omitted hierarchy was presentation-only; parent identities were already persisted correctly.
 - Smart Collections have a distinct icon and share hierarchy rename/move/reorder/delete. They are absent from manual membership destinations, reject media drops, and expose no manual removal action.
 
 ## Local validation and acceptance

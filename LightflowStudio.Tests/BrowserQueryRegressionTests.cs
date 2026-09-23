@@ -159,9 +159,7 @@ public sealed class BrowserQueryRegressionTests
         var methodEnd = source.IndexOf("\n    private", methodStart + 1, StringComparison.Ordinal);
         var body = source[methodStart..methodEnd];
 
-        Assert.Contains("tiles.Select(tile => BrowserFrameRate.Canonicalize(tile.FrameRate))", body);
-        Assert.Contains(".Distinct().OrderBy(value => value)", body);
-        Assert.Contains(".Select(BrowserFilterPredicate.ForFrameRate)", body);
+        Assert.Contains("BrowserFilterDescriptors.Values(BrowserFilterField.FrameRate, tiles)", body);
         Assert.Contains("PresentDescriptiveFacet(BrowserFrameRateFilterGroup", body);
     }
 

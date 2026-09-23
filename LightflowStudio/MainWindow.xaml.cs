@@ -2383,18 +2383,12 @@ public partial class MainWindow : Window
     private void RefreshBrowserAdvancedFilterOptions()
     {
         var tiles = _browserGrid.AdvancedFilterContextTiles;
-        var cameraOptions = Options(tiles.Select(tile => tile.CameraDisplayName)
-            .Where(value => value is not null).Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
-            .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.Camera, value!)));
+        var cameraOptions = Options(BrowserFilterDescriptors.Values(BrowserFilterField.Camera, tiles));
         BrowserCameraFilterOptions.ItemsSource = cameraOptions;
         PresentDescriptiveFacet(BrowserCameraFilterGroup, BrowserCameraFilterOptions, BrowserCameraFilterInformation,
             cameraOptions, "Camera", tiles.Count(tile => tile.CameraDisplayName is not null), tiles.Count);
 
-        var lensOptions = Options(tiles.Select(tile => tile.LensModel)
-            .Where(value => value is not null).Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
-            .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.Lens, value!)));
+        var lensOptions = Options(BrowserFilterDescriptors.Values(BrowserFilterField.Lens, tiles));
         BrowserLensFilterOptions.ItemsSource = lensOptions;
         PresentDescriptiveFacet(BrowserLensFilterGroup, BrowserLensFilterOptions, BrowserLensFilterInformation,
             lensOptions, "Lens", tiles.Count(tile => tile.LensModel is not null), tiles.Count);
@@ -2402,27 +2396,17 @@ public partial class MainWindow : Window
         BrowserCaptureDateFilterGroup.Visibility = tiles.Any(tile => tile.MetadataApplied && tile.CaptureDate is not null)
             ? Visibility.Visible : Visibility.Collapsed;
 
-        var durationValues = tiles.Where(tile => tile.MetadataApplied && tile.DurationSeconds is > 0)
-            .Select(tile => tile.DurationSeconds!.Value).ToArray();
-        var durationOptions = Options(new[] { 10d, 30d, 60d, 300d }
-            .Where(threshold => durationValues.Any(value => value >= threshold) && durationValues.Any(value => value < threshold))
-            .Select(threshold => BrowserFilterPredicate.ForMinimum(BrowserFilterField.Duration, threshold)));
+        var durationOptions = Options(BrowserFilterDescriptors.Values(BrowserFilterField.Duration, tiles));
         BrowserDurationFilterCombo.ItemsSource = durationOptions;
         BrowserDurationFilterCombo.SelectedIndex = durationOptions.Count > 0 ? 0 : -1;
         BrowserDurationFilterGroup.Visibility = durationOptions.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        var resolutionOptions = Options(tiles
-            .Where(tile => tile.PixelWidth is > 0 && tile.PixelHeight is > 0)
-            .Select(tile => (Width: tile.PixelWidth!.Value, Height: tile.PixelHeight!.Value)).Distinct()
-            .OrderBy(size => size.Width * (long)size.Height)
-            .Select(size => BrowserFilterPredicate.ForResolution(size.Width, size.Height)));
+        var resolutionOptions = Options(BrowserFilterDescriptors.Values(BrowserFilterField.Resolution, tiles));
         BrowserResolutionFilterOptions.ItemsSource = resolutionOptions;
         PresentDescriptiveFacet(BrowserResolutionFilterGroup, BrowserResolutionFilterOptions, BrowserResolutionFilterInformation,
             resolutionOptions, "Resolution", tiles.Count(tile => tile.PixelWidth is > 0 && tile.PixelHeight is > 0), tiles.Count);
 
-        var frameRateOptions = Options(tiles.Select(tile => BrowserFrameRate.Canonicalize(tile.FrameRate))
-            .Where(value => value is not null).Select(value => value!.Value).Distinct().OrderBy(value => value)
-            .Select(BrowserFilterPredicate.ForFrameRate));
+        var frameRateOptions = Options(BrowserFilterDescriptors.Values(BrowserFilterField.FrameRate, tiles));
         BrowserFrameRateFilterOptions.ItemsSource = frameRateOptions;
         PresentDescriptiveFacet(BrowserFrameRateFilterGroup, BrowserFrameRateFilterOptions, BrowserFrameRateFilterInformation,
             frameRateOptions, "Frame rate", tiles.Count(tile => tile.FrameRate is > 0), tiles.Count);
@@ -2449,10 +2433,9 @@ public partial class MainWindow : Window
         }
         else _browserRatingThreshold = null;
         SyncBrowserRatingFilterEditor();
-        BrowserFlagFilterOptions.ItemsSource = Options(BrowserClassificationFilterChoices.Flags);
-        BrowserColorLabelFilterOptions.ItemsSource = Options(BrowserClassificationFilterChoices.ColorLabels);
-        var keywordOptions = Options(BrowserClassificationFilterChoices.Keywords(
-            hydratedStateTiles.SelectMany(tile => tile.Keywords)));
+        BrowserFlagFilterOptions.ItemsSource = Options(BrowserFilterDescriptors.Values(BrowserFilterField.Flag, tiles));
+        BrowserColorLabelFilterOptions.ItemsSource = Options(BrowserFilterDescriptors.Values(BrowserFilterField.ColorLabel, tiles));
+        var keywordOptions = Options(BrowserFilterDescriptors.Values(BrowserFilterField.Keyword, hydratedStateTiles));
         BrowserKeywordFilterOptions.ItemsSource = keywordOptions;
         BrowserKeywordFilterGroup.Visibility = keywordOptions.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -4477,6 +4460,8 @@ public partial class MainWindow : Window
             try { _browserCollectionTree.Populate(sets, collections, expanded, selectedCollectionId); }
             finally { _synchronizingCollectionTree = false; }
             _browserCollectionActionNode = null;
+            if (_activeCollectionScope is { } active && collections.Any(c => c.CollectionId == active.Collection.CollectionId))
+                BrowserCurrentPath.Text = $"Collections / {CollectionDisplayPath(active.Collection.CollectionId)}";
             _browserCollectionTreeRevealedNode = _browserCollectionTree.SelectedNode;
             BrowserCollectionsEmptyState.Visibility = sets.Count + collections.Count == 0
                 ? Visibility.Visible : Visibility.Collapsed;
@@ -4632,7 +4617,7 @@ public partial class MainWindow : Window
         _ = LoadCollectionPreviewStateAsync(scope.Assets.Select(item => item.AssetId).ToArray(), generation);
         _ = LoadBrowserAssetStatesAsync(scope.Assets, generation, _browserAssetStateRevision);
         AttachBrowserDerivedWork(scope.DerivedWork, generation);
-        BrowserCurrentPath.Text = $"Collections / {scope.Collection.Name}";
+        BrowserCurrentPath.Text = $"Collections / {CollectionDisplayPath(scope.Collection.CollectionId)}";
         BrowserCurrentPath.IsReadOnly = true;
         BrowserBackButton.IsEnabled = false;
         BrowserForwardButton.IsEnabled = false;
@@ -4721,7 +4706,6 @@ public partial class MainWindow : Window
                 _activeSmartCollection = await _storage.SmartCollections.GetSmartCollectionAsync(node.Id);
                 if (_activeCollectionScope is { } scope && _activeSmartCollection is { } smart)
                     _activeCollectionScope = scope with { Collection = smart.Organization };
-                BrowserCurrentPath.Text = $"Collections / {name}";
                 await RefreshCollectionsAsync(node.Id);
             }
             else if (!node.IsSet && _activeCollectionScope?.Collection.CollectionId == node.Id)
@@ -5562,6 +5546,7 @@ public partial class MainWindow : Window
         _ = UpdateExplorerMenuAsync(BrowserFolderOpenExplorerMenu, _folderExplorerTarget);
         var canManage = _storage.CatalogAvailable && _locationActionNode?.Storage?.RootId is not null;
         RenameLocationMenuItem.IsEnabled = ReconnectLocationMenuItem.IsEnabled = canManage;
+        BrowserFolderNewSmartMenu.IsEnabled = _storage.CatalogAvailable && _locationActionNode is { RootId: not null, RelativeFolder: not null };
     }
 
     internal static BrowserTreeNode? LocationNodeFromElement(DependencyObject? element)

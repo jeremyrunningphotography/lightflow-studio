@@ -32,9 +32,8 @@ internal static class BrowserFrameRate
 }
 
 /// <summary>
-/// The field a <see cref="BrowserFilterPredicate"/> constrains. Only <see cref="MediaType"/> is implemented;
-/// this enum exists so later predicate kinds (date, file size, duration, camera, lens, resolution, frame
-/// rate, rating, labels, flags, keywords) extend the same representation rather than requiring a redesign.
+/// The field a <see cref="BrowserFilterPredicate"/> constrains. Extend the shared descriptor registry
+/// alongside this vocabulary so Browser and saved-filter editors discover the same values.
 /// </summary>
 internal enum BrowserFilterField
 {
@@ -53,12 +52,13 @@ internal enum BrowserFilterField
     Rating,
     Flag,
     ColorLabel,
-    Keyword
+    Keyword,
+    FileOrPath
 }
 
 /// <summary>
-/// One stackable filter condition (e.g. "Video"). Multiple active predicates combine with AND semantics —
-/// no OR/grouping UI yet. Deliberately plain, equatable data (not a stored delegate) so two predicates
+/// One filter alternative (e.g. "Video"). Alternatives of the same field OR together; query MatchMode
+/// combines fields. Deliberately plain, equatable data (not a stored delegate) so two predicates
 /// describing the same condition are structurally equal, and so a future Smart Collection can persist this
 /// shape directly as saved query intent. <see cref="Matches"/> and <see cref="Label"/> are computed, not
 /// stored, so they never affect equality.
@@ -124,6 +124,7 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.Flag => $"Flag: {TextValue}",
         BrowserFilterField.ColorLabel => $"Label: {TextValue}",
         BrowserFilterField.Keyword => $"Keyword: {TextValue}",
+        BrowserFilterField.FileOrPath => $"File or path: {TextValue}",
         _ => "Filter"
     };
 
@@ -131,6 +132,8 @@ internal sealed record BrowserFilterPredicate
 
     public bool Matches(BrowserGridTile tile) => Field switch
     {
+        BrowserFilterField.FileOrPath => tile.Name.Contains(TextValue?.Trim() ?? "", StringComparison.OrdinalIgnoreCase) ||
+            tile.RelativePath.Contains(TextValue?.Trim() ?? "", StringComparison.OrdinalIgnoreCase),
         BrowserFilterField.MediaType => MediaTypeValue is null || tile.Category == MediaTypeValue,
         BrowserFilterField.Camera => tile.MetadataApplied && TextEquals(tile.CameraDisplayName, TextValue),
         BrowserFilterField.Lens => tile.MetadataApplied && TextEquals(tile.LensModel, TextValue),
@@ -295,7 +298,7 @@ internal static class BrowserQueryEngine
         // "Images" and "RAW" means either is acceptable — a still-photos view, not an impossible
         // intersection); predicates for DIFFERENT fields AND together, each narrowing the previous group's
         // result further (e.g. "Video" AND "Duration > 1:00"). This mirrors ordinary faceted search and is
-        // Match All keeps this faceted behavior. Match Any shares the same predicates with OR across rules.
+        // Match All keeps this faceted behavior. Match Any ORs the field rows (equivalently, all their alternatives).
         if (query.MatchMode == BrowserMatchMode.Any && query.Filters.Count > 0)
             filtered = filtered.Where(tile => query.Filters.Any(predicate => predicate.Matches(tile)));
         else foreach (var group in query.Filters.GroupBy(predicate => predicate.Field))

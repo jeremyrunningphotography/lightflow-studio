@@ -238,7 +238,18 @@ internal sealed class WicImageThumbnailRenderer(int maximumPixelDimension = 512)
 
     internal static BitmapSource ApplyOrientation(BitmapSource source, int orientation)
     {
-        Transform? transform = orientation switch
+        var transform = OrientationTransform(orientation);
+        return transform is null ? source : new TransformedBitmap(source, transform);
+    }
+
+    internal static (int Width, int Height) DisplayDimensions(int width, int height, int orientation)
+    {
+        var bounds = new System.Windows.Rect(0, 0, width, height);
+        bounds = OrientationTransform(orientation)?.TransformBounds(bounds) ?? bounds;
+        return ((int)Math.Round(bounds.Width), (int)Math.Round(bounds.Height));
+    }
+
+    private static Transform? OrientationTransform(int orientation) => orientation switch
         {
             2 => new ScaleTransform(-1, 1),
             3 => new RotateTransform(180),
@@ -249,8 +260,6 @@ internal sealed class WicImageThumbnailRenderer(int maximumPixelDimension = 512)
             8 => new RotateTransform(270),
             _ => null
         };
-        return transform is null ? source : new TransformedBitmap(source, transform);
-    }
 
     private static TransformGroup Group(params Transform[] transforms)
     {

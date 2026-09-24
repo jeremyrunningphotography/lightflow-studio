@@ -12,6 +12,33 @@ namespace LightflowStudio.Tests;
 public sealed class SmartCollectionDialogTests
 {
     [Fact]
+    public Task AspectRatioUsesTheAcceptedInlineChecklistAndPersistsAlternatives() => StaDispatcher.RunAsync(() =>
+    {
+        TestWpfApplication.EnsureLoaded();
+        var row = new BrowserFilterRowEditor(BrowserFilterField.AspectRatio, [], [], _ => true, () => { }, () => { });
+        var host = (Grid)((ContentControl)row.Children[2]).Content;
+        var popup = host.Children.OfType<System.Windows.Controls.Primitives.Popup>().Single();
+        var border = (Border)popup.Child;
+        var choices = ((StackPanel)((ScrollViewer)border.Child).Content).Children.OfType<CheckBox>().ToArray();
+        Assert.Equal(6, choices.Length);
+        foreach (var label in new[] { "9:16", "1:1" })
+        {
+            var check = choices.Single(c => (string)c.Content == label);
+            check.IsChecked = true; check.RaiseEvent(new RoutedEventArgs(CheckBox.ClickEvent));
+        }
+        Assert.True(row.IsValid);
+        Assert.Equal("is any of", ((TextBlock)((ContentControl)row.Children[1]).Content).Text);
+        var restored = BrowserQueryIntent.Deserialize(new BrowserQueryIntent { Filters = row.Predicates }.Serialize());
+        Assert.Equal(row.Predicates, restored.Filters);
+        var panel = new StackPanel { Background = (Brush)row.FindResource("CardBrush"), Margin = new(12) };
+        panel.Children.Add(row);
+        popup.Child = null; panel.Children.Add(border);
+        panel.Measure(new Size(740, 340)); panel.Arrange(new Rect(0, 0, 740, 340)); panel.UpdateLayout();
+        Render(panel, "smart-aspect-ratio-editor.png");
+        return Task.CompletedTask;
+    });
+
+    [Fact]
     public Task PresetCustomAndDurationOperatorsRemainSemanticAndSavedStateAlternativesStayExplicit() => StaDispatcher.RunAsync(() =>
     {
         TestWpfApplication.EnsureLoaded();

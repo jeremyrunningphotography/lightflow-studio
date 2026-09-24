@@ -860,10 +860,6 @@
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
           <TreeView.ContextMenu>
            <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
-            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Add Location…" Click="AddLocation_Click"/>
-            <MenuItem x:Name="RenameLocationMenuItem" Style="{StaticResource LightflowMenuItemStyle}" Header="Rename Location…" Click="RenameLocation_Click"/>
-            <MenuItem x:Name="ReconnectLocationMenuItem" Style="{StaticResource LightflowMenuItemStyle}" Header="Reconnect Location…" Click="ReconnectLocation_Click"/>
-            <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
             <MenuItem x:Name="BrowserFolderNewSmartMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="New Smart Collection…" Click="BrowserFolderNewSmartCollection_Click"/>
             <MenuItem x:Name="BrowserFolderOpenExplorerMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Open in Explorer" Click="BrowserFolderOpenExplorer_Click"/>
             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="New Folder…" Click="BrowserFolderNew_Click"/>

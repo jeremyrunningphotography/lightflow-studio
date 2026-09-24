@@ -53,7 +53,8 @@ internal enum BrowserFilterField
     Flag,
     ColorLabel,
     Keyword,
-    FileOrPath
+    FileOrPath,
+    AspectRatio
 }
 
 /// <summary>
@@ -76,6 +77,9 @@ internal sealed record BrowserFilterPredicate
     public DateTime? DateTo { get; init; }
     public bool? BooleanValue { get; init; }
     public bool MatchUnset { get; init; }
+    public MediaAspectRatio? AspectRatioValue { get; init; }
+    public static BrowserFilterPredicate ForAspectRatio(int numerator, int denominator) =>
+        new() { Field = BrowserFilterField.AspectRatio, AspectRatioValue = new(numerator, denominator) };
     public static BrowserFilterPredicate ForUnsetColorLabel() => new() { Field = BrowserFilterField.ColorLabel, MatchUnset = true };
     // GreaterThanOrEqual is deliberately zero so queries written before #215's operator chooser
     // deserialize with their original minimum-rating semantics.
@@ -116,6 +120,7 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.CaptureDate => DateRangeLabel(),
         BrowserFilterField.Duration => $"Duration {ComparisonSymbol(Comparison)} {FormatDuration(NumberValue)}",
         BrowserFilterField.Resolution => $"Resolution: {NumberValue:0}×{NumberValue2:0}",
+        BrowserFilterField.AspectRatio => $"Aspect Ratio: {(AspectRatioValue == new MediaAspectRatio(21, 9) ? "21:9" : $"{AspectRatioValue?.Numerator}:{AspectRatioValue?.Denominator}")}",
         BrowserFilterField.FrameRate => $"Frame rate: {BrowserFrameRate.Canonicalize(NumberValue):0.###} fps",
         BrowserFilterField.ColorState => BooleanValue == true ? "Color applied" : "Original color",
         BrowserFilterField.CameraLutState => BooleanValue == true ? "Camera LUT assigned" : "No Camera LUT",
@@ -150,6 +155,7 @@ internal sealed record BrowserFilterPredicate
                 _ => false
             },
         BrowserFilterField.Resolution => tile.MetadataApplied && tile.PixelWidth == NumberValue && tile.PixelHeight == NumberValue2,
+        BrowserFilterField.AspectRatio => AspectRatioValue is { } aspect && tile.EffectiveAspectRatio == aspect,
         BrowserFilterField.FrameRate => tile.MetadataApplied && BrowserFrameRate.Canonicalize(tile.FrameRate) is { } frameRate &&
             BrowserFrameRate.Canonicalize(NumberValue) is { } expected && frameRate == expected,
         BrowserFilterField.ColorState => MatchesState(tile, tile.HasColorState),
@@ -361,21 +367,32 @@ internal static class BrowserQueryEngine
     /// Malformed/unexpected JSON yields an empty projection rather than throwing — a Browser tile can
     /// always simply lack any optional normalized metadata field.
     /// </summary>
-    public static BrowserTechnicalMetadata ExtractMetadata(string? metadataJson)
+    public static BrowserTechnicalMetadata ExtractMetadata(string? metadataJson, string? rawMetadataJson = null)
     {
         if (string.IsNullOrWhiteSpace(metadataJson)) return BrowserTechnicalMetadata.Empty;
         DerivedMediaMetadata? metadata;
         try { metadata = JsonSerializer.Deserialize<DerivedMediaMetadata>(metadataJson, DerivedMetadataJson.Options); }
         catch (JsonException) { return BrowserTechnicalMetadata.Empty; }
+        catch (ArgumentException) { return BrowserTechnicalMetadata.Empty; }
         if (metadata is null) return BrowserTechnicalMetadata.Empty;
         var image = metadata.Image;
         var video = metadata.Video;
+        var aspect = video?.SourceDisplayAspectRatio;
+        // Previously indexed videos retain the complete probe payload. Project it through the same
+        // normalizer without touching media, including offline Catalog assets.
+        if (video is not null && aspect is null && !string.IsNullOrWhiteSpace(rawMetadataJson))
+            aspect = FfprobeMetadataNormalizer.Normalize(rawMetadataJson, metadata.FileSizeBytes).Metadata?.Video?.SourceDisplayAspectRatio;
+        if (image is { Width: > 0, Height: > 0 })
+        {
+            var display = WicImageThumbnailRenderer.DisplayDimensions(image.Width, image.Height, image.Orientation ?? 1);
+            aspect = new(display.Width, display.Height);
+        }
         return new BrowserTechnicalMetadata(
             ParseExifCaptureDate(image?.CapturedAt), metadata.DurationSeconds,
             image?.CameraMake, image?.CameraModel, image?.LensModel,
             image?.Width > 0 ? image.Width : video?.Width > 0 ? video.Width : null,
             image?.Height > 0 ? image.Height : video?.Height > 0 ? video.Height : null,
-            video?.FrameRate);
+            video?.FrameRate, aspect);
     }
 
     public static (DateTime? CaptureDate, double? DurationSeconds) ExtractSortableMetadata(string? metadataJson)
@@ -455,7 +472,7 @@ internal sealed record BrowserTechnicalMetadata(
     string? LensModel,
     int? PixelWidth,
     int? PixelHeight,
-    double? FrameRate)
+    double? FrameRate, MediaAspectRatio? SourceDisplayAspectRatio = null)
 {
     public static BrowserTechnicalMetadata Empty { get; } = new(null, null, null, null, null, null, null, null);
 }

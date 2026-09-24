@@ -42,7 +42,7 @@ public sealed class BrowserFilterAuthoringTests
     {
         var excluded = BrowserFilterDescriptors.All.Where(d => !d.CanAuthor([])).Select(d => d.Field).ToArray();
         Assert.Equal([BrowserFilterField.Camera, BrowserFilterField.Lens, BrowserFilterField.Keyword], excluded);
-        Assert.Equal(17, BrowserFilterDescriptors.All.Count);
+        Assert.Equal(18, BrowserFilterDescriptors.All.Count);
         Assert.Empty(BrowserFilterDescriptors.Values(BrowserFilterField.FrameRate, [])); // ordinary Browser remains contextual
         var rates = BrowserFilterDescriptors.Get(BrowserFilterField.FrameRate).Suggestions!([]).ToArray();
         Assert.Equal(MediaFrameRate.Canonical.Select(r => r.DisplayValue), rates.Select(p => p.NumberValue!.Value));

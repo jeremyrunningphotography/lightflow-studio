@@ -55,6 +55,7 @@ internal sealed record BrowserQueryIntent
         if (Version is not (1 or 2 or 3) || !Enum.IsDefined(MatchMode) || SearchText is null || Filters is null ||
             Filters.Any(p => p is null || !Enum.IsDefined(p.Field) || !Enum.IsDefined(p.Comparison) ||
                 (p.MatchUnset && (p.Field != BrowserFilterField.ColorLabel || p.TextValue is not null)) ||
+                (p.Field == BrowserFilterField.AspectRatio && p.AspectRatioValue is not { Numerator: > 0, Denominator: > 0 }) ||
                 (p.Field == BrowserFilterField.Duration && p.Comparison is not (BrowserNumberComparison.GreaterThanOrEqual or BrowserNumberComparison.LessThanOrEqual))))
             throw new ArgumentException("This saved query uses an unsupported version or predicate.");
     }

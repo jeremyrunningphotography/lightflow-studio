@@ -20,7 +20,10 @@ internal sealed record DerivedVideoMetadata(
     int? BitDepth,
     string? ColorSpace,
     string? ColorTransfer,
-    string? ColorPrimaries);
+    string? ColorPrimaries)
+{
+    public MediaAspectRatio? SourceDisplayAspectRatio { get; init; }
+}
 
 internal sealed record DerivedAudioMetadata(
     string Codec,
@@ -395,6 +398,8 @@ internal static class FfprobeMetadataNormalizer
                 Positive(MediaMetadataParser.ReadFrameRate(ReadString(videoElement, "avg_frame_rate") ?? "0")),
                 ReadString(videoElement, "pix_fmt"), ReadInt(videoElement, "bits_per_raw_sample"),
                 ReadString(videoElement, "color_space"), ReadString(videoElement, "color_transfer"), ReadString(videoElement, "color_primaries")) : null;
+            if (video is not null) video = video with
+            { SourceDisplayAspectRatio = MediaDisplayGeometry.FromProbe(videoElement, video.Width, video.Height) };
             var audio = hasAudio ? new DerivedAudioMetadata(
                 ReadString(audioElement, "codec_name") ?? "unknown", ReadInt(audioElement, "channels"),
                 ReadString(audioElement, "channel_layout"), ReadInt(audioElement, "sample_rate"), ReadLong(audioElement, "bit_rate")) : null;

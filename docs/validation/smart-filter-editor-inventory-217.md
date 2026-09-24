@@ -1,10 +1,11 @@
 # Smart filter editor inventory — latest #217 acceptance iteration
 
-All 17 exposed field descriptors were rechecked. One field/category remains one row; alternatives OR within it, All/Any combines rows. Aspect Ratio is deliberately not exposed pending authoritative display-geometry metadata.
+All 18 exposed field descriptors were rechecked. One field/category remains one row; alternatives OR within it, All/Any combines rows. Aspect Ratio uses effective presentation geometry.
 
 | Field | Operator / editor | Cardinality and origin |
 |---|---|---|
 | Media Type | is / is any of; dark checklist | supported categories; multiple values |
+| Aspect Ratio | is / is any of; existing dark checklist | exact rational 16:9, 9:16, 4:3, 3:2, 1:1, 21:9; multiple values |
 | Camera | is / is any of; checklist | observed/saved values; multiple; hidden from new authoring when vocabulary is empty |
 | Lens | is / is any of; checklist | observed/saved values; multiple; hidden from new authoring when vocabulary is empty |
 | Capture Date | in range / in any range; date pickers | inclusive ranges; optional endpoints; multiple alternatives |
@@ -32,8 +33,10 @@ Duration's shared evaluator now supports inclusive >= and <=. The default remain
 
 Query document version 3 makes the duration comparison and semantic unset extension explicit. Versions 1/2 are read and normalized into the current fixed composition; no recursive Boolean model was added.
 
-## Aspect Ratio — stopped on architecture gate
+## Aspect Ratio — effective orientation
 
-`DerivedVideoMetadata` persists encoded Width/Height and FrameRate but no source display rotation, sample aspect ratio or display aspect ratio. `BrowserTechnicalMetadata` likewise lacks display geometry. `VideoRotation` from #287 is the user-authored adjustment. Live playback composes stream rotation with that adjustment and uses renderer visible dimensions (`FlyleafPlaybackBackend.CaptureOrientedBitmap`). Using only saved adjustment plus encoded dimensions in the Browser query would misclassify rotated-source and potentially non-square-pixel media.
+`DerivedVideoMetadata.SourceDisplayAspectRatio` now retains a reduced integer rational computed from source FFprobe display-matrix rotation using the existing `VideoRotation.Dimensions` primitive. The Browser composes the #287 Catalog adjustment with that source-oriented ratio. Rotation reads must finish before video membership is known; rotation changes refresh membership and revision guards reject stale reads. Catalog restore invalidates those guards and reloads current-scope adjustments. Old Preview records are projected from their persisted raw FFprobe payload through the same normalizer without accessing or reprobeing media. Encoded Resolution remains unchanged.
 
-Still-image metadata retains EXIF orientation and WIC has a shared display transform, but that does not fill the missing video contract. A correct follow-up must establish authoritative normalized displayed dimensions/rational aspect (including source rotation and pixel aspect), backfill/hydrate those values into Browser query tiles, compose the existing rotation adjustment, and refresh membership on rotation changes. No encoded-dimension approximation or Aspect Ratio field was added in this iteration.
+Still-image projection obtains dimensions from the same WIC EXIF transform used to render images, including mirrored orientations. Ratio identity uses integer GCD reduction, not formatted doubles. 21:9 equals 7:3; a marketing “21:9” 2560×1080 raster is actually 64:27 and does not match the exact 21:9 choice.
+
+Non-square-pixel sources, conflicting DAR, and non-quarter-turn rotation remain unknown: Lightflow's current playback/query boundary does not establish a shared display-aspect contract for these cases. That portion is deferred for architecture/product clarification; the filter never substitutes encoded dimensions. Legacy metadata without either normalized geometry or raw probe data is likewise unknown. Missing/unspecified SAR uses the ordinary square-pixel default.

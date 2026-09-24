@@ -903,7 +903,7 @@ public class UiLayoutTests
         var ns = document.Root!.Name.Namespace;
         var tree = Named(document, "BrowserFolderTree");
         var menu = tree.Element(ns + "TreeView.ContextMenu")!.Element(ns + "ContextMenu")!;
-        Assert.Equal(["Add Location…", "Rename Location…", "Reconnect Location…", "New Smart Collection…", "Open in Explorer", "New Folder…", "Rename…", "Cut", "Copy", "Paste into folder", "Delete"],
+        Assert.Equal(["New Smart Collection…", "Open in Explorer", "New Folder…", "Rename…", "Cut", "Copy", "Paste into folder", "Delete"],
             menu.Elements(ns + "MenuItem").Select(item => (string?)item.Attribute("Header")));
         Assert.Equal("BrowserFolderTree_MouseMove", (string?)tree.Attribute("MouseMove"));
         Assert.Equal("BrowserFolderTree_DragLeave", (string?)tree.Attribute("DragLeave"));

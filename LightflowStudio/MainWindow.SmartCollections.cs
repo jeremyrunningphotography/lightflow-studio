@@ -89,10 +89,11 @@ public partial class MainWindow
         var assetIds = assets.Select(a => a.AssetId).ToArray();
         model.ApplyAssetIdentities(assets.Select(a => new CatalogReconciliationItem(a.AssetId, a.RelativePath, CatalogReconciliationItemStatus.Unchanged)).ToArray());
         model.ApplyAssetStates(await _storage.BrowserAssetStates.GetQueryStatesAsync(assetIds));
+        model.ApplyVideoRotations((await _storage.VideoRotations.GetAsync(assetIds)).Values);
         if (_storage.Previews is { } previews)
             foreach (var (id, record) in await previews.GetManyAsync(assetIds))
                 if (record.MetadataState == PreviewComponentState.Current)
-                    model.ApplyMetadata(id, BrowserQueryEngine.ExtractMetadata(record.MetadataJson));
+                    model.ApplyMetadata(id, BrowserQueryEngine.ExtractMetadata(record.MetadataJson, record.RawMetadataJson));
         return model.Tiles;
     }
 

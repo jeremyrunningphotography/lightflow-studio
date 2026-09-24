@@ -225,6 +225,13 @@ public partial class MainWindow : Window
         SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
         OrientedPreviewImage.SetStore(this, _storage.VideoRotations);
+        _storage.VideoRotations.Changed += BrowserVideoRotationsChanged;
+        _storage.VideoRotations.Invalidated += BrowserVideoRotationsInvalidated;
+        Closed += (_, _) =>
+        {
+            _storage.VideoRotations.Changed -= BrowserVideoRotationsChanged;
+            _storage.VideoRotations.Invalidated -= BrowserVideoRotationsInvalidated;
+        };
         InitializeBrowserDetails();
         InitializeWorkspaceContinuation();
         // End stale tile gestures even when release is handled by chrome or lands outside the tile.
@@ -1280,7 +1287,10 @@ public partial class MainWindow : Window
         {
             var states = await _storage.BrowserAssetStates.GetQueryStatesAsync(items.Select(item => item.AssetId).ToArray())
                 .ConfigureAwait(true);
+            var rotationGeneration = _browserRotationGeneration;
+            var rotations = await _storage.VideoRotations.GetAsync(items.Select(item => item.AssetId).ToArray());
             if (generation != _browserUiGeneration) return;
+            if (rotationGeneration == _browserRotationGeneration) _browserGrid.ApplyVideoRotations(rotations.Values);
             foreach (var (assetId, state) in states)
             {
                 // A committed Player change that landed after this read began owns that asset's current
@@ -1295,7 +1305,7 @@ public partial class MainWindow : Window
                 _browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.ColorState or
                 BrowserFilterField.CameraLutState or BrowserFilterField.CreativeLutState or
                 BrowserFilterField.ReviewRangeState or BrowserFilterField.SubclipState or BrowserFilterField.Rating or
-                BrowserFilterField.Flag or BrowserFilterField.ColorLabel or BrowserFilterField.Keyword))
+                BrowserFilterField.Flag or BrowserFilterField.ColorLabel or BrowserFilterField.Keyword or BrowserFilterField.AspectRatio))
             {
                 _browserGrid.ReapplyQuery();
                 UpdateBrowserStatusText();
@@ -3604,7 +3614,7 @@ public partial class MainWindow : Window
             if (pendingMetadata.Contains(assetId) && record.MetadataState == PreviewComponentState.Current &&
                 (sources is null || record.MetadataProbeVersion == DerivedMediaMetadataService.CurrentProbeVersion))
             {
-                var metadata = BrowserQueryEngine.ExtractMetadata(record.MetadataJson);
+                var metadata = BrowserQueryEngine.ExtractMetadata(record.MetadataJson, record.RawMetadataJson);
                 if (_browserGrid.ApplyMetadata(assetId, metadata)) sortRelevantMetadataChanged = true;
             }
         }
@@ -4659,7 +4669,7 @@ public partial class MainWindow : Window
                 catch { }
             }
             if (record.MetadataState == PreviewComponentState.Current &&
-                _browserGrid.ApplyMetadata(assetId, BrowserQueryEngine.ExtractMetadata(record.MetadataJson)))
+                _browserGrid.ApplyMetadata(assetId, BrowserQueryEngine.ExtractMetadata(record.MetadataJson, record.RawMetadataJson)))
                 metadataChanged = true;
         }
         if (metadataChanged) _browserGrid.ReapplyQuery();
@@ -5544,8 +5554,6 @@ public partial class MainWindow : Window
             ?? (e.CursorLeft < 0 ? _browserTree.SelectedNode : null);
         _folderExplorerTarget = ExplorerTarget.Folder(_locationActionNode);
         _ = UpdateExplorerMenuAsync(BrowserFolderOpenExplorerMenu, _folderExplorerTarget);
-        var canManage = _storage.CatalogAvailable && _locationActionNode?.Storage?.RootId is not null;
-        RenameLocationMenuItem.IsEnabled = ReconnectLocationMenuItem.IsEnabled = canManage;
         BrowserFolderNewSmartMenu.IsEnabled = _storage.CatalogAvailable && _locationActionNode is { RootId: not null, RelativeFolder: not null };
     }
 

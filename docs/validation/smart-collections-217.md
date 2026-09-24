@@ -80,3 +80,11 @@ Resolution and Frame Rate default to selectable numeric presets; Custom switches
 Aspect Ratio is intentionally **not implemented** under the requested stop condition. Persisted video metadata lacks authoritative source rotation and sample/display aspect ratio; #287 stores an adjustment and playback composes source rotation separately. The current Browser projection cannot truthfully classify displayed geometry for all supported media. See the inventory document for the required normalization/hydration follow-up.
 
 Focused hands-on checks: select common Resolution/Frame Rate presets, switch to Custom and back, save/reopen custom values; choose Not set and Red together; test Duration is at most and is at least at the boundary; verify binary menus contain no either-state choice; recheck captured multi-value filters, Source behavior, All/Any and transient filtering. The remaining 17-field inventory was reviewed; no other editor defect requiring a new query feature was identified.
+
+## Latest local iteration: Aspect Ratio and folder-menu simplification
+
+The ordinary folder context menu no longer exposes Add Location, Rename Location or Reconnect Location. Normal browsing already resolves/creates Browser anchors; none of these menu entries is required for navigation. Underlying handlers/services, RootId, persistence, reconnect and Smart Folder Source identities remain unchanged. Contextual recovery UI is deferred.
+
+Aspect Ratio adds the existing inline checklist with 16:9, 9:16, 4:3, 3:2, 1:1 and 21:9. Verify native portrait, source-rotated landscape and #287 user-rotated video; reopen the saved definition, rotate again and confirm membership updates. Verify EXIF-rotated stills. Resolution continues to match encoded dimensions. Non-square pixels/conflicting display-aspect metadata are unknown pending clarification; see the editor inventory.
+
+Focused validation includes rational persistence, source/authored quarter turns, stale rotation reads and restore, all eight still orientations, legacy raw metadata hydration, retained editor/composition/Sources, folder navigation/menu contracts, and real FFmpeg/FFprobe landscape/portrait fixtures at four source rotations. No full-suite run or publication is authorized for this iteration.

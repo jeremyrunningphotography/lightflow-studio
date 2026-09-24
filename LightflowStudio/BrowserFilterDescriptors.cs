@@ -33,6 +33,8 @@ internal static class BrowserFilterDescriptors
     public static IReadOnlyList<BrowserFilterDescriptor> All { get; } =
     [
         Choices(BrowserFilterField.MediaType, "Media Type", _ => BrowserGridModel.PresentableCategories.Select(BrowserFilterPredicate.ForMediaType)),
+        Choices(BrowserFilterField.AspectRatio, "Aspect Ratio", _ => new[] { (16, 9), (9, 16), (4, 3), (3, 2), (1, 1), (21, 9) }
+            .Select(r => BrowserFilterPredicate.ForAspectRatio(r.Item1, r.Item2))),
         Choices(BrowserFilterField.Camera, "Camera", tiles => TextValues(BrowserFilterField.Camera, tiles.Select(t => t.CameraDisplayName))),
         Choices(BrowserFilterField.Lens, "Lens", tiles => TextValues(BrowserFilterField.Lens, tiles.Select(t => t.LensModel))),
         new(BrowserFilterField.CaptureDate, "Capture Date", BrowserFilterEditorKind.DateRanges, _ => []),

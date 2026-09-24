@@ -11,6 +11,50 @@ namespace LightflowStudio.Tests;
 [Collection("STA dispatcher tests")]
 public sealed class SmartCollectionDialogTests
 {
+    [Theory]
+    [InlineData(false, 12)]
+    [InlineData(true, 12)]
+    [InlineData(true, 16)]
+    public Task DurationControlsShareFirstLineHeightAndCenter(bool alternatives, double fontSize) => StaDispatcher.RunAsync(() =>
+    {
+        TestWpfApplication.EnsureLoaded();
+        var dialog = new SmartCollectionDialog(new NoLocations(), [], [new(null, "Top level")], [], "Alignment", null,
+            new(SmartCollectionSourceKind.Folder, Guid.NewGuid(), "Media"), new() { Filters =
+            [BrowserFilterPredicate.ForMinimum(BrowserFilterField.Duration, 30), BrowserFilterPredicate.ForRating(BrowserNumberComparison.GreaterThanOrEqual, 3)] }, true);
+        var content = (FrameworkElement)dialog.Content;
+        content.Measure(new Size(740, double.PositiveInfinity)); content.Arrange(new Rect(content.DesiredSize)); content.UpdateLayout();
+        var rows = ((StackPanel)dialog.FindName("FilterRows")).Children.OfType<BrowserFilterRowEditor>().ToArray();
+        var duration = rows[0]; duration.SetValue(System.Windows.Documents.TextElement.FontSizeProperty, fontSize);
+        var panel = (StackPanel)((ContentControl)duration.Children[2]).Content;
+        if (alternatives) panel.Children.OfType<Button>().Single().RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        content.Measure(new Size(740, double.PositiveInfinity)); content.Arrange(new Rect(content.DesiredSize)); content.UpdateLayout();
+        double Center(FrameworkElement control) => control.TranslatePoint(new Point(0, control.ActualHeight / 2), duration).Y;
+        var inputLines = panel.Children.OfType<StackPanel>().Select(p => (Grid)p.Children[0]).ToArray();
+        var firstBox = inputLines[0].Children.OfType<TextBox>().Single();
+        Assert.Equal(Center(firstBox), Center(duration.Children.OfType<ComboBox>().Single()), 3);
+        Assert.Equal(Center(firstBox), Center(duration.Children.OfType<Button>().Single()), 3);
+        foreach (var line in inputLines)
+        {
+            var box = line.Children.OfType<TextBox>().Single();
+            var comparison = line.Children.OfType<ComboBox>().First();
+            Assert.Equal(box.ActualHeight, comparison.ActualHeight, 3);
+            Assert.Equal(Center(box), Center(comparison), 3);
+            if (alternatives) Assert.Equal(Center(box), Center(line.Children.OfType<Button>().Single()), 3);
+            comparison.SelectedIndex = 1; box.Text = "1:02:03";
+        }
+        Assert.Equal(alternatives ? 2 : 1, duration.Predicates.Count);
+        Assert.All(duration.Predicates, p => { Assert.Equal(3723, p.NumberValue); Assert.Equal(BrowserNumberComparison.LessThanOrEqual, p.Comparison); });
+        if (!alternatives) Render(content, "duration-alignment.png");
+        // Changing fields restores the accepted Rating layout instead of retaining a stretched input row.
+        duration.ClearValue(System.Windows.Documents.TextElement.FontSizeProperty);
+        duration.Children.OfType<ComboBox>().Single().SelectedItem = BrowserFilterDescriptors.Get(BrowserFilterField.Rating);
+        content.Measure(new Size(740, double.PositiveInfinity)); content.Arrange(new Rect(content.DesiredSize)); content.UpdateLayout();
+        Assert.Empty(duration.RowDefinitions);
+        Assert.Equal(rows[1].Children.OfType<ComboBox>().Single().ActualHeight,
+            duration.Children.OfType<ComboBox>().Single().ActualHeight, 3);
+        return Task.CompletedTask;
+    });
+
     [Fact]
     public Task AspectRatioUsesTheAcceptedInlineChecklistAndPersistsAlternatives() => StaDispatcher.RunAsync(() =>
     {

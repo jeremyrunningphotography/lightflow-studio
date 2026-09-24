@@ -72,6 +72,10 @@ internal sealed class BrowserFilterRowEditor : Grid
     private void BuildValue()
     {
         _inputValid = true; _refreshSuggestions = null;
+        RowDefinitions.Clear(); SetRowSpan(_value, 1); ClearValue(Grid.IsSharedSizeScopeProperty);
+        _field.VerticalAlignment = VerticalAlignment.Top;
+        var remove = Children.OfType<Button>().Single();
+        remove.VerticalAlignment = VerticalAlignment.Top; remove.ClearValue(MarginProperty);
         SetColumnSpan(_operator, 1); _value.Visibility = Visibility.Visible;
         switch (BrowserFilterDescriptors.Get(Field).Editor)
         {
@@ -299,6 +303,16 @@ internal sealed class BrowserFilterRowEditor : Grid
 
     private void BuildStructured()
     {
+        // Share the first input line's measured height with the field/remove cells. The value
+        // panel spans both rows so alternatives and their add action cannot move that centerline.
+        Grid.SetIsSharedSizeScope(this, true);
+        RowDefinitions.Add(new() { Height = GridLength.Auto, SharedSizeGroup = "InputLine" });
+        RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
+        SetRowSpan(_value, 2);
+        _field.VerticalAlignment = VerticalAlignment.Stretch;
+        var rowRemove = Children.OfType<Button>().Single();
+        rowRemove.VerticalAlignment = VerticalAlignment.Center;
+        rowRemove.Margin = new(rowRemove.Margin.Left, 0, rowRemove.Margin.Right, 0);
         var descriptor = BrowserFilterDescriptors.Get(Field); var input = descriptor.Input!;
         var panel = new StackPanel();
         var editors = new List<(TextBox[] Boxes, ComboBox Suggestions, ComboBox? Operator)>();
@@ -343,11 +357,12 @@ internal sealed class BrowserFilterRowEditor : Grid
         {
             var group = new StackPanel { Margin = new(0, 0, 0, 5) };
             var line = new Grid();
+            line.RowDefinitions.Add(new() { Height = GridLength.Auto, SharedSizeGroup = "InputLine" });
             ComboBox? comparison = null;
             if (descriptor.DurationComparisons)
             {
                 var operators = new[] { new Comparison(BrowserNumberComparison.GreaterThanOrEqual, "is at least"), new Comparison(BrowserNumberComparison.LessThanOrEqual, "is at most") };
-                comparison = new ComboBox { ItemsSource = operators, DisplayMemberPath = "Name", MinWidth = 105, VerticalAlignment = VerticalAlignment.Center };
+                comparison = new ComboBox { ItemsSource = operators, DisplayMemberPath = "Name", MinWidth = 105 };
                 comparison.SelectedItem = operators.FirstOrDefault(o => o.Value == predicate?.Comparison) ?? operators[0];
                 AutomationProperties.SetName(comparison, "Duration operator");
                 line.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); line.Children.Add(comparison);
@@ -374,6 +389,8 @@ internal sealed class BrowserFilterRowEditor : Grid
             var suggestionsColumn = line.ColumnDefinitions.Count - 1;
             line.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
             var remove = new Button { Content = "×", Style = (Style)FindResource("FilterRowActionStyle"), ToolTip = "Remove alternative" };
+            remove.VerticalAlignment = VerticalAlignment.Center;
+            remove.Margin = new(remove.Margin.Left, 0, remove.Margin.Right, 0);
             AutomationProperties.SetName(remove, "Remove alternative"); SetColumn(remove, line.ColumnDefinitions.Count - 1); line.Children.Add(remove);
             alternativeRemovals.Add(remove);
             var suggestions = new ComboBox { DisplayMemberPath = "Label", Width = 78, VerticalAlignment = VerticalAlignment.Center, ToolTip = descriptor.Name + " suggestions" };

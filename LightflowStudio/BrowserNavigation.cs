@@ -184,6 +184,23 @@ internal sealed class BrowserNavigationSession(
         CancellationToken cancellationToken = default) =>
         NavigateResolvedAsync(absoluteFolder, NavigationKind.New, cancellationToken);
 
+    /// <summary>Saved logical scope with explicit recursion; never changes ordinary Folder recursion settings.</summary>
+    public async Task<BrowserFolderState?> NavigateSourceAsync(Guid rootId, string relativeFolder, bool includeSubfolders,
+        CancellationToken cancellationToken = default)
+    {
+        var operation = Begin(cancellationToken);
+        try
+        {
+            var root = await roots.GetAsync(rootId, operation.Token).ConfigureAwait(false);
+            if (root is null) return Commit(operation.Generation, new(rootId, "Unavailable Media Root", "", relativeFolder), NavigationKind.New, BrowserFolderStatus.RootNotFound, [], "Source Media Root not found.");
+            var location = new BrowserLocation(rootId, root.DisplayName, root.PhysicalPath ?? "", relativeFolder);
+            SetActiveLocation(operation.Generation, location);
+            return await LoadAndCommitAsync(operation, location, NavigationKind.New, cancellationToken,
+                includeSubfolders ? BrowserScopeMode.IncludeSubfolders : BrowserScopeMode.DirectFolder).ConfigureAwait(false);
+        }
+        finally { FinishWorking(operation.Generation); }
+    }
+
     public async Task<BrowserFolderState?> NavigateToRootAsync(Guid rootId,
         CancellationToken cancellationToken = default)
     {
@@ -338,7 +355,7 @@ internal sealed class BrowserNavigationSession(
     }
 
     private async Task<BrowserFolderState?> LoadAndCommitAsync(Operation operation, BrowserLocation location,
-        NavigationKind kind, CancellationToken callerToken)
+        NavigationKind kind, CancellationToken callerToken, BrowserScopeMode? explicitMode = null)
     {
         using var timing = BrowserPerformance.Measure("navigation.load");
         try
@@ -359,9 +376,9 @@ internal sealed class BrowserNavigationSession(
             // iconography from the same round-trip rather than querying the Catalog a second time.
             var recursiveRootList = await recursiveRoots.ListAsync(operation.Token).ConfigureAwait(false);
             operation.Token.ThrowIfCancellationRequested();
-            var mode = BrowserRecursiveRootLogic.IsEffectivelyRecursive(recursiveRootList, location.RootId, location.RelativeFolder)
+            var mode = explicitMode ?? (BrowserRecursiveRootLogic.IsEffectivelyRecursive(recursiveRootList, location.RootId, location.RelativeFolder)
                 ? BrowserScopeMode.IncludeSubfolders
-                : BrowserScopeMode.DirectFolder;
+                : BrowserScopeMode.DirectFolder);
             RaiseEffectiveScopeDetermined(operation.Generation, new(location, mode, recursiveRootList));
 
             if (assets is not null)
@@ -568,6 +585,11 @@ internal sealed class BrowserNavigationSession(
         CatalogReconciliationStatus.InvalidRequest => BrowserFolderStatus.InvalidPath,
         _ => BrowserFolderStatus.Failed
     };
+
+    public void CancelPending()
+    {
+        lock (_sync) _activeRequest?.Cancel();
+    }
 
     public void Dispose()
     {

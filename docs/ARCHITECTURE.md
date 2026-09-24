@@ -1319,3 +1319,7 @@ or changing categories does not enumerate or mutate Media Roots. Storage relocat
 and manual backup/restore retain existing services; #271/#272 remain separate future work.
 
 See [the source authority audit](validation/settings-291-authority.md) for the complete control inventory.
+
+### Smart Collections (#217)
+
+Smart Collections persist required logical Source plus versioned Browser-compatible defining query, and share the existing Collections hierarchy. Candidate discovery, defining membership, and transient view filtering remain separate stages of the existing Browser pipeline. See [Smart Collection architecture](SMART_COLLECTIONS.md) for persistence, concurrency, discovery, editor, and query-extension contracts.

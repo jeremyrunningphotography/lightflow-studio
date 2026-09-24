@@ -860,10 +860,7 @@
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
           <TreeView.ContextMenu>
            <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
-            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Add Location…" Click="AddLocation_Click"/>
-            <MenuItem x:Name="RenameLocationMenuItem" Style="{StaticResource LightflowMenuItemStyle}" Header="Rename Location…" Click="RenameLocation_Click"/>
-            <MenuItem x:Name="ReconnectLocationMenuItem" Style="{StaticResource LightflowMenuItemStyle}" Header="Reconnect Location…" Click="ReconnectLocation_Click"/>
-            <Separator Style="{StaticResource LightflowMenuSeparatorStyle}"/>
+            <MenuItem x:Name="BrowserFolderNewSmartMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="New Smart Collection…" Click="BrowserFolderNewSmartCollection_Click"/>
             <MenuItem x:Name="BrowserFolderOpenExplorerMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Open in Explorer" Click="BrowserFolderOpenExplorer_Click"/>
             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="New Folder…" Click="BrowserFolderNew_Click"/>
             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Rename…" Click="BrowserFolderRename_Click"/>
@@ -937,7 +934,7 @@
         </Grid>
         <Grid x:Name="BrowserCollectionsTopLevelDropTarget" Margin="0,10,0,4" AllowDrop="True"
          DragEnter="BrowserCollectionsTopLevel_DragEnter" DragOver="BrowserCollectionsTopLevel_DragEnter" DragLeave="BrowserCollectionsTopLevel_DragLeave" Drop="BrowserCollectionsTopLevel_Drop">
-         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
          <ToggleButton x:Name="BrowserCollectionsSectionToggle" Style="{StaticResource BrowserSectionToggleButtonStyle}"
           IsChecked="True" HorizontalContentAlignment="Left" FontSize="14" VerticalAlignment="Center"
           Checked="BrowserScopeSectionToggle_Changed" Unchecked="BrowserScopeSectionToggle_Changed">
@@ -957,6 +954,7 @@
           AutomationProperties.Name="New Collection Set" Click="BrowserNewCollectionSet_Click">
           <Viewbox Width="14" Height="14"><Canvas Width="18" Height="18"><Path Fill="{StaticResource MutedTextBrush}" Data="M2,4 L7,4 L9,6 L16,6 L16,15 L2,15 Z M4,2 L14,2 L14,5 L9.5,5 L7.5,3 L4,3 Z M5,8 L13,8 L13,13 L5,13 Z M7,9 L11,9 L11,12 L7,12 Z"/></Canvas></Viewbox>
          </Button>
+         <Button Grid.Column="3" Width="26" Height="24" Padding="0" Margin="4,0,0,0" ToolTip="New Smart Collection" AutomationProperties.Name="New Smart Collection" Click="BrowserNewSmartCollection_Click"><Viewbox Width="14" Height="14"><Path Fill="{StaticResource MutedTextBrush}" Data="M2,1 L12,1 L12,15 L2,15 Z M4,4 L10,4 L10,6 L4,6 Z M12,6 L13.5,10 L17,11.5 L13.5,13 L12,17 L10.5,13 L7,11.5 L10.5,10 Z"/></Viewbox></Button>
         </Grid>
         <Grid x:Name="BrowserCollectionsSectionContent">
          <TreeView x:Name="BrowserCollectionTree" BorderThickness="0" Background="Transparent" Padding="0,0,0,96"
@@ -969,6 +967,10 @@
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
           <TreeView.ContextMenu>
            <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+            <MenuItem x:Name="BrowserSetNewCollectionMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="New Collection…" Click="BrowserNewCollection_Click"/>
+            <MenuItem x:Name="BrowserSetNewSmartMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="New Smart Collection…" Click="BrowserNewSmartCollection_Click"/>
+            <MenuItem x:Name="BrowserSetNewSetMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="New Collection Set…" Click="BrowserNewCollectionSet_Click"/>
+            <MenuItem x:Name="BrowserEditSmartMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Edit Smart Collection…" Click="BrowserEditSmartCollection_Click"/>
             <MenuItem x:Name="BrowserCollectionRenameMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Rename" Click="BrowserCollectionRename_Click"/>
             <MenuItem x:Name="BrowserCollectionMoveMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Move to"/>
             <Separator/>
@@ -1001,6 +1003,7 @@
              <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
             </Grid>
             <HierarchicalDataTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsSmartCollection}" Value="True"><Setter TargetName="CollectionIconPath" Property="Data" Value="M2,1 L12,1 L12,15 L2,15 Z M4,4 L10,4 L10,6 L4,6 Z M12,6 L13.5,10 L17,11.5 L13.5,13 L12,17 L10.5,13 L7,11.5 L10.5,10 Z"/></DataTrigger>
             <DataTrigger Binding="{Binding IsSet}" Value="True"><Setter TargetName="CollectionIcon" Property="Visibility" Value="Collapsed"/><Setter TargetName="CollectionSetIcon" Property="Visibility" Value="Visible"/></DataTrigger>
              <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter TargetName="CollectionIconPath" Property="Fill" Value="{StaticResource ShellFocusBrush}"/><Setter TargetName="CollectionSetIconPath" Property="Fill" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
              <DataTrigger Binding="{Binding IsAssetDropTarget}" Value="True"><Setter TargetName="CollectionRow" Property="Background" Value="{StaticResource ShellSelectionBrush}"/><Setter TargetName="CollectionIconPath" Property="Fill" Value="{StaticResource ShellFocusBrush}"/></DataTrigger>
@@ -1054,6 +1057,7 @@
            <Grid Width="16" Height="16"><Path x:Name="BrowserQueryLockBody" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.6" StrokeLineJoin="Round" Fill="Transparent" Data="M3,7 L13,7 L13,15 L3,15 Z M5,7 L5,5 C5,1.5 11,1.5 11,5 L11,7"/><Ellipse Width="2.2" Height="2.2" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Margin="0,4,0,0"/></Grid>
           </Viewbox>
          </ToggleButton>
+         <Button DockPanel.Dock="Right" Width="34" Height="32" Margin="4,0,0,4" ToolTip="Create Smart Collection from this view" AutomationProperties.Name="Create Smart Collection" Click="BrowserCreateSmartCollection_Click"><Viewbox Width="16" Height="16"><Path Stroke="{StaticResource MutedTextBrush}" StrokeThickness="1.5" Data="M2,1 L12,1 L12,15 L2,15 Z M5,5 L9,5 M5,8 L9,8 M12,6 L13.5,10 L17,11.5 L13.5,13 L12,17 L10.5,13 L7,11.5 L10.5,10 Z"/></Viewbox></Button>
          <WrapPanel x:Name="BrowserQueryLayout" Orientation="Horizontal">
           <Border Style="{StaticResource BrowserToolbarChipStyle}" Margin="0,0,6,4" ClipToBounds="True">
            <StackPanel Orientation="Horizontal">
@@ -1130,9 +1134,9 @@
              <TextBlock Style="{StaticResource FieldLabel}" Margin="4,18,4,4" Text="CAPTURE DATE"/>
              <TextBlock Margin="4,9,4,3" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Capture date range"/>
              <StackPanel Orientation="Horizontal" Margin="4,0,4,0">
-              <DatePicker x:Name="BrowserCaptureDateFrom" Width="132" AutomationProperties.Name="Capture date from"/>
+              <DatePicker Style="{StaticResource BrowserFilterDatePickerStyle}" x:Name="BrowserCaptureDateFrom" Width="132" AutomationProperties.Name="Capture date from"/>
               <TextBlock Margin="6,0" VerticalAlignment="Center" Text="to" Foreground="{StaticResource MutedTextBrush}"/>
-              <DatePicker x:Name="BrowserCaptureDateTo" Width="132" AutomationProperties.Name="Capture date to"/>
+              <DatePicker Style="{StaticResource BrowserFilterDatePickerStyle}" x:Name="BrowserCaptureDateTo" Width="132" AutomationProperties.Name="Capture date to"/>
              </StackPanel>
              <Button Margin="4,6,4,0" HorizontalAlignment="Left" Padding="10,4" Content="Add date range" Click="BrowserAddCaptureDateFilter_Click"/>
              </StackPanel>
@@ -1309,6 +1313,7 @@
           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">
           <ItemsControl.ContextMenu>
            <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+            <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Create Smart Collection…" Click="BrowserCreateSmartCollection_Click"/>
             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Paste" InputGestureText="Ctrl+V" Click="BrowserBackgroundPaste_Click"/>
            </ContextMenu>
           </ItemsControl.ContextMenu>

@@ -61,6 +61,18 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     private int? _pixelWidth;
     private int? _pixelHeight;
     private double? _frameRate;
+    private MediaAspectRatio? _sourceDisplayAspectRatio;
+    private AssetVideoRotation? _videoRotation;
+    public MediaAspectRatio? EffectiveAspectRatio => Category == MediaTypeCategory.Video
+        ? _videoRotation is { } authored ? _sourceDisplayAspectRatio?.Rotate(authored.Rotation) : null
+        : _sourceDisplayAspectRatio;
+    public void ApplyVideoRotation(AssetVideoRotation value)
+    {
+        if (value.AssetId != AssetId || (_videoRotation is { } current && current.Revision > value.Revision)) return;
+        _videoRotation = value;
+        OnPropertyChanged(nameof(EffectiveAspectRatio));
+    }
+    public void InvalidateVideoRotation() { _videoRotation = null; OnPropertyChanged(nameof(EffectiveAspectRatio)); }
     private bool _isThumbnailGenerating;
     private BrowserViewMode _viewMode = BrowserViewMode.Preview;
 
@@ -292,7 +304,8 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     {
         var changed = _captureDate != metadata.CaptureDate || _durationSeconds != metadata.DurationSeconds ||
             _cameraMake != metadata.CameraMake || _cameraModel != metadata.CameraModel || _lensModel != metadata.LensModel ||
-            _pixelWidth != metadata.PixelWidth || _pixelHeight != metadata.PixelHeight || _frameRate != metadata.FrameRate;
+            _pixelWidth != metadata.PixelWidth || _pixelHeight != metadata.PixelHeight || _frameRate != metadata.FrameRate ||
+            _sourceDisplayAspectRatio != metadata.SourceDisplayAspectRatio;
         CaptureDate = metadata.CaptureDate;
         DurationSeconds = metadata.DurationSeconds;
         _cameraMake = metadata.CameraMake;
@@ -301,6 +314,8 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         _pixelWidth = metadata.PixelWidth;
         _pixelHeight = metadata.PixelHeight;
         _frameRate = metadata.FrameRate;
+        _sourceDisplayAspectRatio = metadata.SourceDisplayAspectRatio;
+        OnPropertyChanged(nameof(EffectiveAspectRatio));
         MetadataApplied = true;
         foreach (var property in new[] { nameof(CameraMake), nameof(CameraModel), nameof(CameraDisplayName),
             nameof(LensModel), nameof(PixelWidth), nameof(PixelHeight), nameof(FrameRate), nameof(MetadataApplied) })
@@ -549,11 +564,14 @@ internal sealed class BrowserGridModel
     /// <summary>The current query's visible, ordered projection — what is actually rendered.</summary>
     public IReadOnlyList<BrowserGridTile> Tiles => _visibleTiles;
 
-    public int TotalCount => _allTiles.Count;
+    public BrowserQuery? DefiningQuery { get; private set; }
+    private IReadOnlyList<BrowserGridTile> Members { get; set; } = [];
+    public void SetDefiningQuery(BrowserQuery? query) { DefiningQuery = query; RecomputeVisible(); }
+    public int TotalCount => Members.Count;
     internal IReadOnlyList<Guid> ScopeAssetIds => _allTiles.Where(tile => tile.AssetId is not null)
         .Select(tile => tile.AssetId!.Value).ToArray();
     public IReadOnlyList<BrowserGridTile> AdvancedFilterContextTiles =>
-        BrowserQueryEngine.ApplyAdvancedFilterContext(_allTiles, Query);
+        BrowserQueryEngine.ApplyAdvancedFilterContext(Members, Query);
     public int VisibleCount => _visibleTiles.Count;
     public BrowserQuery Query { get; private set; } = BrowserQuery.Default;
     public IReadOnlySet<string> SelectedKeys => _selection.Snapshot();
@@ -728,6 +746,16 @@ internal sealed class BrowserGridModel
     public bool ApplyMetadata(Guid assetId, BrowserTechnicalMetadata metadata) =>
         _tilesByAsset.TryGetValue(assetId, out var tile) && tile.ApplyMetadata(metadata);
 
+    public void ApplyVideoRotations(IEnumerable<AssetVideoRotation> values)
+    {
+        foreach (var value in values)
+            if (_tilesByAsset.TryGetValue(value.AssetId, out var tile)) tile.ApplyVideoRotation(value);
+    }
+    public void InvalidateVideoRotations()
+    {
+        foreach (var tile in _tilesByAsset.Values) tile.InvalidateVideoRotation();
+    }
+
     public bool ApplyMetadata(Guid assetId, DateTime? captureDate, double? durationSeconds) =>
         _tilesByAsset.TryGetValue(assetId, out var tile) && tile.ApplyMetadata(captureDate, durationSeconds);
 
@@ -857,7 +885,14 @@ internal sealed class BrowserGridModel
         using var timing = BrowserPerformance.Measure("query.project");
         var anchorKey = _selection.AnchorIndex is { } anchor && anchor >= 0 && anchor < _visibleTiles.Count
             ? _visibleTiles[anchor].Key : null;
-        _visibleTiles = BrowserQueryEngine.Apply(_allTiles, Query).ToList();
+        var members = Members = DefiningQuery is null ? _allTiles : BrowserQueryEngine.Filter(_allTiles, DefiningQuery);
+        if (DefiningQuery is not null)
+        {
+            var memberKeys = members.Select(tile => tile.Key).ToHashSet(StringComparer.Ordinal);
+            _selection.Restore(_selection.Snapshot().Where(memberKeys.Contains), null);
+            foreach (var tile in _allTiles) tile.IsSelected = _selection.IsSelected(tile.Key);
+        }
+        _visibleTiles = BrowserQueryEngine.Apply(members, Query).ToList();
         for (var index = 0; index < _visibleTiles.Count; index++) _visibleTiles[index].Index = index;
         var anchorIndex = _visibleTiles.FindIndex(tile => tile.Key == anchorKey);
         _selection.Restore(_selection.Snapshot(), anchorIndex >= 0 ? anchorIndex : null);

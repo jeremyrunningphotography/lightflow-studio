@@ -30,8 +30,34 @@ internal static class CatalogMigrations
         new(15, "Premiere native Subclip destination projections", ApplyVersion15),
         new(16, "Durable asset timeline point markers", ApplyVersion16),
         new(17, "Premiere point-marker destination projections", ApplyVersion17),
-        new(18, "Durable non-destructive video rotation", ApplyVersion18)
+        new(18, "Durable non-destructive video rotation", ApplyVersion18),
+        new(19, "Smart Collection sources and versioned Browser query intent", ApplyVersion19)
     ];
+
+    private static void ApplyVersion19(SqliteConnection connection, SqliteTransaction transaction, CatalogMigrationContext context) =>
+        Execute(connection, transaction, """
+            ALTER TABLE Collections ADD COLUMN IsSmartCollection INTEGER NOT NULL DEFAULT 0 CHECK(IsSmartCollection IN (0,1));
+            CREATE TABLE SmartCollectionDefinitions (
+                SmartCollectionId TEXT PRIMARY KEY NOT NULL REFERENCES Collections(CollectionId) ON DELETE CASCADE,
+                SourceKind INTEGER NOT NULL CHECK(SourceKind IN (0,1)),
+                RootId TEXT NULL REFERENCES MediaRoots(RootId) ON DELETE RESTRICT,
+                RelativeFolder TEXT NULL,
+                SourceCollectionId TEXT NULL REFERENCES Collections(CollectionId) ON DELETE RESTRICT,
+                IncludeSubfolders INTEGER NOT NULL CHECK(IncludeSubfolders IN (0,1)),
+                QueryJson TEXT NOT NULL,
+                CHECK((SourceKind=0 AND RootId IS NOT NULL AND RelativeFolder IS NOT NULL AND SourceCollectionId IS NULL)
+                   OR (SourceKind=1 AND RootId IS NULL AND RelativeFolder IS NULL AND SourceCollectionId IS NOT NULL AND IncludeSubfolders=0))
+            );
+            CREATE TRIGGER SmartCollectionNoManualMembership BEFORE INSERT ON CollectionAssets
+            WHEN EXISTS(SELECT 1 FROM Collections WHERE CollectionId=NEW.CollectionId AND IsSmartCollection=1)
+            BEGIN SELECT RAISE(ABORT,'Smart Collection membership is computed.'); END;
+            CREATE TRIGGER SmartCollectionSourceMustBeStatic BEFORE INSERT ON SmartCollectionDefinitions
+            WHEN EXISTS(SELECT 1 FROM Collections WHERE CollectionId=NEW.SourceCollectionId AND IsSmartCollection=1)
+            BEGIN SELECT RAISE(ABORT,'Choose a static Collection Source.'); END;
+            CREATE TRIGGER SmartCollectionUpdatedSourceMustBeStatic BEFORE UPDATE ON SmartCollectionDefinitions
+            WHEN EXISTS(SELECT 1 FROM Collections WHERE CollectionId=NEW.SourceCollectionId AND IsSmartCollection=1)
+            BEGIN SELECT RAISE(ABORT,'Choose a static Collection Source.'); END;
+            """);
 
     private static void ApplyVersion18(SqliteConnection connection, SqliteTransaction transaction, CatalogMigrationContext context) =>
         Execute(connection, transaction, """

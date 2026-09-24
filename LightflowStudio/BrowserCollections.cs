@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 
 namespace LightflowStudio;
 
-internal enum BrowserCollectionNodeKind { Set, Collection }
+internal enum BrowserCollectionNodeKind { Set, Collection, SmartCollection }
 
 internal sealed record BrowserAssetDragPayload(IReadOnlyList<Guid> AssetIds);
 
@@ -78,7 +78,7 @@ internal sealed class BrowserCollectionNode : INotifyPropertyChanged
 
     public BrowserCollectionNode(MediaCollection collection)
     {
-        Kind = BrowserCollectionNodeKind.Collection;
+        Kind = collection.IsSmartCollection ? BrowserCollectionNodeKind.SmartCollection : BrowserCollectionNodeKind.Collection;
         Id = collection.CollectionId;
         ParentSetId = collection.ParentCollectionSetId;
         Name = collection.Name;
@@ -94,6 +94,7 @@ internal sealed class BrowserCollectionNode : INotifyPropertyChanged
     public long Revision { get; }
     public bool IsSet => Kind == BrowserCollectionNodeKind.Set;
     public bool IsCollection => Kind == BrowserCollectionNodeKind.Collection;
+    public bool IsSmartCollection => Kind == BrowserCollectionNodeKind.SmartCollection;
     public ObservableCollection<BrowserCollectionNode> Children { get; } = [];
 
     public bool IsExpanded

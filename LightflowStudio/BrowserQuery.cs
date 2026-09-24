@@ -5,6 +5,7 @@ namespace LightflowStudio;
 
 internal enum BrowserSortMode { Name, CaptureDate, ModifiedDate, MediaType, FileSize, Duration, Manual, Rating, Flag, Dimensions, FrameRate }
 internal enum BrowserNumberComparison { GreaterThanOrEqual, LessThan, LessThanOrEqual, Equal, GreaterThan }
+internal enum BrowserMatchMode { All, Any }
 
 /// <summary>
 /// Browser-only creator-facing frame-rate normalization. Authoritative Preview metadata keeps its precise
@@ -31,9 +32,8 @@ internal static class BrowserFrameRate
 }
 
 /// <summary>
-/// The field a <see cref="BrowserFilterPredicate"/> constrains. Only <see cref="MediaType"/> is implemented;
-/// this enum exists so later predicate kinds (date, file size, duration, camera, lens, resolution, frame
-/// rate, rating, labels, flags, keywords) extend the same representation rather than requiring a redesign.
+/// The field a <see cref="BrowserFilterPredicate"/> constrains. Extend the shared descriptor registry
+/// alongside this vocabulary so Browser and saved-filter editors discover the same values.
 /// </summary>
 internal enum BrowserFilterField
 {
@@ -52,12 +52,14 @@ internal enum BrowserFilterField
     Rating,
     Flag,
     ColorLabel,
-    Keyword
+    Keyword,
+    FileOrPath,
+    AspectRatio
 }
 
 /// <summary>
-/// One stackable filter condition (e.g. "Video"). Multiple active predicates combine with AND semantics —
-/// no OR/grouping UI yet. Deliberately plain, equatable data (not a stored delegate) so two predicates
+/// One filter alternative (e.g. "Video"). Alternatives of the same field OR together; query MatchMode
+/// combines fields. Deliberately plain, equatable data (not a stored delegate) so two predicates
 /// describing the same condition are structurally equal, and so a future Smart Collection can persist this
 /// shape directly as saved query intent. <see cref="Matches"/> and <see cref="Label"/> are computed, not
 /// stored, so they never affect equality.
@@ -74,6 +76,11 @@ internal sealed record BrowserFilterPredicate
     public DateTime? DateFrom { get; init; }
     public DateTime? DateTo { get; init; }
     public bool? BooleanValue { get; init; }
+    public bool MatchUnset { get; init; }
+    public MediaAspectRatio? AspectRatioValue { get; init; }
+    public static BrowserFilterPredicate ForAspectRatio(int numerator, int denominator) =>
+        new() { Field = BrowserFilterField.AspectRatio, AspectRatioValue = new(numerator, denominator) };
+    public static BrowserFilterPredicate ForUnsetColorLabel() => new() { Field = BrowserFilterField.ColorLabel, MatchUnset = true };
     // GreaterThanOrEqual is deliberately zero so queries written before #215's operator chooser
     // deserialize with their original minimum-rating semantics.
     public BrowserNumberComparison Comparison { get; init; } = BrowserNumberComparison.GreaterThanOrEqual;
@@ -111,8 +118,9 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.Camera => $"Camera: {TextValue}",
         BrowserFilterField.Lens => $"Lens: {TextValue}",
         BrowserFilterField.CaptureDate => DateRangeLabel(),
-        BrowserFilterField.Duration => $"Duration ≥ {FormatDuration(NumberValue)}",
+        BrowserFilterField.Duration => $"Duration {ComparisonSymbol(Comparison)} {FormatDuration(NumberValue)}",
         BrowserFilterField.Resolution => $"Resolution: {NumberValue:0}×{NumberValue2:0}",
+        BrowserFilterField.AspectRatio => $"Aspect Ratio: {(AspectRatioValue == new MediaAspectRatio(21, 9) ? "21:9" : $"{AspectRatioValue?.Numerator}:{AspectRatioValue?.Denominator}")}",
         BrowserFilterField.FrameRate => $"Frame rate: {BrowserFrameRate.Canonicalize(NumberValue):0.###} fps",
         BrowserFilterField.ColorState => BooleanValue == true ? "Color applied" : "Original color",
         BrowserFilterField.CameraLutState => BooleanValue == true ? "Camera LUT assigned" : "No Camera LUT",
@@ -121,8 +129,9 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.SubclipState => BooleanValue == true ? "Has Subclips" : "No Subclips",
         BrowserFilterField.Rating => $"Rating {ComparisonSymbol(Comparison)} {RatingStars(NumberValue)}",
         BrowserFilterField.Flag => $"Flag: {TextValue}",
-        BrowserFilterField.ColorLabel => $"Label: {TextValue}",
+        BrowserFilterField.ColorLabel => $"Label: {(MatchUnset ? "Not set" : TextValue)}",
         BrowserFilterField.Keyword => $"Keyword: {TextValue}",
+        BrowserFilterField.FileOrPath => $"File or path: {TextValue}",
         _ => "Filter"
     };
 
@@ -130,6 +139,8 @@ internal sealed record BrowserFilterPredicate
 
     public bool Matches(BrowserGridTile tile) => Field switch
     {
+        BrowserFilterField.FileOrPath => tile.Name.Contains(TextValue?.Trim() ?? "", StringComparison.OrdinalIgnoreCase) ||
+            tile.RelativePath.Contains(TextValue?.Trim() ?? "", StringComparison.OrdinalIgnoreCase),
         BrowserFilterField.MediaType => MediaTypeValue is null || tile.Category == MediaTypeValue,
         BrowserFilterField.Camera => tile.MetadataApplied && TextEquals(tile.CameraDisplayName, TextValue),
         BrowserFilterField.Lens => tile.MetadataApplied && TextEquals(tile.LensModel, TextValue),
@@ -137,8 +148,14 @@ internal sealed record BrowserFilterPredicate
             (DateFrom is null || captured.Date >= DateFrom.Value.Date) &&
             (DateTo is null || captured.Date <= DateTo.Value.Date),
         BrowserFilterField.Duration => tile.MetadataApplied && tile.DurationSeconds is { } duration &&
-            NumberValue is { } minimumDuration && duration >= minimumDuration,
+            NumberValue is { } durationLimit && Comparison switch
+            {
+                BrowserNumberComparison.GreaterThanOrEqual => duration >= durationLimit,
+                BrowserNumberComparison.LessThanOrEqual => duration <= durationLimit,
+                _ => false
+            },
         BrowserFilterField.Resolution => tile.MetadataApplied && tile.PixelWidth == NumberValue && tile.PixelHeight == NumberValue2,
+        BrowserFilterField.AspectRatio => AspectRatioValue is { } aspect && tile.EffectiveAspectRatio == aspect,
         BrowserFilterField.FrameRate => tile.MetadataApplied && BrowserFrameRate.Canonicalize(tile.FrameRate) is { } frameRate &&
             BrowserFrameRate.Canonicalize(NumberValue) is { } expected && frameRate == expected,
         BrowserFilterField.ColorState => MatchesState(tile, tile.HasColorState),
@@ -148,7 +165,8 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.SubclipState => MatchesState(tile, tile.HasSubclips),
         BrowserFilterField.Rating => tile.AssetStateApplied && NumberValue is { } rating && Compare(tile.Rating, rating, Comparison),
         BrowserFilterField.Flag => tile.AssetStateApplied && Enum.TryParse<AssetFlag>(TextValue, true, out var flag) && tile.Flag == flag,
-        BrowserFilterField.ColorLabel => tile.AssetStateApplied && Enum.TryParse<AssetColorLabel>(TextValue, true, out var label) && tile.ColorLabel == label,
+        BrowserFilterField.ColorLabel => tile.AssetStateApplied && (MatchUnset ? tile.ColorLabel is null :
+            Enum.TryParse<AssetColorLabel>(TextValue, true, out var label) && tile.ColorLabel == label),
         BrowserFilterField.Keyword => tile.AssetStateApplied && TextValue is { } keyword &&
             tile.Keywords.Any(value => string.Equals(value, keyword, StringComparison.OrdinalIgnoreCase)),
         _ => true
@@ -216,6 +234,7 @@ internal sealed record BrowserQuery
     public IReadOnlyList<BrowserFilterPredicate> Filters { get; init; } = [];
 
     public string SearchText { get; init; } = "";
+    public BrowserMatchMode MatchMode { get; init; }
 
     public static BrowserQuery Default { get; } = new();
 
@@ -266,7 +285,8 @@ internal static class BrowserClassificationFilterChoices
     ];
 
     public static IReadOnlyList<BrowserFilterPredicate> ColorLabels { get; } = Enum.GetValues<AssetColorLabel>()
-        .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.ColorLabel, value.ToString())).ToArray();
+        .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.ColorLabel, value.ToString()))
+        .Prepend(BrowserFilterPredicate.ForUnsetColorLabel()).ToArray();
 
     public static IReadOnlyList<BrowserFilterPredicate> Keywords(IEnumerable<string> keywords) => keywords
         .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
@@ -284,14 +304,19 @@ internal static class BrowserQueryEngine
     private static readonly string[] ExifDateFormats = ["yyyy:MM:dd HH:mm:ss", "yyyy:MM:dd"];
 
     public static IReadOnlyList<BrowserGridTile> Apply(IReadOnlyList<BrowserGridTile> tiles, BrowserQuery query)
+        => Sort(Filter(tiles, query).ToArray(), query.SortMode, query.SortDescending);
+
+    public static IReadOnlyList<BrowserGridTile> Filter(IReadOnlyList<BrowserGridTile> tiles, BrowserQuery query)
     {
         IEnumerable<BrowserGridTile> filtered = tiles;
         // Predicates for the SAME field are alternative values of one facet and OR together (checking both
         // "Images" and "RAW" means either is acceptable — a still-photos view, not an impossible
         // intersection); predicates for DIFFERENT fields AND together, each narrowing the previous group's
         // result further (e.g. "Video" AND "Duration > 1:00"). This mirrors ordinary faceted search and is
-        // never exposed to the user as an explicit AND/OR choice — only which values are checked where.
-        foreach (var group in query.Filters.GroupBy(predicate => predicate.Field))
+        // Match All keeps this faceted behavior. Match Any ORs the field rows (equivalently, all their alternatives).
+        if (query.MatchMode == BrowserMatchMode.Any && query.Filters.Count > 0)
+            filtered = filtered.Where(tile => query.Filters.Any(predicate => predicate.Matches(tile)));
+        else foreach (var group in query.Filters.GroupBy(predicate => predicate.Field))
         {
             var predicatesInGroup = group.ToArray();
             filtered = filtered.Where(tile => predicatesInGroup.Any(predicate => predicate.Matches(tile)));
@@ -302,7 +327,7 @@ internal static class BrowserQueryEngine
             filtered = filtered.Where(tile => tile.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                 tile.RelativePath.Contains(search, StringComparison.OrdinalIgnoreCase));
 
-        return Sort(filtered.ToArray(), query.SortMode, query.SortDescending);
+        return filtered.ToArray();
     }
 
     /// <summary>
@@ -342,21 +367,32 @@ internal static class BrowserQueryEngine
     /// Malformed/unexpected JSON yields an empty projection rather than throwing — a Browser tile can
     /// always simply lack any optional normalized metadata field.
     /// </summary>
-    public static BrowserTechnicalMetadata ExtractMetadata(string? metadataJson)
+    public static BrowserTechnicalMetadata ExtractMetadata(string? metadataJson, string? rawMetadataJson = null)
     {
         if (string.IsNullOrWhiteSpace(metadataJson)) return BrowserTechnicalMetadata.Empty;
         DerivedMediaMetadata? metadata;
         try { metadata = JsonSerializer.Deserialize<DerivedMediaMetadata>(metadataJson, DerivedMetadataJson.Options); }
         catch (JsonException) { return BrowserTechnicalMetadata.Empty; }
+        catch (ArgumentException) { return BrowserTechnicalMetadata.Empty; }
         if (metadata is null) return BrowserTechnicalMetadata.Empty;
         var image = metadata.Image;
         var video = metadata.Video;
+        var aspect = video?.SourceDisplayAspectRatio;
+        // Previously indexed videos retain the complete probe payload. Project it through the same
+        // normalizer without touching media, including offline Catalog assets.
+        if (video is not null && aspect is null && !string.IsNullOrWhiteSpace(rawMetadataJson))
+            aspect = FfprobeMetadataNormalizer.Normalize(rawMetadataJson, metadata.FileSizeBytes).Metadata?.Video?.SourceDisplayAspectRatio;
+        if (image is { Width: > 0, Height: > 0 })
+        {
+            var display = WicImageThumbnailRenderer.DisplayDimensions(image.Width, image.Height, image.Orientation ?? 1);
+            aspect = new(display.Width, display.Height);
+        }
         return new BrowserTechnicalMetadata(
             ParseExifCaptureDate(image?.CapturedAt), metadata.DurationSeconds,
             image?.CameraMake, image?.CameraModel, image?.LensModel,
             image?.Width > 0 ? image.Width : video?.Width > 0 ? video.Width : null,
             image?.Height > 0 ? image.Height : video?.Height > 0 ? video.Height : null,
-            video?.FrameRate);
+            video?.FrameRate, aspect);
     }
 
     public static (DateTime? CaptureDate, double? DurationSeconds) ExtractSortableMetadata(string? metadataJson)
@@ -436,7 +472,7 @@ internal sealed record BrowserTechnicalMetadata(
     string? LensModel,
     int? PixelWidth,
     int? PixelHeight,
-    double? FrameRate)
+    double? FrameRate, MediaAspectRatio? SourceDisplayAspectRatio = null)
 {
     public static BrowserTechnicalMetadata Empty { get; } = new(null, null, null, null, null, null, null, null);
 }
@@ -450,9 +486,10 @@ internal sealed record BrowserFilterOption(
     public string Label => Predicate.Label;
     private string ChoiceLabel => Predicate.Field switch
     {
+        BrowserFilterField.ColorLabel when Predicate.MatchUnset => "Not set",
         BrowserFilterField.Camera or BrowserFilterField.Lens or BrowserFilterField.Flag or
             BrowserFilterField.ColorLabel or BrowserFilterField.Keyword => Predicate.TextValue ?? Label,
-        BrowserFilterField.Duration => $"≥ {BrowserFilterPredicate.FormatDuration(Predicate.NumberValue)}",
+        BrowserFilterField.Duration => $"{BrowserFilterPredicate.ComparisonSymbol(Predicate.Comparison)} {BrowserFilterPredicate.FormatDuration(Predicate.NumberValue)}",
         BrowserFilterField.Resolution => $"{Predicate.NumberValue:0}×{Predicate.NumberValue2:0}",
         BrowserFilterField.FrameRate => $"{BrowserFrameRate.Canonicalize(Predicate.NumberValue):0.###} fps",
         _ => Label

@@ -6,6 +6,59 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserQueryTests
 {
     [Fact]
+    public void SavedBrowserViewPreservesFacetsAndSearchAndAnyIncludesSearchNormally()
+    {
+        var root = Guid.NewGuid(); var grid = new BrowserGridModel();
+        grid.Populate([Entry(root, "ceremony.jpg", MediaTypeCategory.StillImage),
+            Entry(root, "ceremony.cr2", MediaTypeCategory.RawImage), Entry(root, "other.jpg", MediaTypeCategory.StillImage),
+            Entry(root, "ceremony.mp4", MediaTypeCategory.Video), Entry(root, "other.mp4", MediaTypeCategory.Video)]);
+        var browser = new BrowserQuery { SearchText = " ceremony ", Filters =
+            [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.StillImage), BrowserFilterPredicate.ForMediaType(MediaTypeCategory.RawImage)] };
+        var saved = BrowserQueryIntent.Deserialize(BrowserQueryIntent.Capture(browser).Serialize());
+        Assert.Equal(BrowserMatchMode.All, saved.MatchMode);
+        Assert.Equal(2, saved.Filters.GroupBy(p => p.Field).Count());
+        Assert.DoesNotContain("SearchText", saved.Serialize());
+        Assert.Equal(BrowserQueryEngine.Filter(grid.Tiles, browser), BrowserQueryEngine.Filter(grid.Tiles, saved.ToQuery()));
+        Assert.Equal(2, BrowserQueryEngine.Filter(grid.Tiles, saved.ToQuery()).Count);
+        Assert.Equal(4, BrowserQueryEngine.Filter(grid.Tiles, (saved with { MatchMode = BrowserMatchMode.Any }).ToQuery()).Count);
+    }
+
+    [Fact]
+    public void MultipleDateAlternativesAndAnotherFacetSurviveSave()
+    {
+        var root = Guid.NewGuid(); var grid = new BrowserGridModel();
+        grid.Populate([Entry(root, "jan.mp4", MediaTypeCategory.Video), Entry(root, "feb.mp4", MediaTypeCategory.Video),
+            Entry(root, "mar.mp4", MediaTypeCategory.Video), Entry(root, "jan.jpg", MediaTypeCategory.StillImage)]);
+        foreach (var tile in grid.Tiles) tile.ApplyMetadata(new DateTime(2026, tile.Name.StartsWith("feb") ? 2 : tile.Name.StartsWith("mar") ? 3 : 1, 15), null);
+        var query = new BrowserQuery { Filters = [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.Video),
+            BrowserFilterPredicate.ForDateRange(new(2026, 1, 1), new(2026, 1, 31)),
+            BrowserFilterPredicate.ForDateRange(new(2026, 3, 1), new(2026, 3, 31))] };
+        var saved = BrowserQueryIntent.Deserialize(BrowserQueryIntent.Capture(query).Serialize());
+        Assert.Equal(2, BrowserQueryEngine.Filter(grid.Tiles, saved.ToQuery()).Count);
+        Assert.Equal(BrowserQueryEngine.Filter(grid.Tiles, query), BrowserQueryEngine.Filter(grid.Tiles, saved.ToQuery()));
+    }
+
+    [Fact]
+    public void DevelopmentVersionOneSearchBecomesAnOrdinaryField()
+    {
+        var saved = BrowserQueryIntent.Deserialize("""{"Version":1,"MatchMode":"Any","SearchText":"wedding","Filters":[{"Field":"MediaType","MediaTypeValue":"Video"}]}""");
+        Assert.Equal(3, saved.Version); Assert.Equal("", saved.SearchText);
+        Assert.Contains(saved.Filters, p => p.Field == BrowserFilterField.FileOrPath && p.TextValue == "wedding");
+        Assert.DoesNotContain("SearchText", saved.Serialize());
+    }
+
+    [Fact]
+    public void SharedFrameRateValuesNormalizeBeforeDeduplicating()
+    {
+        var grid = new BrowserGridModel(); var root = Guid.NewGuid();
+        grid.Populate([Entry(root, "a.mp4", MediaTypeCategory.Video), Entry(root, "b.mp4", MediaTypeCategory.Video)]);
+        grid.Tiles[0].ApplyMetadata(new BrowserTechnicalMetadata(null, null, null, null, null, null, null, 29.97002997));
+        grid.Tiles[1].ApplyMetadata(new BrowserTechnicalMetadata(null, null, null, null, null, null, null, 29.97));
+        Assert.Single(BrowserFilterDescriptors.Values(BrowserFilterField.FrameRate, grid.Tiles));
+        Assert.Equal(Enum.GetValues<BrowserFilterField>().OrderBy(f => f), BrowserFilterDescriptors.All.Select(d => d.Field).OrderBy(f => f));
+    }
+
+    [Fact]
     public void ManualSort_PreservesMembershipOrderWhileExplicitNameSortOverridesIt()
     {
         var tiles = Tiles(("z.jpg", 1), ("a.jpg", 2), ("m.jpg", 3));
@@ -715,7 +768,7 @@ public sealed class BrowserClassificationFilterTests
     [Fact]
     public void ColorAndKeywordChoices_PreserveEstablishedOrderAndComposeWithOtherPredicates()
     {
-        Assert.Equal(["Red", "Yellow", "Green", "Blue", "Purple"],
+        Assert.Equal(["Not set", "Red", "Yellow", "Green", "Blue", "Purple"],
             BrowserClassificationFilterChoices.ColorLabels.Select(predicate => new BrowserFilterOption(predicate, false).DisplayLabel));
         Assert.Equal(["ceremony", "Favorites"], BrowserClassificationFilterChoices.Keywords(["Favorites", "ceremony", "CEREMONY"])
             .Select(predicate => predicate.TextValue));

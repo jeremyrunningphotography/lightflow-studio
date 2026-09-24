@@ -28,9 +28,9 @@ Persistent isolated profile: `C:\Git\Agents\issue-217-smart-collections\acceptan
 
 `SmartCollectionDialogTests` checks editable Folder/static Source prepopulation, Location independence, shared styled resources, all four creation surfaces, Set creation, icon binding, and retained grid virtualization. It renders the editor offscreen; no visible window or computer control is used.
 
-Existing Catalog/Browser/query/reconciliation/working-state tests remain part of focused validation. Broader local validation excludes test classes that display windows or launch external processes to honor desktop-noninteractive execution. Run full required CI and companion validation again at the post-acceptance Draft PR stage.
+Existing Catalog/Browser/query/reconciliation/working-state tests remain part of focused validation. Before hands-on acceptance, broader local validation excluded desktop-interactive test classes. Post-acceptance Draft PR validation runs the full Release application suite and companion tests, followed by a refreshed packaged startup/dependency check and GitHub CI.
 
-Acceptance is pending. This checklist does not close #217 or satisfy the remaining #74 cross-cutting DoD by itself.
+Jeremy accepted the final packaged hands-on pass at `69de779` on September 24, 2026 and authorized Draft PR preparation. This acceptance does not authorize merge, close #217, or by itself complete the remaining #74 cross-cutting DoD.
 
 ## Hands-on iteration: inline filters (2026-09-23)
 
@@ -87,4 +87,4 @@ The ordinary folder context menu no longer exposes Add Location, Rename Location
 
 Aspect Ratio adds the existing inline checklist with 16:9, 9:16, 4:3, 3:2, 1:1 and 21:9. Verify native portrait, source-rotated landscape and #287 user-rotated video; reopen the saved definition, rotate again and confirm membership updates. Verify EXIF-rotated stills. Resolution continues to match encoded dimensions. Non-square pixels/conflicting display-aspect metadata are unknown pending clarification; see the editor inventory.
 
-Focused validation includes rational persistence, source/authored quarter turns, stale rotation reads and restore, all eight still orientations, legacy raw metadata hydration, retained editor/composition/Sources, folder navigation/menu contracts, and real FFmpeg/FFprobe landscape/portrait fixtures at four source rotations. No full-suite run or publication is authorized for this iteration.
+Focused validation includes rational persistence, source/authored quarter turns, stale rotation reads and restore, all eight still orientations, legacy raw metadata hydration, retained editor/composition/Sources, folder navigation/menu contracts, and real FFmpeg/FFprobe landscape/portrait fixtures at four source rotations. That local iteration preceded authorization for the final full-suite run and Draft PR publication.

@@ -262,7 +262,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
             preview = await _previews.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
         var sameSource = preview is not null && SameSource(preview.Source, source);
         var needsMetadata = !sameSource || preview!.MetadataState != PreviewComponentState.Current ||
-            preview.MetadataProbeVersion != DerivedMediaMetadataService.CurrentProbeVersion;
+            preview.MetadataProbeVersion != DerivedMediaMetadataService.ProbeVersionFor(resolved.Asset.MediaType);
         var supportsThumbnail = resolved.Asset.MediaType is "image" or "video";
         var visualIdentity = PreviewVisualIdentity.Original;
         if (_colors is not null && string.Equals(resolved.Asset.MediaType, "video", StringComparison.OrdinalIgnoreCase))

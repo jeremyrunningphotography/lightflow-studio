@@ -3612,7 +3612,8 @@ public partial class MainWindow : Window
             }
 
             if (pendingMetadata.Contains(assetId) && record.MetadataState == PreviewComponentState.Current &&
-                (sources is null || record.MetadataProbeVersion == DerivedMediaMetadataService.CurrentProbeVersion))
+                (sources is null || record.MetadataProbeVersion ==
+                    DerivedMediaMetadataService.ProbeVersionFor(sources.GetValueOrDefault(assetId)?.MediaType)))
             {
                 var metadata = BrowserQueryEngine.ExtractMetadata(record.MetadataJson, record.RawMetadataJson);
                 if (_browserGrid.ApplyMetadata(assetId, metadata)) sortRelevantMetadataChanged = true;

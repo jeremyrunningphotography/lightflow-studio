@@ -6,6 +6,21 @@ namespace LightflowStudio.Tests;
 public sealed class DerivedWorkSchedulingTests
 {
     [Theory]
+    [InlineData("video", true)]
+    [InlineData("audio", true)]
+    [InlineData("image", false)]
+    public async Task LegacyMetadataRefreshLeavesCurrentPreviewPixelsAlone(string type, bool refresh)
+    {
+        var asset = Asset(type);
+        var previews = new FakePreviews(CurrentPreview(asset.Asset) with { MetadataProbeVersion = 1 });
+        var metadata = new FakeMetadata();
+        var thumbnails = new FakeThumbnails();
+        await using var scheduler = new DerivedWorkScheduler(new FakeAssets(asset), previews, metadata, thumbnails);
+        await Schedule(scheduler, Reconciliation((asset.Asset.AssetId, CatalogReconciliationItemStatus.Unchanged))).Completion;
+        Assert.Equal(refresh ? 1 : 0, metadata.Calls.Count);
+        Assert.Empty(thumbnails.Calls);
+    }
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task FirstVisitWakesPreviewWorkerBeforeRecursiveDiscoveryCompletes(bool recursive)
@@ -468,7 +483,7 @@ public sealed class DerivedWorkSchedulingTests
         var source = new PreviewSourceIdentity(asset.FileSizeBytes, asset.LastWriteUtcTicks,
             asset.Fingerprint!.Version, asset.Fingerprint.Value);
         return new(asset.AssetId, source, PreviewSourceAvailability.Available,
-            DerivedMediaMetadataService.CurrentProbeVersion, PreviewComponentState.Current, "{}", "{}",
+            DerivedMediaMetadataService.ProbeVersionFor(asset.MediaType), PreviewComponentState.Current, "{}", "{}",
             ThumbnailGenerationService.CurrentGeneratorVersion, PreviewComponentState.Current, "thumbnail.jpg",
             null, PreviewComponentState.Missing, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
     }

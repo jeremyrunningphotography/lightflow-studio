@@ -1,5 +1,14 @@
 # Architecture
 
+## Technical video metadata (#311)
+
+The existing FFprobe path normalizes component depth and chroma through generated,
+pinned pixel-format descriptors, with no extra per-asset process. Inspector labels
+YCbCr coefficients as Matrix; serialized `colorSpace` remains compatible. Selected
+generic tags and orientation side data stay in the existing raw payload. FFprobe
+metadata version 2 refreshes independently of Preview pixels; WIC image metadata
+remains version 1. See [authority, cache behavior and validation](FFPROBE_TECHNICAL_METADATA.md).
+
 ## Non-destructive video rotation (#287)
 
 Catalog rotation is an AssetId-keyed clockwise quarter-turn adjustment after source orientation. The shared

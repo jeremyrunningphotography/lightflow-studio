@@ -18,11 +18,12 @@ internal sealed record DerivedVideoMetadata(
     double? FrameRate,
     string? PixelFormat,
     int? BitDepth,
-    string? ColorSpace,
+    [property: JsonPropertyName("colorSpace")] string? ColorMatrix,
     string? ColorTransfer,
     string? ColorPrimaries)
 {
     public MediaAspectRatio? SourceDisplayAspectRatio { get; init; }
+    public string? ChromaSubsampling { get; init; }
 }
 
 internal sealed record DerivedAudioMetadata(
@@ -258,7 +259,10 @@ internal interface IDerivedMediaMetadataService : IDisposable
 
 internal sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService, IDisposable
 {
-    internal const int CurrentProbeVersion = 1;
+    internal const int CurrentProbeVersion = 2;
+    // WIC normalization did not change. Only FFprobe-derived metadata needs refreshing.
+    internal static int ProbeVersionFor(string? mediaType) =>
+        string.Equals(mediaType, "image", StringComparison.OrdinalIgnoreCase) ? 1 : CurrentProbeVersion;
     private readonly IMediaAssetService _assets;
     private readonly IPreviewStoreService _previews;
     private readonly IMediaMetadataProbe _probe;
@@ -294,13 +298,14 @@ internal sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService
             return new(DerivedMetadataStatus.Failed, Diagnostic: observed.Diagnostic ?? "The media source could not be observed.");
 
         var asset = observed.Asset.Asset;
+        var probeVersion = ProbeVersionFor(asset.MediaType);
         if (asset.Fingerprint is null)
             return new(DerivedMetadataStatus.Failed, Diagnostic: "The media source has no current fingerprint.");
         var source = new PreviewSourceIdentity(asset.FileSizeBytes, asset.LastWriteUtcTicks,
             asset.Fingerprint.Version, asset.Fingerprint.Value);
         var preview = await _previews.ObserveSourceAsync(assetId, source, cancellationToken).ConfigureAwait(false);
         if (!forceRefresh && preview.MetadataState == PreviewComponentState.Current &&
-            preview.MetadataProbeVersion == CurrentProbeVersion && TryDeserialize(preview.MetadataJson, out var current))
+            preview.MetadataProbeVersion == probeVersion && TryDeserialize(preview.MetadataJson, out var current))
             return new(DerivedMetadataStatus.Current, current);
 
         await _concurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -332,12 +337,12 @@ internal sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService
                         Diagnostic: "The source changed while metadata was being read. Retry after the file is stable.");
 
                 var normalized = JsonSerializer.Serialize(result.Metadata, DerivedMetadataJson.Options);
-                await _previews.SetMetadataAsync(assetId, new(CurrentProbeVersion, PreviewComponentState.Current,
+                await _previews.SetMetadataAsync(assetId, new(probeVersion, PreviewComponentState.Current,
                     PayloadJson: normalized, RawPayloadJson: result.RawMetadata), cancellationToken).ConfigureAwait(false);
                 return new(DerivedMetadataStatus.Succeeded, result.Metadata);
             }
 
-            await _previews.SetMetadataAsync(assetId, new(CurrentProbeVersion, PreviewComponentState.Failed,
+            await _previews.SetMetadataAsync(assetId, new(probeVersion, PreviewComponentState.Failed,
                 PayloadJson: preview.MetadataJson, RawPayloadJson: preview.RawMetadataJson ?? result.RawMetadata), cancellationToken)
                 .ConfigureAwait(false);
             return new(result.Status, Diagnostic: result.Diagnostic);
@@ -381,7 +386,8 @@ internal static class FfprobeMetadataNormalizer
             if (!document.RootElement.TryGetProperty("streams", out var streamsElement) || streamsElement.ValueKind != JsonValueKind.Array)
                 return new(DerivedMetadataStatus.Malformed, RawMetadata: json, Diagnostic: "FFprobe returned no stream list.");
             var streams = streamsElement.EnumerateArray().ToList();
-            var videoElement = streams.FirstOrDefault(StreamType("video"));
+            var videoElement = streams.FirstOrDefault(element => StreamType("video")(element) &&
+                !(element.TryGetProperty("disposition", out var disposition) && ReadInt(disposition, "attached_pic") == 1));
             var audioElement = streams.FirstOrDefault(StreamType("audio"));
             var hasVideo = videoElement.ValueKind != JsonValueKind.Undefined;
             var hasAudio = audioElement.ValueKind != JsonValueKind.Undefined;
@@ -396,10 +402,14 @@ internal static class FfprobeMetadataNormalizer
                 ReadString(videoElement, "codec_name") ?? "unknown",
                 ReadString(videoElement, "profile"), ReadInt(videoElement, "width") ?? 0, ReadInt(videoElement, "height") ?? 0,
                 Positive(MediaMetadataParser.ReadFrameRate(ReadString(videoElement, "avg_frame_rate") ?? "0")),
-                ReadString(videoElement, "pix_fmt"), ReadInt(videoElement, "bits_per_raw_sample"),
+                ReadString(videoElement, "pix_fmt"), FfprobePixelFormats.ComponentDepth(
+                    ReadString(videoElement, "pix_fmt"), ReadInt(videoElement, "bits_per_raw_sample")),
                 ReadString(videoElement, "color_space"), ReadString(videoElement, "color_transfer"), ReadString(videoElement, "color_primaries")) : null;
             if (video is not null) video = video with
-            { SourceDisplayAspectRatio = MediaDisplayGeometry.FromProbe(videoElement, video.Width, video.Height) };
+            {
+                SourceDisplayAspectRatio = MediaDisplayGeometry.FromProbe(videoElement, video.Width, video.Height),
+                ChromaSubsampling = FfprobePixelFormats.Find(video.PixelFormat)?.ChromaSubsampling
+            };
             var audio = hasAudio ? new DerivedAudioMetadata(
                 ReadString(audioElement, "codec_name") ?? "unknown", ReadInt(audioElement, "channels"),
                 ReadString(audioElement, "channel_layout"), ReadInt(audioElement, "sample_rate"), ReadLong(audioElement, "bit_rate")) : null;

@@ -146,7 +146,8 @@ internal sealed class MediaInspectorService(IPreviewStoreService? previews, IAss
                 v.FrameRate?.ToString("R", CultureInfo.InvariantCulture));
             yield return new("Video", "Pixel format", v.PixelFormat ?? "");
             yield return new("Color", "Bit depth", v.BitDepth is { } bits ? $"{bits} bit" : "");
-            yield return new("Color", "Space", v.ColorSpace ?? "");
+            yield return new("Color", "Chroma", v.ChromaSubsampling ?? "");
+            yield return new("Color", "Matrix", v.ColorMatrix ?? "");
             yield return new("Color", "Transfer", v.ColorTransfer ?? "");
             yield return new("Color", "Primaries", v.ColorPrimaries ?? "");
         }

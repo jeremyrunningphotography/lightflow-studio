@@ -24,6 +24,8 @@ public sealed class OrientedPreviewImage : System.Windows.Controls.Image
     private long _revision = -1;
     private VideoRotation _rotation;
     private bool _orientationUnavailable;
+    private BitmapSource? _boundBitmap;
+    private BitmapSource? _pixels;
 
     static OrientedPreviewImage() => SourceProperty.OverrideMetadata(typeof(OrientedPreviewImage),
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure |
@@ -38,10 +40,24 @@ public sealed class OrientedPreviewImage : System.Windows.Controls.Image
     private static object? CoerceSource(DependencyObject owner, object? value)
     {
         var image = (OrientedPreviewImage)owner;
+        // Path bindings can supply decoder-backed BitmapFrames independently of DecodeImage.
+        // Snapshot once per published source, not per turn. Never freeze a transform over the
+        // caller's decoder graph, even when that graph reports IsFrozen.
+        if (!ReferenceEquals(image._boundBitmap, value))
+        {
+            image._boundBitmap = null;
+            image._pixels = null;
+            if (value is BitmapSource source)
+            {
+                image._pixels = DetachedBitmap.Copy(source);
+                image._boundBitmap = source;
+            }
+        }
         if (image._orientationUnavailable) return null;
-        if (value is not BitmapSource bitmap || image._rotation.Degrees == 0) return value;
+        if (image._pixels is not { } bitmap) return value;
+        if (image._rotation.Degrees == 0) return bitmap;
         var rotated = new TransformedBitmap(bitmap, new RotateTransform(image._rotation.Degrees));
-        if (rotated.CanFreeze) rotated.Freeze();
+        rotated.Freeze();
         return rotated;
     }
     private static void StoreChanged(DependencyObject owner, DependencyPropertyChangedEventArgs args)

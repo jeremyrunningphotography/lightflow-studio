@@ -11,6 +11,109 @@ namespace LightflowStudio.Tests;
 public sealed class VideoRotationPixelTests
 {
     [Theory]
+    [InlineData("decoder", 90)]
+    [InlineData("decoder", 270)]
+    [InlineData("converter", 90)]
+    [InlineData("converter", 270)]
+    [InlineData("shared", 90)]
+    [InlineData("shared", 270)]
+    [InlineData("bitmapImage", 90)]
+    [InlineData("bitmapImage", 270)]
+    public async Task PreviewSurvivesProducerExitAndRepeatedTurns(string producer, int firstTurn)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, Guid.NewGuid() + ".png");
+        BitmapSource? original = null;
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                byte[] pixels = [0,0,255,255, 0,0,255,255, 0,255,0,255, 0,255,0,255,
+                    255,0,0,255, 255,0,0,255, 0,255,255,255, 0,255,255,255];
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(BitmapSource.Create(4, 2, 96, 96,
+                    PixelFormats.Bgra32, null, pixels, 16)));
+                using (var output = File.Create(path)) encoder.Save(output);
+                if (producer == "shared") original = PlayerViewerHost.DecodeImage(path);
+                else if (producer == "bitmapImage")
+                {
+                    using var input = File.OpenRead(path);
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.StreamSource = input; bitmap.EndInit(); original = bitmap;
+                }
+                else if (producer == "converter") original = (BitmapSource)new ImageSourceConverter().ConvertFrom(File.ReadAllBytes(path))!;
+                else
+                {
+                    using var input = File.OpenRead(path);
+                    original = BitmapDecoder.Create(input, BitmapCreateOptions.PreservePixelFormat,
+                        BitmapCacheOption.OnLoad).Frames[0];
+                }
+                original.Freeze();
+            }
+            catch (Exception error) { failure = error; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(10)), "Producer did not exit.");
+        try
+        {
+            Assert.Null(failure);
+            var hash = SHA256.HashData(File.ReadAllBytes(path));
+            await StaDispatcher.RunAsync(async () =>
+            {
+                if (producer == "shared")
+                {
+                    // The published decode itself must be detached, independently of the control.
+                    Assert.True(original!.CanFreeze);
+                    var transform = new TransformedBitmap(original, new RotateTransform(firstTurn));
+                    transform.Freeze();
+                    AssertBitmap(transform, new(firstTurn));
+                }
+                var store = new TestRotations(new(firstTurn));
+                var preview = new OrientedPreviewImage { AssetId = store.Id, Source = original };
+                OrientedPreviewImage.SetStore(preview, store);
+                preview.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+                try
+                {
+                    await System.Windows.Threading.Dispatcher.Yield();
+                    Assert.True(preview.Source is BitmapSource, preview.ToolTip?.ToString());
+                    Assert.Null(preview.ToolTip);
+                    AssertBitmap((BitmapSource)preview.Source, new(firstTurn));
+                    BitmapSource? unrotated = null;
+                    for (var turn = 0; turn < 40; turn++)
+                    {
+                        var degrees = new[] { 90, 270, 180, 0 }[turn % 4];
+                        store.Update(new(degrees), turn + 2);
+                        await System.Windows.Threading.Dispatcher.Yield();
+                        var displayed = Assert.IsAssignableFrom<BitmapSource>(preview.Source);
+                        Assert.True(displayed.IsFrozen);
+                        Assert.True(displayed.CanFreeze);
+                        AssertBitmap(displayed, new(degrees));
+                        if (degrees == 0)
+                        {
+                            if (unrotated is not null) Assert.Same(unrotated, displayed);
+                            unrotated = displayed;
+                        }
+                    }
+                    AssertBitmap(original!, default);
+                    var replacement = new TransformedBitmap(DetachedBitmap.Copy(original!), new RotateTransform(180));
+                    replacement.Freeze();
+                    preview.Source = replacement;
+                    AssertBitmap(Assert.IsAssignableFrom<BitmapSource>(preview.Source), new(180));
+                    preview.Source = null;
+                    Assert.Null(preview.Source);
+                    preview.Source = original;
+                    AssertBitmap(Assert.IsAssignableFrom<BitmapSource>(preview.Source), default);
+                }
+                finally { preview.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent)); }
+            });
+            Assert.Equal(hash, SHA256.HashData(File.ReadAllBytes(path)));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
     [InlineData(90)]
     [InlineData(270)]
     public async Task VisualIndexUsesSharedRotationPresentationWithoutChangingColoredCachedPixels(int degrees)
@@ -55,7 +158,7 @@ public sealed class VideoRotationPixelTests
                 AssertBitmap((BitmapSource)preview.Source, new(360 - degrees));
                 store.Update(default, 3);
                 await System.Windows.Threading.Dispatcher.Yield();
-                Assert.Same(original, preview.Source);
+                AssertBitmap((BitmapSource)preview.Source, default);
                 Assert.Same(original, card.Frame);
                 Assert.Equal(0, frames.Prepares); Assert.Equal(0, frames.Reads);
             }
@@ -88,7 +191,11 @@ public sealed class VideoRotationPixelTests
                 Assert.Equal(2, ((BitmapSource)preview.Source).PixelWidth);
                 store.Update(default, 2);
                 await Task.Delay(20);
-                Assert.Same(original, preview.Source);
+                var displayed = (BitmapSource)preview.Source;
+                Assert.Equal((4, 2), (displayed.PixelWidth, displayed.PixelHeight));
+                var pixels = new byte[32];
+                displayed.CopyPixels(pixels, 16, 0);
+                Assert.Equal(new byte[32], pixels);
             }
             finally { window.Content = null; window.Close(); }
         });

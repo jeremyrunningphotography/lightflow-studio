@@ -42,6 +42,25 @@ notifications and rejects obsolete asynchronous asset reads. Browser grid/Detail
 marker cards, and Subclip cards all use this boundary. A failed Catalog read cannot display an unverified
 orientation as if it were authoritative.
 
+### Bitmap ownership (#312)
+
+A frozen WPF `BitmapFrame` may still retain a decoder owned by its producing thread.
+Freezing a later `TransformedBitmap` walks that decoder graph and can fail across threads.
+`DetachedBitmap.Copy` materializes pixels into a frozen, decoder-independent `BitmapSource`,
+preserving dimensions, DPI, pixel format and palette. The shared image decode helper applies
+EXIF orientation on the decoding thread, then publishes detached pixels before closing its
+stream; Subclip poster publication uses the same boundary.
+
+`OrientedPreviewImage` also snapshots incoming source pixels because Browser/filmstrip path
+bindings can use WPF's decoder-backed conversion independently of that helper. It retains one
+detached unrotated snapshot per bound bitmap, reuses it for every Catalog turn (including zero),
+and replaces/releases it when the bound source changes/clears. Transform freezing never walks
+the caller's decoder graph. This costs a pixel copy per source publication, not per rotation;
+it does not change disk Preview identity, regenerate frames, or depend on the producer thread
+remaining alive. Native Player rendering and Catalog/Aspect Ratio notification semantics remain
+unchanged. Pixel regression tests exercise producer-thread exit, both directions, repeated turns,
+source replacement, and immutable original pixels.
+
 Rotation alone changes no cached pixels, cache identities, preferred-frame positions, Color state, marker
 positions, or Subclip In/Out values. No regeneration queue or source decode is needed for existing cached
 images, including offline images. Preview cleanup/rebuild follows the same existing source-oriented policy.

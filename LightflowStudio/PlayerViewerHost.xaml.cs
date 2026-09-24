@@ -369,8 +369,7 @@ public partial class PlayerViewerHost : UserControl
         var frame = decoder.Frames[0];
         var orientation = WicImageThumbnailRenderer.ReadOrientation(frame.Metadata as BitmapMetadata);
         BitmapSource bitmap = WicImageThumbnailRenderer.ApplyOrientation(frame, orientation);
-        bitmap.Freeze();
-        return bitmap;
+        return DetachedBitmap.Copy(bitmap);
     }
 
     private async Task ReleaseCurrentAsync()
@@ -1255,9 +1254,7 @@ public partial class PlayerViewerHost : UserControl
                 FileShare.ReadWrite | FileShare.Delete, 64 * 1024, FileOptions.SequentialScan);
             var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
             if (decoder.Frames.Count == 0) return;
-            var bitmap = decoder.Frames[0];
-            bitmap.Freeze();
-            item.Poster = bitmap;
+            item.Poster = DetachedBitmap.Copy(decoder.Frames[0]);
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or FileFormatException) { }

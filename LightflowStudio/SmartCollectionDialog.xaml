@@ -34,8 +34,12 @@
    <!-- The complete sentence/control layout is one replaceable WPF resource for localization. -->
    <ContentControl x:Name="MatchHost" Margin="0,16,0,10" ContentTemplate="{StaticResource SmartFilterMatchTemplate}"/>
    <TextBlock x:Name="ValuesStatus" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
-   <StackPanel x:Name="FilterRows"/>
-   <Button x:Name="AddFilterButton" Content="+ Add filter" HorizontalAlignment="Left" Click="AddFilter_Click"/>
+   <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="10" Background="{StaticResource WindowBrush}">
+    <StackPanel>
+     <StackPanel x:Name="FilterRows"/>
+     <Button x:Name="AddFilterButton" Content="+ Add filter" HorizontalAlignment="Left" Click="AddFilter_Click"/>
+    </StackPanel>
+   </Border>
    <TextBlock x:Name="ErrorText" Foreground="{StaticResource ShellFocusBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
     <Button IsCancel="True" Content="Cancel"/>

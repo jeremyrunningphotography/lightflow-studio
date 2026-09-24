@@ -56,3 +56,19 @@ A filesystem Location is a logical Media Root (`RootId`, display name) with a ma
 - Existing surfaces include the Locations tree, these menu commands and their dialogs/status notices. Documentation includes ARCHITECTURE.md (Browser Locations, #291), validation/settings-291.md and settings-291-authority.md. Related storage/root vocabulary also appears throughout architecture documentation.
 
 The duplicated word Location is a real UX ambiguity. Renaming the commands should be a deliberate coordinated wording decision across the tree, dialogs, status/accessibility text and documentation. Display terminology can change without changing RootId architecture or storage schema. No terminology changes were made in this iteration.
+
+## Value/operator editor acceptance iteration
+
+The complete field inventory and operator/cardinality/value-source decisions are in [smart-filter-editor-inventory-217.md](smart-filter-editor-inventory-217.md). There are 17 current descriptors. No predicate/evaluator or composition semantics were added.
+
+- Resolution is authored as exact positive integer width × height in pixels, with known size suggestions where available. This supports 3840 × 2160 before any matching Source asset exists; no invented canonical aspect-ratio list.
+- Frame Rate is authored as positive numeric fps, optionally selected from the existing canonical rational rate table plus observed rates. Browser normalization is used by both input and evaluation.
+- Duration is authored in seconds, mm:ss or hh:mm:ss and means **is at least** (inclusive >=). The existing query cannot express shorter-than or between; those operators are deliberately absent. Multiple thresholds remain explicit alternatives when capturing existing Browser intent.
+- In/Out Range uses **is set / is not set**, consistent with the Player/Browser state indicator. It queries the saved primary range, not transient playback marks. Boolean rows place state directly in the operator control and omit a redundant third value input. An explicit either-state option preserves saved same-field alternatives while still requiring hydrated authored state.
+- Camera, Lens and Keywords are conditionally absent from new-row authoring when no selectable vocabulary is available. Saved selections remain editable even if no longer observed. Other authoring fields remain useful with an empty Source.
+- Shared descriptors now declare structured input conversion, state operators, authoring availability and suggestions separately from the unchanged Browser-context value-discovery function. No #299 work or unrelated Browser filter behavior was added.
+- Values use a dark shared ToggleButton template; checked/focused/hover states change the border rather than the fill. Checklists use the same shared dark brushes and rounded border, natural selected summaries, focusable checkboxes, Down/F4 open and Escape return.
+- Filter removal uses a transparent compact 24px action derived from the ordinary Lightflow Button. Alternative removal appears only for multiple alternatives. One restrained container surrounds the filter rows and + Add filter.
+- File/path now uses the ordinary TextBox directly. Its optional placeholder lives in the shared TextBox template using the same padding and content alignment, eliminating the independently margined overlay that altered the dynamic input's layout.
+
+Hands-on: test an empty Source with 3840 × 2160, standard/custom fps and a 00:30 inclusive minimum; add a matching asset later. Exercise saved In/Out set/unset, multi-select popup keyboard use and collapsed summaries, multiple numeric/date alternatives, remove actions, blank filter state, and File/path caret/placeholder alignment. Recheck Save current view and All/Any after editing.

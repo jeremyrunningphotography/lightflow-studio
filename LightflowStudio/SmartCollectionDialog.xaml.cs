@@ -85,10 +85,10 @@ public partial class SmartCollectionDialog : Window
             () => { _rows.Remove(row!); FilterRows.Children.Remove(row!); UpdateAddFilter(); });
         _rows.Add(row); FilterRows.Children.Add(row); UpdateAddFilter();
     }
-    private void UpdateAddFilter() => AddFilterButton.IsEnabled = _rows.Count < BrowserFilterDescriptors.All.Count;
+    private void UpdateAddFilter() => AddFilterButton.IsEnabled = BrowserFilterDescriptors.All.Any(d => d.CanAuthor(_valueTiles) && _rows.All(r => r.Field != d.Field));
     private void AddFilter_Click(object sender, RoutedEventArgs e)
     {
-        var descriptor = BrowserFilterDescriptors.All.FirstOrDefault(d => _rows.All(row => row.Field != d.Field));
+        var descriptor = BrowserFilterDescriptors.All.FirstOrDefault(d => d.CanAuthor(_valueTiles) && _rows.All(row => row.Field != d.Field));
         if (descriptor is not null) AddRow(descriptor.Field, []);
     }
     private async Task RefreshValuesAsync()
@@ -102,6 +102,7 @@ public partial class SmartCollectionDialog : Window
             if (request != _valuesRequest) return;
             _valueTiles = tiles;
             foreach (var row in _rows) row.RefreshValues(tiles);
+            UpdateAddFilter();
             ValuesStatus.Text = "";
         }
         catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or Microsoft.Data.Sqlite.SqliteException)

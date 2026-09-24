@@ -17,7 +17,9 @@ internal sealed class BrowserFilterRowEditor : Grid
 {
     private readonly ComboBox _field = new() { DisplayMemberPath = "Name", MinWidth = 135 };
     private readonly ContentControl _operator = new() { Margin = new(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Top };
-    private readonly ContentControl _value = new();
+    private readonly ContentControl _value = new() { VerticalAlignment = VerticalAlignment.Top };
+    private bool _inputValid = true;
+    private Action? _refreshSuggestions;
     private readonly List<BrowserFilterPredicate> _alternatives;
     private IReadOnlyList<BrowserGridTile> _tiles;
     private readonly Func<BrowserFilterField, bool> _fieldAvailable;
@@ -37,7 +39,7 @@ internal sealed class BrowserFilterRowEditor : Grid
         ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         _field.VerticalAlignment = VerticalAlignment.Top;
         _initializing = true;
-        _field.ItemsSource = BrowserFilterDescriptors.All.Where(d => d.Field == field || fieldAvailable(d.Field)).ToArray();
+        _field.ItemsSource = BrowserFilterDescriptors.All.Where(d => d.Field == field || (fieldAvailable(d.Field) && d.CanAuthor(_tiles))).ToArray();
         _field.SelectedItem = BrowserFilterDescriptors.Get(field);
         _initializing = false;
         _field.DropDownOpened += (_, _) => RefreshFields();
@@ -48,7 +50,7 @@ internal sealed class BrowserFilterRowEditor : Grid
         };
         AutomationProperties.SetName(_field, "Filter field");
         Add(_field, 0); Add(_operator, 1); Add(_value, 2);
-        var removeButton = new Button { Content = "×", Width = 30, Margin = new(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top, ToolTip = "Remove filter" };
+        var removeButton = new Button { Content = "×", Style = (Style)FindResource("FilterRowActionStyle"), VerticalAlignment = VerticalAlignment.Top, ToolTip = "Remove filter" };
         AutomationProperties.SetName(removeButton, "Remove filter");
         removeButton.Click += (_, _) => remove(); Add(removeButton, 3);
         BuildValue();
@@ -57,19 +59,24 @@ internal sealed class BrowserFilterRowEditor : Grid
     private void RefreshFields()
     {
         var selected = Field; _initializing = true;
-        _field.ItemsSource = BrowserFilterDescriptors.All.Where(d => d.Field == selected || _fieldAvailable(d.Field)).ToArray();
+        _field.ItemsSource = BrowserFilterDescriptors.All.Where(d => d.Field == selected || (_fieldAvailable(d.Field) && d.CanAuthor(_tiles))).ToArray();
         _field.SelectedItem = BrowserFilterDescriptors.Get(selected); _initializing = false;
     }
     public void RefreshValues(IReadOnlyList<BrowserGridTile> tiles)
     {
         _tiles = tiles;
         if (BrowserFilterDescriptors.Get(Field).Editor == BrowserFilterEditorKind.Choices) BuildChoices();
+        _refreshSuggestions?.Invoke();
     }
     private void LabelOperator(string text) => _operator.Content = new TextBlock { Text = text, Margin = new(0, 7, 0, 0) };
     private void BuildValue()
     {
+        _inputValid = true; _refreshSuggestions = null;
+        SetColumnSpan(_operator, 1); _value.Visibility = Visibility.Visible;
         switch (BrowserFilterDescriptors.Get(Field).Editor)
         {
+            case BrowserFilterEditorKind.Structured: BuildStructured(); break;
+            case BrowserFilterEditorKind.State: BuildState(); break;
             case BrowserFilterEditorKind.Text: BuildText(); break;
             case BrowserFilterEditorKind.Rating: BuildRating(); break;
             case BrowserFilterEditorKind.DateRanges: BuildDates(); break;
@@ -81,16 +88,13 @@ internal sealed class BrowserFilterRowEditor : Grid
         LabelOperator("contains");
         var text = new TextBox { Text = _alternatives.FirstOrDefault()?.TextValue ?? "", MinWidth = 120 };
         AutomationProperties.SetName(text, "Text to match");
-        var host = new Grid(); host.Children.Add(text);
-        var placeholder = new TextBlock { Text = "Text to match", IsHitTestVisible = false, Margin = new(8, 7, 0, 0), Foreground = (Brush)FindResource("MutedTextBrush") };
-        host.Children.Add(placeholder);
+        TextInputHint.SetText(text, "Text to match");
         void Update()
         {
-            placeholder.Visibility = text.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
             _alternatives.Clear();
             if (!string.IsNullOrWhiteSpace(text.Text)) _alternatives.Add(BrowserFilterPredicate.ForText(Field, text.Text.Trim()));
         }
-        Update(); text.TextChanged += (_, _) => { Update(); _changed(); }; _value.Content = host;
+        Update(); text.TextChanged += (_, _) => { Update(); _changed(); }; _value.Content = text;
     }
     private sealed record Comparison(BrowserNumberComparison Value, string Name);
     private void BuildRating()
@@ -115,15 +119,15 @@ internal sealed class BrowserFilterRowEditor : Grid
     private void BuildChoices()
     {
         var choices = BrowserFilterDescriptors.Get(Field).Values(_tiles).Concat(_alternatives).Distinct().ToArray();
-        var button = new ToggleButton { HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left, MinHeight = 30, Padding = new(8, 4, 8, 4) };
+        var button = new ToggleButton { Style = (Style)FindResource("FilterValueToggleStyle") };
         var list = new StackPanel();
-        var popup = new Popup { PlacementTarget = button, Placement = PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true };
-        popup.Child = new Border { Background = (Brush)FindResource("CardBrush"), BorderBrush = (Brush)FindResource("BorderBrush"), BorderThickness = new(1), Padding = new(10),
+        var popup = new Popup { PlacementTarget = button, Placement = PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true, VerticalOffset = 4 };
+        popup.Child = new Border { Background = (Brush)FindResource("CardBrush"), BorderBrush = (Brush)FindResource("BorderBrush"), BorderThickness = new(1), CornerRadius = new(6), Padding = new(6),
             Child = new ScrollViewer { Content = list, MaxHeight = 240, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MinWidth = 200 } };
         void UpdateLabel()
         {
-            LabelOperator(Field == BrowserFilterField.Duration ? (_alternatives.Count > 1 ? "meets any" : "meets") : _alternatives.Count > 1 ? "is any of" : "is");
-            button.Content = new TextBlock { Text = (_alternatives.Count == 0 ? "Choose values…" : string.Join(", ", _alternatives.Select(BrowserFilterDescriptors.ValueLabel))) + " ▾", TextWrapping = TextWrapping.Wrap };
+            LabelOperator(_alternatives.Count > 1 ? "is any of" : "is");
+            button.Content = new TextBlock { Text = (_alternatives.Count == 0 ? "Select…" : string.Join(", ", _alternatives.Select(BrowserFilterDescriptors.ValueLabel))), TextWrapping = TextWrapping.Wrap };
         }
         foreach (var choice in choices)
         {
@@ -131,13 +135,140 @@ internal sealed class BrowserFilterRowEditor : Grid
             check.Click += (_, _) => { if (check.IsChecked == true) _alternatives.Add(choice); else _alternatives.Remove(choice); UpdateLabel(); _changed(); };
             list.Children.Add(check);
         }
-        if (choices.Length == 0) list.Children.Add(new TextBlock { Text = "No known values in this Source", Foreground = (Brush)FindResource("MutedTextBrush") });
+        button.IsEnabled = choices.Length > 0;
+        ((FrameworkElement)popup.Child).SetBinding(FrameworkElement.MinWidthProperty, new System.Windows.Data.Binding("ActualWidth") { Source = button });
+        System.Windows.Input.KeyboardNavigation.SetTabNavigation(list, System.Windows.Input.KeyboardNavigationMode.Cycle);
+        button.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key is System.Windows.Input.Key.Down or System.Windows.Input.Key.F4) { button.IsChecked = true; e.Handled = true; }
+        };
+        list.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Escape) { popup.IsOpen = false; button.Focus(); e.Handled = true; }
+        };
+        popup.Opened += (_, _) => list.Children.OfType<CheckBox>().FirstOrDefault()?.Focus();
         button.Checked += (_, _) => popup.IsOpen = true; button.Unchecked += (_, _) => popup.IsOpen = false;
         popup.Closed += (_, _) => button.IsChecked = false;
         Unloaded += (_, _) => popup.IsOpen = false;
         AutomationProperties.SetName(button, "Filter values");
         var host = new Grid(); host.Children.Add(button); host.Children.Add(popup); _value.Content = host; UpdateLabel();
     }
+    private sealed record StateChoice(string Label, bool? Value);
+    private void BuildState()
+    {
+        var descriptor = BrowserFilterDescriptors.Get(Field);
+        var choices = new[] { new StateChoice(descriptor.StateOperators[0], true), new StateChoice(descriptor.StateOperators[1], false),
+            new StateChoice(descriptor.StateOperators[2], null) };
+        var selector = new ComboBox { ItemsSource = choices, DisplayMemberPath = "Label", MinWidth = 170,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left };
+        selector.SelectedItem = _alternatives.Count > 1 ? choices[2] : _alternatives.FirstOrDefault()?.BooleanValue is { } value ? choices[value ? 0 : 1] : null;
+        AutomationProperties.SetName(selector, descriptor.Name + " state");
+        selector.SelectionChanged += (_, _) =>
+        {
+            _alternatives.Clear();
+            if (selector.SelectedItem is StateChoice choice)
+            {
+                if (choice.Value is { } state) _alternatives.Add(BrowserFilterPredicate.ForState(Field, state));
+                else _alternatives.AddRange(descriptor.Values(_tiles));
+            }
+            _changed();
+        };
+        SetColumnSpan(_operator, 2); _value.Visibility = Visibility.Collapsed; _value.Content = null; _operator.Content = selector;
+    }
+
+    private sealed record ValueSuggestion(BrowserFilterPredicate? Predicate, string Label);
+    private void BuildStructured()
+    {
+        var descriptor = BrowserFilterDescriptors.Get(Field); var input = descriptor.Input!;
+        var panel = new StackPanel();
+        var editors = new List<(TextBox[] Boxes, ComboBox Suggestions)>();
+        var alternativeRemovals = new List<Button>();
+        var saved = _alternatives.ToArray();
+        var creating = true;
+        void Update()
+        {
+            if (creating) return;
+            _alternatives.Clear(); _inputValid = true;
+            foreach (var editor in editors)
+            {
+                try
+                {
+                    var predicate = input.Parse(editor.Boxes.Select(box => box.Text).ToArray());
+                    _alternatives.Add(predicate);
+                    foreach (var box in editor.Boxes) box.ToolTip = input.Help;
+                }
+                catch (FormatException ex)
+                {
+                    _inputValid = false;
+                    foreach (var box in editor.Boxes) { box.ToolTip = ex.Message; }
+                }
+            }
+            foreach (var button in alternativeRemovals) button.Visibility = editors.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+            LabelOperator(editors.Count > 1 ? input.AlternativesOperator : input.Operator); _changed();
+        }
+        void RefreshSuggestions()
+        {
+            var values = (descriptor.Suggestions?.Invoke(_tiles) ?? descriptor.Values(_tiles)).Concat(_alternatives).Distinct().ToArray();
+            foreach (var editor in editors)
+            {
+                editor.Suggestions.ItemsSource = new[] { new ValueSuggestion(null, descriptor.SuggestionsLabel) }
+                    .Concat(values.Select(p => new ValueSuggestion(p, BrowserFilterDescriptors.ValueLabel(p)))).ToArray();
+                editor.Suggestions.SelectedIndex = 0;
+                editor.Suggestions.Visibility = values.Length == 0 || !descriptor.OfferSuggestions ? Visibility.Collapsed : Visibility.Visible;
+            }
+        }
+        void AddAlternative(BrowserFilterPredicate? predicate)
+        {
+            var group = new StackPanel { Margin = new(0, 0, 0, 5) };
+            var line = new Grid();
+            var boxes = new TextBox[input.Components.Length];
+            var formatted = predicate is null ? input.Components.Select(_ => "").ToArray() : input.Format(predicate);
+            for (var i = 0; i < boxes.Length; i++)
+            {
+                if (i > 0)
+                {
+                    line.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+                    var separator = new TextBlock { Text = input.Separator, VerticalAlignment = VerticalAlignment.Center, Margin = new(3, 0, 3, 0) };
+                    SetColumn(separator, line.ColumnDefinitions.Count - 1); line.Children.Add(separator);
+                }
+                line.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
+                var box = boxes[i] = new TextBox { Text = formatted[i], MinWidth = 54, ToolTip = input.Help };
+                TextInputHint.SetText(box, input.Components[i]); AutomationProperties.SetName(box, descriptor.Name + " " + input.Components[i]);
+                SetColumn(box, line.ColumnDefinitions.Count - 1); line.Children.Add(box); box.TextChanged += (_, _) => Update();
+            }
+            line.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+            var unit = new TextBlock { Text = input.Unit, VerticalAlignment = VerticalAlignment.Center, Margin = new(4, 0, 0, 0) };
+            SetColumn(unit, line.ColumnDefinitions.Count - 1); line.Children.Add(unit);
+            line.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+            var suggestionsColumn = line.ColumnDefinitions.Count - 1;
+            line.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+            var remove = new Button { Content = "×", Style = (Style)FindResource("FilterRowActionStyle"), ToolTip = "Remove alternative" };
+            AutomationProperties.SetName(remove, "Remove alternative"); SetColumn(remove, line.ColumnDefinitions.Count - 1); line.Children.Add(remove);
+            alternativeRemovals.Add(remove);
+            var suggestions = new ComboBox { DisplayMemberPath = "Label", Width = 78, VerticalAlignment = VerticalAlignment.Center, ToolTip = descriptor.Name + " suggestions" };
+            AutomationProperties.SetName(suggestions, descriptor.Name + " suggestions");
+            suggestions.SelectionChanged += (_, _) =>
+            {
+                if (suggestions.SelectedItem is not ValueSuggestion { Predicate: { } selected }) return;
+                var values = input.Format(selected);
+                for (var i = 0; i < boxes.Length; i++) boxes[i].Text = values[i];
+                suggestions.SelectedIndex = 0;
+            };
+            editors.Add((boxes, suggestions)); group.Children.Add(line); SetColumn(suggestions, suggestionsColumn); line.Children.Add(suggestions);
+            panel.Children.Insert(Math.Max(0, panel.Children.Count - 1), group);
+            remove.Click += (_, _) => { editors.Remove((boxes, suggestions)); alternativeRemovals.Remove(remove); panel.Children.Remove(group); Update(); };
+            RefreshSuggestions();
+        }
+        var add = new Button { Content = "+ Add alternative", Style = (Style)FindResource("FilterInlineActionStyle"), HorizontalAlignment = System.Windows.HorizontalAlignment.Left };
+        panel.Children.Add(add);
+        if (saved.Length == 0) AddAlternative(null); else foreach (var predicate in saved) AddAlternative(predicate);
+        creating = false;
+        add.Click += (_, _) => { AddAlternative(null); Update(); };
+        _refreshSuggestions = RefreshSuggestions;
+        Update();
+        _value.Content = panel;
+    }
+
     private void BuildDates()
     {
         LabelOperator(_alternatives.Count > 1 ? "in any range" : "in range");
@@ -170,5 +301,5 @@ internal sealed class BrowserFilterRowEditor : Grid
         add.Click += (_, _) => { AddRange(BrowserFilterPredicate.ForDateRange(null, null)); LabelOperator("in any range"); };
         _value.Content = panel;
     }
-    public bool IsValid => _alternatives.Count > 0 && _alternatives.All(p => p.DateFrom is null || p.DateTo is null || p.DateFrom <= p.DateTo);
+    public bool IsValid => _inputValid && _alternatives.Count > 0 && _alternatives.All(p => p.DateFrom is null || p.DateTo is null || p.DateFrom <= p.DateTo);
 }

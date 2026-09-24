@@ -242,11 +242,18 @@
      <ControlTemplate TargetType="TextBox">
       <Border x:Name="TextChrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
        BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
-       <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/>
+       <Grid>
+        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/>
+        <TextBlock x:Name="InputHint" IsHitTestVisible="False" Visibility="Collapsed"
+         Text="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=(local:TextInputHint.Text)}"
+         Margin="{TemplateBinding Padding}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+         Foreground="{StaticResource MutedTextBrush}"/>
+       </Grid>
       </Border>
       <ControlTemplate.Triggers>
        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TextChrome" Property="BorderBrush" Value="#596270"/></Trigger>
        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TextChrome" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/></Trigger>
+       <Trigger Property="Text" Value=""><Setter TargetName="InputHint" Property="Visibility" Value="Visible"/></Trigger>
        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
@@ -663,6 +670,43 @@
       <Popup x:Name="PART_Popup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True"/>
      </Grid>
     </Border>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="FilterInlineActionStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Padding" Value="4,2"/><Setter Property="FontSize" Value="11"/>
+   <Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/>
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+  </Style>
+  <Style x:Key="FilterRowActionStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Width" Value="24"/><Setter Property="Height" Value="24"/>
+   <Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="4,2,0,0"/>
+   <Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/>
+   <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+   <Setter Property="FontSize" Value="12"/>
+  </Style>
+  <Style x:Key="FilterValueToggleStyle" TargetType="ToggleButton">
+   <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+   <Setter Property="Background" Value="{StaticResource WindowBrush}"/>
+   <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+   <Setter Property="BorderThickness" Value="1"/><Setter Property="Margin" Value="{StaticResource CompactControlMargin}"/>
+   <Setter Property="Padding" Value="{StaticResource CompactControlPadding}"/>
+   <Setter Property="HorizontalContentAlignment" Value="Left"/>
+   <Setter Property="VerticalContentAlignment" Value="Center"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+    <Border x:Name="ValueChrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="26"/></Grid.ColumnDefinitions>
+      <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+      <Border Grid.Column="1" Background="{StaticResource CardBrush}" CornerRadius="0,6,6,0">
+       <Path Width="9" Height="5" Stretch="Fill" Fill="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4.5 5 L 9 0 Z"/>
+      </Border>
+     </Grid>
+    </Border>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ValueChrome" Property="BorderBrush" Value="{StaticResource MutedTextBrush}"/></Trigger>
+     <Trigger Property="IsChecked" Value="True"><Setter TargetName="ValueChrome" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="ValueChrome" Property="BorderBrush" Value="{StaticResource OrangeBrush}"/></Trigger>
+     <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
+    </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
   </ResourceDictionary>

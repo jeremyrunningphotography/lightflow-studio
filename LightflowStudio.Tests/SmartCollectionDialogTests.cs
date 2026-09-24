@@ -12,6 +12,69 @@ namespace LightflowStudio.Tests;
 public sealed class SmartCollectionDialogTests
 {
     [Fact]
+    public Task StructuredInputsWorkWithoutObservedValuesAndStateHasNoThirdControl() => StaDispatcher.RunAsync(() =>
+    {
+        TestWpfApplication.EnsureLoaded();
+        var resolution = new BrowserFilterRowEditor(BrowserFilterField.Resolution, [], [], _ => true, () => { }, () => { });
+        var value = (StackPanel)((ContentControl)resolution.Children[2]).Content;
+        var boxes = ((Grid)value.Children.OfType<StackPanel>().First().Children[0]).Children.OfType<TextBox>().ToArray();
+        boxes[0].Text = "3840"; boxes[1].Text = "2160";
+        Assert.True(resolution.IsValid); Assert.Equal(BrowserFilterPredicate.ForResolution(3840, 2160), Assert.Single(resolution.Predicates));
+        boxes[0].Text = "invalid"; resolution.RefreshValues([]); Assert.False(resolution.IsValid); Assert.Equal("invalid", boxes[0].Text);
+        boxes[0].Text = "1920"; Assert.True(resolution.IsValid);
+        var fieldChoices = (ComboBox)resolution.Children[0];
+        Assert.DoesNotContain(fieldChoices.Items.Cast<BrowserFilterDescriptor>(), d => d.Field == BrowserFilterField.Camera);
+
+        var state = new BrowserFilterRowEditor(BrowserFilterField.ReviewRangeState,
+            [BrowserFilterPredicate.ForState(BrowserFilterField.ReviewRangeState, true)], [], _ => true, () => { }, () => { });
+        Assert.Equal(Visibility.Collapsed, state.Children[2].Visibility);
+        var operation = (ComboBox)((ContentControl)state.Children[1]).Content;
+        operation.SelectedIndex = 1; Assert.False(Assert.Single(state.Predicates).BooleanValue);
+        operation.SelectedIndex = 2; Assert.Equal(2, state.Predicates.Count);
+        Assert.Equal(2, Grid.GetColumnSpan(state.Children[1]));
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task ValueEditorGalleryUsesDarkControlsAndNormalTextHintAlignment() => StaDispatcher.RunAsync(() =>
+    {
+        TestWpfApplication.EnsureLoaded();
+        var query = new BrowserQueryIntent { Filters = [BrowserFilterPredicate.ForMediaType(MediaTypeCategory.StillImage),
+            BrowserFilterPredicate.ForMediaType(MediaTypeCategory.RawImage), BrowserFilterPredicate.ForResolution(3840, 2160),
+            BrowserFilterPredicate.ForFrameRate(29.97), BrowserFilterPredicate.ForMinimum(BrowserFilterField.Duration, 30),
+            BrowserFilterPredicate.ForState(BrowserFilterField.ReviewRangeState, true), BrowserFilterPredicate.ForText(BrowserFilterField.FileOrPath, "stabilized")] };
+        var dialog = new SmartCollectionDialog(new NoLocations(), [], [new(null, "Top level")], [], "Editor examples", null,
+            new(SmartCollectionSourceKind.Folder, Guid.NewGuid(), "Media"), query, true);
+        var content = (FrameworkElement)dialog.Content;
+        content.Measure(new Size(742, double.PositiveInfinity)); content.Arrange(new Rect(new Point(), new Size(742, content.DesiredSize.Height))); content.UpdateLayout();
+        var rows = ((StackPanel)dialog.FindName("FilterRows")).Children.OfType<BrowserFilterRowEditor>().ToArray();
+        var text = (TextBox)((ContentControl)rows.Last().Children[2]).Content;
+        text.Text = ""; text.ApplyTemplate(); content.UpdateLayout();
+        var hint = (TextBlock)text.Template.FindName("InputHint", text);
+        Assert.Equal(text.Padding, hint.Margin);
+        Assert.Equal(text.VerticalContentAlignment, hint.VerticalAlignment);
+        Assert.Equal("Text to match", hint.Text);
+        Assert.Equal(((TextBox)dialog.FindName("NameText")).Style, text.Style);
+        var mediaHost = (Grid)((ContentControl)rows[0].Children[2]).Content;
+        var toggle = mediaHost.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>().Single();
+        Assert.Same(Application.Current.FindResource("FilterValueToggleStyle"), toggle.Style);
+        Assert.All(rows, row => Assert.Equal(24, row.Children.OfType<Button>().Single().Width));
+        Render(content, "smart-value-editor-gallery.png");
+        // Render the popup content without opening a native popup/window.
+        var popup = mediaHost.Children.OfType<System.Windows.Controls.Primitives.Popup>().Single();
+        var popupContent = (FrameworkElement)popup.Child; popup.Child = null;
+        popupContent.Measure(new Size(280, double.PositiveInfinity)); popupContent.Arrange(new Rect(new Point(), new Size(280, popupContent.DesiredSize.Height))); popupContent.UpdateLayout();
+        Render(popupContent, "smart-value-popup.png");
+        return Task.CompletedTask;
+    });
+
+    private static void Render(FrameworkElement content, string filename)
+    {
+        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(content.ActualWidth), (int)Math.Ceiling(content.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(content); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(Path.Combine(Root(), ".task-notes", filename)); encoder.Save(stream);
+    }
+    [Fact]
     public Task BlankCreationAndInlineAlternativesStayEditable() => StaDispatcher.RunAsync(() =>
     {
         TestWpfApplication.EnsureLoaded();

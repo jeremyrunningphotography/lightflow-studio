@@ -15,7 +15,7 @@ internal sealed record BrowserStructuredFilterInput(string[] Components, string 
         values => NormalizedRate(values[0]),
         p => [p.NumberValue?.ToString("0.###", CultureInfo.CurrentCulture) ?? ""]);
     public static BrowserStructuredFilterInput Duration { get; } = new(["mm:ss"], "is at least", "is at least any of", "", "",
-        "Enter seconds, mm:ss, or hh:mm:ss. The minimum is inclusive.",
+        "Enter seconds, mm:ss, or hh:mm:ss. Duration limits are inclusive.",
         values => BrowserFilterPredicate.ForMinimum(BrowserFilterField.Duration, ParseDuration(values[0])),
         p => [FormatDuration(p.NumberValue)]);
     private static int PositiveInteger(string text) => int.TryParse(text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var number) && number > 0

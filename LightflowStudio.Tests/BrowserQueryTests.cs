@@ -42,7 +42,7 @@ public sealed class BrowserQueryTests
     public void DevelopmentVersionOneSearchBecomesAnOrdinaryField()
     {
         var saved = BrowserQueryIntent.Deserialize("""{"Version":1,"MatchMode":"Any","SearchText":"wedding","Filters":[{"Field":"MediaType","MediaTypeValue":"Video"}]}""");
-        Assert.Equal(2, saved.Version); Assert.Equal("", saved.SearchText);
+        Assert.Equal(3, saved.Version); Assert.Equal("", saved.SearchText);
         Assert.Contains(saved.Filters, p => p.Field == BrowserFilterField.FileOrPath && p.TextValue == "wedding");
         Assert.DoesNotContain("SearchText", saved.Serialize());
     }
@@ -768,7 +768,7 @@ public sealed class BrowserClassificationFilterTests
     [Fact]
     public void ColorAndKeywordChoices_PreserveEstablishedOrderAndComposeWithOtherPredicates()
     {
-        Assert.Equal(["Red", "Yellow", "Green", "Blue", "Purple"],
+        Assert.Equal(["Not set", "Red", "Yellow", "Green", "Blue", "Purple"],
             BrowserClassificationFilterChoices.ColorLabels.Select(predicate => new BrowserFilterOption(predicate, false).DisplayLabel));
         Assert.Equal(["ceremony", "Favorites"], BrowserClassificationFilterChoices.Keywords(["Favorites", "ceremony", "CEREMONY"])
             .Select(predicate => predicate.TextValue));

@@ -6,6 +6,38 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserFilterAuthoringTests
 {
     [Fact]
+    public void DurationUpperLimitAndUnsetLabelRoundTripAsSemanticPredicates()
+    {
+        var maximum = BrowserStructuredFilterInput.Duration.Parse(["00:30"]) with { Comparison = BrowserNumberComparison.LessThanOrEqual };
+        var unset = BrowserFilterPredicate.ForUnsetColorLabel();
+        var red = BrowserFilterPredicate.ForText(BrowserFilterField.ColorLabel, "Red");
+        var intent = BrowserQueryIntent.Deserialize(new BrowserQueryIntent { Filters = [maximum, unset, red] }.Serialize());
+        var tile = Tile(); tile.ApplyMetadata(null, 30); tile.SetAssetState(BrowserAssetState.None);
+        Assert.Single(BrowserQueryEngine.Filter([tile], intent.ToQuery()));
+        tile.ApplyMetadata(null, 30.001); Assert.Empty(BrowserQueryEngine.Filter([tile], intent.ToQuery()));
+        tile.ApplyMetadata(null, 29.999); Assert.Single(BrowserQueryEngine.Filter([tile], intent.ToQuery()));
+        Assert.True(unset.MatchUnset); Assert.Null(unset.TextValue);
+        Assert.Equal("Not set", BrowserFilterDescriptors.ValueLabel(unset));
+        Assert.Equal(3, intent.Version);
+        Assert.Throws<ArgumentException>(() => new BrowserQueryIntent { Filters = [maximum with { Comparison = BrowserNumberComparison.Equal }] }.Serialize());
+        Assert.Throws<ArgumentException>(() => new BrowserQueryIntent { Filters = [unset with { Field = BrowserFilterField.Camera }] }.Serialize());
+        Assert.All(BrowserFilterDescriptors.All.Where(d => d.Editor == BrowserFilterEditorKind.State), d => Assert.Equal(2, d.StateOperators.Length));
+    }
+
+    [Fact]
+    public void ResolutionPresetsAreIndependentOfCurrentSourceAndRemainNumeric()
+    {
+        var descriptor = BrowserFilterDescriptors.Get(BrowserFilterField.Resolution);
+        var presets = descriptor.Suggestions!([]).ToArray();
+        Assert.Contains(BrowserFilterPredicate.ForResolution(1280, 720), presets);
+        Assert.Contains(BrowserFilterPredicate.ForResolution(1920, 1080), presets);
+        Assert.Contains(BrowserFilterPredicate.ForResolution(2560, 1440), presets);
+        Assert.Contains(BrowserFilterPredicate.ForResolution(3840, 2160), presets);
+        Assert.Contains(BrowserFilterPredicate.ForResolution(4096, 2160), presets);
+        Assert.All(presets, p => Assert.Null(p.TextValue));
+    }
+
+    [Fact]
     public void EmptySourceStillSupportsStructuredAuthoringButNotEmptyObservedFacets()
     {
         var excluded = BrowserFilterDescriptors.All.Where(d => !d.CanAuthor([])).Select(d => d.Field).ToArray();

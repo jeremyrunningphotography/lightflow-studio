@@ -72,3 +72,11 @@ The complete field inventory and operator/cardinality/value-source decisions are
 - File/path now uses the ordinary TextBox directly. Its optional placeholder lives in the shared TextBox template using the same padding and content alignment, eliminating the independently margined overlay that altered the dynamic input's layout.
 
 Hands-on: test an empty Source with 3840 × 2160, standard/custom fps and a 00:30 inclusive minimum; add a matching asset later. Exercise saved In/Out set/unset, multi-select popup keyboard use and collapsed summaries, multiple numeric/date alternatives, remove actions, blank filter state, and File/path caret/placeholder alignment. Recheck Save current view and All/Any after editing.
+
+## Latest preset/custom iteration
+
+Resolution and Frame Rate default to selectable numeric presets; Custom switches the same value area to structured entry and Presets returns to the selector. No simultaneous unexplained free-entry/rates controls. Binary menus have only their two true states; captured dual-state alternatives remain explicit rather than being silently flattened. Color Label Not set is a semantic unset flag, not a string sentinel. Duration supports inclusive minimum and maximum with per-alternative operators; no exactly/between option. Query documents now write version 3 and read existing development versions.
+
+Aspect Ratio is intentionally **not implemented** under the requested stop condition. Persisted video metadata lacks authoritative source rotation and sample/display aspect ratio; #287 stores an adjustment and playback composes source rotation separately. The current Browser projection cannot truthfully classify displayed geometry for all supported media. See the inventory document for the required normalization/hydration follow-up.
+
+Focused hands-on checks: select common Resolution/Frame Rate presets, switch to Custom and back, save/reopen custom values; choose Not set and Red together; test Duration is at most and is at least at the boundary; verify binary menus contain no either-state choice; recheck captured multi-value filters, Source behavior, All/Any and transient filtering. The remaining 17-field inventory was reviewed; no other editor defect requiring a new query feature was identified.

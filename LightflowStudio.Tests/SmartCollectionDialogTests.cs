@@ -12,12 +12,54 @@ namespace LightflowStudio.Tests;
 public sealed class SmartCollectionDialogTests
 {
     [Fact]
+    public Task PresetCustomAndDurationOperatorsRemainSemanticAndSavedStateAlternativesStayExplicit() => StaDispatcher.RunAsync(() =>
+    {
+        TestWpfApplication.EnsureLoaded();
+        var rate = new BrowserFilterRowEditor(BrowserFilterField.FrameRate, [], [], _ => true, () => { }, () => { });
+        var ratePanel = (StackPanel)((ContentControl)rate.Children[2]).Content;
+        var rateLine = ratePanel.Children.OfType<Grid>().First();
+        var selector = rateLine.Children.OfType<ComboBox>().Single();
+        selector.SelectedIndex = 4; Assert.Equal(29.97, Assert.Single(rate.Predicates).NumberValue);
+        selector.SelectedIndex = selector.Items.Count - 1;
+        var custom = rateLine.Children.OfType<Grid>().Single();
+        Assert.Equal(Visibility.Visible, custom.Visibility); Assert.Equal(Visibility.Collapsed, selector.Visibility);
+        custom.Children.OfType<TextBox>().Single().Text = "120";
+        Assert.Equal(120, Assert.Single(rate.Predicates).NumberValue);
+        custom.Children.OfType<Button>().Single().RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(Visibility.Visible, selector.Visibility); Assert.Equal(Visibility.Collapsed, custom.Visibility);
+        Assert.Equal(120, Assert.Single(rate.Predicates).NumberValue);
+
+        var duration = new BrowserFilterRowEditor(BrowserFilterField.Duration,
+            [BrowserFilterPredicate.ForMinimum(BrowserFilterField.Duration, 30)], [], _ => true, () => { }, () => { });
+        var durationPanel = (StackPanel)((ContentControl)duration.Children[2]).Content;
+        var durationLine = (Grid)durationPanel.Children.OfType<StackPanel>().First().Children[0];
+        var comparison = durationLine.Children.OfType<ComboBox>().First(); Assert.Equal(2, comparison.Items.Count);
+        comparison.SelectedIndex = 1;
+        Assert.Equal(BrowserNumberComparison.LessThanOrEqual, Assert.Single(duration.Predicates).Comparison);
+        durationLine.Children.OfType<TextBox>().Single().Text = "01:15";
+        Assert.Equal(75, Assert.Single(duration.Predicates).NumberValue);
+
+        var saved = new[] { BrowserFilterPredicate.ForState(BrowserFilterField.SubclipState, true), BrowserFilterPredicate.ForState(BrowserFilterField.SubclipState, false) };
+        var state = new BrowserFilterRowEditor(BrowserFilterField.SubclipState, saved, [], _ => true, () => { }, () => { });
+        var stateLines = ((StackPanel)((ContentControl)state.Children[1]).Content).Children.OfType<StackPanel>().ToArray();
+        Assert.Equal(2, stateLines.Length); Assert.Equal(saved, state.Predicates);
+        Assert.All(stateLines, line => Assert.Equal(2, line.Children.OfType<ComboBox>().Single().Items.Count));
+        Assert.Contains(stateLines[1].Children.OfType<TextBlock>(), label => label.Text == "or" && label.Visibility == Visibility.Visible);
+        return Task.CompletedTask;
+    });
+
+    [Fact]
     public Task StructuredInputsWorkWithoutObservedValuesAndStateHasNoThirdControl() => StaDispatcher.RunAsync(() =>
     {
         TestWpfApplication.EnsureLoaded();
         var resolution = new BrowserFilterRowEditor(BrowserFilterField.Resolution, [], [], _ => true, () => { }, () => { });
         var value = (StackPanel)((ContentControl)resolution.Children[2]).Content;
-        var boxes = ((Grid)value.Children.OfType<StackPanel>().First().Children[0]).Children.OfType<TextBox>().ToArray();
+        var presetLine = value.Children.OfType<Grid>().First();
+        var preset = presetLine.Children.OfType<ComboBox>().Single();
+        Assert.True(preset.Items.Count >= 7);
+        preset.SelectedIndex = preset.Items.Count - 1; // Custom replaces the preset selector in the same value area.
+        Assert.Equal(Visibility.Collapsed, preset.Visibility);
+        var boxes = presetLine.Children.OfType<Grid>().Single().Children.OfType<TextBox>().ToArray();
         boxes[0].Text = "3840"; boxes[1].Text = "2160";
         Assert.True(resolution.IsValid); Assert.Equal(BrowserFilterPredicate.ForResolution(3840, 2160), Assert.Single(resolution.Predicates));
         boxes[0].Text = "invalid"; resolution.RefreshValues([]); Assert.False(resolution.IsValid); Assert.Equal("invalid", boxes[0].Text);
@@ -28,9 +70,10 @@ public sealed class SmartCollectionDialogTests
         var state = new BrowserFilterRowEditor(BrowserFilterField.ReviewRangeState,
             [BrowserFilterPredicate.ForState(BrowserFilterField.ReviewRangeState, true)], [], _ => true, () => { }, () => { });
         Assert.Equal(Visibility.Collapsed, state.Children[2].Visibility);
-        var operation = (ComboBox)((ContentControl)state.Children[1]).Content;
+        var operations = (StackPanel)((ContentControl)state.Children[1]).Content;
+        var operation = operations.Children.OfType<StackPanel>().Single().Children.OfType<ComboBox>().Single();
         operation.SelectedIndex = 1; Assert.False(Assert.Single(state.Predicates).BooleanValue);
-        operation.SelectedIndex = 2; Assert.Equal(2, state.Predicates.Count);
+        Assert.Equal(2, operation.Items.Count);
         Assert.Equal(2, Grid.GetColumnSpan(state.Children[1]));
         return Task.CompletedTask;
     });

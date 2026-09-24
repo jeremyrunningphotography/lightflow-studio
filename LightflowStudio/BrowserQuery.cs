@@ -75,6 +75,8 @@ internal sealed record BrowserFilterPredicate
     public DateTime? DateFrom { get; init; }
     public DateTime? DateTo { get; init; }
     public bool? BooleanValue { get; init; }
+    public bool MatchUnset { get; init; }
+    public static BrowserFilterPredicate ForUnsetColorLabel() => new() { Field = BrowserFilterField.ColorLabel, MatchUnset = true };
     // GreaterThanOrEqual is deliberately zero so queries written before #215's operator chooser
     // deserialize with their original minimum-rating semantics.
     public BrowserNumberComparison Comparison { get; init; } = BrowserNumberComparison.GreaterThanOrEqual;
@@ -112,7 +114,7 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.Camera => $"Camera: {TextValue}",
         BrowserFilterField.Lens => $"Lens: {TextValue}",
         BrowserFilterField.CaptureDate => DateRangeLabel(),
-        BrowserFilterField.Duration => $"Duration ≥ {FormatDuration(NumberValue)}",
+        BrowserFilterField.Duration => $"Duration {ComparisonSymbol(Comparison)} {FormatDuration(NumberValue)}",
         BrowserFilterField.Resolution => $"Resolution: {NumberValue:0}×{NumberValue2:0}",
         BrowserFilterField.FrameRate => $"Frame rate: {BrowserFrameRate.Canonicalize(NumberValue):0.###} fps",
         BrowserFilterField.ColorState => BooleanValue == true ? "Color applied" : "Original color",
@@ -122,7 +124,7 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.SubclipState => BooleanValue == true ? "Has Subclips" : "No Subclips",
         BrowserFilterField.Rating => $"Rating {ComparisonSymbol(Comparison)} {RatingStars(NumberValue)}",
         BrowserFilterField.Flag => $"Flag: {TextValue}",
-        BrowserFilterField.ColorLabel => $"Label: {TextValue}",
+        BrowserFilterField.ColorLabel => $"Label: {(MatchUnset ? "Not set" : TextValue)}",
         BrowserFilterField.Keyword => $"Keyword: {TextValue}",
         BrowserFilterField.FileOrPath => $"File or path: {TextValue}",
         _ => "Filter"
@@ -141,7 +143,12 @@ internal sealed record BrowserFilterPredicate
             (DateFrom is null || captured.Date >= DateFrom.Value.Date) &&
             (DateTo is null || captured.Date <= DateTo.Value.Date),
         BrowserFilterField.Duration => tile.MetadataApplied && tile.DurationSeconds is { } duration &&
-            NumberValue is { } minimumDuration && duration >= minimumDuration,
+            NumberValue is { } durationLimit && Comparison switch
+            {
+                BrowserNumberComparison.GreaterThanOrEqual => duration >= durationLimit,
+                BrowserNumberComparison.LessThanOrEqual => duration <= durationLimit,
+                _ => false
+            },
         BrowserFilterField.Resolution => tile.MetadataApplied && tile.PixelWidth == NumberValue && tile.PixelHeight == NumberValue2,
         BrowserFilterField.FrameRate => tile.MetadataApplied && BrowserFrameRate.Canonicalize(tile.FrameRate) is { } frameRate &&
             BrowserFrameRate.Canonicalize(NumberValue) is { } expected && frameRate == expected,
@@ -152,7 +159,8 @@ internal sealed record BrowserFilterPredicate
         BrowserFilterField.SubclipState => MatchesState(tile, tile.HasSubclips),
         BrowserFilterField.Rating => tile.AssetStateApplied && NumberValue is { } rating && Compare(tile.Rating, rating, Comparison),
         BrowserFilterField.Flag => tile.AssetStateApplied && Enum.TryParse<AssetFlag>(TextValue, true, out var flag) && tile.Flag == flag,
-        BrowserFilterField.ColorLabel => tile.AssetStateApplied && Enum.TryParse<AssetColorLabel>(TextValue, true, out var label) && tile.ColorLabel == label,
+        BrowserFilterField.ColorLabel => tile.AssetStateApplied && (MatchUnset ? tile.ColorLabel is null :
+            Enum.TryParse<AssetColorLabel>(TextValue, true, out var label) && tile.ColorLabel == label),
         BrowserFilterField.Keyword => tile.AssetStateApplied && TextValue is { } keyword &&
             tile.Keywords.Any(value => string.Equals(value, keyword, StringComparison.OrdinalIgnoreCase)),
         _ => true
@@ -271,7 +279,8 @@ internal static class BrowserClassificationFilterChoices
     ];
 
     public static IReadOnlyList<BrowserFilterPredicate> ColorLabels { get; } = Enum.GetValues<AssetColorLabel>()
-        .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.ColorLabel, value.ToString())).ToArray();
+        .Select(value => BrowserFilterPredicate.ForText(BrowserFilterField.ColorLabel, value.ToString()))
+        .Prepend(BrowserFilterPredicate.ForUnsetColorLabel()).ToArray();
 
     public static IReadOnlyList<BrowserFilterPredicate> Keywords(IEnumerable<string> keywords) => keywords
         .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
@@ -460,9 +469,10 @@ internal sealed record BrowserFilterOption(
     public string Label => Predicate.Label;
     private string ChoiceLabel => Predicate.Field switch
     {
+        BrowserFilterField.ColorLabel when Predicate.MatchUnset => "Not set",
         BrowserFilterField.Camera or BrowserFilterField.Lens or BrowserFilterField.Flag or
             BrowserFilterField.ColorLabel or BrowserFilterField.Keyword => Predicate.TextValue ?? Label,
-        BrowserFilterField.Duration => $"≥ {BrowserFilterPredicate.FormatDuration(Predicate.NumberValue)}",
+        BrowserFilterField.Duration => $"{BrowserFilterPredicate.ComparisonSymbol(Predicate.Comparison)} {BrowserFilterPredicate.FormatDuration(Predicate.NumberValue)}",
         BrowserFilterField.Resolution => $"{Predicate.NumberValue:0}×{Predicate.NumberValue2:0}",
         BrowserFilterField.FrameRate => $"{BrowserFrameRate.Canonicalize(Predicate.NumberValue):0.###} fps",
         _ => Label

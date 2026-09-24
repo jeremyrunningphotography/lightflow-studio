@@ -75,7 +75,7 @@ internal sealed class BrowserFilterRowEditor : Grid
         SetColumnSpan(_operator, 1); _value.Visibility = Visibility.Visible;
         switch (BrowserFilterDescriptors.Get(Field).Editor)
         {
-            case BrowserFilterEditorKind.Structured: BuildStructured(); break;
+            case BrowserFilterEditorKind.Structured: if (BrowserFilterDescriptors.Get(Field).PreferPresets) BuildPresets(); else BuildStructured(); break;
             case BrowserFilterEditorKind.State: BuildState(); break;
             case BrowserFilterEditorKind.Text: BuildText(); break;
             case BrowserFilterEditorKind.Rating: BuildRating(); break;
@@ -153,35 +153,155 @@ internal sealed class BrowserFilterRowEditor : Grid
         AutomationProperties.SetName(button, "Filter values");
         var host = new Grid(); host.Children.Add(button); host.Children.Add(popup); _value.Content = host; UpdateLabel();
     }
-    private sealed record StateChoice(string Label, bool? Value);
+    private sealed record StateChoice(string Label, bool Value);
     private void BuildState()
     {
         var descriptor = BrowserFilterDescriptors.Get(Field);
-        var choices = new[] { new StateChoice(descriptor.StateOperators[0], true), new StateChoice(descriptor.StateOperators[1], false),
-            new StateChoice(descriptor.StateOperators[2], null) };
-        var selector = new ComboBox { ItemsSource = choices, DisplayMemberPath = "Label", MinWidth = 170,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left };
-        selector.SelectedItem = _alternatives.Count > 1 ? choices[2] : _alternatives.FirstOrDefault()?.BooleanValue is { } value ? choices[value ? 0 : 1] : null;
-        AutomationProperties.SetName(selector, descriptor.Name + " state");
-        selector.SelectionChanged += (_, _) =>
+        var choices = new[] { new StateChoice(descriptor.StateOperators[0], true), new StateChoice(descriptor.StateOperators[1], false) };
+        var panel = new StackPanel(); var selectors = new List<ComboBox>();
+        var saved = _alternatives.Select(p => p.BooleanValue).ToArray();
+        if (saved.Length == 0) saved = [null];
+        void Update()
         {
             _alternatives.Clear();
-            if (selector.SelectedItem is StateChoice choice)
+            foreach (var selector in selectors)
+                if (selector.SelectedItem is StateChoice choice) _alternatives.Add(BrowserFilterPredicate.ForState(Field, choice.Value));
+            var position = 0;
+            foreach (var line in panel.Children.OfType<StackPanel>())
+                foreach (var label in line.Children.OfType<TextBlock>()) label.Visibility = position++ == 0 ? Visibility.Hidden : Visibility.Visible;
+            _inputValid = selectors.All(s => s.SelectedItem is StateChoice); _changed();
+        }
+        foreach (var state in saved)
+        {
+            var line = new StackPanel { Orientation = Orientation.Horizontal };
+            var selector = new ComboBox { ItemsSource = choices, DisplayMemberPath = "Label", MinWidth = 170 };
+            selector.SelectedItem = state is { } value ? choices[value ? 0 : 1] : null;
+            AutomationProperties.SetName(selector, descriptor.Name + " state");
+            selector.SelectionChanged += (_, _) => Update(); selectors.Add(selector); line.Children.Add(selector);
+            if (saved.Length > 1)
             {
-                if (choice.Value is { } state) _alternatives.Add(BrowserFilterPredicate.ForState(Field, state));
-                else _alternatives.AddRange(descriptor.Values(_tiles));
+                // Captured Browser alternatives stay explicit, without offering an 'either state' value.
+                line.Children.Insert(0, new TextBlock { Text = "or", Margin = new(0, 4, 6, 0), Visibility = panel.Children.Count == 0 ? Visibility.Hidden : Visibility.Visible });
+                var remove = new Button { Content = "×", Style = (Style)FindResource("FilterRowActionStyle"), ToolTip = "Remove state alternative" };
+                AutomationProperties.SetName(remove, "Remove state alternative"); line.Children.Add(remove);
+                remove.Click += (_, _) => { selectors.Remove(selector); panel.Children.Remove(line); Update(); };
             }
-            _changed();
-        };
-        SetColumnSpan(_operator, 2); _value.Visibility = Visibility.Collapsed; _value.Content = null; _operator.Content = selector;
+            panel.Children.Add(line);
+        }
+        SetColumnSpan(_operator, 2); _value.Visibility = Visibility.Collapsed; _value.Content = null; _operator.Content = panel;
+    }
+    private sealed record ValueSuggestion(BrowserFilterPredicate? Predicate, string Label);
+    private sealed record PresetChoice(BrowserFilterPredicate? Predicate, string Label, bool Custom = false);
+    private sealed class PresetEntry
+    {
+        public ComboBox Selector { get; } = new() { DisplayMemberPath = "Label" };
+        public Grid CustomPanel { get; } = new();
+        public TextBox[] Boxes { get; set; } = [];
+        public BrowserFilterPredicate? Value { get; set; }
+        public bool Custom { get; set; }
+        public bool Valid { get; set; }
+        public Button Remove { get; set; } = null!;
+    }
+    private void BuildPresets()
+    {
+        var descriptor = BrowserFilterDescriptors.Get(Field); var input = descriptor.Input!;
+        var panel = new StackPanel(); var entries = new List<PresetEntry>();
+        var saved = _alternatives.ToArray(); var synchronizing = false;
+        void Update()
+        {
+            _alternatives.Clear();
+            foreach (var entry in entries)
+            {
+                if (entry.Custom)
+                {
+                    try { entry.Value = input.Parse(entry.Boxes.Select(b => b.Text).ToArray()); entry.Valid = true; }
+                    catch (FormatException) { entry.Valid = false; entry.Value = null; }
+                }
+                else entry.Valid = entry.Value is not null;
+                if (entry.Value is not null) _alternatives.Add(entry.Value);
+                entry.Remove.Visibility = entries.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+            }
+            _inputValid = entries.All(e => e.Valid);
+            LabelOperator(entries.Count > 1 ? input.AlternativesOperator : input.Operator); _changed();
+        }
+        void Refresh()
+        {
+            synchronizing = true;
+            var values = (descriptor.Suggestions?.Invoke(_tiles) ?? descriptor.Values(_tiles))
+                .Concat(entries.Where(e => e.Value is not null).Select(e => e.Value!)).Distinct().ToArray();
+            foreach (var entry in entries)
+            {
+                var choices = new[] { new PresetChoice(null, "Select " + descriptor.Name.ToLowerInvariant() + "…") }
+                    .Concat(values.Select(p => new PresetChoice(p, BrowserFilterDescriptors.ValueLabel(p))))
+                    .Append(new PresetChoice(null, "Custom…", true)).ToArray();
+                entry.Selector.ItemsSource = choices;
+                entry.Selector.SelectedItem = entry.Custom ? choices[^1] : choices.FirstOrDefault(c => c.Predicate == entry.Value) ?? choices[0];
+            }
+            synchronizing = false;
+        }
+        void AddEntry(BrowserFilterPredicate? value)
+        {
+            var entry = new PresetEntry { Value = value, Valid = value is not null };
+            var line = new Grid { Margin = new(0, 0, 0, 4) };
+            line.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) }); line.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+            line.Children.Add(entry.Selector); line.Children.Add(entry.CustomPanel);
+            entry.CustomPanel.Visibility = Visibility.Collapsed;
+            AutomationProperties.SetName(entry.Selector, descriptor.Name + " value");
+            var formatted = value is null ? input.Components.Select(_ => "").ToArray() : input.Format(value);
+            entry.Boxes = input.Components.Select((component, i) => new TextBox { Text = formatted[i], MinWidth = 48, ToolTip = input.Help }).ToArray();
+            for (var i = 0; i < entry.Boxes.Length; i++)
+            {
+                if (i > 0)
+                {
+                    entry.CustomPanel.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+                    var separator = new TextBlock { Text = input.Separator, VerticalAlignment = VerticalAlignment.Center, Margin = new(3, 0, 3, 0) };
+                    SetColumn(separator, entry.CustomPanel.ColumnDefinitions.Count - 1); entry.CustomPanel.Children.Add(separator);
+                }
+                entry.CustomPanel.ColumnDefinitions.Add(new() { Width = new(1, GridUnitType.Star) });
+                var box = entry.Boxes[i]; SetColumn(box, entry.CustomPanel.ColumnDefinitions.Count - 1); entry.CustomPanel.Children.Add(box);
+                TextInputHint.SetText(box, input.Components[i]); AutomationProperties.SetName(box, "Custom " + descriptor.Name + " " + input.Components[i]);
+                box.TextChanged += (_, _) => { if (!synchronizing && entry.Custom) Update(); };
+            }
+            entry.CustomPanel.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+            var unit = new TextBlock { Text = input.Unit, VerticalAlignment = VerticalAlignment.Center, Margin = new(4, 0, 4, 0) };
+            SetColumn(unit, entry.CustomPanel.ColumnDefinitions.Count - 1); entry.CustomPanel.Children.Add(unit);
+            entry.CustomPanel.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+            var back = new Button { Content = "Presets…", Style = (Style)FindResource("FilterInlineActionStyle") };
+            SetColumn(back, entry.CustomPanel.ColumnDefinitions.Count - 1); entry.CustomPanel.Children.Add(back);
+            back.Click += (_, _) => { entry.Custom = false; entry.Selector.Visibility = Visibility.Visible; entry.CustomPanel.Visibility = Visibility.Collapsed; Refresh(); Update(); entry.Selector.Focus(); };
+            entry.Selector.SelectionChanged += (_, _) =>
+            {
+                if (synchronizing || entry.Selector.SelectedItem is not PresetChoice choice) return;
+                entry.Custom = choice.Custom;
+                if (entry.Custom)
+                {
+                    if (entry.Value is not null)
+                    {
+                        synchronizing = true; var current = input.Format(entry.Value);
+                        for (var i = 0; i < current.Length; i++) entry.Boxes[i].Text = current[i]; synchronizing = false;
+                    }
+                    entry.Selector.Visibility = Visibility.Collapsed; entry.CustomPanel.Visibility = Visibility.Visible; entry.Boxes[0].Focus();
+                }
+                else entry.Value = choice.Predicate;
+                Update();
+            };
+            entry.Remove = new Button { Content = "×", Style = (Style)FindResource("FilterRowActionStyle"), ToolTip = "Remove alternative" };
+            AutomationProperties.SetName(entry.Remove, "Remove alternative"); SetColumn(entry.Remove, 1); line.Children.Add(entry.Remove);
+            entry.Remove.Click += (_, _) => { entries.Remove(entry); panel.Children.Remove(line); Update(); };
+            entries.Add(entry); panel.Children.Insert(Math.Max(0, panel.Children.Count - 1), line); Refresh();
+        }
+        var add = new Button { Content = "+ Add alternative", Style = (Style)FindResource("FilterInlineActionStyle"), HorizontalAlignment = System.Windows.HorizontalAlignment.Left };
+        panel.Children.Add(add);
+        if (saved.Length == 0) AddEntry(null); else foreach (var value in saved) AddEntry(value);
+        add.Click += (_, _) => { AddEntry(null); Update(); };
+        _refreshSuggestions = Refresh; _value.Content = panel; Update();
     }
 
-    private sealed record ValueSuggestion(BrowserFilterPredicate? Predicate, string Label);
     private void BuildStructured()
     {
         var descriptor = BrowserFilterDescriptors.Get(Field); var input = descriptor.Input!;
         var panel = new StackPanel();
-        var editors = new List<(TextBox[] Boxes, ComboBox Suggestions)>();
+        var editors = new List<(TextBox[] Boxes, ComboBox Suggestions, ComboBox? Operator)>();
         var alternativeRemovals = new List<Button>();
         var saved = _alternatives.ToArray();
         var creating = true;
@@ -194,6 +314,7 @@ internal sealed class BrowserFilterRowEditor : Grid
                 try
                 {
                     var predicate = input.Parse(editor.Boxes.Select(box => box.Text).ToArray());
+                    if (editor.Operator?.SelectedItem is Comparison selected) predicate = predicate with { Comparison = selected.Value };
                     _alternatives.Add(predicate);
                     foreach (var box in editor.Boxes) box.ToolTip = input.Help;
                 }
@@ -204,7 +325,8 @@ internal sealed class BrowserFilterRowEditor : Grid
                 }
             }
             foreach (var button in alternativeRemovals) button.Visibility = editors.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
-            LabelOperator(editors.Count > 1 ? input.AlternativesOperator : input.Operator); _changed();
+            if (descriptor.DurationComparisons) _operator.Content = null;
+            else LabelOperator(editors.Count > 1 ? input.AlternativesOperator : input.Operator); _changed();
         }
         void RefreshSuggestions()
         {
@@ -221,6 +343,15 @@ internal sealed class BrowserFilterRowEditor : Grid
         {
             var group = new StackPanel { Margin = new(0, 0, 0, 5) };
             var line = new Grid();
+            ComboBox? comparison = null;
+            if (descriptor.DurationComparisons)
+            {
+                var operators = new[] { new Comparison(BrowserNumberComparison.GreaterThanOrEqual, "is at least"), new Comparison(BrowserNumberComparison.LessThanOrEqual, "is at most") };
+                comparison = new ComboBox { ItemsSource = operators, DisplayMemberPath = "Name", MinWidth = 105, VerticalAlignment = VerticalAlignment.Center };
+                comparison.SelectedItem = operators.FirstOrDefault(o => o.Value == predicate?.Comparison) ?? operators[0];
+                AutomationProperties.SetName(comparison, "Duration operator");
+                line.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); line.Children.Add(comparison);
+            }
             var boxes = new TextBox[input.Components.Length];
             var formatted = predicate is null ? input.Components.Select(_ => "").ToArray() : input.Format(predicate);
             for (var i = 0; i < boxes.Length; i++)
@@ -254,9 +385,10 @@ internal sealed class BrowserFilterRowEditor : Grid
                 for (var i = 0; i < boxes.Length; i++) boxes[i].Text = values[i];
                 suggestions.SelectedIndex = 0;
             };
-            editors.Add((boxes, suggestions)); group.Children.Add(line); SetColumn(suggestions, suggestionsColumn); line.Children.Add(suggestions);
+            editors.Add((boxes, suggestions, comparison));
+            if (comparison is not null) comparison.SelectionChanged += (_, _) => Update(); group.Children.Add(line); SetColumn(suggestions, suggestionsColumn); line.Children.Add(suggestions);
             panel.Children.Insert(Math.Max(0, panel.Children.Count - 1), group);
-            remove.Click += (_, _) => { editors.Remove((boxes, suggestions)); alternativeRemovals.Remove(remove); panel.Children.Remove(group); Update(); };
+            remove.Click += (_, _) => { editors.Remove((boxes, suggestions, comparison)); alternativeRemovals.Remove(remove); panel.Children.Remove(group); Update(); };
             RefreshSuggestions();
         }
         var add = new Button { Content = "+ Add alternative", Style = (Style)FindResource("FilterInlineActionStyle"), HorizontalAlignment = System.Windows.HorizontalAlignment.Left };

@@ -91,7 +91,9 @@ Raw captures and downloaded source are ignored under `.cache\readme-source`.
 The package was built from the baseline using PullRequest / SkipInstaller. Packaged
 startup/presentation, graceful shutdown, icon and dependency validation passed.
 No full application test suite is required for these documentation-only changes.
-A real sample NVENC export completed locally after the enabled Export setup was captured.
+The Export capture shows three videos with distinct saved In/Out bars (1–5 seconds,
+2–9.5 seconds, and 6–11 seconds). All three NVENC exports completed locally after
+the enabled Export setup was captured.
 Local validation parsed four Markdown files, resolved all 22 relative links (including
 five image references), and rendered the README in a local GitHub-like layout. All five
 images decoded and loaded at their expected dimensions, with no horizontal overflow.

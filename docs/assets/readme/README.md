@@ -15,7 +15,7 @@ Source file: `big_buck_bunny_720p_h264.mov.zip` from Blender's official
 
 For demonstration, the film was trimmed into short, renamed H.264 clips without
 audio. The demo Catalog adds illustrative ratings, labels, Collections, a Smart
-Collection, descriptions, a saved range, two Subclips, and a point marker. These
+Collection, descriptions, saved ranges, two Subclips, and a point marker. These
 annotations are staged examples, not metadata asserted about the original film.
 
 ## Capture set
@@ -26,7 +26,7 @@ annotations are staged examples, not metadata asserted about the original film.
 | browser-collections.jpg | Collection hierarchy, Smart Collection, Hybrid tiles, Catalog indicators, and Inspector descriptions |
 | player-color-subclips.jpg | Player filmstrip, saved range, point marker, Color controls, and reusable Subclips |
 | player-visual-index.jpg | Twelve timestamped sample frames alongside the paused Player |
-| export-workflow.jpg | Valid output plan, saved range, Color policy, confirmed NVENC availability, and enabled Export action |
+| export-workflow.jpg | Three-video output plan with distinct saved In/Out range bars, Color policy, confirmed NVENC availability, and enabled Export action |
 
 The Browser, Player, and Visual Index share a 1600 × 1000 DIP window configuration
 (window-only capture is 1586 × 993 pixels). Export uses its own 1106 × 893 pixel modal
@@ -42,7 +42,9 @@ independent #309 clone and its explicit `--data-root` profile. No normal Lightfl
 profile or personal media was used. Representative Catalog annotations and workspace
 preferences were prepared offline in the disposable profile, then loaded and visually
 checked through the production UI. The application generated its own Previews/Subclip
-posters/Visual Index, and the Export example was executed successfully.
+posters/Visual Index, and all three videos in the Export example completed successfully.
+The 12-second source clips have saved ranges of 1–5 seconds, 2–9.5 seconds, and
+6–11 seconds, making the different trim positions and lengths visible in the dialog.
 
 The lead Browser image shows a real task-owned `Demo Media` Location, with media copied
 into `Forest Story/Camera A` and `Forest Story/Camera B`. `Nature Selects`, `Exports`,

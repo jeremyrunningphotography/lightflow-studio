@@ -74,7 +74,7 @@ Subclips, and Visual Index. Assignments remain in the Catalog; they do not rewri
 
 ## Export and keep working
 
-![Lightflow Export with a valid destination, output names, Color choices, and encoding settings](docs/assets/readme/export-workflow.jpg)
+![Lightflow exporting three videos with individual saved In/Out range bars, output names, Color choices, and encoding settings](docs/assets/readme/export-workflow.jpg)
 
 Export selected videos directly from the Browser or the current Player video. When the
 Browser selection includes saved Subclips, its Export menu also offers a Subclip export:

@@ -1,10 +1,15 @@
 # Premiere source and native Subclip handoff (#257–#258)
 
 Implementation of the accepted [#256 architecture](research/premiere-uxp/README.md).
-Premiere Pro 26.5 or later and the bundled Lightflow Studio Companion 1.x are required.
+Premiere Pro 26.5 or later and the bundled Lightflow Studio Companion are required.
+Current `main` bundles companion **1.2.2** (the published v0.40.0 package bundled 1.1.5).
+Install the companion supplied with the Lightflow build you are running.
 This implementation sends Catalog source media and projects saved Lightflow Subclips as
-native Premiere subclips. Marker projection (#259), proxy attachment (#260), color and
-timeline assembly remain outside its scope.
+native Premiere subclips. The merged #259 also sends Catalog point markers: Videos use
+source timing; Subclips include markers in their saved range at Subclip-local positions.
+See [marker behavior and implementation evidence](premiere-markers-259.md).
+Proxy attachment (#260), Color/LUT effects, Catalog rotation, and timeline assembly are
+outside this handoff. Changes are sent explicitly, not continuously synchronized.
 
 ## User workflow
 
@@ -18,8 +23,10 @@ timeline assembly remain outside its scope.
    remembers Adobe's folder grant and connects automatically on subsequent launches.
    Keep the panel open during handoff. Reset/forget controls are under Troubleshooting.
 4. Select compatible Catalog source assets in the Browser and choose **Send To → Premiere Pro**.
-   If setup is needed this opens integration Settings. If disconnected, it explains the
-   state and offers Settings. When connected it opens a separate Send dialog: review the
+   If setup is needed this opens integration Settings and returns to Send afterward.
+   A Ready installation or previously paired profile can open Send while waiting to
+   reconnect, but sending requires a live connection and valid project destination.
+   In the separate Send dialog, review the
    current project, choose **Videos** or **Subclips**, and select a destination bin;
    optionally name a new bin inside that destination. Changing the choice updates the same preview.
 5. Follow progress and per-video or per-Subclip results in Jobs. Save the Premiere project after handoff.

@@ -1,113 +1,151 @@
 # Lightflow Studio
 
-**A native Windows media workbench for photographers and videographers.**
+**Browse your media. Find the moments. Take them further.**
 
-Lightflow Studio brings browsing, review, color, Subclips, export, background Jobs,
-and practical file operations into one calm desktop workflow. It is built for people
-who need to move quickly through large folders without opening a full editing suite—or
-giving up control over their originals.
+Lightflow Studio is a native Windows media workbench for photographers and videographers.
+Move from real folders to a focused review, organize your selects, try Color looks, and
+turn useful moments into Subclips, exports, or a Premiere Pro handoff. Your review work
+stays with the media in Lightflow's Catalog, ready for the next session.
 
 Current version: **0.40.0** · [Download the latest Windows release](https://github.com/jeremyrunningphotography/lightflow-studio/releases/latest)
 
-![Lightflow Studio Browser showing event media with ratings, labels, flags, saved ranges, Subclips, and Color state](docs/assets/readme/browser-overview.jpg)
+This README describes current `main`. The latest published release may contain an earlier
+set of features; see its release notes before downloading.
 
-The Browser is Lightflow's home. Browse real folders or custom Collections, search and filter
-media, change thumbnail density, and see useful Catalog state directly on each media item.
-The view above combines star ratings, color labels, picks, working ranges, saved
-Subclips, and applied Color state without hiding the media itself.
+## Find and organize
 
-## Browse, review, act
+![Lightflow Browser with Collections, media thumbnails, and the shared Inspector](docs/assets/readme/browser-overview.jpg)
 
-### Organize media without losing context
+Start with the folders you already use. Navigate local drives, removable storage, and
+mapped or network locations with familiar Back, Forward, Up, and Refresh controls.
+Include subfolders when a shoot spans several directories, then narrow the view with
+filename/path search, media types, ratings, flags, labels, and available metadata filters.
 
-- Browse folders and managed Media Roots with Back, Forward, Up, Refresh, and optional
-  subfolder inclusion.
-- Organize media items into Collections and Collection Sets across folders without changing the filesystem.
-- Filter by media type, search, sort, and switch between clean Preview, detailed Info,
-  and compact Hybrid thumbnail presentations.
-- Use Explorer-style Cut, Copy, Paste, Move, Rename, New Folder, and safe Delete. Moves
-  preserve Lightflow identity; copies become independent Catalog media items; ordinary Delete
-  uses the Windows Recycle Bin.
-- Let larger or uncertain filesystem operations promote automatically into background
-  Jobs while small operations stay immediate.
+- **Choose the view that fits the task.** Use Preview, Info, or Hybrid tiles for visual
+  browsing, or switch to Details for sortable rows and configurable columns.
+- **Bring related media together.** Collections gather media across folders without
+  moving files; Collection Sets organize those Collections. Smart Collections save
+  rules against a chosen folder or Collection and update their matches as you work.
+- **Inspect and describe.** The shared Right Panel follows your Browser selection or
+  Player media. Inspector shows technical metadata and lets you save titles,
+  descriptions, notes, creator, and credit in the Catalog, including edits to a selection.
 
-### Review footage and shape useful ranges
+Cut, copy, paste, move, rename, create folders, and reveal items in Windows Explorer
+without leaving the browsing workflow. Ordinary Delete uses the Recycle Bin where
+available; permanent deletion requires an explicit decision. Larger file operations
+appear in Jobs so you can keep working.
 
-![Lightflow Studio Player with an active range, Camera and Creative color LUTs, and two saved Subclips](docs/assets/readme/player-color-subclips.jpg)
+## Review the moments that matter
 
-Open a media item directly from the Browser to review it in the Player. Frame stepping,
-playback, a precise timeline, In/Out points, ratings, labels, and picks keep review work
-close to the image. Camera and Creative LUT stages can be evaluated together, while
-durable Subclips turn useful ranges into named, reusable Catalog objects that can be
-reviewed or exported independently.
+![Lightflow Player with filmstrip navigation, review controls, and saved Subclips](docs/assets/readme/player-color-subclips.jpg)
 
-### Configure an export, then get back to work
+Open media from the Browser and review the current results or a selected subset through
+the Player filmstrip. Video controls include frame stepping, playback speed, looping,
+volume, zoom, and a separate Frame Rate Preview for judging lower delivery cadence.
+Rate, label, flag, and add timeline markers while you review.
 
-![Lightflow Studio Export dialog showing destination modes, naming, Color, In/Out, and encoding settings](docs/assets/readme/export-workflow.jpg)
+Save an In/Out range for a video, or keep several named **Subclips** from the same source.
+Subclips are reusable Catalog ranges, not duplicate source files. Non-destructive video
+rotation corrects presentation in the Player and Previews and carries into encoded exports.
+You can also choose a paused frame as the Browser Preview or save a full-resolution screengrab.
 
-The focused Export dialog makes output intent explicit before work enters the queue:
+### Jump through a video with Visual Index
 
-- export to one specific folder or beside each original;
-- add an optional subfolder in either destination mode;
-- build filenames and detect collisions before execution;
-- export whole media items or current In/Out ranges;
-- create new exports from subclips;
-- preserve per-media item Camera and Creative Color choices;
-- choose source-aware or explicit format, codec, resolution, frame rate, quality, and
-  audio settings, with advanced encoding controls available when needed.
+![Visual Index showing timestamped frames alongside the Lightflow Player](docs/assets/readme/player-visual-index.jpg)
 
-Each file becomes an independent immutable Job, so mixed batches retain their resolved
-source settings and destinations even after the Export window closes. Lightflow supports
-NVIDIA NVENC H.264 and HEVC—including Apple-compatible `hvc1` HEVC in MP4—at source or
-delivery resolutions from 480p through 4K UHD.
+Visual Index gives you a grid of sampled frames: choose a timestamp to jump to that
+point in the video. It reflects the video's Color and rotation choices. Open it in the
+Player's Right Panel, or prepare indexes for selected videos from the Browser as
+background Jobs.
 
-### Track background work in one Jobs experience
+### Evaluate Color before exporting
 
-![Lightflow Studio full Jobs workspace showing completed and failed filesystem operations with capability-specific details](docs/assets/readme/jobs-file-operations-detail.jpg)
+Apply a **Camera LUT**, a **Creative LUT**, or both, in that order. Configure your own
+`.cube` libraries in Settings, assign looks in the Browser or Player, and compare them
+during playback. Color-aware Previews help you recognize the look across the Browser,
+Subclips, and Visual Index. Assignments remain in the Catalog; they do not rewrite originals.
 
-The compact Jobs drawer follows Browser and Player work; the full Jobs workspace brings
-current and saved Jobs together for search, inspection, queue control, retry, and
-Review & Rerun. Details remain capability-aware: exports retain media settings and output
-provenance, while filesystem Jobs report their operation, source summary, destination,
-item progress, byte progress, failures, and final result.
+## Export and keep working
 
-## More tools for real media folders
+![Lightflow Export with a valid destination, output names, Color choices, and encoding settings](docs/assets/readme/export-workflow.jpg)
 
-Lightflow also includes:
+Export selected videos directly from the Browser or the current Player video. When the
+Browser selection includes saved Subclips, its Export menu also offers a Subclip export:
+saved Subclips become individual outputs, while selected videos without Subclips are
+included in full. Review the proposed files before starting.
 
-- generated Previews with user-selectable thumbnail density and preferred poster frames;
-- full-resolution screengrabs from paused video;
-- configurable `.cube` Camera and Creative LUT libraries;
-- Catalog backup and recovery, plus relocatable and quota-managed Preview storage;
-- bundled FFmpeg/FFprobe and NVIDIA encoder readiness checks;
-- persistent activity logging and safe `.lightflow` partial outputs;
-- configurable export defaults with advanced encoding overrides.
+Choose a destination folder or export beside each original, optionally into a subfolder.
+Preview output names, choose whole videos or saved In/Out ranges, and keep per-video
+Camera/Creative Color or override it for the export. Source-aware settings preserve
+chosen source characteristics while re-encoding; explicit format, resolution, frame rate,
+quality, and audio controls are available when delivery needs differ.
 
-Lightflow is local-first: media stays on your computer unless an explicit future
-publishing capability says otherwise. The Catalog stores durable user work such as
-ratings, labels, Color assignments, ranges, Collections, and Subclips; rebuildable
-Previews remain separate.
+Video encoding uses NVIDIA NVENC H.264 or HEVC, including Apple-compatible `hvc1` HEVC
+in MP4. A supported NVIDIA GPU and driver are required for these encoders; Lightflow
+checks actual encoder readiness before export.
+
+Each output runs as an independent Job with its chosen settings. Check activity in the
+Browser's compact Jobs panel, or open the full **Jobs** workspace to search current and
+saved work, inspect results, control the queue and active-job limit, and use the retry
+or Review & Rerun actions available for that kind of work. Pausing the queue lets running
+work finish while holding new starts. Removing finished Job records does not delete media.
+
+## Continue in Premiere Pro
+
+Send selected source videos or saved Subclips to a bin in the active Premiere project.
+Videos can carry saved source In/Out points; Subclips become native Premiere subclips.
+Lightflow point markers accompany the handoff, with markers inside each Subclip mapped
+to its local timing. Results appear in Jobs. This is an explicit handoff: later changes
+are not continuously synchronized, and Color/LUT choices and Catalog rotation are not
+transferred as Premiere effects.
+
+**Premiere Pro 26.5 or later and the Lightflow Studio Companion are required.**
+Current `main` bundles companion **1.2.2**; install the companion supplied with your
+Lightflow build rather than relying on an older installed copy.
+
+1. Open **Settings → General → Premiere Pro Integration** and install the bundled
+   companion CCX through Creative Cloud Desktop.
+2. Open **Window → UXP Plugins → Lightflow Studio Companion** in Premiere. For the
+   initial connection, use **Copy Setup Location** in Lightflow's first-time setup,
+   then **Allow Connection Access** in the companion and select that folder.
+3. Keep the companion panel open and a Premiere project available. In Lightflow,
+   choose **Send To → Premiere Pro**, review Videos or Subclips, and select a destination
+   bin. Save the Premiere project after handoff.
+
+After a companion update, restart Premiere so it loads the new version, then refresh
+installation status in Lightflow. Installed/Ready and Connected are different states;
+the Send dialog must have a live connection and valid project destination before sending.
+See [Premiere setup and handoff details](docs/premiere-companion.md).
+
+## Pick up where you left off
+
+Lightflow restores your Browser scope, filters, selection, layout, and supported Player
+review state, reopening video paused. The **Catalog** holds durable work such as ratings,
+descriptions, Color assignments, rotation, markers, ranges, Subclips, and Collections.
+**Previews** hold rebuildable thumbnails and derived data separately.
+
+Settings groups everyday preferences under General, Color, Storage, and Advanced:
+capture location, LUT libraries, Catalog backup/recovery, Preview location and quota,
+and processing dependency checks. Export settings live with Export. Media and Catalog
+work stay local; Premiere handoff and file operations happen only when you choose them.
 
 ## Install and run
 
-Lightflow Studio supports 64-bit Windows 10 and Windows 11. Download the installer or
-portable ZIP from the [latest release](https://github.com/jeremyrunningphotography/lightflow-studio/releases/latest).
+Download the installer or portable ZIP from the
+[latest Windows release](https://github.com/jeremyrunningphotography/lightflow-studio/releases/latest).
+Lightflow targets 64-bit Windows 10 and Windows 11.
 
-Release packages are self-contained and include a pinned, verified FFmpeg/FFprobe build.
-You do not need to install .NET, the .NET SDK, or FFmpeg separately. NVENC export requires
-a supported NVIDIA GPU and current NVIDIA driver; the Browser, Catalog, Player, and other
-non-encoding workflows do not require the .NET SDK.
+Packages are self-contained and include verified, pinned processing and playback
+dependencies. You do not need to install .NET or FFmpeg separately. NVIDIA hardware is
+required for NVENC export, not for organizing your Catalog.
 
-The installer is per-machine, requests normal UAC elevation, and installs under
-`Program Files` by default. Catalogs, Previews, settings, Jobs/History records, logs, and
-other mutable data remain in Lightflow's user-data locations. The portable package is
-independent of installer registration.
+The installer requests UAC elevation and installs per-machine under `Program Files`
+by default. The portable ZIP runs without installer registration; it still uses local
+user-data locations and does not make the Catalog portable or shared between computers.
 
 ## Build from source
 
-The desktop application is written in C# on .NET 8 and WPF.
-
-Install the .NET 8 SDK:
+The desktop application uses C#, .NET 8, and WPF. On Windows, install the .NET 8 SDK:
 
 ```powershell
 winget install Microsoft.DotNet.SDK.8
@@ -116,50 +154,43 @@ winget install Microsoft.DotNet.SDK.8
 From the repository root:
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\build.ps1
+dotnet build .\LightflowStudio\LightflowStudio.csproj -c Release
 dotnet test .\LightflowStudio.Tests\LightflowStudio.Tests.csproj
 ```
 
-For development builds, Lightflow searches for FFmpeg in this order:
-
-1. The location selected in **Settings**
-2. `ffmpeg\bin\ffmpeg.exe` beside the application
-3. Windows `PATH`
-
-Install a development FFmpeg build with Windows Package Manager if needed:
+For a self-contained package with verified dependencies and startup checks:
 
 ```powershell
-winget install Gyan.FFmpeg
-ffmpeg -version
-ffmpeg -hide_banner -encoders | Select-String "h264_nvenc|hevc_nvenc"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1 -Mode PullRequest -SkipInstaller
+& ".\artifacts\release\LightflowStudio\LightflowStudio.exe" --data-root "$PWD\.cache\development-profile"
 ```
 
-Alternatively, place the tools beside a published development build:
+Use a task-owned `--data-root` when testing experimental builds. See
+[development data profiles](docs/development-data-profiles.md).
 
-```text
-LightflowStudio.exe
-ffmpeg\
-  bin\
-    ffmpeg.exe
-    ffprobe.exe
-```
+For processing tools in a development build, Lightflow checks the FFmpeg location saved
+in Settings, then `ffmpeg\bin\ffmpeg.exe` beside the application, then Windows `PATH`.
+The package script supplies the pinned FFmpeg/FFprobe tools and the separate playback
+libraries. A complete installer build also requires
+[Inno Setup 6](https://jrsoftware.org/isdl.php).
 
 ## Safety and diagnostics
 
-- Sources are never silently overwritten. Output collisions are validated before work
-  starts.
-- Active exports write to `filename.ext.lightflow`; the final media filename is created
-  or replaced only after FFmpeg succeeds and Lightflow validates the result.
-- Specific-folder exports use exactly the chosen folder as their base. Same-folder exports
-  resolve independently beside each source. An optional subfolder is appended to either;
-  source hierarchy is never recreated implicitly.
-- The rotating `activity.log` records export and dependency diagnostics, invoked
-  FFmpeg/FFprobe commands, tool output, and application errors.
-- Settings, recent UI state, logs, and other local application data live under
-  `%LOCALAPPDATA%\Jeremy Running Photography\Lightflow Studio`.
-- Release packages include the exact LGPL FFmpeg build documented in
-  [`dependencies/ffmpeg.json`](dependencies/ffmpeg.json) and
-  [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+- Catalog review edits do not rewrite original media. Explicit file operations can
+  move, rename, or delete files. Premiere may write media metadata or sidecars according
+  to its own behavior and preferences.
+- Export validates destinations and collisions. Active outputs use a `.lightflow`
+  partial filename; the final filename is created or replaced only after processing
+  succeeds and the result is validated. Overwrite is an explicit export choice.
+- Settings, workspace state, and logs normally live under
+  `%LOCALAPPDATA%\Jeremy Running Photography\Lightflow Studio`; Catalog and Preview
+  storage can be managed separately in Settings.
+- The rotating `activity.log` records dependency checks, processing commands, results,
+  and errors. Review logs for private paths before sharing them.
+- Dependency versions, licenses, and source/build records are documented in
+  [third-party notices](THIRD-PARTY-NOTICES.md),
+  [processing FFmpeg](dependencies/ffmpeg.json), and
+  [playback dependencies](dependencies/flyleaf.json).
 
 ## Project documentation
 
@@ -169,25 +200,12 @@ ffmpeg\
 - [UI guidelines](docs/UI_GUIDELINES.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Release planning](docs/RELEASE_PLAN.md)
-- [File Organization capability](docs/capabilities/FILE_ORGANIZATION.md)
-- [Video Processing capability](docs/capabilities/VIDEO_PROCESSING.md)
 
-Lightflow Studio follows semantic versioning. To prepare a version locally:
+Normal development targets `main`; released minor families use maintenance branches
+such as `release/0.40`. Release preparation uses `set-version.ps1` and
+`scripts/Build-Release.ps1`. Validated `vX.Y.Z` tags publish the installer, portable ZIP,
+and SHA-256 checksums. See release planning for exact-source validation and publication gates.
 
-```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\set-version.ps1 -Version 0.40.0
-powershell.exe -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1
-```
-
-Release artifacts are placed in `dist`. Tags named `vX.Y.Z` publish the validated
-installer, portable ZIP, and SHA-256 checksums after the test and packaging workflows
-succeed. The complete installer build requires
-[Inno Setup 6](https://jrsoftware.org/isdl.php); the release script downloads and verifies
-the FFmpeg package pinned in `dependencies/ffmpeg.json` and carries its license, source,
-and build records into both distributions.
-
-Normal development targets `main`. Released minor families use maintenance branches
-such as `release/0.40`; patches for that family are released from that branch, with
-fixes reconciled back into `main`. Only the current released minor line is actively
-maintained unless explicitly decided otherwise. See [release planning](docs/RELEASE_PLAN.md)
-for branch, validation, and tag conventions.
+Screenshot media: *Big Buck Bunny*, © 2008 Blender Foundation / www.bigbuckbunny.org,
+[CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
+[Source and screenshot notes](docs/assets/readme/README.md).

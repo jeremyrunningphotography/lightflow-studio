@@ -1726,10 +1726,29 @@ public partial class MainWindow : Window
     }, default);
     }
 
-    private async void BrowserExport_Click(object sender, RoutedEventArgs e) => await ExportBrowserSelectionAsync();
+    private async void BrowserExport_Click(object sender, RoutedEventArgs e)
+    {
+        var state = CurrentBrowserSelectionActions();
+        if (!state.CanExport) return;
+        if (state.ShowExportMenu)
+        {
+            BrowserExportMenu.PlacementTarget = BrowserExportButton;
+            BrowserExportMenu.IsOpen = true;
+            return;
+        }
+        await ExportBrowserSelectionAsync();
+    }
     private async void BrowserContextExport_Click(object sender, RoutedEventArgs e) => await ExportBrowserSelectionAsync();
     private async void BrowserContextExportSubclips_Click(object sender, RoutedEventArgs e) =>
         await ExportBrowserSubclipsAsync();
+
+    private void BrowserExport_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (!CurrentBrowserSelectionActions().ShowExportMenu) e.Handled = true;
+    }
+
+    private void BrowserExportMenu_Opened(object sender, RoutedEventArgs e) =>
+        BrowserExportVideosMenuItem.Header = CurrentBrowserSelectionActions().SourceExportLabel;
 
     private async Task ExportBrowserSelectionAsync()
     {

@@ -60,7 +60,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private IReadOnlyList<ResolvedMediaRange?> _resolvedRanges;
     private readonly bool[] _useRanges;
     private bool _rangesGloballyEnabled = true;
-    private bool _includeNoSubclipSources;
+    private bool _includeNoSubclipSources = true;
     private JobPlan<EncodingJobOptions>? _plan;
     private string _destination;
     private ExportDestinationMode _destinationMode = ExportDestinationMode.SpecificFolder;

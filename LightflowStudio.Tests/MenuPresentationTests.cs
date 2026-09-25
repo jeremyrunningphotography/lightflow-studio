@@ -14,6 +14,35 @@ namespace LightflowStudio.Tests;
 [Collection("STA dispatcher tests")]
 public sealed class MenuPresentationTests(ITestOutputHelper output)
 {
+    [Fact]
+    public async Task BrowserExportMenuUsesGearStylingAndNativeFocusableActionItems()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var menu = LoadMenu("BrowserExportMenu");
+            Assert.Equal(PlacementMode.Bottom, menu.Placement);
+            Assert.Same(Application.Current.FindResource("LightflowContextMenuStyle"), menu.Style);
+            var items = menu.Items.Cast<MenuItem>().ToArray();
+            Assert.Equal(new[] { "Export videos", "Export subclips" }, items.Select(item => item.Header));
+            Assert.All(items, item => Assert.Same(Application.Current.FindResource("LightflowMenuItemStyle"), item.Style));
+            try
+            {
+                OpenAt(menu, false);
+                await Settle();
+                AssertNoHorizontalScrolling(menu);
+                foreach (var item in items)
+                {
+                    Assert.True(item.Focusable);
+                    Assert.True(item.IsEnabled);
+                    Assert.False(item.StaysOpenOnClick);
+                    Assert.Equal(MenuItemRole.SubmenuItem, item.Role);
+                }
+            }
+            finally { await CloseMenus(menu); }
+        });
+    }
+
     [Theory]
     [InlineData(150, 30, 180, 28)]
     [InlineData(350, 80, 180, 28)]
@@ -293,7 +322,7 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
             ((string?)e.Attribute(x + "Name") == name || (string?)e.Attribute(x + "Key") == name)));
         // Load the real menu/style tree without MainWindow, storage or command side effects.
         foreach (var attribute in element.DescendantsAndSelf().Attributes().Where(a =>
-            a.Name.LocalName is "Click" or "SubmenuOpened" or "PlacementTarget" ||
+            a.Name.LocalName is "Click" or "Opened" or "SubmenuOpened" or "PlacementTarget" ||
             a.Name == x + "Shared" || a.Name == x + "Key").ToArray()) attribute.Remove();
         var menu = (ContextMenu)XamlReader.Parse(element.ToString());
         // These tests explicitly drive opening, resizing and keyboard input. A runner's stationary

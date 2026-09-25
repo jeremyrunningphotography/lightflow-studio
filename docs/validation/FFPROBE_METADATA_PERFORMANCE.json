@@ -1,0 +1,248 @@
+{
+  "baseline": "1434713edf17b77258d03f5c808f77a7c9be1213",
+  "method": "Five alternating-order pairs, fresh task-owned Catalog/Preview roots, existing two-worker scheduler, seven synthetic fixtures plus three real-library HEVC representatives, same pinned FFmpeg. OS caches not flushed. Warm pass follows each cold pass.",
+  "measurements": {
+    "changed": {
+      "medians": {
+        "elapsed": 1684.9023,
+        "warmMs": 14.1133,
+        "firstMetadata": 115.3678,
+        "firstThumbnail": 262.0257,
+        "metadataServiceMs": 851.9455
+      },
+      "runs": [
+        {
+          "elapsed": 1767.9259,
+          "warmMs": 12.8023,
+          "Failed": 0,
+          "Generated": 10,
+          "metadataCalls": 10,
+          "thumbnailCalls": 10,
+          "extraWarmCalls": 0,
+          "firstMetadata": 124.4234,
+          "firstThumbnail": 287.6372,
+          "metadataServiceMs": 876.3247999999999
+        },
+        {
+          "elapsed": 1684.9023,
+          "warmMs": 13.4065,
+          "Failed": 0,
+          "Generated": 10,
+          "metadataCalls": 10,
+          "thumbnailCalls": 10,
+          "extraWarmCalls": 0,
+          "firstMetadata": 115.3678,
+          "firstThumbnail": 267.4039,
+          "metadataServiceMs": 822.6041
+        },
+        {
+          "elapsed": 1653.3371,
+          "warmMs": 14.1133,
+          "Failed": 0,
+          "Generated": 10,
+          "metadataCalls": 10,
+          "thumbnailCalls": 10,
+          "extraWarmCalls": 0,
+          "firstMetadata": 117.0036,
+          "firstThumbnail": 262.0257,
+          "metadataServiceMs": 840.6813000000001
+        },
+        {
+          "elapsed": 1682.7078,
+          "warmMs": 15.4359,
+          "Failed": 0,
+          "Generated": 10,
+          "metadataCalls": 10,
+          "thumbnailCalls": 10,
+          "extraWarmCalls": 0,
+          "firstMetadata": 110.2444,
+          "firstThumbnail": 252.2795,
+          "metadataServiceMs": 851.9455
+        },
+        {
+          "elapsed": 1805.2676,
+          "warmMs": 14.7629,
+          "Failed": 0,
+          "Generated": 10,
+          "metadataCalls": 10,
+          "thumbnailCalls": 10,
+          "extraWarmCalls": 0,
+          "firstMetadata": 110.4988,
+          "firstThumbnail": 259.0561,
+          "metadataServiceMs": 986.5217
+        }
+      ]
+    },
+    "baseline": {
+      "medians": {
+        "elapsed": 1706.9355,
+        "warmMs": 13.5996,
+        "firstMetadata": 111.7308,
+        "firstThumbnail": 261.5617,
+        "metadataServiceMs": 833.8384000000001
+      },
+      "runs": [
+        {
+          "elapsed": 1706.9355,
+          "warmMs": 12.6532,
+          "Failed": 0,
+          "Generated": 10,
+          "metadataCalls": 10,
+          "thumbnailCalls": 10,
+          "extraWarmCalls": 0,
+          "firstMetadata": 111.7308,
+          "firstThumbnail": 261.5617,
+          "metadataServiceMs": 798.3479999999998
+        },
+        {
+          "elapsed": 1709.7945,
+          "warmMs": 14.0054,
+          "Failed": 0,
+          "Generated": 10,
+          "metadataCalls": 10,
+          "thumbnailCalls": 10,
+          "extraWarmCalls": 0,
+          "firstMetadata": 121.2462,
+          "firstThumbnail": 276.6027,
+          "metadataServiceMs": 855.9209999999998
+        },
+        {
+          "elapsed": 1760.8308,
+          "warmMs": 13.5996,
+          "Failed": 0,
+          "Generated": 10,
+          "metadataCalls": 10,
+          "thumbnailCalls": 10,
+          "extraWarmCalls": 0,
+          "firstMetadata": 113.5663,
+          "firstThumbnail": 262.306,
+          "metadataServiceMs": 879.2781999999999
+        },
+        {
+          "elapsed": 1664.892,
+          "warmMs": 13.684,
+          "Failed": 0,
+          "Generated": 10,
+          "metadataCalls": 10,
+          "thumbnailCalls": 10,
+          "extraWarmCalls": 0,
+          "firstMetadata": 108.9589,
+          "firstThumbnail": 248.4396,
+          "metadataServiceMs": 833.8384000000001
+        },
+        {
+          "elapsed": 1609.2388,
+          "warmMs": 13.3026,
+          "Failed": 0,
+          "Generated": 10,
+          "metadataCalls": 10,
+          "thumbnailCalls": 10,
+          "extraWarmCalls": 0,
+          "firstMetadata": 109.4052,
+          "firstThumbnail": 248.4488,
+          "metadataServiceMs": 797.9549999999999
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "family": "DJI Pocket 4",
+      "bytes": 97614929,
+      "sha256": "1ADDAD9E45876C1B8D4B09C1FB139B417B1EB7C73908B7A5F14A9B4F90098129",
+      "sourceUnchanged": true,
+      "stream": {
+        "codec_name": "hevc",
+        "pix_fmt": "yuv420p10le"
+      }
+    },
+    {
+      "family": "DJI Osmo Action 6",
+      "bytes": 254860,
+      "sha256": "7C2CEF85FF2A1FAB2873B9F9844322B6E4A81221CEB5C2AEC4123C39683C0823",
+      "sourceUnchanged": true,
+      "stream": {
+        "codec_name": "hevc",
+        "pix_fmt": "yuv420p10le",
+        "side_data_list": [
+          {}
+        ]
+      }
+    },
+    {
+      "family": "DJI Neo 2",
+      "bytes": 263372847,
+      "sha256": "53FAD594E5610745FF4C7C0E8740AB3C2EB9A393247BDEB9037644667276F44E",
+      "sourceUnchanged": true,
+      "stream": {
+        "codec_name": "hevc",
+        "pix_fmt": "yuv420p"
+      }
+    }
+  ],
+  "normalizedRepresentatives": [
+    {
+      "family": "DJI Pocket 4",
+      "Status": 0,
+      "video": {
+        "Codec": "hevc",
+        "Profile": "Main 10",
+        "Width": 3840,
+        "Height": 2160,
+        "FrameRate": 59.94005994005994,
+        "PixelFormat": "yuv420p10le",
+        "BitDepth": 10,
+        "colorSpace": "bt709",
+        "ColorTransfer": "bt709",
+        "ColorPrimaries": "bt709",
+        "SourceDisplayAspectRatio": {
+          "Numerator": 16,
+          "Denominator": 9
+        },
+        "ChromaSubsampling": "4:2:0"
+      }
+    },
+    {
+      "family": "DJI Osmo Action 6",
+      "Status": 0,
+      "video": {
+        "Codec": "hevc",
+        "Profile": "Main 10",
+        "Width": 1920,
+        "Height": 1080,
+        "FrameRate": 29.97002997002997,
+        "PixelFormat": "yuv420p10le",
+        "BitDepth": 10,
+        "colorSpace": "bt709",
+        "ColorTransfer": "bt709",
+        "ColorPrimaries": "bt709",
+        "SourceDisplayAspectRatio": {
+          "Numerator": 16,
+          "Denominator": 9
+        },
+        "ChromaSubsampling": "4:2:0"
+      }
+    },
+    {
+      "family": "DJI Neo 2",
+      "Status": 0,
+      "video": {
+        "Codec": "hevc",
+        "Profile": "Main",
+        "Width": 3840,
+        "Height": 2160,
+        "FrameRate": 59.94005994005994,
+        "PixelFormat": "yuv420p",
+        "BitDepth": 8,
+        "colorSpace": "bt709",
+        "ColorTransfer": "bt709",
+        "ColorPrimaries": "bt709",
+        "SourceDisplayAspectRatio": {
+          "Numerator": 16,
+          "Denominator": 9
+        },
+        "ChromaSubsampling": "4:2:0"
+      }
+    }
+  ]
+}

@@ -112,20 +112,29 @@ public sealed class ApplicationInstanceTests
         var identity = UniqueIdentity();
         using var release = new ManualResetEventSlim();
         using var listening = new ManualResetEventSlim();
+        using var connected = new ManualResetEventSlim();
+        using var stopOwner = new CancellationTokenSource();
+        Exception? ownerFailure = null;
         var thread = new Thread(() =>
         {
             using var mutex = new Mutex(true, $"Local\\{identity}", out _);
             using var pipe = new NamedPipeServerStream(identity, PipeDirection.InOut, 1,
-                PipeTransmissionMode.Byte, PipeOptions.CurrentUserOnly);
-            listening.Set();
-            pipe.WaitForConnection();
-            release.Wait();
-            mutex.ReleaseMutex();
+                PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+            try
+            {
+                listening.Set();
+                pipe.WaitForConnectionAsync(stopOwner.Token).GetAwaiter().GetResult();
+                connected.Set();
+                release.Wait(stopOwner.Token);
+            }
+            catch (OperationCanceledException) when (stopOwner.IsCancellationRequested) { }
+            catch (Exception exception) { ownerFailure = exception; }
+            finally { mutex.ReleaseMutex(); }
         }) { IsBackground = true };
         thread.Start();
-        Assert.True(listening.Wait(TimeSpan.FromSeconds(5)));
         try
         {
+            Assert.True(listening.Wait(TimeSpan.FromSeconds(5)));
             using var contender = new WindowsApplicationInstanceCoordinator(identity, TimeSpan.FromMilliseconds(100));
             var stopwatch = Stopwatch.StartNew();
             var result = contender.StartOrSignal(ApplicationLaunchRequest.Current([]));
@@ -134,11 +143,14 @@ public sealed class ApplicationInstanceTests
             Assert.Equal(ApplicationInstanceStatus.ExistingInstanceActivationFailed, result.Status);
             Assert.Contains("did not acknowledge activation in time", result.Diagnostic);
             Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5));
+            Assert.True(connected.IsSet, "The client timed out before connecting; the no-acknowledgement path was not exercised.");
         }
         finally
         {
             release.Set();
+            stopOwner.Cancel();
             Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "The unresponsive simulated owner did not terminate.");
+            if (ownerFailure is not null) ExceptionDispatchInfo.Capture(ownerFailure).Throw();
         }
     }
 

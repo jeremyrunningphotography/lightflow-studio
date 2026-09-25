@@ -49,6 +49,8 @@ internal static class BrowserFilterDescriptors
             .Where(n => n is not null).Select(n => n!.Value).Distinct().OrderBy(n => n).Select(BrowserFilterPredicate.ForFrameRate))
             { Input = BrowserStructuredFilterInput.FrameRate, PreferPresets = true, Suggestions = tiles => MediaFrameRate.Canonical.Select(r => BrowserFilterPredicate.ForFrameRate(r.DisplayValue))
                 .Concat(Values(BrowserFilterField.FrameRate, tiles)).Distinct().OrderBy(p => p.NumberValue) },
+        Choices(BrowserFilterField.BitDepth, "Bit depth", tiles => tiles.Where(t => t.MetadataApplied).Select(t => t.BitDepth)
+            .Where(n => n is > 0).Select(n => n!.Value).Distinct().OrderBy(n => n).Select(BrowserFilterPredicate.ForBitDepth)),
         State(BrowserFilterField.ColorState, "Color", "is applied", "is original"),
         State(BrowserFilterField.CameraLutState, "Camera LUT", "is assigned", "is not assigned"),
         State(BrowserFilterField.CreativeLutState, "Creative LUT", "is assigned", "is not assigned"),

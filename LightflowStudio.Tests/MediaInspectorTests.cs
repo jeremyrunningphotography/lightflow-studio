@@ -7,6 +7,41 @@ namespace LightflowStudio.Tests;
 public sealed class MediaInspectorTests
 {
     [Fact]
+    public async Task ColorRowsReadNormalizedCachedFactsAndRetainLegacyMatrixOffline()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "metadata-inspector-" + Guid.NewGuid());
+        try
+        {
+            await using var store = new PreviewStoreService(LightflowStorageLocations.Create(root));
+            var id = Guid.NewGuid();
+            await store.ObserveSourceAsync(id, new(10, 1, 1, "abcd"));
+            var metadata = FfprobeMetadataNormalizer.Normalize("""
+                {"streams":[{"codec_type":"video","codec_name":"hevc","width":1920,"height":1080,
+                "pix_fmt":"yuv420p10le","color_space":"bt709","color_transfer":"smpte2084","color_primaries":"bt2020"}]}
+                """, 10).Metadata!;
+            await store.SetMetadataAsync(id, new(2, PreviewComponentState.Current,
+                PayloadJson: JsonSerializer.Serialize(metadata, DerivedMetadataJson.Options)));
+            await store.SetSourceAvailabilityAsync(id, PreviewSourceAvailability.Unavailable);
+            var reader = new MediaInspectorService(store, new Classifications(), root);
+            for (var read = 0; read < 3; read++)
+            {
+                // No probe service is available to this cache-only presentation path.
+                var result = await reader.ReadAsync([new(id, "clip.mov", "clip.mov", MediaPresentationKind.Video)], default);
+                Assert.Contains(result.Fields, f => f.Name == "Bit depth" && f.Value == "10 bit");
+                Assert.Contains(result.Fields, f => f.Group == "Camera" && f.Name == "Make" && f.Value == "Missing");
+                Assert.Contains(result.Fields, f => f.Group == "Camera" && f.Name == "Model" && f.Value == "Missing");
+                Assert.Contains(result.Fields, f => f.Name == "Chroma" && f.Value == "4:2:0");
+                Assert.Contains(result.Fields, f => f.Name == "Matrix" && f.Value == "bt709");
+                Assert.Contains(result.Fields, f => f.Name == "Transfer" && f.Value == "smpte2084");
+                Assert.Contains(result.Fields, f => f.Name == "Primaries" && f.Value == "bt2020");
+                Assert.DoesNotContain(result.Fields, f => f.Name is "Space" or "Camera Profile" or "Gamut");
+                Assert.Contains("cached information", result.Status);
+            }
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public void FolderAction_LaunchesExplorerWithOnlyTheContainingDirectory()
     {
         var resolution = new MediaPathResolution(Guid.NewGuid(), "shoot/clip.mp4", "shoot/clip.mp4",

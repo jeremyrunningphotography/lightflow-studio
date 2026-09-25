@@ -124,6 +124,22 @@ public sealed class DerivedMediaMetadataTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ImageMetadataKeepsVersionOneAndSurvivesRestartWithoutProbe()
+    {
+        await using var fixture = await MetadataFixture.CreateAsync(_root, "photo.jpg", "image");
+        var probe = new FakeProbe(new(DerivedMetadataStatus.Succeeded,
+            new(DerivedMediaKind.Image, "jpg", null, null, 10, null, null, null,
+                new("jpg", 20, 10, 24, 1, null, null, null, null))));
+        using (var service = new DerivedMediaMetadataService(fixture.Coordinator.MediaAssets, fixture.Coordinator.Previews!, probe))
+            await service.ProbeAsync(fixture.AssetId);
+        Assert.Equal(1, (await fixture.Coordinator.Previews!.GetAsync(fixture.AssetId))!.MetadataProbeVersion);
+        await fixture.ReopenAsync();
+        using var reopened = new DerivedMediaMetadataService(fixture.Coordinator.MediaAssets, fixture.Coordinator.Previews!, probe);
+        Assert.Equal(DerivedMetadataStatus.Current, (await reopened.ProbeAsync(fixture.AssetId)).Status);
+        Assert.Equal(1, probe.CallCount);
+    }
+
+    [Fact]
     public async Task GeneratorVersionMismatch_ReprobesAndReplacesStaleVersion()
     {
         await using var fixture = await MetadataFixture.CreateAsync(_root, "clip.mp4", "video");
@@ -132,9 +148,11 @@ public sealed class DerivedMediaMetadataTests : IAsyncLifetime
             fixture.Coordinator.Previews!, probe);
         await service.ProbeAsync(fixture.AssetId);
         var previews = fixture.Coordinator.Previews!;
+        await previews.SetArtifactAsync(fixture.AssetId, PreviewArtifactKind.Thumbnail,
+            new(ThumbnailGenerationService.CurrentGeneratorVersion, PreviewComponentState.Current, "retained.jpg"));
         var record = (await previews.GetAsync(fixture.AssetId))!;
         await previews.SetMetadataAsync(fixture.AssetId,
-            new(99, PreviewComponentState.Current, PayloadJson: record.MetadataJson, RawPayloadJson: record.RawMetadataJson));
+            new(1, PreviewComponentState.Current, PayloadJson: record.MetadataJson, RawPayloadJson: record.RawMetadataJson));
 
         var refreshed = await service.ProbeAsync(fixture.AssetId);
         var updated = await previews.GetAsync(fixture.AssetId);
@@ -142,6 +160,12 @@ public sealed class DerivedMediaMetadataTests : IAsyncLifetime
         Assert.Equal(DerivedMetadataStatus.Succeeded, refreshed.Status);
         Assert.Equal(2, probe.CallCount);
         Assert.Equal(DerivedMediaMetadataService.CurrentProbeVersion, updated!.MetadataProbeVersion);
+        Assert.Equal(record.ThumbnailState, updated.ThumbnailState);
+        Assert.Equal(record.ThumbnailRelativePath, updated.ThumbnailRelativePath);
+        await fixture.ReopenAsync();
+        using var reopened = new DerivedMediaMetadataService(fixture.Coordinator.MediaAssets, fixture.Coordinator.Previews!, probe);
+        Assert.Equal(DerivedMetadataStatus.Current, (await reopened.ProbeAsync(fixture.AssetId)).Status);
+        Assert.Equal(2, probe.CallCount);
     }
 
     [Fact]

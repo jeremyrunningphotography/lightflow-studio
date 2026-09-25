@@ -2421,6 +2421,11 @@ public partial class MainWindow : Window
         PresentDescriptiveFacet(BrowserFrameRateFilterGroup, BrowserFrameRateFilterOptions, BrowserFrameRateFilterInformation,
             frameRateOptions, "Frame rate", tiles.Count(tile => tile.FrameRate is > 0), tiles.Count);
 
+        var bitDepthOptions = Options(BrowserFilterDescriptors.Values(BrowserFilterField.BitDepth, tiles));
+        BrowserBitDepthFilterOptions.ItemsSource = bitDepthOptions;
+        PresentDescriptiveFacet(BrowserBitDepthFilterGroup, BrowserBitDepthFilterOptions, BrowserBitDepthFilterInformation,
+            bitDepthOptions, "Bit depth", tiles.Count(tile => tile.BitDepth is > 0), tiles.Count);
+
         var hydratedStateTiles = tiles.Where(tile => tile.AssetStateApplied).ToArray();
         var stateOptions = new[]
         {
@@ -3612,7 +3617,8 @@ public partial class MainWindow : Window
             }
 
             if (pendingMetadata.Contains(assetId) && record.MetadataState == PreviewComponentState.Current &&
-                (sources is null || record.MetadataProbeVersion == DerivedMediaMetadataService.CurrentProbeVersion))
+                (sources is null || record.MetadataProbeVersion ==
+                    DerivedMediaMetadataService.ProbeVersionFor(sources.GetValueOrDefault(assetId)?.MediaType)))
             {
                 var metadata = BrowserQueryEngine.ExtractMetadata(record.MetadataJson, record.RawMetadataJson);
                 if (_browserGrid.ApplyMetadata(assetId, metadata)) sortRelevantMetadataChanged = true;
@@ -3622,7 +3628,7 @@ public partial class MainWindow : Window
         UpdateBrowserStatusText();
         var hasMetadataFilter = _browserGrid.DefiningQuery is not null || _browserGrid.Query.Filters.Any(filter => filter.Field is BrowserFilterField.Camera or
             BrowserFilterField.Lens or BrowserFilterField.CaptureDate or BrowserFilterField.Duration or
-            BrowserFilterField.Resolution or BrowserFilterField.FrameRate);
+            BrowserFilterField.Resolution or BrowserFilterField.FrameRate or BrowserFilterField.BitDepth);
         if (sortRelevantMetadataChanged && (_browserGrid.Query.SortMode is BrowserSortMode.CaptureDate or BrowserSortMode.Duration
             or BrowserSortMode.FrameRate or BrowserSortMode.Dimensions || hasMetadataFilter))
         {

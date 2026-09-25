@@ -152,7 +152,9 @@ internal static class FfmpegCommandBuilder
         ["-v", "error", "-show_entries", "format=format_name,duration,start_time:stream=codec_type,codec_name,width,height,avg_frame_rate,start_time,duration,sample_rate,channels,channel_layout", "-of", "json", file];
     public static List<string> ProbeDerivedMetadata(string file) =>
         ["-v", "error", "-show_entries",
-            "format=format_name,format_long_name,duration,start_time,size,bit_rate,tags:stream=index,codec_type,codec_name,codec_long_name,profile,width,height,pix_fmt,bits_per_raw_sample,color_space,color_transfer,color_primaries,avg_frame_rate,r_frame_rate,duration,start_time,sample_rate,channels,channel_layout,bit_rate,tags",
+            "format=format_name,format_long_name,duration,start_time,size,bit_rate:format_tags=creation_time,timecode,encoder:" +
+            "stream=index,codec_type,codec_name,codec_long_name,profile,width,height,pix_fmt,bits_per_raw_sample,color_space,color_transfer,color_primaries,avg_frame_rate,r_frame_rate,duration,start_time,sample_rate,channels,channel_layout,bit_rate,sample_aspect_ratio,display_aspect_ratio:" +
+            "stream_tags=creation_time,timecode,encoder,rotate:stream_disposition=attached_pic:stream_side_data=side_data_type,displaymatrix,rotation",
             "-of", "json", file];
     public static List<string> ProbeVideoFrames(string file) =>
         ["-v", "error", "-select_streams", "v:0", "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", file];

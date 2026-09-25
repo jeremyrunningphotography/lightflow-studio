@@ -4,6 +4,72 @@ namespace LightflowStudio.Tests;
 
 public sealed class BrowserSelectionActionTests
 {
+    [Theory]
+    [InlineData(1, 0, false)]
+    [InlineData(1, 1, true)]
+    [InlineData(1, 3, true)]
+    [InlineData(3, 0, false)]
+    [InlineData(3, 1, true)]
+    [InlineData(3, 3, true)]
+    public void ExportMenuUsesAnySelectedVideosProjectedSubclipPresence(int videoCount, int subclipCount, bool menu)
+    {
+        var tiles = Enumerable.Range(0, videoCount).Select(index => Tile($"clip{index}.mov", MediaTypeCategory.Video)).ToArray();
+        tiles[^1].SetAssetState(new BrowserAssetQueryState(subclipCount > 0 ? BrowserAssetState.Subclips : BrowserAssetState.None,
+            false, false, subclipCount));
+        var state = BrowserSelectionActions.Evaluate(tiles);
+        Assert.True(state.CanExport);
+        Assert.Equal(menu, state.ShowExportMenu);
+        if (menu)
+        {
+            foreach (var tile in tiles) tile.SetAssetState(BrowserAssetState.Subclips);
+            Assert.True(BrowserSelectionActions.Evaluate(tiles).ShowExportMenu);
+        }
+    }
+
+    [Fact]
+    public void ExportMenuTracksFirstAdditionLastDeletionAndCurrentSelectionThroughSharedProjection()
+    {
+        var model = new BrowserGridModel();
+        var root = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        model.Populate([new MediaFolderEntry(root, "clip.mov", "CLIP.MOV", "clip.mov", false,
+            new MediaTypeClassification(MediaTypeCategory.Video), 1, DateTimeOffset.UnixEpoch)]);
+        model.ApplyAssetIdentities([new(assetId, "clip.mov", CatalogReconciliationItemStatus.New)]);
+        model.SelectSingle(0);
+        Assert.False(BrowserSelectionActions.Evaluate(model.SelectedTilesInBrowserOrder).ShowExportMenu);
+        model.ApplyAssetStateFlag(assetId, BrowserAssetState.Subclips, true);
+        Assert.True(BrowserSelectionActions.Evaluate(model.SelectedTilesInBrowserOrder).ShowExportMenu);
+        model.ApplyAssetStateFlag(assetId, BrowserAssetState.Color, true);
+        Assert.True(BrowserSelectionActions.Evaluate(model.SelectedTilesInBrowserOrder).ShowExportMenu);
+        model.ApplyAssetStateFlag(assetId, BrowserAssetState.Subclips, false);
+        Assert.False(BrowserSelectionActions.Evaluate(model.SelectedTilesInBrowserOrder).ShowExportMenu);
+        model.ApplyAssetStateFlag(assetId, BrowserAssetState.Subclips, true);
+        Assert.True(BrowserSelectionActions.Evaluate(model.SelectedTilesInBrowserOrder).ShowExportMenu);
+        Assert.False(BrowserSelectionActions.Evaluate([]).ShowExportMenu);
+        Assert.False(BrowserSelectionActions.Evaluate([Tile("other.mov", MediaTypeCategory.Video)]).ShowExportMenu);
+    }
+
+    [Theory]
+    [InlineData((int)MediaTypeCategory.StillImage)]
+    [InlineData((int)MediaTypeCategory.RawImage)]
+    [InlineData((int)MediaTypeCategory.Audio)]
+    [InlineData((int)MediaTypeCategory.Unknown)]
+    public void SavedSubclipsDoNotMakeUnsupportedSelectionsExportable(int category)
+    {
+        var video = Tile("clip.mov", MediaTypeCategory.Video);
+        video.SetAssetState(BrowserAssetState.Subclips);
+        var other = Tile("other", (MediaTypeCategory)category);
+        other.SetAssetState(BrowserAssetState.Subclips);
+        Assert.False(BrowserSelectionActions.Evaluate([other]).ShowExportMenu);
+        var mixed = BrowserSelectionActions.Evaluate([video, other]);
+        Assert.False(mixed.CanExport);
+        Assert.False(mixed.ShowExportMenu);
+        var unidentified = Tile("unknown.mov", MediaTypeCategory.Video, identified: false);
+        unidentified.SetAssetState(BrowserAssetState.Subclips);
+        Assert.False(BrowserSelectionActions.Evaluate([unidentified]).ShowExportMenu);
+        Assert.False(BrowserSelectionActions.Evaluate([video, unidentified]).CanExport);
+    }
+
     [Fact]
     public void VisualIndexRequiresIdentifiedVideoSelectionAndSupportsMultipleVideos()
     {

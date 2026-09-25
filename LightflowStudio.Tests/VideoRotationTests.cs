@@ -78,7 +78,7 @@ public sealed class VideoRotationTests : IAsyncLifetime
         await Turn(true, _a);
         var recovery = new SqliteCatalogRecoveryService(_locations);
         var backup = await recovery.CreateBackupAsync(_locations.CatalogDatabasePath, CatalogBackupKind.Automatic);
-        Assert.True(backup.Succeeded);
+        Assert.True(backup.Succeeded, backup.Diagnostic);
         var assets = new CatalogMediaAssetRepository(() => _session);
         Assert.Equal(MediaAssetOperationStatus.Succeeded, await assets.RelocateAsync(_a, _rootId, "moved/video.mp4", DateTimeOffset.UtcNow));
         await using (var previews = new PreviewStoreService(_locations))

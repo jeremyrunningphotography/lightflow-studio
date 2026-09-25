@@ -6,6 +6,35 @@ namespace LightflowStudio.Tests;
 public sealed class BrowserQueryTests
 {
     [Fact]
+    public void ComponentDepthFacetsUseVideoFactsAndSurviveSavedQueryRoundTrip()
+    {
+        var grid = new BrowserGridModel(); var root = Guid.NewGuid();
+        grid.Populate([Entry(root, "8.mp4", MediaTypeCategory.Video), Entry(root, "10.mp4", MediaTypeCategory.Video),
+            Entry(root, "unknown.mp4", MediaTypeCategory.Video), Entry(root, "photo.jpg", MediaTypeCategory.StillImage)]);
+        foreach (var tile in grid.Tiles)
+        {
+            var json = tile.Name switch
+            {
+                "8.mp4" => "{\"video\":{\"bitDepth\":8}}",
+                "10.mp4" => "{\"video\":{\"bitDepth\":10}}",
+                "photo.jpg" => "{\"image\":{\"bitDepth\":24,\"cameraMake\":\"DJI\",\"cameraModel\":\"OP-041\"}}",
+                _ => "{}"
+            };
+            tile.ApplyMetadata(BrowserQueryEngine.ExtractMetadata(json));
+        }
+        Assert.Equal(new double?[] { 8, 10 }, BrowserFilterDescriptors.Values(BrowserFilterField.BitDepth, grid.Tiles).Select(p => p.NumberValue));
+        var predicate = BrowserFilterPredicate.ForBitDepth(10);
+        var saved = BrowserQueryIntent.Deserialize(new BrowserQueryIntent { Filters = [predicate] }.Serialize());
+        Assert.Equal("10.mp4", Assert.Single(BrowserQueryEngine.Apply(grid.Tiles, saved.ToQuery())).Name);
+        Assert.Equal("DJI OP-041", grid.Tiles.Single(t => t.Name == "photo.jpg").CameraDisplayName);
+        var changed = grid.Tiles.Single(t => t.Name == "8.mp4");
+        Assert.True(changed.ApplyMetadata(BrowserQueryEngine.ExtractMetadata("{\"video\":{\"bitDepth\":10}}")));
+        Assert.Equal(2, BrowserQueryEngine.Apply(grid.Tiles, saved.ToQuery()).Count);
+        Assert.True(changed.ApplyMetadata(BrowserTechnicalMetadata.Empty));
+        Assert.False(predicate.Matches(changed));
+    }
+
+    [Fact]
     public void SavedBrowserViewPreservesFacetsAndSearchAndAnyIncludesSearchNormally()
     {
         var root = Guid.NewGuid(); var grid = new BrowserGridModel();

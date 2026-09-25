@@ -54,7 +54,8 @@ internal enum BrowserFilterField
     ColorLabel,
     Keyword,
     FileOrPath,
-    AspectRatio
+    AspectRatio,
+    BitDepth
 }
 
 /// <summary>
@@ -96,6 +97,8 @@ internal sealed record BrowserFilterPredicate
         if (value is < 0 or > 5) throw new ArgumentOutOfRangeException(nameof(value));
         return new() { Field = BrowserFilterField.Rating, NumberValue = value, Comparison = comparison };
     }
+    public static BrowserFilterPredicate ForBitDepth(int value) =>
+        new() { Field = BrowserFilterField.BitDepth, NumberValue = value };
     public static BrowserFilterPredicate ForFrameRate(double value) =>
         new() { Field = BrowserFilterField.FrameRate, NumberValue = BrowserFrameRate.Canonicalize(value) };
     public static BrowserFilterPredicate ForResolution(int width, int height) =>
@@ -116,6 +119,7 @@ internal sealed record BrowserFilterPredicate
             _ => "Media type"
         },
         BrowserFilterField.Camera => $"Camera: {TextValue}",
+        BrowserFilterField.BitDepth => $"Bit depth: {NumberValue:0} bit",
         BrowserFilterField.Lens => $"Lens: {TextValue}",
         BrowserFilterField.CaptureDate => DateRangeLabel(),
         BrowserFilterField.Duration => $"Duration {ComparisonSymbol(Comparison)} {FormatDuration(NumberValue)}",
@@ -143,6 +147,7 @@ internal sealed record BrowserFilterPredicate
             tile.RelativePath.Contains(TextValue?.Trim() ?? "", StringComparison.OrdinalIgnoreCase),
         BrowserFilterField.MediaType => MediaTypeValue is null || tile.Category == MediaTypeValue,
         BrowserFilterField.Camera => tile.MetadataApplied && TextEquals(tile.CameraDisplayName, TextValue),
+        BrowserFilterField.BitDepth => tile.MetadataApplied && tile.BitDepth is > 0 && tile.BitDepth == NumberValue,
         BrowserFilterField.Lens => tile.MetadataApplied && TextEquals(tile.LensModel, TextValue),
         BrowserFilterField.CaptureDate => tile.MetadataApplied && tile.CaptureDate is { } captured &&
             (DateFrom is null || captured.Date >= DateFrom.Value.Date) &&
@@ -392,7 +397,7 @@ internal static class BrowserQueryEngine
             image?.CameraMake, image?.CameraModel, image?.LensModel,
             image?.Width > 0 ? image.Width : video?.Width > 0 ? video.Width : null,
             image?.Height > 0 ? image.Height : video?.Height > 0 ? video.Height : null,
-            video?.FrameRate, aspect);
+            video?.FrameRate, aspect, video?.BitDepth);
     }
 
     public static (DateTime? CaptureDate, double? DurationSeconds) ExtractSortableMetadata(string? metadataJson)
@@ -472,7 +477,7 @@ internal sealed record BrowserTechnicalMetadata(
     string? LensModel,
     int? PixelWidth,
     int? PixelHeight,
-    double? FrameRate, MediaAspectRatio? SourceDisplayAspectRatio = null)
+    double? FrameRate, MediaAspectRatio? SourceDisplayAspectRatio = null, int? BitDepth = null)
 {
     public static BrowserTechnicalMetadata Empty { get; } = new(null, null, null, null, null, null, null, null);
 }
@@ -490,6 +495,7 @@ internal sealed record BrowserFilterOption(
         BrowserFilterField.Camera or BrowserFilterField.Lens or BrowserFilterField.Flag or
             BrowserFilterField.ColorLabel or BrowserFilterField.Keyword => Predicate.TextValue ?? Label,
         BrowserFilterField.Duration => $"{BrowserFilterPredicate.ComparisonSymbol(Predicate.Comparison)} {BrowserFilterPredicate.FormatDuration(Predicate.NumberValue)}",
+        BrowserFilterField.BitDepth => $"{Predicate.NumberValue:0} bit",
         BrowserFilterField.Resolution => $"{Predicate.NumberValue:0}×{Predicate.NumberValue2:0}",
         BrowserFilterField.FrameRate => $"{BrowserFrameRate.Canonicalize(Predicate.NumberValue):0.###} fps",
         _ => Label
@@ -498,6 +504,7 @@ internal sealed record BrowserFilterOption(
     public string DescriptiveValueLabel => Predicate.Field switch
     {
         BrowserFilterField.Camera or BrowserFilterField.Lens => Predicate.TextValue ?? Label,
+        BrowserFilterField.BitDepth => $"{Predicate.NumberValue:0} bit",
         BrowserFilterField.Resolution => $"{Predicate.NumberValue:0}×{Predicate.NumberValue2:0}",
         BrowserFilterField.FrameRate => $"{BrowserFrameRate.Canonicalize(Predicate.NumberValue):0.###} fps",
         _ => Label

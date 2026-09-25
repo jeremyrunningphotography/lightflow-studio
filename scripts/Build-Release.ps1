@@ -103,6 +103,29 @@ finally {
     Remove-Item -LiteralPath $resolvedSmokeRoot -Recurse -Force
 }
 
+# Exercise backup/restore in the actual executable. VSTest's long-path-aware host
+# can hide Win32 path failures that still occur under the application's manifest.
+$backupSmokeDataRoot = [IO.Path]::GetFullPath((Join-Path $stagingRoot ("bp-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))))
+if (-not $backupSmokeDataRoot.StartsWith($stagingRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Backup smoke root escaped the task staging directory."
+}
+$backupSmoke = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
+    -ArgumentList "--verify-catalog-backup-paths", "--data-root", "`"$backupSmokeDataRoot`"" `
+    -WorkingDirectory $appDirectory -PassThru -WindowStyle Hidden
+try {
+    if (-not $backupSmoke.WaitForExit(60000)) { throw "Packaged Catalog backup boundary verification timed out." }
+    Copy-Item -LiteralPath (Join-Path $backupSmokeDataRoot "backup-path-verification.jsonl") `
+        -Destination (Join-Path $stagingRoot "backup-path-verification.jsonl")
+    if ($backupSmoke.ExitCode -ne 0) { throw "Packaged Catalog backup boundary verification failed. See backup-path-verification.jsonl." }
+    Write-Host "Packaged Catalog backup, restore protection, and shutdown boundary checks passed." -ForegroundColor Green
+}
+finally {
+    $backupSmoke.Refresh()
+    if (-not $backupSmoke.HasExited) { Stop-Process -InputObject $backupSmoke -Force }
+    if (-not $backupSmoke.WaitForExit(5000)) { throw "Packaged Catalog backup smoke process did not terminate." }
+    if (Test-Path -LiteralPath $backupSmokeDataRoot) { Remove-Item -LiteralPath $backupSmokeDataRoot -Recurse -Force }
+}
+
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "PremiereHelper") -Destination (Join-Path $appDirectory "PremiereHelper") -Recurse -Force
 & (Join-Path $PSScriptRoot "Build-PremiereCompanion.ps1") -OutputPath (Join-Path $appDirectory "PremiereCompanion\LightflowStudio.ccx")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "THIRD-PARTY-NOTICES.md") -Destination $appDirectory -Force

@@ -127,6 +127,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
     public int? PixelWidth => _pixelWidth;
     public int? PixelHeight => _pixelHeight;
     public double? FrameRate => _frameRate;
+    public int? BitDepth { get; private set; }
 
     public Guid? AssetId { get; private set; }
 
@@ -305,7 +306,7 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         var changed = _captureDate != metadata.CaptureDate || _durationSeconds != metadata.DurationSeconds ||
             _cameraMake != metadata.CameraMake || _cameraModel != metadata.CameraModel || _lensModel != metadata.LensModel ||
             _pixelWidth != metadata.PixelWidth || _pixelHeight != metadata.PixelHeight || _frameRate != metadata.FrameRate ||
-            _sourceDisplayAspectRatio != metadata.SourceDisplayAspectRatio;
+            _sourceDisplayAspectRatio != metadata.SourceDisplayAspectRatio || BitDepth != metadata.BitDepth;
         CaptureDate = metadata.CaptureDate;
         DurationSeconds = metadata.DurationSeconds;
         _cameraMake = metadata.CameraMake;
@@ -314,11 +315,12 @@ internal sealed class BrowserGridTile : INotifyPropertyChanged
         _pixelWidth = metadata.PixelWidth;
         _pixelHeight = metadata.PixelHeight;
         _frameRate = metadata.FrameRate;
+        BitDepth = metadata.BitDepth;
         _sourceDisplayAspectRatio = metadata.SourceDisplayAspectRatio;
         OnPropertyChanged(nameof(EffectiveAspectRatio));
         MetadataApplied = true;
         foreach (var property in new[] { nameof(CameraMake), nameof(CameraModel), nameof(CameraDisplayName),
-            nameof(LensModel), nameof(PixelWidth), nameof(PixelHeight), nameof(FrameRate), nameof(MetadataApplied) })
+            nameof(LensModel), nameof(PixelWidth), nameof(PixelHeight), nameof(FrameRate), nameof(BitDepth), nameof(MetadataApplied) })
             OnPropertyChanged(property);
         PublishDetails();
         return changed;

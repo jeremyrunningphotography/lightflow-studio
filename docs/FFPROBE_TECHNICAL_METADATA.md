@@ -2,7 +2,7 @@
 
 Baseline: main `1434713edf17b77258d03f5c808f77a7c9be1213`. This is the dependency-free
 normalization work extracted from retired #299. It adds no provider, camera-profile
-interpretation, vendor parsing, automatic LUT rules or Browser facets.
+interpretation, vendor parsing or automatic LUT rules.
 
 ## Pixel-format authority
 
@@ -64,7 +64,7 @@ After refresh, restart/revisit reuses metadata without repeated source probing.
 Display geometry still uses `MediaDisplayGeometry` and `VideoRotation`. Correctly
 selected source side data feeds the existing source-plus-Catalog adjustment model;
 non-square/ambiguous geometry remains unknown. #312's detached Preview bitmap boundary
-is untouched. Shared Browser/Smart Collection queries gain no new facets.
+is untouched. The accepted hands-on extension adds a component Bit depth facet to the shared Browser/Smart Collection query model.
 
 ## Validation and cost
 
@@ -106,3 +106,24 @@ remain under the owning clone's ignored `.cache`; no benchmark runtime ships.
 
 Local-first gate: focused validation and a fresh isolated package for Jeremy's hands-on
 acceptance. Full suite, push, PR, merge and #311/#30 closure remain unauthorized here.
+
+
+## September 25 hands-on iteration
+
+Inspector now presents Camera Make and Model for every selection, using the same
+normalized image facts that feed Camera Filters. Absent fields display Missing;
+no encoder-to-camera inference is introduced. The screenshot folder contains four
+JPEGs and ten MP4s (plus ten LRF companions): the four known cameras and ten known
+frame rates reflect those different available facts. A read-only full FFprobe tag
+query on the selected MP4 returned encoder `DJI OsmoPocket4` but no camera make/model.
+This explains the observed coverage without establishing camera identity for video.
+
+Bit depth choices, counts, predicates and saved Smart Collection intent use normalized
+video component depth. Image pixel depth is bits per pixel and is deliberately excluded.
+Unknown values do not match; metadata publication refreshes active depth filters.
+Single-value facets use the same informational presentation as Camera/Frame rate;
+multiple values offer choices. Existing enum identities remain stable.
+
+No probe contract changes or further cache-version bump is required for this iteration.
+Focused metadata, Inspector, Browser query, Aspect Ratio and Smart Collection tests:
+153 passed. Full-suite and hands-on acceptance remain separate gates.

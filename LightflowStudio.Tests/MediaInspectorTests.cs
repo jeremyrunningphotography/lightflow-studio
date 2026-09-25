@@ -28,6 +28,8 @@ public sealed class MediaInspectorTests
                 // No probe service is available to this cache-only presentation path.
                 var result = await reader.ReadAsync([new(id, "clip.mov", "clip.mov", MediaPresentationKind.Video)], default);
                 Assert.Contains(result.Fields, f => f.Name == "Bit depth" && f.Value == "10 bit");
+                Assert.Contains(result.Fields, f => f.Group == "Camera" && f.Name == "Make" && f.Value == "Missing");
+                Assert.Contains(result.Fields, f => f.Group == "Camera" && f.Name == "Model" && f.Value == "Missing");
                 Assert.Contains(result.Fields, f => f.Name == "Chroma" && f.Value == "4:2:0");
                 Assert.Contains(result.Fields, f => f.Name == "Matrix" && f.Value == "bt709");
                 Assert.Contains(result.Fields, f => f.Name == "Transfer" && f.Value == "smpte2084");

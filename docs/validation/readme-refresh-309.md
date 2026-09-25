@@ -103,11 +103,13 @@ The version-banner pattern still matches set-version.ps1, and git diff --check p
 Evidence and the local HTML preview remain under ignored .cache; no content was uploaded
 for rendering. These checks do not claim exact GitHub renderer parity or user acceptance.
 
-## Acceptance gate
+## Acceptance
 
-Keep this work local until Jeremy accepts the README and screenshots. Do not push,
-open a PR, close #309, or merge before that acceptance. A later PR-ready handoff must
-refresh the packaged executable after its final commit per AGENTS.md.
+Jeremy accepted the final README and screenshots on 2026-09-25 and explicitly
+authorized finalizing the PR and merging. The accepted set leads with filesystem
+browsing, presents Collections separately, and shows three exports with distinct
+saved In/Out ranges. Refresh the packaged executable after the final PR commit
+per AGENTS.md; release publication remains outside this documentation issue.
 
 #309 was absent from the roadmap and has been added. It has no native parent or recorded
 blocking dependencies. Priority and Area were not preassigned; do not infer a parent

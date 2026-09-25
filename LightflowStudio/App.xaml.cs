@@ -39,6 +39,14 @@ public partial class App : System.Windows.Application
             Shutdown(2);
             return;
         }
+        if (e.Args.Contains("--verify-catalog-backup-paths", StringComparer.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            base.OnStartup(e);
+            var verified = await CatalogBackupPathVerifier.VerifyAsync(LightflowStorageLocations.Current);
+            Shutdown(verified ? 0 : 1);
+            return;
+        }
         var migrationCopySwitch = Array.IndexOf(e.Args, CatalogPackageRuntimeVerifier.MigrationCopyCommandLineSwitch);
         if (migrationCopySwitch >= 0)
         {

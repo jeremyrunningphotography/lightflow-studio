@@ -87,6 +87,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
             var validation = Inspect(staging, full: true, cancellationToken, "Backup copy full check");
             if (!validation.IsValid || validation.CatalogId != source.CatalogId || validation.SchemaVersion != source.SchemaVersion)
                 return new CatalogBackupResult(false, Diagnostic: validation.Diagnostic ?? "The backup did not preserve Catalog identity and schema.");
+            cancellationToken.ThrowIfCancellationRequested();
             File.Move(staging, final);
             File.WriteAllText(final + ".metadata.json", JsonSerializer.Serialize(new BackupMetadata(kind)));
             var backup = ParseBackup(final)!;
@@ -124,7 +125,8 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         {
             BackupDatabase(backupPath, staged);
             var stagedCheck = Inspect(staged, full: true, cancellationToken);
-            if (!stagedCheck.IsValid) throw new InvalidDataException(stagedCheck.Diagnostic);
+            if (!stagedCheck.IsValid || stagedCheck.CatalogId != candidate.CatalogId || stagedCheck.SchemaVersion != candidate.SchemaVersion)
+                throw new InvalidDataException(stagedCheck.Diagnostic ?? "The restore copy did not preserve Catalog identity and schema.");
             if (File.Exists(live))
             {
                 var current = Inspect(live, full: true, cancellationToken);
@@ -136,12 +138,15 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
                         return new(false, Diagnostic: $"The current Catalog could not be protected. {protection.Diagnostic}");
                 }
             }
+            // Cancellation is safe until installation starts. Once files move, finish validation
+            // or rollback without cancellation, so the current Catalog cannot be stranded.
+            cancellationToken.ThrowIfCancellationRequested();
             if (File.Exists(live)) { File.Move(live, displaced); movedCurrent = true; }
             MoveCompanion(live + "-wal", displaced + "-wal");
             MoveCompanion(live + "-shm", displaced + "-shm");
             File.Move(staged, live);
             replacementInstalled = true;
-            var restored = Inspect(live, full: true, cancellationToken);
+            var restored = Inspect(live, full: true, CancellationToken.None);
             if (!restored.IsValid) throw new InvalidDataException(restored.Diagnostic);
             return new CatalogRestoreInstallation(true,
                 new RestoreTransaction(live, movedCurrent ? displaced : null, _utcNow));
@@ -158,7 +163,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
             catch (Exception rollback) { return new(false, Diagnostic: $"Restore failed: {ex.Message} The previous Catalog is preserved at {displaced}, but automatic rollback also failed: {rollback.Message}"); }
             return new(false, Diagnostic: $"Restore failed and the previous Catalog was restored: {ex.Message}");
         }
-        finally { try { File.Delete(staged); } catch { } }
+        finally { DeleteCatalogFiles(staged); }
     }, cancellationToken);
 
     private sealed class RestoreTransaction(string livePath, string? displacedPath,
@@ -211,7 +216,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!File.Exists(path)) return new(false, $"Catalog file does not exist: {path}");
-            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = RecoverySqlitePath(path), Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
             connection.Open();
             if (verifyPages)
             {
@@ -226,18 +231,45 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
             return Guid.TryParse(Convert.ToString(identity.ExecuteScalar()), out var id) ? new(true, SchemaVersion: schema, CatalogId: id) : new(false, "Catalog identity metadata is invalid.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException or InvalidOperationException)
-        { return new(false, $"Catalog integrity check failed: {ex.Message}"); }
+        { return new(false, $"Catalog integrity check failed for '{path}' ({path.Length} characters): {ErrorDetail(ex)}"); }
     }
 
     private static void BackupDatabase(string sourcePath, string destinationPath)
     {
-        using var source = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = sourcePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
-        using var destination = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = destinationPath, Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString());
-        source.Open(); destination.Open(); source.BackupDatabase(destination);
-        using var checkpoint = destination.CreateCommand();
-        checkpoint.CommandText = "PRAGMA journal_mode=DELETE;";
-        checkpoint.ExecuteScalar();
+        StartupDiagnostics.Note($"SQLite backup source ({sourcePath.Length}): {sourcePath}; staging ({destinationPath.Length}): {destinationPath}");
+        var operation = "opening source";
+        try
+        {
+            using var source = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = RecoverySqlitePath(sourcePath), Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+            using var destination = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = RecoverySqlitePath(destinationPath), Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString());
+            source.Open();
+            operation = "opening staging database";
+            destination.Open();
+            operation = "copying SQLite snapshot";
+            source.BackupDatabase(destination);
+            operation = "finalizing SQLite journal";
+            using var checkpoint = destination.CreateCommand();
+            checkpoint.CommandText = "PRAGMA journal_mode=DELETE;";
+            checkpoint.ExecuteScalar();
+        }
+        catch (SqliteException ex)
+        {
+            throw new IOException($"Catalog snapshot failed while {operation}. Source '{sourcePath}' ({sourcePath.Length} characters); staging '{destinationPath}' ({destinationPath.Length} characters). {ErrorDetail(ex)}", ex);
+        }
     }
+
+    private static string RecoverySqlitePath(string path)
+    {
+        var full = Path.GetFullPath(path);
+        // The packaged host is not longPathAware. SQLite's Win32 calls otherwise fail
+        // at MAX_PATH (including the appended -journal), even when .NET accepts the path.
+        // Scope this to recovery connections; keep filesystem/publication paths unchanged.
+        if (!OperatingSystem.IsWindows() || full.StartsWith(@"\\?\", StringComparison.Ordinal)) return full;
+        return full.StartsWith(@"\\", StringComparison.Ordinal) ? @"\\?\UNC\" + full[2..] : @"\\?\" + full;
+    }
+
+    private static string ErrorDetail(Exception ex) => ex is SqliteException sqlite
+        ? $"{sqlite.Message} (SQLite {sqlite.SqliteErrorCode}/{sqlite.SqliteExtendedErrorCode})" : ex.Message;
 
     private string UniqueBackupPath(int schema, DateTimeOffset now)
     {
@@ -289,7 +321,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         return new(path, schema, created.ToUniversalTime(), kind);
     }
     private static void MoveCompanion(string source, string destination) { if (File.Exists(source)) File.Move(source, destination); }
-    private static void DeleteCatalogFiles(string path) { foreach (var file in new[] { path, path + "-wal", path + "-shm" }) try { File.Delete(file); } catch { } }
+    private static void DeleteCatalogFiles(string path) { foreach (var file in new[] { path, path + "-wal", path + "-shm", path + "-journal" }) try { File.Delete(file); } catch { } }
 
     private sealed record BackupMetadata(CatalogBackupKind Kind);
 

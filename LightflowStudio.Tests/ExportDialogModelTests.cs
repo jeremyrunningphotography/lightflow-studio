@@ -468,6 +468,10 @@ public sealed class ExportDialogModelTests : IDisposable
 
         Assert.Equal("Export Subclips", model.Title);
         Assert.False(model.ShowGlobalRangeControl);
+        Assert.True(model.IncludeNoSubclipSources);
+        Assert.True(model.GlobalUseRangeState);
+        Assert.Equal(2, model.SubmissionItems.Count);
+        model.IncludeNoSubclipSources = false;
         Assert.Single(model.SubmissionItems);
         Assert.Equal("Best Take", model.SubmissionItems[0].SourceFileName);
         Assert.False(model.SubmissionItems[0].HasRange);
@@ -499,6 +503,9 @@ public sealed class ExportDialogModelTests : IDisposable
             new FakeResources(), _ => new(false, 0));
         Ready(model, Metadata("h264", "mp4"));
 
+        Assert.True(model.IncludeNoSubclipSources);
+        Assert.Single(model.SubmissionItems);
+        model.IncludeNoSubclipSources = false;
         Assert.Empty(model.SubmissionItems);
         model.IncludeNoSubclipSources = true;
         var row = Assert.Single(model.SubmissionItems);

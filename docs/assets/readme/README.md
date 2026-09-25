@@ -22,7 +22,8 @@ annotations are staged examples, not metadata asserted about the original film.
 
 | Image | Purpose |
 | --- | --- |
-| browser-overview.jpg | Collection hierarchy, Hybrid tiles, ratings/labels/range/Subclip/marker indicators, and Inspector descriptions |
+| browser-overview.jpg | Real demo filesystem navigation: Forest Story, Camera A / Camera B, recursive browsing, and Hybrid media tiles |
+| browser-collections.jpg | Collection hierarchy, Smart Collection, Hybrid tiles, Catalog indicators, and Inspector descriptions |
 | player-color-subclips.jpg | Player filmstrip, saved range, point marker, Color controls, and reusable Subclips |
 | player-visual-index.jpg | Twelve timestamped sample frames alongside the paused Player |
 | export-workflow.jpg | Valid output plan, saved range, Color policy, confirmed NVENC availability, and enabled Export action |
@@ -43,8 +44,17 @@ preferences were prepared offline in the disposable profile, then loaded and vis
 checked through the production UI. The application generated its own Previews/Subclip
 posters/Visual Index, and the Export example was executed successfully.
 
-Locations is collapsed to exclude machine drive names and unrelated folders.
-The Browser uses Collection breadcrumbs; the Export image shows only the task-owned
-demo path under `C:\Git\Agents\issue-309-readme-refresh`. The retained images were
+The lead Browser image shows a real task-owned `Demo Media` Location, with media copied
+into `Forest Story/Camera A` and `Forest Story/Camera B`. `Nature Selects`, `Exports`,
+and illustrative `Past Projects/Session 01–24` folders complete the demo tree. The tree
+is scrolled to Demo Media so unrelated machine drives are outside the capture; Include
+Subfolders combines the two camera folders in the media grid. The Right Panel is closed
+to give the filesystem workflow prominence. These are real directories and production
+navigation, not a composited tree or a change to the application.
+
+The separate Collections screenshot retains Collection breadcrumbs and Inspector.
+Locations is collapsed in that image and the Player images. The filesystem Browser and
+Export images show only task-owned paths under `C:\Git\Agents\issue-309-readme-refresh`.
+The retained images were
 reviewed for personal information, usernames, secrets, private media, unrelated
 application content, warning/loading states, and disabled primary actions.

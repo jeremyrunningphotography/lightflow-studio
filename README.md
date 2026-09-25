@@ -12,20 +12,17 @@ Current version: **0.40.0** · [Download the latest Windows release](https://git
 This README describes current `main`. The latest published release may contain an earlier
 set of features; see its release notes before downloading.
 
-## Find and organize
+## Browse your folders
 
-![Lightflow Browser with Collections, media thumbnails, and the shared Inspector](docs/assets/readme/browser-overview.jpg)
+![Lightflow Browser navigating a demo filesystem, with Camera A and Camera B folders and Include Subfolders enabled](docs/assets/readme/browser-overview.jpg)
 
-Start with the folders you already use. Navigate local drives, removable storage, and
+The Browser starts with the folders you already use. Navigate local drives, removable storage, and
 mapped or network locations with familiar Back, Forward, Up, and Refresh controls.
 Include subfolders when a shoot spans several directories, then narrow the view with
 filename/path search, media types, ratings, flags, labels, and available metadata filters.
 
 - **Choose the view that fits the task.** Use Preview, Info, or Hybrid tiles for visual
   browsing, or switch to Details for sortable rows and configurable columns.
-- **Bring related media together.** Collections gather media across folders without
-  moving files; Collection Sets organize those Collections. Smart Collections save
-  rules against a chosen folder or Collection and update their matches as you work.
 - **Inspect and describe.** The shared Right Panel follows your Browser selection or
   Player media. Inspector shows technical metadata and lets you save titles,
   descriptions, notes, creator, and credit in the Catalog, including edits to a selection.
@@ -34,6 +31,16 @@ Cut, copy, paste, move, rename, create folders, and reveal items in Windows Expl
 without leaving the browsing workflow. Ordinary Delete uses the Recycle Bin where
 available; permanent deletion requires an explicit decision. Larger file operations
 appear in Jobs so you can keep working.
+
+### Organize across folders
+
+![Lightflow Collections and Collection Set alongside a Smart Collection, with selected media shown in Inspector](docs/assets/readme/browser-collections.jpg)
+
+When you want to gather related media across folders, create a **Collection** without
+moving the files. **Collection Sets** organize those Collections. **Smart Collections**
+save rules against a chosen folder or Collection and update their matches as you work.
+Your filesystem remains the foundation; Collections give you another way to organize
+and revisit the same media.
 
 ## Review the moments that matter
 

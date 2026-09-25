@@ -73,22 +73,27 @@ Reassess the current-main versus published-release sentence when 1.0 is publishe
 
 See [asset provenance and capture notes](../assets/readme/README.md).
 All four original images were audited visually. Three filenames now contain current
-captures; the old Jobs image is removed and Visual Index is added. No manual capture
+captures; the old Jobs image is removed and Visual Index is added. Following Jeremy's
+documentation review, the lead Browser capture now emphasizes actual filesystem
+navigation and recursive browsing through a task-owned Demo Media tree. The earlier
+Collection capture is retained as browser-collections.jpg beside the dedicated
+Organize across folders subsection. The resulting set contains five images. No manual capture
 is required for this set. Actual Color selectors are visible, but no LUT is applied to
 the already rendered sample film; the images do not claim a camera-log transform.
 
 Task workspace: `C:\Git\Agents\issue-309-readme-refresh`.
 Packaged executable: `artifacts\release\LightflowStudio\LightflowStudio.exe`.
 Isolated profile: `.cache\readme-profile`.
-Public-safe media: `.cache\readme-media\Forest`.
+Original public-safe media: `.cache\readme-media\Forest`.
+Filesystem demo: `.cache\Demo Media\Forest Story\Camera A` and `Camera B`.
 Raw captures and downloaded source are ignored under `.cache\readme-source`.
 
 The package was built from the baseline using PullRequest / SkipInstaller. Packaged
 startup/presentation, graceful shutdown, icon and dependency validation passed.
 No full application test suite is required for these documentation-only changes.
 A real sample NVENC export completed locally after the enabled Export setup was captured.
-Local validation parsed four Markdown files, resolved all 21 relative links (including
-four image references), and rendered the README in a local GitHub-like layout. All four
+Local validation parsed four Markdown files, resolved all 22 relative links (including
+five image references), and rendered the README in a local GitHub-like layout. All five
 images decoded and loaded at their expected dimensions, with no horizontal overflow.
 All ten external links in the changed documentation returned HTTP 200; releases/latest
 resolved to v0.40.0 with installer, portable ZIP, and SHA256SUMS.txt assets verified.

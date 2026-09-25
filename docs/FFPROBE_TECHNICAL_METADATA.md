@@ -73,7 +73,7 @@ chroma, matrix serialization, real selected tags/side data, source rotation/comp
 metadata-only version refresh, unchanged image-cache reuse, offline Inspector reads,
 restart reuse, thumbnail scheduling, Inspector publication and rotation pixels.
 The local focused run passed 233 tests, including shared Browser/Smart Collection
-query compatibility. The full suite is deliberately deferred until hands-on acceptance.
+query compatibility. This focused run preceded hands-on acceptance.
 
 Five alternating-order baseline/changed pairs used fresh task-owned Catalog/Preview
 roots and the actual two-worker scheduler, with the same pinned tools. Seven synthetic
@@ -104,8 +104,7 @@ Detailed measurements and source hashes are in
 The small diagnostic harness, synthetic media, private input paths and full local logs
 remain under the owning clone's ignored `.cache`; no benchmark runtime ships.
 
-Local-first gate: focused validation and a fresh isolated package for Jeremy's hands-on
-acceptance. Full suite, push, PR, merge and #311/#30 closure remain unauthorized here.
+Jeremy accepted functional testing on September 25. Final validation and PR review are authorized; merge and issue closure await separate approval.
 
 
 ## September 25 hands-on iteration
@@ -126,4 +125,4 @@ multiple values offer choices. Existing enum identities remain stable.
 
 No probe contract changes or further cache-version bump is required for this iteration.
 Focused metadata, Inspector, Browser query, Aspect Ratio and Smart Collection tests:
-153 passed. Full-suite and hands-on acceptance remain separate gates.
+153 passed. Jeremy subsequently accepted this packaged iteration.

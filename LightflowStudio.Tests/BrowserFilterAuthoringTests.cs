@@ -41,8 +41,8 @@ public sealed class BrowserFilterAuthoringTests
     public void EmptySourceStillSupportsStructuredAuthoringButNotEmptyObservedFacets()
     {
         var excluded = BrowserFilterDescriptors.All.Where(d => !d.CanAuthor([])).Select(d => d.Field).ToArray();
-        Assert.Equal([BrowserFilterField.Camera, BrowserFilterField.Lens, BrowserFilterField.Keyword], excluded);
-        Assert.Equal(18, BrowserFilterDescriptors.All.Count);
+        Assert.Equal([BrowserFilterField.Camera, BrowserFilterField.Lens, BrowserFilterField.BitDepth, BrowserFilterField.Keyword], excluded);
+        Assert.Equal(19, BrowserFilterDescriptors.All.Count);
         Assert.Empty(BrowserFilterDescriptors.Values(BrowserFilterField.FrameRate, [])); // ordinary Browser remains contextual
         var rates = BrowserFilterDescriptors.Get(BrowserFilterField.FrameRate).Suggestions!([]).ToArray();
         Assert.Equal(MediaFrameRate.Canonical.Select(r => r.DisplayValue), rates.Select(p => p.NumberValue!.Value));

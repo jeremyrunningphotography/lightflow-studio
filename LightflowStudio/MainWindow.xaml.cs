@@ -1747,6 +1747,9 @@ public partial class MainWindow : Window
         if (!CurrentBrowserSelectionActions().ShowExportMenu) e.Handled = true;
     }
 
+    private void BrowserExportMenu_Opened(object sender, RoutedEventArgs e) =>
+        BrowserExportVideosMenuItem.Header = CurrentBrowserSelectionActions().SourceExportLabel;
+
     private async Task ExportBrowserSelectionAsync()
     {
         var state = CurrentBrowserSelectionActions();

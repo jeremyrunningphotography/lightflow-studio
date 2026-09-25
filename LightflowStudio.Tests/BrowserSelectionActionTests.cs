@@ -19,6 +19,7 @@ public sealed class BrowserSelectionActionTests
         var state = BrowserSelectionActions.Evaluate(tiles);
         Assert.True(state.CanExport);
         Assert.Equal(menu, state.ShowExportMenu);
+        Assert.Equal(videoCount == 1 ? "Export video" : "Export videos", state.SourceExportLabel);
         if (menu)
         {
             foreach (var tile in tiles) tile.SetAssetState(BrowserAssetState.Subclips);

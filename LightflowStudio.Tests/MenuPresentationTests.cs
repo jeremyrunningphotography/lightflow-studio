@@ -322,7 +322,7 @@ public sealed class MenuPresentationTests(ITestOutputHelper output)
             ((string?)e.Attribute(x + "Name") == name || (string?)e.Attribute(x + "Key") == name)));
         // Load the real menu/style tree without MainWindow, storage or command side effects.
         foreach (var attribute in element.DescendantsAndSelf().Attributes().Where(a =>
-            a.Name.LocalName is "Click" or "SubmenuOpened" or "PlacementTarget" ||
+            a.Name.LocalName is "Click" or "Opened" or "SubmenuOpened" or "PlacementTarget" ||
             a.Name == x + "Shared" || a.Name == x + "Key").ToArray()) attribute.Remove();
         var menu = (ContextMenu)XamlReader.Parse(element.ToString());
         // These tests explicitly drive opening, resizing and keyboard input. A runner's stationary

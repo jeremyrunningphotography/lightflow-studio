@@ -1290,8 +1290,8 @@
            ContextMenuOpening="BrowserExport_ContextMenuOpening">
            <Button.ContextMenu>
             <ContextMenu x:Name="BrowserExportMenu" Style="{StaticResource LightflowContextMenuStyle}" Placement="Bottom"
-             PlacementTarget="{Binding ElementName=BrowserExportButton}">
-             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export videos" Click="BrowserContextExport_Click"/>
+             PlacementTarget="{Binding ElementName=BrowserExportButton}" Opened="BrowserExportMenu_Opened">
+             <MenuItem x:Name="BrowserExportVideosMenuItem" Style="{StaticResource LightflowMenuItemStyle}" Header="Export videos" Click="BrowserContextExport_Click"/>
              <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="Export subclips" Click="BrowserContextExportSubclips_Click"/>
             </ContextMenu>
            </Button.ContextMenu>

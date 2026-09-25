@@ -12,6 +12,7 @@ internal sealed record BrowserSelectionActionState(
     public bool CanCreateVisualIndex => CanExport;
     public bool CanRotate => CanExport;
     public bool ShowExportMenu { get; init; }
+    public string SourceExportLabel => SelectionCount == 1 ? "Export video" : "Export videos";
 }
 
 internal sealed record BrowserLutActionOption(Guid? LutId, string Label, bool IsAction = true);

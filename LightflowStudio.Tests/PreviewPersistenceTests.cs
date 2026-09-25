@@ -34,6 +34,7 @@ public sealed class PreviewPersistenceTests : IAsyncLifetime
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
+    [InlineData(3)]
     public async Task OlderPreviewSchemas_MigrateWithoutLosingKnownFailureOrArtifact(int version)
     {
         var locations = LightflowStorageLocations.Create(_root);
@@ -47,7 +48,8 @@ public sealed class PreviewPersistenceTests : IAsyncLifetime
         {
             connection.Open();
             using var command = connection.CreateCommand();
-            command.CommandText = "ALTER TABLE PreviewRecords DROP COLUMN ThumbnailFailureReason;" +
+            command.CommandText = "ALTER TABLE PreviewRecords DROP COLUMN MetadataRetryAfterUtc; ALTER TABLE PreviewRecords DROP COLUMN ThumbnailRetryAfterUtc;" +
+                (version < 3 ? "ALTER TABLE PreviewRecords DROP COLUMN ThumbnailFailureReason;" : "") +
                 (version == 1 ? "ALTER TABLE PreviewRecords DROP COLUMN ThumbnailVisualIdentity; ALTER TABLE PreviewRecords DROP COLUMN StandardPreviewVisualIdentity;" : "") +
                 $"PRAGMA user_version={version};";
             command.ExecuteNonQuery();
@@ -57,6 +59,7 @@ public sealed class PreviewPersistenceTests : IAsyncLifetime
         Assert.Equal(PreviewComponentState.Failed, record.ThumbnailState);
         Assert.Equal("thumbnails/retained.jpg", record.ThumbnailRelativePath);
         Assert.Equal(PreviewFailureReason.Unknown, record.ThumbnailFailureReason);
+        Assert.True(record.ThumbnailRetryAfterUtc > DateTimeOffset.UtcNow);
     }
 
     [Fact]

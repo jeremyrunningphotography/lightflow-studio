@@ -52,6 +52,9 @@ public sealed class FileOperationTests
             Assert.Equal(FileOperationState.Running, Assert.Single(jobs.Jobs).State);
             release.TrySetResult();
             await WaitUntilAsync(() => Assert.Single(jobs.Jobs).State == FileOperationState.Completed);
+            // Terminal presentation precedes history persistence. History reads take the same
+            // lock as Complete, so observing this record also waits for its active-file write.
+            await WaitUntilAsync(() => jobs.History.Any(record => record.Intent.OperationId == intent.OperationId));
         }
         finally { Directory.Delete(temporary, true); }
     }

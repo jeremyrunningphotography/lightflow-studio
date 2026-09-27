@@ -615,7 +615,8 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
         await File.WriteAllTextAsync(Path.Combine(fixture.MediaRoot, "clip.mp4"), "source");
         var assetId = await fixture.AddAssetAsync("clip.mp4", "video");
         var colors = new MutableColorStore(new(assetId, null, null, PreviewVisualIdentity.Original));
-        var cache = new FakeLutCache(new Dictionary<Guid, string>());
+        var paths = new Dictionary<Guid, string>();
+        var cache = new FakeLutCache(paths);
         using var service = new ThumbnailGenerationService(fixture.Coordinator.MediaAssets,
             fixture.Coordinator.Previews!, fixture.Coordinator.Locations, new ColorAwareRenderer(),
             colors: colors, lutCache: cache);
@@ -628,6 +629,14 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
         Assert.Equal(original.ThumbnailPath, failed.ThumbnailPath);
         Assert.Equal(PreviewComponentState.Failed, record.ThumbnailState);
         Assert.Equal("missing-color", record.ThumbnailVisualIdentity);
+        Assert.Equal(PreviewFailureReason.DependencyUnavailable, record.ThumbnailFailureReason);
+        Assert.Equal(ThumbnailGenerationStatus.Deferred, (await service.GenerateAsync(new(assetId))).Status);
+        Assert.Equal(record.ThumbnailRetryAfterUtc, (await fixture.Coordinator.Previews.GetAsync(assetId))!.ThumbnailRetryAfterUtc);
+        paths[colors.Intent.Camera!.LutId] = Path.Combine(fixture.MediaRoot, "now-available.cube");
+        // The test renderer consumes identity only; successful resolution models the startup LUT cache becoming ready.
+        var recovered = await service.GenerateAsync(new(assetId));
+        Assert.Equal(ThumbnailGenerationStatus.Succeeded, recovered.Status);
+        Assert.Null((await fixture.Coordinator.Previews.GetAsync(assetId))!.ThumbnailRetryAfterUtc);
     }
 
     [Fact]

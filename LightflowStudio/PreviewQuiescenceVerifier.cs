@@ -29,7 +29,7 @@ internal static class PreviewQuiescenceVerifier
                 var executable = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "bin", "ffmpeg.exe");
                 var start = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
                 foreach (var arg in new[] { "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
-                    "testsrc2=size=160x90:rate=10:duration=1", "-c:v", "mpeg4", Path.Combine(media, "valid.mp4") }) start.ArgumentList.Add(arg);
+                    "testsrc2=size=160x90:rate=10:duration=3", "-c:v", "mpeg4", "-color_range", "pc", Path.Combine(media, "valid.mp4") }) start.ArgumentList.Add(arg);
                 using var process = Process.Start(start)!;
                 var error = await process.StandardError.ReadToEndAsync();
                 await process.WaitForExitAsync();

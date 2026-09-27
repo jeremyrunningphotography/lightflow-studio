@@ -204,6 +204,10 @@ internal sealed class FfprobeMediaMetadataReader(string? executable, IProbeProce
             return FfprobeMetadataNormalizer.Normalize(result.StandardOutput, fileSizeBytes);
         }
         catch (OperationCanceledException) { throw; }
+        catch (TimeoutException exception)
+        {
+            return new(DerivedMetadataStatus.Failed, Diagnostic: exception.Message);
+        }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException
             or System.ComponentModel.Win32Exception)
         {

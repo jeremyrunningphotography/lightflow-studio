@@ -153,6 +153,36 @@ public sealed class BoundedPreviewWorkTests(ITestOutputHelper output)
         Assert.Equal(1, f.Renderer.Calls);
     }
 
+    [Fact]
+    public async Task TimedOutProbePersistsFailureAndDoesNotRepeatOnAutomaticDemand()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var path = Path.Combine(f.Media, "bad.mp4");
+        await File.WriteAllTextAsync(path, "invalid");
+        var runner = new TimeoutRunner();
+        using var metadata = new DerivedMediaMetadataService(f.Storage.MediaAssets, f.Previews,
+            new FfprobeMediaMetadataReader(path, runner), time: f.Clock);
+        await using var scheduler = new DerivedWorkScheduler(f.Storage.MediaAssets, f.Previews, metadata, f.Thumbnails, time: f.Clock);
+        var discovery = new MediaDiscoveryRefreshService(f.Storage.CatalogReconciliation, () => scheduler);
+        for (var i = 0; i < 20; i++)
+        {
+            var result = await discovery.RefreshAsync(new(f.RootId));
+            await result.DerivedWork!.Completion;
+            Assert.Equal(0, scheduler.Diagnostics.Outstanding);
+        }
+        Assert.Equal(1, runner.Calls);
+        var failed = (await f.Previews.ListAsync()).Single();
+        Assert.Equal(PreviewComponentState.Failed, failed.MetadataState);
+        Assert.NotNull(failed.MetadataRetryAfterUtc);
+    }
+
+    private sealed class TimeoutRunner : IProbeProcessRunner
+    {
+        public int Calls;
+        public Task<ProbeProcessResult> RunAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken = default)
+        { Calls++; throw new TimeoutException("Deterministic probe timeout."); }
+    }
+
     private sealed class Clock : TimeProvider
     {
         public DateTimeOffset Now = DateTimeOffset.UtcNow;

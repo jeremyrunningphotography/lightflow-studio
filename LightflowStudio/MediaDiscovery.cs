@@ -211,7 +211,7 @@ internal sealed class MediaFolderEnumerator(
     IMediaRootService roots,
     IMediaTypeRegistry mediaTypes,
     IMediaFolderFileSystem fileSystem,
-    int maximumConcurrency = 2) : IMediaFolderEnumerator
+    int maximumConcurrency = 2, Func<string, bool>? excludedPath = null) : IMediaFolderEnumerator
 {
     private readonly SemaphoreSlim _concurrency = new(maximumConcurrency > 0
         ? maximumConcurrency
@@ -243,6 +243,8 @@ internal sealed class MediaFolderEnumerator(
             return Result(MediaFolderEnumerationStatus.InvalidPath, "", exception.Message);
         }
 
+        if (excludedPath?.Invoke(physicalFolder) == true)
+            return new(MediaFolderEnumerationStatus.Succeeded, relativeFolder, []);
         IReadOnlyList<MediaFolderFileSystemEntry> sourceEntries;
         try
         {
@@ -291,6 +293,7 @@ internal sealed class MediaFolderEnumerator(
                     continue;
                 }
                 var fullPath = Path.GetFullPath(source.FullPath);
+                if (excludedPath?.Invoke(fullPath) == true) continue;
                 var relative = MediaPathSemantics.NormalizeRelativePath(
                     Path.GetRelativePath(root.PhysicalPath, fullPath));
                 var contained = MediaPathSemantics.ResolveContained(root.PhysicalPath, relative);

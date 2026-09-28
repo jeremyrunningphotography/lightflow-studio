@@ -64,7 +64,8 @@ internal sealed record PreviewRecord(
     DateTimeOffset UpdatedUtc,
     string? ThumbnailVisualIdentity = null,
     string? StandardPreviewVisualIdentity = null,
-    PreviewFailureReason ThumbnailFailureReason = PreviewFailureReason.Unknown);
+    PreviewFailureReason ThumbnailFailureReason = PreviewFailureReason.Unknown,
+    DateTimeOffset? MetadataRetryAfterUtc = null, DateTimeOffset? ThumbnailRetryAfterUtc = null);
 
 internal sealed record PreviewComponentUpdate(
     int GeneratorVersion,
@@ -73,7 +74,7 @@ internal sealed record PreviewComponentUpdate(
     string? PayloadJson = null,
     string? RawPayloadJson = null,
     string? VisualIdentity = null,
-    PreviewFailureReason FailureReason = PreviewFailureReason.Unknown);
+    PreviewFailureReason FailureReason = PreviewFailureReason.Unknown, PreviewSourceIdentity? ExpectedSource = null);
 
 internal interface IPreviewStoreService : IAsyncDisposable
 {
@@ -110,14 +111,16 @@ internal interface IPreviewStoreService : IAsyncDisposable
 
 internal sealed class PreviewStoreService : IPreviewStoreService
 {
-    internal const int SchemaVersion = 3;
+    internal const int SchemaVersion = 4;
     internal const int SqliteApplicationId = 0x4C465052; // LFPR
     private readonly ILightflowStorageLocations _locations;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _initialized;
     private bool _disposed;
 
-    public PreviewStoreService(ILightflowStorageLocations locations) => _locations = locations;
+    private readonly TimeProvider _time;
+    public PreviewStoreService(ILightflowStorageLocations locations, TimeProvider? time = null)
+    { _locations = locations; _time = time ?? TimeProvider.System; }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -220,12 +223,15 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         CancellationToken cancellationToken = default) => RunAsync(connection =>
     {
         ValidateUpdate(update);
+        if (update.ExpectedSource is { } expected && Read(connection, assetId) is { } current && current.Source != expected)
+            return current;
         using var command = connection.CreateCommand();
         command.CommandText = """
             UPDATE PreviewRecords SET MetadataProbeVersion=$version,MetadataState=$state,
-                MetadataJson=$payload,RawMetadataJson=$raw,UpdatedUtc=$now WHERE AssetId=$asset;
+                MetadataJson=$payload,RawMetadataJson=$raw,MetadataRetryAfterUtc=$retry,UpdatedUtc=$now WHERE AssetId=$asset;
             """;
         AddUpdate(command, assetId, update);
+        command.Parameters.AddWithValue("$retry", RetryDeadline(update));
         command.Parameters.AddWithValue("$payload", (object?)update.PayloadJson ?? DBNull.Value);
         command.Parameters.AddWithValue("$raw", (object?)update.RawPayloadJson ?? DBNull.Value);
         command.ExecuteNonQuery();
@@ -236,11 +242,13 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         CancellationToken cancellationToken = default) => RunAsync(connection =>
     {
         ValidateUpdate(update);
+        if (update.ExpectedSource is { } expected && Read(connection, assetId) is { } current && current.Source != expected)
+            return current;
         if (update.State == PreviewComponentState.Current && string.IsNullOrWhiteSpace(update.RelativePath))
             throw new ArgumentException("A current artifact requires a relative path.", nameof(update));
         var prefix = kind == PreviewArtifactKind.Thumbnail ? "Thumbnail" : "StandardPreview";
         using var command = connection.CreateCommand();
-        var failureUpdate = kind == PreviewArtifactKind.Thumbnail ? "ThumbnailFailureReason=$failure," : "";
+        var failureUpdate = kind == PreviewArtifactKind.Thumbnail ? "ThumbnailFailureReason=$failure,ThumbnailRetryAfterUtc=$retry," : "";
         command.CommandText = $"UPDATE PreviewRecords SET {prefix}GeneratorVersion=$version,{prefix}State=$state,{prefix}RelativePath=$path,{prefix}VisualIdentity=$visual,{failureUpdate}UpdatedUtc=$now WHERE AssetId=$asset;";
         AddUpdate(command, assetId, update);
         command.Parameters.AddWithValue("$path", string.IsNullOrWhiteSpace(update.RelativePath)
@@ -248,6 +256,7 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         command.Parameters.AddWithValue("$visual", (object?)update.VisualIdentity ?? DBNull.Value);
         if (kind == PreviewArtifactKind.Thumbnail)
         {
+            command.Parameters.AddWithValue("$retry", RetryDeadline(update));
             command.Parameters.AddWithValue("$failure", (int)(update.State == PreviewComponentState.Failed
                 ? update.FailureReason : PreviewFailureReason.Unknown));
         }
@@ -259,7 +268,7 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         RunAsync(connection =>
         {
             using var command = connection.CreateCommand();
-            command.CommandText = "UPDATE PreviewRecords SET MetadataProbeVersion=NULL,MetadataState='missing',MetadataJson=NULL,RawMetadataJson=NULL,UpdatedUtc=$now WHERE AssetId=$asset;";
+            command.CommandText = "UPDATE PreviewRecords SET MetadataProbeVersion=NULL,MetadataRetryAfterUtc=NULL,MetadataState='missing',MetadataJson=NULL,RawMetadataJson=NULL,UpdatedUtc=$now WHERE AssetId=$asset;";
             command.Parameters.AddWithValue("$now", Utc(DateTimeOffset.UtcNow));
             command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
             command.ExecuteNonQuery();
@@ -271,7 +280,7 @@ internal sealed class PreviewStoreService : IPreviewStoreService
     {
         var prefix = kind == PreviewArtifactKind.Thumbnail ? "Thumbnail" : "StandardPreview";
         using var command = connection.CreateCommand();
-        var failureUpdate = kind == PreviewArtifactKind.Thumbnail ? "ThumbnailFailureReason=0," : "";
+        var failureUpdate = kind == PreviewArtifactKind.Thumbnail ? "ThumbnailFailureReason=0,ThumbnailRetryAfterUtc=NULL," : "";
         command.CommandText = $"UPDATE PreviewRecords SET {prefix}GeneratorVersion=NULL,{prefix}State='missing',{prefix}RelativePath=NULL,{prefix}VisualIdentity=NULL,{failureUpdate}UpdatedUtc=$now WHERE AssetId=$asset;";
         command.Parameters.AddWithValue("$now", Utc(DateTimeOffset.UtcNow));
         command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
@@ -370,6 +379,7 @@ internal sealed class PreviewStoreService : IPreviewStoreService
                 ThumbnailGeneratorVersion INTEGER NULL,ThumbnailState TEXT NOT NULL CHECK(ThumbnailState IN ('missing','current','stale','failed')),ThumbnailRelativePath TEXT NULL,ThumbnailVisualIdentity TEXT NULL,
                 StandardPreviewGeneratorVersion INTEGER NULL,StandardPreviewState TEXT NOT NULL CHECK(StandardPreviewState IN ('missing','current','stale','failed')),StandardPreviewRelativePath TEXT NULL,StandardPreviewVisualIdentity TEXT NULL,
                 ThumbnailFailureReason INTEGER NOT NULL DEFAULT 0,
+                MetadataRetryAfterUtc TEXT NULL,ThumbnailRetryAfterUtc TEXT NULL,
                 CreatedUtc TEXT NOT NULL,UpdatedUtc TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS IX_PreviewRecords_MetadataState ON PreviewRecords(MetadataState);
             CREATE INDEX IF NOT EXISTS IX_PreviewRecords_ThumbnailState ON PreviewRecords(ThumbnailState);
@@ -443,7 +453,7 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         if (!string.Equals(Convert.ToString(command.ExecuteScalar()), "LightflowStudio.Previews", StringComparison.Ordinal))
             throw new InvalidDataException("The Preview database identity metadata is incomplete and may be safely rebuilt.");
         command.CommandText = "PRAGMA user_version;";
-        if (Convert.ToInt32(command.ExecuteScalar()) is not 1 and not 2 and not SchemaVersion)
+        if (Convert.ToInt32(command.ExecuteScalar()) is not 1 and not 2 and not 3 and not SchemaVersion)
             throw new InvalidDataException("The Preview database schema is unsupported and may be safely rebuilt.");
     }
 
@@ -469,7 +479,17 @@ internal sealed class PreviewStoreService : IPreviewStoreService
             Execute(connection, transaction, "ALTER TABLE PreviewRecords ADD COLUMN ThumbnailVisualIdentity TEXT NULL;");
             Execute(connection, transaction, "ALTER TABLE PreviewRecords ADD COLUMN StandardPreviewVisualIdentity TEXT NULL;");
         }
-        Execute(connection, transaction, "ALTER TABLE PreviewRecords ADD COLUMN ThumbnailFailureReason INTEGER NOT NULL DEFAULT 0;");
+        if (previous < 3)
+            Execute(connection, transaction, "ALTER TABLE PreviewRecords ADD COLUMN ThumbnailFailureReason INTEGER NOT NULL DEFAULT 0;");
+        Execute(connection, transaction, "ALTER TABLE PreviewRecords ADD COLUMN MetadataRetryAfterUtc TEXT NULL;");
+        Execute(connection, transaction, "ALTER TABLE PreviewRecords ADD COLUMN ThumbnailRetryAfterUtc TEXT NULL;");
+        using (var failures = connection.CreateCommand())
+        {
+            failures.Transaction = transaction;
+            failures.CommandText = "UPDATE PreviewRecords SET MetadataRetryAfterUtc=CASE WHEN MetadataState='failed' THEN $retry END,ThumbnailRetryAfterUtc=CASE WHEN ThumbnailState='failed' THEN $retry END;";
+            failures.Parameters.AddWithValue("$retry", Utc(DateTimeOffset.UtcNow + PreviewRetryPolicy.Cooldown));
+            failures.ExecuteNonQuery();
+        }
         Execute(connection, transaction, $"PRAGMA user_version={SchemaVersion};");
         transaction.Commit();
         return true;
@@ -490,14 +510,20 @@ internal sealed class PreviewStoreService : IPreviewStoreService
             ParseAvailability(reader.GetString(5)), NullableInt(reader, 6), ParseState(reader.GetString(7)), NullableString(reader, 8), NullableString(reader, 9),
             NullableInt(reader, 10), ParseState(reader.GetString(11)), NullableString(reader, 12), NullableInt(reader, 13), ParseState(reader.GetString(14)), NullableString(reader, 15),
             DateTimeOffset.Parse(reader.GetString(16), CultureInfo.InvariantCulture), DateTimeOffset.Parse(reader.GetString(17), CultureInfo.InvariantCulture),
-            NullableString(reader, 18), NullableString(reader, 19), (PreviewFailureReason)reader.GetInt32(20));
+            NullableString(reader, 18), NullableString(reader, 19), (PreviewFailureReason)reader.GetInt32(20),
+            RetryDate(reader, 21), RetryDate(reader, 22));
+
+    private object RetryDeadline(PreviewComponentUpdate update) => update.State == PreviewComponentState.Failed
+        ? Utc(_time.GetUtcNow() + PreviewRetryPolicy.Cooldown) : DBNull.Value;
+    private static DateTimeOffset? RetryDate(SqliteDataReader reader, int ordinal) => reader.IsDBNull(ordinal)
+        ? null : DateTimeOffset.Parse(reader.GetString(ordinal), CultureInfo.InvariantCulture);
 
     private const string SelectSql = """
         SELECT AssetId,FileSizeBytes,LastWriteUtcTicks,FingerprintVersion,SourceFingerprint,SourceAvailability,
             MetadataProbeVersion,MetadataState,MetadataJson,RawMetadataJson,
             ThumbnailGeneratorVersion,ThumbnailState,ThumbnailRelativePath,
             StandardPreviewGeneratorVersion,StandardPreviewState,StandardPreviewRelativePath,CreatedUtc,UpdatedUtc,
-            ThumbnailVisualIdentity,StandardPreviewVisualIdentity,ThumbnailFailureReason
+            ThumbnailVisualIdentity,StandardPreviewVisualIdentity,ThumbnailFailureReason,MetadataRetryAfterUtc,ThumbnailRetryAfterUtc
         FROM PreviewRecords
         """;
 

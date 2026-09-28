@@ -1,7 +1,7 @@
 namespace LightflowStudio;
 
 // Persist only this allowlisted classification in Previews; engine diagnostics stay in Activity Log.
-internal enum PreviewFailureReason { Unknown, NoVideoFrame, SourceUnreadable, CodecUnavailable, TimedOut }
+internal enum PreviewFailureReason { Unknown, NoVideoFrame, SourceUnreadable, CodecUnavailable, TimedOut, DependencyUnavailable }
 
 internal static class PreviewFailure
 {

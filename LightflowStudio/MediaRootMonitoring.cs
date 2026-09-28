@@ -77,6 +77,7 @@ internal interface IMediaRootMonitoringService : IAsyncDisposable
 /// </summary>
 internal sealed class MediaRootMonitoringService : IMediaRootMonitoringService
 {
+    private readonly Func<string, bool>? _excludedPath;
     private readonly IMediaRootService _roots;
     private readonly IMediaDiscoveryRefreshService _refresh;
     private readonly IMediaRootWatcherFactory _factory;
@@ -92,8 +93,10 @@ internal sealed class MediaRootMonitoringService : IMediaRootMonitoringService
     private bool _disposed;
 
     public MediaRootMonitoringService(IMediaRootService roots, IMediaDiscoveryRefreshService refresh,
-        IMediaRootWatcherFactory? factory = null, TimeSpan? debounce = null, int maximumPending = 4096)
+        IMediaRootWatcherFactory? factory = null, TimeSpan? debounce = null, int maximumPending = 4096,
+        Func<string, bool>? excludedPath = null)
     {
+        _excludedPath = excludedPath;
         _roots = roots;
         _refresh = refresh;
         _factory = factory ?? new FileSystemMediaRootWatcherFactory();
@@ -171,15 +174,18 @@ internal sealed class MediaRootMonitoringService : IMediaRootMonitoringService
             }
 
             var folders = new HashSet<string?>(StringComparer.OrdinalIgnoreCase);
-            string? oldFolder = null;
-            if (!TryFolder(registration.Path, change.Path, out var folder) ||
-                change.Kind == MediaRootChangeKind.Renamed && !TryFolder(registration.Path, change.OldPath, out oldFolder))
+            var paths = change.Kind == MediaRootChangeKind.Renamed ? new[] { change.Path, change.OldPath } : new[] { change.Path };
+            foreach (var path in paths)
             {
-                QueueLocked(new(change.RootId, null));
-                return;
+                // Handle each side of a rename independently: moving into/out of owned storage still refreshes the external side.
+                if (path is not null && _excludedPath?.Invoke(path) == true) continue;
+                if (!TryFolder(registration.Path, path, out var folder))
+                {
+                    QueueLocked(new(change.RootId, null));
+                    return;
+                }
+                folders.Add(folder);
             }
-            folders.Add(folder);
-            if (change.Kind == MediaRootChangeKind.Renamed) folders.Add(oldFolder);
             foreach (var value in folders) QueueLocked(new(change.RootId, value));
         }
     }

@@ -8,7 +8,7 @@ using System.Windows.Media.Imaging;
 namespace LightflowStudio;
 
 internal enum DerivedMediaKind { Image, Video, Audio }
-internal enum DerivedMetadataStatus { Succeeded, Current, SourceChanged, AssetNotFound, RootUnavailable, SourceMissing, Unsupported, ProbeUnavailable, Malformed, Failed }
+internal enum DerivedMetadataStatus { Succeeded, Current, SourceChanged, AssetNotFound, RootUnavailable, SourceMissing, Unsupported, ProbeUnavailable, Malformed, Failed, Deferred }
 
 internal sealed record DerivedVideoMetadata(
     string Codec,
@@ -204,6 +204,10 @@ internal sealed class FfprobeMediaMetadataReader(string? executable, IProbeProce
             return FfprobeMetadataNormalizer.Normalize(result.StandardOutput, fileSizeBytes);
         }
         catch (OperationCanceledException) { throw; }
+        catch (TimeoutException exception)
+        {
+            return new(DerivedMetadataStatus.Failed, Diagnostic: exception.Message);
+        }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException
             or System.ComponentModel.Win32Exception)
         {
@@ -263,6 +267,7 @@ internal sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService
     // WIC normalization did not change. Only FFprobe-derived metadata needs refreshing.
     internal static int ProbeVersionFor(string? mediaType) =>
         string.Equals(mediaType, "image", StringComparison.OrdinalIgnoreCase) ? 1 : CurrentProbeVersion;
+    private readonly TimeProvider _time;
     private readonly IMediaAssetService _assets;
     private readonly IPreviewStoreService _previews;
     private readonly IMediaMetadataProbe _probe;
@@ -270,9 +275,10 @@ internal sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService
     private readonly IPreviewOperationCoordinator? _operations;
 
     public DerivedMediaMetadataService(IMediaAssetService assets, IPreviewStoreService previews,
-        IMediaMetadataProbe probe, int maximumConcurrency = 2, IPreviewOperationCoordinator? operations = null)
+        IMediaMetadataProbe probe, int maximumConcurrency = 2, IPreviewOperationCoordinator? operations = null, TimeProvider? time = null)
     {
         if (maximumConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maximumConcurrency));
+        _time = time ?? TimeProvider.System;
         _assets = assets;
         _previews = previews;
         _probe = probe;
@@ -285,6 +291,7 @@ internal sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService
     {
         using var operationLease = _operations is null ? null :
             await _operations.EnterOperationAsync(cancellationToken).ConfigureAwait(false);
+        using var assetLease = await PreviewRetryPolicy.MetadataGate(_previews).EnterAsync(assetId, cancellationToken).ConfigureAwait(false);
         var observed = await _assets.ObserveAsync(assetId, cancellationToken).ConfigureAwait(false);
         if (observed.Status == MediaAssetOperationStatus.NotFound)
             return new(DerivedMetadataStatus.AssetNotFound, Diagnostic: observed.Diagnostic);
@@ -308,42 +315,44 @@ internal sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService
             preview.MetadataProbeVersion == probeVersion && TryDeserialize(preview.MetadataJson, out var current))
             return new(DerivedMetadataStatus.Current, current);
 
+        if (!forceRefresh && PreviewRetryPolicy.MetadataDeferred(preview, probeVersion, _time.GetUtcNow()))
+            return new(DerivedMetadataStatus.Deferred, Diagnostic: "Metadata retry is deferred after the previous failure.");
+
         await _concurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var result = await _probe.ProbeAsync(observed.Asset.PhysicalPath, asset.MediaType,
                 asset.FileSizeBytes, cancellationToken).ConfigureAwait(false);
+            var verified = await _assets.ObserveAsync(assetId, cancellationToken).ConfigureAwait(false);
+            if (verified.Status == MediaAssetOperationStatus.NotFound)
+                return new(DerivedMetadataStatus.AssetNotFound, Diagnostic: verified.Diagnostic);
+            if (verified.Status == MediaAssetOperationStatus.RootUnavailable)
+                return await RetainOfflineAsync(assetId, PreviewSourceAvailability.Unavailable,
+                    DerivedMetadataStatus.RootUnavailable, verified.Diagnostic, cancellationToken).ConfigureAwait(false);
+            if (verified.Status == MediaAssetOperationStatus.SourceMissing)
+                return await RetainOfflineAsync(assetId, PreviewSourceAvailability.Missing,
+                    DerivedMetadataStatus.SourceMissing, verified.Diagnostic, cancellationToken).ConfigureAwait(false);
+            if (!verified.Succeeded || verified.Asset?.Asset.Fingerprint is null)
+                return new(DerivedMetadataStatus.Failed,
+                    Diagnostic: verified.Diagnostic ?? "The media source could not be verified after probing.");
+
+            var verifiedAsset = verified.Asset.Asset;
+            var verifiedSource = new PreviewSourceIdentity(verifiedAsset.FileSizeBytes, verifiedAsset.LastWriteUtcTicks,
+                verifiedAsset.Fingerprint.Version, verifiedAsset.Fingerprint.Value);
+            await _previews.ObserveSourceAsync(assetId, verifiedSource, cancellationToken).ConfigureAwait(false);
+            if (!SameSourceIdentity(source, verifiedSource))
+                return new(DerivedMetadataStatus.SourceChanged,
+                    Diagnostic: "The source changed while metadata was being read. Retry after the file is stable.");
             if (result.Status == DerivedMetadataStatus.Succeeded && result.Metadata is not null)
             {
-                var verified = await _assets.ObserveAsync(assetId, cancellationToken).ConfigureAwait(false);
-                if (verified.Status == MediaAssetOperationStatus.NotFound)
-                    return new(DerivedMetadataStatus.AssetNotFound, Diagnostic: verified.Diagnostic);
-                if (verified.Status == MediaAssetOperationStatus.RootUnavailable)
-                    return await RetainOfflineAsync(assetId, PreviewSourceAvailability.Unavailable,
-                        DerivedMetadataStatus.RootUnavailable, verified.Diagnostic, cancellationToken).ConfigureAwait(false);
-                if (verified.Status == MediaAssetOperationStatus.SourceMissing)
-                    return await RetainOfflineAsync(assetId, PreviewSourceAvailability.Missing,
-                        DerivedMetadataStatus.SourceMissing, verified.Diagnostic, cancellationToken).ConfigureAwait(false);
-                if (!verified.Succeeded || verified.Asset?.Asset.Fingerprint is null)
-                    return new(DerivedMetadataStatus.Failed,
-                        Diagnostic: verified.Diagnostic ?? "The media source could not be verified after probing.");
-
-                var verifiedAsset = verified.Asset.Asset;
-                var verifiedSource = new PreviewSourceIdentity(verifiedAsset.FileSizeBytes, verifiedAsset.LastWriteUtcTicks,
-                    verifiedAsset.Fingerprint.Version, verifiedAsset.Fingerprint.Value);
-                await _previews.ObserveSourceAsync(assetId, verifiedSource, cancellationToken).ConfigureAwait(false);
-                if (!SameSourceIdentity(source, verifiedSource))
-                    return new(DerivedMetadataStatus.SourceChanged,
-                        Diagnostic: "The source changed while metadata was being read. Retry after the file is stable.");
-
                 var normalized = JsonSerializer.Serialize(result.Metadata, DerivedMetadataJson.Options);
                 await _previews.SetMetadataAsync(assetId, new(probeVersion, PreviewComponentState.Current,
-                    PayloadJson: normalized, RawPayloadJson: result.RawMetadata), cancellationToken).ConfigureAwait(false);
+                    PayloadJson: normalized, RawPayloadJson: result.RawMetadata, ExpectedSource: source), cancellationToken).ConfigureAwait(false);
                 return new(DerivedMetadataStatus.Succeeded, result.Metadata);
             }
 
             await _previews.SetMetadataAsync(assetId, new(probeVersion, PreviewComponentState.Failed,
-                PayloadJson: preview.MetadataJson, RawPayloadJson: preview.RawMetadataJson ?? result.RawMetadata), cancellationToken)
+                PayloadJson: preview.MetadataJson, RawPayloadJson: preview.RawMetadataJson ?? result.RawMetadata, ExpectedSource: source), cancellationToken)
                 .ConfigureAwait(false);
             return new(result.Status, Diagnostic: result.Diagnostic);
         }

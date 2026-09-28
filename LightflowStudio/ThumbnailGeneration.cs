@@ -16,6 +16,7 @@ internal enum ThumbnailGenerationStatus
     Unsupported,
     GeneratorUnavailable,
     InvalidOutput,
+    Deferred,
     Failed
 }
 
@@ -323,6 +324,7 @@ internal interface IThumbnailGenerationService : IDisposable
 internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
 {
     internal const int CurrentGeneratorVersion = 1;
+    private readonly TimeProvider _time;
     private readonly IMediaAssetService _assets;
     private readonly IPreviewStoreService _previews;
     private readonly ILightflowStorageLocations _locations;
@@ -341,8 +343,9 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
         IDerivedMediaMetadataService? metadata = null, int maximumConcurrency = 2,
         IDisposable? ownedDependency = null, IPreviewOperationCoordinator? operations = null,
         IAssetColorStore? colors = null, ILutLibraryCache? lutCache = null,
-        IThumbnailGenerationActivity? activity = null, IPreferredPreviewFrameStore? preferredFrames = null)
+        IThumbnailGenerationActivity? activity = null, IPreferredPreviewFrameStore? preferredFrames = null, TimeProvider? time = null)
     {
+        _time = time ?? TimeProvider.System;
         _assets = assets;
         _previews = previews;
         _locations = locations;
@@ -361,7 +364,7 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
         CancellationToken cancellationToken = default)
     {
         var result = await GenerateCoreAsync(request, cancellationToken).ConfigureAwait(false);
-        if (!result.Succeeded && result.Diagnostic is { Length: > 0 } diagnostic)
+        if (!result.Succeeded && result.Status != ThumbnailGenerationStatus.Deferred && result.Diagnostic is { Length: > 0 } diagnostic)
             new ActivityLogFile(_locations.ActivityLogPath).TryAppend($"Preview {request.AssetId}: {diagnostic}");
         return result;
     }
@@ -373,6 +376,7 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
             await _operations.EnterOperationAsync(cancellationToken).ConfigureAwait(false);
         // Freshness and Color are intentionally resolved after this wait. A queued ensure-current request may
         // have been satisfied by overlapping work, or its committed Color may have changed while it waited.
+        using var assetLease = await PreviewRetryPolicy.ThumbnailGate(_previews).EnterAsync(request.AssetId, cancellationToken).ConfigureAwait(false);
         using var lease = await _gate.EnterAsync(request.Priority, cancellationToken).ConfigureAwait(false);
         var observed = await _assets.ObserveAsync(request.AssetId, cancellationToken).ConfigureAwait(false);
         if (observed.Status == MediaAssetOperationStatus.NotFound)
@@ -398,7 +402,11 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
         {
             var failedIdentity = _colors is null ? PreviewVisualIdentity.Original
                 : (await _colors.GetAsync(request.AssetId, cancellationToken).ConfigureAwait(false)).ColorIdentity;
-            await RecordFailureAsync(request.AssetId, preview, BrowserVisualIdentity(failedIdentity, preferredFrame), cancellationToken).ConfigureAwait(false);
+            var failedVisual = BrowserVisualIdentity(failedIdentity, preferredFrame);
+            if (!request.ForceRefresh && PreviewRetryPolicy.ThumbnailDeferred(preview, failedVisual, _time.GetUtcNow()))
+                return Deferred(preview);
+            await RecordFailureAsync(request.AssetId, preview, failedVisual, cancellationToken,
+                PreviewFailureReason.DependencyUnavailable).ConfigureAwait(false);
             return new(ThumbnailGenerationStatus.Failed, ResolveExisting(preview.ThumbnailRelativePath), exception.Message);
         }
         var visualIdentity = BrowserVisualIdentity(color.VisualIdentity, preferredFrame);
@@ -407,6 +415,11 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
             string.Equals(preview.ThumbnailVisualIdentity ?? PreviewVisualIdentity.Original, visualIdentity, StringComparison.Ordinal) &&
             ResolveExisting(preview.ThumbnailRelativePath) is { } existing && IsValidThumbnail(existing))
             return new(ThumbnailGenerationStatus.Current, existing);
+
+        // A newly available LUT is a changed dependency, even if committed Color identity is unchanged.
+        if (!request.ForceRefresh && preview.ThumbnailFailureReason != PreviewFailureReason.DependencyUnavailable &&
+            PreviewRetryPolicy.ThumbnailDeferred(preview, visualIdentity, _time.GetUtcNow()))
+            return Deferred(preview);
 
         using var activity = _activity?.Begin(request.AssetId);
         var finalPath = _previews.GetArtifactPath(request.AssetId, PreviewArtifactKind.Thumbnail,
@@ -468,7 +481,7 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
             }
             var relative = Path.GetRelativePath(_locations.PreviewsDirectory, finalPath).Replace('\\', '/');
             await _previews.SetArtifactAsync(request.AssetId, PreviewArtifactKind.Thumbnail,
-                new(CurrentGeneratorVersion, PreviewComponentState.Current, relative, VisualIdentity: visualIdentity), cancellationToken).ConfigureAwait(false);
+                new(CurrentGeneratorVersion, PreviewComponentState.Current, relative, VisualIdentity: visualIdentity, ExpectedSource: source), cancellationToken).ConfigureAwait(false);
             return new(ThumbnailGenerationStatus.Succeeded, finalPath);
         }
         catch (OperationCanceledException) { throw; }
@@ -479,6 +492,9 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
         }
         finally { try { File.Delete(temporaryPath); } catch { } }
     }
+
+    private ThumbnailGenerationResult Deferred(PreviewRecord preview) => new(ThumbnailGenerationStatus.Deferred,
+        ResolveExisting(preview.ThumbnailRelativePath), "Preview retry is deferred after the previous failure.", preview.ThumbnailFailureReason);
 
     private async Task<TimeSpan> RepresentativePositionAsync(Guid assetId, string mediaType,
         CancellationToken cancellationToken)
@@ -493,11 +509,17 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
     }
 
     private async Task RecordFailureAsync(Guid assetId, PreviewRecord preview, string? visualIdentity, CancellationToken cancellationToken,
-        PreviewFailureReason failureReason = PreviewFailureReason.Unknown) =>
+        PreviewFailureReason failureReason = PreviewFailureReason.Unknown)
+    {
+        var observed = await _assets.ObserveAsync(assetId, cancellationToken).ConfigureAwait(false);
+        if (!observed.Succeeded || observed.Asset?.Asset.Fingerprint is null) return;
+        var source = SourceIdentity(observed.Asset.Asset);
+        await _previews.ObserveSourceAsync(assetId, source, cancellationToken).ConfigureAwait(false);
+        if (!SameSourceIdentity(source, preview.Source)) return;
         await _previews.SetArtifactAsync(assetId, PreviewArtifactKind.Thumbnail,
             new(CurrentGeneratorVersion, PreviewComponentState.Failed, preview.ThumbnailRelativePath, VisualIdentity: visualIdentity,
-                FailureReason: failureReason), cancellationToken)
-            .ConfigureAwait(false);
+                FailureReason: failureReason, ExpectedSource: preview.Source), cancellationToken).ConfigureAwait(false);
+    }
 
     private Task<ThumbnailColorRender> ResolveColorAsync(Guid assetId, CancellationToken cancellationToken) =>
         DerivedFrameColor.ResolveAsync(_colors, _lutCache, assetId, cancellationToken);

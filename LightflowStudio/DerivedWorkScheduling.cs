@@ -1,5 +1,7 @@
 namespace LightflowStudio;
 
+internal sealed record DerivedWorkDiagnostics(long Enqueued, long Processed, long MetadataAttempts, long ThumbnailAttempts, int Outstanding);
+
 internal enum DerivedWorkPriority { Background, Normal, Visible }
 internal enum DerivedWorkBatchStatus { Running, Completed, Canceled }
 internal enum DerivedWorkItemOutcome { Generated, Current, PartialFailure, Failed, SkippedUnavailable, Canceled }
@@ -95,6 +97,9 @@ internal sealed class MediaDiscoveryRefreshService(
 /// </summary>
 internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
 {
+    private readonly TimeProvider _time;
+    private readonly IPreferredPreviewFrameStore? _preferredFrames;
+    private readonly Func<string, bool>? _excludedPath;
     private readonly IMediaAssetService _assets;
     private readonly IPreviewStoreService _previews;
     private readonly IDerivedMediaMetadataService _metadata;
@@ -112,14 +117,24 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Task[] _workers;
     private bool _disposed;
+    private long _enqueued, _processed, _metadataAttempts, _thumbnailAttempts;
+    internal DerivedWorkDiagnostics Diagnostics
+    {
+        get { lock (_sync) return new(_enqueued, Interlocked.Read(ref _processed),
+            Interlocked.Read(ref _metadataAttempts), Interlocked.Read(ref _thumbnailAttempts), _work.Count); }
+    }
 
     public DerivedWorkScheduler(IMediaAssetService assets, IPreviewStoreService previews,
         IDerivedMediaMetadataService metadata, IThumbnailGenerationService thumbnails,
         int maximumConcurrency = 2, bool ownsGenerators = false,
         IPreviewOperationCoordinator? operations = null, IAssetColorStore? colors = null,
-        Func<string, bool>? artifactExists = null)
+        Func<string, bool>? artifactExists = null, IPreferredPreviewFrameStore? preferredFrames = null,
+        Func<string, bool>? excludedPath = null, TimeProvider? time = null)
     {
         if (maximumConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maximumConcurrency));
+        _time = time ?? TimeProvider.System;
+        _preferredFrames = preferredFrames;
+        _excludedPath = excludedPath;
         _assets = assets;
         _previews = previews;
         _metadata = metadata;
@@ -177,6 +192,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
                 var work = new WorkItem(item.AssetId, priority, _shutdown.Token);
                 work.Batches.Add(batch);
                 _work.Add(item.AssetId, work);
+                _enqueued++;
                 Enqueue(work);
             }
             batch.Seal();
@@ -218,6 +234,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
             if (item is null) continue;
             foreach (var batch in startingBatches) batch.MarkRunning(item.AssetId);
 
+            Interlocked.Increment(ref _processed);
             DerivedWorkItemResult result;
             try { result = await ProcessAsync(item.AssetId, item.Priority, item.Cancellation.Token).ConfigureAwait(false); }
             catch (OperationCanceledException)
@@ -246,6 +263,9 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
         var resolved = await _assets.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
         if (resolved is null)
             return Failure(assetId, "The Catalog asset no longer exists.");
+        if (resolved.PhysicalPath is { } path && _excludedPath?.Invoke(path) == true)
+            return new(assetId, DerivedWorkItemOutcome.SkippedUnavailable, DerivedWorkComponentOutcome.SkippedUnavailable,
+                DerivedWorkComponentOutcome.SkippedUnavailable, "Lightflow-owned storage is not a media source.");
         if (resolved.Asset.SourceStatus == MediaAssetSourceStatus.Missing ||
             resolved.RootAvailability != MediaRootAvailability.Online || !resolved.SourceExists ||
             resolved.Asset.Fingerprint is null)
@@ -270,19 +290,28 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
             var color = await _colors.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
             visualIdentity = color.HasColor ? color.ColorIdentity : PreviewVisualIdentity.Original;
         }
+        var preferred = _preferredFrames is null ? null : await _preferredFrames.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
+        visualIdentity = ThumbnailGenerationService.BrowserVisualIdentity(visualIdentity, preferred);
         var needsThumbnail = supportsThumbnail && (!sameSource || preview!.ThumbnailState != PreviewComponentState.Current ||
             preview.ThumbnailGeneratorVersion != ThumbnailGenerationService.CurrentGeneratorVersion ||
             preview.ThumbnailRelativePath is null || _artifactExists?.Invoke(preview.ThumbnailRelativePath) == false ||
             !string.Equals(preview.ThumbnailVisualIdentity ?? PreviewVisualIdentity.Original, visualIdentity, StringComparison.Ordinal));
 
-        var metadata = DerivedWorkComponentOutcome.NotNeeded;
-        var thumbnail = DerivedWorkComponentOutcome.NotNeeded;
-        var thumbnailFailure = PreviewFailureReason.Unknown;
+        var deferredMetadata = sameSource && PreviewRetryPolicy.MetadataDeferred(preview!,
+            DerivedMediaMetadataService.ProbeVersionFor(resolved.Asset.MediaType), _time.GetUtcNow());
+        var deferredThumbnail = sameSource && preview!.ThumbnailFailureReason != PreviewFailureReason.DependencyUnavailable &&
+            PreviewRetryPolicy.ThumbnailDeferred(preview, visualIdentity, _time.GetUtcNow());
+        needsMetadata &= !deferredMetadata;
+        needsThumbnail &= !deferredThumbnail;
+        var metadata = deferredMetadata ? DerivedWorkComponentOutcome.Failed : DerivedWorkComponentOutcome.NotNeeded;
+        var thumbnail = deferredThumbnail ? DerivedWorkComponentOutcome.Failed : DerivedWorkComponentOutcome.NotNeeded;
+        var thumbnailFailure = deferredThumbnail ? preview!.ThumbnailFailureReason : PreviewFailureReason.Unknown;
         var diagnostics = new List<string>();
         if (needsMetadata)
         {
             try
             {
+                Interlocked.Increment(ref _metadataAttempts);
                 var result = await _metadata.ProbeAsync(assetId, cancellationToken: cancellationToken).ConfigureAwait(false);
                 metadata = Map(result.Status);
                 if (!result.Succeeded && result.Status is not DerivedMetadataStatus.RootUnavailable and not DerivedMetadataStatus.SourceMissing)
@@ -299,6 +328,7 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
         {
             try
             {
+                Interlocked.Increment(ref _thumbnailAttempts);
                 var result = await _thumbnails.GenerateAsync(new(assetId, Priority: Map(priority)), cancellationToken)
                     .ConfigureAwait(false);
                 thumbnail = Map(result.Status);
@@ -319,13 +349,11 @@ internal sealed class DerivedWorkScheduler : IDerivedWorkScheduler
             return new(assetId, DerivedWorkItemOutcome.SkippedUnavailable, metadata, thumbnail,
                 diagnostics.Count == 0 ? "The source became unavailable; existing Preview data was retained." : string.Join(" ", diagnostics));
 
-        var attempted = needsMetadata || needsThumbnail;
         var failures = metadata == DerivedWorkComponentOutcome.Failed || thumbnail == DerivedWorkComponentOutcome.Failed;
         var generated = metadata == DerivedWorkComponentOutcome.Succeeded || thumbnail == DerivedWorkComponentOutcome.Succeeded;
         var successes = generated ||
             metadata == DerivedWorkComponentOutcome.Current || thumbnail == DerivedWorkComponentOutcome.Current;
-        var outcome = !attempted ? DerivedWorkItemOutcome.Current
-            : failures && successes ? DerivedWorkItemOutcome.PartialFailure
+        var outcome = failures && successes ? DerivedWorkItemOutcome.PartialFailure
             : failures ? DerivedWorkItemOutcome.Failed
             : generated ? DerivedWorkItemOutcome.Generated
             : DerivedWorkItemOutcome.Current;

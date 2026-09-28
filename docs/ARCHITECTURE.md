@@ -1334,3 +1334,31 @@ See [the source authority audit](validation/settings-291-authority.md) for the c
 ### Smart Collections (#217)
 
 Smart Collections persist required logical Source plus versioned Browser-compatible defining query, and share the existing Collections hierarchy. Candidate discovery, defining membership, and transient view filtering remain separate stages of the existing Browser pipeline. See [Smart Collection architecture](SMART_COLLECTIONS.md) for persistence, concurrency, discovery, editor, and query-extension contracts.
+
+
+Issue #321 bounds automatic Preview work at both discovery scheduling and generator execution.
+Preview schema 4 adds independent metadata/thumbnail retry deadlines; an unchanged failed source/work
+identity has a 30-minute automatic cooldown. The source identity remains size, write time and sampled
+fingerprint/version; metadata probe version and thumbnail generator plus Color/preferred-frame identity
+remain independent. No timer enqueues retries. Later demand after expiry may attempt once again, so
+transient failures are recoverable. Browser revisit, watcher hints and process restart retain deadlines;
+reads, source observations and unrelated component writes do not extend them. Explicit force regeneration
+bypasses the thumbnail deadline. Changed source/work identity is immediately eligible. Failed outcomes
+remain failed (never projected as Current). Per-store, per-asset component gates coalesce overlapping
+service instances before freshness checks. Source verification and conditional publication prevent an old
+failure from suppressing a newer source. A newly available LUT may recover immediately from the persisted
+DependencyUnavailable classification, preserving the existing startup LUT-readiness refresh.
+
+The configured application-data, Catalog, Previews and Temporary subtrees are excluded from source
+enumeration before reconciliation and from filesystem notifications before pending-folder queue admission.
+Both sides of rename hints are considered independently; external sides still refresh. Location predicates
+read current configuration, including after relocation. Scheduler admission also rejects retained Catalog
+assets resolving into owned storage. No user files or historical Catalog rows are deleted. Folder names
+alone are not exclusions; an unrelated sibling named candidate-cache remains ordinary source content.
+
+The opt-in `--verify-preview-quiescence` packaged diagnostic requires `--data-root`, uses a fresh isolated
+profile and a sibling `<data-root>-sources` fixture directory, and writes `preview-quiescence.json` inside
+that profile. It exercises the real Browser navigation, scheduler, FFmpeg, filesystem watcher and SQLite
+stores; `--preview-validation-seconds` controls observation (default 1020), and
+`--preview-validation-restart` reuses that isolated fixture in a new process. Scheduler diagnostics expose
+submission, processing, component-attempt and outstanding counts solely for verification.

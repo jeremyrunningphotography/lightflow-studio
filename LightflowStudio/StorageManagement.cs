@@ -102,7 +102,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         BrowserRecursiveRoots = new BrowserRecursiveRootService(
             new CatalogBrowserRecursiveRootRepository(() => _catalogSession, Mutations));
         MediaTypes = MediaTypeRegistry.CreateDefault();
-        MediaFolders = new MediaFolderEnumerator(MediaRoots, MediaTypes, new MediaFolderFileSystem());
+        MediaFolders = new MediaFolderEnumerator(MediaRoots, MediaTypes, new MediaFolderFileSystem(),
+            excludedPath: IsOwnedStoragePath);
         CatalogReconciliation = new CatalogReconciliationService(MediaFolders, MediaAssets);
         MediaRanges = new CatalogMediaRangeStore(() => _catalogSession);
         Markers = new CatalogMarkerService(() => _catalogSession);
@@ -121,7 +122,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         DerivedWork = CreateDerivedWorkScheduler();
         MediaDiscovery = new MediaDiscoveryRefreshService(CatalogReconciliation, () => DerivedWork);
         RecursiveMediaDiscovery = new RecursiveMediaDiscoveryService(MediaFolders, MediaDiscovery);
-        MediaMonitoring = new MediaRootMonitoringService(MediaRoots, MediaDiscovery);
+        MediaMonitoring = new MediaRootMonitoringService(MediaRoots, MediaDiscovery, excludedPath: IsOwnedStoragePath);
     }
 
     public AppSettings Settings { get; private set; }
@@ -637,6 +638,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             _previewOperations, Locations, ownsGenerators: true);
     }
 
+    private bool IsOwnedStoragePath(string path) => new OwnedStoragePaths(() => Locations).Contains(path);
+
     private IDerivedWorkScheduler? CreateDerivedWorkScheduler()
     {
         if (!CatalogAvailable || Previews is null) return null;
@@ -646,7 +649,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             null, 2, _previewOperations, AssetColors, LutCache, ThumbnailActivity, PreferredPreviewFrames);
         return new DerivedWorkScheduler(MediaAssets, Previews, metadata, thumbnails,
             ownsGenerators: true, operations: _previewOperations, colors: AssetColors,
-            artifactExists: relative => PreviewArtifactFiles.Exists(Locations.PreviewsDirectory, relative));
+            artifactExists: relative => PreviewArtifactFiles.Exists(Locations.PreviewsDirectory, relative),
+            preferredFrames: PreferredPreviewFrames, excludedPath: IsOwnedStoragePath);
     }
 
     private async Task DisposeDerivedWorkSchedulerAsync()
@@ -845,7 +849,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
 
     private async Task RecreateMediaMonitoringAsync()
     {
-        var monitoring = new MediaRootMonitoringService(MediaRoots, MediaDiscovery);
+        var monitoring = new MediaRootMonitoringService(MediaRoots, MediaDiscovery, excludedPath: IsOwnedStoragePath);
         MediaMonitoring = monitoring;
         if (CatalogAvailable) await monitoring.StartAsync().ConfigureAwait(false);
     }

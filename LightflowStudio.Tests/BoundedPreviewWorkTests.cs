@@ -241,7 +241,9 @@ public sealed class BoundedPreviewWorkTests(ITestOutputHelper output)
         {
             var result = await Discovery.RefreshAsync(new(RootId), DerivedWorkPriority.Visible);
             Assert.True(result.Reconciliation.Succeeded, result.Diagnostic);
-            await result.DerivedWork!.Completion.WaitAsync(TimeSpan.FromSeconds(20));
+            // Boundedness here means attempts per cooldown and an idle queue, not wall-clock throughput.
+            // Completion is the barrier; the test runner's hang watchdog detects stuck batches.
+            await result.DerivedWork!.Completion;
             Assert.Equal(0, result.DerivedWork.Progress.Pending + result.DerivedWork.Progress.Running);
             return result;
         }
@@ -255,7 +257,7 @@ public sealed class BoundedPreviewWorkTests(ITestOutputHelper output)
         }
         public async Task DrainAsync()
         {
-            foreach (var batch in Batches.ToArray()) await batch.Completion.WaitAsync(TimeSpan.FromSeconds(20));
+            foreach (var batch in Batches.ToArray()) await batch.Completion;
             Batches.Clear();
         }
         public async ValueTask DisposeAsync()

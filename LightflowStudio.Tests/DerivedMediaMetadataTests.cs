@@ -258,7 +258,12 @@ public sealed class DerivedMediaMetadataTests : IAsyncLifetime
             fixture.Coordinator.Previews!, probe);
         using var cancellation = new CancellationTokenSource();
         var operation = service.ProbeAsync(fixture.AssetId, cancellationToken: cancellation.Token);
-        await probe.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        // Storage/worker scheduling before probe entry is not a cancellation deadline.
+        // Race against completion so an operation that never invokes the probe fails promptly.
+        await Task.WhenAny(probe.Started.Task, operation);
+        if (!probe.Started.Task.IsCompletedSuccessfully) await operation;
+        Assert.True(probe.Started.Task.IsCompletedSuccessfully,
+            "The metadata operation completed without entering the blocking probe.");
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation);

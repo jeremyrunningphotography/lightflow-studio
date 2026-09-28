@@ -102,6 +102,7 @@ public sealed class MarkerThumbnailTests
                 new(Source, MediaRootAvailability.Online, "fixture.mov", true)) : new(MediaAssetOperationStatus.SourceMissing));
         public Task<MediaAssetOperationResult> CreateAsync(Guid root, string path, string mediaType = "unknown", CancellationToken token = default) => throw new NotSupportedException();
         public Task<MediaAssetResolution?> GetAsync(Guid id, CancellationToken token = default) => throw new NotSupportedException();
+        public Task<IReadOnlyDictionary<Guid, MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken token = default) => throw new NotSupportedException();
         public Task<MediaAssetResolution?> FindAsync(Guid root, string path, CancellationToken token = default) => throw new NotSupportedException();
         public Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> ids, CancellationToken token = default) => throw new NotSupportedException();

@@ -44,7 +44,7 @@ public sealed class BrowserCollectionCreationLiveTests
 
                 var durable = Assert.Single(await storage.Collections.ListCollectionsAsync(parent));
                 createdId = durable.CollectionId;
-                var node = Assert.Single(BrowserCollectionTreeModel.Flatten(tree.Roots).Where(item => item.Id == createdId));
+                var node = Assert.Single(BrowserCollectionTreeModel.Flatten(tree.Roots), item => item.Id == createdId);
                 Assert.Equal(parent, node.ParentSetId);
                 Assert.True(node.IsSelected);
                 Assert.Same(node, tree.SelectedNode);
@@ -59,6 +59,38 @@ public sealed class BrowserCollectionCreationLiveTests
                 var containers = (IEnumerable<TreeViewItem>)typeof(MainWindow).GetMethod("CollectionTreeItems", BindingFlags.Static | BindingFlags.NonPublic)!
                     .Invoke(window, [window.BrowserCollectionTree])!;
                 Assert.Contains(containers, item => ReferenceEquals(item.DataContext, node) && item.IsVisible);
+                // Exercise both navigation callers with the newly published durable hierarchy.
+                var media = Directory.CreateDirectory(Path.Combine(directory, "media")).FullName;
+                var root = (await storage.MediaRoots.CreateAsync("Fixture", media)).Root!;
+                var members = new List<Guid>();
+                foreach (var name in new[] { "z-last.jpg", "a-first.jpg", "m-middle.jpg" })
+                {
+                    await File.WriteAllTextAsync(Path.Combine(media, name), "fixture");
+                    var asset = (await storage.MediaAssets.CreateAsync(root.RootId, name, "image")).Asset!.Asset;
+                    members.Add(asset.AssetId);
+                    await storage.Collections.AddMembershipAsync(createdId, asset.AssetId);
+                }
+                File.Delete(Path.Combine(media, "a-first.jpg"));
+                await storage.MediaAssets.MarkMissingAsync([members[1]]);
+                var smart = await storage.SmartCollections.SaveSmartCollectionAsync("Same source", null,
+                    new(SmartCollectionSourceKind.Collection, CollectionId: createdId), new());
+                await (Task)typeof(MainWindow).GetMethod("RefreshCollectionsAsync", flags)!.Invoke(window, new object?[] { createdId })!;
+                async Task Navigate(Guid id) => await ((Task)typeof(MainWindow).GetMethod("LoadCollectionScopeAsync", flags)!
+                    .Invoke(window, [id])!).WaitAsync(TimeSpan.FromSeconds(10));
+                await Navigate(createdId);
+                var grid = (BrowserGridModel)typeof(MainWindow).GetField("_browserGrid", flags)!.GetValue(window)!;
+                Assert.Equal(members, grid.Tiles.Select(tile => tile.AssetId!.Value));
+                Assert.False(grid.Tiles.Single(tile => tile.AssetId == members[1]).IsAvailable);
+                await Navigate(smart.SmartCollectionId);
+                scope = (BrowserCollectionScope)typeof(MainWindow).GetField("_activeCollectionScope", flags)!.GetValue(window)!;
+                Assert.Equal(members, scope.Entries.Select(entry => entry.AssetId!.Value));
+                Assert.Equal(3, grid.TotalCount);
+                grid.SetQuery(BrowserQuery.Default with { SearchText = "first" });
+                Assert.Equal(1, grid.VisibleCount);
+                grid.SetQuery(BrowserQuery.Default with { SortMode = BrowserSortMode.Name });
+                Assert.Equal([members[1], members[2], members[0]], grid.Tiles.Select(tile => tile.AssetId!.Value));
+                await Navigate(createdId);
+                Assert.Equal(3, (await storage.Collections.ListMembershipsAsync(createdId)).Count);
             }
             finally
             {
@@ -70,9 +102,10 @@ public sealed class BrowserCollectionCreationLiveTests
             try
             {
                 await reopened.MediaMonitoring!.DisposeAsync();
-                var persisted = Assert.Single(await reopened.Collections.ListCollectionsAsync(parent));
+                var persisted = Assert.Single(await reopened.Collections.ListCollectionsAsync(parent), item => !item.IsSmartCollection);
                 Assert.Equal(createdId, persisted.CollectionId);
                 Assert.Equal("Created collection", persisted.Name);
+                Assert.Equal(3, (await reopened.Collections.ListMembershipsAsync(createdId)).Count);
             }
             finally { await reopened.DisposeAsync(); }
         });

@@ -523,9 +523,9 @@ public sealed class BrowserCollectionsTests
         var collection = Collection("Picks", 0);
         var available = Asset("same.jpg", MediaAssetSourceStatus.Available);
         var missing = Asset("same.jpg", MediaAssetSourceStatus.Missing);
-        var memberships = new[] { Membership(collection.CollectionId, missing.AssetId, 0), Membership(collection.CollectionId, available.AssetId, 1) };
+        var memberships = new[] { Membership(collection.CollectionId, available.AssetId, 2), Membership(collection.CollectionId, Guid.NewGuid(), 1), Membership(collection.CollectionId, missing.AssetId, 0) };
         var service = new BrowserCollectionScopeService(new FakeCollections(collection, memberships),
-            new FakeAssets([available, missing]), new FakeRoots([available, missing]), MediaTypeRegistry.CreateDefault(), () => null);
+            new FakeAssets([available, missing, Asset("unrelated.jpg", MediaAssetSourceStatus.Available)]), new FakeRoots([available, missing]), MediaTypeRegistry.CreateDefault(), () => null);
 
         var scope = await service.LoadAsync(collection.CollectionId);
 
@@ -562,6 +562,43 @@ public sealed class BrowserCollectionsTests
         Assert.Single(grid.SelectedAssetIdsInBrowserOrder);
     }
 
+    [Fact]
+    public async Task Scope_RetainsOfflineMembersAndReturnsBeforeDerivedWorkCompletes()
+    {
+        var collection = Collection("Offline", 0);
+        var asset = Asset("offline.jpg", MediaAssetSourceStatus.Available);
+        var memberships = new[] { Membership(collection.CollectionId, asset.AssetId, 0) };
+        var scheduler = new PendingScheduler();
+        var service = new BrowserCollectionScopeService(new FakeCollections(collection, memberships),
+            new FakeAssets([asset]), new FakeRoots([asset], MediaRootAvailability.Unavailable), MediaTypeRegistry.CreateDefault(), () => scheduler);
+        var scope = await service.LoadAsync(collection.CollectionId).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(Assert.Single(scope.Entries).IsAvailable);
+        Assert.Equal(1, scope.UnavailableCount);
+        Assert.Same(scheduler.Batch, scope.DerivedWork);
+        Assert.False(scope.DerivedWork!.Completion.IsCompleted);
+        Assert.Equal(CatalogReconciliationItemStatus.Missing, Assert.Single(scope.Assets).Status);
+        Assert.Single(memberships);
+    }
+
+    private sealed class PendingScheduler : IDerivedWorkScheduler
+    {
+        public PendingBatch? Batch { get; private set; }
+        public DerivedWorkSchedulingResult TrySchedule(CatalogReconciliationResult reconciliation,
+            DerivedWorkPriority priority = DerivedWorkPriority.Background, CancellationToken cancellationToken = default) =>
+            new(DerivedWorkSchedulingStatus.Accepted, Batch = new(reconciliation));
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class PendingBatch(CatalogReconciliationResult reconciliation) : IDerivedWorkBatch
+    {
+        public Guid BatchId { get; } = Guid.NewGuid();
+        public CatalogReconciliationResult Reconciliation => reconciliation;
+        public DerivedWorkProgress Progress => new(BatchId, DerivedWorkBatchStatus.Running, 1, 1, 0, 0, 0, 0, 0, 0, 0);
+        public IReadOnlyList<DerivedWorkItemResult> Results => [];
+        public Task<DerivedWorkProgress> Completion { get; } = new TaskCompletionSource<DerivedWorkProgress>().Task;
+        public event EventHandler<DerivedWorkProgress>? ProgressChanged { add { } remove { } }
+        public void Cancel() { }
+    }
     private static CollectionSet Set(string name, int ordinal, Guid? parent = null) =>
         new(Guid.NewGuid(), parent, name, ordinal, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
     private static MediaCollection Collection(string name, int ordinal, Guid? parent = null) =>
@@ -575,7 +612,9 @@ public sealed class BrowserCollectionsTests
     private sealed class FakeAssets(IReadOnlyList<MediaAsset> assets) : IMediaAssetService, ICatalogMutationParticipant
     {
         public CatalogMutationLifecycle Mutations { get; } = new();
-        public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) => Task.FromResult(assets);
+        public Task<IReadOnlyDictionary<Guid, MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, MediaAsset>>(assets.Where(asset => assetIds.Contains(asset.AssetId)).Reverse().ToDictionary(asset => asset.AssetId));
+        public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) => throw new InvalidOperationException("Collection loading must not enumerate the Catalog.");
         public Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown", CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaAssetResolution?> FindAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -583,11 +622,11 @@ public sealed class BrowserCollectionsTests
         public Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
-    private sealed class FakeRoots(IReadOnlyList<MediaAsset> assets) : IMediaRootService
+    private sealed class FakeRoots(IReadOnlyList<MediaAsset> assets, MediaRootAvailability availability = MediaRootAvailability.Online) : IMediaRootService
     {
         public Task<IReadOnlyList<MediaRootInfo>> ListAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<MediaRootInfo>>(assets.Select(asset => asset.RootId).Distinct()
-                .Select(id => new MediaRootInfo(id, id.ToString(), @"C:\media", MediaRootAvailability.Online)).ToArray());
+                .Select(id => new MediaRootInfo(id, id.ToString(), @"C:\media", availability)).ToArray());
         public Task<MediaRootInfo?> GetAsync(Guid rootId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaRootChangeResult> CreateAsync(string displayName, string physicalPath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MediaRootChangeResult> RenameAsync(Guid rootId, string displayName, CancellationToken cancellationToken = default) => throw new NotSupportedException();

@@ -4709,11 +4709,20 @@ public partial class MainWindow : Window
         var dialog = new NewCollectionDialog(BrowserCollectionPlacement.Options(_browserCollectionTree.Roots),
             BrowserCollectionPlacement.SuggestedParent(sender is MenuItem ? CollectionActionNode : _browserCollectionTree.SelectedNode)) { Owner = this };
         if (dialog.ShowDialog() != true) return;
-        await RunCollectionActionAsync(async () =>
-        {
-            var created = await _storage.Collections.CreateCollectionAsync(dialog.CollectionName, dialog.ParentSetId);
-            await LoadCollectionScopeAsync(created.CollectionId);
-        });
+        await RunCollectionActionAsync(() => CreateBrowserCollectionAsync(dialog.CollectionName, dialog.ParentSetId));
+    }
+
+    private async Task CreateBrowserCollectionAsync(string name, Guid? parentSetId)
+    {
+        var created = await _storage.Collections.CreateCollectionAsync(name, parentSetId);
+        // Breadcrumbs and selection resolve through the hierarchy, so publish the committed row before navigation.
+        await RefreshCollectionsAsync(created.CollectionId);
+        var nodes = BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots).ToDictionary(node => node.Id);
+        for (var parent = created.ParentCollectionSetId; parent is { } id && nodes.TryGetValue(id, out var set); parent = set.ParentSetId)
+            set.IsExpanded = true;
+        await LoadCollectionScopeAsync(created.CollectionId);
+        if (_activeCollectionScope?.Collection.CollectionId == created.CollectionId)
+            await RevealCollectionNodeAsync(created.CollectionId);
     }
 
     private async void BrowserNewCollectionSet_Click(object sender, RoutedEventArgs e)

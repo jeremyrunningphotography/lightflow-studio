@@ -1793,10 +1793,6 @@ public partial class MainWindow : Window
             state.CanRegenerateThumbnails ? _browserGrid.SelectedAssetIdsInBrowserOrder : [],
             state.SelectionCount, _browserGrid.ThumbnailApplicableAssetIdsInScope);
         if (ids.Count == 0) return;
-        if (BrowserThumbnailRegeneration.RequiresConfirmation(state.SelectionCount, ids.Count) &&
-            MessageBox.Show($"Regenerate Previews for all {ids.Count} applicable assets in the current Browser scope?",
-                "Regenerate Previews", MessageBoxButton.YesNo, MessageBoxImage.Question,
-                MessageBoxResult.No) != MessageBoxResult.Yes) return;
         BrowserRegenerateThumbnailsButton.IsEnabled = false;
         BrowserStatusText.Text = $"Regenerating {ids.Count} Preview{(ids.Count == 1 ? "" : "s")}…";
         foreach (var id in ids) _browserGrid.ApplyThumbnailGenerating(id, true);

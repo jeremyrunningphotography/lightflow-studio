@@ -1,6 +1,8 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Runtime.ExceptionServices;
+using System.Text.Json;
 using System.Threading;
 using Xunit;
 
@@ -107,12 +109,13 @@ public sealed class ApplicationInstanceTests
     }
 
     [Fact]
-    public void ConnectedOwnerThatNeverAcknowledges_IsBoundedAndFailsSafely()
+    public async Task ConnectedOwnerThatNeverAcknowledges_IsBoundedAndFailsSafely()
     {
         var identity = UniqueIdentity();
         using var release = new ManualResetEventSlim();
-        using var listening = new ManualResetEventSlim();
-        using var connected = new ManualResetEventSlim();
+        var listening = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var requestReceived = new TaskCompletionSource<ApplicationLaunchRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finished = new TaskCompletionSource<(ApplicationInstanceResult Result, TimeSpan Elapsed)>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var stopOwner = new CancellationTokenSource();
         Exception? ownerFailure = null;
         var thread = new Thread(() =>
@@ -122,33 +125,61 @@ public sealed class ApplicationInstanceTests
                 PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
             try
             {
-                listening.Set();
-                pipe.WaitForConnectionAsync(stopOwner.Token).GetAwaiter().GetResult();
-                connected.Set();
+                var accepting = pipe.WaitForConnectionAsync(stopOwner.Token);
+                listening.SetResult();
+                accepting.GetAwaiter().GetResult();
+                var lengthBytes = new byte[sizeof(int)];
+                pipe.ReadExactlyAsync(lengthBytes, stopOwner.Token).AsTask().GetAwaiter().GetResult();
+                var length = BinaryPrimitives.ReadInt32LittleEndian(lengthBytes);
+                Assert.InRange(length, 1, 64 * 1024);
+                var payload = new byte[length];
+                pipe.ReadExactlyAsync(payload, stopOwner.Token).AsTask().GetAwaiter().GetResult();
+                requestReceived.SetResult(JsonSerializer.Deserialize<ApplicationLaunchRequest>(payload)!);
+                // Hold the connected pipe and mutex until assertions finish; deliberately send no acknowledgement.
                 release.Wait(stopOwner.Token);
             }
             catch (OperationCanceledException) when (stopOwner.IsCancellationRequested) { }
-            catch (Exception exception) { ownerFailure = exception; }
+            catch (Exception exception)
+            {
+                ownerFailure = exception;
+                listening.TrySetException(exception);
+                requestReceived.TrySetException(exception);
+            }
             finally { mutex.ReleaseMutex(); }
+        }) { IsBackground = true };
+        var contenderThread = new Thread(() =>
+        {
+            try
+            {
+                // Exercise the real five-second product deadline, not a 100 ms fixture-startup budget.
+                using var contender = new WindowsApplicationInstanceCoordinator(identity);
+                var stopwatch = Stopwatch.StartNew();
+                var result = contender.StartOrSignal(ApplicationLaunchRequest.Current([]));
+                finished.SetResult((result, stopwatch.Elapsed));
+            }
+            catch (Exception exception) { finished.SetException(exception); }
         }) { IsBackground = true };
         thread.Start();
         try
         {
-            Assert.True(listening.Wait(TimeSpan.FromSeconds(5)));
-            using var contender = new WindowsApplicationInstanceCoordinator(identity, TimeSpan.FromMilliseconds(100));
-            var stopwatch = Stopwatch.StartNew();
-            var result = contender.StartOrSignal(ApplicationLaunchRequest.Current([]));
-            stopwatch.Stop();
+            await listening.Task;
+            contenderThread.Start();
+            // Observe the handshake explicitly, even if the test continuation runs after the contender returns.
+            var request = await requestReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(ApplicationLaunchRequest.CurrentVersion, request.Version);
+            Assert.Empty(request.Arguments);
+            var (result, elapsed) = await finished.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
             Assert.Equal(ApplicationInstanceStatus.ExistingInstanceActivationFailed, result.Status);
             Assert.Contains("did not acknowledge activation in time", result.Diagnostic);
-            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5));
-            Assert.True(connected.IsSet, "The client timed out before connecting; the no-acknowledgement path was not exercised.");
+            Assert.True(elapsed < TimeSpan.FromSeconds(10), "The contender exceeded its deadline plus scheduling tolerance.");
         }
         finally
         {
             release.Set();
             stopOwner.Cancel();
+            if ((contenderThread.ThreadState & System.Threading.ThreadState.Unstarted) == 0)
+                Assert.True(contenderThread.Join(TimeSpan.FromSeconds(10)), "The simulated contender did not terminate.");
             Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "The unresponsive simulated owner did not terminate.");
             if (ownerFailure is not null) ExceptionDispatchInfo.Capture(ownerFailure).Throw();
         }

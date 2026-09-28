@@ -83,12 +83,9 @@ internal static class BrowserSelectionActions
 
 internal static class BrowserThumbnailRegeneration
 {
-    public const int ConfirmationThreshold = 50;
     public static IReadOnlyList<Guid> ResolveTargets(IReadOnlyList<Guid> selectedApplicable,
         int selectionCount, IReadOnlyList<Guid> scopeApplicable) =>
         selectionCount > 0 ? selectedApplicable : scopeApplicable;
-    public static bool RequiresConfirmation(int selectionCount, int targetCount) =>
-        selectionCount == 0 && targetCount > ConfirmationThreshold;
     public static string ProductLabel(int selectionCount, bool canRegenerateSelection) =>
         canRegenerateSelection && selectionCount == 1 ? "Regenerate Preview" : "Regenerate Previews";
 }

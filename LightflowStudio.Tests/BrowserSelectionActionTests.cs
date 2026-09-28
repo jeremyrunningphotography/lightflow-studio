@@ -95,13 +95,10 @@ public sealed class BrowserSelectionActionTests
     }
 
     [Fact]
-    public void RegenerateWithoutSelection_UsesAuthoritativeScopeAndConfirmsOnlyAboveFifty()
+    public void RegenerateWithoutSelection_UsesEntireAuthoritativeScope()
     {
-        var scope = Enumerable.Range(0, 51).Select(_ => Guid.NewGuid()).ToArray();
+        var scope = Enumerable.Range(0, 77).Select(_ => Guid.NewGuid()).ToArray();
         Assert.Equal(scope, BrowserThumbnailRegeneration.ResolveTargets([], 0, scope));
-        Assert.False(BrowserThumbnailRegeneration.RequiresConfirmation(0, 50));
-        Assert.True(BrowserThumbnailRegeneration.RequiresConfirmation(0, 51));
-        Assert.False(BrowserThumbnailRegeneration.RequiresConfirmation(1, 100));
         Assert.Equal("Regenerate Previews", BrowserThumbnailRegeneration.ProductLabel(0, false));
     }
 
@@ -111,6 +108,8 @@ public sealed class BrowserSelectionActionTests
         var selected = new[] { Guid.NewGuid(), Guid.NewGuid() };
         var scope = Enumerable.Range(0, 60).Select(_ => Guid.NewGuid()).ToArray();
         Assert.Equal(selected, BrowserThumbnailRegeneration.ResolveTargets(selected, selected.Length, scope));
+        Assert.Equal(selected.Take(1), BrowserThumbnailRegeneration.ResolveTargets([selected[0]], 1, scope));
+        Assert.Empty(BrowserThumbnailRegeneration.ResolveTargets([], 1, scope)); // Ineligible selection never expands to the scope.
         Assert.Equal("Regenerate Preview", BrowserThumbnailRegeneration.ProductLabel(1, true));
         Assert.Equal("Regenerate Previews", BrowserThumbnailRegeneration.ProductLabel(2, true));
     }

@@ -7,7 +7,7 @@ Move from real folders to a focused review, organize your selects, try Color loo
 turn useful moments into Subclips, exports, or a Premiere Pro handoff. Your review work
 stays with the media in Lightflow's Catalog, ready for the next session.
 
-Current version: **0.40.0** · [Download the latest Windows release](https://github.com/jeremyrunningphotography/lightflow-studio/releases/latest)
+Current version: **1.0.0** · [1.0 release notes](docs/releases/1.0.0.md) · [Download the latest Windows release](https://github.com/jeremyrunningphotography/lightflow-studio/releases/latest)
 
 This README describes current `main`. The latest published release may contain an earlier
 set of features; see its release notes before downloading.

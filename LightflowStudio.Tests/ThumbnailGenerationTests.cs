@@ -11,6 +11,121 @@ public sealed class ThumbnailGenerationTests : IAsyncLifetime
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-thumbnails-").FullName;
 
     [Fact]
+    public async Task BrowserDisplayedPreview_ExplicitRegenerationSucceeds()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        WriteJpeg(Path.Combine(fixture.MediaRoot, "displayed.jpg"));
+        var id = await fixture.AddAssetAsync("displayed.jpg", "image");
+        using var generator = fixture.Service(new WicBackedRenderer());
+        var first = await generator.GenerateAsync(new(id));
+        Assert.True(first.Succeeded, first.Diagnostic);
+        var outcome = new TaskCompletionSource<ThumbnailGenerationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var image = new OrientedPreviewImage();
+                image.Source = (ImageSource)CachedPreviewImageConverter.Instance.Convert(first.ThumbnailPath!, typeof(ImageSource), null!, System.Globalization.CultureInfo.InvariantCulture)!;
+                Assert.True(((BitmapSource)image.Source).PixelWidth > 0);
+                var result = fixture.Coordinator.RegenerateThumbnailsAsync([id]).GetAwaiter().GetResult().Single();
+                GC.KeepAlive(image);
+                outcome.SetResult(result);
+            }
+            catch (Exception error) { outcome.SetException(error); }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        var regenerated = await outcome.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        thread.Join();
+        Assert.True(regenerated.Succeeded, $"{regenerated.Status}: {regenerated.FailureReason}: {regenerated.Diagnostic}");
+    }
+
+    [Fact]
+    public async Task FailedReplacement_RetainsPixelsAcrossRestartAndExplicitRetryBypassesCooldown()
+    {
+        await using var fixture = await ThumbnailFixture.CreateAsync(_root);
+        WriteJpeg(Path.Combine(fixture.MediaRoot, "retained.jpg"));
+        var id = await fixture.AddAssetAsync("retained.jpg", "image");
+        using var renderer = fixture.Service(new WicBackedRenderer());
+        var first = await renderer.GenerateAsync(new(id));
+        var pixels = await File.ReadAllBytesAsync(first.ThumbnailPath!);
+        // An external reader can still deny replacement. Failure must retain the valid artifact and be retryable.
+        using (var held = new FileStream(first.ThumbnailPath!, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var failed = Assert.Single(await fixture.Coordinator.RegenerateThumbnailsAsync([id]));
+                Assert.Equal(ThumbnailGenerationStatus.Failed, failed.Status);
+                Assert.Equal(first.ThumbnailPath, failed.ThumbnailPath);
+                Assert.Equal(pixels, await File.ReadAllBytesAsync(first.ThumbnailPath!));
+                Assert.Contains("denied", failed.Diagnostic!, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        var failure = (await fixture.Coordinator.Previews!.GetAsync(id))!;
+        Assert.True(BrowserPreviewReuse.HasRetainedThumbnail(failure, fixture.Coordinator.Previews));
+        Assert.NotNull(failure.ThumbnailRetryAfterUtc);
+        Assert.Equal(ThumbnailGenerationStatus.Deferred, (await renderer.GenerateAsync(new(id))).Status);
+        await fixture.ReopenAsync();
+        var persisted = (await fixture.Coordinator.Previews!.GetAsync(id))!;
+        Assert.Equal(failure.ThumbnailRetryAfterUtc, persisted.ThumbnailRetryAfterUtc);
+        Assert.True(BrowserPreviewReuse.HasRetainedThumbnail(persisted, fixture.Coordinator.Previews));
+        var retry = Assert.Single(await fixture.Coordinator.RegenerateThumbnailsAsync([id]));
+        Assert.True(retry.Succeeded, retry.Diagnostic);
+        var recovered = (await fixture.Coordinator.Previews.GetAsync(id))!;
+        Assert.Equal(PreviewComponentState.Current, recovered.ThumbnailState);
+        Assert.Null(recovered.ThumbnailRetryAfterUtc);
+        Assert.Equal(PreviewFailureReason.Unknown, recovered.ThumbnailFailureReason);
+        Assert.Single(Directory.GetFiles(fixture.Coordinator.Locations.PreviewsDirectory, "*.jpg", SearchOption.AllDirectories));
+        Assert.Empty(Directory.GetFiles(fixture.Coordinator.Locations.PreviewsDirectory, "*.lightflow", SearchOption.AllDirectories));
+        Assert.False(BrowserPreviewReuse.HasRetainedThumbnail(persisted with
+        { Source = new(persisted.Source.FileSizeBytes + 1, persisted.Source.LastWriteUtcTicks, persisted.Source.FingerprintVersion, persisted.Source.Fingerprint) }, fixture.Coordinator.Previews));
+        Assert.False(BrowserPreviewReuse.HasRetainedThumbnail(persisted with { ThumbnailVisualIdentity = "changed" }, fixture.Coordinator.Previews));
+        Assert.False(BrowserPreviewReuse.HasRetainedThumbnail(persisted with { ThumbnailGeneratorVersion = 999 }, fixture.Coordinator.Previews));
+    }
+
+    [Fact]
+    public async Task SuccessfulSamePathPublication_ReloadsRealWpfBindingWithoutLockOrUriCache()
+    {
+        var path = Path.Combine(_root, "same-path.jpg");
+        WriteJpeg(path, 8, 6);
+        await StaDispatcher.RunAsync(() =>
+        {
+            var id = Guid.NewGuid();
+            var entry = new MediaFolderEntry(Guid.NewGuid(), "same-path.jpg", "SAME-PATH.JPG", "same-path.jpg",
+                false, new(MediaTypeCategory.StillImage), 10, DateTimeOffset.UnixEpoch);
+            var model = new BrowserGridModel();
+            model.Populate([entry]);
+            model.ApplyAssetIdentities([new(id, entry.RelativePath, CatalogReconciliationItemStatus.New)]);
+            var tile = Assert.Single(model.Tiles);
+            var image = new OrientedPreviewImage();
+            System.Windows.Data.BindingOperations.SetBinding(image, System.Windows.Controls.Image.SourceProperty,
+                new System.Windows.Data.Binding(nameof(BrowserGridTile.ThumbnailPath))
+                { Source = tile, Converter = CachedPreviewImageConverter.Instance });
+            model.ApplyThumbnail(id, path);
+            Assert.Equal(8, ((BitmapSource)image.Source).PixelWidth);
+            WriteJpeg(path, 16, 12); // Displayed image must not lock its artifact.
+            model.ApplyThumbnail(id, path, reload: true);
+            Assert.Equal(16, ((BitmapSource)image.Source).PixelWidth); // Must not reuse the old URI-cached pixels.
+            model.ApplyPreviewFailure(id, PreviewFailureReason.Unknown);
+            Assert.True(tile.HasThumbnail);
+            Assert.True(tile.HasPreviewFailure);
+            model.ApplyThumbnailGenerating(id, true);
+            Assert.False(tile.HasPreviewFailure);
+            model.ApplyThumbnail(id, path, reload: true);
+            model.ApplyThumbnailGenerating(id, false);
+            Assert.False(tile.HasPreviewFailure);
+            File.Delete(path);
+            Assert.Equal(16, ((BitmapSource)image.Source).PixelWidth);
+            return Task.CompletedTask;
+        });
+    }
+    private sealed class WicBackedRenderer : IThumbnailRenderer
+    {
+        public Task<ThumbnailRenderResult> RenderAsync(string sourcePath, string mediaType, TimeSpan position,
+            string destinationPath, CancellationToken cancellationToken = default) =>
+            new WicImageThumbnailRenderer().RenderAsync(sourcePath, destinationPath, cancellationToken);
+    }
+    [Fact]
     public async Task ClassifiedFailure_PersistsSanitizedReasonAndLogsDiagnosticsThenRetryClearsIt()
     {
         await using var fixture = await ThumbnailFixture.CreateAsync(_root);

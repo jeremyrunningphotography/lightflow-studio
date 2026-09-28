@@ -725,10 +725,12 @@ internal sealed class BrowserGridModel
     public bool HasMetadataApplied(Guid assetId) => _tilesByAsset.TryGetValue(assetId, out var tile) && tile.MetadataApplied;
 
     /// <summary>Updates one tile's thumbnail in place. Never rebuilds rows/visible order or touches unrelated tiles.</summary>
-    public void ApplyThumbnail(Guid assetId, string absoluteThumbnailPath)
+    public void ApplyThumbnail(Guid assetId, string absoluteThumbnailPath, bool reload = false)
     {
         if (_tilesByAsset.TryGetValue(assetId, out var tile))
         {
+            // A regenerated artifact has the same deterministic path but new pixels.
+            if (reload && tile.ThumbnailPath == absoluteThumbnailPath) tile.ThumbnailPath = null;
             tile.ThumbnailPath = absoluteThumbnailPath;
             tile.SetPreviewFailure(null);
         }

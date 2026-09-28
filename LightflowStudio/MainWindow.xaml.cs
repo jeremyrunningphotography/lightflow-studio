@@ -1911,7 +1911,7 @@ public partial class MainWindow : Window
         InvalidateInspector();
         _browserGrid.ApplyPreviewFailure(completed.AssetId, completed.Result.Succeeded ? null : completed.Result.FailureReason);
         if (completed.Result.Succeeded && completed.Result.ThumbnailPath is { } path)
-            _browserGrid.ApplyThumbnail(completed.AssetId, path);
+            _browserGrid.ApplyThumbnail(completed.AssetId, path, reload: true);
     }
 
     private void PreviewFailureBadge_MouseDown(object sender, MouseButtonEventArgs e)
@@ -3623,7 +3623,7 @@ public partial class MainWindow : Window
 
             if (pendingThumbnails.Contains(assetId) && record.ThumbnailRelativePath is not null &&
                 (sources is null || record.ThumbnailGeneratorVersion == ThumbnailGenerationService.CurrentGeneratorVersion) &&
-                record.ThumbnailState == PreviewComponentState.Current)
+                BrowserPreviewReuse.HasRetainedThumbnail(record, _storage.Previews!))
             {
                 string? absolute = null;
                 try { absolute = MediaPathSemantics.ResolveContained(_storage.Locations.PreviewsDirectory, record.ThumbnailRelativePath); }
@@ -3631,6 +3631,8 @@ public partial class MainWindow : Window
                 if (absolute is not null && File.Exists(absolute))
                 {
                     _browserGrid.ApplyThumbnail(assetId, absolute);
+                    _browserGrid.ApplyPreviewFailure(assetId, record.ThumbnailState == PreviewComponentState.Failed
+                        ? record.ThumbnailFailureReason : null);
                     thumbnailApplied?.Invoke(assetId);
                 }
             }
@@ -4684,12 +4686,17 @@ public partial class MainWindow : Window
             if (generation != _browserUiGeneration) return;
             _browserGrid.ApplyPreviewFailure(assetId, record.ThumbnailState == PreviewComponentState.Failed
                 ? record.ThumbnailFailureReason : null);
-            if (record.ThumbnailState == PreviewComponentState.Current && record.ThumbnailRelativePath is { } relative)
+            if (BrowserPreviewReuse.HasRetainedThumbnail(record, previews) && record.ThumbnailRelativePath is { } relative)
             {
                 try
                 {
                     var absolute = MediaPathSemantics.ResolveContained(_storage.Locations.PreviewsDirectory, relative);
-                    if (File.Exists(absolute)) _browserGrid.ApplyThumbnail(assetId, absolute);
+                    if (File.Exists(absolute))
+                    {
+                        _browserGrid.ApplyThumbnail(assetId, absolute);
+                        _browserGrid.ApplyPreviewFailure(assetId, record.ThumbnailState == PreviewComponentState.Failed
+                            ? record.ThumbnailFailureReason : null);
+                    }
                 }
                 catch { }
             }

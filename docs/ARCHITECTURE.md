@@ -1362,3 +1362,29 @@ that profile. It exercises the real Browser navigation, scheduler, FFmpeg, files
 stores; `--preview-validation-seconds` controls observation (default 1020), and
 `--preview-validation-restart` reuses that isolated fixture in a new process. Scheduler diagnostics expose
 submission, processing, component-attempt and outstanding counts solely for verification.
+
+### Explicit Preview regeneration (#329)
+
+Browser Grid, Details, and the Player filmstrip decode cached Preview path bindings through
+`CachedPreviewImageConverter`: load the complete JPEG, copy detached immutable pixels, and close
+its stream. WPF's default path-to-image conversion retains a decoder/file handle, which prevented
+`File.Move` from promoting a regenerated image over a displayed artifact. Explicit regeneration
+already used ForceRefresh/Visible and bypassed #321's automatic cooldown; rendering, frame selection,
+source identity, generator versions, and the deterministic artifact path are unchanged.
+
+Successful explicit completion reloads the bound image even when its deterministic path is unchanged.
+The existing pipeline keeps the old artifact during staging/render validation and only promotes a
+successful replacement. Failed rendering or promotion retains its reference and pixels, while the
+component remains Failed with its truthful warning and persisted cooldown. Browser hydration may
+re-present that retained artifact alongside the warning when its filename still matches the stored
+source/work/visual identity; it must not revive an old source, version, Color, or preferred-frame image.
+This is scoped preservation using the existing persistence model, not a new cross-filesystem/database
+transaction. Promotion exceptions identify their stage in Activity Log; normal tooltips remain sanitized.
+
+`--verify-preview-regeneration --data-root <isolated-profile>` is an opt-in bounded packaged check
+using task-owned synthetic H.264, HEVC, MPEG-4 and JPEG sources, real Browser discovery/scheduling,
+real renderers, WPF path bindings, repeated explicit retries, automatic cooldown, a controlled external
+artifact lock, database integrity, and fixed cache counts. A separate invocation with
+`--preview-regeneration-restart` checks persistence and recovers the retained failed replacement.
+The verifier refuses normal user storage. Existing #321 bounded watcher/source/version regressions
+remain authoritative; no repeated endurance observation is required by this presentation fix.

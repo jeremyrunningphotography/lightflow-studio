@@ -426,6 +426,7 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
             CurrentGeneratorVersion, source, "jpg", visualIdentity);
         Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
         var temporaryPath = finalPath + $".{Guid.NewGuid():N}.lightflow";
+        var stage = "rendering";
         try
         {
             var position = preferredFrame?.Position ?? await RepresentativePositionAsync(request.AssetId, asset.MediaType, cancellationToken)
@@ -470,6 +471,7 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
                 return new(ThumbnailGenerationStatus.SourceChanged, ResolveExisting(preview.ThumbnailRelativePath),
                     "Preview frame or Color changed while its Preview was being generated. Newer work will replace it.");
 
+            stage = "artifact promotion";
             File.Move(temporaryPath, finalPath, overwrite: true);
             if (!string.Equals(visualIdentity,
                     await CurrentBrowserVisualIdentityAsync(request.AssetId, cancellationToken).ConfigureAwait(false),
@@ -479,6 +481,7 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
                 return new(ThumbnailGenerationStatus.SourceChanged, ResolveExisting(preview.ThumbnailRelativePath),
                     "Preview frame or Color changed before its Preview could be committed. Newer work will replace it.");
             }
+            stage = "artifact persistence";
             var relative = Path.GetRelativePath(_locations.PreviewsDirectory, finalPath).Replace('\\', '/');
             await _previews.SetArtifactAsync(request.AssetId, PreviewArtifactKind.Thumbnail,
                 new(CurrentGeneratorVersion, PreviewComponentState.Current, relative, VisualIdentity: visualIdentity, ExpectedSource: source), cancellationToken).ConfigureAwait(false);
@@ -488,7 +491,8 @@ internal sealed class ThumbnailGenerationService : IThumbnailGenerationService
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             await RecordFailureAsync(request.AssetId, preview, visualIdentity, CancellationToken.None).ConfigureAwait(false);
-            return new(ThumbnailGenerationStatus.Failed, ResolveExisting(preview.ThumbnailRelativePath), exception.Message);
+            return new(ThumbnailGenerationStatus.Failed, ResolveExisting(preview.ThumbnailRelativePath),
+                $"Preview {stage} failed ({exception.GetType().Name}): {exception.Message}");
         }
         finally { try { File.Delete(temporaryPath); } catch { } }
     }

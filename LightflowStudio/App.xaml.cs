@@ -39,6 +39,14 @@ public partial class App : System.Windows.Application
             Shutdown(2);
             return;
         }
+        if (e.Args.Contains("--verify-preview-regeneration", StringComparer.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            base.OnStartup(e);
+            var verified = await PreviewRegenerationVerifier.RunAsync(LightflowStorageLocations.Current, e.Args);
+            Shutdown(verified ? 0 : 1);
+            return;
+        }
         if (e.Args.Contains("--verify-preview-quiescence", StringComparer.Ordinal))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

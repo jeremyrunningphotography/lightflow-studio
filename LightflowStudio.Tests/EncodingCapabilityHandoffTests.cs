@@ -348,6 +348,7 @@ public sealed class EncodingCapabilityHandoffTests
         }
         public Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_values.GetValueOrDefault(assetId));
+        public Task<IReadOnlyDictionary<Guid, MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<MediaAsset>>(_values.Values.Select(value => value.Asset).ToArray());
         public Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown", CancellationToken cancellationToken = default) => throw new NotSupportedException();

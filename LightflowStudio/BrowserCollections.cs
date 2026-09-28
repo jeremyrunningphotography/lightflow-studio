@@ -470,8 +470,7 @@ internal sealed class BrowserCollectionScopeService(
         var collection = await collections.GetCollectionAsync(collectionId, cancellationToken).ConfigureAwait(false)
             ?? throw new KeyNotFoundException("The Collection no longer exists.");
         var memberships = await collections.ListMembershipsAsync(collectionId, cancellationToken).ConfigureAwait(false);
-        var catalog = (await assets.ListAsync(cancellationToken).ConfigureAwait(false))
-            .ToDictionary(asset => asset.AssetId);
+        var catalog = await assets.GetManyAsync(memberships.Select(item => item.AssetId).ToArray(), cancellationToken).ConfigureAwait(false);
         var rootAvailability = (await roots.ListAsync(cancellationToken).ConfigureAwait(false))
             .ToDictionary(root => root.RootId, root => root.Availability);
         var entries = new List<MediaFolderEntry>(memberships.Count);

@@ -346,6 +346,7 @@ public sealed class PreviewMaintenanceTests : IAsyncLifetime
     private sealed class FakeAssets(IReadOnlyList<MediaAsset> assets) : IMediaAssetService, ICatalogMutationParticipant
     {
         public CatalogMutationLifecycle Mutations { get; } = new();
+        public Task<IReadOnlyDictionary<Guid, MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(assets);
         public Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown", CancellationToken cancellationToken = default) => throw new NotSupportedException();

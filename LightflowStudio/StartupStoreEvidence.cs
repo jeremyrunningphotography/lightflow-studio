@@ -8,7 +8,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace LightflowStudio;
 
-internal enum StartupValidationReason { CleanShutdown, UnexpectedShutdown, Migration, Restore, DatabaseAnomaly, ExplicitValidation }
+internal enum StartupValidationReason { CleanShutdown, UncertainState, UnexpectedShutdown, Migration, Restore, DatabaseAnomaly, ExplicitValidation }
 
 // One exclusive lease beside each database. A certificate is consumed and durably overwritten
 // BEFORE any SQLite open. Clean publication is allowed only after the owning lifecycle drains.
@@ -34,7 +34,8 @@ internal sealed class StartupStoreEvidence : IDisposable
     private StartupStoreEvidence(string database, string store, FileStream journal, StartupSessionCompletion? session)
     {
         _database = Path.GetFullPath(database); _store = store; _journal = journal; _session = session;
-        Reason = StartupValidationReason.UnexpectedShutdown;
+        Reason = session?.PriorReason == StartupValidationReason.UnexpectedShutdown
+            ? StartupValidationReason.UnexpectedShutdown : StartupValidationReason.UncertainState;
         try
         {
             if (journal.Length is > 0 and < 32768)
@@ -47,6 +48,7 @@ internal sealed class StartupStoreEvidence : IDisposable
                     if (certificate is { Version: Format, State: "Clean" } && certificate.Store == store &&
                         certificate.Database == _database && session?.Previous is not null && certificate.Session == session.Previous)
                     {
+                        Reason = StartupValidationReason.DatabaseAnomaly;
                         KnownClean = certificate.Fingerprint == Fingerprint(_database) && NoRecoveryFiles(_database);
                         Reason = KnownClean ? StartupValidationReason.CleanShutdown : StartupValidationReason.DatabaseAnomaly;
                     }
@@ -142,7 +144,8 @@ internal sealed record StartupValidationProgress(string Primary, string Supporti
             StartupValidationReason.Restore => "Verifying restored Catalog…",
             StartupValidationReason.DatabaseAnomaly => "Verifying Catalog before opening…",
             StartupValidationReason.ExplicitValidation => "Verifying Catalog…",
-            _ => "Verifying Catalog after an interrupted shutdown…"
+            StartupValidationReason.UnexpectedShutdown => "Verifying Catalog after an interrupted shutdown…",
+            _ => "Verifying Catalog before opening…"
         }, "Protecting your saved Lightflow work")
         : new(reason == StartupValidationReason.UnexpectedShutdown
             ? "Verifying Preview storage after an interrupted shutdown…" : "Verifying Preview storage…",
@@ -154,6 +157,7 @@ internal sealed class StartupSessionCompletion : IDisposable
 {
     private readonly FileStream _file;
     internal string? Previous { get; }
+    internal StartupValidationReason PriorReason { get; private set; } = StartupValidationReason.UncertainState;
     internal string Current { get; } = Guid.NewGuid().ToString("N");
     internal static string PathFor(string root) => Path.Combine(root, "startup-session.state");
     internal StartupSessionCompletion(string root)
@@ -166,7 +170,13 @@ internal sealed class StartupSessionCompletion : IDisposable
             {
                 var bytes = new byte[32]; _file.ReadExactly(bytes);
                 var value = Encoding.ASCII.GetString(bytes);
-                if (Guid.TryParseExact(value, "N", out _)) Previous = value;
+                if (Guid.TryParseExact(value, "N", out _))
+                { Previous = value; PriorReason = StartupValidationReason.CleanShutdown; }
+            }
+            else if (_file.Length == 5)
+            {
+                var bytes = new byte[5]; _file.ReadExactly(bytes);
+                if (Encoding.ASCII.GetString(bytes) == "Dirty") PriorReason = StartupValidationReason.UnexpectedShutdown;
             }
             Write("Dirty");
         }

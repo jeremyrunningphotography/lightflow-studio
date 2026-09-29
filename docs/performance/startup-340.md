@@ -46,7 +46,7 @@ Catalog opens read-only, reads user_version, verifies application ID, complete e
 
 Preview opens read-only, checks version and application/store identity, reads at most one row's work/retry identity columns, verifies required Preview indexes, and applies existing connection policy. Metadata JSON is not deserialized and no PreviewRecord is created by readiness. Generator/source/retry decisions remain the existing per-record demand logic. Unsupported versions fail, never get treated as empty stores. FK enforcement is not a replacement for foreign_key_check; no global FK scan is introduced into the clean path.
 
-A structured `StartupValidationReason` carries CleanShutdown, UnexpectedShutdown, Migration, Restore, DatabaseAnomaly or ExplicitValidation. Standalone service callers without consumed lifecycle evidence remain deep by default. There is no time/day-based trigger.
+A structured `StartupValidationReason` carries CleanShutdown, UncertainState, UnexpectedShutdown, Migration, Restore, DatabaseAnomaly or ExplicitValidation. Standalone service callers without consumed lifecycle evidence remain deep by default. There is no time/day-based trigger.
 
 ## Presentation and diagnostics
 
@@ -54,6 +54,7 @@ The normal splash keeps brief single-line phases such as Opening storage, Checki
 
 Exceptional validation uses the original 440-by-approximately-311 footprint and artwork, one primary line and one supporting line. Its footer masks the artwork tagline only while those two lines are present. Exact examples:
 
+- Catalog first adoption/uncertain evidence: **Verifying Catalog before opening…** / **Protecting your saved Lightflow work**
 - Catalog interrupted: **Verifying Catalog after an interrupted shutdown…** / **Protecting your saved Lightflow work**
 - Catalog migration: **Verifying upgraded Catalog…** / same support
 - Catalog restore: **Verifying restored Catalog…** / same support

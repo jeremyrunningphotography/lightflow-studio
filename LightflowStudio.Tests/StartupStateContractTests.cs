@@ -79,6 +79,7 @@ public sealed class StartupStateContractTests : IDisposable
         else File.WriteAllText(journal, damage == "partial" ? "abcf" : "Dirty");
         var (result, lines) = await OpenAsync();
         await result.Coordinator!.DisposeAsync();
+        Assert.DoesNotContain(lines, line => line.Contains("deep reason=CleanShutdown"));
         // A mismatched individual store needs its own deep scan; whole-session damage needs both.
         Assert.Single(lines, s => s.Contains("Catalog quick check: begin"));
         if (damage != "store-partial") AssertDeep(lines);
@@ -269,6 +270,19 @@ public sealed class StartupStateContractTests : IDisposable
             Assert.False(catalog!.Completed);
         }
         var (result, lines) = await OpenAsync(); await result.Coordinator!.DisposeAsync(); AssertDeep(lines);
+    }
+
+    [Fact]
+    public void FirstAdoptionDoesNotClaimAnInterruptedShutdown()
+    {
+        using (var session = new StartupSessionCompletion(_root))
+        {
+            Assert.Equal(StartupValidationReason.UncertainState, session.PriorReason);
+            Assert.Equal("Verifying Catalog before opening…", StartupValidationProgress.For("Catalog", session.PriorReason).Primary);
+        }
+        using var interrupted = new StartupSessionCompletion(_root);
+        Assert.Equal(StartupValidationReason.UnexpectedShutdown, interrupted.PriorReason);
+        Assert.Contains("after an interrupted shutdown", StartupValidationProgress.For("Catalog", interrupted.PriorReason).Primary);
     }
 
     private static void Execute(string path, string sql)

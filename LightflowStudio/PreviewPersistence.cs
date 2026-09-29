@@ -89,6 +89,7 @@ internal interface IPreviewStoreService : IAsyncDisposable
                 records[assetId] = record;
         return records;
     }
+    Task<long> CountAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default);
     Task<PreviewRecord> ObserveSourceAsync(Guid assetId, PreviewSourceIdentity source,
         CancellationToken cancellationToken = default);
@@ -161,6 +162,17 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         }
         return records;
     }, cancellationToken);
+
+    // Usage needs a scalar, never metadata payloads or PreviewRecord materialization.
+    public Task<long> CountAsync(CancellationToken cancellationToken = default) =>
+        RunAsync(CountRecords, cancellationToken);
+
+    internal static long CountRecords(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM PreviewRecords;";
+        return (long)command.ExecuteScalar()!;
+    }
 
     public Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default) =>
         RunAsync<IReadOnlyList<PreviewRecord>>(connection =>

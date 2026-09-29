@@ -83,9 +83,9 @@ internal sealed record PreviewUsage(
     long ThumbnailBytes,
     long StandardPreviewBytes,
     long TemporaryBytes,
-    int RecordCount,
+    long RecordCount,
     int ArtifactCount,
-    int OrphanCount)
+    int? OrphanCount)
 {
     public long CacheBytes => ThumbnailBytes + StandardPreviewBytes + TemporaryBytes;
     public long TotalBytes => DatabaseBytes + CacheBytes;
@@ -138,8 +138,8 @@ internal sealed class PreviewMaintenanceService : IPreviewMaintenanceService
     public async Task<PreviewUsage> GetUsageAsync(CancellationToken cancellationToken = default)
     {
         using var lease = await _operations.EnterOperationAsync(cancellationToken).ConfigureAwait(false);
-        var records = await _store.ListAsync(cancellationToken).ConfigureAwait(false);
-        return await Task.Run(() => Measure(records, cancellationToken), cancellationToken).ConfigureAwait(false);
+        var count = await _store.CountAsync(cancellationToken).ConfigureAwait(false);
+        return await Task.Run(() => MeasureUsage(count, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<PreviewMaintenanceResult> CleanupAsync(PreviewMaintenancePolicy policy,
@@ -283,6 +283,29 @@ internal sealed class PreviewMaintenanceService : IPreviewMaintenanceService
         }
         return new(failed == 0, rebuilt, skipped, failed,
             failed == 0 ? null : $"{failed} asset(s) could not be rebuilt and can be retried later.");
+    }
+
+    // Explicit usage accounting streams file sizes, but never reconciles all persisted records.
+    // Null OrphanCount means not measured; only explicit cleanup performs that reconciliation.
+    private PreviewUsage MeasureUsage(long recordCount, CancellationToken cancellationToken)
+    {
+        long database = 0;
+        foreach (var path in new[] { _locations.PreviewsDatabasePath, _locations.PreviewsDatabasePath + "-wal", _locations.PreviewsDatabasePath + "-shm" })
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (File.Exists(path)) database += new FileInfo(path).Length;
+        }
+        long thumbnails = 0, previews = 0, temporary = 0;
+        var fileCount = 0;
+        foreach (var file in EnumerateCacheFiles(cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            fileCount++;
+            if (file.Name.Contains(".lightflow", StringComparison.OrdinalIgnoreCase)) temporary += file.Length;
+            else if (IsWithin(_locations.ThumbnailCacheDirectory, file.FullName)) thumbnails += file.Length;
+            else previews += file.Length;
+        }
+        return new(database, thumbnails, previews, temporary, recordCount, fileCount, null);
     }
 
     private PreviewUsage Measure(IReadOnlyList<PreviewRecord> records, CancellationToken cancellationToken)

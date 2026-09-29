@@ -20,7 +20,48 @@ internal sealed class StartupSplash : Window
         IsHitTestVisible = false
     };
 
-    internal void SetProgress(string message) => _status.Text = message;
+    // Reserve the existing footer only for exceptional status; do not paint over the artwork tagline.
+    private readonly System.Windows.Controls.Border _validationBackdrop = new()
+    {
+        Height = 54, VerticalAlignment = VerticalAlignment.Bottom,
+        Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(8, 8, 10)),
+        Visibility = Visibility.Collapsed, IsHitTestVisible = false
+    };
+    private readonly System.Windows.Controls.TextBlock _support = new()
+    {
+        FontSize = 11, TextAlignment = TextAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(8, 0, 8, 12),
+        Visibility = Visibility.Collapsed, IsHitTestVisible = false
+    };
+    private readonly System.Windows.Controls.ProgressBar _progress = new()
+    {
+        IsIndeterminate = true, Height = 2, VerticalAlignment = VerticalAlignment.Bottom,
+        Margin = new Thickness(24, 0, 24, 5), Visibility = Visibility.Collapsed, IsHitTestVisible = false
+    };
+    internal void SetProgress(string message)
+    {
+        _status.Text = message; _status.Margin = new Thickness(8, 0, 8, 12);
+        _validationBackdrop.Visibility = _support.Visibility = _progress.Visibility = Visibility.Collapsed;
+    }
+    internal void SetValidation(StartupValidationProgress message)
+    {
+        _status.Text = message.Primary; _status.Margin = new Thickness(8, 0, 8, 29);
+        _support.Text = message.Supporting;
+        _validationBackdrop.Visibility = _support.Visibility = _progress.Visibility = Visibility.Visible;
+    }
+
+    internal void CaptureValidation(string directory)
+    {
+        var content = (System.Windows.Controls.Grid)Content;
+        content.Measure(new System.Windows.Size(Width, Height)); content.Arrange(new Rect(0, 0, Width, Height)); content.UpdateLayout();
+        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(Width), (int)Math.Ceiling(Height), 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(content);
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        System.IO.Directory.CreateDirectory(directory);
+        var store = _status.Text.Contains("Preview", StringComparison.Ordinal) ? "Previews" : "Catalog";
+        using var file = System.IO.File.Create(System.IO.Path.Combine(directory, $"{Environment.ProcessId}-{store}.png"));
+        encoder.Save(file);
+    }
 
     internal StartupSplash()
     {
@@ -44,7 +85,12 @@ internal sealed class StartupSplash : Window
         _status.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "MutedTextBrush");
         var content = new System.Windows.Controls.Grid();
         content.Children.Add(artwork);
+        content.Children.Add(_validationBackdrop);
         content.Children.Add(_status);
+        _support.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "MutedTextBrush");
+        _progress.SetResourceReference(System.Windows.Controls.ProgressBar.ForegroundProperty, "BrandGradient");
+        content.Children.Add(_support);
+        content.Children.Add(_progress);
         Content = content;
         SourceInitialized += (_, _) =>
         {

@@ -84,7 +84,14 @@ public partial class App : System.Windows.Application
 
         ActivityLog = new(LightflowStorageLocations.Current.ActivityLogPath);
         using var startupDiagnostics = new StartupDiagnostics(message => ActivityLog.TryAppend(message),
-            progress => Dispatcher.BeginInvoke(() => _startupSplash?.SetProgress(progress)));
+            progress => Dispatcher.BeginInvoke(() => _startupSplash?.SetProgress(progress)),
+            validation => Dispatcher.BeginInvoke(() =>
+            {
+                _startupSplash?.SetValidation(validation);
+                if (LightflowStorageLocations.Current.IsIsolated &&
+                    Environment.GetEnvironmentVariable("LIGHTFLOW_STARTUP_CAPTURE") is { Length: > 0 } capture)
+                    _startupSplash?.CaptureValidation(capture);
+            }));
         StartupDiagnostics.Note($"Process entered startup; process age={(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds:F1}ms");
         _applicationInstance = new WindowsApplicationInstanceCoordinator(
             ApplicationDataProfile.InstanceIdentity(LightflowStorageLocations.Current));
@@ -153,8 +160,9 @@ public partial class App : System.Windows.Application
             DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
-            Exit += (_, _) =>
+            Exit += (_, exit) =>
             {
+                if (exit.ApplicationExitCode != 0) Storage?.PreventCleanShutdown();
                 ActivityLog.TryAppend("[App shutdown] Application.Exit entered; disposing playback.");
                 Playback.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 ActivityLog.TryAppend("[App shutdown] Playback disposal completed; disposing storage.");
@@ -220,6 +228,7 @@ public partial class App : System.Windows.Application
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         CloseStartupSplash();
+        Storage?.PreventCleanShutdown();
         ActivityLog.TryAppend($"[App] Unhandled UI exception: {e.Exception}");
         e.Handled = true;
         if (!_unexpectedInterfaceErrorGate.TryEnter()) return;
@@ -238,6 +247,7 @@ public partial class App : System.Windows.Application
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
+        Storage?.PreventCleanShutdown();
         ActivityLog.TryAppend($"[App] Unobserved task exception: {e.Exception}");
         e.SetObserved();
     }

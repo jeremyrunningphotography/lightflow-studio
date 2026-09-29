@@ -245,9 +245,18 @@ public sealed partial class PlayerViewerHostLeaseTests
                     var down = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
                     { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent };
                     typeof(MouseButtonEventArgs).GetField("_count", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(down, count);
-                    target.RaiseEvent(down);
-                    target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 1, MouseButton.Left)
-                    { RoutedEvent = UIElement.PreviewMouseLeftButtonUpEvent });
+                    // Native capture synchronizes Mouse.PrimaryDevice with the desktop. A physical
+                    // pressed button can turn that unrelated move into a drag during this synthetic
+                    // no-movement click. Keep button routing/capture real; isolate only move input.
+                    MouseEventHandler ignoreDesktopMove = (_, e) => e.Handled = true;
+                    window.PreviewMouseMove += ignoreDesktopMove;
+                    try
+                    {
+                        target.RaiseEvent(down);
+                        target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 1, MouseButton.Left)
+                        { RoutedEvent = UIElement.PreviewMouseLeftButtonUpEvent });
+                    }
+                    finally { window.PreviewMouseMove -= ignoreDesktopMove; }
                 }
                 Click(host.MediaSurfaceHost);
                 Assert.Equal(1, backend.PlayCallCount);

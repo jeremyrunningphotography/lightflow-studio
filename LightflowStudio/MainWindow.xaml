@@ -1693,7 +1693,7 @@
             <TextBox x:Name="SettingsPreviewsDirectory" Style="{StaticResource SettingsPathTextBoxStyle}" Margin="0,8,0,0" IsReadOnly="True" AutomationProperties.Name="Previews location"/>
             <StackPanel Margin="0,10,0,0">
              <StackPanel>
-              <TextBlock x:Name="PreviewUsageText" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Text="Calculating Preview usage…"/>
+              <TextBlock x:Name="PreviewUsageText" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Text="Select Refresh Usage to calculate storage use. Cleanup checks for orphaned files."/>
               <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                <TextBlock VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" Text="Cache limit"/>
                <TextBox x:Name="SettingsPreviewCacheQuotaGb" Style="{StaticResource SettingsCompactInputStyle}" Margin="8,0,4,0" AutomationProperties.Name="Preview cache limit in gigabytes"/>

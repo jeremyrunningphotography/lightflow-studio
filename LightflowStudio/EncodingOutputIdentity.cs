@@ -44,7 +44,7 @@ internal static class EncodingOutputIdentityStore
     {
         var normalized = Path.GetFullPath(outputPath).Trim().ToUpperInvariant();
         var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)));
-        return Path.Combine(cacheDirectory ?? CacheDirectory, key + ".json");
+        return ApplicationDataProfile.GuardAccess(Path.Combine(cacheDirectory ?? CacheDirectory, key + ".json"));
     }
 
     internal static string LegacyPathFor(string outputPath) => outputPath + ".lightflow.json";
@@ -78,7 +78,7 @@ internal static class EncodingOutputIdentityStore
     public static void Save(string outputPath, EncodingOutputIdentity identity, string? cacheDirectory = null)
     {
         var path = PathFor(outputPath, cacheDirectory);
-        var temporary = path + ".tmp";
+        var temporary = ApplicationDataProfile.GuardAccess(path + ".tmp");
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);

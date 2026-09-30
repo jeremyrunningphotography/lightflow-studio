@@ -72,14 +72,16 @@ public sealed class StartupIdentityRegressionTests
             Assert.DoesNotContain("Thread.Sleep", source);
             Assert.DoesNotContain("DispatcherTimer", source);
         }
-        Assert.True(app.IndexOf("_startupSplash.Show()") < app.IndexOf("await LightflowStorageCoordinator.StartAsync()"));
+        Assert.True(app.IndexOf("_startupSplash.Show()") < app.IndexOf("await LightflowStorageCoordinator.StartAsync(initializedProfile: initialized)"));
         Assert.Contains("await mainWindow.RevealStartupPresentationAsync()", app);
         Assert.True(app.IndexOf("await mainWindow.PresentationReady") < app.IndexOf("await mainWindow.RevealStartupPresentationAsync()"));
         Assert.True(app.IndexOf("await mainWindow.RevealStartupPresentationAsync()") < app.IndexOf("mainWindow.Activate()"));
         Assert.Contains("StartupWindowPresentation.SetCloaked(this, false)", ready);
         Assert.Contains("_playerViewerHost?.RevealStartupVideoPresentation()", ready);
         Assert.True(ready.IndexOf("StartupWindowPresentation.SetCloaked(this, false)") < ready.IndexOf("_playerViewerHost?.RevealStartupVideoPresentation()"));
-        // The earlier data-root preflight fails before any splash or modal exists.
+        Assert.True(app.IndexOf("_startupSplash.Show()") < app.IndexOf("await Task.Run(() => ApplicationDataProfile.Initialize("));
+        Assert.True(app.IndexOf("await Task.Run(() => ApplicationDataProfile.Initialize(") < app.IndexOf("ActivityLog = new("));
+        // Argument parsing fails before splash; profile validation failures close the rendered splash.
         var failure = app[app.IndexOf("catch (Exception exception)", app.IndexOf("_startupSplash.Show()"))..];
         Assert.True(failure.IndexOf("CloseStartupSplash()") < failure.IndexOf("MessageBox.Show"));
         Assert.Contains("ShutdownMode = ShutdownMode.OnExplicitShutdown", app);

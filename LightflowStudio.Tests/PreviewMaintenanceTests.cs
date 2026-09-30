@@ -8,7 +8,7 @@ public sealed class PreviewMaintenanceTests : IAsyncLifetime
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-preview-maintenance-").FullName;
 
     [Fact]
-    public async Task UsageReportsDatabaseArtifactsTemporaryAndOrphanFiles()
+    public async Task UsageReportsAggregateCountAndFileSizesWithoutClaimingOrphanReconciliation()
     {
         await using var fixture = await Fixture.CreateAsync(_root);
         await fixture.AddArtifactAsync(Guid.NewGuid(), PreviewComponentState.Current, 12);
@@ -21,8 +21,27 @@ public sealed class PreviewMaintenanceTests : IAsyncLifetime
         Assert.Equal(19, usage.ThumbnailBytes);
         Assert.Equal(5, usage.TemporaryBytes);
         Assert.Equal(3, usage.ArtifactCount);
-        Assert.Equal(2, usage.OrphanCount);
+        Assert.Equal(1, usage.RecordCount);
+        Assert.Null(usage.OrphanCount);
         Assert.True(File.Exists(orphan));
+    }
+
+    [Fact]
+    public async Task UsageUsesOneAggregateAndNeverEnumeratesPreviewRecords()
+    {
+        await using var fixture = await Fixture.CreateAsync(_root);
+        var calls = 0;
+        var store = new FailingClearStore(fixture.Store)
+        {
+            CountOverride = _ => { calls++; return Task.FromResult(2_121_692L); },
+            ListOverride = _ => throw new Xunit.Sdk.XunitException("Usage must not materialize Preview records.")
+        };
+        using var service = fixture.CreateService(store);
+        var usage = await service.GetUsageAsync();
+        Assert.Equal(2_121_692L, usage.RecordCount);
+        Assert.Equal(1, calls);
+        Assert.Equal(0, usage.ArtifactCount);
+        Assert.Null(usage.OrphanCount);
     }
 
     [Fact]
@@ -34,11 +53,11 @@ public sealed class PreviewMaintenanceTests : IAsyncLifetime
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = new FailingClearStore(fixture.Store)
         {
-            ListOverride = async token =>
+            CountOverride = async token =>
             {
                 entered.SetResult();
                 await Task.Delay(Timeout.Infinite, token);
-                return [];
+                return 0;
             }
         };
         using var service = fixture.CreateService(store);
@@ -346,6 +365,7 @@ public sealed class PreviewMaintenanceTests : IAsyncLifetime
     private sealed class FakeAssets(IReadOnlyList<MediaAsset> assets) : IMediaAssetService, ICatalogMutationParticipant
     {
         public CatalogMutationLifecycle Mutations { get; } = new();
+        public Task<IReadOnlyDictionary<Guid, MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(assets);
         public Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown", CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -388,6 +408,8 @@ public sealed class PreviewMaintenanceTests : IAsyncLifetime
     private sealed class FailingClearStore(IPreviewStoreService inner) : IPreviewStoreService
     {
         public Func<CancellationToken, Task<IReadOnlyList<PreviewRecord>>>? ListOverride { get; init; }
+        public Func<CancellationToken, Task<long>>? CountOverride { get; init; }
+        public Task<long> CountAsync(CancellationToken cancellationToken = default) => CountOverride?.Invoke(cancellationToken) ?? inner.CountAsync(cancellationToken);
         public Task InitializeAsync(CancellationToken cancellationToken = default) => inner.InitializeAsync(cancellationToken);
         public Task<PreviewRecord?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) => inner.GetAsync(assetId, cancellationToken);
         public Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default) =>

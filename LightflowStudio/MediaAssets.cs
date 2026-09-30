@@ -114,6 +114,8 @@ internal interface IMediaAssetRepository
         (await ListAsync(cancellationToken).ConfigureAwait(false)).Where(asset =>
             MediaAssetScope.Contains(asset, rootId, folder, recursive)).ToArray();
     Task<MediaAsset?> GetAsync(Guid assetId, CancellationToken cancellationToken = default);
+    // Raw Catalog projection: omit absent IDs, retain missing sources, and perform no filesystem resolution.
+    Task<IReadOnlyDictionary<Guid, MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default);
     Task<MediaAsset?> FindAsync(Guid rootId, string relativePathKey, CancellationToken cancellationToken = default);
     Task<MediaAssetOperationStatus> CreateAsync(MediaAsset asset, CancellationToken cancellationToken = default);
@@ -159,8 +161,47 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         return ReadOne(command);
     }, cancellationToken);
 
+    // Keep the projection proportional to membership, below SQLite's portable parameter limit.
+    // Results are keyed; callers retain their own ordering and unavailable-source semantics.
+    public Task<IReadOnlyDictionary<Guid, MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default) => RunAsync<IReadOnlyDictionary<Guid, MediaAsset>>(() =>
+    {
+        using var timing = BrowserPerformance.Measure("catalog.assets_by_id");
+        var ids = assetIds.Distinct().ToArray();
+        var result = new Dictionary<Guid, MediaAsset>(ids.Length);
+        if (ids.Length == 0) return result;
+        using var connection = RequireSession().OpenConnection();
+        foreach (var batch in ids.Chunk(500))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using var batchTiming = BrowserPerformance.Measure("catalog.assets_by_id.batch");
+            using var command = connection.CreateCommand();
+            var parameters = batch.Select((id, index) =>
+            {
+                var name = $"$asset{index}";
+                command.Parameters.AddWithValue(name, id.ToString("D"));
+                return name;
+            });
+            command.CommandText = SelectSql + $" WHERE AssetId IN ({string.Join(",", parameters)});";
+            using var reader = command.ExecuteReader();
+            var rows = 0;
+            while (reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var asset = Read(reader);
+                result.Add(asset.AssetId, asset);
+                rows++;
+            }
+            batchTiming?.SetTag("asset_ids", batch.Length);
+            batchTiming?.SetTag("materialized_rows", rows);
+        }
+        timing?.SetTag("materialized_rows", result.Count);
+        return result;
+    }, cancellationToken);
+
     public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) => RunAsync<IReadOnlyList<MediaAsset>>(() =>
     {
+        StartupDiagnostics.Note("Catalog full asset enumeration requested");
         using var connection = RequireSession().OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = SelectSql + " ORDER BY AssetId;";
@@ -351,6 +392,8 @@ internal interface IMediaAssetService
     Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown",
         CancellationToken cancellationToken = default);
     Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default);
+    // Raw Catalog projection: omit absent IDs, retain missing sources, and perform no filesystem resolution.
+    Task<IReadOnlyDictionary<Guid, MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default);
     Task<MediaAssetResolution?> FindAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default);
     Task<MediaAssetOperationResult> ObserveAsync(Guid assetId, CancellationToken cancellationToken = default);
@@ -413,6 +456,9 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
         var asset = await repository.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
         return asset is null ? null : await ResolveAsync(asset, cancellationToken).ConfigureAwait(false);
     }
+
+    public Task<IReadOnlyDictionary<Guid, MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default) => repository.GetManyAsync(assetIds, cancellationToken);
 
     public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) =>
         repository.ListAsync(cancellationToken);

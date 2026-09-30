@@ -1,4 +1,6 @@
 using System.IO;
+using System.Diagnostics;
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -38,49 +40,154 @@ internal static class ApplicationDataProfile
 
     public static void RequireContained(string root, string path)
     {
-        var relative = Path.GetRelativePath(root, path);
-        if (Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar))
-            throw new ArgumentException("Isolated storage locations must remain beneath --data-root.");
+        RequireLexicallyContained(root, path);
         RejectLinkedAncestors(path);
     }
 
-    public static void Initialize(LightflowStorageLocations locations)
+    // An initialization result is an explicit capability shared by App and storage, not a global
+    // "already checked" bit. Independent sessions/tests still validate their selected profile.
+    public static InitializedDataProfile Initialize(LightflowStorageLocations locations,
+        IProfileInitializationFileSystem? fileSystem = null)
     {
-        if (!locations.IsIsolated) return;
+        if (!locations.IsIsolated) return new(locations, 0, 0);
+        var invocation = Interlocked.Increment(ref _validationInvocations);
+        var timer = Stopwatch.StartNew();
+        fileSystem ??= new ProfileInitializationFileSystem();
+        var inspected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var root = locations.ApplicationDataDirectory;
-        RejectLinkedAncestors(root);
-        Directory.CreateDirectory(root);
-        // Reject existing junctions/symlinks before opening any profile file or following a directory.
-        InspectTree(root);
+        // Resolve is pure, and callers constructing a profile directly receive the same checks.
+        var selected = Resolve(["--data-root", root]);
+        foreach (var path in StartupPaths(locations))
+        {
+            RequireLexicallyContained(selected.ApplicationDataDirectory, path);
+            InspectAncestors(path, fileSystem.Attributes, inspected);
+        }
         foreach (var directory in new[] { root, locations.CatalogDirectory, locations.CatalogBackupsDirectory,
             locations.PreviewsDirectory, locations.TemporaryDirectory })
         {
-            RequireContained(root, directory);
-            Directory.CreateDirectory(directory);
-            var probe = Path.Combine(directory, ".write-probe-" + Guid.NewGuid().ToString("N"));
-            using var stream = new FileStream(probe, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None,
-                1, FileOptions.DeleteOnClose);
-            stream.WriteByte(1);
-            stream.Flush(true);
+            fileSystem.CreateDirectory(directory);
+            fileSystem.ProbeWrite(directory);
         }
+        IsolatedRoots.TryAdd(Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)), 0);
+        var result = new InitializedDataProfile(locations, inspected.Count, timer.Elapsed.TotalMilliseconds, invocation);
+        StartupDiagnostics.Note($"Isolated profile validation: completed invocations={result.ValidationInvocations} inspectedPaths={result.InspectedPaths} descendantEnumerations=0 duration={result.ElapsedMilliseconds:F1}ms");
+        return result;
     }
 
-    private static void InspectTree(string directory)
+    private static IEnumerable<string> StartupPaths(LightflowStorageLocations locations)
     {
-        foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
+        // Fixed ownership inventory. Neither arbitrary files nor cache descendants are enumerated.
+        foreach (var property in typeof(LightflowStorageLocations).GetProperties()
+                     .Where(property => property.PropertyType == typeof(string)))
+            yield return (string)property.GetValue(locations)!;
+        foreach (var name in new[] { "export-defaults.json", "export-jobs.v2.json", "encoding-resources",
+            "encoding-resources/luts", "Catalog Backups", "Screengrabs", "startup-session.state",
+            "settings.json.tmp", "export-defaults.json.tmp", "export-jobs.v2.json.tmp",
+            "activity.log.1", "activity.log.2", "activity.log.3",
+            "preview-quiescence.json", "regeneration.json", "regeneration-restart.json", "backup-path-verification.jsonl" })
+            yield return Path.Combine(locations.ApplicationDataDirectory, name);
+        foreach (var database in new[] { locations.CatalogDatabasePath, locations.PreviewsDatabasePath })
+            foreach (var suffix in new[] { "-wal", "-shm", "-journal", ".startup-state" })
+                yield return database + suffix;
+    }
+
+    private static int _validationInvocations;
+    private static readonly ConcurrentDictionary<string, byte> IsolatedRoots = new(StringComparer.OrdinalIgnoreCase);
+
+    // Registered only for isolated profiles. Normal installed startup does no isolation filesystem work.
+    // Resolve only the actual path being used; untouched derived-cache descendants are irrelevant.
+    internal static string GuardAccess(string path)
+    {
+        if (IsolatedRoots.IsEmpty) return path;
+        var full = Path.GetFullPath(path);
+        foreach (var root in IsolatedRoots.Keys)
+            if (MediaPathSemantics.Contains(root, full))
+            {
+                RequireContained(root, path);
+                break;
+            }
+        return path;
+    }
+
+    internal static IEnumerable<string> EnumerateOwnedFiles(string root, string pattern, SearchOption option)
+    {
+        if (!IsolatedRoots.Keys.Any(owned => MediaPathSemantics.Contains(owned, root)))
         {
-            var attributes = File.GetAttributes(entry);
-            if ((attributes & FileAttributes.ReparsePoint) != 0)
-                throw new IOException("Isolated profiles cannot contain links or junctions: " + entry);
-            if ((attributes & FileAttributes.Directory) != 0) InspectTree(entry);
+            foreach (var path in Directory.EnumerateFiles(root, pattern, option)) yield return path;
+            yield break;
+        }
+        GuardAccess(root);
+        // Explicit maintenance may enumerate; it must never follow links into another profile.
+        var pending = new Stack<string>(); pending.Push(root);
+        while (pending.TryPop(out var directory))
+        {
+            GuardAccess(directory);
+            foreach (var path in Directory.EnumerateFiles(directory, pattern)) yield return GuardAccess(path);
+            if (option != SearchOption.AllDirectories) continue;
+            foreach (var child in Directory.EnumerateDirectories(directory))
+            { GuardAccess(child); pending.Push(child); }
         }
     }
 
-    private static void RejectLinkedAncestors(string path)
+    private static void RequireLexicallyContained(string root, string path)
     {
-        for (var current = path; current is not null; current = Path.GetDirectoryName(current))
-            if ((File.Exists(current) || Directory.Exists(current)) &&
-                (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+        var full = Path.GetFullPath(path);
+        if (!MediaPathSemantics.Contains(root, full))
+            throw new ArgumentException("Isolated storage locations must remain beneath --data-root.");
+        // Win32 aliases must not turn a lexically contained path into a different file/stream.
+        if (path.StartsWith(@"\\") || path.AsSpan(2).Contains(':') || path.Split('\\', '/').Any(part =>
+                part != "." && part != ".." && (part.EndsWith(' ') || part.EndsWith('.'))))
+            throw new ArgumentException("Isolated storage paths cannot use device paths, streams or ambiguous names.");
+    }
+
+    private static void RejectLinkedAncestors(string path) =>
+        InspectAncestors(path, ProfileInitializationFileSystem.ReadAttributes, null);
+
+    private static void InspectAncestors(string path, Func<string, FileAttributes?> attributes, HashSet<string>? inspected)
+    {
+        // Walk from volume toward leaf: never inspect a descendant through an unchecked junction.
+        var ancestors = new Stack<string>();
+        for (var current = Path.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current))
+            ancestors.Push(current);
+        foreach (var current in ancestors)
+        {
+            if (inspected is not null && !inspected.Add(current)) continue;
+            if (attributes(current) is { } value && (value & FileAttributes.ReparsePoint) != 0)
                 throw new IOException("Isolated profiles cannot use links or junctions: " + current);
+        }
+    }
+}
+
+internal sealed record InitializedDataProfile(LightflowStorageLocations Locations, int InspectedPaths, double ElapsedMilliseconds, int ValidationInvocations = 0)
+{
+    internal void RequireProfile(LightflowStorageLocations locations)
+    {
+        if (Locations != locations) throw new ArgumentException("The validated profile does not match the requested storage profile.");
+    }
+}
+
+// Deliberately has no descendant-enumeration API. Tests assert an operation budget, not elapsed time.
+internal interface IProfileInitializationFileSystem
+{
+    FileAttributes? Attributes(string path);
+    void CreateDirectory(string path);
+    void ProbeWrite(string directory);
+}
+internal sealed class ProfileInitializationFileSystem : IProfileInitializationFileSystem
+{
+    public FileAttributes? Attributes(string path) => ReadAttributes(path);
+    internal static FileAttributes? ReadAttributes(string path)
+    {
+        try { return File.GetAttributes(path); }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
+    }
+    public void CreateDirectory(string path) => Directory.CreateDirectory(path);
+    public void ProbeWrite(string directory)
+    {
+        var probe = Path.Combine(directory, ".write-probe-" + Guid.NewGuid().ToString("N"));
+        using var stream = new FileStream(probe, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None,
+            1, FileOptions.DeleteOnClose);
+        stream.WriteByte(1); stream.Flush(true);
     }
 }

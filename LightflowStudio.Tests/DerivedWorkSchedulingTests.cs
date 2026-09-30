@@ -500,6 +500,7 @@ public sealed class DerivedWorkSchedulingTests
         private readonly Dictionary<Guid, MediaAssetResolution> _assets = assets.ToDictionary(asset => asset.Asset.AssetId);
         public Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_assets.GetValueOrDefault(assetId));
+        public Task<IReadOnlyDictionary<Guid, MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<MediaAsset>>(_assets.Values.Select(value => value.Asset).ToArray());
         public Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown", CancellationToken cancellationToken = default) => throw new InvalidOperationException("The scheduler must not create Catalog assets.");
@@ -513,6 +514,7 @@ public sealed class DerivedWorkSchedulingTests
         public Dictionary<Guid, PreviewRecord> Records { get; } = records.ToDictionary(record => record.AssetId);
         public Task<PreviewRecord?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Records.GetValueOrDefault(assetId));
+        public Task<long> CountAsync(CancellationToken cancellationToken = default) => Task.FromResult((long)Records.Count);
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<PreviewRecord>>(Records.Values.ToArray());
         public Task<PreviewRecord> ObserveSourceAsync(Guid assetId, PreviewSourceIdentity source, CancellationToken cancellationToken = default) => throw new NotSupportedException();

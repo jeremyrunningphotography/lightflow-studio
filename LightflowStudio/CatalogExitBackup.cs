@@ -38,7 +38,7 @@ internal sealed partial class SqliteCatalogRecoveryService
         {
             var directory = CatalogBackupDestination.Validate(locations, destination);
             if (!Directory.Exists(directory)) return [];
-            return Directory.EnumerateFiles(directory, "LightflowCatalog-User-v*.db")
+            return ApplicationDataProfile.EnumerateOwnedFiles(directory, "LightflowCatalog-User-v*.db", SearchOption.TopDirectoryOnly)
                 .Select(path =>
                 {
                     var match = System.Text.RegularExpressions.Regex.Match(Path.GetFileName(path),

@@ -104,7 +104,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
     public IReadOnlyList<CatalogBackup> ListBackups()
     {
         if (!Directory.Exists(_locations.CatalogBackupsDirectory)) return [];
-        return Directory.EnumerateFiles(_locations.CatalogBackupsDirectory, "LightflowCatalog-v*-*.db")
+        return ApplicationDataProfile.EnumerateOwnedFiles(_locations.CatalogBackupsDirectory, "LightflowCatalog-v*-*.db", SearchOption.TopDirectoryOnly)
             .Select(ParseBackup).Where(x => x is not null).Cast<CatalogBackup>()
             .OrderByDescending(x => x.CreatedUtc).ThenByDescending(x => x.Path, StringComparer.Ordinal).ToArray();
     }
@@ -215,6 +215,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ApplicationDataProfile.GuardAccess(path);
             if (!File.Exists(path)) return new(false, $"Catalog file does not exist: {path}");
             using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = RecoverySqlitePath(path), Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
             connection.Open();

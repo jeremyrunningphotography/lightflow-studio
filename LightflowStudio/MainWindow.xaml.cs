@@ -325,7 +325,7 @@ public partial class MainWindow : Window
                 RefreshBatchFiles();
                 _ = InitializeLutsAsync();
                 RefreshLuts();
-                await RefreshPreviewUsageAsync();
+                // Settings usage is requested explicitly; startup must not census the Preview store.
                 if (_storageStartupStatus != StorageStartupStatus.Ready)
                     SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
                 else if (!_storage.PreviewAvailable)
@@ -4350,7 +4350,7 @@ public partial class MainWindow : Window
             PreviewUsageText.Text = usage is null
                 ? _storage.PreviewDiagnostic ?? "Preview storage is unavailable."
                 : $"{FormatBytes(usage.TotalBytes)} used — {usage.RecordCount:N0} records, " +
-                  $"{usage.ArtifactCount:N0} generated files{(usage.OrphanCount == 0 ? "" : $", {usage.OrphanCount:N0} orphaned")}";
+                  $"{usage.ArtifactCount:N0} generated files{(usage.OrphanCount is > 0 ? $", {usage.OrphanCount:N0} orphaned" : "")}";
         }
         catch (OperationCanceledException) when (_workspaceClosed) { }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or SqliteException)
@@ -4709,11 +4709,20 @@ public partial class MainWindow : Window
         var dialog = new NewCollectionDialog(BrowserCollectionPlacement.Options(_browserCollectionTree.Roots),
             BrowserCollectionPlacement.SuggestedParent(sender is MenuItem ? CollectionActionNode : _browserCollectionTree.SelectedNode)) { Owner = this };
         if (dialog.ShowDialog() != true) return;
-        await RunCollectionActionAsync(async () =>
-        {
-            var created = await _storage.Collections.CreateCollectionAsync(dialog.CollectionName, dialog.ParentSetId);
-            await LoadCollectionScopeAsync(created.CollectionId);
-        });
+        await RunCollectionActionAsync(() => CreateBrowserCollectionAsync(dialog.CollectionName, dialog.ParentSetId));
+    }
+
+    private async Task CreateBrowserCollectionAsync(string name, Guid? parentSetId)
+    {
+        var created = await _storage.Collections.CreateCollectionAsync(name, parentSetId);
+        // Breadcrumbs and selection resolve through the hierarchy, so publish the committed row before navigation.
+        await RefreshCollectionsAsync(created.CollectionId);
+        var nodes = BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots).ToDictionary(node => node.Id);
+        for (var parent = created.ParentCollectionSetId; parent is { } id && nodes.TryGetValue(id, out var set); parent = set.ParentSetId)
+            set.IsExpanded = true;
+        await LoadCollectionScopeAsync(created.CollectionId);
+        if (_activeCollectionScope?.Collection.CollectionId == created.CollectionId)
+            await RevealCollectionNodeAsync(created.CollectionId);
     }
 
     private async void BrowserNewCollectionSet_Click(object sender, RoutedEventArgs e)

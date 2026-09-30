@@ -8,7 +8,7 @@ namespace LightflowStudio;
 // Opt-in packaged diagnostic; refuses normal user storage. Reports remain in the isolated profile.
 internal static class PreviewQuiescenceVerifier
 {
-    internal static async Task<bool> RunAsync(LightflowStorageLocations profile, string[] args)
+    internal static async Task<bool> RunAsync(LightflowStorageLocations profile, string[] args, InitializedDataProfile? initializedProfile = null)
     {
         if (!profile.IsIsolated) return false;
         var report = Path.Combine(profile.ApplicationDataDirectory, "preview-quiescence.json");
@@ -19,6 +19,8 @@ internal static class PreviewQuiescenceVerifier
         var started = Stopwatch.StartNew();
         try
         {
+            var initialized = initializedProfile ?? ApplicationDataProfile.Initialize(profile);
+            initialized.RequireProfile(profile);
             var parent = Path.GetDirectoryName(profile.ApplicationDataDirectory)!;
             var media = profile.ApplicationDataDirectory + "-sources";
             if (!restart)
@@ -36,7 +38,7 @@ internal static class PreviewQuiescenceVerifier
                 if (process.ExitCode != 0) throw new InvalidOperationException(error);
             }
             var startup = Stopwatch.StartNew();
-            await using var storage = (await LightflowStorageCoordinator.StartAsync(profile: profile)).Coordinator
+            await using var storage = (await LightflowStorageCoordinator.StartAsync(profile: profile, initializedProfile: initialized)).Coordinator
                 ?? throw new InvalidOperationException("Storage did not start.");
             var root = (await storage.MediaRoots.ListAsync()).FirstOrDefault(r => string.Equals(r.PhysicalPath, parent, StringComparison.OrdinalIgnoreCase))
                 ?? (await storage.MediaRoots.CreateAsync("Isolated Preview validation", parent)).Root!;

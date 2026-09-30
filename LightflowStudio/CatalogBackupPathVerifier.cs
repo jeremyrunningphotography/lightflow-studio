@@ -7,9 +7,11 @@ namespace LightflowStudio;
 // This is deliberately run inside LightflowStudio.exe: a test host's manifest can mask MAX_PATH failures.
 internal static class CatalogBackupPathVerifier
 {
-    internal static async Task<bool> VerifyAsync(LightflowStorageLocations profile)
+    internal static async Task<bool> VerifyAsync(LightflowStorageLocations profile, InitializedDataProfile? initializedProfile = null)
     {
         if (!profile.IsIsolated) return false;
+        initializedProfile ??= ApplicationDataProfile.Initialize(profile);
+        initializedProfile.RequireProfile(profile);
         var report = Path.Combine(profile.ApplicationDataDirectory, "backup-path-verification.jsonl");
         var sync = new object();
         void Log(object value) { lock (sync) File.AppendAllText(report, JsonSerializer.Serialize(value) + Environment.NewLine); }

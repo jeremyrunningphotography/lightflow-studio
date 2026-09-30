@@ -339,8 +339,8 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         var root = kind == PreviewArtifactKind.Thumbnail
             ? _locations.ThumbnailCacheDirectory
             : _locations.StandardPreviewCacheDirectory;
-        return Path.Combine(root, id[..2], id.Substring(2, 2),
-            $"{id}-g{generatorVersion}-f{source.FingerprintVersion}-{sourceKey}.{extension}");
+        return ApplicationDataProfile.GuardAccess(Path.Combine(root, id[..2], id.Substring(2, 2),
+            $"{id}-g{generatorVersion}-f{source.FingerprintVersion}-{sourceKey}.{extension}"));
     }
 
     private async Task<T> RunAsync<T>(Func<SqliteConnection, T> operation, CancellationToken cancellationToken)

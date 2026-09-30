@@ -176,7 +176,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public static async Task<StorageStartupResult> StartAsync(string? localApplicationData = null,
         CancellationToken cancellationToken = default, ICatalogRelocationTransfer? transfer = null,
         IStorageConfigurationStore? configuration = null, ICatalogSessionActivator? activator = null,
-        ICatalogRecoveryService? recovery = null, LightflowStorageLocations? profile = null)
+        ICatalogRecoveryService? recovery = null, LightflowStorageLocations? profile = null,
+        InitializedDataProfile? initializedProfile = null)
     {
         using var timing = StartupDiagnostics.Stage("Storage initialization", "Opening storage…");
         transfer ??= new SqliteCatalogRelocationTransfer();
@@ -184,7 +185,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         var defaults = profile ?? (localApplicationData is null
             ? LightflowStorageLocations.Current
             : LightflowStorageLocations.Create(localApplicationData));
-        ApplicationDataProfile.Initialize(defaults);
+        initializedProfile ??= ApplicationDataProfile.Initialize(defaults);
+        initializedProfile.RequireProfile(defaults);
         configuration ??= new AppSettingsStorageConfigurationStore(defaults.SettingsPath, defaults.IsIsolated);
         if (!configuration.TryLoad(out var settings, out var settingsDiagnostic))
             return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: settingsDiagnostic);
@@ -195,8 +197,15 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         try
         {
             locations = defaults.WithOverrides(new(settings.CatalogDirectory, settings.PreviewsDirectory));
+            // Configured database leaves/SQLite sidecars are distinct from the default boundaries
+            // validated before reading settings; no cache descendants or second initialization.
+            if (defaults.IsIsolated)
+                foreach (var databasePath in new[] { locations.CatalogDatabasePath, locations.PreviewsDatabasePath }
+                             .Except(new[] { defaults.CatalogDatabasePath, defaults.PreviewsDatabasePath }, StringComparer.OrdinalIgnoreCase))
+                    foreach (var suffix in new[] { "", "-wal", "-shm", "-journal", ".startup-state" })
+                        ApplicationDataProfile.GuardAccess(databasePath + suffix);
         }
-        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or IOException or UnauthorizedAccessException)
         {
             return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: exception.Message);
         }

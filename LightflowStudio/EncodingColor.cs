@@ -98,7 +98,7 @@ internal sealed class EncodingLutResourceStore(string rootDirectory) : IEncoding
         var candidate = Path.GetFullPath(Path.Combine(normalizedRoot, key.Replace('/', Path.DirectorySeparatorChar)));
         if (!candidate.StartsWith(normalizedRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The materialized LUT resource key is invalid.");
-        return candidate;
+        return ApplicationDataProfile.GuardAccess(candidate);
     }
 
     private static string NormalizeHash(string value)

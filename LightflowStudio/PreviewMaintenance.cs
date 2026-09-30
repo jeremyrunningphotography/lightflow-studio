@@ -379,7 +379,7 @@ internal sealed class PreviewMaintenanceService : IPreviewMaintenanceService
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!Directory.Exists(root)) continue;
-            foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            foreach (var path in ApplicationDataProfile.EnumerateOwnedFiles(root, "*", SearchOption.AllDirectories))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yield return new(path);
@@ -390,6 +390,8 @@ internal sealed class PreviewMaintenanceService : IPreviewMaintenanceService
     private static void MoveCacheDirectory(string source, string destination,
         ICollection<(string Source, string Staged)> moved)
     {
+        ApplicationDataProfile.GuardAccess(source);
+        ApplicationDataProfile.GuardAccess(destination);
         if (!Directory.Exists(source)) return;
         Directory.Move(source, destination);
         moved.Add((source, destination));

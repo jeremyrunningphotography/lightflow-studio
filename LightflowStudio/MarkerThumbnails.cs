@@ -42,7 +42,7 @@ internal sealed class PositionFrameService(IMediaAssetService assets, Func<ILigh
 {
     private readonly DerivedFrameDemands _demands = new(2);
     private readonly object _cacheSync = new();
-    private string GenerationPath(Guid id) => Path.Combine(locations().PreviewsDirectory, "previews", "visual-index", id.ToString("N"), "generation");
+    private string GenerationPath(Guid id) => ApplicationDataProfile.GuardAccess(Path.Combine(locations().PreviewsDirectory, "previews", "visual-index", id.ToString("N"), "generation"));
     private string Generation(Guid id)
     {
         var path = GenerationPath(id);
@@ -94,7 +94,7 @@ internal sealed class PositionFrameService(IMediaAssetService assets, Func<ILigh
         // Old generations remain rebuildable Preview storage and are removed by normal cache maintenance.
         if (context.Generation is not null and not "0")
             identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity + "|" + context.Generation)));
-        return Path.Combine(locations().PreviewsDirectory, "previews", "markers", context.Source.Asset.AssetId.ToString("N"), identity + ".jpg");
+        return ApplicationDataProfile.GuardAccess(Path.Combine(locations().PreviewsDirectory, "previews", "markers", context.Source.Asset.AssetId.ToString("N"), identity + ".jpg"));
     }
 
     public async Task<string?> FindCachedAsync(PositionFrameContext context, TimeSpan position, CancellationToken token)

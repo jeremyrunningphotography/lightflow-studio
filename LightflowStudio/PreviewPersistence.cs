@@ -89,6 +89,7 @@ internal interface IPreviewStoreService : IAsyncDisposable
                 records[assetId] = record;
         return records;
     }
+    Task<long> CountAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default);
     Task<PreviewRecord> ObserveSourceAsync(Guid assetId, PreviewSourceIdentity source,
         CancellationToken cancellationToken = default);
@@ -118,6 +119,8 @@ internal sealed class PreviewStoreService : IPreviewStoreService
     private bool _initialized;
     private bool _disposed;
 
+    internal bool CleanStartup { get; init; }
+    internal StartupValidationReason ValidationReason { get; init; } = StartupValidationReason.ExplicitValidation;
     private readonly TimeProvider _time;
     public PreviewStoreService(ILightflowStorageLocations locations, TimeProvider? time = null)
     { _locations = locations; _time = time ?? TimeProvider.System; }
@@ -162,9 +165,22 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         return records;
     }, cancellationToken);
 
+    // Usage needs a scalar, never metadata payloads or PreviewRecord materialization.
+    public Task<long> CountAsync(CancellationToken cancellationToken = default) =>
+        RunAsync(CountRecords, cancellationToken);
+
+    internal static long CountRecords(SqliteConnection connection)
+    {
+        StartupDiagnostics.Note("Preview usage aggregate requested");
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM PreviewRecords;";
+        return (long)command.ExecuteScalar()!;
+    }
+
     public Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default) =>
         RunAsync<IReadOnlyList<PreviewRecord>>(connection =>
         {
+            StartupDiagnostics.Note("Preview full record enumeration requested");
             using var command = connection.CreateCommand();
             command.CommandText = SelectSql + " ORDER BY AssetId;";
             using var reader = command.ExecuteReader();
@@ -323,8 +339,8 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         var root = kind == PreviewArtifactKind.Thumbnail
             ? _locations.ThumbnailCacheDirectory
             : _locations.StandardPreviewCacheDirectory;
-        return Path.Combine(root, id[..2], id.Substring(2, 2),
-            $"{id}-g{generatorVersion}-f{source.FingerprintVersion}-{sourceKey}.{extension}");
+        return ApplicationDataProfile.GuardAccess(Path.Combine(root, id[..2], id.Substring(2, 2),
+            $"{id}-g{generatorVersion}-f{source.FingerprintVersion}-{sourceKey}.{extension}"));
     }
 
     private async Task<T> RunAsync<T>(Func<SqliteConnection, T> operation, CancellationToken cancellationToken)
@@ -351,7 +367,17 @@ internal sealed class PreviewStoreService : IPreviewStoreService
         Directory.CreateDirectory(_locations.PreviewsDirectory);
         if (File.Exists(_locations.PreviewsDatabasePath))
         {
-            using (var inspection = OpenReadOnlyConnection()) ValidateForMigration(inspection);
+            using (var inspection = OpenReadOnlyConnection())
+            {
+                try { ValidateForMigration(inspection); }
+                catch (Exception error) when (CleanStartup && error is SqliteException or InvalidDataException)
+                {
+                    StartupDiagnostics.Note($"Previews readiness anomaly: {error.GetType().Name}; transition=deep");
+                    using var deep = StartupDiagnostics.Validation("Previews", StartupValidationReason.DatabaseAnomaly);
+                    ValidateIntegrity(inspection);
+                    throw;
+                }
+            }
             using var existing = OpenConnection();
             var migrated = Migrate(existing);
             // The read-only inspection already scanned an unchanged database. A migration still
@@ -429,7 +455,11 @@ internal sealed class PreviewStoreService : IPreviewStoreService
 
     private static void ValidateDatabase(SqliteConnection connection, bool checkIntegrity = true)
     {
-        if (checkIntegrity) ValidateIntegrity(connection);
+        if (checkIntegrity)
+        {
+            using var deep = StartupDiagnostics.Validation("Previews", StartupValidationReason.Migration);
+            ValidateIntegrity(connection);
+        }
         using var command = connection.CreateCommand();
         command.CommandText = "PRAGMA application_id;";
         if (Convert.ToInt32(command.ExecuteScalar()) != SqliteApplicationId)
@@ -442,9 +472,25 @@ internal sealed class PreviewStoreService : IPreviewStoreService
             throw new InvalidDataException("The Preview database identity metadata is incomplete and may be safely rebuilt.");
     }
 
-    private static void ValidateForMigration(SqliteConnection connection)
+    private void ValidateForMigration(SqliteConnection connection)
     {
-        ValidateIntegrity(connection);
+        using var version = connection.CreateCommand();
+        version.CommandText = "PRAGMA user_version;";
+        var schema = Convert.ToInt32(version.ExecuteScalar());
+        if (!CleanStartup || schema != SchemaVersion)
+        {
+            using var deep = StartupDiagnostics.Validation("Previews", schema != SchemaVersion
+                ? StartupValidationReason.Migration : ValidationReason);
+            ValidateIntegrity(connection);
+        }
+        else
+        {
+            version.CommandText = "SELECT AssetId, MetadataState, ThumbnailState, MetadataRetryAfterUtc, ThumbnailRetryAfterUtc, MetadataProbeVersion, ThumbnailGeneratorVersion, StandardPreviewGeneratorVersion, ThumbnailVisualIdentity, StandardPreviewVisualIdentity FROM PreviewRecords LIMIT 1;";
+            using (var reader = version.ExecuteReader()) { reader.Read(); }
+            version.CommandText = "SELECT COUNT(*) FROM sqlite_schema WHERE type='index' AND name IN ('IX_PreviewRecords_MetadataState','IX_PreviewRecords_ThumbnailState');";
+            if (Convert.ToInt32(version.ExecuteScalar()) != 2) throw new InvalidDataException("Required Preview indexes are missing.");
+            StartupDiagnostics.Note("Previews readiness: fast structural reads succeeded");
+        }
         using var command = connection.CreateCommand();
         command.CommandText = "PRAGMA application_id;";
         if (Convert.ToInt32(command.ExecuteScalar()) != SqliteApplicationId)
@@ -459,7 +505,7 @@ internal sealed class PreviewStoreService : IPreviewStoreService
 
     private static void ValidateIntegrity(SqliteConnection connection)
     {
-        using var timing = StartupDiagnostics.Stage("Preview quick check", "Checking Previews…");
+        using var timing = StartupDiagnostics.Stage("Preview quick check");
         using var command = connection.CreateCommand();
         command.CommandText = "PRAGMA quick_check;";
         if (!string.Equals(Convert.ToString(command.ExecuteScalar()), "ok", StringComparison.OrdinalIgnoreCase))

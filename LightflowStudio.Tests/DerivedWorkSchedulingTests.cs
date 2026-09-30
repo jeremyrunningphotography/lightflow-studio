@@ -514,6 +514,7 @@ public sealed class DerivedWorkSchedulingTests
         public Dictionary<Guid, PreviewRecord> Records { get; } = records.ToDictionary(record => record.AssetId);
         public Task<PreviewRecord?> GetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Records.GetValueOrDefault(assetId));
+        public Task<long> CountAsync(CancellationToken cancellationToken = default) => Task.FromResult((long)Records.Count);
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<IReadOnlyList<PreviewRecord>> ListAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<PreviewRecord>>(Records.Values.ToArray());
         public Task<PreviewRecord> ObserveSourceAsync(Guid assetId, PreviewSourceIdentity source, CancellationToken cancellationToken = default) => throw new NotSupportedException();

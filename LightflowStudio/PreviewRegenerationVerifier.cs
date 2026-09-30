@@ -12,7 +12,7 @@ namespace LightflowStudio;
 // Opt-in bounded package check. Every source and database is created beneath the explicit isolated profile.
 internal static class PreviewRegenerationVerifier
 {
-    public static async Task<bool> RunAsync(LightflowStorageLocations profile, string[] args)
+    public static async Task<bool> RunAsync(LightflowStorageLocations profile, string[] args, InitializedDataProfile? initializedProfile = null)
     {
         if (!profile.IsIsolated) return false;
         var restart = args.Contains("--preview-regeneration-restart", StringComparer.Ordinal);
@@ -21,6 +21,8 @@ internal static class PreviewRegenerationVerifier
         var timer = Stopwatch.StartNew();
         try
         {
+            var initialized = initializedProfile ?? ApplicationDataProfile.Initialize(profile);
+            initialized.RequireProfile(profile);
             var media = profile.ApplicationDataDirectory + "-sources";
             var ffmpeg = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "bin", "ffmpeg.exe");
             if (!restart)
@@ -43,7 +45,7 @@ internal static class PreviewRegenerationVerifier
                 using (var image = File.Create(Path.Combine(media, "image.jpg"))) encoder.Save(image);
                 await File.WriteAllTextAsync(Path.Combine(media, "bad.mp4"), "deterministically invalid media");
             }
-            await using var storage = (await LightflowStorageCoordinator.StartAsync(profile: profile)).Coordinator
+            await using var storage = (await LightflowStorageCoordinator.StartAsync(profile: profile, initializedProfile: initialized)).Coordinator
                 ?? throw new InvalidOperationException("Storage failed to start.");
             var root = (await storage.MediaRoots.ListAsync()).FirstOrDefault()
                 ?? (await storage.MediaRoots.CreateAsync("Regeneration validation", media)).Root!;

@@ -44,7 +44,7 @@ internal sealed class SubclipPosterService(
         var source = observed.Asset.Asset;
         var directory = DirectoryFor(subclip.AssetId);
         var identity = CacheIdentity(source, subclip);
-        var finalPath = Path.Combine(directory, $"{subclip.SubclipId:N}-{identity}.jpg");
+        var finalPath = ApplicationDataProfile.GuardAccess(Path.Combine(directory, $"{subclip.SubclipId:N}-{identity}.jpg"));
         if (File.Exists(finalPath) && ThumbnailGenerationService.IsValidThumbnail(finalPath))
             return new(finalPath);
 
@@ -85,7 +85,7 @@ internal sealed class SubclipPosterService(
     }
 
     private string DirectoryFor(Guid assetId) =>
-        Path.Combine(locations().PreviewsDirectory, "previews", "subclips", assetId.ToString("N"));
+        ApplicationDataProfile.GuardAccess(Path.Combine(locations().PreviewsDirectory, "previews", "subclips", assetId.ToString("N")));
 
     internal static string CacheIdentity(MediaAsset source, Subclip subclip)
     {

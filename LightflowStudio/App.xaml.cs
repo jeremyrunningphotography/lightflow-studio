@@ -26,9 +26,15 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         if (!_runStartup) return;
+        InitializedDataProfile? verificationProfile = null;
         try
         {
-            ApplicationDataProfile.Initialize(LightflowStorageLocations.Current);
+            _ = LightflowStorageLocations.Current;
+            // Explicit headless diagnostics have no splash; share their validation with storage too.
+            if (e.Args.Any(argument => argument is "--verify-preview-regeneration" or "--verify-preview-quiescence" or
+                "--verify-catalog-backup-paths" || argument == CatalogPackageRuntimeVerifier.CommandLineSwitch ||
+                argument == CatalogPackageRuntimeVerifier.MigrationCopyCommandLineSwitch))
+                verificationProfile = ApplicationDataProfile.Initialize(LightflowStorageLocations.Current);
         }
         catch (Exception exception)
         {
@@ -43,7 +49,7 @@ public partial class App : System.Windows.Application
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             base.OnStartup(e);
-            var verified = await PreviewRegenerationVerifier.RunAsync(LightflowStorageLocations.Current, e.Args);
+            var verified = await PreviewRegenerationVerifier.RunAsync(LightflowStorageLocations.Current, e.Args, verificationProfile);
             Shutdown(verified ? 0 : 1);
             return;
         }
@@ -51,7 +57,7 @@ public partial class App : System.Windows.Application
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             base.OnStartup(e);
-            var verified = await PreviewQuiescenceVerifier.RunAsync(LightflowStorageLocations.Current, e.Args);
+            var verified = await PreviewQuiescenceVerifier.RunAsync(LightflowStorageLocations.Current, e.Args, verificationProfile);
             Shutdown(verified ? 0 : 1);
             return;
         }
@@ -59,7 +65,7 @@ public partial class App : System.Windows.Application
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             base.OnStartup(e);
-            var verified = await CatalogBackupPathVerifier.VerifyAsync(LightflowStorageLocations.Current);
+            var verified = await CatalogBackupPathVerifier.VerifyAsync(LightflowStorageLocations.Current, verificationProfile);
             Shutdown(verified ? 0 : 1);
             return;
         }
@@ -82,10 +88,6 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        ActivityLog = new(LightflowStorageLocations.Current.ActivityLogPath);
-        using var startupDiagnostics = new StartupDiagnostics(message => ActivityLog.TryAppend(message),
-            progress => Dispatcher.BeginInvoke(() => _startupSplash?.SetProgress(progress)));
-        StartupDiagnostics.Note($"Process entered startup; process age={(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds:F1}ms");
         _applicationInstance = new WindowsApplicationInstanceCoordinator(
             ApplicationDataProfile.InstanceIdentity(LightflowStorageLocations.Current));
         _applicationInstance.LaunchRequested += request => Dispatcher.Invoke(() =>
@@ -130,8 +132,35 @@ public partial class App : System.Windows.Application
             _startupSplash.Show();
             // Let WPF render the lightweight artwork before storage or shell construction begins.
             await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            var splashProcessAge = (DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+            InitializedDataProfile initialized;
+            try
+            {
+                initialized = LightflowStorageLocations.Current.IsIsolated
+                    ? await Task.Run(() => ApplicationDataProfile.Initialize(LightflowStorageLocations.Current))
+                    : ApplicationDataProfile.Initialize(LightflowStorageLocations.Current);
+            }
+            catch (Exception exception)
+            {
+                BootstrapDiagnostics.TryWrite("Lightflow data-root startup failed: " + exception);
+                CloseStartupSplash(); Shutdown(2); return;
+            }
+            ActivityLog = new(LightflowStorageLocations.Current.ActivityLogPath);
+            using var startupDiagnostics = new StartupDiagnostics(message => ActivityLog.TryAppend(message),
+                progress => Dispatcher.BeginInvoke(() => _startupSplash?.SetProgress(progress)),
+                validation => Dispatcher.BeginInvoke(() =>
+                {
+                    _startupSplash?.SetValidation(validation);
+                    if (LightflowStorageLocations.Current.IsIsolated &&
+                        Environment.GetEnvironmentVariable("LIGHTFLOW_STARTUP_CAPTURE") is { Length: > 0 } capture)
+                        _startupSplash?.CaptureValidation(capture);
+                }));
+            StartupDiagnostics.Note($"Process entered startup; process age={(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds:F1}ms");
+            StartupDiagnostics.Note($"Splash rendered: processAge={splashProcessAge:F1}ms");
+            if (initialized.Locations.IsIsolated)
+                StartupDiagnostics.Note($"Isolated profile validation: completed invocations={initialized.ValidationInvocations} inspectedPaths={initialized.InspectedPaths} descendantEnumerations=0 duration={initialized.ElapsedMilliseconds:F1}ms");
             base.OnStartup(e);
-            var storage = await LightflowStorageCoordinator.StartAsync();
+            var storage = await LightflowStorageCoordinator.StartAsync(initializedProfile: initialized);
             if (storage.Coordinator is null)
             {
                 CloseStartupSplash();
@@ -153,8 +182,9 @@ public partial class App : System.Windows.Application
             DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
-            Exit += (_, _) =>
+            Exit += (_, exit) =>
             {
+                if (exit.ApplicationExitCode != 0) Storage?.PreventCleanShutdown();
                 ActivityLog.TryAppend("[App shutdown] Application.Exit entered; disposing playback.");
                 Playback.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 ActivityLog.TryAppend("[App shutdown] Playback disposal completed; disposing storage.");
@@ -176,6 +206,7 @@ public partial class App : System.Windows.Application
             mainWindow.ShowInTaskbar = true;
             await mainWindow.RevealStartupPresentationAsync();
             mainWindow.Activate();
+            StartupDiagnostics.Note($"Browser usable: processAge={(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds:F1}ms");
             CloseStartupSplash();
             ActivityLog.TryAppend("[App startup] Workspace presentation ready; main window revealed and splash closed.");
             var reportSwitch = Array.IndexOf(e.Args, "--startup-presentation-report");
@@ -220,6 +251,7 @@ public partial class App : System.Windows.Application
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         CloseStartupSplash();
+        Storage?.PreventCleanShutdown();
         ActivityLog.TryAppend($"[App] Unhandled UI exception: {e.Exception}");
         e.Handled = true;
         if (!_unexpectedInterfaceErrorGate.TryEnter()) return;
@@ -238,6 +270,7 @@ public partial class App : System.Windows.Application
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
+        Storage?.PreventCleanShutdown();
         ActivityLog.TryAppend($"[App] Unobserved task exception: {e.Exception}");
         e.SetObserved();
     }

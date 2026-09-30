@@ -201,6 +201,7 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
 
     public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default) => RunAsync<IReadOnlyList<MediaAsset>>(() =>
     {
+        StartupDiagnostics.Note("Catalog full asset enumeration requested");
         using var connection = RequireSession().OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = SelectSql + " ORDER BY AssetId;";

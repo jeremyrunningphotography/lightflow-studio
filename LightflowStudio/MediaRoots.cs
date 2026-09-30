@@ -112,7 +112,7 @@ internal static class MediaPathSemantics
         var relative = NormalizeRelativePath(relativePath);
         var resolved = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
         if (!IsSameOrAncestor(root, resolved)) throw new ArgumentException("The media path leaves its Media Root.", nameof(relativePath));
-        return resolved;
+        return ApplicationDataProfile.GuardAccess(resolved);
     }
 
     public static bool Overlaps(string left, string right) =>

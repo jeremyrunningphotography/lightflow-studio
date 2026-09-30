@@ -631,8 +631,21 @@
       <Border Background="{TemplateBinding Background}" CornerRadius="6" ClipToBounds="True">
        <Grid x:Name="PART_Track">
         <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="6"/>
+        <Border x:Name="IndeterminatePulse" Width="60" HorizontalAlignment="Center" Background="{TemplateBinding Foreground}" CornerRadius="6" Visibility="Collapsed"/>
        </Grid>
       </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsIndeterminate" Value="True">
+        <Setter TargetName="PART_Indicator" Property="Visibility" Value="Collapsed"/>
+        <Setter TargetName="IndeterminatePulse" Property="Visibility" Value="Visible"/>
+        <Trigger.EnterActions>
+         <BeginStoryboard x:Name="PulseAnimation"><Storyboard>
+          <DoubleAnimation Storyboard.TargetName="IndeterminatePulse" Storyboard.TargetProperty="Opacity" From="0.25" To="1" Duration="0:0:0.65" AutoReverse="True" RepeatBehavior="Forever"/>
+         </Storyboard></BeginStoryboard>
+        </Trigger.EnterActions>
+        <Trigger.ExitActions><RemoveStoryboard BeginStoryboardName="PulseAnimation"/></Trigger.ExitActions>
+       </Trigger>
+      </ControlTemplate.Triggers>
      </ControlTemplate>
     </Setter.Value>
    </Setter>

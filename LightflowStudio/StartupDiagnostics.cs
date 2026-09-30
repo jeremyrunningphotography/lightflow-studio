@@ -10,14 +10,16 @@ internal sealed class StartupDiagnostics : IDisposable
     private readonly StartupDiagnostics? _previous;
     private readonly Action<string> _write;
     private readonly Action<string>? _progress;
+    private readonly Action<StartupValidationProgress>? _validationProgress;
     private readonly Stopwatch _elapsed = Stopwatch.StartNew();
     private volatile bool _disposed;
 
-    public StartupDiagnostics(Action<string> write, Action<string>? progress = null)
+    public StartupDiagnostics(Action<string> write, Action<string>? progress = null, Action<StartupValidationProgress>? validationProgress = null)
     {
         _previous = Current.Value;
         _write = write;
         _progress = progress;
+        _validationProgress = validationProgress;
         Current.Value = this;
         Write("launch instrumentation started");
     }
@@ -29,6 +31,13 @@ internal sealed class StartupDiagnostics : IDisposable
         current.Write($"{name}: begin");
         if (progress is not null) current._progress?.Invoke(progress);
         return new Timing(current, name);
+    }
+
+    public static IDisposable? Validation(string store, StartupValidationReason reason)
+    {
+        var message = StartupValidationProgress.For(store, reason);
+        Current.Value?._validationProgress?.Invoke(message);
+        return Stage($"{store} deep validation reason={reason}");
     }
 
     public static void Note(string message) => Current.Value?.Write(message);

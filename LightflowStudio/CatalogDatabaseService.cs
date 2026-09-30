@@ -30,6 +30,9 @@ internal sealed class CatalogDatabaseService
         _migrations = ValidateMigrations(migrations);
     }
 
+    internal bool CleanStartup { get; init; }
+    internal StartupValidationReason ValidationReason { get; init; } = StartupValidationReason.ExplicitValidation;
+
     public int CurrentSchemaVersion => _migrations.Count == 0 ? 0 : _migrations[^1].Version;
 
     public Task<CatalogOpenResult> CreateNewAsync(CancellationToken cancellationToken = default) =>
@@ -114,7 +117,15 @@ internal sealed class CatalogDatabaseService
 
         try
         {
-            var inspectedVersion = InspectExistingCatalog(databasePath);
+            int inspectedVersion;
+            try { inspectedVersion = InspectExistingCatalog(databasePath); }
+            catch (Exception error) when (CleanStartup && error is SqliteException or CatalogOpenException or InvalidDataException)
+            {
+                StartupDiagnostics.Note($"Catalog readiness anomaly: {error.GetType().Name}; transition=deep");
+                using var deep = StartupDiagnostics.Validation("Catalog", StartupValidationReason.DatabaseAnomaly);
+                InspectExistingCatalog(databasePath, forceDeep: true);
+                throw;
+            }
             if (inspectedVersion > CurrentSchemaVersion)
             {
                 return new(CatalogOpenStatus.UnsupportedFutureSchema,
@@ -138,6 +149,8 @@ internal sealed class CatalogDatabaseService
                 throw;
             }
         }
+        catch (InvalidDataException exception)
+        { return new(CatalogOpenStatus.Corrupt, Diagnostic: exception.Message); }
         catch (CatalogOpenException exception)
         {
             return new(exception.Status, Diagnostic: exception.Message, SchemaVersion: exception.SchemaVersion);
@@ -148,7 +161,7 @@ internal sealed class CatalogDatabaseService
         }
     }
 
-    private int InspectExistingCatalog(string databasePath)
+    private int InspectExistingCatalog(string databasePath, bool forceDeep = false)
     {
         var connectionString = new SqliteConnectionStringBuilder
         {
@@ -158,7 +171,19 @@ internal sealed class CatalogDatabaseService
         }.ToString();
         using var connection = new SqliteConnection(connectionString);
         connection.Open();
-        EnsureIntegrity(connection, quick: true);
+        if (forceDeep) EnsureIntegrity(connection, quick: true);
+        var version = ReadSchemaVersion(connection);
+        var reason = version != CurrentSchemaVersion ? StartupValidationReason.Migration : ValidationReason;
+        if (!forceDeep && (!CleanStartup || version != CurrentSchemaVersion))
+        {
+            using var deep = StartupDiagnostics.Validation("Catalog", reason);
+            EnsureIntegrity(connection, quick: true);
+        }
+        else if (!forceDeep)
+        {
+            ValidateReadiness(connection);
+            StartupDiagnostics.Note("Catalog readiness: fast structural reads succeeded");
+        }
 
         var applicationId = Convert.ToInt32(ExecuteScalar(connection, "PRAGMA application_id;"));
         if (applicationId != SqliteApplicationId)
@@ -186,6 +211,16 @@ internal sealed class CatalogDatabaseService
         return schemaVersion;
     }
 
+    private static void ValidateReadiness(SqliteConnection connection)
+    {
+        // Schema-sized work only; LIMIT 1 touches a representative asset without domain projection.
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT AssetId, RootId, RelativePath FROM MediaAssets LIMIT 1;";
+        using (var reader = command.ExecuteReader()) { reader.Read(); }
+        command.CommandText = "SELECT name FROM sqlite_schema WHERE type='index' AND name='IX_MediaAssets_RootId_SourceStatus';";
+        if (command.ExecuteScalar() is null) throw new InvalidDataException("Required Catalog index is missing.");
+    }
+
     private void RunMigrations(
         CatalogSqliteConnectionFactory connections,
         int startingVersion,
@@ -200,6 +235,7 @@ internal sealed class CatalogDatabaseService
 
         if (!isNewCatalog)
         {
+            using var deep = StartupDiagnostics.Validation("Catalog", StartupValidationReason.Migration);
             using (var connection = connections.OpenConnection())
                 EnsureIntegrity(connection, quick: false);
             connections.ClearPool();
@@ -271,7 +307,11 @@ internal sealed class CatalogDatabaseService
     {
         using var connection = connections.OpenConnection();
         var policy = CatalogSqliteConnectionFactory.ApplyRuntimePolicy(connection);
-        if (checkIntegrity) EnsureIntegrity(connection, quick: true);
+        if (checkIntegrity)
+        {
+            using var deep = StartupDiagnostics.Validation("Catalog", StartupValidationReason.Migration);
+            EnsureIntegrity(connection, quick: true);
+        }
         var version = ReadSchemaVersion(connection);
         if (version != CurrentSchemaVersion)
             throw new CatalogOpenException(CatalogOpenStatus.MigrationFailed,
@@ -331,7 +371,7 @@ internal sealed class CatalogDatabaseService
 
     private static void EnsureIntegrity(SqliteConnection connection, bool quick)
     {
-        using var timing = StartupDiagnostics.Stage(quick ? "Catalog quick check" : "Catalog full check", "Checking Catalog…");
+        using var timing = StartupDiagnostics.Stage(quick ? "Catalog quick check" : "Catalog full check");
         var result = Convert.ToString(ExecuteScalar(connection,
             quick ? "PRAGMA quick_check;" : "PRAGMA integrity_check;"));
         if (!string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))

@@ -325,7 +325,7 @@ public partial class MainWindow : Window
                 RefreshBatchFiles();
                 _ = InitializeLutsAsync();
                 RefreshLuts();
-                await RefreshPreviewUsageAsync();
+                // Settings usage is requested explicitly; startup must not census the Preview store.
                 if (_storageStartupStatus != StorageStartupStatus.Ready)
                     SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
                 else if (!_storage.PreviewAvailable)
@@ -4350,7 +4350,7 @@ public partial class MainWindow : Window
             PreviewUsageText.Text = usage is null
                 ? _storage.PreviewDiagnostic ?? "Preview storage is unavailable."
                 : $"{FormatBytes(usage.TotalBytes)} used — {usage.RecordCount:N0} records, " +
-                  $"{usage.ArtifactCount:N0} generated files{(usage.OrphanCount == 0 ? "" : $", {usage.OrphanCount:N0} orphaned")}";
+                  $"{usage.ArtifactCount:N0} generated files{(usage.OrphanCount is > 0 ? $", {usage.OrphanCount:N0} orphaned" : "")}";
         }
         catch (OperationCanceledException) when (_workspaceClosed) { }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or SqliteException)

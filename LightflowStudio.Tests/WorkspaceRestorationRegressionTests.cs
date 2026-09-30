@@ -144,10 +144,13 @@ public sealed class WorkspaceRestorationRegressionTests
         var loadedEnd = source.IndexOf("\n        };", loadedStart, StringComparison.Ordinal);
         Assert.True(loadedStart >= 0 && loadedEnd > loadedStart && kickoff > loadedStart && kickoff < loadedEnd);
 
+        Assert.DoesNotContain("RefreshPreviewUsage", source[loadedStart..loadedEnd]);
+        Assert.DoesNotContain("GetPreviewUsage", source[loadedStart..loadedEnd]);
+
         foreach (var laterCall in new[]
         {
             "RefreshCatalogBackups();", "RefreshHistory();", "LocateTools();", "await RefreshDependencyHealthAsync();",
-            "RefreshBatchFiles();", "RefreshLuts();", "await RefreshPreviewUsageAsync();"
+            "RefreshBatchFiles();", "RefreshLuts();"
         })
         {
             // Search only within the Loaded handler: the same method names are also referenced elsewhere

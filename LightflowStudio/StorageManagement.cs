@@ -61,6 +61,12 @@ internal sealed class CatalogSessionActivator : ICatalogSessionActivator
 
 internal sealed class LightflowStorageCoordinator : IAsyncDisposable
 {
+    private StartupSessionCompletion? _startupCompletion;
+    private StartupStoreEvidence? _catalogStartup;
+    private StartupStoreEvidence? _previewStartup;
+    private bool _shutdownAdmissionClosed;
+    private bool _cleanShutdownAllowed = true;
+    internal void PreventCleanShutdown() => _cleanShutdownAllowed = false;
     private readonly IStorageConfigurationStore _configuration;
     private readonly ICatalogRelocationTransfer _transfer;
     private readonly ICatalogSessionActivator _activator;
@@ -81,8 +87,9 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     private LightflowStorageCoordinator(IStorageConfigurationStore configuration, AppSettings settings,
         LightflowStorageLocations locations, CatalogDatabaseSession? session, ICatalogRelocationTransfer transfer,
         ICatalogSessionActivator activator, ICatalogRecoveryService recovery, IPreviewStoreService? previews,
-        string? previewDiagnostic)
+        string? previewDiagnostic, StartupStoreEvidence? catalogStartup = null, StartupStoreEvidence? previewStartup = null, StartupSessionCompletion? startupCompletion = null)
     {
+        _catalogStartup = catalogStartup; _previewStartup = previewStartup; _startupCompletion = startupCompletion;
         _configuration = configuration;
         Settings = settings;
         Locations = locations;
@@ -169,7 +176,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     public static async Task<StorageStartupResult> StartAsync(string? localApplicationData = null,
         CancellationToken cancellationToken = default, ICatalogRelocationTransfer? transfer = null,
         IStorageConfigurationStore? configuration = null, ICatalogSessionActivator? activator = null,
-        ICatalogRecoveryService? recovery = null, LightflowStorageLocations? profile = null)
+        ICatalogRecoveryService? recovery = null, LightflowStorageLocations? profile = null,
+        InitializedDataProfile? initializedProfile = null)
     {
         using var timing = StartupDiagnostics.Stage("Storage initialization", "Opening storage…");
         transfer ??= new SqliteCatalogRelocationTransfer();
@@ -177,7 +185,8 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         var defaults = profile ?? (localApplicationData is null
             ? LightflowStorageLocations.Current
             : LightflowStorageLocations.Create(localApplicationData));
-        ApplicationDataProfile.Initialize(defaults);
+        initializedProfile ??= ApplicationDataProfile.Initialize(defaults);
+        initializedProfile.RequireProfile(defaults);
         configuration ??= new AppSettingsStorageConfigurationStore(defaults.SettingsPath, defaults.IsIsolated);
         if (!configuration.TryLoad(out var settings, out var settingsDiagnostic))
             return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: settingsDiagnostic);
@@ -188,8 +197,15 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         try
         {
             locations = defaults.WithOverrides(new(settings.CatalogDirectory, settings.PreviewsDirectory));
+            // Configured database leaves/SQLite sidecars are distinct from the default boundaries
+            // validated before reading settings; no cache descendants or second initialization.
+            if (defaults.IsIsolated)
+                foreach (var databasePath in new[] { locations.CatalogDatabasePath, locations.PreviewsDatabasePath }
+                             .Except(new[] { defaults.CatalogDatabasePath, defaults.PreviewsDatabasePath }, StringComparer.OrdinalIgnoreCase))
+                    foreach (var suffix in new[] { "", "-wal", "-shm", "-journal", ".startup-state" })
+                        ApplicationDataProfile.GuardAccess(databasePath + suffix);
         }
-        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or IOException or UnauthorizedAccessException)
         {
             return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: exception.Message);
         }
@@ -201,12 +217,64 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             // Deterministic new/existing-profile migration. Preserve all managed recovery copies.
             settings = settings with { CatalogBackupDirectory = CatalogBackupDestination.Default(locations) };
         }
-        var database = new CatalogDatabaseService(locations, recovery);
-        CatalogOpenResult opened;
-        if (!File.Exists(locations.CatalogDatabasePath) && settings.CatalogId is null && settings.CatalogDirectory is null)
+        StartupStoreEvidence? catalogStartup = null, previewStartup = null;
+        StartupSessionCompletion? startupCompletion = null;
+        CatalogDatabaseSession? pendingSession = null;
+        IPreviewStoreService? pendingPreviews = null;
+        LightflowStorageCoordinator? pendingCoordinator = null;
+        try
         {
-            opened = await database.CreateNewAsync(cancellationToken).ConfigureAwait(false);
-            if (opened.IsSuccess)
+            startupCompletion = new StartupSessionCompletion(locations.ApplicationDataDirectory);
+            catalogStartup = StartupStoreEvidence.Begin(locations.CatalogDatabasePath, "Catalog", settings.CatalogDirectory is null, startupCompletion);
+            previewStartup = StartupStoreEvidence.Begin(locations.PreviewsDatabasePath, "Previews", settings.PreviewsDirectory is null, startupCompletion);
+            var cleanPair = catalogStartup?.KnownClean == true && previewStartup?.KnownClean == true;
+            catalogStartup?.RequireCompletePeer(cleanPair); previewStartup?.RequireCompletePeer(cleanPair);
+            StartupDiagnostics.Note($"Catalog startup decision: {(catalogStartup?.KnownClean == true ? "fast candidate" : "deep")} reason={catalogStartup?.Reason ?? StartupValidationReason.UnexpectedShutdown}");
+            StartupDiagnostics.Note($"Previews startup decision: {(previewStartup?.KnownClean == true ? "fast candidate" : "deep")} reason={previewStartup?.Reason ?? StartupValidationReason.UnexpectedShutdown}");
+            var database = new CatalogDatabaseService(locations, recovery)
+            { CleanStartup = catalogStartup?.KnownClean == true, ValidationReason = catalogStartup?.Reason ?? StartupValidationReason.UnexpectedShutdown };
+            CatalogOpenResult opened;
+            if (!File.Exists(locations.CatalogDatabasePath) && settings.CatalogId is null && settings.CatalogDirectory is null)
+            {
+                opened = await database.CreateNewAsync(cancellationToken).ConfigureAwait(false);
+                if (opened.IsSuccess)
+                {
+                    settings = settings with { CatalogId = opened.Session!.Identity.CatalogId };
+                    try { configuration.Save(settings); }
+                    catch
+                    {
+                        await opened.Session.DisposeAsync().ConfigureAwait(false);
+                        throw;
+                    }
+                }
+            }
+            else
+            {
+                opened = await database.OpenExistingAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            pendingSession = opened.Session;
+            if (!opened.IsSuccess)
+            {
+                StartupDiagnostics.Note($"Catalog readiness: {opened.Status}; transition=existing recovery surface");
+                var (unavailableCatalogPreviews, unavailableCatalogPreviewDiagnostic) =
+                    await OpenPreviewsAsync(settings, locations, cancellationToken, previewStartup).ConfigureAwait(false);
+                return new(Map(opened.Status),
+                    new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator, recovery,
+                        unavailableCatalogPreviews, unavailableCatalogPreviewDiagnostic, catalogStartup, previewStartup, startupCompletion), opened.Diagnostic);
+            }
+            if (settings.CatalogId is Guid expected && opened.Session!.Identity.CatalogId != expected)
+            {
+                await opened.Session.DisposeAsync().ConfigureAwait(false);
+                var (mismatchedCatalogPreviews, mismatchedCatalogPreviewDiagnostic) =
+                    await OpenPreviewsAsync(settings, locations, cancellationToken, previewStartup).ConfigureAwait(false);
+                return new(StorageStartupStatus.CatalogIdentityMismatch,
+                    new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator, recovery,
+                        mismatchedCatalogPreviews, mismatchedCatalogPreviewDiagnostic, catalogStartup, previewStartup, startupCompletion),
+                    "The configured Catalog does not match the Catalog previously associated with this Lightflow installation.");
+            }
+
+            if (settings.CatalogId is null)
             {
                 settings = settings with { CatalogId = opened.Session!.Identity.CatalogId };
                 try { configuration.Save(settings); }
@@ -216,61 +284,46 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                     throw;
                 }
             }
-        }
-        else
-        {
-            opened = await database.OpenExistingAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        if (!opened.IsSuccess)
-        {
-            var (unavailableCatalogPreviews, unavailableCatalogPreviewDiagnostic) =
-                await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
-            return new(Map(opened.Status),
-                new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator, recovery,
-                    unavailableCatalogPreviews, unavailableCatalogPreviewDiagnostic), opened.Diagnostic);
-        }
-        if (settings.CatalogId is Guid expected && opened.Session!.Identity.CatalogId != expected)
-        {
-            await opened.Session.DisposeAsync().ConfigureAwait(false);
-            var (mismatchedCatalogPreviews, mismatchedCatalogPreviewDiagnostic) =
-                await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
-            return new(StorageStartupStatus.CatalogIdentityMismatch,
-                new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator, recovery,
-                    mismatchedCatalogPreviews, mismatchedCatalogPreviewDiagnostic),
-                "The configured Catalog does not match the Catalog previously associated with this Lightflow installation.");
-        }
-
-        if (settings.CatalogId is null)
-        {
-            settings = settings with { CatalogId = opened.Session!.Identity.CatalogId };
-            try { configuration.Save(settings); }
-            catch
+            if (needsBackupConfiguration)
             {
-                await opened.Session.DisposeAsync().ConfigureAwait(false);
-                throw;
+                try { configuration.Save(settings); }
+                catch { await opened.Session!.DisposeAsync().ConfigureAwait(false); throw; }
             }
+            var (previews, previewDiagnostic) = await OpenPreviewsAsync(settings, locations, cancellationToken, previewStartup).ConfigureAwait(false);
+            pendingPreviews = previews;
+            var coordinator = new LightflowStorageCoordinator(configuration, settings, locations, opened.Session, transfer,
+                activator, recovery, previews, previewDiagnostic, catalogStartup, previewStartup, startupCompletion);
+            pendingCoordinator = coordinator;
+            using (StartupDiagnostics.Stage("Media-root monitoring", "Checking media locations…"))
+                await coordinator.MediaMonitoring!.StartAsync(cancellationToken).ConfigureAwait(false);
+            StartupDiagnostics.Note("Catalog readiness: succeeded; Previews readiness: " + (previews is null ? "unavailable" : "succeeded"));
+            return new(StorageStartupStatus.Ready, coordinator);
         }
-        if (needsBackupConfiguration)
+        catch
         {
-            try { configuration.Save(settings); }
-            catch { await opened.Session!.DisposeAsync().ConfigureAwait(false); throw; }
+            try
+            {
+                if (pendingCoordinator is not null)
+                { pendingCoordinator.PreventCleanShutdown(); await pendingCoordinator.DisposeAsync().ConfigureAwait(false); }
+                else
+                {
+                    if (pendingSession is not null) await pendingSession.DisposeAsync().ConfigureAwait(false);
+                    if (pendingPreviews is not null) await pendingPreviews.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+            finally { catalogStartup?.Dispose(); previewStartup?.Dispose(); startupCompletion?.Dispose(); }
+            throw;
         }
-        var (previews, previewDiagnostic) = await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
-        var coordinator = new LightflowStorageCoordinator(configuration, settings, locations, opened.Session, transfer,
-            activator, recovery, previews, previewDiagnostic);
-        using (StartupDiagnostics.Stage("Media-root monitoring", "Checking media locations…"))
-            await coordinator.MediaMonitoring!.StartAsync(cancellationToken).ConfigureAwait(false);
-        return new(StorageStartupStatus.Ready, coordinator);
     }
 
     private static async Task<(IPreviewStoreService? Service, string? Diagnostic)> OpenPreviewsAsync(
-        AppSettings settings, LightflowStorageLocations locations, CancellationToken cancellationToken)
+        AppSettings settings, LightflowStorageLocations locations, CancellationToken cancellationToken, StartupStoreEvidence? startup = null)
     {
         if (settings.PreviewsDirectory is not null && !Directory.Exists(locations.PreviewsDirectory))
             return (null, $"The configured Previews directory is unavailable: {locations.PreviewsDirectory}");
 
-        var previews = new PreviewStoreService(locations);
+        var previews = new PreviewStoreService(locations)
+        { CleanStartup = startup?.KnownClean == true, ValidationReason = startup?.Reason ?? StartupValidationReason.UnexpectedShutdown };
         try
         {
             await previews.InitializeAsync(cancellationToken).ConfigureAwait(false);
@@ -279,6 +332,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException
             or NotSupportedException or SqliteException)
         {
+            StartupDiagnostics.Note($"Previews readiness: unavailable; recovery transition=disabled; {exception.GetType().Name}");
             await previews.DisposeAsync().ConfigureAwait(false);
             return (null, $"The Preview store is unavailable: {exception.Message}");
         }
@@ -314,7 +368,11 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     }
 
     internal void CancelPreparedExit() { _exitQuiescence?.Dispose(); _exitQuiescence = null; }
-    internal void CompletePreparedExit() { _exitQuiescence?.CompleteShutdown(); _exitQuiescence = null; }
+    internal void CompletePreparedExit()
+    {
+        if (_exitQuiescence is not null) { _exitQuiescence.CompleteShutdown(); _shutdownAdmissionClosed = true; }
+        _exitQuiescence = null;
+    }
 
     internal async Task SaveBackupDestinationAsync(string destination, CancellationToken token)
     {
@@ -361,7 +419,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             CatalogDatabaseSession? replacementSession = null;
             try
             {
-                var opened = await new CatalogDatabaseService(Locations, _recovery)
+                var opened = await new CatalogDatabaseService(Locations, _recovery) { ValidationReason = StartupValidationReason.Restore }
                     .OpenExistingAsync(CancellationToken.None).ConfigureAwait(false);
                 if (!opened.IsSuccess)
                     throw new InvalidDataException(opened.Diagnostic ?? "The restored Catalog could not be opened.");
@@ -465,6 +523,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         var sourceSettings = Settings;
         var expected = CatalogSession.Identity;
         var expectedSchema = CatalogSession.SchemaVersion;
+        _catalogStartup?.Dispose(); _catalogStartup = null;
         await _catalogSession!.DisposeAsync().ConfigureAwait(false);
         _catalogSession = null;
         var staged = destination.CatalogDatabasePath + $".{Guid.NewGuid():N}.moving";
@@ -676,6 +735,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             if (SamePath(Locations.PreviewsDirectory, destination.PreviewsDirectory))
                 return new(StorageChangeStatus.EquivalentLocation, "That is already the active Previews location.");
             ProbeWritable(destination.PreviewsDirectory);
+            _previewStartup?.Dispose(); _previewStartup = null;
             if (Directory.EnumerateFileSystemEntries(destination.PreviewsDirectory).Any())
                 throw new IOException("The selected Previews destination must be empty.");
             if (Previews is not null)
@@ -809,34 +869,70 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     {
         var timer = System.Diagnostics.Stopwatch.StartNew();
         void Report(string stage) => diagnostic?.Invoke($"[Storage shutdown pid={Environment.ProcessId} elapsed={timer.Elapsed.TotalMilliseconds:F1}ms] {stage}");
-        Report("Canceling read-only usage measurement");
-        _readShutdown.Cancel();
-        Report("Disposing LUT cache");
-        if (LutCache is IDisposable disposableLutCache) disposableLutCache.Dispose();
-        Report("Stopping media monitoring");
-        await DisposeMediaMonitoringAsync().ConfigureAwait(false);
-        Report("Stopping derived work");
-        await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
-        Report("Waiting for storage operations");
-        await _mutationGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            Report("Waiting for Preview operations");
-            using var previewLease = await _previewOperations.EnterMaintenanceAsync().ConfigureAwait(false);
-            Report("Closing Catalog");
-            if (_catalogSession is not null) await _catalogSession.DisposeAsync().ConfigureAwait(false);
-            _catalogSession = null;
-            Report("Closing Previews");
-            if (Previews is not null) await Previews.DisposeAsync().ConfigureAwait(false);
-            Previews = null;
-            Report("Completed");
+            Report("Canceling read-only usage measurement");
+            _readShutdown.Cancel();
+            Report("Disposing LUT cache");
+            if (LutCache is IDisposable disposableLutCache) disposableLutCache.Dispose();
+            Report("Stopping media monitoring");
+            await DisposeMediaMonitoringAsync().ConfigureAwait(false);
+            Report("Stopping derived work");
+            await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
+            Report("Draining Catalog mutations");
+            if (!_shutdownAdmissionClosed)
+            {
+                if (_exitQuiescence is not null) CompletePreparedExit();
+                else
+                {
+                    var quiet = await Mutations.QuiesceAsync().ConfigureAwait(false);
+                    quiet.CompleteShutdown(); _shutdownAdmissionClosed = true;
+                }
+            }
+            Report("Waiting for storage operations");
+            await _mutationGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                Report("Waiting for Preview operations");
+                using var previewLease = await _previewOperations.EnterMaintenanceAsync().ConfigureAwait(false);
+                var healthy = _cleanShutdownAllowed && _catalogSession is not null && Previews is not null;
+                Report("Closing Catalog");
+                if (_catalogSession is not null) await _catalogSession.DisposeAsync().ConfigureAwait(false);
+                _catalogSession = null;
+                Report("Closing Previews");
+                if (Previews is not null) await Previews.DisposeAsync().ConfigureAwait(false);
+                Previews = null;
+                if (healthy)
+                {
+                    // Failure to attest is conservative: shutdown may finish, next launch validates.
+                    try
+                    {
+                        _catalogStartup?.Complete(Locations.CatalogDatabasePath);
+                        _previewStartup?.Complete(Locations.PreviewsDatabasePath);
+                        if (_catalogStartup?.Completed == true && _previewStartup?.Completed == true)
+                        {
+                            _startupCompletion?.Complete();
+                            Report("Durable clean storage completion recorded");
+                        }
+                    }
+                    catch (Exception error) when (error is IOException or UnauthorizedAccessException or SqliteException)
+                    { Report($"Clean completion unavailable; next startup validates: {error.GetType().Name}: {error.Message}"); }
+                }
+                Report("Completed");
+            }
+            finally
+            {
+                _mutationGate.Release();
+                _mutationGate.Dispose();
+                _readShutdown.Dispose();
+                Mutations.Dispose();
+            }
         }
         finally
         {
-            _mutationGate.Release();
-            _mutationGate.Dispose();
-            _readShutdown.Dispose();
-            Mutations.Dispose();
+            _catalogStartup?.Dispose(); _catalogStartup = null;
+            _previewStartup?.Dispose(); _previewStartup = null;
+            _startupCompletion?.Dispose(); _startupCompletion = null;
         }
     }
 

@@ -35,9 +35,10 @@ public partial class PlayerViewerHost
     }
 
     private PlayerSurfaceInput CreateSurfaceInput(FrameworkElement surface) => new(surface,
-        () => { if (_service is not null && PositionSlider.IsEnabled) PlayPause_Click(this, new RoutedEventArgs()); },
+        () => PlayPause_Click(this, new RoutedEventArgs()),
         ToggleFullscreen, PanViewport, ZoomViewport, TryHandleShortcut, TryHandleShortcutKeyUp,
-        () => { if (IsFullscreen) _fullscreenOverlay?.PointerMoved(); });
+        () => { if (IsFullscreen) _fullscreenOverlay?.PointerMoved(); },
+        (key, owner, repeat) => TryHandleShortcut(key, owner, System.Windows.Input.Keyboard.Modifiers, repeat));
 
     private void MediaView_Loaded(object sender, RoutedEventArgs e)
     {

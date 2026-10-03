@@ -2039,6 +2039,7 @@ public partial class MainWindow : Window
         _playerViewerHost.FilmstripVisibilityChanged += (_, _) => ScheduleWorkspaceCapture();
         _playerViewerHost.ContextChanging = TryLeaveInspectorContext;
         _playerViewerHost.SuspendContextEditing = () => _inspector?.SuspendEditing();
+        _playerViewerHost.ActionPresentationActive = PlayerOwnsShortcutContext;
         HomeRightPanel.AddSurface("subclips", "Subclips", _playerViewerHost.SubclipsContent, available: false);
         HomeRightPanel.AddSurface("visual-index", "Visual Index", _playerViewerHost.VisualIndexContent, available: false);
         _playerViewerHost.CurrentAssetChanged += (_, _) =>
@@ -2636,7 +2637,7 @@ public partial class MainWindow : Window
         if (RightPanelSplitter.IsKeyboardFocusWithin || (HomeRightPanel.IsKeyboardFocusWithin &&
             _playerViewerHost?.SubclipsContent.IsKeyboardFocusWithin != true)) return;
         if (PlayerOwnsShortcutContext() && _playerViewerHost!.TryHandleShortcut(
-                e.Key == Key.System ? e.SystemKey : e.Key, e.OriginalSource as DependencyObject))
+                e.Key == Key.System ? e.SystemKey : e.Key, e.OriginalSource as DependencyObject, Keyboard.Modifiers, e.IsRepeat))
         {
             e.Handled = true;
             return;

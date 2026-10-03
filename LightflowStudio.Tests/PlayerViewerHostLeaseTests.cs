@@ -717,7 +717,7 @@ public sealed partial class PlayerViewerHostLeaseTests
             PanelFor(window).Visibility = Visibility.Visible;
             PanelFor(window).Visibility = Visibility.Collapsed;
             PanelFor(window).Visibility = Visibility.Visible;
-            var drawerChrome = new System.Windows.Controls.Button();
+            var drawerChrome = new System.Windows.Controls.Border();
             var playCallsBeforeDrawer = backend.PlayCallCount;
             var pauseCallsBeforeDrawer = backend.PauseCallCount;
             Assert.True(host.TryHandleShortcut(System.Windows.Input.Key.Space, drawerChrome));

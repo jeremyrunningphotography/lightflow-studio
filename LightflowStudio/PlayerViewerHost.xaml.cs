@@ -102,6 +102,7 @@ public partial class PlayerViewerHost : UserControl
         _preferredPreviewFrames = preferredPreviewFrames;
         _classifications = classifications;
         InitializeComponent();
+        InitializeActions();
         InitializeRotation(rotations);
         InitializeReviewControls();
         SubclipsContent = new SubclipsView(this);
@@ -154,6 +155,7 @@ public partial class PlayerViewerHost : UserControl
         _sourceOpenCts = CancellationTokenSource.CreateLinkedTokenSource(token);
         token = _sourceOpenCts.Token;
         using var editing = SuspendContextEditing?.Invoke();
+        CancelPlayerActionSessions();
         var generation = ++_generation;
         _openMilestone?.Invoke(PlayerOpenMilestone.PreviousAssetReleaseStarted);
         try { await ReleaseCurrentAsync().ConfigureAwait(true); }
@@ -236,6 +238,7 @@ public partial class PlayerViewerHost : UserControl
         _sourceOpenCts?.Dispose();
         _sourceOpenCts = null;
         using var editing = SuspendContextEditing?.Invoke();
+        CancelPlayerActionSessions();
         var generation = ++_generation;
         await ReleaseCurrentAsync().ConfigureAwait(true);
         if (generation != _generation) return;
@@ -304,6 +307,7 @@ public partial class PlayerViewerHost : UserControl
             AttachVideoPresentation(service);
             _openMilestone?.Invoke(PlayerOpenMilestone.PresentationSurfaceCreated);
             UpdateFromSnapshot(service.Snapshot);
+            _actionSourceReady = true;
             SetTransportEnabled(true);
             SetExportEnabled(_currentAsset?.AssetId is not null);
             SetAudioControlsEnabled(info.AudioStreams.Count > 0);
@@ -374,6 +378,8 @@ public partial class PlayerViewerHost : UserControl
 
     private async Task ReleaseCurrentAsync()
     {
+        _actionSourceReady = false;
+        CancelPlayerActionSessions();
         // Invalidates the frame-step backlog before releasing _service — no further queued steps are applied
         // or reported to a service that may now hold a different source or none at all. This does not itself
         // wait for a step already genuinely in flight; that one native decode keeps running regardless (see
@@ -436,6 +442,7 @@ public partial class PlayerViewerHost : UserControl
 
     private void SetTransportEnabled(bool enabled)
     {
+        if (!enabled) _actionSourceReady = false;
         PositionSlider.IsEnabled = enabled;
         UpdateMarkerPresentation();
         PreviousFrameButton.IsEnabled = enabled;
@@ -815,29 +822,30 @@ public partial class PlayerViewerHost : UserControl
     /// </summary>
     internal async Task PauseIfPlayingAsync()
     {
+        CancelPlayerActionSessions();
         if (_service?.Snapshot.State != MediaPlaybackState.Playing) return;
         try { await _service.PauseAsync(); }
         catch (OperationCanceledException) { }
         catch (Exception exception) { SetStatus(exception.Message); }
     }
 
-    private async void PlayPause_Click(object sender, RoutedEventArgs e)
+    private async void PlayPause_Click(object sender, RoutedEventArgs e) =>
+        await DispatchTransportAsync(Lightflow.Actions.PlayerActions.PlayPause, Lightflow.Actions.NoActionArguments.Instance);
+
+    private async Task TogglePlaybackAsync(CancellationToken token)
     {
-        if (_service is null) return;
-        try
+        var service = _service;
+        var target = ActionTarget;
+        if (service is null) return;
+        if (service.Snapshot.State == MediaPlaybackState.Playing) await service.PauseAsync(token);
+        else
         {
-            if (_service.Snapshot.State == MediaPlaybackState.Playing) await _service.PauseAsync();
-            else
-            {
-                RestoreLiveVideoSurface();
-                var position = _service.Snapshot.DisplayedTimestamp?.Position ?? TimeSpan.Zero;
-                _stopAtOutDuringPlayback = ReviewRangePlaybackPolicy.ShouldArmOutBoundary(ActivePlaybackRange, position);
-                await _service.PlayAsync();
-            }
-            if (IsFullscreen) _fullscreenOverlay?.ShowPlayback(_service.Snapshot.State == MediaPlaybackState.Playing);
+            RestoreLiveVideoSurface();
+            var position = service.Snapshot.DisplayedTimestamp?.Position ?? TimeSpan.Zero;
+            _stopAtOutDuringPlayback = ReviewRangePlaybackPolicy.ShouldArmOutBoundary(ActivePlaybackRange, position);
+            await service.PlayAsync(token);
         }
-        catch (OperationCanceledException) { }
-        catch (Exception exception) { SetStatus(exception.Message); }
+        if (target == ActionTarget && IsFullscreen) _fullscreenOverlay?.ShowPlayback(service.Snapshot.State == MediaPlaybackState.Playing);
     }
 
     private void PreviousFrame_Click(object sender, RoutedEventArgs e) => RequestStep(forward: false);
@@ -877,22 +885,24 @@ public partial class PlayerViewerHost : UserControl
     /// </summary>
     private void RequestStep(bool forward)
     {
-        if (_service is null || !PositionSlider.IsEnabled) return;
-        _frameStepQueue.RequestStep(ExecutePresentedStepAsync, forward, exception => SetStatus(exception.Message));
+        _ = DispatchTransportAsync(Lightflow.Actions.PlayerActions.StepFrame, new Lightflow.Actions.FrameStepArguments(forward ? 1 : -1));
     }
 
     private async Task ExecutePresentedStepAsync(bool forward)
     {
-        if (_service is null) return;
+        var service = _service;
+        var target = ActionTarget;
+        if (service is null) return;
         if (forward && SteppedFrameSurface.Visibility != Visibility.Visible)
         {
-            await _service.StepForwardAsync().ConfigureAwait(true);
+            await service.StepForwardAsync().ConfigureAwait(true);
             return;
         }
 
         if (SteppedFrameSurface.Visibility != Visibility.Visible)
         {
             var current = await CapturePresentedFrameAsync().ConfigureAwait(true);
+            if (target != ActionTarget) return;
             _retainedSteppedFrame = current;
             SteppedFrameSurface.Source = ToBitmapSource(current);
             SteppedFrameSurface.Visibility = Visibility.Visible;
@@ -902,12 +912,15 @@ public partial class PlayerViewerHost : UserControl
             // Flyleaf presents through a child HWND, so a WPF element cannot cover its reconstruction.
             // Complete the handoff to the retained bitmap before asking the backend to move at all.
             await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+            if (target != ActionTarget) return;
         }
 
-        if (forward) await _service.StepForwardAsync().ConfigureAwait(true);
-        else await _service.StepBackwardAsync().ConfigureAwait(true);
+        if (forward) await service.StepForwardAsync().ConfigureAwait(true);
+        else await service.StepBackwardAsync().ConfigureAwait(true);
+        if (target != ActionTarget) return;
 
         var settled = await CapturePresentedFrameAsync().ConfigureAwait(true);
+        if (target != ActionTarget) return;
         _retainedSteppedFrame = settled;
         SteppedFrameSurface.Source = ToBitmapSource(settled);
     }
@@ -1511,12 +1524,12 @@ public partial class PlayerViewerHost : UserControl
     /// </summary>
     private void PlayerViewerHost_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        e.Handled = TryHandleShortcut(e.Key == Key.System ? e.SystemKey : e.Key, e.OriginalSource as DependencyObject);
+        e.Handled = TryHandleShortcut(e.Key == Key.System ? e.SystemKey : e.Key, e.OriginalSource as DependencyObject, Keyboard.Modifiers, e.IsRepeat);
     }
 
     internal bool TryHandleShortcut(Key key, DependencyObject? inputOwner) => TryHandleShortcut(key, inputOwner, Keyboard.Modifiers);
 
-    internal bool TryHandleShortcut(Key key, DependencyObject? inputOwner, ModifierKeys modifiers)
+    internal bool TryHandleShortcut(Key key, DependencyObject? inputOwner, ModifierKeys modifiers, bool isRepeat = false)
     {
         if (IsTextEntryControl(inputOwner)) return false;
         var activeModifiers = modifiers;
@@ -1538,6 +1551,8 @@ public partial class PlayerViewerHost : UserControl
             return _reviewSet is not null;
         }
         if (key is Key.Left or Key.Right && IsArrowKeyOwnedByFocusedControl(inputOwner)) return false;
+        if (key is Key.Space or Key.C && (IsArrowKeyOwnedByFocusedControl(inputOwner) ||
+            (key == Key.Space && IsInsideButton(inputOwner)))) return false;
         if (key >= Key.D0 && key <= Key.D5)
         {
             _ = SetRatingAsync(key - Key.D0, toggleCurrent: false);
@@ -1550,18 +1565,14 @@ public partial class PlayerViewerHost : UserControl
         }
         switch (key)
         {
-            case Key.C when _service is not null && _colorActive && !_momentaryColorBypass:
-                _momentaryColorBypass = true;
-                RestoreLiveVideoSurface();
-                _service.SetColorPipeline(_colorPipeline, true);
-                return true;
+            case Key.C:
+                return DispatchKeyboardAction(key, isRepeat);
             case Key.Escape:
                 if (IsFullscreen) { ExitFullscreen(); return true; }
                 BackRequested?.Invoke(this, EventArgs.Empty);
                 return true;
             case Key.Space:
-                if (_service is not null && PositionSlider.IsEnabled) PlayPause_Click(this, new RoutedEventArgs());
-                return true;
+                return DispatchKeyboardAction(key, isRepeat);
             case Key.I:
                 if (_service is not null && PositionSlider.IsEnabled) SetIn_Click(this, new RoutedEventArgs());
                 return true;
@@ -1572,11 +1583,8 @@ public partial class PlayerViewerHost : UserControl
                 CreateSubclip();
                 return true;
             case Key.Left:
-                if (_service is not null && PositionSlider.IsEnabled) RequestStep(forward: false);
-                return true;
             case Key.Right:
-                if (_service is not null && PositionSlider.IsEnabled) RequestStep(forward: true);
-                return true;
+                return DispatchKeyboardAction(key, isRepeat);
         }
         return false;
     }
@@ -1647,17 +1655,24 @@ public partial class PlayerViewerHost : UserControl
 
     internal bool TryHandleShortcutKeyUp(Key key)
     {
-        if (key != Key.C || !_momentaryColorBypass) return false;
-        _momentaryColorBypass = false;
-        _service?.SetColorPipeline(_colorPipeline, !_colorActive);
-        return true;
+        return key == Key.C && EndKeyboardColorSession();
     }
 
     private void PlayerViewerHost_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        if (!_momentaryColorBypass) return;
-        _momentaryColorBypass = false;
-        _service?.SetColorPipeline(_colorPipeline, !_colorActive);
+        var result = _actions.CancelSource(KeyboardActionSource);
+        if (result.Outcome == Lightflow.Actions.ActionOutcome.Failed) SetStatus(result.Diagnostic);
+        _keyboardColorSession = null;
+    }
+
+    private static bool IsInsideButton(DependencyObject? element)
+    {
+        while (element is not null)
+        {
+            if (element is System.Windows.Controls.Primitives.ButtonBase) return true;
+            element = element is Visual ? VisualTreeHelper.GetParent(element) : null;
+        }
+        return false;
     }
 
     private bool IsArrowKeyOwnedByFocusedControl(DependencyObject? element)

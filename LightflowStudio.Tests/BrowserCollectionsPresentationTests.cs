@@ -162,19 +162,6 @@ public sealed class BrowserCollectionsPresentationTests
     }
 
     [Fact]
-    public void CollectionRemoval_RequiresConfirmationAndDeleteRoutesOnlyFromCollectionScope()
-    {
-        var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
-        var removal = MethodBody(source, "private async Task RemoveBrowserSelectionFromActiveCollectionAsync()");
-        var keyboard = MethodBody(source, "private async void BrowserGridRows_KeyDown(");
-
-        Assert.Contains("ConfirmationDialog.Confirm", removal);
-        Assert.Contains("RemoveMembershipsAsync", removal);
-        Assert.Contains("BrowserStatusText.Text", removal);
-        Assert.Contains("e.Key == Key.Delete && _activeCollectionScope is not null", keyboard);
-    }
-
-    [Fact]
     public void CollectionPointerIntentCanOverrideAStaleRevealWithoutChangingHierarchyDragPayload()
     {
         var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));

@@ -1662,15 +1662,31 @@ public partial class PlayerViewerHost : UserControl
 
     private bool IsArrowKeyOwnedByFocusedControl(DependencyObject? element)
     {
+        var inputOwner = element;
         while (element is not null)
         {
             // Stop at Player before reaching the shell TabControl (a Selector).
             // Filmstrip traversal uses Ctrl+Arrow; plain arrows retain Player frame stepping.
             if (ReferenceEquals(element, this) || ReferenceEquals(element, Filmstrip)) return false;
+            // Selected tab content is an input boundary, not a tab-navigation interaction.
+            // Separate panels can reach shell TabControls without passing through Player.
+            if (element is System.Windows.Controls.TabControl tabs &&
+                tabs.SelectedContent is DependencyObject content && IsWithinTabContent(inputOwner, content)) return false;
             if (element is System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.Slider or
-                System.Windows.Controls.Primitives.Thumb or System.Windows.Controls.Primitives.Selector)
+                System.Windows.Controls.Primitives.Thumb or System.Windows.Controls.Primitives.Selector or
+                System.Windows.Controls.Primitives.MenuBase or System.Windows.Controls.MenuItem)
                 return true;
             element = VisualTreeHelper.GetParent(element);
+        }
+        return false;
+    }
+
+    private static bool IsWithinTabContent(DependencyObject? inputOwner, DependencyObject content)
+    {
+        while (inputOwner is not null)
+        {
+            if (ReferenceEquals(inputOwner, content)) return true;
+            inputOwner = VisualTreeHelper.GetParent(inputOwner);
         }
         return false;
     }

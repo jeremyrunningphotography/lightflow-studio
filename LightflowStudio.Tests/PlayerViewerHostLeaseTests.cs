@@ -1035,11 +1035,14 @@ public sealed partial class PlayerViewerHostLeaseTests
             SeekPositions.Add(position);
             return Task.FromResult(new MediaPresentationTimestamp(position));
         }
-        public Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token) { Operations.Add("forward"); return Task.FromResult(new MediaPresentationTimestamp(TimeSpan.Zero)); }
-        public Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token)
+        public Func<Task>? BeforeStep { get; set; }
+        public Task<MediaPresentationTimestamp> StepForwardAsync(CancellationToken token) => StepAsync(true);
+        public Task<MediaPresentationTimestamp> StepBackwardAsync(CancellationToken token) => StepAsync(false);
+        private async Task<MediaPresentationTimestamp> StepAsync(bool forward)
         {
-            Operations.Add("backward");
-            return Task.FromResult(new MediaPresentationTimestamp(TimeSpan.Zero));
+            if (BeforeStep is not null) await BeforeStep();
+            Operations.Add(forward ? "forward" : "backward");
+            return new MediaPresentationTimestamp(TimeSpan.Zero);
         }
         public Task<MediaDecodedFrame> GetFrameAsync(TimeSpan position, CancellationToken token) => throw new NotSupportedException();
         public Task<MediaDecodedFrame> CapturePresentedFrameAsync(CancellationToken token)

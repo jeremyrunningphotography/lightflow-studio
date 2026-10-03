@@ -6,6 +6,46 @@ namespace LightflowStudio.Tests;
 
 public sealed partial class FlyleafPlaybackIntegrationTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task SemanticController_RangeUsesActualCfrOrVfrPresentedPts(bool vfr)
+    {
+        var dependencies = PlaybackDependencyLocator.FindSharedLibraries() ?? throw new InvalidOperationException("Prepare playback dependencies.");
+        var fixture = Path.Combine(_root, vfr ? "semantic-range-vfr.mkv" : "semantic-range-cfr.mkv");
+        if (vfr) GenerateVfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture);
+        else GenerateCfrFixture(Path.Combine(dependencies, "ffmpeg.exe"), fixture, durationSeconds: 3);
+        var pts = ProbeVideoPts(Path.Combine(dependencies, "ffprobe.exe"), fixture);
+        await StaDispatcher.RunAsync(async () => {
+            TestWpfApplication.EnsureLoaded(); var ranges = new SemanticRangeStore();
+            var service = new MediaPlaybackService(new FlyleafPlaybackBackend(dependencies, () => new RecordingAudioOutput()));
+            await using var coordinator = new MediaPlaybackCoordinator(() => service);
+            var host = new PlayerViewerHost(coordinator, ranges);
+            var window = new Window { Content = host, Width = 1000, Height = 700, Left = -32000, ShowActivated = false, ShowInTaskbar = false }; window.Show();
+            try {
+                var asset = new PlayerViewerAsset(Guid.NewGuid(), Path.GetFileName(fixture), fixture, "semantic-range", MediaPresentationKind.Video, Guid.NewGuid());
+                await host.OpenAsync(asset, new(asset.RootId, asset.RelativePath, asset.Key, fixture, MediaRootAvailability.Online, true));
+                await service.SeekAsync(pts[3]);
+                var input = new ActionInputSource("range-controller", ActionInputKind.Controller);
+                var step = await host.SemanticActions.InvokeAsync(new(PlayerActions.StepFrame, new FrameStepArguments(-1), input, Guid.NewGuid(), host.ActionTarget));
+                Assert.Equal(ActionOutcome.Completed, step.Outcome);
+                var displayed = service.Snapshot.DisplayedTimestamp!;
+                Assert.Contains(pts, timestamp => Close(timestamp, displayed.Position));
+                foreach (var boundary in new[] { WorkingRangeBoundary.In, WorkingRangeBoundary.Out }) {
+                    var result = await host.SemanticActions.InvokeAsync(new(PlayerActions.SetBoundary, new SetBoundaryArguments(boundary), input, Guid.NewGuid(), host.ActionTarget));
+                    Assert.Equal(ActionOutcome.Completed, result.Outcome);
+                    Assert.Equal(displayed.Position, boundary == WorkingRangeBoundary.In ? ranges.Range!.In : ranges.Range!.Out);
+                }
+            } finally { await host.CloseAsync(); window.Close(); }
+        });
+    }
+
+    private sealed class SemanticRangeStore : IMediaRangeStore
+    {
+        public MediaRange? Range;
+        public Task<MediaRange?> RestoreAsync(Guid assetId, CancellationToken cancellationToken = default) => Task.FromResult<MediaRange?>(null);
+        public Task SaveAsync(Guid assetId, MediaRange? range, CancellationToken cancellationToken = default) { Range = range; return Task.CompletedTask; }
+    }
+
     [Fact]
     public async Task SemanticController_UsesDecodedPresentedFramesAndStaysSilentPausedAtBoundaries()
     {

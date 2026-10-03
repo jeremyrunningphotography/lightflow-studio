@@ -1,4 +1,4 @@
-# Player semantic action boundary (#345 / #349)
+# Player semantic action boundary (#345 / #349 / #350)
 
 The first vertical slice extracts reusable action metadata, validation, target eligibility, repeat/single-flight
 policy and Color gesture ownership into `Lightflow.Actions` (`net8.0`, no packages or Windows/WPF references).
@@ -9,6 +9,11 @@ It does not extract playback, create a second decoder or turn this assembly into
 | `player.play-pause` | No arguments; Invoke | Suppress repeat; single flight |
 | `player.step-frame` | `FrameStepArguments(-1 or +1)`; Invoke | Relative repeat; existing bounded/coalesced Player queue |
 | `player.color-bypass` | No arguments; Begin, End, Cancel | Idempotent hold; one owning gesture session |
+| `player.set-boundary` | `SetBoundaryArguments(In or Out)`; Invoke | Suppress repeat; single flight |
+| `player.traverse-review` | `TraverseArguments(Previous or Next)`; Invoke | Relative repeat; single flight |
+| `subclip.create-from-working-range` | No arguments; Invoke | Suppress repeat; single flight |
+| `marker.add` | No arguments; Invoke | Suppress repeat; single flight |
+| `marker.navigate` | `TraverseArguments(Previous or Next)`; Invoke | Relative repeat; single flight |
 
 Descriptors carry labels, category, argument shape, bindability and phase/policy metadata for future help,
 controller mapping and Settings. They do not persist bindings. Invocation contains typed arguments, input source,
@@ -24,9 +29,9 @@ NoChange, Ineligible (structured reason), Cancelled, Superseded, Busy or Failed 
 
 Input ownership precedes semantic admission. **Keyboard focus is evidence about local interaction ownership;
 it is not itself the semantic Player target.** The target remains the presented Player session/source generation.
-Windows maps only Space, plain Left/Right and C down/up to this semantic slice. Ctrl+Arrow review and Alt+Arrow
-markers remain legacy routes, as do I/O/S/M, classification and Browser/Delete.
-MainWindow, Player and native video surfaces propagate repeat state consistently for these three actions.
+Windows maps Space, plain Left/Right, C down/up, I/O/S/M, Ctrl+Arrow review and Alt+Arrow markers
+to this semantic boundary. Classification and Browser/Delete remain separate routes.
+MainWindow, Player and native video surfaces propagate repeat state consistently for all migrated actions.
 Space repeat cannot toggle; repeated C cannot rearm a cancelled hold; Arrow repeat enters the existing queue.
 
 ## Focus and local keyboard ownership
@@ -50,11 +55,9 @@ Programmatic/keyboard Button invocation does not invent mouse intent or steal de
 Successful Inspector Apply explicitly completes the edit transaction and restores review focus only if the same
 editor/context still owns Inspector focus and has no draft. Pending, failed, cancelled or obsolete Apply cannot
 restore focus, discard a draft or bypass transition guards. Mere nonediting Inspector/Right Panel chrome allows
-Player review commands; Browser file/navigation commands keep the existing Right Panel guard. Legacy I/O/S still
-call the authoritative range/Subclip operations and return to review focus when invoked as review shortcuts.
-They are not new semantic actions. Subclip reveal/selection and rename typing/Enter/Escape retain their contracts.
+Player review commands; Browser file/navigation commands keep the existing Right Panel guard. I/O/S invoke the semantic range/Subclip actions and return to review focus when invoked as review shortcuts. Subclip reveal/selection and rename typing/Enter/Escape retain their contracts.
 
-#350 must consume this same key-ownership policy before dispatching its eventual range/review actions. Ownership
+#350 consumes this same key-ownership policy before dispatching range/review/Subclip/marker actions. Ownership
 does not make an unavailable Player eligible: presentation, modal state, initialized source and Color readiness
 still control semantic admission independently. A macOS adapter must reproduce the distinction between active
 editing/control interaction, completed incidental focus and presented Player target using its native interaction
@@ -99,10 +102,49 @@ boundaries; this slice does not complete a macOS playback backend.
 5. #344 remains covered: existing folder-tree, local controls, modifiers, repeat and fullscreen regression tests.
 6. Color lifecycle is explicit: release/cancel/disconnect/focus/deactivation/modal/source replacement tests.
 7. Player behavior is preserved: existing range/review, queue, Color, decoded-frame and lease suites retained.
-8. Architecture stays small: three action descriptors, one dispatcher/session owner, one narrow port.
+8. Architecture stays small: eight action descriptors, one dispatcher/session owner, one narrow port.
 9. macOS can consume the contracts: only the application/presentation adapter requires replacement.
 10. Settings can discover metadata: immutable descriptor inventory carries binding/repeat/phase policies.
 
 These establish automated architecture evidence. Owner architecture and packaged hands-on acceptance remain
-required before merging the Draft PR. #350–#354 stay separate follow-ups; #346 still gates TourBox integration.
+required before merging the Draft PR. #351–#354 stay separate follow-ups; #346 still gates TourBox integration.
 The independent near-source-start backward presentation observation preserved with #344 is not addressed.
+
+## Range, review, Subclip and marker slice (#350)
+
+All five added descriptors are bindable discrete Invoke actions in the Player category. Boundary and traversal
+arguments are neutral enums/records; invalid enum values or argument shapes are rejected before port admission.
+The Windows port projects service/workflow eligibility rather than control IsEnabled values. Range and marker
+operations require a ready video and an authoritative decoded presentation timestamp. Subclip eligibility reuses
+`SubclipCreationEligibility` against the working range and authoritative duration. Review traversal has separate
+review readiness so still images and unavailable captured members can be left through the same review set.
+
+Set In/Out use the retained displayed frame timestamp when present, otherwise the playback snapshot. They reuse
+`ReviewRangeBoundaryPolicy` and `IMediaRangeStore`; the requested boundary still wins across the opposite boundary.
+Selected Subclip review exits before working-range edits. Clear-boundary editor controls retain their existing
+workflow, with range publication guarded by generation. No frame duration is inferred or range policy changed.
+
+Review traversal retains captured order, subset identity, no wrap, `ContextChanging` Inspector guards and the
+existing paused destination/open/restored-range path. One semantic traversal is admitted at a time; later input
+while it is resolving returns Busy and is not queued. Directional auto-repeat can traverse again after completion.
+The existing filmstrip selection path can supersede pending review resolution. Resolver completions check generation
+before opening, so a replaced source cannot be overwritten by an older destination request. Successful traversal
+intentionally changes the target; completion describes that destination, rather than calling the change stale.
+
+Subclip creation materializes current full/partial/restored working-range intent using `ISubclipService`, preserves
+service-owned stable IDs, duplicate detection, current ordering and reveal/select. Duplicate invocation returns
+NoChange while revealing the existing Subclip. Marker creation uses `IMarkerService` and exact displayed PTS;
+duplicate identity remains service-owned. Marker navigation reuses strict previous/next `MarkerNavigation` and
+`SeekMarkerAsync`, with NoChange at an endpoint or when no marker exists. Rename/edit/delete remain local workflows.
+
+Boundary writes, S and M suppress IsRepeat. Review and marker directions allow relative repeat with single-flight
+admission; no unbounded queue or repeat-driven creation exists. UI Set In/Out, Create Subclip, review previous/next,
+marker add (including timeline menu) and marker previous/next dispatch the same actions as keyboard and controllers.
+I/O/S keep their established review focus completion. #349 per-key ownership and mouse/Inspector focus policy remain
+unchanged, including editor typing, deliberate Button activation, sliders, lists, menus and open dropdowns.
+
+Every port entry validates the captured session/generation. Async range save, Subclip create, marker create/list,
+review resolution/open and marker seek recheck ownership before publishing into Player presentation. An already
+submitted Catalog mutation can finish for its original captured asset; it cannot mutate/reveal the replacement.
+Structured failures stay inside the boundary. Direct-controller and native CFR/VFR evidence is recorded in
+[the #350 validation record](validation/player-actions-350.md).

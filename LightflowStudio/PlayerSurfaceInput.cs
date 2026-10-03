@@ -115,7 +115,7 @@ internal sealed class PlayerSurfaceInput : IDisposable
     }
     internal bool HandleKeyDown(Key key, DependencyObject? owner, bool repeat)
     {
-        if (_repeatAwareKey is not null && (key is Key.Space or Key.Left or Key.Right or Key.C))
+        if (_repeatAwareKey is not null && (key is Key.Space or Key.Left or Key.Right or Key.C or Key.I or Key.O or Key.S or Key.M))
         {
             return _repeatAwareKey(key, owner, repeat);
         }

@@ -1143,6 +1143,7 @@ public sealed partial class PlayerViewerHostLeaseTests
 
     private sealed class FakeRangeStore(MediaRange? restored) : IMediaRangeStore
     {
+        public Func<Task>? BeforeSave { get; set; }
         public Guid? RestoredAssetId { get; private set; }
         public int SaveCount { get; private set; }
         public MediaRange? SavedRange { get; private set; }
@@ -1153,31 +1154,33 @@ public sealed partial class PlayerViewerHostLeaseTests
             return Task.FromResult(restored);
         }
 
-        public Task SaveAsync(Guid assetId, MediaRange? range, CancellationToken cancellationToken = default)
+        public async Task SaveAsync(Guid assetId, MediaRange? range, CancellationToken cancellationToken = default)
         {
+            if (BeforeSave is not null) await BeforeSave();
             SaveCount++;
             SavedRange = range;
-            return Task.CompletedTask;
         }
     }
 
     private sealed class FakeSubclipService : ISubclipService
     {
+        public Func<Task>? BeforeCreate { get; set; }
         public List<Subclip> Items { get; } = [];
         public int CreateCount { get; private set; }
         public Guid AssetId { get; private set; }
         public MediaRange? Range { get; private set; }
-        public Task<SubclipCreateResult> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
+        public async Task<SubclipCreateResult> CreateAsync(Guid assetId, MediaRange workingRange, CancellationToken cancellationToken = default)
         {
+            if (BeforeCreate is not null) await BeforeCreate();
             CreateCount++;
             AssetId = assetId;
             Range = workingRange = SubclipCreationEligibility.Materialize(workingRange);
             var existing = Items.FirstOrDefault(item => item.AssetId == assetId && item.In == workingRange.In && item.Out == workingRange.Out);
-            if (existing is not null) return Task.FromResult(new SubclipCreateResult(existing, Created: false));
+            if (existing is not null) return new SubclipCreateResult(existing, Created: false);
             var created = new Subclip(Guid.NewGuid(), assetId, $"Subclip {Items.Count + 1}", Items.Count, workingRange.In!.Value,
                 workingRange.Out!.Value, workingRange.SourceDuration, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
             Items.Add(created);
-            return Task.FromResult(new SubclipCreateResult(created, Created: true));
+            return new SubclipCreateResult(created, Created: true);
         }
         public Task<IReadOnlyList<Subclip>> ListAsync(Guid assetId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Subclip>>(Items.Where(item => item.AssetId == assetId).OrderBy(item => item.Ordinal).ToArray());

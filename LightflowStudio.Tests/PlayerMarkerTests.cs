@@ -398,6 +398,7 @@ public sealed partial class PlayerViewerHostLeaseTests
 
     private sealed class FakeMarkers : IMarkerService
     {
+        public Func<Task>? BeforeCreate { get; set; }
         public List<TimelineMarker> Items { get; } = [];
         public Exception? RenameError { get; set; }
         public Guid? DelayAsset { get; set; }
@@ -408,12 +409,13 @@ public sealed partial class PlayerViewerHostLeaseTests
             if (DelayAsset == assetId) { Entered.TrySetResult(); return Delayed.Task; }
             return Task.FromResult<IReadOnlyList<TimelineMarker>>(Items.Where(m => m.AssetId == assetId).OrderBy(m => m.Position).ToArray());
         }
-        public Task<MarkerCreateResult> CreateAsync(Guid assetId, TimeSpan position, CancellationToken token = default)
+        public async Task<MarkerCreateResult> CreateAsync(Guid assetId, TimeSpan position, CancellationToken token = default)
         {
+            if (BeforeCreate is not null) await BeforeCreate();
             var existing = Items.FirstOrDefault(m => m.AssetId == assetId && m.Position == position);
-            if (existing is not null) return Task.FromResult(new MarkerCreateResult(existing, false));
+            if (existing is not null) return new MarkerCreateResult(existing, false);
             var marker = new TimelineMarker(Guid.NewGuid(), assetId, position, "", 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
-            Items.Add(marker); return Task.FromResult(new MarkerCreateResult(marker, true));
+            Items.Add(marker); return new MarkerCreateResult(marker, true);
         }
         public Task RenameAsync(Guid markerId, long revision, string name, CancellationToken token = default)
         {

@@ -1,3 +1,4 @@
+using Lightflow.Actions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -87,11 +88,27 @@ public partial class PlayerViewerHost
         finally { _markerBusy = false; UpdateMarkerPresentation(); }
     }
 
-    private async void AddMarker_Click(object sender, RoutedEventArgs e)
+    private void AddMarker_Click(object sender, RoutedEventArgs e) =>
+        _ = DispatchTransportAsync(PlayerActions.AddMarker, NoActionArguments.Instance);
+
+    private async Task<ActionResult> AddMarkerAsync(PlayerActionTarget target, CancellationToken token)
     {
         var timestamp = _retainedSteppedFrame?.Timestamp ?? _service?.Snapshot.DisplayedTimestamp;
-        if (timestamp is not { IsDecodedPresentationTimestamp: true } || !PositionSlider.IsEnabled) return;
-        await MarkerMutationAsync(async asset => (await _markers!.CreateAsync(asset, timestamp.Position)).Marker.MarkerId);
+        if (timestamp is not { IsDecodedPresentationTimestamp: true } || _markers is null || _currentAsset?.AssetId is not { } assetId)
+            return new(ActionOutcome.Ineligible, ActionUnavailableReason.TimestampUnavailable);
+        if (_markerBusy) return new(ActionOutcome.Busy);
+        _markerBusy = true;
+        UpdateMarkerPresentation();
+        try
+        {
+            var result = await _markers.CreateAsync(assetId, timestamp.Position, token);
+            if (ActionTarget != target) return new(ActionOutcome.Superseded);
+            await LoadMarkersAsync(assetId, target.Generation, result.Marker.MarkerId);
+            if (ActionTarget != target) return new(ActionOutcome.Superseded);
+            MarkersChanged?.Invoke(this, assetId);
+            return new(result.Created ? ActionOutcome.Completed : ActionOutcome.NoChange);
+        }
+        finally { _markerBusy = false; UpdateMarkerPresentation(); }
     }
     internal Task RenameMarkerAsync(TimelineMarker marker, string name) =>
         marker.AssetId != _currentAsset?.AssetId ? Task.CompletedTask : MarkerMutationAsync(async _ => { await _markers!.RenameAsync(marker.MarkerId, marker.Revision, name); return marker.MarkerId; });
@@ -126,28 +143,36 @@ public partial class PlayerViewerHost
                 if (current is FrameworkElement { Tag: TimelineMarker }) return;
         TimelineSurface.ContextMenu = BuildTimelineMenu();
     }
-    private async void PreviousMarker_Click(object sender, RoutedEventArgs e) =>
-        await SeekMarkerAsync(MarkerNavigation.Previous(_markerItems, _service?.Snapshot.DisplayedTimestamp?.Position ?? TimeSpan.Zero));
-    private async void NextMarker_Click(object sender, RoutedEventArgs e) =>
-        await SeekMarkerAsync(MarkerNavigation.Next(_markerItems, _service?.Snapshot.DisplayedTimestamp?.Position ?? TimeSpan.Zero));
-    internal async Task SeekMarkerAsync(TimelineMarker? marker)
+    private void PreviousMarker_Click(object sender, RoutedEventArgs e) =>
+        _ = DispatchTransportAsync(PlayerActions.NavigateMarker, new TraverseArguments(TraversalDirection.Previous));
+    private void NextMarker_Click(object sender, RoutedEventArgs e) =>
+        _ = DispatchTransportAsync(PlayerActions.NavigateMarker, new TraverseArguments(TraversalDirection.Next));
+    internal async Task<ActionResult> SeekMarkerAsync(TimelineMarker? marker, CancellationToken token = default)
     {
-        if (marker is null || marker.AssetId != _currentAsset?.AssetId) return;
+        if (marker is null || marker.AssetId != _currentAsset?.AssetId) return new(ActionOutcome.NoChange);
         marker = _markerItems.FirstOrDefault(m => m.MarkerId == marker.MarkerId);
-        if (marker is null) return;
+        if (marker is null) return new(ActionOutcome.NoChange);
         _selectedMarkerId = marker.MarkerId;
         UpdateMarkerPresentation();
-        if (_service is null || !PositionSlider.IsEnabled) return;
+        if (_service is null) return new(ActionOutcome.Ineligible, ActionUnavailableReason.SourceUnavailable);
         if (_service.SourceInfo is { } source && marker.Position > source.Duration)
         {
             SetStatus("This marker is beyond the available source duration.");
-            return;
+            return new(ActionOutcome.NoChange);
         }
         var generation = _generation;
         RestoreLiveVideoSurface();
-        try { await _service.SeekAsync(marker.Position); }
-        catch (OperationCanceledException) { }
-        catch (Exception error) { if (generation == _generation) SetStatus($"Marker seek failed: {error.Message}"); }
+        try
+        {
+            await _service.SeekAsync(marker.Position, token);
+            return new(generation == _generation ? ActionOutcome.Completed : ActionOutcome.Superseded);
+        }
+        catch (OperationCanceledException) { return new(generation == _generation ? ActionOutcome.Cancelled : ActionOutcome.Superseded); }
+        catch (Exception error)
+        {
+            if (generation == _generation) SetStatus($"Marker seek failed: {error.Message}");
+            return new(generation == _generation ? ActionOutcome.Failed : ActionOutcome.Superseded, Diagnostic: error.Message);
+        }
     }
     private void MarkerTrack_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateMarkerPresentation();
 }

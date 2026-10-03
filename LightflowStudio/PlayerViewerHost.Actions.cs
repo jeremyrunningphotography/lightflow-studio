@@ -16,7 +16,7 @@ public partial class PlayerViewerHost
     private static readonly ActionInputSource TransportActionSource = new("player.transport", ActionInputKind.Transport);
     internal Func<bool>? ActionPresentationActive { get; set; }
     internal PlayerActions SemanticActions => _actions;
-    internal PlayerActionTarget? ActionTarget => _service is null ? null : new(_actionSessionId, _generation, _currentAsset?.AssetId);
+    internal PlayerActionTarget? ActionTarget => _service is null && _currentAsset is null ? null : new(_actionSessionId, _generation, _currentAsset?.AssetId);
 
     private void InitializeActions()
     {
@@ -59,8 +59,8 @@ public partial class PlayerViewerHost
     }
     private async Task DispatchTransportAsync(string action, ActionArguments arguments)
     {
-        var result = await _actions.InvokeAsync(new(action, arguments, TransportActionSource, Guid.NewGuid(), ActionTarget));
-        if (result.Outcome == ActionOutcome.Failed) SetStatus(result.Diagnostic ?? "Player action failed.");
+        var invocation = new ActionInvocation(action, arguments, TransportActionSource, Guid.NewGuid(), ActionTarget);
+        PresentActionResult(invocation, await _actions.InvokeAsync(invocation));
     }
     private bool DispatchKeyboardAction(Key key, bool repeat)
     {
@@ -77,8 +77,20 @@ public partial class PlayerViewerHost
     }
     private async Task DispatchKeyboardAsync(ActionInvocation invocation)
     {
-        var result = await _actions.InvokeAsync(invocation);
+        PresentActionResult(invocation, await _actions.InvokeAsync(invocation));
+    }
+    private void PresentActionResult(ActionInvocation invocation, ActionResult result)
+    {
+        if (ActionTarget != invocation.Target) return;
         if (result.Outcome == ActionOutcome.Failed) SetStatus(result.Diagnostic ?? "Player action failed.");
+        else if (result.Outcome == ActionOutcome.NoChange && result.Diagnostic is not null) SetStatus(result.Diagnostic);
+        else if (result.Outcome == ActionOutcome.Ineligible && result.Reason == ActionUnavailableReason.WorkingRangeUnavailable)
+            SetStatus(CurrentSubclipCreationEligibility().Problem);
+    }
+    private bool DispatchReviewKeyboard(string action, ActionArguments arguments, bool repeat)
+    {
+        _ = DispatchKeyboardAsync(new(action, arguments, KeyboardActionSource, Guid.NewGuid(), ActionTarget, IsRepeat: repeat));
+        return true;
     }
     private bool EndKeyboardColorSession()
     {
@@ -97,7 +109,39 @@ public partial class PlayerViewerHost
         public PlayerActionContext Context => new(host.ActionTarget, host.ActionPresentationActive?.Invoke() ?? true,
             host.IsEnabled && (Window.GetWindow(host)?.IsEnabled ?? true) && !System.Windows.Interop.ComponentDispatcher.IsThreadModal,
             host._actionSourceReady && host._service?.Snapshot is { SourcePath: not null, State: MediaPlaybackState.Paused or MediaPlaybackState.Playing or MediaPlaybackState.Ended or MediaPlaybackState.Seeking },
-            host._colorActive);
+            host._colorActive, host._currentAsset is not null);
+        private static ActionEligibility Available(bool available, ActionUnavailableReason reason) => new(available, available ? ActionUnavailableReason.None : reason);
+        public ActionEligibility ReviewEligibility(string actionId) => actionId switch {
+            PlayerActions.TraverseReview => Available(host._reviewSet is not null && host._reviewResolver is not null, ActionUnavailableReason.ReviewSetUnavailable),
+            PlayerActions.CreateSubclip => Available(host.CurrentSubclipCreationEligibility().CanCreate, ActionUnavailableReason.WorkingRangeUnavailable),
+            PlayerActions.AddMarker or PlayerActions.NavigateMarker when host._markers is null || host._currentAsset?.AssetId is null => new(false, ActionUnavailableReason.MarkerServiceUnavailable),
+            PlayerActions.SetBoundary or PlayerActions.AddMarker or PlayerActions.NavigateMarker => Available(
+                (host._retainedSteppedFrame?.Timestamp ?? host._service?.Snapshot.DisplayedTimestamp) is { IsDecodedPresentationTimestamp: true }, ActionUnavailableReason.TimestampUnavailable),
+            _ => new(false, ActionUnavailableReason.UnknownAction)
+        };
+        public Task<ActionResult> SetBoundaryAsync(PlayerActionTarget target, WorkingRangeBoundary boundary, CancellationToken token)
+        { Check(target, token); return host.SetBoundaryAsync(target, boundary, token); }
+        public Task<ActionResult> CreateSubclipAsync(PlayerActionTarget target, CancellationToken token)
+        { Check(target, token); return host.CreateSubclipAsync(target, token); }
+        public Task<ActionResult> AddMarkerAsync(PlayerActionTarget target, CancellationToken token)
+        { Check(target, token); return host.AddMarkerAsync(target, token); }
+        public Task<ActionResult> TraverseReviewAsync(PlayerActionTarget target, TraversalDirection direction, CancellationToken token)
+        {
+            Check(target, token);
+            if (host._reviewSet is not { } review || (direction == TraversalDirection.Previous ? !review.CanPrevious : !review.CanNext))
+                return Task.FromResult(new ActionResult(ActionOutcome.NoChange));
+            return host.SelectReviewAssetAsync(review.Items[review.CurrentIndex + (int)direction].Asset.AssetId!.Value, token);
+        }
+        public async Task<ActionResult> NavigateMarkerAsync(PlayerActionTarget target, TraversalDirection direction, CancellationToken token)
+        {
+            Check(target, token);
+            var position = (host._retainedSteppedFrame?.Timestamp ?? host._service?.Snapshot.DisplayedTimestamp)!.Position;
+            var marker = direction == TraversalDirection.Previous
+                ? MarkerNavigation.Previous(host._markerItems, position) : MarkerNavigation.Next(host._markerItems, position);
+            if (marker is null) return new(ActionOutcome.NoChange);
+            var result = await host.SeekMarkerAsync(marker, token);
+            return host.ActionTarget == target ? result : new(ActionOutcome.Superseded);
+        }
         private void Check(PlayerActionTarget target, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();

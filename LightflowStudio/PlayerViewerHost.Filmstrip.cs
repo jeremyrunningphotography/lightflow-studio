@@ -1,3 +1,4 @@
+using Lightflow.Actions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -54,32 +55,41 @@ public partial class PlayerViewerHost
         return SelectReviewAssetAsync(review.Items[review.CurrentIndex + Math.Sign(direction)].Asset.AssetId!.Value);
     }
 
-    internal async Task SelectReviewAssetAsync(Guid assetId)
+    internal async Task<ActionResult> SelectReviewAssetAsync(Guid assetId, CancellationToken cancellationToken = default)
     {
         if (_reviewSet is not { } review || _reviewResolver is not { } resolve ||
-            ContextChanging?.Invoke() == false || !review.Select(assetId)) { SyncReviewNavigation(); return; }
+            ContextChanging?.Invoke() == false || !review.Select(assetId)) { SyncReviewNavigation(); return new(ActionOutcome.NoChange); }
         CancelReviewRequest();
-        var request = _reviewRequest = new CancellationTokenSource();
+        var request = _reviewRequest = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var token = request.Token;
         // Invalidate a still-opening source before even awaiting destination path resolution.
         _sourceOpenCts?.Cancel();
-        ++_generation;
+        var generation = ++_generation;
+        _actionSourceReady = false;
         SyncReviewNavigation();
         var asset = review.Items[review.CurrentIndex].Asset;
         try
         {
             await PauseIfPlayingAsync();
             token.ThrowIfCancellationRequested();
+            if (generation != _generation) return new(ActionOutcome.Superseded);
             MediaPathResolution resolution;
             try { resolution = await resolve(asset, token); }
             catch (OperationCanceledException) { throw; }
             catch (Exception exception)
             { resolution = new(asset.RootId, asset.RelativePath, asset.Key, null, MediaRootAvailability.Unavailable, false, exception.Message); }
             token.ThrowIfCancellationRequested();
+            if (generation != _generation) return new(ActionOutcome.Superseded);
             await OpenAsync(asset, resolution, token);
+            return new(!token.IsCancellationRequested && _generation == generation + 1 && _currentAsset?.AssetId == assetId ? ActionOutcome.Completed : ActionOutcome.Superseded);
         }
-        catch (OperationCanceledException) { }
-        catch (Exception exception) { if (!token.IsCancellationRequested) SetStatus(exception.Message); }
+        catch (OperationCanceledException) { return new(ActionOutcome.Superseded); }
+        catch (Exception exception)
+        {
+            if (token.IsCancellationRequested || generation != _generation) return new(ActionOutcome.Superseded);
+            SetStatus(exception.Message);
+            return new(ActionOutcome.Failed, Diagnostic: exception.Message);
+        }
     }
 
     private void SyncReviewNavigation()
@@ -104,8 +114,8 @@ public partial class PlayerViewerHost
         }));
     }
     private DispatcherOperation? _revealOperation;
-    private void PreviousAsset_Click(object sender, RoutedEventArgs e) => _ = TraverseReviewAsync(-1);
-    private void NextAsset_Click(object sender, RoutedEventArgs e) => _ = TraverseReviewAsync(1);
+    private void PreviousAsset_Click(object sender, RoutedEventArgs e) => _ = DispatchTransportAsync(PlayerActions.TraverseReview, new TraverseArguments(TraversalDirection.Previous));
+    private void NextAsset_Click(object sender, RoutedEventArgs e) => _ = DispatchTransportAsync(PlayerActions.TraverseReview, new TraverseArguments(TraversalDirection.Next));
     private void FilmstripToggle_Click(object sender, RoutedEventArgs e) => FilmstripVisible = !FilmstripVisible;
     private void Filmstrip_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

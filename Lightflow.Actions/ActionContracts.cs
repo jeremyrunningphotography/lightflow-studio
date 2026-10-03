@@ -3,10 +3,12 @@ namespace Lightflow.Actions;
 public enum ActionPhase { Invoke, Begin, End, Cancel }
 public enum ActionRepeatPolicy { Suppress, BoundedRelative, Session }
 public enum ActionExecutionPolicy { SingleFlight, Coalesced, Momentary }
-public enum ActionArgumentShape { None, FrameDirection }
+public enum ActionArgumentShape { None, FrameDirection, Boundary, TraversalDirection }
+public enum WorkingRangeBoundary { In, Out }
+public enum TraversalDirection { Previous = -1, Next = 1 }
 public enum ActionInputKind { Transport, Keyboard, Controller }
 public enum ActionOutcome { Completed, NoChange, Ineligible, Cancelled, Superseded, Busy, Failed }
-public enum ActionUnavailableReason { None, UnknownAction, InvalidArguments, InvalidPhase, NoPlayer, SourceUnavailable, InactivePresentation, ModalInteraction, ColorInactive }
+public enum ActionUnavailableReason { None, UnknownAction, InvalidArguments, InvalidPhase, NoPlayer, SourceUnavailable, InactivePresentation, ModalInteraction, ColorInactive, WorkingRangeUnavailable, ReviewSetUnavailable, MarkerServiceUnavailable, TimestampUnavailable }
 public sealed record ActionDescriptor(string Id, string Label, string Category, ActionArgumentShape Arguments,
     bool Bindable, IReadOnlyList<ActionPhase> Phases, ActionRepeatPolicy Repeat, ActionExecutionPolicy Execution);
 public abstract record ActionArguments;
@@ -16,11 +18,13 @@ public sealed record NoActionArguments : ActionArguments
 }
 /// <summary>One previous (-1) or next (+1) frame request. Accumulation is bounded by the Player queue.</summary>
 public sealed record FrameStepArguments(int Direction) : ActionArguments;
+public sealed record SetBoundaryArguments(WorkingRangeBoundary Boundary) : ActionArguments;
+public sealed record TraverseArguments(TraversalDirection Direction) : ActionArguments;
 public sealed record ActionInputSource(string Id, ActionInputKind Kind);
 /// <summary>Transient target identity; never a visual object or a persisted device identity.</summary>
 public sealed record PlayerActionTarget(Guid SessionId, long Generation, Guid? AssetId);
 public sealed record PlayerActionContext(PlayerActionTarget? Target, bool PlayerPresented, bool InteractionAvailable,
-    bool SourceReady, bool ColorActive);
+    bool SourceReady, bool ColorActive, bool ReviewReady = false);
 public sealed record ActionInvocation(string ActionId, ActionArguments Arguments, ActionInputSource Source,
     Guid InvocationId, PlayerActionTarget? Target, ActionPhase Phase = ActionPhase.Invoke, bool IsRepeat = false);
 public sealed record ActionResult(ActionOutcome Outcome, ActionUnavailableReason Reason = ActionUnavailableReason.None, string? Diagnostic = null);
@@ -39,4 +43,10 @@ public interface IPlayerActionPort
     Task StepFrameAsync(PlayerActionTarget target, int direction, CancellationToken token);
     /// <summary>Recompute the current authoritative pipeline on false; do not restore a captured assignment.</summary>
     void SetColorBypass(PlayerActionTarget target, bool bypass);
+    ActionEligibility ReviewEligibility(string actionId);
+    Task<ActionResult> SetBoundaryAsync(PlayerActionTarget target, WorkingRangeBoundary boundary, CancellationToken token);
+    Task<ActionResult> TraverseReviewAsync(PlayerActionTarget target, TraversalDirection direction, CancellationToken token);
+    Task<ActionResult> CreateSubclipAsync(PlayerActionTarget target, CancellationToken token);
+    Task<ActionResult> AddMarkerAsync(PlayerActionTarget target, CancellationToken token);
+    Task<ActionResult> NavigateMarkerAsync(PlayerActionTarget target, TraversalDirection direction, CancellationToken token);
 }

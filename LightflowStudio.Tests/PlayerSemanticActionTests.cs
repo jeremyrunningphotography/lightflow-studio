@@ -13,8 +13,8 @@ public sealed class PlayerSemanticActionTests
     [Fact]
     public void MetadataIsDiscoverableAndAssemblyHasNoPlatformReferences()
     {
-        Assert.Equal(3, PlayerActions.Descriptors.Count);
-        Assert.Equal(3, PlayerActions.Descriptors.Select(x => x.Id).Distinct().Count());
+        Assert.Equal(8, PlayerActions.Descriptors.Count);
+        Assert.Equal(8, PlayerActions.Descriptors.Select(x => x.Id).Distinct().Count());
         Assert.All(PlayerActions.Descriptors, action => { Assert.True(action.Bindable); Assert.NotEmpty(action.Label); Assert.Equal("Player", action.Category); });
         Assert.Equal(ActionRepeatPolicy.BoundedRelative, PlayerActions.Descriptors.Single(x => x.Id == PlayerActions.StepFrame).Repeat);
         Assert.DoesNotContain(typeof(PlayerActions).Assembly.GetReferencedAssemblies(), reference =>
@@ -30,6 +30,27 @@ public sealed class PlayerSemanticActionTests
         Assert.Equal(ActionOutcome.NoChange, (await actions.InvokeAsync(Call(port, PlayerActions.PlayPause, repeat: true))).Outcome);
         Assert.True(port.Playing);
         await actions.InvokeAsync(Call(port, PlayerActions.PlayPause)); Assert.False(port.Playing); Assert.Equal(2, port.ToggleCount);
+    }
+
+    [Fact]
+    public async Task ReviewArgumentShapesAndUndefinedEnumsAreRejectedBeforePortAdmission()
+    {
+        var port = new FakePort(); using var actions = new PlayerActions(port);
+        foreach (var (id, arguments) in new (string, ActionArguments)[] {
+            (PlayerActions.SetBoundary, NoActionArguments.Instance),
+            (PlayerActions.SetBoundary, new SetBoundaryArguments((WorkingRangeBoundary)99)),
+            (PlayerActions.TraverseReview, new FrameStepArguments(1)),
+            (PlayerActions.TraverseReview, new TraverseArguments((TraversalDirection)0)),
+            (PlayerActions.NavigateMarker, new TraverseArguments((TraversalDirection)99)),
+            (PlayerActions.AddMarker, new TraverseArguments(TraversalDirection.Next)),
+            (PlayerActions.CreateSubclip, new SetBoundaryArguments(WorkingRangeBoundary.In)) })
+            Assert.Equal(ActionUnavailableReason.InvalidArguments, (await actions.InvokeAsync(Call(port, id, arguments))).Reason);
+        foreach (var id in new[] { PlayerActions.SetBoundary, PlayerActions.TraverseReview, PlayerActions.CreateSubclip, PlayerActions.AddMarker, PlayerActions.NavigateMarker }) {
+            var descriptor = PlayerActions.Descriptors.Single(d => d.Id == id);
+            Assert.Equal([ActionPhase.Invoke], descriptor.Phases);
+            Assert.Equal(ActionExecutionPolicy.SingleFlight, descriptor.Execution);
+            Assert.Equal(id is PlayerActions.TraverseReview or PlayerActions.NavigateMarker ? ActionRepeatPolicy.BoundedRelative : ActionRepeatPolicy.Suppress, descriptor.Repeat);
+        }
     }
 
     [Fact]
@@ -163,6 +184,12 @@ public sealed class PlayerSemanticActionTests
 
     private sealed class FakePort : IPlayerActionPort
     {
+        public ActionEligibility ReviewEligibility(string actionId) => new(false, ActionUnavailableReason.SourceUnavailable);
+        public Task<ActionResult> SetBoundaryAsync(PlayerActionTarget target, WorkingRangeBoundary boundary, CancellationToken token) => throw new NotSupportedException();
+        public Task<ActionResult> TraverseReviewAsync(PlayerActionTarget target, TraversalDirection direction, CancellationToken token) => throw new NotSupportedException();
+        public Task<ActionResult> CreateSubclipAsync(PlayerActionTarget target, CancellationToken token) => throw new NotSupportedException();
+        public Task<ActionResult> AddMarkerAsync(PlayerActionTarget target, CancellationToken token) => throw new NotSupportedException();
+        public Task<ActionResult> NavigateMarkerAsync(PlayerActionTarget target, TraversalDirection direction, CancellationToken token) => throw new NotSupportedException();
         public PlayerActionContext Context { get; set; } = new(new(Guid.NewGuid(), 1, Guid.NewGuid()), true, true, true, true);
         public bool Playing, Bypassed;
         public int ToggleCount, ColorRevision, RestoredRevision, RestoreCount;

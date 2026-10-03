@@ -1393,10 +1393,11 @@ remain authoritative; no repeated endurance observation is required by this pres
 
 `Lightflow.Actions` is a small platform-neutral net8.0 assembly containing discoverable action contracts,
 validation, eligibility, repeat/execution policy and momentary gesture ownership. The first vertical slice exposes
-Player play/pause, bounded frame stepping and transient Color bypass. Windows keyboard ownership is resolved
+Player play/pause, bounded frame stepping and transient Color bypass. #350 adds working-range boundaries,
+captured review traversal, working-range Subclip creation and point-marker add/navigation through the same port. Windows keyboard ownership is resolved
 before semantic admission; transport, keyboard and direct controller fixtures share the current authoritative
 Player lease, range-aware playback, queue and Color presentation through an explicit WPF application port.
 No keyboard/OS/device identifiers enter shared contracts. Current playback presentation remains WPF-bearing;
 macOS must replace that adapter, not redefine semantic IDs or durable intent. See [Player action policy and
-acceptance evidence](PLAYER_ACTIONS.md). Browser, remaining Player actions, Settings bindings and TourBox-specific
+acceptance evidence](PLAYER_ACTIONS.md). Browser, review/presentation/Export actions, Settings bindings and TourBox-specific
 work remain separate children and decision gates.

@@ -1,3 +1,4 @@
+using Lightflow.Actions;
 using System.IO;
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -830,7 +831,7 @@ public partial class PlayerViewerHost : UserControl
     }
 
     private async void PlayPause_Click(object sender, RoutedEventArgs e) =>
-        await DispatchTransportAsync(Lightflow.Actions.PlayerActions.PlayPause, Lightflow.Actions.NoActionArguments.Instance);
+        await DispatchTransportAsync(PlayerActions.PlayPause, NoActionArguments.Instance);
 
     private async Task TogglePlaybackAsync(CancellationToken token)
     {
@@ -885,7 +886,7 @@ public partial class PlayerViewerHost : UserControl
     /// </summary>
     private void RequestStep(bool forward)
     {
-        _ = DispatchTransportAsync(Lightflow.Actions.PlayerActions.StepFrame, new Lightflow.Actions.FrameStepArguments(forward ? 1 : -1));
+        _ = DispatchTransportAsync(PlayerActions.StepFrame, new FrameStepArguments(forward ? 1 : -1));
     }
 
     private async Task ExecutePresentedStepAsync(bool forward)
@@ -939,14 +940,16 @@ public partial class PlayerViewerHost : UserControl
         return null;
     }
 
-    private async Task SaveRangeAsync(MediaRange? range)
+    private async Task SaveRangeAsync(MediaRange? range, CancellationToken token = default)
     {
+        var generation = _generation;
         var savedRange = range?.IsFullSource == true ? null : range;
         if (_rangeStore is not null && _currentAsset?.AssetId is Guid assetId)
         {
-            await _rangeStore.SaveAsync(assetId, savedRange).ConfigureAwait(true);
+            await _rangeStore.SaveAsync(assetId, savedRange, token).ConfigureAwait(true);
             RangeStateChanged?.Invoke(this, new(assetId, savedRange is not null));
         }
+        if (generation != _generation) return;
         _reviewRange = savedRange;
         UpdateRangePresentation();
     }
@@ -996,58 +999,59 @@ public partial class PlayerViewerHost : UserControl
         finally { _stoppingAtOut = false; }
     }
 
-    private async void SetIn_Click(object sender, RoutedEventArgs e)
-    {
-        if (_service?.SourceInfo is not { } info || _service.Snapshot.DisplayedTimestamp is not { } timestamp) return;
-        ExitSubclipReviewForWorkingRangeEdit();
-        var candidate = ReviewRangeBoundaryPolicy.SetIn(info.Duration, _reviewRange, timestamp.Position);
-        if (candidate.Validate().Count != 0) { SetStatus("In must be before the end of the source."); return; }
-        try { await SaveRangeAsync(candidate); SetStatus(null); }
-        catch (Exception exception) { SetStatus($"The range could not be saved. {exception.Message}"); }
-    }
+    private void SetIn_Click(object sender, RoutedEventArgs e) =>
+        _ = DispatchTransportAsync(PlayerActions.SetBoundary, new SetBoundaryArguments(WorkingRangeBoundary.In));
+    private void SetOut_Click(object sender, RoutedEventArgs e) =>
+        _ = DispatchTransportAsync(PlayerActions.SetBoundary, new SetBoundaryArguments(WorkingRangeBoundary.Out));
 
-    private async void SetOut_Click(object sender, RoutedEventArgs e)
+    private async Task<ActionResult> SetBoundaryAsync(PlayerActionTarget target,
+        WorkingRangeBoundary boundary, CancellationToken token)
     {
-        if (_service?.SourceInfo is not { } info || _service.Snapshot.DisplayedTimestamp is not { } timestamp) return;
+        var timestamp = _retainedSteppedFrame?.Timestamp ?? _service?.Snapshot.DisplayedTimestamp;
+        if (_service?.SourceInfo is not { } info || timestamp is not { IsDecodedPresentationTimestamp: true })
+            return new(ActionOutcome.Ineligible, ActionUnavailableReason.TimestampUnavailable);
         ExitSubclipReviewForWorkingRangeEdit();
-        var candidate = ReviewRangeBoundaryPolicy.SetOut(info.Duration, _reviewRange, timestamp.Position);
-        if (candidate.Validate().Count != 0) { SetStatus("Out must be after the start of the source."); return; }
-        try { await SaveRangeAsync(candidate); SetStatus(null); }
-        catch (Exception exception) { SetStatus($"The range could not be saved. {exception.Message}"); }
+        var candidate = boundary == WorkingRangeBoundary.In
+            ? ReviewRangeBoundaryPolicy.SetIn(info.Duration, _reviewRange, timestamp.Position)
+            : ReviewRangeBoundaryPolicy.SetOut(info.Duration, _reviewRange, timestamp.Position);
+        if (candidate.Validate().Count != 0) return new(ActionOutcome.NoChange, Diagnostic: boundary == WorkingRangeBoundary.In
+            ? "In must be before the end of the source." : "Out must be after the start of the source.");
+        await SaveRangeAsync(candidate, token);
+        if (ActionTarget != target) return new(ActionOutcome.Superseded);
+        SetStatus(null);
+        return new(ActionOutcome.Completed);
     }
-
-    private async void CreateSubclip()
+    private async Task<ActionResult> CreateSubclipAsync(PlayerActionTarget target, CancellationToken token)
     {
         var eligibility = CurrentSubclipCreationEligibility();
         if (!eligibility.CanCreate || eligibility.MaterializedRange is not { } range)
-        { SetStatus(eligibility.Problem); return; }
-        if (_subclips is null || _currentAsset?.AssetId is not Guid assetId) return;
-        try
+        { return new(ActionOutcome.Ineligible, ActionUnavailableReason.WorkingRangeUnavailable); }
+        if (_subclips is null || _currentAsset?.AssetId is not Guid assetId) return new(ActionOutcome.Ineligible);
+
+        var result = await _subclips.CreateAsync(assetId, range, token);
+        if (ActionTarget != target) return new(ActionOutcome.Superseded);
+        var subclip = result.Subclip;
+        if (_currentAsset?.AssetId == assetId)
         {
-            var result = await _subclips.CreateAsync(assetId, range);
-            var subclip = result.Subclip;
-            if (_currentAsset?.AssetId == assetId)
+            var item = _subclipItems.FirstOrDefault(candidate => candidate.SubclipId == subclip.SubclipId);
+            if (item is null)
             {
-                var item = _subclipItems.FirstOrDefault(candidate => candidate.SubclipId == subclip.SubclipId);
-                if (item is null)
-                {
-                    item = new SubclipPanelItem(subclip);
-                    var insertAt = 0;
-                    while (insertAt < _subclipItems.Count &&
-                           SubclipCurrentOrder.Compare(_subclipItems[insertAt].Subclip, subclip) < 0) insertAt++;
-                    _subclipItems.Insert(insertAt, item);
-                }
-                UpdateSubclipEmptyState();
-                if (result.Created && _subclipWorkCts is { } work) _ = LoadPosterAsync(item, _generation, work.Token);
-                SubclipsList.SelectedItems.Clear();
-                SubclipsList.SelectedItem = item;
-                SubclipsList.ScrollIntoView(item);
+                item = new SubclipPanelItem(subclip);
+                var insertAt = 0;
+                while (insertAt < _subclipItems.Count &&
+                       SubclipCurrentOrder.Compare(_subclipItems[insertAt].Subclip, subclip) < 0) insertAt++;
+                _subclipItems.Insert(insertAt, item);
             }
-            SubclipsRevealRequested?.Invoke(this, false);
-            SubclipStateChanged?.Invoke(this, new(assetId, hasSubclips: true));
-            SetStatus(result.Created ? $"{subclip.Name} created." : null);
+            UpdateSubclipEmptyState();
+            if (result.Created && _subclipWorkCts is { } work) _ = LoadPosterAsync(item, _generation, work.Token);
+            SubclipsList.SelectedItems.Clear();
+            SubclipsList.SelectedItem = item;
+            SubclipsList.ScrollIntoView(item);
         }
-        catch (Exception exception) { SetStatus($"The Subclip could not be created. {exception.Message}"); }
+        SubclipsRevealRequested?.Invoke(this, false);
+        SubclipStateChanged?.Invoke(this, new(assetId, hasSubclips: true));
+        SetStatus(result.Created ? $"{subclip.Name} created." : null);
+        return new(result.Created ? ActionOutcome.Completed : ActionOutcome.NoChange);
     }
 
     private async void ClearIn_Click(object sender, RoutedEventArgs e) => await ClearBoundaryAsync(clearIn: true);
@@ -1281,7 +1285,7 @@ public partial class PlayerViewerHost : UserControl
         ExportAllSubclipsMenuItem.IsEnabled = hasSubclips;
     }
 
-    internal void AddSubclip_Click(object sender, RoutedEventArgs e) => CreateSubclip();
+    internal void AddSubclip_Click(object sender, RoutedEventArgs e) => _ = DispatchTransportAsync(PlayerActions.CreateSubclip, NoActionArguments.Instance);
 
     internal void ExportSubclips_Click(object sender, RoutedEventArgs e)
     {
@@ -1535,22 +1539,13 @@ public partial class PlayerViewerHost : UserControl
         var activeModifiers = modifiers;
         if (PlayerKeyboardOwnership.Owns(key, modifiers, inputOwner, this, Filmstrip)) return false;
         if (activeModifiers == ModifierKeys.None && key == Key.M)
-        {
-            if (!AddMarkerButton.IsEnabled || _markers is null) return false;
-            AddMarker_Click(this, new RoutedEventArgs()); return true;
-        }
+            return DispatchReviewKeyboard(PlayerActions.AddMarker, NoActionArguments.Instance, isRepeat);
         if (activeModifiers == ModifierKeys.Alt && key is Key.Left or Key.Right)
-        {
-            if (_markers is null || !PositionSlider.IsEnabled) return false;
-            if (key == Key.Left) PreviousMarker_Click(this, new RoutedEventArgs());
-            else NextMarker_Click(this, new RoutedEventArgs());
-            return true;
-        }
+            return DispatchReviewKeyboard(PlayerActions.NavigateMarker,
+                new TraverseArguments(key == Key.Left ? TraversalDirection.Previous : TraversalDirection.Next), isRepeat);
         if (activeModifiers == ModifierKeys.Control && key is Key.Left or Key.Right)
-        {
-            _ = TraverseReviewAsync(key == Key.Left ? -1 : 1);
-            return _reviewSet is not null;
-        }
+            return DispatchReviewKeyboard(PlayerActions.TraverseReview,
+                new TraverseArguments(key == Key.Left ? TraversalDirection.Previous : TraversalDirection.Next), isRepeat);
         if (key >= Key.D0 && key <= Key.D5)
         {
             _ = SetRatingAsync(key - Key.D0, toggleCurrent: false);
@@ -1572,15 +1567,15 @@ public partial class PlayerViewerHost : UserControl
             case Key.Space:
                 return DispatchKeyboardAction(key, isRepeat);
             case Key.I:
-                if (_service is not null && PositionSlider.IsEnabled) SetIn_Click(this, new RoutedEventArgs());
+                DispatchReviewKeyboard(PlayerActions.SetBoundary, new SetBoundaryArguments(WorkingRangeBoundary.In), isRepeat);
                 Focus();
                 return true;
             case Key.O:
-                if (_service is not null && PositionSlider.IsEnabled) SetOut_Click(this, new RoutedEventArgs());
+                DispatchReviewKeyboard(PlayerActions.SetBoundary, new SetBoundaryArguments(WorkingRangeBoundary.Out), isRepeat);
                 Focus();
                 return true;
             case Key.S:
-                CreateSubclip();
+                DispatchReviewKeyboard(PlayerActions.CreateSubclip, NoActionArguments.Instance, isRepeat);
                 Focus();
                 return true;
             case Key.Left:
@@ -1662,7 +1657,7 @@ public partial class PlayerViewerHost : UserControl
     private void PlayerViewerHost_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
         var result = _actions.CancelSource(KeyboardActionSource);
-        if (result.Outcome == Lightflow.Actions.ActionOutcome.Failed) SetStatus(result.Diagnostic);
+        if (result.Outcome == ActionOutcome.Failed) SetStatus(result.Diagnostic);
         _keyboardColorSession = null;
     }
 

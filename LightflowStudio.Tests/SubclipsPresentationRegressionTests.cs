@@ -77,15 +77,19 @@ public sealed class SubclipsPresentationRegressionTests
     {
         var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
         var presentation = Body(source, "private void UpdateRangePresentation");
-        var setIn = Body(source, "private async void SetIn_Click");
-        var setOut = Body(source, "private async void SetOut_Click");
+        var setBoundary = Body(source, "private async Task<ActionResult> SetBoundaryAsync");
+        var setIn = Body(source, "private void SetIn_Click");
+        var setOut = Body(source, "private void SetOut_Click");
         var clear = Body(source, "private async Task ClearBoundaryAsync");
 
         Assert.Contains("var presentedRange = PresentedRange", presentation);
         Assert.Contains("PlayerRangeTimelinePresentation.For(presentedRange, duration)", presentation);
         Assert.Contains("private MediaRange? ActivePlaybackRange => PresentedRange", source);
-        Assert.Contains("ExitSubclipReviewForWorkingRangeEdit();", setIn);
-        Assert.Contains("ExitSubclipReviewForWorkingRangeEdit();", setOut);
+        Assert.Contains("WorkingRangeBoundary.In", setIn);
+        Assert.Contains("WorkingRangeBoundary.Out", setOut);
+        Assert.Contains("ExitSubclipReviewForWorkingRangeEdit();", setBoundary);
+        Assert.Contains("ReviewRangeBoundaryPolicy.SetIn", setBoundary);
+        Assert.Contains("ReviewRangeBoundaryPolicy.SetOut", setBoundary);
         Assert.Contains("ExitSubclipReviewForWorkingRangeEdit();", clear);
         Assert.DoesNotContain("SaveRangeAsync(_selectedSubclipRange", source);
     }

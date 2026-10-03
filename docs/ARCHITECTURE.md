@@ -267,9 +267,9 @@ mutexes, pipes, or WPF types into durable domain state or feature services.
 - **Subclips snapshot working ranges.** The Catalog's single `MediaAssetRanges` primary row remains mutable per-asset review intent. A durable `Subclip` copies an explicit saved In and Out into its own stable `SubclipId`, keyed only to `AssetId`, with an independent name. Exact `(AssetId, InTicks, OutTicks)` uniqueness is enforced by the Catalog service and database. Legacy `Ordinal` storage and typed reorder compatibility remain intact for migration/history safety, but current-product presentation and Export order is authoritative In timestamp ascending, then stable `SubclipId`; no schema rewrite is needed for that policy. Revision-checked mutations reject stale changes. Paths, output planning, Jobs, and Preview pixels never enter Subclip identity.
 - **Subclip review remains transient.** The Player keeps a desktop-style selected-ID set for management/future Export handoff plus one active Subclip review target layered over the existing playback range policy; activation seeks to its authoritative In and supplies its Out only while playback is armed. Double-click uses that same decoder and boundary path to seek and play immediately. Neither selection writes the asset's mutable working range or saved Subclips. The shell hosts the retained Subclips view beside Inspector in one shared Right Panel; Jobs is a globally owned Browser-only peer tab, and only the shared panel owns width and open state. Posters are bounded, cancellable Preview work cached beneath the configured Previews root by observed source identity, stable `SubclipId`, generator version, and exact In ticks. Rename therefore reuses pixels, while source or In identity changes rebuild them.
 - **Platform-specific dependencies are isolated and documented.** Adding a Windows-only dependency or API requires recording the boundary that owns it, the shared contract it implements, whether durable state depends on it, and what another platform would need to replace.
-- **Portability is a design constraint, not a current product commitment.** Do not slow the Windows product with speculative duplicate implementations or premature abstraction. The architectural smell test is: *Could this platform-specific implementation be replaced without changing Lightflow's durable product semantics or migrating user intent?*
+- **macOS is a near-term platform requirement (#345).** Shared semantics remain reusable while Windows adapters ship first. Avoid speculative duplicate implementations and premature abstraction. The architectural smell test is: *Could this platform-specific implementation be replaced without changing Lightflow's durable product semantics or migrating user intent?*
 
-This boundary discipline preserves future portability without committing Lightflow Studio to macOS or another platform today.
+This boundary discipline preserves product semantics while future macOS input, playback and presentation adapters are developed. The first #345 action slice establishes that boundary without completing the macOS port.
 
 ### Portability review checklist
 
@@ -1388,3 +1388,15 @@ artifact lock, database integrity, and fixed cache counts. A separate invocation
 `--preview-regeneration-restart` checks persistence and recovers the retained failed replacement.
 The verifier refuses normal user storage. Existing #321 bounded watcher/source/version regressions
 remain authoritative; no repeated endurance observation is required by this presentation fix.
+
+### Semantic Player action boundary (#345 / #349)
+
+`Lightflow.Actions` is a small platform-neutral net8.0 assembly containing discoverable action contracts,
+validation, eligibility, repeat/execution policy and momentary gesture ownership. The first vertical slice exposes
+Player play/pause, bounded frame stepping and transient Color bypass. Windows keyboard ownership is resolved
+before semantic admission; transport, keyboard and direct controller fixtures share the current authoritative
+Player lease, range-aware playback, queue and Color presentation through an explicit WPF application port.
+No keyboard/OS/device identifiers enter shared contracts. Current playback presentation remains WPF-bearing;
+macOS must replace that adapter, not redefine semantic IDs or durable intent. See [Player action policy and
+acceptance evidence](PLAYER_ACTIONS.md). Browser, remaining Player actions, Settings bindings and TourBox-specific
+work remain separate children and decision gates.

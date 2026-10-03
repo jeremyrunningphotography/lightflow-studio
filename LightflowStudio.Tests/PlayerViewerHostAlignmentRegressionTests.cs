@@ -75,8 +75,8 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
         Assert.Contains("case Key.Left:", source);
         Assert.Contains("case Key.Right:", source);
-        Assert.Contains("if (_service is not null && PositionSlider.IsEnabled) RequestStep(forward: false);", source);
-        Assert.Contains("if (_service is not null && PositionSlider.IsEnabled) RequestStep(forward: true);", source);
+        // Shared step behavior and readiness are validated through keyboard/controller integration,
+        // rather than tying this presentation check to the old Slider.IsEnabled shortcut dispatch.
         Assert.Contains("IsArrowKeyOwnedByFocusedControl", source);
         Assert.Contains("TextBoxBase or System.Windows.Controls.Slider", source);
         Assert.Contains("System.Windows.Controls.Primitives.Selector", source);
@@ -160,7 +160,8 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("x:Name=\"CreativeLutCombo\"", xaml);
         Assert.DoesNotContain("ColorToggleButton", xaml);
         Assert.DoesNotContain("SetColorEnabledAsync", behavior);
-        Assert.Contains("case Key.C when _service is not null && _colorActive", behavior);
+        // Hold-C eligibility and lifetime are exercised by semantic and keyboard integration tests;
+        // the implementation no longer lives in a guarded switch case.
     }
 
     private static string Source() =>

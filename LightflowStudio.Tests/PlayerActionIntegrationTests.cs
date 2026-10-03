@@ -27,7 +27,8 @@ public sealed partial class PlayerViewerHostLeaseTests
             Assert.True(input.HandleKeyDown(InputKey.Space, host, false));
             await WaitUntilAsync(() => backend.PlayCallCount == 1, "native toggle");
             Assert.True(input.HandleKeyDown(InputKey.Space, host, true)); Assert.Equal(1, backend.PlayCallCount); Assert.Equal(0, backend.PauseCallCount);
-            Assert.False(input.HandleKeyDown(InputKey.Space, new Slider(), true));
+            Assert.True(input.HandleKeyDown(InputKey.Space, new Slider(), true));
+            Assert.False(input.HandleKeyDown(InputKey.Right, new Slider(), false));
             Assert.True(input.HandleKeyDown(System.Windows.Input.Key.Right, host, true));
             await WaitUntilAsync(() => backend.Operations.Contains("forward"), "native repeat step");
             await host.CloseAsync();
@@ -70,7 +71,7 @@ public sealed partial class PlayerViewerHostLeaseTests
             await host.OpenAsync(asset, ReviewPath(asset));
             DependencyObject owner = kind switch { "text" => new TextBox(), "multiline" => new TextBox { AcceptsReturn = true },
                 "slider" => new Slider(), "selector" => new ListBox(), "dropdown" => new ComboBox { IsEditable = true }, _ => new Button() };
-            Assert.False(host.TryHandleShortcut(InputKey.Space, owner, ModifierKeys.None)); Assert.Equal(0, backend.PlayCallCount);
+            Assert.Equal(kind == "slider", host.TryHandleShortcut(InputKey.Space, owner, ModifierKeys.None)); Assert.Equal(kind == "slider" ? 1 : 0, backend.PlayCallCount);
             if (kind != "button") Assert.False(host.TryHandleShortcut(InputKey.C, owner, ModifierKeys.None));
             await host.CloseAsync();
         });

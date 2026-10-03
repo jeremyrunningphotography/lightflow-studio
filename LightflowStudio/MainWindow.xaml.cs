@@ -2633,15 +2633,16 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
-        // The Subclips content shares Player shortcuts; Inspector and tab navigation keep their own input.
-        if (RightPanelSplitter.IsKeyboardFocusWithin || (HomeRightPanel.IsKeyboardFocusWithin &&
-            _playerViewerHost?.SubclipsContent.IsKeyboardFocusWithin != true)) return;
+        // Resolve active local interaction per key before semantic/legacy Player dispatch.
         if (PlayerOwnsShortcutContext() && _playerViewerHost!.TryHandleShortcut(
                 e.Key == Key.System ? e.SystemKey : e.Key, e.OriginalSource as DependencyObject, Keyboard.Modifiers, e.IsRepeat))
         {
             e.Handled = true;
             return;
         }
+        // Browser file/navigation commands retain their existing Inspector/Right Panel guard.
+        if (RightPanelSplitter.IsKeyboardFocusWithin || (HomeRightPanel.IsKeyboardFocusWithin &&
+            _playerViewerHost?.SubclipsContent.IsKeyboardFocusWithin != true)) return;
         var inputOwner = e.OriginalSource as DependencyObject;
         if (_browserPresentation == BrowserPresentationMode.Grid && MainTabs.SelectedIndex == 0 &&
             !PlayerViewerHost.IsTextEntryControl(inputOwner))

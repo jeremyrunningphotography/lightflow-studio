@@ -77,9 +77,8 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
         Assert.Contains("case Key.Right:", source);
         // Shared step behavior and readiness are validated through keyboard/controller integration,
         // rather than tying this presentation check to the old Slider.IsEnabled shortcut dispatch.
-        Assert.Contains("IsArrowKeyOwnedByFocusedControl", source);
-        Assert.Contains("TextBoxBase or System.Windows.Controls.Slider", source);
-        Assert.Contains("System.Windows.Controls.Primitives.Selector", source);
+        Assert.Contains("PlayerKeyboardOwnership.Owns", source);
+        // Actual local ownership is covered by PlayerKeyboardFocusTests and native-input integration.
     }
 
     [Fact]

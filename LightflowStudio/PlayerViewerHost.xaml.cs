@@ -1533,6 +1533,7 @@ public partial class PlayerViewerHost : UserControl
     {
         if (IsTextEntryControl(inputOwner)) return false;
         var activeModifiers = modifiers;
+        if (PlayerKeyboardOwnership.Owns(key, modifiers, inputOwner, this, Filmstrip)) return false;
         if (activeModifiers == ModifierKeys.None && key == Key.M)
         {
             if (!AddMarkerButton.IsEnabled || _markers is null) return false;
@@ -1550,9 +1551,6 @@ public partial class PlayerViewerHost : UserControl
             _ = TraverseReviewAsync(key == Key.Left ? -1 : 1);
             return _reviewSet is not null;
         }
-        if (key is Key.Left or Key.Right && IsArrowKeyOwnedByFocusedControl(inputOwner)) return false;
-        if (key is Key.Space or Key.C && (IsArrowKeyOwnedByFocusedControl(inputOwner) ||
-            (key == Key.Space && IsInsideButton(inputOwner)))) return false;
         if (key >= Key.D0 && key <= Key.D5)
         {
             _ = SetRatingAsync(key - Key.D0, toggleCurrent: false);
@@ -1575,12 +1573,15 @@ public partial class PlayerViewerHost : UserControl
                 return DispatchKeyboardAction(key, isRepeat);
             case Key.I:
                 if (_service is not null && PositionSlider.IsEnabled) SetIn_Click(this, new RoutedEventArgs());
+                Focus();
                 return true;
             case Key.O:
                 if (_service is not null && PositionSlider.IsEnabled) SetOut_Click(this, new RoutedEventArgs());
+                Focus();
                 return true;
             case Key.S:
                 CreateSubclip();
+                Focus();
                 return true;
             case Key.Left:
             case Key.Right:
@@ -1665,47 +1666,6 @@ public partial class PlayerViewerHost : UserControl
         _keyboardColorSession = null;
     }
 
-    private static bool IsInsideButton(DependencyObject? element)
-    {
-        while (element is not null)
-        {
-            if (element is System.Windows.Controls.Primitives.ButtonBase) return true;
-            element = element is Visual ? VisualTreeHelper.GetParent(element) : null;
-        }
-        return false;
-    }
-
-    private bool IsArrowKeyOwnedByFocusedControl(DependencyObject? element)
-    {
-        var inputOwner = element;
-        while (element is not null)
-        {
-            // Stop at Player before reaching the shell TabControl (a Selector).
-            // Filmstrip traversal uses Ctrl+Arrow; plain arrows retain Player frame stepping.
-            if (ReferenceEquals(element, this) || ReferenceEquals(element, Filmstrip)) return false;
-            // Selected tab content is an input boundary, not a tab-navigation interaction.
-            // Separate panels can reach shell TabControls without passing through Player.
-            if (element is System.Windows.Controls.TabControl tabs &&
-                tabs.SelectedContent is DependencyObject content && IsWithinTabContent(inputOwner, content)) return false;
-            if (element is System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.Slider or
-                System.Windows.Controls.Primitives.Thumb or System.Windows.Controls.Primitives.Selector or
-                System.Windows.Controls.Primitives.MenuBase or System.Windows.Controls.MenuItem)
-                return true;
-            element = VisualTreeHelper.GetParent(element);
-        }
-        return false;
-    }
-
-    private static bool IsWithinTabContent(DependencyObject? inputOwner, DependencyObject content)
-    {
-        while (inputOwner is not null)
-        {
-            if (ReferenceEquals(inputOwner, content)) return true;
-            inputOwner = VisualTreeHelper.GetParent(inputOwner);
-        }
-        return false;
-    }
-
     internal static bool IsTextEntryControl(DependencyObject? element)
     {
         while (element is not null)
@@ -1713,7 +1673,7 @@ public partial class PlayerViewerHost : UserControl
             if (element is System.Windows.Controls.Primitives.TextBoxBase ||
                 element is System.Windows.Controls.ComboBox combo && combo.IsEditable)
                 return true;
-            element = VisualTreeHelper.GetParent(element);
+            element = PlayerKeyboardOwnership.Parent(element);
         }
         return false;
     }

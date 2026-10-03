@@ -16,6 +16,7 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     private bool _refreshAgain;
     private InspectorDescriptionEditor? _descriptions;
     private bool _transitionPending;
+    private long _descriptionContextVersion;
     internal Func<DescriptionConfirmation, bool>? ConfirmDescriptions { get; set; }
     internal Func<InspectorDescriptionEditor, bool>? ConfirmTransition { get; set; }
     internal bool TryLeaveContext()
@@ -29,6 +30,8 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
         finally { _transitionPending = false; }
     }
     internal event EventHandler? OpenPlayerRequested;
+    internal event EventHandler? DescriptionEditingCompleted;
+    internal bool DescriptionInteractionPending => _descriptions is { } editor && (editor.HasDraft || !editor.CanLeaveContext);
     internal Func<TimelineMarker, Task>? SeekMarker { get; set; }
     internal Func<Task>? OpenFolder { get; set; }
     internal bool IsPlayerContext => _playerContext;
@@ -38,6 +41,7 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     internal void Initialize(Func<MediaInspectorService> service, IAssetDescriptionStore descriptions)
     {
         _service = service;
+        ++_descriptionContextVersion;
         _descriptions?.Dispose();
         _descriptions = new(descriptions, request => ConfirmDescriptions?.Invoke(request) ?? ConfirmDescriptionChanges(request));
         DescriptionSection.DataContext = _descriptions;
@@ -53,6 +57,7 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
         if (_descriptions?.HasDraft == true &&
             (player != _playerContext || !context.Select(a => a.AssetId).ToHashSet().SetEquals(_context.Select(a => a.AssetId))))
             return; // A missed caller guard must never silently destroy a draft.
+        if (player != _playerContext || !context.SequenceEqual(_context)) ++_descriptionContextVersion;
         _context = context;
         _playerContext = player;
         if (_descriptions is not null) _ = _descriptions.SetContextAsync(context.Select(a => a.AssetId), player);
@@ -148,7 +153,15 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     }
     private void OpenPlayer_Click(object sender, RoutedEventArgs e) => OpenPlayerRequested?.Invoke(this, EventArgs.Empty);
     private async void ApplyDescriptions_Click(object sender, RoutedEventArgs e)
-    { if (_descriptions is not null) await _descriptions.ApplyAsync(); }
+    {
+        var descriptions = _descriptions;
+        var context = _context;
+        var version = _descriptionContextVersion;
+        if (descriptions is not null && await descriptions.ApplyAsync() &&
+            ReferenceEquals(descriptions, _descriptions) && version == _descriptionContextVersion && context.SequenceEqual(_context) &&
+            _playerContext && !descriptions.HasDraft && IsKeyboardFocusWithin)
+            DescriptionEditingCompleted?.Invoke(this, EventArgs.Empty);
+    }
     private async void ReloadDescriptions_Click(object sender, RoutedEventArgs e)
     { if (_descriptions is not null) await _descriptions.ReloadAsync(); }
     private bool ConfirmDescriptionChanges(DescriptionConfirmation request) => ConfirmationDialog.Confirm(

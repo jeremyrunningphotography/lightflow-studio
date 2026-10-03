@@ -29,7 +29,7 @@ The independent near-source-start backward presentation observation documented w
 No TourBox adapter, shortcut Settings editor, Browser action migration or unrelated bug fix is included.
 The Draft PR must remain unmerged until Jeremy's explicit architecture and hands-on acceptance.
 
-## Recorded automated evidence
+## Previous-head automated evidence (`0b2905a`)
 
 - Final focused Release: 151 passed, including semantic/controller, keyboard/native repeat and ownership,
   #344 folder-tree/modifier/fullscreen, decoded-frame, modal and Color lifecycle checks.
@@ -42,3 +42,20 @@ The Draft PR must remain unmerged until Jeremy's explicit architecture and hands
 
 Final TRX/logs and task-owned package verification are preserved under `artifacts/345`. The Draft PR handoff records
 the exact commit, fresh executable, package checks, process verification and isolated acceptance startup command.
+
+## Focus revision evidence
+
+The [unchanged-build RCA and revision policy](player-focus-349.md) extend the hands-on checklist: test mouse Zoom
+open/close both unchanged and selected, Inspector editing/Apply, Set In/Out, Subclip creation and ordinary Buttons.
+Verify review Space/Arrows/I/O/S afterward; deliberately Tab-focused Buttons/ComboBoxes, slider navigation, menus
+and editors must retain their local input. Failed/cancelled Apply and replacement editing contexts keep drafts.
+
+- Final focused Release: 164 passed; targeted cleanup and previously affected UI/native checks: 20 passed.
+- Final full Release: 2,578 passed, zero failed, one expected installed-Companion skip (2,579 total).
+- Companion: 90 passed. Independent neutral net8.0 build: zero warnings/errors.
+- The initial full run exposed a test-teardown error: cancelled/failed draft transitions left test MainWindows open.
+  Teardown now explicitly consents to closing after assertions and verifies removal. Later UI checks and a native
+  presentation-capture check pass in the targeted recheck and final full run. No unrelated production fix was made.
+
+Revision TRX/logs and new-head package/CI verification are preserved under `artifacts/349`. The established owner
+acceptance root `artifacts/345/acceptance-data` remains intact. Architecture and owner hands-on acceptance remain pending.

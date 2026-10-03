@@ -11,6 +11,7 @@ public partial class PlayerViewerHost
     private Guid? _keyboardColorSession;
     private bool _actionSourceReady;
     private Window? _actionWindow;
+    private PlayerReviewFocus? _reviewFocus;
     private static readonly ActionInputSource KeyboardActionSource = new("player.keyboard", ActionInputKind.Keyboard);
     private static readonly ActionInputSource TransportActionSource = new("player.transport", ActionInputKind.Transport);
     internal Func<bool>? ActionPresentationActive { get; set; }
@@ -31,6 +32,7 @@ public partial class PlayerViewerHost
         DetachActionWindow();
         _actionWindow = window;
         if (window is null) return;
+        _reviewFocus = new(window, () => IsVisible && (ActionPresentationActive?.Invoke() ?? true), () => Focus());
         window.Deactivated += ActionWindowDeactivated;
         window.IsEnabledChanged += ActionWindowEnabledChanged;
         System.Windows.Interop.ComponentDispatcher.EnterThreadModal += ActionThreadModal;
@@ -38,6 +40,8 @@ public partial class PlayerViewerHost
     private void DetachActionWindow()
     {
         if (_actionWindow is not { } window) return;
+        _reviewFocus?.Dispose();
+        _reviewFocus = null;
         window.Deactivated -= ActionWindowDeactivated;
         window.IsEnabledChanged -= ActionWindowEnabledChanged;
         System.Windows.Interop.ComponentDispatcher.EnterThreadModal -= ActionThreadModal;

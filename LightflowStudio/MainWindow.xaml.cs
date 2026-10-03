@@ -1702,7 +1702,7 @@ public partial class MainWindow : Window
     private async void BrowserRemoveFromCollection_Click(object sender, RoutedEventArgs e)
         => await RemoveBrowserSelectionFromActiveCollectionAsync();
 
-    private async Task RemoveBrowserSelectionFromActiveCollectionAsync()
+    internal async Task RemoveBrowserSelectionFromActiveCollectionAsync(Func<DeleteConfirmation, bool>? confirm = null)
     {
         await _storage.Mutations.RunAsync(async () => {
         if (_activeCollectionScope is null || _activeSmartCollection is not null) return;
@@ -1713,10 +1713,13 @@ public partial class MainWindow : Window
         if (removing.Length == 0) return;
         var collectionId = _activeCollectionScope.Collection.CollectionId;
         var collectionName = _activeCollectionScope.Collection.Name;
-        if (!ConfirmationDialog.Confirm(this, "Remove from Collection",
-                $"Remove {removing.Length} media item{(removing.Length == 1 ? "" : "s")} from “{collectionName}”?",
-                "The media remains available in its folders and any other Collections.", null,
-                "Remove", "Keep in Collection")) return;
+        var confirmation = new DeleteConfirmation("Remove from Collection",
+            $"Remove {removing.Length} media item{(removing.Length == 1 ? "" : "s")} from “{collectionName}”?",
+            "The media remains available in its folders and any other Collections.", null!,
+            "Remove", "Keep in Collection");
+        if (!(confirm?.Invoke(confirmation) ?? ConfirmationDialog.Confirm(this,
+                confirmation.Title, confirmation.Heading, confirmation.Description, confirmation.Warning,
+                confirmation.Action, confirmation.Cancel))) return;
         await RunCollectionActionAsync(async () =>
         {
             await _storage.Collections.RemoveMembershipsAsync(collectionId, removing);
@@ -1937,7 +1940,7 @@ public partial class MainWindow : Window
         if (e.Key is Key.Enter or Key.Space) e.Handled = true;
     }
 
-    private async void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private void BrowserGridRows_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (NavigateBrowserKeyboard(e)) { e.Handled = true; return; }
         if (e.Key == Key.A && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
@@ -1945,12 +1948,6 @@ public partial class MainWindow : Window
             _browserGrid.SelectAll();
             UpdateBrowserStatusText();
             e.Handled = true;
-            return;
-        }
-        if (e.Key == Key.Delete && _activeCollectionScope is not null && _activeSmartCollection is null && _browserGrid.SelectedKeys.Count > 0)
-        {
-            e.Handled = true;
-            await RemoveBrowserSelectionFromActiveCollectionAsync();
             return;
         }
         // Open the first selected asset in Browser order; #111 captures the complete selected subset.
@@ -2655,11 +2652,10 @@ public partial class MainWindow : Window
             if (e.Key == Key.Delete)
             {
                 e.Handled = true;
-                if (BrowserFolderTree.IsKeyboardFocusWithin && SelectedFolderOperationSource() is { } folder)
-                {
-                    _ = DeleteFileSourcesAsync([folder], Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
-                }
-                else _ = DeleteBrowserSelectionAsync(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+                _ = HandleBrowserDeleteKeyAsync(inputOwner, BrowserFolderTree.IsKeyboardFocusWithin,
+                    Keyboard.Modifiers.HasFlag(ModifierKeys.Shift),
+                    () => RemoveBrowserSelectionFromActiveCollectionAsync(),
+                    DeleteBrowserSelectionAsync, DeleteFileSourcesAsync);
                 return;
             }
         }
@@ -2699,6 +2695,24 @@ public partial class MainWindow : Window
     {
         if (!PlayerOwnsShortcutContext() || !_playerViewerHost!.TryHandleShortcutKeyUp(e.Key)) return;
         e.Handled = true;
+    }
+
+    // Resolve keyboard intent before entering either mutation workflow. An ineligible
+    // Collection action must never fall back to deleting its source files.
+    internal Task HandleBrowserDeleteKeyAsync(DependencyObject? inputOwner, bool folderTreeFocused, bool permanent,
+        Func<Task> removeMembership, Func<bool, Task> deleteMedia,
+        Func<IReadOnlyList<FileOperationSource>, bool, Task> deleteFolder)
+    {
+        if (PlayerViewerHost.IsTextEntryControl(inputOwner) ||
+            _browserPresentation != BrowserPresentationMode.Grid || MainTabs.SelectedIndex != 0)
+            return Task.CompletedTask;
+        if (folderTreeFocused && SelectedFolderOperationSource() is { } folder)
+            return deleteFolder([folder], permanent);
+        if (_browserScopeSelection.Active == BrowserScopeSelectionKind.Collection)
+            return _activeCollectionScope is not null && _activeSmartCollection is null
+                ? removeMembership() : Task.CompletedTask;
+        return _browserScopeSelection.Active == BrowserScopeSelectionKind.Folder
+            ? deleteMedia(permanent) : Task.CompletedTask;
     }
 
     private string? CurrentBrowserFolder() => _browserNavigation.ActiveLocation?.AbsolutePath;

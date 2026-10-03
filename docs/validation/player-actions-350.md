@@ -28,7 +28,8 @@ Full command uses Release `--no-build`, TRX and the established five-minute hang
 `node --test PremiereCompanion/*.test.cjs`. Neutral build uses `dotnet build Lightflow.Actions/Lightflow.Actions.csproj -c Release`.
 Focused Release: 162 passed. Targeted source-assertion/Inspector/Button recheck: 23 passed.
 Companion: 90 passed. Independent net8.0 build: zero warnings/errors.
-Final full counts and package evidence are recorded in the Draft PR handoff. Test results remain in the task checkout's TestResults.
+Final full Release: 2,598 passed, zero failed, one expected installed-Companion skip (2,599 total).
+Package evidence is recorded in the Draft PR handoff. Test results remain in the task checkout's TestResults.
 
 An initial NuGet restore was blocked by sandbox network access; unrestricted restore succeeded. Initial new
 Subclip selection assertions used an unhosted panel, so those fixtures now use the established isolated/offscreen

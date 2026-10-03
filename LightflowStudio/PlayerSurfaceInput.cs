@@ -14,6 +14,7 @@ internal sealed class PlayerSurfaceInput : IDisposable
     private readonly Func<Key, DependencyObject?, bool> _key;
     private readonly Func<Key, bool> _keyUp;
     private readonly Action? _pointerMoved;
+    private readonly Func<Key, DependencyObject?, bool, bool>? _repeatAwareKey;
 
     private System.Windows.Point? _origin;
     private System.Windows.Point _previous;
@@ -22,11 +23,13 @@ internal sealed class PlayerSurfaceInput : IDisposable
 
     internal PlayerSurfaceInput(FrameworkElement surface, Action click, Action fullscreen,
         Action<double, double> pan, Action<int> zoom,
-        Func<Key, DependencyObject?, bool> key, Func<Key, bool> keyUp, Action? pointerMoved = null)
+        Func<Key, DependencyObject?, bool> key, Func<Key, bool> keyUp, Action? pointerMoved = null,
+        Func<Key, DependencyObject?, bool, bool>? repeatAwareKey = null)
     {
         _surface = surface; _click = click; _fullscreen = fullscreen; _pan = pan;
         _zoom = zoom; _key = key; _keyUp = keyUp;
         _pointerMoved = pointerMoved;
+        _repeatAwareKey = repeatAwareKey;
         surface.PreviewMouseLeftButtonDown += Down;
         surface.PreviewMouseLeftButtonUp += Up;
         surface.PreviewMouseMove += Move;
@@ -107,8 +110,16 @@ internal sealed class PlayerSurfaceInput : IDisposable
     }
     private void KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (!e.Handled && !e.IsRepeat) e.Handled = _key(e.Key, e.OriginalSource as DependencyObject);
-        else if (e.IsRepeat && e.Key == Key.Space) e.Handled = true;
+        if (e.Handled) return;
+        e.Handled = HandleKeyDown(e.Key == Key.System ? e.SystemKey : e.Key, e.OriginalSource as DependencyObject, e.IsRepeat);
+    }
+    internal bool HandleKeyDown(Key key, DependencyObject? owner, bool repeat)
+    {
+        if (_repeatAwareKey is not null && (key is Key.Space or Key.Left or Key.Right or Key.C))
+        {
+            return _repeatAwareKey(key, owner, repeat);
+        }
+        return !repeat ? _key(key, owner) : key == Key.Space;
     }
     private void KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
     { if (!e.Handled) e.Handled = _keyUp(e.Key); }

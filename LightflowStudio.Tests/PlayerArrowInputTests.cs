@@ -58,7 +58,8 @@ public sealed partial class PlayerViewerHostLeaseTests
             var backend = new FakeBackend();
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
             var markers = new FakeMarkers();
-            var host = new PlayerViewerHost(coordinator, markers: markers);
+            var ranges = new FakeRangeStore(null); var clips = new FakeSubclipService();
+            var host = new PlayerViewerHost(coordinator, ranges, clips, markers: markers);
             var window = new MainWindow(storage, startup.Status, startup.Diagnostic)
                 { Left = -32000, Top = -32000, ShowActivated = false, ShowInTaskbar = false };
             const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
@@ -106,6 +107,8 @@ public sealed partial class PlayerViewerHostLeaseTests
                 Assert.True(RaisePlayerKey(window.BrowserFolderTree, window, InputKey.Left, ModifierKeys.Control).Handled);
                 await WaitUntilAsync(() => host.CurrentAsset == assets[0] && host.PositionSlider.IsEnabled, "previous review asset");
 
+                Keyboard.Focus(window.BrowserFolderTree);
+                await VerifyReviewRangeKeys(host, window, backend, ranges, clips);
                 Mode(BrowserPresentationMode.Grid);
                 var stepCount = backend.Operations.Count;
                 foreach (var key in new[] { InputKey.Left, InputKey.Right })

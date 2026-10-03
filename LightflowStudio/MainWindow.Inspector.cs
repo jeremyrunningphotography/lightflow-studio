@@ -32,6 +32,10 @@ public partial class MainWindow
             if (selected.Count == 1) _ = OpenBrowserPlayerViewerAsync(selected[0]);
         };
         _inspector.SeekMarker = marker => _playerViewerHost?.SeekMarkerAsync(marker) ?? Task.CompletedTask;
+        _inspector.DescriptionEditingCompleted += (_, _) =>
+        {
+            if (PlayerOwnsShortcutContext()) _playerViewerHost!.Focus();
+        };
         HomeRightPanel.AddSurface("inspector", "Inspector", _inspector);
         _compactJobsView = new CompactJobsView(this);
         HomeRightPanel.AddSurface("jobs", "Jobs", _compactJobsView);

@@ -205,6 +205,9 @@
           "SharpGen.Runtime": "2.4.2-beta",
           "Vortice.DirectX": "3.8.3"
         }
+      },
+      "lightflow.actions": {
+        "type": "Project"
       }
     }
   }

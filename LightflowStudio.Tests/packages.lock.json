@@ -309,11 +309,15 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
+      "lightflow.actions": {
+        "type": "Project"
+      },
       "lightflowstudio": {
         "type": "Project",
         "dependencies": {
           "Flyleaf.FFmpeg.Bindings": "[9.0.0, )",
           "FlyleafLib": "[3.11.8-lightflow.1, 3.11.8-lightflow.1]",
+          "Lightflow.Actions": "[1.0.0, )",
           "Microsoft.Data.Sqlite": "[8.0.29, 8.0.29]",
           "NAudio.WinMM": "[2.3.0, )"
         }

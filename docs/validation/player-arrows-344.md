@@ -38,7 +38,13 @@ Original Arrow/transport probes and TRX evidence are retained locally under arti
 
 ## Validation
 
-Pending final focused/full Release, companion and packaging results.
+- Final focused Release group: 128 passed, 0 failed, 0 skipped (344-focused-final.trx).
+- New Arrow cases: all 17 passed in the complete Release run.
+- Complete Release run: 2520 passed, 1 failed, 1 skipped, 2522 total. The skip is the opt-in installed Premiere acceptance test.
+- Failure: unchanged CatalogCollectionsTests.BackupRestore_PreservesOrganizationAndLeavesPreviewStorageIndependent, NullReferenceException at line 248. It failed before any new Arrow test began. Its single isolated follow-up passed (1/1). Cause remains unverified; neither that pass nor focused coverage makes the full suite green. No full-suite retry or Catalog repair was performed.
+- Premiere companion: 90 passed, 0 failed.
+- Pinned processing and playback FFmpeg dependency preparation passed.
+- Required Build-Release.ps1 -Mode PullRequest -SkipInstaller runs after the final commit; exact package/startup/dependency/freshness/process results are reported in the Draft PR and handoff.
 
 ## Hands-on acceptance
 

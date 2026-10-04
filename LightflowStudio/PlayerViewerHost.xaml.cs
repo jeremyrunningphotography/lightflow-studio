@@ -480,6 +480,7 @@ public partial class PlayerViewerHost : UserControl
 
     private void ExportButton_Click(object sender, RoutedEventArgs e)
     {
+        if (OpenSemanticExport is not null) { _ = DispatchExportEntryAsync(ExportEntry.PlayerVideo); return; }
         if (_currentAsset is not { Kind: MediaPresentationKind.Video, AssetId: Guid assetId }) return;
         SetExportEnabled(false);
         ExportRequested?.Invoke(this, new PlayerViewerExportRequestedEventArgs(assetId));
@@ -855,14 +856,13 @@ public partial class PlayerViewerHost : UserControl
     private void MuteButton_Click(object sender, RoutedEventArgs e)
     {
         if (_service is null) return;
-        _service.Mute = !_service.Mute;
-        UpdateMuteIcon(_service.Mute);
+        _ = DispatchPresentationAsync(ReviewPresentationActions.Toggle, new PresentationToggleArguments(PresentationToggle.Mute));
     }
 
     private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_updatingVolume || _service is null) return;
-        _service.Volume = (int)e.NewValue;
+        _ = DispatchPresentationAsync(ReviewPresentationActions.Volume, new VolumeArguments(AdjustmentMode.Set, (int)e.NewValue));
     }
 
     /// <summary>
@@ -1301,6 +1301,7 @@ public partial class PlayerViewerHost : UserControl
 
     private void RequestSubclipExport(bool selectedOnly)
     {
+        if (OpenSemanticExport is not null) { _ = DispatchExportEntryAsync(selectedOnly ? ExportEntry.PlayerSelectedSubclips : ExportEntry.PlayerAllSubclips); return; }
         if (_currentAsset?.AssetId is not Guid assetId) return;
         var selectedIds = SelectedSubclipIds;
         var selected = _subclipItems.Where(item => !selectedOnly || selectedIds.Contains(item.SubclipId))

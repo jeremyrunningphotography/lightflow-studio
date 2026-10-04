@@ -1,3 +1,4 @@
+using Lightflow.Actions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -86,6 +87,10 @@ public partial class PlayerViewerHost
     {
         if (_updatingReview || _service is not { } service || SpeedChoice.SelectedIndex < 0 ||
             CadenceChoiceBox.SelectedItem is not CadenceChoice cadence) return;
+        if (ReferenceEquals(sender, SpeedChoice)) {
+            await DispatchPresentationAsync(ReviewPresentationActions.Speed, new SpeedArguments((ReviewSpeed)SpeedChoice.SelectedIndex));
+            return;
+        }
         var generation = _generation;
         try
         {
@@ -98,7 +103,8 @@ public partial class PlayerViewerHost
     }
 
     private void Fullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
-    internal void ToggleFullscreen()
+    internal void ToggleFullscreen() => _ = DispatchPresentationAsync(ReviewPresentationActions.Toggle, new PresentationToggleArguments(PresentationToggle.Fullscreen));
+    private void ToggleFullscreenCore()
     {
         _nativeInput?.Cancel(); _wpfInput?.Cancel();
         if (IsFullscreen) { ExitFullscreen(); return; }
@@ -194,11 +200,10 @@ public partial class PlayerViewerHost
     private void ZoomChoice_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_updatingReview) return;
-        _pixelZoom = ZoomChoice.SelectedIndex switch { 1 => 0.5, 2 => 1, 3 => 2, 4 => 4, _ => null };
-        _panX = _panY = 0;
-        ApplyViewport();
+        _ = DispatchPresentationAsync(ReviewPresentationActions.Zoom, new ZoomArguments((ReviewZoom)Math.Max(0, ZoomChoice.SelectedIndex)));
     }
-    private void ZoomViewport(int direction)
+    private void ZoomViewport(int direction) => _ = DispatchPresentationAsync(ReviewPresentationActions.StepZoom, new LevelArguments(direction));
+    private void ZoomViewportCore(int direction)
     {
         if (_pixelWidth <= 0 || _pixelHeight <= 0) return;
         var dpi = VisualTreeHelper.GetDpi(MediaSurfaceHost);

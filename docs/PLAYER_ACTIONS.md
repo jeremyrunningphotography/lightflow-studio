@@ -148,3 +148,7 @@ review resolution/open and marker seek recheck ownership before publishing into 
 submitted Catalog mutation can finish for its original captured asset; it cannot mutate/reveal the replacement.
 Structured failures stay inside the boundary. Direct-controller and native CFR/VFR evidence is recorded in
 [the #350 validation record](validation/player-actions-350.md).
+
+The #352 review/presentation and typed Export extension uses separate narrow presentation and shell ports;
+see [the operation inventory and cross-platform contract](REVIEW_PRESENTATION_ACTIONS.md). The accepted
+eight playback/range/Subclip/marker descriptors and input ownership above remain intact.

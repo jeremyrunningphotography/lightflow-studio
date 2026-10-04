@@ -18,9 +18,15 @@ public partial class PlayerViewerHost
     internal PlayerActions SemanticActions => _actions;
     internal PlayerActionTarget? ActionTarget => _service is null && _currentAsset is null ? null : new(_actionSessionId, _generation, _currentAsset?.AssetId);
 
+    internal PlayerActionContext ActionContext => new(ActionTarget, ActionPresentationActive?.Invoke() ?? true,
+            IsEnabled && (Window.GetWindow(this)?.IsEnabled ?? true) && !System.Windows.Interop.ComponentDispatcher.IsThreadModal,
+            _actionSourceReady && _service?.Snapshot is { SourcePath: not null, State: MediaPlaybackState.Paused or MediaPlaybackState.Playing or MediaPlaybackState.Ended or MediaPlaybackState.Seeking },
+            _colorActive, _currentAsset is not null);
+
     private void InitializeActions()
     {
         _actions = new(new WindowsPlayerActionPort(this));
+        _presentationActions = new(new WindowsReviewPresentationPort(this));
         Loaded += (_, _) => AttachActionWindow();
         Unloaded += (_, _) => { CancelPlayerActionSessions(); DetachActionWindow(); };
         IsEnabledChanged += (_, _) => { if (!IsEnabled) CancelPlayerActionSessions(); };
@@ -106,10 +112,7 @@ public partial class PlayerViewerHost
     {
         private sealed class StepBatch { public Exception? Error; }
         private StepBatch? _stepBatch;
-        public PlayerActionContext Context => new(host.ActionTarget, host.ActionPresentationActive?.Invoke() ?? true,
-            host.IsEnabled && (Window.GetWindow(host)?.IsEnabled ?? true) && !System.Windows.Interop.ComponentDispatcher.IsThreadModal,
-            host._actionSourceReady && host._service?.Snapshot is { SourcePath: not null, State: MediaPlaybackState.Paused or MediaPlaybackState.Playing or MediaPlaybackState.Ended or MediaPlaybackState.Seeking },
-            host._colorActive, host._currentAsset is not null);
+        public PlayerActionContext Context => host.ActionContext;
         private static ActionEligibility Available(bool available, ActionUnavailableReason reason) => new(available, available ? ActionUnavailableReason.None : reason);
         public ActionEligibility ReviewEligibility(string actionId) => actionId switch {
             PlayerActions.TraverseReview => Available(host._reviewSet is not null && host._reviewResolver is not null, ActionUnavailableReason.ReviewSetUnavailable),

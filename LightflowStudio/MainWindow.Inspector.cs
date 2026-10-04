@@ -1,3 +1,4 @@
+using Lightflow.Actions;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -106,7 +107,7 @@ public partial class MainWindow
         return ExplorerShell.Request(folder, selectFile: false);
     }
 
-    private void RightPanelToggle_Click(object sender, RoutedEventArgs e) => SetRightPanelOpen(RightPanelToggle.IsChecked == true);
+    private void RightPanelToggle_Click(object sender, RoutedEventArgs e) { RightPanelToggle.IsChecked = _rightPanelOpen; _ = DispatchShellActionAsync(ReviewShellActions.TogglePanel, NoActionArguments.Instance); }
     private void SetRightPanelOpen(bool open)
     {
         _rightPanelOpen = open;

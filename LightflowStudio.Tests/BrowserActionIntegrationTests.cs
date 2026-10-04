@@ -193,6 +193,37 @@ public sealed class BrowserActionIntegrationTests
         await host.CloseAsync();
         return null;
     });
+    [Theory]
+    [InlineData(BrowserScopeKind.Folder)]
+    [InlineData(BrowserScopeKind.Collection)]
+    [InlineData(BrowserScopeKind.SmartCollection)]
+    public Task ReconciledShellTargetTracksBrowserAuthorityWithoutOwningSelection(BrowserScopeKind kind) => WithWindow(async (window, storage, directory) => {
+        var (root, ids, collection) = await Seed(storage, directory);
+        await Load(window, storage, directory, root, collection, kind);
+        var grid = Field<BrowserGridModel>(window, "_browserGrid"); grid.SelectSingle(0);
+        var browser = window.BrowserSemanticContext.Target;
+        var shell = window.ShellActionTarget;
+        var selection = window.BrowserSemanticContext.SelectedAssetIds.ToArray();
+        await window.ShellActions.InvokeAsync(new(ReviewShellActions.ThumbnailSize, new LevelArguments(1), Controller, Guid.NewGuid(), shell));
+        Assert.Equal(browser, window.BrowserSemanticContext.Target);
+        Assert.Equal(selection, window.BrowserSemanticContext.SelectedAssetIds);
+        Assert.Equal(shell, window.ShellActionTarget);
+        await Invoke(window, BrowserActions.NavigateSelection, new NavigateSelectionArguments(BrowserMovement.Next));
+        Assert.NotEqual(selection, window.BrowserSemanticContext.SelectedAssetIds);
+        Assert.Equal(ActionOutcome.Superseded, (await window.ShellActions.InvokeAsync(new(ReviewShellActions.Export,
+            new ExportEntryArguments(ExportEntry.BrowserSubclips), Controller, Guid.NewGuid(), shell))).Outcome);
+        shell = window.ShellActionTarget;
+        grid.SetQuery(new() { SortMode = BrowserSortMode.Name, SortDescending = true });
+        Assert.NotEqual(browser, window.BrowserSemanticContext.Target);
+        Assert.Equal(ActionOutcome.Superseded, window.CheckExportPresentationAdmission(() => window.ShellActionTarget == shell, CancellationToken.None)!.Outcome);
+        shell = window.ShellActionTarget;
+        Set(window, "_browserUiGeneration", window.BrowserSemanticContext.Target!.Generation + 1);
+        Assert.Null(window.BrowserSemanticContext.Target);
+        Assert.NotEqual(shell, window.ShellActionTarget);
+        Assert.Equal(ActionUnavailableReason.NoBrowser, window.ShellActions.Eligibility(ReviewShellActions.Export,
+            window.ShellActionTarget, new ExportEntryArguments(ExportEntry.BrowserSubclips)).Reason);
+        return null;
+    });
     private static async Task WaitFor(Func<Task<bool>> condition) {
         for (var i = 0; i < 100; i++) { if (await condition()) return; await Task.Delay(10); }
         Assert.True(await condition());

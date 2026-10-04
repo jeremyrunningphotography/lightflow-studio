@@ -293,7 +293,7 @@
      <Grid x:Name="RangeReviewRow" Grid.Row="3" Margin="2,4,2,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <StackPanel x:Name="ReviewControlGroup" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
-       <ToggleButton x:Name="LoopChoice" Style="{StaticResource PlayerClassificationChoice}" ToolTip="Loop playback" AutomationProperties.Name="Loop playback" Margin="0,0,6,0">
+       <ToggleButton x:Name="LoopChoice" Click="LoopChoice_Click" Style="{StaticResource PlayerClassificationChoice}" ToolTip="Loop playback" AutomationProperties.Name="Loop playback" Margin="0,0,6,0">
         <Path Width="20" Height="20" Stretch="Uniform" StrokeThickness="1.6" Data="M3,9 A8,8 0 0 1 18,5 L18,1 M18,5 L14,5 M21,15 A8,8 0 0 1 6,19 L6,23 M6,19 L10,19">
          <Path.Style><Style TargetType="Path"><Setter Property="Stroke" Value="{StaticResource MutedTextBrush}"/><Style.Triggers><DataTrigger Binding="{Binding IsChecked, ElementName=LoopChoice}" Value="True"><Setter Property="Stroke" Value="{StaticResource OrangeBrush}"/></DataTrigger></Style.Triggers></Style></Path.Style>
         </Path>

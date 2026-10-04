@@ -64,8 +64,8 @@ public sealed class SubclipsPresentationRegressionTests
     public void SharedSubclipExportEntrySuppliesTypedNamingDefaultWithoutChangingOrdinaryExportEntry()
     {
         var source = File.ReadAllText(Path.Combine(Root(), "LightflowStudio", "MainWindow.xaml.cs"));
-        var ordinary = Body(source, "private async Task ApplyEncodingHandoffAsync");
-        var subclips = Body(source, "private async Task ApplySubclipExportHandoffAsync");
+        var ordinary = Body(source, "private async Task<ActionResult> ApplyEncodingHandoffAsync");
+        var subclips = Body(source, "private async Task<ActionResult> ApplySubclipExportHandoffAsync");
 
         Assert.DoesNotContain("ExportNamingDefault.Subclip", ordinary);
         Assert.Contains("namingDefault: ExportNamingDefault.Subclip", subclips);

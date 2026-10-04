@@ -147,13 +147,13 @@ public sealed class BrowserThumbnailSizeRegressionTests
         Assert.True(decreaseStart >= 0, "BrowserThumbnailSizeDecreaseButton_Click not found");
         var decreaseEnd = source.IndexOf(';', decreaseStart);
         var decreaseBody = source[decreaseStart..decreaseEnd];
-        Assert.Contains("ApplyBrowserThumbnailSize(BrowserGridLayout.StepLevel(_browserThumbnailSize, -1))", decreaseBody);
+        Assert.Contains("DispatchShellActionAsync(ReviewShellActions.ThumbnailSize, new LevelArguments(-1))", decreaseBody);
 
         var increaseStart = source.IndexOf("private void BrowserThumbnailSizeIncreaseButton_Click", StringComparison.Ordinal);
         Assert.True(increaseStart >= 0, "BrowserThumbnailSizeIncreaseButton_Click not found");
         var increaseEnd = source.IndexOf(';', increaseStart);
         var increaseBody = source[increaseStart..increaseEnd];
-        Assert.Contains("ApplyBrowserThumbnailSize(BrowserGridLayout.StepLevel(_browserThumbnailSize, 1))", increaseBody);
+        Assert.Contains("DispatchShellActionAsync(ReviewShellActions.ThumbnailSize, new LevelArguments(1))", increaseBody);
     }
 
     [Fact]

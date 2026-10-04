@@ -3,12 +3,12 @@ namespace Lightflow.Actions;
 public enum ActionPhase { Invoke, Begin, End, Cancel }
 public enum ActionRepeatPolicy { Suppress, BoundedRelative, Session }
 public enum ActionExecutionPolicy { SingleFlight, Coalesced, Momentary, Serialized }
-public enum ActionArgumentShape { None, FrameDirection, Boundary, TraversalDirection, BrowserNavigation, Rating, Flag, ColorLabel, BrowserOpen }
+public enum ActionArgumentShape { None, FrameDirection, Boundary, TraversalDirection, BrowserNavigation, Rating, Flag, ColorLabel, BrowserOpen, Volume, ReviewSpeed, ReviewZoom, PresentationToggle, LevelDirection, ExportEntry, PanelSurface }
 public enum WorkingRangeBoundary { In, Out }
 public enum TraversalDirection { Previous = -1, Next = 1 }
 public enum ActionInputKind { Transport, Keyboard, Controller }
 public enum ActionOutcome { Completed, NoChange, Ineligible, Cancelled, Superseded, Busy, Failed }
-public enum ActionUnavailableReason { None, UnknownAction, InvalidArguments, InvalidPhase, NoPlayer, SourceUnavailable, InactivePresentation, ModalInteraction, ColorInactive, WorkingRangeUnavailable, ReviewSetUnavailable, MarkerServiceUnavailable, TimestampUnavailable, NoBrowser, SelectionUnavailable }
+public enum ActionUnavailableReason { None, UnknownAction, InvalidArguments, InvalidPhase, NoPlayer, SourceUnavailable, InactivePresentation, ModalInteraction, ColorInactive, WorkingRangeUnavailable, ReviewSetUnavailable, MarkerServiceUnavailable, TimestampUnavailable, NoBrowser, SelectionUnavailable, AudioUnavailable, ViewportUnavailable, NoSelection, SurfaceUnavailable, ExportUnavailable, OperationInProgress }
 public sealed record ActionDescriptor(string Id, string Label, string Category, ActionArgumentShape Arguments,
     bool Bindable, IReadOnlyList<ActionPhase> Phases, ActionRepeatPolicy Repeat, ActionExecutionPolicy Execution);
 public abstract record ActionArguments;

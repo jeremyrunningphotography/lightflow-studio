@@ -177,6 +177,14 @@ public sealed partial class BrowserActionIntegrationTests
     [Theory]
     [InlineData(InputKey.ImeProcessed)][InlineData(InputKey.DeadCharProcessed)][InlineData(InputKey.NumPad0)][InlineData(InputKey.LeftCtrl)]
     public void ConfiguredShortcuts_CompositionNumpadAndModifiersAreNotGestures(InputKey key) => Assert.Null(WindowsKeyboardShortcuts.Translate(key, ModifierKeys.None));
+    [Fact]
+    public Task ConfiguredShortcuts_NewDigitBindingsPreserveClosedPickerTypeAhead() => StaDispatcher.RunAsync(() => {
+        var player = new Border(); var filmstrip = new Border();
+        Assert.True(PlayerKeyboardOwnership.Owns(InputKey.D6, ModifierKeys.None, new ComboBox { IsTextSearchEnabled = true }, player, filmstrip));
+        Assert.True(PlayerKeyboardOwnership.Owns(InputKey.D9, ModifierKeys.None, new ListBox { IsTextSearchEnabled = true }, player, filmstrip));
+        Assert.False(PlayerKeyboardOwnership.Owns(InputKey.D6, ModifierKeys.None, new ComboBox { IsTextSearchEnabled = false }, player, filmstrip));
+        return Task.CompletedTask;
+    });
 }
 
 

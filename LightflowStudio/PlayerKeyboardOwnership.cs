@@ -31,8 +31,8 @@ internal static class PlayerKeyboardOwnership
             if (current is MenuBase or MenuItem) return true;
             // Popup item containers do not have the ComboBox in their visual ancestry.
             if (current is ComboBoxItem item && ItemsControl.ItemsControlFromItemContainer(item) is ComboBox owner)
-                return owner.IsDropDownOpen || navigation || activation || letter;
-            if (current is ComboBox combo) return combo.IsDropDownOpen || navigation || activation || (letter && combo.IsTextSearchEnabled);
+                return owner.IsDropDownOpen || navigation || activation || letter || digit;
+            if (current is ComboBox combo) return combo.IsDropDownOpen || navigation || activation || ((letter || digit) && combo.IsTextSearchEnabled);
             if (current is Slider or Thumb) return navigation;
             if (current is ButtonBase && key is Key.Space or Key.Enter) return true;
             if (current is TabControl tabs && tabs.SelectedContent is DependencyObject content && Within(original, content)) return false;

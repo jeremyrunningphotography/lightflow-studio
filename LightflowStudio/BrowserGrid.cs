@@ -716,6 +716,7 @@ internal sealed class BrowserGridModel
         {
             var key = MediaPathSemantics.RelativePathKey(item.RelativePath);
             if (!byKey.TryGetValue(key, out var tile)) continue;
+            if (tile.AssetId != item.AssetId) ProjectionGeneration++;
             tile.SetAssetId(item.AssetId);
             _tilesByAsset[item.AssetId] = tile;
         }
@@ -776,7 +777,8 @@ internal sealed class BrowserGridModel
 
     public void ApplyClassification(AssetClassification classification)
     {
-        if (_tilesByAsset.TryGetValue(classification.AssetId, out var tile)) tile.SetClassification(classification);
+        if (_tilesByAsset.TryGetValue(classification.AssetId, out var tile) &&
+            (tile.Classification?.Revision ?? 0) <= classification.Revision) tile.SetClassification(classification);
     }
 
     public void ApplyAssetStates(IReadOnlyDictionary<Guid, BrowserAssetState> states)
@@ -884,6 +886,8 @@ internal sealed class BrowserGridModel
         return true;
     }
 
+    internal long ProjectionGeneration { get; private set; }
+
     private void RecomputeVisible()
     {
         using var timing = BrowserPerformance.Measure("query.project");
@@ -896,7 +900,10 @@ internal sealed class BrowserGridModel
             _selection.Restore(_selection.Snapshot().Where(memberKeys.Contains), null);
             foreach (var tile in _allTiles) tile.IsSelected = _selection.IsSelected(tile.Key);
         }
-        _visibleTiles = BrowserQueryEngine.Apply(members, Query).ToList();
+        var projected = BrowserQueryEngine.Apply(members, Query).ToList();
+        if (!_visibleTiles.Select(tile => (tile.RootId, tile.Key, tile.AssetId))
+            .SequenceEqual(projected.Select(tile => (tile.RootId, tile.Key, tile.AssetId)))) ProjectionGeneration++;
+        _visibleTiles = projected;
         for (var index = 0; index < _visibleTiles.Count; index++) _visibleTiles[index].Index = index;
         var anchorIndex = _visibleTiles.FindIndex(tile => tile.Key == anchorKey);
         _selection.Restore(_selection.Snapshot(), anchorIndex >= 0 ? anchorIndex : null);

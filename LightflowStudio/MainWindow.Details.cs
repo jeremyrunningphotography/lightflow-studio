@@ -1,3 +1,4 @@
+using Lightflow.Actions;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
@@ -196,22 +197,16 @@ public partial class MainWindow
     private bool NavigateBrowserKeyboard(System.Windows.Input.KeyEventArgs e)
     {
         if (_browserGrid.Tiles.Count == 0 || e.Key is not (Key.Up or Key.Down or Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown)) return false;
-        var current = _browserGrid.Tiles.FirstOrDefault(t => t.AssetId == _browserKeyboardCurrentAssetId)
-            ?? _browserGrid.Tiles.FirstOrDefault(t => t.IsSelected) ?? _browserGrid.Tiles[0];
+        if (BrowserOwnsLocalKey(e.Key, Keyboard.Modifiers, e.OriginalSource as DependencyObject)) return false;
         var columns = _browserGrid.Rows[0].Tiles.Count;
         var step = e.Key is Key.Up or Key.Down ? columns : e.Key is Key.PageUp or Key.PageDown ?
             columns * Math.Max(1, (int)((FindBrowserGridScrollViewer()?.ViewportHeight ?? 380) /
                 (_browserLayoutMode == BrowserLayoutMode.Details ? BrowserDetails.RowHeight : 150))) : 1;
-        var index = e.Key switch { Key.Home => 0, Key.End => _browserGrid.Tiles.Count - 1,
-            Key.Up or Key.Left or Key.PageUp => current.Index - step, _ => current.Index + step };
-        index = Math.Clamp(index, 0, _browserGrid.Tiles.Count - 1);
-        var accepted = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? _browserGrid.SelectRange(index) : _browserGrid.SelectSingle(index);
-        if (accepted)
-        {
-            _browserKeyboardCurrentAssetId = _browserGrid.Tiles[index].AssetId;
-            if (_browserKeyboardCurrentAssetId is { } id) RevealBrowserAsset(id);
-            UpdateBrowserStatusText();
-        }
+        var movement = e.Key switch { Key.Home => BrowserMovement.First, Key.End => BrowserMovement.Last,
+            Key.Up or Key.Left or Key.PageUp => BrowserMovement.Previous, _ => BrowserMovement.Next };
+        _ = InvokeBrowserActionAsync(BrowserActions.NavigateSelection,
+            new NavigateSelectionArguments(movement, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift), Math.Clamp(step, 1, 10000)),
+            e.IsRepeat, ActionInputKind.Keyboard);
         return true;
     }
 }

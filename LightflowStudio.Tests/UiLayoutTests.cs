@@ -1667,7 +1667,7 @@ public class UiLayoutTests
                 (string?)Named(document, $"PlayerLabel{label}").Descendants(appNs + "Ellipse").Single().Attribute("Fill"));
         var codeBehind = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
         Assert.Contains("ratingButtons[index].IsChecked = _classification?.Rating >= index + 1;", codeBehind);
-        Assert.Contains("AssetClassificationCommandPolicy.ToggleFlag(value.Flag, flag)", codeBehind);
+        Assert.Contains("AssetClassificationCommandPolicy.ToggleFlag(current.Flag, flag)", codeBehind);
         Assert.DoesNotContain("PlayerUnflagged", codeBehind);
         Assert.DoesNotContain(document.Descendants(), element => ((string?)element.Attribute("ToolTip"))?.Contains("Cycle", StringComparison.OrdinalIgnoreCase) == true);
     }

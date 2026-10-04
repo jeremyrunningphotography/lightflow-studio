@@ -60,6 +60,9 @@ public sealed class SettingsLayoutTests
                 VisualTreeHelper.SetRootDpi(host, new DpiScale(scale, scale));
                 foreach (var page in pages)
                 {
+                    var category = page.Name.Replace("Settings", "").Replace("Page", "");
+                    var rail = (ListBox)grid.FindName("SettingsCategoryList");
+                    rail.SelectedItem = rail.Items.Cast<ListBoxItem>().Single(item => (string)item.Tag == category);
                     foreach (var other in pages) other.Visibility = other == page ? Visibility.Visible : Visibility.Collapsed;
                     host.Measure(new Size(width, height)); host.Arrange(new Rect(0, 0, width, height)); host.UpdateLayout();
                     foreach (var expander in Descendants(page).OfType<Expander>()) expander.IsExpanded = true;

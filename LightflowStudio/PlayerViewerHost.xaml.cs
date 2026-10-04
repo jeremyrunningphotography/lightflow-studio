@@ -1618,7 +1618,7 @@ public partial class PlayerViewerHost : UserControl
 
     private void PlayerViewerHost_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        e.Handled = TryHandleShortcutKeyUp(e.Key);
+        e.Handled = TryHandleShortcutKeyUp(e.Key == Key.System ? e.SystemKey : e.Key);
     }
 
     internal bool TryHandleShortcutKeyUp(Key key)

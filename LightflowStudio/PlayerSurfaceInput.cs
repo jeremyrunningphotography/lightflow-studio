@@ -122,7 +122,7 @@ internal sealed class PlayerSurfaceInput : IDisposable
         return !repeat ? _key(key, owner) : key == Key.Space;
     }
     private void KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
-    { if (!e.Handled) e.Handled = _keyUp(e.Key); }
+    { if (!e.Handled) e.Handled = _keyUp(e.Key == Key.System ? e.SystemKey : e.Key); }
     private void Unloaded(object sender, RoutedEventArgs e) => Cancel();
     internal void Cancel() { _origin = null; if (_surface.IsMouseCaptured) _surface.ReleaseMouseCapture(); }
     public void Dispose()

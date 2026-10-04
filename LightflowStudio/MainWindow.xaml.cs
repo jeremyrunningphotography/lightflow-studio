@@ -2666,8 +2666,9 @@ public partial class MainWindow : Window
 
     private void MainWindow_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (_captureKeyRelease == e.Key) { _captureKeyRelease = null; e.Handled = true; return; }
-        if (!PlayerOwnsShortcutContext() || !_playerViewerHost!.TryHandleShortcutKeyUp(e.Key)) return;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (_captureKeyRelease == key) { _captureKeyRelease = null; e.Handled = true; return; }
+        if (!PlayerOwnsShortcutContext() || !_playerViewerHost!.TryHandleShortcutKeyUp(key)) return;
         e.Handled = true;
     }
 

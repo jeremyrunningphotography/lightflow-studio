@@ -31,6 +31,10 @@ public sealed class ReviewShellLiveTests
                 for (var i = 0; i < 10; i++) await Call(ReviewShellActions.ThumbnailSize, new LevelArguments(-1));
                 Assert.Equal(0, window.BrowserThumbnailSizeSlider.Value); Assert.Equal(selection, grid.SelectedAssetIdsInBrowserOrder); Assert.Equal(query, grid.Query);
                 Assert.Equal(target, window.ShellActionTarget);
+                var panelBeforeRepeat = window.HomeRightPanel.Visibility;
+                Assert.Equal(ActionOutcome.NoChange, (await window.DispatchShellActionAsync(ReviewShellActions.TogglePanel, NoActionArguments.Instance,
+                    new ActionInputSource("keyboard-repeat", ActionInputKind.Keyboard), repeat: true)).Outcome);
+                Assert.Equal(panelBeforeRepeat, window.HomeRightPanel.Visibility);
                 await Call(ReviewShellActions.ShowPanel, new PanelSurfaceArguments(ReviewPanelSurface.Inspector)); Assert.Equal(Visibility.Visible, window.HomeRightPanel.Visibility);
                 Assert.Equal(ActionOutcome.NoChange, (await Call(ReviewShellActions.ShowPanel, new PanelSurfaceArguments(ReviewPanelSurface.Inspector))).Outcome);
                 Assert.Equal(ActionUnavailableReason.SurfaceUnavailable, (await Call(ReviewShellActions.ShowPanel, new PanelSurfaceArguments(ReviewPanelSurface.Subclips))).Reason);

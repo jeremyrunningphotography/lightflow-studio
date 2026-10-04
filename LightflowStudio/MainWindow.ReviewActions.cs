@@ -24,8 +24,9 @@ public partial class MainWindow
         }
     }
     private static readonly ActionInputSource ReviewShellUi = new("review.shell-ui", ActionInputKind.Transport);
-    internal Task<ActionResult> DispatchShellActionAsync(string id, ActionArguments arguments) =>
-        ShellActions.InvokeAsync(new(id, arguments, ReviewShellUi, Guid.NewGuid(), ShellActionTarget));
+    private static readonly ActionInputSource ReviewShellKeyboard = new("review.shell-keyboard", ActionInputKind.Keyboard);
+    internal Task<ActionResult> DispatchShellActionAsync(string id, ActionArguments arguments, ActionInputSource? source = null, bool repeat = false) =>
+        ShellActions.InvokeAsync(new(id, arguments, source ?? ReviewShellUi, Guid.NewGuid(), ShellActionTarget, IsRepeat: repeat));
     private Task<ActionResult> OpenExportEntryAsync(ExportEntry entry) => DispatchShellActionAsync(ReviewShellActions.Export, new ExportEntryArguments(entry));
     // Async preparation must yield to a dialog opened by another application workflow before presentation.
     internal ActionResult? CheckExportPresentationAdmission(Func<bool>? contextCurrent, CancellationToken token)

@@ -2615,7 +2615,7 @@ public partial class MainWindow : Window
         if (MainTabs.SelectedIndex == 0 && e.Key == Key.I && Keyboard.Modifiers == ModifierKeys.Control &&
             !PlayerViewerHost.IsTextEntryControl(e.OriginalSource as DependencyObject))
         {
-            _ = DispatchShellActionAsync(ReviewShellActions.TogglePanel, NoActionArguments.Instance);
+            _ = DispatchShellActionAsync(ReviewShellActions.TogglePanel, NoActionArguments.Instance, ReviewShellKeyboard, e.IsRepeat);
             RightPanelToggle.Focus();
             e.Handled = true;
             return;

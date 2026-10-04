@@ -49,11 +49,8 @@ public sealed class SettingsLayoutTests
             };
             var pages = new[] { "General", "Color", "Storage", "Shortcuts", "Advanced" }
                 .Select(category => (ScrollViewer)grid.FindName("Settings" + category + "Page")).ToArray();
-            ((ItemsControl)grid.FindName("ShortcutRows")).ItemsSource = new Lightflow.Actions.KeyboardShortcutResolver(new(), Lightflow.Actions.ShortcutPlatform.Windows).Query().Take(8)
-                .Select(i => new MainWindow.ShortcutRow(i.Command.Id, i.Category, i.Label, i.Command.Context.ToString(),
-                    i.Current?.Display(Lightflow.Actions.ShortcutPlatform.Windows) ?? "Unassigned", i.Default?.Display(Lightflow.Actions.ShortcutPlatform.Windows) ?? "Unassigned", "Default")).ToArray();
-            var shortcutView = System.Windows.Data.CollectionViewSource.GetDefaultView(((ItemsControl)grid.FindName("ShortcutRows")).ItemsSource);
-            shortcutView.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription("Category"));
+            var sections = MainWindow.BuildShortcutSections(new(), "", new());
+            ((ItemsControl)grid.FindName("ShortcutRows")).ItemsSource = sections;
             var capture = Environment.GetEnvironmentVariable("LIGHTFLOW_SETTINGS_CAPTURE");
             foreach (var (width, height, scale) in new[] { (1090d, 590d, 1d), (1890d, 890d, 1d), (1090d, 590d, 1.5d), (1090d, 590d, 2d) })
             {
@@ -65,6 +62,12 @@ public sealed class SettingsLayoutTests
                     rail.SelectedItem = rail.Items.Cast<ListBoxItem>().Single(item => (string)item.Tag == category);
                     foreach (var other in pages) other.Visibility = other == page ? Visibility.Visible : Visibility.Collapsed;
                     host.Measure(new Size(width, height)); host.Arrange(new Rect(0, 0, width, height)); host.UpdateLayout();
+                    if (page.Name == "SettingsShortcutsPage") {
+                        foreach (var section in sections) section.IsExpanded = false;
+                        host.UpdateLayout();
+                        Assert.Equal(0, page.ScrollableHeight); // Full taxonomy is visible before opening rows.
+                        if (capture is not null) SaveCapture(host, capture, $"Shortcuts-collapsed-{width}-{scale}.png", width, height, scale);
+                    }
                     foreach (var expander in Descendants(page).OfType<Expander>()) expander.IsExpanded = true;
                     host.UpdateLayout();
                     var groupLeft = grid.TranslatePoint(new Point(), host).X;
@@ -80,6 +83,15 @@ public sealed class SettingsLayoutTests
                     }
                     Assert.True(page.ViewportWidth > 0);
                     Assert.Equal(0, page.ScrollableWidth);
+                    if (page.Name == "SettingsShortcutsPage") {
+                        var toggles = Descendants(page).OfType<System.Windows.Controls.Primitives.ToggleButton>().ToArray();
+                        Assert.Equal(4, toggles.Length);
+                        Assert.All(toggles, toggle => {
+                            Assert.True(toggle.IsTabStop);
+                            Assert.NotNull(toggle.FocusVisualStyle);
+                            Assert.Contains("shortcuts", System.Windows.Automation.AutomationProperties.GetName(toggle));
+                        });
+                    }
                     foreach (var control in Descendants(page).OfType<Control>().Where(control => control is TextBox or Button))
                     {
                         Assert.True(control.IsTabStop);
@@ -89,16 +101,26 @@ public sealed class SettingsLayoutTests
                     }
                     if (capture is not null)
                     {
-                        Directory.CreateDirectory(capture);
-                        var bitmap = new RenderTargetBitmap((int)(width * scale), (int)(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
-                        bitmap.Render(host);
-                        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                        using var output = File.Create(Path.Combine(capture, $"{page.Name}-{width}-{scale}.png")); encoder.Save(output);
+                        SaveCapture(host, capture, $"{page.Name}-{width}-{scale}.png", width, height, scale);
+                        if (page.Name == "SettingsShortcutsPage") {
+                            foreach (var section in sections) section.IsExpanded = section.Title == "Player";
+                            host.UpdateLayout();
+                            SaveCapture(host, capture, $"Shortcuts-player-{width}-{scale}.png", width, height, scale);
+                        }
                     }
                 }
             }
             return Task.CompletedTask;
         });
+    }
+
+    private static void SaveCapture(Visual host, string directory, string name, double width, double height, double scale)
+    {
+        Directory.CreateDirectory(directory);
+        var bitmap = new RenderTargetBitmap((int)(width * scale), (int)(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+        bitmap.Render(host);
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var output = File.Create(Path.Combine(directory, name)); encoder.Save(output);
     }
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)

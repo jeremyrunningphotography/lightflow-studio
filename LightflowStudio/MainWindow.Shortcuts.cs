@@ -3,7 +3,6 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Data;
 
 namespace LightflowStudio;
 
@@ -18,7 +17,6 @@ public partial class MainWindow
     private KeyboardGesture? _captureGesture;
     private Key? _captureKeyRelease;
     private string ShortcutPath => Path.Combine(Path.GetDirectoryName(_storage.Locations.SettingsPath)!, "keyboard-shortcuts.json");
-    internal sealed record ShortcutRow(string Id, string Category, string Label, string Context, string Current, string Default, string State);
 
     private void InitializeShortcuts()
     {
@@ -27,7 +25,7 @@ public partial class MainWindow
         _shortcutDraft = _shortcutProfile.Copy();
         _shortcutsCanSave = loaded.CanSave;
         ApplyShortcutResolver();
-        ShortcutMessage.Text = loaded.Diagnostic ?? "Changes apply when you select Save Settings.";
+        ShortcutMessage.Text = loaded.Diagnostic ?? "";
         RefreshShortcutRows();
         Deactivated += (_, _) => CancelShortcutCapture();
     }
@@ -77,19 +75,12 @@ public partial class MainWindow
     private void RefreshShortcutRows()
     {
         if (ShortcutRows is null) return;
-        var query = ShortcutSearch.Text?.Trim() ?? "";
-        var rows = new KeyboardShortcutResolver(_shortcutDraft, ShortcutPlatform.Windows).Query()
-            .Where(i => $"{i.Label} {i.Category} {i.Command.Id} {i.Command.Context}".Contains(query, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(i => i.Category).ThenBy(i => i.Label)
-            .Select(i => new ShortcutRow(i.Command.Id, i.Category, i.Label, i.Command.Context.ToString(),
-                i.Current?.Display(ShortcutPlatform.Windows) ?? "Unassigned", i.Default?.Display(ShortcutPlatform.Windows) ?? "Unassigned",
-                i.Customized ? "Customized" : "Default")).ToArray();
-        var view = CollectionViewSource.GetDefaultView(rows);
-        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ShortcutRow.Category)));
-        ShortcutRows.ItemsSource = view;
+        var sections = BuildShortcutSections(_shortcutDraft, ShortcutSearch.Text ?? "", _shortcutExpansion);
+        ShortcutRows.ItemsSource = sections;
+        ShortcutEmpty.Visibility = sections.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
     private void ShortcutSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshShortcutRows();
-    private BindableCommand ShortcutFromButton(object sender) => KeyboardCommandCatalog.Commands.Single(c => c.Id == (string)((System.Windows.Controls.Button)sender).Tag);
+    private BindableCommand ShortcutFromButton(object sender) => KeyboardCommandCatalog.Commands.Single(c => c.Id == (string)((FrameworkElement)sender).Tag);
     private void ShortcutEdit_Click(object sender, RoutedEventArgs e)
     {
         _captureCommand = ShortcutFromButton(sender);
@@ -98,6 +89,7 @@ public partial class MainWindow
         ShortcutApply.IsEnabled = false;
         ShortcutCaptureText.Text = $"Press a shortcut for {_captureCommand.Label}. Escape cancels. Modifier-only presses are ignored.";
         ShortcutCancel.Focus();
+        ShortcutCapture.BringIntoView();
     }
     private bool TryCaptureShortcut(System.Windows.Input.KeyEventArgs e)
     {

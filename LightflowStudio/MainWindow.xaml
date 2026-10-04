@@ -144,6 +144,18 @@
   <Style x:Key="SettingsPageScrollViewerStyle" TargetType="ScrollViewer">
    <Setter Property="VerticalScrollBarVisibility" Value="Auto"/><Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/>
   </Style>
+  <Style x:Key="SettingsShortcutActionStyle" TargetType="Button" BasedOn="{StaticResource SettingsQuietButtonStyle}">
+   <Setter Property="Height" Value="28"/><Setter Property="Margin" Value="4,0,0,0"/><Setter Property="Padding" Value="7,3"/>
+  </Style>
+  <Style x:Key="SettingsShortcutExpanderStyle" TargetType="Expander">
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander">
+    <StackPanel>
+     <ToggleButton Style="{StaticResource SettingsExpanderToggleStyle}" Padding="6,10" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" AutomationProperties.Name="{Binding AccessibleName}"/>
+     <ContentPresenter x:Name="Rows" ContentSource="Content" Visibility="Collapsed" Margin="24,0,0,8"/>
+    </StackPanel>
+    <ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="Rows" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
   <!-- Kept local for the Settings family; the same shared template is also available to owned dialogs. -->
   <Style x:Key="SettingsExpanderToggleStyle" TargetType="ToggleButton">
    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="10,8"/><Setter Property="Cursor" Value="Hand"/>
@@ -1734,11 +1746,13 @@
        <ScrollViewer x:Name="SettingsShortcutsPage" Style="{StaticResource SettingsPageScrollViewerStyle}" Visibility="Collapsed" AutomationProperties.Name="Keyboard Shortcuts settings page">
         <StackPanel>
          <TextBlock Style="{StaticResource SectionTitle}" FontSize="20" Text="Keyboard Shortcuts"/>
-         <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="Customize review commands. Text editors and local controls keep their keys. Changes apply with Save Settings."/>
-         <TextBlock Style="{StaticResource FieldLabel}" Margin="0,12,0,0" Text="SEARCH SHORTCUTS"/>
-         <TextBox x:Name="ShortcutSearch" Margin="0,12,0,8" AutomationProperties.Name="Search keyboard shortcuts" TextChanged="ShortcutSearch_TextChanged"/>
-         <Button HorizontalAlignment="Left" Content="Reset All Shortcuts" Click="ShortcutResetAll_Click" AutomationProperties.Name="Reset all keyboard shortcuts"/>
-         <TextBlock x:Name="ShortcutMessage" Style="{StaticResource SettingsDescriptionStyle}" TextWrapping="Wrap"/>
+         <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="Expand a category to edit its shortcuts. Changes apply with Save Settings."/>
+         <TextBlock Style="{StaticResource FieldLabel}" Text="SEARCH SHORTCUTS" Margin="0,4,0,0"/>
+         <DockPanel Margin="0,4,0,4">
+          <Button DockPanel.Dock="Right" Style="{StaticResource SettingsQuietButtonStyle}" Content="Reset All Shortcuts" Click="ShortcutResetAll_Click" ToolTip="Restore all default shortcuts. Changes remain staged until Save Settings." AutomationProperties.Name="Reset all keyboard shortcuts"/>
+          <TextBox x:Name="ShortcutSearch" Margin="0,4,8,0" AutomationProperties.Name="Search keyboard shortcuts" ToolTip="Search commands, categories, shortcut keys or variant IDs" TextChanged="ShortcutSearch_TextChanged"/>
+         </DockPanel>
+         <TextBlock x:Name="ShortcutMessage" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource SettingsDescriptionStyle}"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
          <Border x:Name="ShortcutCapture" Style="{StaticResource SettingsSectionStyle}" Visibility="Collapsed" Margin="0,8,0,12">
           <StackPanel>
            <TextBlock x:Name="ShortcutCaptureText" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
@@ -1749,27 +1763,51 @@
           </StackPanel>
          </Border>
          <ItemsControl x:Name="ShortcutRows">
-          <ItemsControl.GroupStyle>
-           <GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" FontSize="16" Text="{Binding Name}" Margin="0,14,0,8"/></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle>
-          </ItemsControl.GroupStyle>
           <ItemsControl.ItemTemplate>
            <DataTemplate>
-            <Border Style="{StaticResource SettingsSectionStyle}" Margin="0,0,0,8">
-             <StackPanel>
-              <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11"><Run Text="Available in: "/><Run Text="{Binding Context}"/></TextBlock>
-              <TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding Label}" TextWrapping="Wrap" Margin="0,4,0,0"/>
-              <TextBlock Foreground="{StaticResource TextBrush}" Margin="0,6,0,0"><Run Text="Current: "/><Run Text="{Binding Current}"/></TextBlock>
-              <TextBlock Foreground="{StaticResource MutedTextBrush}"><Run Text="Default: "/><Run Text="{Binding Default}"/><Run Text=" · "/><Run Text="{Binding State}"/></TextBlock>
-              <WrapPanel Margin="0,8,0,0">
-               <Button Content="Edit…" Tag="{Binding Id}" Click="ShortcutEdit_Click" AutomationProperties.Name="{Binding Label, StringFormat=Edit shortcut for {0}}"/>
-               <Button Content="Unassign" Tag="{Binding Id}" Click="ShortcutClear_Click" AutomationProperties.Name="{Binding Label, StringFormat=Unassign shortcut for {0}}"/>
-               <Button Content="Reset" Tag="{Binding Id}" Click="ShortcutReset_Click" AutomationProperties.Name="{Binding Label, StringFormat=Reset shortcut for {0}}"/>
-              </WrapPanel>
-             </StackPanel>
+            <Border BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1">
+             <Expander Style="{StaticResource SettingsShortcutExpanderStyle}" Header="{Binding}" IsExpanded="{Binding IsExpanded, Mode=TwoWay}" AutomationProperties.Name="{Binding AccessibleName}">
+              <Expander.HeaderTemplate><DataTemplate>
+               <StackPanel>
+                <TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" FontSize="15"><Run Text="{Binding Title, Mode=OneWay}"/><Run Text="  "/><Run Foreground="{StaticResource MutedTextBrush}" FontSize="12" Text="{Binding Count, Mode=OneWay}"/></TextBlock>
+                <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,3,0,0"/>
+               </StackPanel>
+              </DataTemplate></Expander.HeaderTemplate>
+              <ItemsControl ItemsSource="{Binding Groups}"><ItemsControl.ItemTemplate><DataTemplate>
+               <StackPanel>
+                <TextBlock Foreground="{StaticResource MutedTextBrush}" FontWeight="SemiBold" Text="{Binding Title}" Margin="0,12,0,4"/>
+                <ItemsControl ItemsSource="{Binding Rows}"><ItemsControl.ItemTemplate><DataTemplate>
+                 <Border BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1" Padding="0,6" AutomationProperties.Name="{Binding AccessibleName}">
+                  <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/><ColumnDefinition Width="82"/></Grid.ColumnDefinitions>
+                   <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
+                    <TextBlock Foreground="{StaticResource TextBrush}" Text="{Binding Label}" TextWrapping="Wrap"/>
+                    <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="{Binding Detail}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                   </StackPanel>
+                   <Border Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Center" CornerRadius="4" Padding="8,4" Margin="0,0,6,0" ToolTip="{Binding Detail}">
+                    <Border.Style><Style TargetType="Border">
+                     <Setter Property="Background" Value="{StaticResource ShellRaisedBrush}"/><Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/><Setter Property="BorderThickness" Value="1"/>
+                     <Style.Triggers><DataTrigger Binding="{Binding Assigned}" Value="False"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/></DataTrigger></Style.Triggers>
+                    </Style></Border.Style>
+                    <TextBlock Text="{Binding Current}" FontSize="12" TextWrapping="Wrap"><TextBlock.Style><Style TargetType="TextBlock">
+                     <Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="FontWeight" Value="SemiBold"/>
+                     <Style.Triggers><DataTrigger Binding="{Binding Assigned}" Value="False"><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Setter Property="FontWeight" Value="Normal"/></DataTrigger></Style.Triggers>
+                    </Style></TextBlock.Style></TextBlock>
+                   </Border>
+                   <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource SettingsShortcutActionStyle}" Content="Edit" Tag="{Binding Id}" Click="ShortcutEdit_Click" ToolTip="Record a new shortcut" AutomationProperties.Name="{Binding Label, StringFormat=Edit shortcut for {0}}"/>
+                    <Button Style="{StaticResource SettingsShortcutActionStyle}" Content="⋯" Width="28" Padding="3" Click="ShortcutMore_Click" ToolTip="Unassign or reset shortcut" AutomationProperties.Name="{Binding Label, StringFormat=More shortcut actions for {0}}"/>
+                   </StackPanel>
+                  </Grid>
+                 </Border>
+                </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+               </StackPanel>
+              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+             </Expander>
             </Border>
            </DataTemplate>
           </ItemsControl.ItemTemplate>
          </ItemsControl>
+         <TextBlock x:Name="ShortcutEmpty" Text="No shortcuts match your search." Style="{StaticResource SettingsDescriptionStyle}" Visibility="Collapsed"/>
         </StackPanel>
        </ScrollViewer>
 

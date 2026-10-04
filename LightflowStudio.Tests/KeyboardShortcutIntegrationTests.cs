@@ -149,6 +149,57 @@ public sealed partial class BrowserActionIntegrationTests
         await Task.CompletedTask; return null;
     });
     [Fact]
+    public Task ConfiguredShortcuts_SettingsSectionsRememberExpansionAndSearchBindings() => WithWindow(async (window, storage, directory) => {
+        ShortcutMethod(window, "InitializeShortcuts");
+        MainWindow.ShortcutSection[] Sections() => window.ShortcutRows.Items.Cast<MainWindow.ShortcutSection>().ToArray();
+        var sections = Sections();
+        Assert.Equal(new[] { "Browser", "Player", "Presentation", "Review / Shell" }, sections.Select(s => s.Title));
+        Assert.All(sections, s => Assert.False(s.IsExpanded));
+        var allRows = sections.SelectMany(s => s.Groups).SelectMany(g => g.Rows).ToArray();
+        Assert.Equal(77, allRows.Length);
+        Assert.Equal(77, allRows.Select(r => r.Id).Distinct().Count());
+        Assert.DoesNotContain(allRows, r => r.Group == "Other");
+        sections.Single(s => s.Title == "Player").IsExpanded = true;
+        window.ShortcutSearch.Text = "Color Labels";
+        Assert.Equal("Browser", Assert.Single(Sections()).Title);
+        Assert.True(Sections()[0].IsExpanded);
+        window.ShortcutSearch.Text = "Ctrl+Right";
+        Assert.Contains(Sections().SelectMany(s => s.Groups).SelectMany(g => g.Rows), r => r.Id == "player.next-media");
+        window.ShortcutSearch.Text = "player.next-frame";
+        Assert.Single(Sections()[0].Groups[0].Rows);
+        window.ShortcutSearch.Text = "";
+        Assert.True(Sections().Single(s => s.Title == "Player").IsExpanded);
+        Assert.False(Sections().Single(s => s.Title == "Browser").IsExpanded);
+        var next = allRows.Single(r => r.Id == "player.next-frame");
+        var more = new Button { DataContext = next };
+        ShortcutMethod(window, "ShortcutMore_Click", more, new RoutedEventArgs());
+        var menu = more.ContextMenu!;
+        var items = menu.Items.Cast<MenuItem>().ToArray();
+        Assert.All(items, item => Assert.Same(window.FindResource("LightflowMenuItemStyle"), item.Style));
+        Assert.True(items[0].IsEnabled); Assert.False(items[1].IsEnabled);
+        items[0].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        menu.IsOpen = false;
+        next = Sections().SelectMany(s => s.Groups).SelectMany(g => g.Rows).Single(r => r.Id == "player.next-frame");
+        Assert.Equal("Unassigned", next.State);
+        Assert.Contains("Default: Right", next.Detail);
+        window.ShortcutSearch.Text = "Right"; // Default still searchable after unassigning current.
+        Assert.Contains(Sections().SelectMany(s => s.Groups).SelectMany(g => g.Rows), r => r.Id == next.Id);
+        more.DataContext = next;
+        ShortcutMethod(window, "ShortcutMore_Click", more, new RoutedEventArgs());
+        items = more.ContextMenu!.Items.Cast<MenuItem>().ToArray();
+        Assert.False(items[0].IsEnabled); Assert.True(items[1].IsEnabled);
+        items[1].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        more.ContextMenu.IsOpen = false;
+        next = Sections().SelectMany(s => s.Groups).SelectMany(g => g.Rows).Single(r => r.Id == "player.next-frame");
+        Assert.Equal("Right", next.Current); Assert.Equal("Default", next.State);
+        Assert.DoesNotContain("Default:", next.Detail);
+        window.ShortcutSearch.Text = "no-such-shortcut";
+        Assert.Empty(Sections()); Assert.Equal(Visibility.Visible, window.ShortcutEmpty.Visibility);
+        await Task.CompletedTask;
+        return null;
+    });
+
+    [Fact]
     public Task ConfiguredShortcuts_BrowserRatingFlagNavigationAndShellUseSavedOverrides() => WithWindow(async (window, storage, directory) => {
         var (root, ids, collection) = await Seed(storage, directory); await Load(window, storage, directory, root, collection, BrowserScopeKind.Folder);
         var profile = Field<ShortcutProfile>(window, "_shortcutDraft");

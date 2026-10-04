@@ -132,9 +132,16 @@ recover to defaults without startup failure and retain the original until an exp
 Reset-all removes recognized action/variant overrides while preserving unknown entries.
 No Catalog, media metadata, workspace state or Export recipe stores shortcut preferences.
 
-Settings adds a category using existing Lightflow cards/inputs/buttons, visible focus,
-automation labels and the fixed footer. Search covers labels, category, variant ID and
-context. Categories group the rows. Current/default/unassigned/customized state is shown;
+Settings uses the existing Lightflow inputs/buttons, visible focus, automation labels and
+fixed footer. Browser, Player, Presentation and Review / Shell sections start collapsed,
+with counts and subgroup summaries; expansion choices persist for the window's Settings
+session. Subgroup headings separate compact command → shortcut rows without nested scrolling.
+Search covers labels, section/subgroup, variant ID, context and current/default gestures;
+matching sections expand without overwriting normal expansion choices, restored on clear.
+Assigned gestures use restrained key badges. Context/state is secondary, with default
+gestures shown only for customized rows. Edit stays visible; the trailing More menu exposes
+Unassign (when assigned) and Reset to Default (when customized), including keyboard access.
+The capture panel is brought into view when Edit starts. Reset All is a quiet top action.
 Edit, Unassign, Reset and Reset All stage changes. Save Settings validates the draft and
 atomically saves the shortcut profile before replacing the runtime resolver. The existing
 AppSettings store separately saves its owned preferences in the same explicit Save flow;

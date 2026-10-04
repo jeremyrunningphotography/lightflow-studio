@@ -138,6 +138,7 @@ public partial class MainWindow
     {
         if (_captureCommand is null) return;
         _captureCommand = null; _captureGesture = null;
+        _captureKeyRelease = null;
         ShortcutCapture.Visibility = Visibility.Collapsed;
         if (IsActive) ShortcutSearch.Focus();
     }

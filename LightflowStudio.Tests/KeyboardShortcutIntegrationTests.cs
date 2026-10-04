@@ -126,6 +126,7 @@ public sealed partial class BrowserActionIntegrationTests
         Assert.True(Capture(InputKey.Right)); Assert.Contains("Conflicts", window.ShortcutCaptureText.Text); Assert.False(window.ShortcutApply.IsEnabled);
         Assert.True(Capture(InputKey.Delete)); Assert.Contains("contextual", window.ShortcutCaptureText.Text);
         Assert.True(Capture(InputKey.Escape)); Assert.Equal(Visibility.Collapsed, window.ShortcutCapture.Visibility);
+        Assert.Null(Field<InputKey?>(window, "_captureKeyRelease"));
         Edit(); Assert.True(Capture(InputKey.P)); Assert.True(window.ShortcutApply.IsEnabled);
         Assert.False(Capture(InputKey.Tab)); // Candidate confirmation remains keyboard accessible.
         ShortcutMethod(window, "ShortcutApply_Click", window.ShortcutApply, new RoutedEventArgs());

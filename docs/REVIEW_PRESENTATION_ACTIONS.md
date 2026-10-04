@@ -52,7 +52,8 @@ source-context eligibility, including the current location/Collection requiremen
 that policy. Browser Subclip fallback remains enabled, exactly as before.
 
 Only one Export entry may prepare at once. Preparation cancellation uses the existing handoff CTS; cancellation
-or a replaced context cannot publish a new modal. The existing modal owns interaction after opening and is not
+or a replaced context cannot publish a new modal. Modal ownership is rechecked after preparation and before
+failure dialogs; shutdown invalidates the shell target. The existing modal owns interaction after opening and is not
 remotely submitted or cancelled. `Completed` means preparation and the configuration modal returned (including
 ordinary user Cancel), **not** that a Job was queued. Preflight rejection is Ineligible/ExportUnavailable, preparation
 cancellation is Cancelled, and stale context is Superseded. Structured errors do not silently queue work. Existing

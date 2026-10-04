@@ -14,7 +14,7 @@ public partial class MainWindow
     {
         get {
             // Stable identities and scope, never focus or visual selection containers.
-            var signature = string.Join("|", MainTabs.SelectedIndex, _browserPresentation, _browserLayoutMode,
+            var signature = string.Join("|", _workspaceClosed, MainTabs.SelectedIndex, _browserPresentation, _browserLayoutMode,
                 _lastLoadedBrowserState?.Location, _activeCollectionScope?.Collection.CollectionId, _browserUiGeneration, _browserScopeIdentity, _playerViewerHost?.ActionTarget,
                 string.Join(",", _browserGrid.SelectedAssetIdsInBrowserOrder),
                 string.Join(",", _playerViewerHost?.SelectedSubclipIds.OrderBy(id => id).ToArray() ?? []),
@@ -27,10 +27,20 @@ public partial class MainWindow
     internal Task<ActionResult> DispatchShellActionAsync(string id, ActionArguments arguments) =>
         ShellActions.InvokeAsync(new(id, arguments, ReviewShellUi, Guid.NewGuid(), ShellActionTarget));
     private Task<ActionResult> OpenExportEntryAsync(ExportEntry entry) => DispatchShellActionAsync(ReviewShellActions.Export, new ExportEntryArguments(entry));
+    // Async preparation must yield to a dialog opened by another application workflow before presentation.
+    internal ActionResult? CheckExportPresentationAdmission(Func<bool>? contextCurrent, CancellationToken token)
+    {
+        if (contextCurrent is null) return null; // Preserve existing standalone/legacy event consumers.
+        if (!contextCurrent() || _workspaceClosed) return new(ActionOutcome.Superseded);
+        if (token.IsCancellationRequested) return new(ActionOutcome.Cancelled);
+        if (!IsEnabled || System.Windows.Interop.ComponentDispatcher.IsThreadModal)
+            return new(ActionOutcome.Ineligible, ActionUnavailableReason.ModalInteraction);
+        return null;
+    }
     private sealed class WindowsReviewShellPort(MainWindow window) : IReviewShellPort
     {
         public ReviewShellContext Context => new(window.ShellActionTarget,
-            window.MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home),
+            !window._workspaceClosed && window.MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home),
             window.IsEnabled && !System.Windows.Interop.ComponentDispatcher.IsThreadModal);
         private bool Player => window.PlayerOwnsShortcutContext();
         public ActionEligibility Eligibility(string id, ActionArguments arguments)

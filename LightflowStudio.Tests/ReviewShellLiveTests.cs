@@ -40,11 +40,21 @@ public sealed class ReviewShellLiveTests
                 window.ApplyBrowserLayout(BrowserLayoutMode.Details, false);
                 Assert.Equal(ActionOutcome.Superseded, (await window.ShellActions.InvokeAsync(stale)).Outcome);
                 Assert.Equal(ActionUnavailableReason.InactivePresentation, (await Call(ReviewShellActions.ThumbnailSize, new LevelArguments(1))).Reason);
+                Assert.Null(window.CheckExportPresentationAdmission(() => true, CancellationToken.None));
+                Assert.Equal(ActionOutcome.Superseded, window.CheckExportPresentationAdmission(() => false, CancellationToken.None)!.Outcome);
+                using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
+                Assert.Equal(ActionOutcome.Cancelled, window.CheckExportPresentationAdmission(() => true, cancelled.Token)!.Outcome);
                 System.Windows.Interop.ComponentDispatcher.PushModal();
-                try { Assert.Equal(ActionUnavailableReason.ModalInteraction, (await Call(ReviewShellActions.TogglePanel, NoActionArguments.Instance)).Reason); }
+                try {
+                    Assert.Equal(ActionUnavailableReason.ModalInteraction, (await Call(ReviewShellActions.TogglePanel, NoActionArguments.Instance)).Reason);
+                    Assert.Equal(ActionUnavailableReason.ModalInteraction, window.CheckExportPresentationAdmission(() => true, CancellationToken.None)!.Reason);
+                }
                 finally { System.Windows.Interop.ComponentDispatcher.PopModal(); }
             } finally {
-                window.Close(); await storage.DisposeAsync();
+                window.Close();
+                Assert.Equal(ActionOutcome.Superseded, window.CheckExportPresentationAdmission(() => true, CancellationToken.None)!.Outcome);
+                Assert.False(window.ShellActions.Eligibility(ReviewShellActions.TogglePanel, window.ShellActionTarget, NoActionArguments.Instance).Available);
+                await storage.DisposeAsync();
                 try { Directory.Delete(data, true); } catch (IOException) { }
             }
         });

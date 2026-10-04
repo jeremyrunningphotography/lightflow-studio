@@ -3682,7 +3682,8 @@ public partial class MainWindow : Window
                     _storage.MediaRanges, _storage.AssetColors, _storage.LutCache,
                     new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory), _storage.VideoRotations)
                 .MaterializeAsync(invocation, cancellation.Token).ConfigureAwait(true);
-            if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation) || contextCurrent?.Invoke() == false) return new(ActionOutcome.Superseded);
+            if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return new(ActionOutcome.Superseded);
+            if (CheckExportPresentationAdmission(contextCurrent, cancellation.Token) is { } denial) return denial;
             cancellation.Token.ThrowIfCancellationRequested();
             if (!result.Succeeded)
             {
@@ -3707,6 +3708,7 @@ public partial class MainWindow : Window
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)
         {
+            if (CheckExportPresentationAdmission(contextCurrent, cancellation.Token) is { } denial) return denial;
             MessageBox.Show($"The Browser selection could not be prepared: {exception.Message}",
                 "Cannot export selection", MessageBoxButton.OK, MessageBoxImage.Warning);
             return new(ActionOutcome.Failed, Diagnostic: exception.Message);
@@ -3737,7 +3739,8 @@ public partial class MainWindow : Window
                 new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory), _storage.VideoRotations);
             var result = await new SubclipExportCapabilityHandoff(sourceHandoff, _storage.Subclips)
                 .MaterializeAsync(invocation, cancellation.Token).ConfigureAwait(true);
-            if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation) || contextCurrent?.Invoke() == false) return new(ActionOutcome.Superseded);
+            if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return new(ActionOutcome.Superseded);
+            if (CheckExportPresentationAdmission(contextCurrent, cancellation.Token) is { } denial) return denial;
             cancellation.Token.ThrowIfCancellationRequested();
             if (!result.Succeeded)
             {
@@ -3763,6 +3766,7 @@ public partial class MainWindow : Window
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)
         {
+            if (CheckExportPresentationAdmission(contextCurrent, cancellation.Token) is { } denial) return denial;
             MessageBox.Show($"The Subclip selection could not be prepared: {exception.Message}",
                 "Cannot export Subclips", MessageBoxButton.OK, MessageBoxImage.Warning);
             return new(ActionOutcome.Failed, Diagnostic: exception.Message);

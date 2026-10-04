@@ -167,7 +167,11 @@ public sealed class BrowserDetailsWpfTests(ITestOutputHelper output)
                 window.Show();
                 Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)));
                 var model = (BrowserGridModel)typeof(MainWindow).GetField("_browserGrid", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
-                model.Populate(BrowserDetailsTests.Entries(10000));
+                var entries = BrowserDetailsTests.Entries(10000);
+                model.Populate(entries);
+                typeof(MainWindow).GetField("_lastLoadedBrowserState", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(window,
+                    new BrowserFolderState(new(entries[0].RootId, "Fixture", directory, ""), BrowserFolderStatus.Ready,
+                        entries, null, false, false, false));
                 window.BrowserEmptyState.Visibility = Visibility.Collapsed;
                 model.SelectSingle(4);
                 model.ToggleCtrl(7);

@@ -133,15 +133,24 @@ Reset-all removes recognized action/variant overrides while preserving unknown e
 No Catalog, media metadata, workspace state or Export recipe stores shortcut preferences.
 
 Settings uses the existing Lightflow inputs/buttons, visible focus, automation labels and
-fixed footer. Browser, Player, Presentation and Review / Shell sections start collapsed,
+fixed footer. Browser, Player, Presentation and Workflow sections start collapsed,
 with counts and subgroup summaries; expansion choices persist for the window's Settings
 session. Subgroup headings separate compact command → shortcut rows without nested scrolling.
 Search covers labels, section/subgroup, variant ID, context and current/default gestures;
 matching sections expand without overwriting normal expansion choices, restored on clear.
-Assigned gestures use restrained key badges. Context/state is secondary, with default
-gestures shown only for customized rows. Edit stays visible; the trailing More menu exposes
+Each section has one rounded outline using the existing orange focus accent, enclosing
+its header and rows in both collapsed and expanded states. Assigned gestures use restrained
+key badges. Ordinary default rows omit redundant status/context; context remains in accessible
+names and tooltips. Customized rows show the default gesture, and differences from the saved
+profile show Unsaved. Edit stays visible; the trailing More menu exposes
 Unassign (when assigned) and Reset to Default (when customized), including keyboard access.
-The capture panel is brought into view when Edit starts. Reset All is a quiet top action.
+Edit expands that same row into recording mode, with the command still visible, recording
+instructions, captured gesture, validation feedback and Use Shortcut/Cancel controls.
+Stable row models update in place when staged, avoiding list reconstruction and lost scroll
+anchors. Use Shortcut, Cancel, Unassign and Reset return focus to the affected row's Edit
+control; Search is never a generic focus fallback. Only minimal scrolling to keep the full
+row visible is permitted. Search preserves the active edited row, and collapsing its section
+cancels recording. Reset All is a quiet top action.
 Edit, Unassign, Reset and Reset All stage changes. Save Settings validates the draft and
 atomically saves the shortcut profile before replacing the runtime resolver. The existing
 AppSettings store separately saves its owned preferences in the same explicit Save flow;
@@ -154,7 +163,8 @@ gestures show a reason before commit. An eligible gesture exits recording and fo
 Shortcut; its key-up and auto-repeat are consumed so capture cannot activate that Button.
 Use Shortcut stages the candidate; Tab/Enter/Space work normally for confirmation afterward.
 Cancel, changing category/destination and deactivation end capture. Only active Settings
-records; normal Lightflow dispatch is unavailable there. Changed rows return focus to search.
+records; normal Lightflow dispatch is unavailable there. Changed rows retain their focus/scroll
+association, and deactivation/navigation cancellation does not steal focus back into Settings.
 
 ## Hold/repeat lifecycle and #354
 

@@ -150,8 +150,8 @@
   <Style x:Key="SettingsShortcutExpanderStyle" TargetType="Expander">
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander">
     <StackPanel>
-     <ToggleButton Style="{StaticResource SettingsExpanderToggleStyle}" Padding="6,10" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" AutomationProperties.Name="{Binding AccessibleName}"/>
-     <ContentPresenter x:Name="Rows" ContentSource="Content" Visibility="Collapsed" Margin="24,0,0,8"/>
+     <ToggleButton Style="{StaticResource SettingsExpanderToggleStyle}" Padding="6,7" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" AutomationProperties.Name="{Binding AccessibleName}"/>
+     <ContentPresenter x:Name="Rows" ContentSource="Content" Visibility="Collapsed" Margin="24,0,12,8"/>
     </StackPanel>
     <ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="Rows" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
@@ -1753,20 +1753,11 @@
           <TextBox x:Name="ShortcutSearch" Margin="0,4,8,0" AutomationProperties.Name="Search keyboard shortcuts" ToolTip="Search commands, categories, shortcut keys or variant IDs" TextChanged="ShortcutSearch_TextChanged"/>
          </DockPanel>
          <TextBlock x:Name="ShortcutMessage" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource SettingsDescriptionStyle}"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
-         <Border x:Name="ShortcutCapture" Style="{StaticResource SettingsSectionStyle}" Visibility="Collapsed" Margin="0,8,0,12">
-          <StackPanel>
-           <TextBlock x:Name="ShortcutCaptureText" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
-           <WrapPanel Margin="0,10,0,0">
-            <Button x:Name="ShortcutApply" Content="Use Shortcut" IsEnabled="False" Click="ShortcutApply_Click" AutomationProperties.Name="Use captured shortcut"/>
-            <Button x:Name="ShortcutCancel" Content="Cancel Capture" Click="ShortcutCancel_Click" AutomationProperties.Name="Cancel shortcut capture"/>
-           </WrapPanel>
-          </StackPanel>
-         </Border>
          <ItemsControl x:Name="ShortcutRows">
           <ItemsControl.ItemTemplate>
            <DataTemplate>
-            <Border BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1">
-             <Expander Style="{StaticResource SettingsShortcutExpanderStyle}" Header="{Binding}" IsExpanded="{Binding IsExpanded, Mode=TwoWay}" AutomationProperties.Name="{Binding AccessibleName}">
+            <Border BorderBrush="{StaticResource ShellFocusBrush}" BorderThickness="1" CornerRadius="6" Background="{StaticResource ShellSurfaceBrush}" Margin="0,0,0,6">
+             <Expander Style="{StaticResource SettingsShortcutExpanderStyle}" Header="{Binding}" IsExpanded="{Binding IsExpanded, Mode=TwoWay}" Collapsed="ShortcutSection_Collapsed" AutomationProperties.Name="{Binding AccessibleName}">
               <Expander.HeaderTemplate><DataTemplate>
                <StackPanel>
                 <TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" FontSize="15"><Run Text="{Binding Title, Mode=OneWay}"/><Run Text="  "/><Run Foreground="{StaticResource MutedTextBrush}" FontSize="12" Text="{Binding Count, Mode=OneWay}"/></TextBlock>
@@ -1777,13 +1768,14 @@
                <StackPanel>
                 <TextBlock Foreground="{StaticResource MutedTextBrush}" FontWeight="SemiBold" Text="{Binding Title}" Margin="0,12,0,4"/>
                 <ItemsControl ItemsSource="{Binding Rows}"><ItemsControl.ItemTemplate><DataTemplate>
-                 <Border BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1" Padding="0,6" AutomationProperties.Name="{Binding AccessibleName}">
+                 <Border x:Name="ShortcutRowContainer" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="0,0,0,1" Padding="0,6" AutomationProperties.Name="{Binding AccessibleName}">
+                  <StackPanel>
                   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/><ColumnDefinition Width="82"/></Grid.ColumnDefinitions>
                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
                     <TextBlock Foreground="{StaticResource TextBrush}" Text="{Binding Label}" TextWrapping="Wrap"/>
-                    <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="{Binding Detail}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                    <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="10" Text="{Binding Detail}" TextWrapping="Wrap" Margin="0,2,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
                    </StackPanel>
-                   <Border Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Center" CornerRadius="4" Padding="8,4" Margin="0,0,6,0" ToolTip="{Binding Detail}">
+                   <Border Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Center" CornerRadius="4" Padding="8,4" Margin="0,0,6,0" ToolTip="{Binding AccessibleName}">
                     <Border.Style><Style TargetType="Border">
                      <Setter Property="Background" Value="{StaticResource ShellRaisedBrush}"/><Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/><Setter Property="BorderThickness" Value="1"/>
                      <Style.Triggers><DataTrigger Binding="{Binding Assigned}" Value="False"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/></DataTrigger></Style.Triggers>
@@ -1794,10 +1786,26 @@
                     </Style></TextBlock.Style></TextBlock>
                    </Border>
                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{StaticResource SettingsShortcutActionStyle}" Content="Edit" Tag="{Binding Id}" Click="ShortcutEdit_Click" ToolTip="Record a new shortcut" AutomationProperties.Name="{Binding Label, StringFormat=Edit shortcut for {0}}"/>
+                    <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers><DataTrigger Binding="{Binding IsCapturing}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                    <Button x:Name="ShortcutEdit" Style="{StaticResource SettingsShortcutActionStyle}" Content="Edit" Tag="{Binding Id}" Click="ShortcutEdit_Click" ToolTip="Record a new shortcut" AutomationProperties.Name="{Binding Label, StringFormat=Edit shortcut for {0}}"/>
                     <Button Style="{StaticResource SettingsShortcutActionStyle}" Content="⋯" Width="28" Padding="3" Click="ShortcutMore_Click" ToolTip="Unassign or reset shortcut" AutomationProperties.Name="{Binding Label, StringFormat=More shortcut actions for {0}}"/>
                    </StackPanel>
                   </Grid>
+                  <Border x:Name="ShortcutCapture" Background="{StaticResource ShellCanvasBrush}" CornerRadius="4" Padding="10" Margin="0,6,0,4">
+                   <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsCapturing}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
+                   <StackPanel>
+                    <TextBlock Text="{Binding CaptureTitle}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding Label, StringFormat=Shortcut recording for {0}}"/>
+                    <Border HorizontalAlignment="Left" Background="{StaticResource ShellRaisedBrush}" BorderBrush="{StaticResource ShellDividerBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,6,0,0">
+                     <TextBlock x:Name="ShortcutCandidate" Foreground="{StaticResource TextBrush}"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Text" Value="{Binding Candidate}"/><Style.Triggers><DataTrigger Binding="{Binding Candidate}" Value=""><Setter Property="Text" Value="Waiting for input…"/><Setter Property="FontWeight" Value="Normal"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                    </Border>
+                    <TextBlock x:Name="ShortcutCaptureText" Text="{Binding CaptureMessage}" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite"/>
+                    <WrapPanel Margin="0,8,0,0">
+                     <Button x:Name="ShortcutApply" Style="{StaticResource SettingsPrimaryButtonStyle}" Margin="0,0,6,0" Content="Use Shortcut" IsEnabled="{Binding CanApply}" Click="ShortcutApply_Click" AutomationProperties.Name="{Binding Label, StringFormat=Use captured shortcut for {0}}"/>
+                     <Button x:Name="ShortcutCancel" Style="{StaticResource SettingsQuietButtonStyle}" Margin="0" Content="Cancel" Click="ShortcutCancel_Click" AutomationProperties.Name="{Binding Label, StringFormat=Cancel shortcut capture for {0}}"/>
+                    </WrapPanel>
+                   </StackPanel>
+                  </Border>
+                  </StackPanel>
                  </Border>
                 </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                </StackPanel>

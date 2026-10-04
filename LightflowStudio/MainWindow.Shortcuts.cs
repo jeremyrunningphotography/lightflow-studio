@@ -16,6 +16,7 @@ public partial class MainWindow
     private BindableCommand? _captureCommand;
     private KeyboardGesture? _captureGesture;
     private Key? _captureKeyRelease;
+    private ShortcutRow? _captureRow;
     private string ShortcutPath => Path.Combine(Path.GetDirectoryName(_storage.Locations.SettingsPath)!, "keyboard-shortcuts.json");
 
     private void InitializeShortcuts()
@@ -27,7 +28,7 @@ public partial class MainWindow
         ApplyShortcutResolver();
         ShortcutMessage.Text = loaded.Diagnostic ?? "";
         RefreshShortcutRows();
-        Deactivated += (_, _) => CancelShortcutCapture();
+        Deactivated += (_, _) => CancelShortcutCapture(false);
     }
     private void ApplyShortcutResolver()
     {
@@ -75,7 +76,8 @@ public partial class MainWindow
     private void RefreshShortcutRows()
     {
         if (ShortcutRows is null) return;
-        var sections = BuildShortcutSections(_shortcutDraft, ShortcutSearch.Text ?? "", _shortcutExpansion);
+        var sections = BuildShortcutSections(_shortcutDraft, ShortcutSearch.Text ?? "", _shortcutExpansion,
+            _shortcutRowModels, _captureCommand?.Id, _shortcutProfile);
         ShortcutRows.ItemsSource = sections;
         ShortcutEmpty.Visibility = sections.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -83,13 +85,12 @@ public partial class MainWindow
     private BindableCommand ShortcutFromButton(object sender) => KeyboardCommandCatalog.Commands.Single(c => c.Id == (string)((FrameworkElement)sender).Tag);
     private void ShortcutEdit_Click(object sender, RoutedEventArgs e)
     {
+        CancelShortcutCapture(false);
         _captureCommand = ShortcutFromButton(sender);
+        _captureRow = _shortcutRowModels[_captureCommand.Id];
         _captureGesture = null;
-        ShortcutCapture.Visibility = Visibility.Visible;
-        ShortcutApply.IsEnabled = false;
-        ShortcutCaptureText.Text = $"Press a shortcut for {_captureCommand.Label}. Escape cancels. Modifier-only presses are ignored.";
-        ShortcutCancel.Focus();
-        ShortcutCapture.BringIntoView();
+        _captureRow.Capture(true, message: "Press the new key combination. Esc cancels; modifier-only presses are ignored.");
+        FocusShortcutControl(_captureCommand.Id, "ShortcutCancel");
     }
     private bool TryCaptureShortcut(System.Windows.Input.KeyEventArgs e)
     {
@@ -101,7 +102,13 @@ public partial class MainWindow
         if (key == Key.Escape) { e.Handled = true; CancelShortcutCapture(); return true; }
         // Tab leaves recording and keeps normal focus navigation; a valid candidate leaves
         // recording so Use Shortcut/Cancel remain operable by keyboard and assistive tools.
-        if (key == Key.Tab && _captureGesture is null) { CancelShortcutCapture(); return false; }
+        if (key == Key.Tab && _captureGesture is null) {
+            var id = _captureCommand.Id;
+            CancelShortcutCapture(false);
+            ShortcutRows.UpdateLayout();
+            FindShortcutControl(id, "ShortcutEdit")?.Focus();
+            return false;
+        }
         if (_captureGesture is not null) {
             if (_captureKeyRelease == key) { e.Handled = true; return true; }
             return false;
@@ -113,9 +120,8 @@ public partial class MainWindow
         var error = new KeyboardShortcutResolver(_shortcutDraft, ShortcutPlatform.Windows).Validate(_captureCommand, gesture);
         _captureGesture = error is null ? gesture : null;
         _captureKeyRelease = key;
-        ShortcutApply.IsEnabled = error is null;
-        ShortcutCaptureText.Text = error ?? $"{_captureCommand.Label}: {gesture.Display(ShortcutPlatform.Windows)}. Select Use Shortcut to stage this change.";
-        if (error is null) ShortcutApply.Focus();
+        _captureRow!.Capture(true, gesture.Display(ShortcutPlatform.Windows), error ?? "Select Use Shortcut to stage this change.", error is null);
+        if (error is null) FocusShortcutControl(_captureCommand.Id, "ShortcutApply");
         return true;
     }
     private void ShortcutApply_Click(object sender, RoutedEventArgs e)
@@ -126,18 +132,23 @@ public partial class MainWindow
         CancelShortcutCapture();
     }
     private void ShortcutCancel_Click(object sender, RoutedEventArgs e) => CancelShortcutCapture();
-    private void CancelShortcutCapture()
+    private void CancelShortcutCapture(bool restoreFocus = true)
     {
+        ++_shortcutFocusVersion;
         if (_captureCommand is null) return;
+        var id = _captureCommand.Id;
+        _captureRow?.Capture(false); _captureRow = null;
         _captureCommand = null; _captureGesture = null;
         _captureKeyRelease = null;
-        ShortcutCapture.Visibility = Visibility.Collapsed;
-        if (IsActive) ShortcutSearch.Focus();
+        if (restoreFocus) FocusShortcutControl(id, "ShortcutEdit");
     }
     private void ShortcutClear_Click(object sender, RoutedEventArgs e)
     {
-        _shortcutDraft.Set(ShortcutFromButton(sender), null, ShortcutPlatform.Windows);
+        var command = ShortcutFromButton(sender);
+        if (_captureCommand?.Id == command.Id) CancelShortcutCapture(false);
+        _shortcutDraft.Set(command, null, ShortcutPlatform.Windows);
         ChangedShortcuts();
+        FocusShortcutControl(command.Id, "ShortcutEdit");
     }
     private void ShortcutReset_Click(object sender, RoutedEventArgs e)
     {
@@ -145,18 +156,22 @@ public partial class MainWindow
         var current = _shortcutDraft.Copy(); current.Reset(command.Id);
         var resolver = new KeyboardShortcutResolver(current, ShortcutPlatform.Windows);
         if (command.Default(ShortcutPlatform.Windows) is { } gesture && resolver.Validate(command, gesture) is { } error) {
-            ShortcutMessage.Text = error + " Clear or reset the conflicting command first."; return;
+            CancelShortcutCapture(false);
+            _captureCommand = command; _captureRow = _shortcutRowModels[command.Id]; _captureGesture = null;
+            _captureRow.Capture(true, gesture.Display(ShortcutPlatform.Windows), error + " Unassign or reset the conflicting command first.");
+            FocusShortcutControl(command.Id, "ShortcutCancel"); return;
         }
+        if (_captureCommand?.Id == command.Id) CancelShortcutCapture(false);
         _shortcutDraft = current; ChangedShortcuts();
+        FocusShortcutControl(command.Id, "ShortcutEdit");
     }
     private void ShortcutResetAll_Click(object sender, RoutedEventArgs e) => ResetAllShortcuts();
     private void ResetAllShortcuts() { _shortcutDraft.ResetAll(); CancelShortcutCapture(); ChangedShortcuts(); }
     private void ChangedShortcuts()
     {
         _shortcutsChanged = true;
-        ShortcutMessage.Text = "Shortcut changes staged. Select Save Settings to apply them.";
-        RefreshShortcutRows();
-        if (IsActive && _captureCommand is null) ShortcutSearch.Focus();
+        // Update existing objects: rebuilding ItemsSource would discard row focus/scroll anchors.
+        UpdateShortcutModels(_shortcutDraft, _shortcutProfile, _shortcutRowModels);
     }
     private bool SaveShortcuts()
     {
@@ -169,6 +184,7 @@ public partial class MainWindow
         try { KeyboardShortcutStore.Save(ShortcutPath, _shortcutDraft); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { SettingsMessage.Text = $"Shortcuts could not be saved: {error.Message}"; return false; }
         _shortcutProfile = _shortcutDraft.Copy(); ApplyShortcutResolver(); _shortcutsChanged = false;
+        UpdateShortcutModels(_shortcutDraft, _shortcutProfile, _shortcutRowModels);
         CancelShortcutCapture(); ShortcutMessage.Text = "Keyboard shortcuts saved.";
         return true;
     }

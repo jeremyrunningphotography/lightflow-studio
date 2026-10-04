@@ -120,19 +120,25 @@ public sealed partial class BrowserActionIntegrationTests
         window.MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Settings);
         window.SettingsCategoryList.SelectedItem = window.SettingsCategoryList.Items.Cast<ListBoxItem>().Single(i => (string)i.Tag == "Shortcuts");
         var button = new Button { Tag = "player.play-pause" };
+        var row = Field<Dictionary<string, MainWindow.ShortcutRow>>(window, "_shortcutRowModels")["player.play-pause"];
         void Edit() => ShortcutMethod(window, "ShortcutEdit_Click", button, new RoutedEventArgs());
         bool Capture(InputKey key) => (bool)ShortcutMethod(window, "TryCaptureShortcut", new KeyEventArgs(Keyboard.PrimaryDevice, new ShortcutInputSource(), 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent })!;
-        Edit(); Assert.True(Capture(InputKey.LeftShift)); Assert.False(window.ShortcutApply.IsEnabled);
-        Assert.True(Capture(InputKey.Right)); Assert.Contains("Conflicts", window.ShortcutCaptureText.Text); Assert.False(window.ShortcutApply.IsEnabled);
-        Assert.True(Capture(InputKey.Delete)); Assert.Contains("contextual", window.ShortcutCaptureText.Text);
-        Assert.True(Capture(InputKey.Escape)); Assert.Equal(Visibility.Collapsed, window.ShortcutCapture.Visibility);
+        Edit(); Assert.True(Capture(InputKey.LeftShift)); Assert.False(row.CanApply);
+        Assert.True(row.IsCapturing);
+        Assert.True(Capture(InputKey.Right)); Assert.Contains("Conflicts", row.CaptureMessage); Assert.False(row.CanApply);
+        Assert.Equal("Right", row.Candidate);
+        Assert.True(Capture(InputKey.Delete)); Assert.Contains("contextual", row.CaptureMessage);
+        Assert.True(Capture(InputKey.Escape)); Assert.False(row.IsCapturing);
         Assert.Null(Field<InputKey?>(window, "_captureKeyRelease"));
-        Edit(); Assert.True(Capture(InputKey.P)); Assert.True(window.ShortcutApply.IsEnabled);
+        Edit(); Assert.True(Capture(InputKey.P)); Assert.True(row.CanApply);
+        Assert.Equal("P", row.Candidate);
         Assert.False(Capture(InputKey.Tab)); // Candidate confirmation remains keyboard accessible.
-        ShortcutMethod(window, "ShortcutApply_Click", window.ShortcutApply, new RoutedEventArgs());
+        ShortcutMethod(window, "ShortcutApply_Click", button, new RoutedEventArgs());
+        Assert.Equal("P", row.Current); Assert.True(row.Unsaved); Assert.False(row.IsCapturing);
         Assert.False(File.Exists(path));
         Assert.NotNull(Field<KeyboardShortcutResolver>(window, "_shortcutResolver").Resolve(new("Space"), ShortcutContext.Player));
         Assert.True((bool)ShortcutMethod(window, "SaveShortcuts")!);
+        Assert.False(row.Unsaved);
         Assert.Null(Field<KeyboardShortcutResolver>(window, "_shortcutResolver").Resolve(new("Space"), ShortcutContext.Player));
         Assert.NotNull(KeyboardShortcutStore.Load(path).Profile.Overrides.Single(o => o.CommandId == "player.play-pause"));
         ShortcutMethod(window, "InitializeShortcuts"); // Re-read durable profile, same authority as next startup.
@@ -153,12 +159,13 @@ public sealed partial class BrowserActionIntegrationTests
         ShortcutMethod(window, "InitializeShortcuts");
         MainWindow.ShortcutSection[] Sections() => window.ShortcutRows.Items.Cast<MainWindow.ShortcutSection>().ToArray();
         var sections = Sections();
-        Assert.Equal(new[] { "Browser", "Player", "Presentation", "Review / Shell" }, sections.Select(s => s.Title));
+        Assert.Equal(new[] { "Browser", "Player", "Presentation", "Workflow" }, sections.Select(s => s.Title));
         Assert.All(sections, s => Assert.False(s.IsExpanded));
         var allRows = sections.SelectMany(s => s.Groups).SelectMany(g => g.Rows).ToArray();
         Assert.Equal(77, allRows.Length);
         Assert.Equal(77, allRows.Select(r => r.Id).Distinct().Count());
         Assert.DoesNotContain(allRows, r => r.Group == "Other");
+        Assert.All(allRows.Where(r => r.Assigned && !r.Customized), r => Assert.Equal("", r.Detail));
         sections.Single(s => s.Title == "Player").IsExpanded = true;
         window.ShortcutSearch.Text = "Color Labels";
         Assert.Equal("Browser", Assert.Single(Sections()).Title);
@@ -196,6 +203,83 @@ public sealed partial class BrowserActionIntegrationTests
         window.ShortcutSearch.Text = "no-such-shortcut";
         Assert.Empty(Sections()); Assert.Equal(Visibility.Visible, window.ShortcutEmpty.Visibility);
         await Task.CompletedTask;
+        return null;
+    });
+
+    [Fact]
+    public Task ConfiguredShortcuts_RowLocalCaptureKeepsLowRowFocusScrollAndStaging() => WithWindow(async (window, storage, directory) => {
+        window.ShowInTaskbar = false;
+        window.WindowStartupLocation = WindowStartupLocation.Manual;
+        window.Left = -32000; window.Top = -32000;
+        window.Width = 1120; window.Height = 720;
+        window.Show();
+        Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)));
+        window.Activate();
+        window.MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Settings);
+        window.SettingsCategoryList.SelectedItem = window.SettingsCategoryList.Items.Cast<ListBoxItem>().Single(i => (string)i.Tag == "Shortcuts");
+        window.ShortcutRows.Items.Cast<MainWindow.ShortcutSection>().Single(s => s.Title == "Browser").IsExpanded = true;
+        async Task Settle() { await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.ApplicationIdle); window.UpdateLayout(); }
+        await Settle();
+        const string id = "browser.thumbnails-next";
+        var row = Field<Dictionary<string, MainWindow.ShortcutRow>>(window, "_shortcutRowModels")[id];
+        Button Control(string name) => Assert.IsType<Button>(window.FindShortcutControl(id, name));
+        var edit = Control("ShortcutEdit");
+        edit.BringIntoView(); edit.Focus(); await Settle();
+        Assert.True(window.IsActive);
+        var initialOffset = window.SettingsShortcutsPage.VerticalOffset;
+        Assert.True(initialOffset > 400);
+        var source = window.ShortcutRows.ItemsSource;
+        void AssertRowFocus(string name) {
+            Assert.Same(Control(name), Keyboard.FocusedElement);
+            Assert.False(window.ShortcutSearch.IsKeyboardFocused);
+            Assert.Same(source, window.ShortcutRows.ItemsSource);
+            Assert.True(window.SettingsShortcutsPage.VerticalOffset > initialOffset - 200);
+            var container = window.FindShortcutControl(id, "ShortcutRowContainer")!;
+            var top = container.TranslatePoint(new Point(), window.SettingsShortcutsPage).Y;
+            Assert.True(top >= -1 && top + container.ActualHeight <= window.SettingsShortcutsPage.ViewportHeight + 1, $"Row bounds {top}, {container.ActualHeight}");
+        }
+        bool Capture(InputKey key) => (bool)ShortcutMethod(window, "TryCaptureShortcut", new KeyEventArgs(Keyboard.PrimaryDevice, new ShortcutInputSource(), 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent })!;
+        void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Click(edit); await Settle();
+        AssertRowFocus("ShortcutCancel"); Assert.True(row.IsCapturing); Assert.Equal("Recording shortcut…", row.CaptureTitle);
+        Assert.True(Capture(InputKey.LeftShift)); Assert.Equal("", row.Candidate);
+        Assert.True(Capture(InputKey.Right)); await Settle();
+        Assert.Contains("Conflicts", row.CaptureMessage); Assert.False(row.CanApply);
+        Assert.Contains("Conflicts", Assert.IsType<TextBlock>(window.FindShortcutControl(id, "ShortcutCaptureText")).Text);
+        Assert.True(Capture(InputKey.Delete)); await Settle(); Assert.Contains("contextual", row.CaptureMessage);
+        AssertRowFocus("ShortcutCancel");
+        Assert.True(Capture(InputKey.B)); await Settle();
+        AssertRowFocus("ShortcutApply"); Assert.Equal("B", row.Candidate);
+        Assert.Equal("B", Assert.IsType<TextBlock>(window.FindShortcutControl(id, "ShortcutCandidate")).Text);
+        Assert.False(Capture(InputKey.Tab)); // Candidate confirmation accepts normal keyboard navigation.
+        var apply = Control("ShortcutApply");
+        apply.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, new ShortcutInputSource(), 0, InputKey.Enter) { RoutedEvent = Keyboard.KeyDownEvent });
+        await Settle();
+        Assert.False(row.IsCapturing); Assert.Equal("B", row.Current); Assert.True(row.Unsaved);
+        AssertRowFocus("ShortcutEdit");
+        Assert.Null(Field<KeyboardShortcutResolver>(window, "_shortcutResolver").Resolve(new("B"), ShortcutContext.Browser));
+        Assert.True((bool)ShortcutMethod(window, "SaveShortcuts")!); await Settle();
+        Assert.False(row.Unsaved);
+        Assert.Equal(id, Field<KeyboardShortcutResolver>(window, "_shortcutResolver").Resolve(new("B"), ShortcutContext.Browser)!.Id);
+        Click(edit); await Settle(); Assert.True(Capture(InputKey.Escape)); await Settle(); AssertRowFocus("ShortcutEdit");
+        Click(edit); await Settle(); Click(Control("ShortcutCancel")); await Settle(); AssertRowFocus("ShortcutEdit");
+        Click(edit); await Settle(); Assert.False(Capture(InputKey.Tab)); await Settle(); Assert.False(row.IsCapturing);
+        edit.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next)); await Settle(); Assert.False(window.ShortcutSearch.IsKeyboardFocused);
+        // Menu-origin actions retain the existing row even when current search no longer matches.
+        var action = new MenuItem { Tag = id };
+        ShortcutMethod(window, "ShortcutClear_Click", action, new RoutedEventArgs()); await Settle();
+        AssertRowFocus("ShortcutEdit"); Assert.Equal("Unassigned", row.Current); Assert.True(row.Unsaved);
+        ShortcutMethod(window, "ShortcutReset_Click", action, new RoutedEventArgs()); await Settle(); AssertRowFocus("ShortcutEdit");
+        Assert.False(row.Customized);
+        window.ShortcutSearch.Text = "B"; await Settle();
+        Click(Control("ShortcutEdit")); await Settle();
+        window.ShortcutSearch.Text = "nothing matches"; await Settle();
+        Assert.Contains(window.ShortcutRows.Items.Cast<MainWindow.ShortcutSection>().SelectMany(s => s.Groups).SelectMany(g => g.Rows), r => r.Id == id);
+        Assert.True(row.IsCapturing);
+        Capture(InputKey.Escape); await Settle();
+        Click(Control("ShortcutEdit")); await Settle();
+        window.ShortcutRows.Items.Cast<MainWindow.ShortcutSection>().Single(s => s.Title == "Browser").IsExpanded = false;
+        await Settle(); Assert.False(row.IsCapturing); Assert.Null(Field<BindableCommand?>(window, "_captureCommand"));
         return null;
     });
 

@@ -35,7 +35,7 @@ public sealed class SettingsLayoutTests
             settings.AddFirst(resources);
             foreach (var attribute in settings.DescendantsAndSelf().Attributes().Where(attribute =>
                          attribute.Name.LocalName is "Click" or "TextChanged" or "SelectionChanged" or "Checked" or
-                             "Unchecked" or "MouseEnter" or "MouseLeave" or "MouseLeftButtonUp").ToArray()) attribute.Remove();
+                             "Unchecked" or "MouseEnter" or "MouseLeave" or "MouseLeftButtonUp" or "Collapsed").ToArray()) attribute.Remove();
             var grid = (Grid)XamlReader.Parse(settings.ToString().Replace("clr-namespace:LightflowStudio\"", "clr-namespace:LightflowStudio;assembly=LightflowStudio\""));
             var host = new Grid { Background = (Brush)System.Windows.Application.Current.FindResource("WindowBrush") };
             host.Children.Add(grid);
@@ -107,6 +107,41 @@ public sealed class SettingsLayoutTests
                             host.UpdateLayout();
                             SaveCapture(host, capture, $"Shortcuts-player-{width}-{scale}.png", width, height, scale);
                         }
+                    }
+                    if (page.Name == "SettingsShortcutsPage") {
+                        foreach (var section in sections) section.IsExpanded = section.Title == "Player";
+                        var row = sections.SelectMany(s => s.Groups).SelectMany(g => g.Rows).Single(r => r.Id == "player.next-frame");
+                        void CaptureState(string state) {
+                            host.UpdateLayout();
+                            var rowContainer = Descendants(page).OfType<FrameworkElement>().Single(element => element.Name == "ShortcutRowContainer" && ReferenceEquals(element.DataContext, row));
+                            var top = rowContainer.TranslatePoint(new Point(), page).Y;
+                            if (top < 0) page.ScrollToVerticalOffset(page.VerticalOffset + top);
+                            else if (top + rowContainer.ActualHeight > page.ViewportHeight)
+                                page.ScrollToVerticalOffset(page.VerticalOffset + top + rowContainer.ActualHeight - page.ViewportHeight);
+                            host.UpdateLayout();
+                            top = rowContainer.TranslatePoint(new Point(), page).Y;
+                            Assert.True(top >= -1 && top + rowContainer.ActualHeight <= page.ViewportHeight + 1);
+                            Assert.Equal(0, page.ScrollableWidth);
+                            foreach (var button in Descendants(page).OfType<Button>().Where(b => b.IsVisible)) {
+                                var point = button.TranslatePoint(new Point(), page);
+                                Assert.True(point.X >= -1 && point.X + button.ActualWidth <= page.ActualWidth + 1, button.Name);
+                                Assert.True(button.IsTabStop);
+                            }
+                            if (capture is not null) SaveCapture(host, capture, $"Shortcuts-{state}-{width}-{scale}.png", width, height, scale);
+                        }
+                        row.Capture(true, message: "Press the new key combination. Esc cancels; modifier-only presses are ignored.");
+                        CaptureState("recording");
+                        row.Capture(true, "N", "Select Use Shortcut to stage this change.", true);
+                        CaptureState("candidate");
+                        row.Capture(true, "Space", "Conflicts with Play / Pause (Player).");
+                        CaptureState("conflict");
+                        row.Capture(false);
+                        var draft = new Lightflow.Actions.ShortcutProfile();
+                        draft.Set(Lightflow.Actions.KeyboardCommandCatalog.Commands.Single(c => c.Id == row.Id), new("N"), Lightflow.Actions.ShortcutPlatform.Windows);
+                        var defaults = new Lightflow.Actions.KeyboardShortcutResolver(new(), Lightflow.Actions.ShortcutPlatform.Windows).Query().Single(i => i.Command.Id == row.Id);
+                        row.Update(new Lightflow.Actions.KeyboardShortcutResolver(draft, Lightflow.Actions.ShortcutPlatform.Windows).Query().Single(i => i.Command.Id == row.Id), defaults);
+                        CaptureState("staged");
+                        row.Update(defaults, defaults);
                     }
                 }
             }

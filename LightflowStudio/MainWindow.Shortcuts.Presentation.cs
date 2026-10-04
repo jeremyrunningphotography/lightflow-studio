@@ -3,19 +3,47 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using Button = System.Windows.Controls.Button;
+using Point = System.Windows.Point;
 
 namespace LightflowStudio;
 
 public partial class MainWindow
 {
     // Presentation taxonomy only: action identity, arguments and runtime ownership stay in the catalog.
-    internal sealed record ShortcutRow(string Id, string Category, string Group, string Label, string Context,
-        string Current, string Default, bool Customized)
+    internal sealed class ShortcutRow(string id, string category, string group, string label, string context) : INotifyPropertyChanged
     {
+        public string Id { get; } = id;
+        public string Category { get; } = category;
+        public string Group { get; } = group;
+        public string Label { get; } = label;
+        public string Context { get; } = context;
+        public string Current { get; private set; } = "Unassigned";
+        public string Default { get; private set; } = "Unassigned";
+        public bool Customized { get; private set; }
+        public bool Unsaved { get; private set; }
         public bool Assigned => Current != "Unassigned";
         public string State => !Assigned ? "Unassigned" : Customized ? "Customized" : "Default";
-        public string Detail => $"{Context} · {State}" + (Customized ? $" · Default: {Default}" : "");
-        public string AccessibleName => $"{Label}, {Current}, {Detail}";
+        public string Detail => string.Join(" · ", new[] {
+            Customized && Assigned ? "Customized" : null,
+            Customized ? $"Default: {Default}" : null, Unsaved ? "Unsaved" : null }.Where(s => s is not null));
+        public string AccessibleName => $"{Label}, {Current}, {Context}, {State}, {Detail}";
+        public bool IsCapturing { get; private set; }
+        public bool CanApply { get; private set; }
+        public string Candidate { get; private set; } = "";
+        public string CaptureMessage { get; private set; } = "";
+        public string CaptureTitle => CanApply ? "New shortcut" : Candidate.Length > 0 ? "Shortcut unavailable" : "Recording shortcut…";
+        public void Update(ShortcutInfo current, ShortcutInfo saved) {
+            Current = current.Current?.Display(ShortcutPlatform.Windows) ?? "Unassigned";
+            Default = current.Default?.Display(ShortcutPlatform.Windows) ?? "Unassigned";
+            Customized = current.Customized;
+            Unsaved = current.Current != saved.Current || current.Customized != saved.Customized;
+            Notify();
+        }
+        public void Capture(bool active, string candidate = "", string message = "", bool canApply = false) {
+            IsCapturing = active; Candidate = candidate; CaptureMessage = message; CanApply = canApply; Notify();
+        }
+        private void Notify() => PropertyChanged?.Invoke(this, new(""));
+        public event PropertyChangedEventHandler? PropertyChanged;
     }
     internal sealed record ShortcutSubgroup(string Title, ShortcutRow[] Rows);
     internal sealed class ShortcutSection(string title, ShortcutSubgroup[] groups, bool expanded, Action<bool>? remember) : INotifyPropertyChanged
@@ -33,29 +61,39 @@ public partial class MainWindow
         public event PropertyChangedEventHandler? PropertyChanged;
     }
     private readonly Dictionary<string, bool> _shortcutExpansion = new();
+    private readonly Dictionary<string, ShortcutRow> _shortcutRowModels = new();
+    private long _shortcutFocusVersion;
 
-    internal static ShortcutSection[] BuildShortcutSections(ShortcutProfile profile, string query, Dictionary<string, bool> expansion)
+    internal static ShortcutSection[] BuildShortcutSections(ShortcutProfile profile, string query, Dictionary<string, bool> expansion,
+        Dictionary<string, ShortcutRow>? models = null, string? pinnedId = null, ShortcutProfile? savedProfile = null)
     {
-        var rows = new KeyboardShortcutResolver(profile, ShortcutPlatform.Windows).Query().Select(info => {
-            var command = info.Command;
-            var (section, group) = ShortcutGroup(command);
-            return new ShortcutRow(command.Id, section, group, info.Label,
-                command.Context == ShortcutContext.Home ? "Browser & Player" : command.Context.ToString(),
-                info.Current?.Display(ShortcutPlatform.Windows) ?? "Unassigned",
-                info.Default?.Display(ShortcutPlatform.Windows) ?? "Unassigned", info.Customized);
-        }).Where(row => $"{row.Label} {row.Category} {row.Group} {row.Id} {row.Context} {row.Current} {row.Default}"
-            .Contains(query.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
+        models ??= new();
+        UpdateShortcutModels(profile, savedProfile ?? profile, models);
+        var rows = KeyboardCommandCatalog.Commands.Select(command => models[command.Id])
+            .Where(row => row.Id == pinnedId || $"{row.Label} {row.Category} {row.Group} {row.Id} {row.Context} {row.Current} {row.Default}"
+                .Contains(query.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
         var searching = !string.IsNullOrWhiteSpace(query);
         var order = new[] { "Navigation & Open", "Ratings", "Flags", "Color Labels", "Thumbnail Size",
             "Playback & Frames", "In / Out & Subclips", "Review Navigation & Markers", "Color / Compare Original",
             "Volume & Mute", "Playback Speed", "Zoom", "Loop, Fullscreen & Filmstrip", "Right Panel & Panel Selection", "Export" };
-        return new[] { "Browser", "Player", "Presentation", "Review / Shell" }.Select(title => {
+        return new[] { "Browser", "Player", "Presentation", "Workflow" }.Select(title => {
             var groups = rows.Where(row => row.Category == title).GroupBy(row => row.Group)
                 .OrderBy(group => Array.IndexOf(order, group.Key))
                 .Select(group => new ShortcutSubgroup(group.Key, group.ToArray())).ToArray();
-            return new ShortcutSection(title, groups, searching || expansion.GetValueOrDefault(title),
+            return new ShortcutSection(title, groups, searching || groups.Any(g => g.Rows.Any(r => r.Id == pinnedId)) || expansion.GetValueOrDefault(title),
                 searching ? null : value => expansion[title] = value);
         }).Where(section => section.Count > 0).ToArray();
+    }
+    private static void UpdateShortcutModels(ShortcutProfile profile, ShortcutProfile savedProfile, Dictionary<string, ShortcutRow> models)
+    {
+        var saved = new KeyboardShortcutResolver(savedProfile, ShortcutPlatform.Windows).Query().ToDictionary(i => i.Command.Id);
+        foreach (var info in new KeyboardShortcutResolver(profile, ShortcutPlatform.Windows).Query()) {
+            var command = info.Command;
+            var (section, group) = ShortcutGroup(command);
+            if (!models.TryGetValue(command.Id, out var row)) models[command.Id] = row = new(command.Id, section, group, info.Label,
+                command.Context == ShortcutContext.Home ? "Browser & Player" : command.Context.ToString());
+            row.Update(info, saved[command.Id]);
+        }
     }
     private static (string Section, string Group) ShortcutGroup(BindableCommand command) => command.Action.Id switch {
         BrowserActions.NavigateSelection or BrowserActions.OpenCurrent => ("Browser", "Navigation & Open"),
@@ -71,8 +109,8 @@ public partial class MainWindow
         ReviewPresentationActions.Speed => ("Presentation", "Playback Speed"),
         ReviewPresentationActions.Zoom or ReviewPresentationActions.StepZoom => ("Presentation", "Zoom"),
         ReviewPresentationActions.Toggle => ("Presentation", command.Arguments is PresentationToggleArguments { Toggle: PresentationToggle.Mute } ? "Volume & Mute" : "Loop, Fullscreen & Filmstrip"),
-        ReviewShellActions.TogglePanel or ReviewShellActions.ShowPanel => ("Review / Shell", "Right Panel & Panel Selection"),
-        ReviewShellActions.Export => ("Review / Shell", "Export"),
+        ReviewShellActions.TogglePanel or ReviewShellActions.ShowPanel => ("Workflow", "Right Panel & Panel Selection"),
+        ReviewShellActions.Export => ("Workflow", "Export"),
         _ => (command.Action.Category, "Other")
     };
 
@@ -91,5 +129,38 @@ public partial class MainWindow
         Add("Reset to Default", row.Customized, ShortcutReset_Click);
         button.ContextMenu = menu;
         menu.IsOpen = true;
+    }
+
+    internal FrameworkElement? FindShortcutControl(string id, string name) => ShortcutVisuals(ShortcutRows)
+        .OfType<FrameworkElement>().FirstOrDefault(element => element.Name == name && element.DataContext is ShortcutRow { Id: var rowId } && rowId == id);
+    private void ShortcutSection_Collapsed(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource == sender && sender is Expander { DataContext: ShortcutSection section } && _captureRow?.Category == section.Title)
+            CancelShortcutCapture(false);
+    }
+    private static IEnumerable<DependencyObject> ShortcutVisuals(DependencyObject parent)
+    {
+        for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); index++) {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, index);
+            yield return child;
+            foreach (var descendant in ShortcutVisuals(child)) yield return descendant;
+        }
+    }
+    private void FocusShortcutControl(string id, string name)
+    {
+        var version = ++_shortcutFocusVersion;
+        // Menus restore their own focus on closing; defer until that completes. No Search fallback.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() => {
+            if (version != _shortcutFocusVersion || !IsActive || MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Settings) ||
+                SettingsShortcutsPage.Visibility != Visibility.Visible) return;
+            ShortcutRows.UpdateLayout();
+            FindShortcutControl(id, name)?.Focus();
+            if (FindShortcutControl(id, "ShortcutRowContainer") is not { } row) return;
+            var top = row.TranslatePoint(new Point(), SettingsShortcutsPage).Y;
+            var viewport = SettingsShortcutsPage.ViewportHeight;
+            if (top < 0) SettingsShortcutsPage.ScrollToVerticalOffset(SettingsShortcutsPage.VerticalOffset + top);
+            else if (row.ActualHeight <= viewport && top + row.ActualHeight > viewport)
+                SettingsShortcutsPage.ScrollToVerticalOffset(SettingsShortcutsPage.VerticalOffset + top + row.ActualHeight - viewport);
+        }));
     }
 }

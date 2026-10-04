@@ -31,6 +31,7 @@ public partial class ContextualRightPanel : System.Windows.Controls.UserControl
         SurfaceTabs.Items.Add(tab);
         ApplyPreferredSurface();
     }
+    internal bool IsSurfaceAvailable(string key) => SurfaceTabs.Items.Cast<TabItem>().Any(tab => Equals(tab.Tag, key) && tab.Visibility == Visibility.Visible);
     internal void SelectSurface(string? key)
     {
         PreferredSurface = key ?? "inspector";

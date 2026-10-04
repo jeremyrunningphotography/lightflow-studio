@@ -1,3 +1,4 @@
+using Lightflow.Actions;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -1457,11 +1458,11 @@ public partial class MainWindow : Window
 
     /// <summary>Steps exactly one level toward Small; disabled (so unreachable by click) once already there — see <see cref="BrowserGridLayout.StepLevel"/>.</summary>
     private void BrowserThumbnailSizeDecreaseButton_Click(object sender, RoutedEventArgs e) =>
-        ApplyBrowserThumbnailSize(BrowserGridLayout.StepLevel(_browserThumbnailSize, -1));
+        _ = DispatchShellActionAsync(ReviewShellActions.ThumbnailSize, new LevelArguments(-1));
 
     /// <summary>Steps exactly one level toward Maximum; disabled (so unreachable by click) once already there — see <see cref="BrowserGridLayout.StepLevel"/>.</summary>
     private void BrowserThumbnailSizeIncreaseButton_Click(object sender, RoutedEventArgs e) =>
-        ApplyBrowserThumbnailSize(BrowserGridLayout.StepLevel(_browserThumbnailSize, 1));
+        _ = DispatchShellActionAsync(ReviewShellActions.ThumbnailSize, new LevelArguments(1));
 
     private void BrowserGridHost_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -1753,12 +1754,7 @@ public partial class MainWindow : Window
     private void BrowserExportMenu_Opened(object sender, RoutedEventArgs e) =>
         BrowserExportVideosMenuItem.Header = CurrentBrowserSelectionActions().SourceExportLabel;
 
-    private async Task ExportBrowserSelectionAsync()
-    {
-        var state = CurrentBrowserSelectionActions();
-        if (!state.CanExport) return;
-        await ExportBrowserAssetsAsync(_browserGrid.SelectedAssetIdsInBrowserOrder);
-    }
+    private async Task ExportBrowserSelectionAsync() => await OpenExportEntryAsync(ExportEntry.BrowserVideos);
 
     private async Task ExportBrowserAssetsAsync(IReadOnlyList<Guid> assetIds)
     {
@@ -1773,17 +1769,7 @@ public partial class MainWindow : Window
             location is null ? null : new CapabilitySourceContext(location.RootId, location.RelativeFolder)));
     }
 
-    private async Task ExportBrowserSubclipsAsync()
-    {
-        var state = CurrentBrowserSelectionActions();
-        if (!state.CanExport) return;
-        var location = _lastLoadedBrowserState?.Location;
-        await ApplySubclipExportHandoffAsync(new(SubclipExportEntryKind.BrowserSources,
-            _browserGrid.SelectedAssetIdsInBrowserOrder, SourceContext:
-                location is null ? null : new CapabilitySourceContext(location.RootId, location.RelativeFolder),
-            IncludeNoSubclipSources: true));
-    }
-
+    private async Task ExportBrowserSubclipsAsync() => await OpenExportEntryAsync(ExportEntry.BrowserSubclips);
     private async void BrowserRegenerateThumbnails_Click(object sender, RoutedEventArgs e) =>
         await RegenerateBrowserThumbnailsAsync();
     private async void BrowserContextRegenerateThumbnails_Click(object sender, RoutedEventArgs e) =>
@@ -2040,6 +2026,7 @@ public partial class MainWindow : Window
         _playerViewerHost.ContextChanging = TryLeaveInspectorContext;
         _playerViewerHost.SuspendContextEditing = () => _inspector?.SuspendEditing();
         _playerViewerHost.ActionPresentationActive = PlayerOwnsShortcutContext;
+        _playerViewerHost.OpenSemanticExport = OpenExportEntryAsync;
         HomeRightPanel.AddSurface("subclips", "Subclips", _playerViewerHost.SubclipsContent, available: false);
         HomeRightPanel.AddSurface("visual-index", "Visual Index", _playerViewerHost.VisualIndexContent, available: false);
         _playerViewerHost.CurrentAssetChanged += (_, _) =>
@@ -2628,7 +2615,7 @@ public partial class MainWindow : Window
         if (MainTabs.SelectedIndex == 0 && e.Key == Key.I && Keyboard.Modifiers == ModifierKeys.Control &&
             !PlayerViewerHost.IsTextEntryControl(e.OriginalSource as DependencyObject))
         {
-            SetRightPanelOpen(!_rightPanelOpen);
+            _ = DispatchShellActionAsync(ReviewShellActions.TogglePanel, NoActionArguments.Instance);
             RightPanelToggle.Focus();
             e.Handled = true;
             return;
@@ -3314,6 +3301,7 @@ public partial class MainWindow : Window
     private void UpdateBrowserSelectionActions()
     {
         if (BrowserExportButton is null) return;
+        _ = ShellActionTarget;
         var state = CurrentBrowserSelectionActions();
         BrowserExportButton.IsEnabled = state.CanExport;
         BrowserRegenerateThumbnailsButton.IsEnabled = state.CanRegenerateThumbnails ||
@@ -3681,11 +3669,12 @@ public partial class MainWindow : Window
         StatusText.Text = _ffmpeg is null ? "FFmpeg not found — configure it in Settings" : $"FFmpeg ready: {_ffmpeg}";
     }
 
-    private async Task ApplyEncodingHandoffAsync(CapabilityInvocation invocation)
+    private async Task<ActionResult> ApplyEncodingHandoffAsync(CapabilityInvocation invocation, Func<bool>? contextCurrent = null, CancellationToken token = default)
     {
         _browserEncodingHandoffCts?.Cancel();
         var cancellation = new CancellationTokenSource();
         _browserEncodingHandoffCts = cancellation;
+        using var registration = token.Register(cancellation.Cancel);
         BrowserExportButton.IsEnabled = false;
         try
         {
@@ -3693,7 +3682,8 @@ public partial class MainWindow : Window
                     _storage.MediaRanges, _storage.AssetColors, _storage.LutCache,
                     new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory), _storage.VideoRotations)
                 .MaterializeAsync(invocation, cancellation.Token).ConfigureAwait(true);
-            if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return;
+            if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation) || contextCurrent?.Invoke() == false) return new(ActionOutcome.Superseded);
+            cancellation.Token.ThrowIfCancellationRequested();
             if (!result.Succeeded)
             {
                 if (ReferenceEquals(_browserEncodingInvocation, invocation))
@@ -3704,7 +3694,7 @@ public partial class MainWindow : Window
                 }
                 MessageBox.Show("The selection was not sent to Export:\n\n" + string.Join("\n", result.Errors),
                     "Cannot export selection", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                return new(ActionOutcome.Ineligible, ActionUnavailableReason.ExportUnavailable);
             }
 
             var resourceStore = new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory);
@@ -3713,13 +3703,15 @@ public partial class MainWindow : Window
                 _storage.LutCache.Snapshot(ColorLutStage.Creative).Resources, resourceStore);
             var dialog = new ExportDialog(model, _exportCoordinator, _ffprobe) { Owner = this };
             dialog.ShowDialog();
+            return new(ActionOutcome.Completed);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)
         {
             MessageBox.Show($"The Browser selection could not be prepared: {exception.Message}",
                 "Cannot export selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return new(ActionOutcome.Failed, Diagnostic: exception.Message);
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException) { return new(contextCurrent?.Invoke() == false ? ActionOutcome.Superseded : ActionOutcome.Cancelled); }
         finally
         {
             if (ReferenceEquals(_browserEncodingHandoffCts, cancellation))
@@ -3731,11 +3723,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task ApplySubclipExportHandoffAsync(SubclipExportInvocation invocation)
+    private async Task<ActionResult> ApplySubclipExportHandoffAsync(SubclipExportInvocation invocation, Func<bool>? contextCurrent = null, CancellationToken token = default)
     {
         _browserEncodingHandoffCts?.Cancel();
         var cancellation = new CancellationTokenSource();
         _browserEncodingHandoffCts = cancellation;
+        using var registration = token.Register(cancellation.Cancel);
         BrowserExportButton.IsEnabled = false;
         try
         {
@@ -3744,13 +3737,14 @@ public partial class MainWindow : Window
                 new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory), _storage.VideoRotations);
             var result = await new SubclipExportCapabilityHandoff(sourceHandoff, _storage.Subclips)
                 .MaterializeAsync(invocation, cancellation.Token).ConfigureAwait(true);
-            if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return;
+            if (!ReferenceEquals(_browserEncodingHandoffCts, cancellation) || contextCurrent?.Invoke() == false) return new(ActionOutcome.Superseded);
+            cancellation.Token.ThrowIfCancellationRequested();
             if (!result.Succeeded)
             {
                 MessageBox.Show("The Subclip selection was not sent to Export:\n\n" +
                     string.Join("\n", result.Errors), "Cannot export Subclips",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                return new(ActionOutcome.Ineligible, ActionUnavailableReason.ExportUnavailable);
             }
             var resourceStore = new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory);
             var model = new ExportDialogModel(result, ExportDefaultsStore.Load(_storage.Locations.SettingsPath),
@@ -3765,13 +3759,15 @@ public partial class MainWindow : Window
                             includeNoSubclipSources
                     }, token), namingDefault: ExportNamingDefault.Subclip);
             new ExportDialog(model, _exportCoordinator, _ffprobe) { Owner = this }.ShowDialog();
+            return new(ActionOutcome.Completed);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)
         {
             MessageBox.Show($"The Subclip selection could not be prepared: {exception.Message}",
                 "Cannot export Subclips", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return new(ActionOutcome.Failed, Diagnostic: exception.Message);
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException) { return new(contextCurrent?.Invoke() == false ? ActionOutcome.Superseded : ActionOutcome.Cancelled); }
         finally
         {
             if (ReferenceEquals(_browserEncodingHandoffCts, cancellation))

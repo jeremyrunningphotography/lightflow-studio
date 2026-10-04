@@ -127,7 +127,7 @@ public sealed class ExportModalRegressionTests
     public void BrowserAndPlayerShareModalPathWithoutEncodingWorkspaceNavigation()
     {
         var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "MainWindow.xaml.cs"));
-        var start = source.IndexOf("private async Task ApplyEncodingHandoffAsync", StringComparison.Ordinal);
+        var start = source.IndexOf("private async Task<ActionResult> ApplyEncodingHandoffAsync", StringComparison.Ordinal);
         var end = source.IndexOf("private async Task RefreshDependencyHealthAsync", start, StringComparison.Ordinal);
         var method = source[start..end];
         Assert.Contains("new ExportDialog", method);

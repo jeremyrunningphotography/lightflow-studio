@@ -116,7 +116,7 @@ public partial class PlayerViewerHost
     private DispatcherOperation? _revealOperation;
     private void PreviousAsset_Click(object sender, RoutedEventArgs e) => _ = DispatchTransportAsync(PlayerActions.TraverseReview, new TraverseArguments(TraversalDirection.Previous));
     private void NextAsset_Click(object sender, RoutedEventArgs e) => _ = DispatchTransportAsync(PlayerActions.TraverseReview, new TraverseArguments(TraversalDirection.Next));
-    private void FilmstripToggle_Click(object sender, RoutedEventArgs e) => FilmstripVisible = !FilmstripVisible;
+    private void FilmstripToggle_Click(object sender, RoutedEventArgs e) => _ = DispatchPresentationAsync(ReviewPresentationActions.Toggle, new PresentationToggleArguments(PresentationToggle.Filmstrip));
     private void Filmstrip_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_syncingFilmstrip && Filmstrip.SelectedItem is PlayerReviewItem { Asset.AssetId: Guid id })

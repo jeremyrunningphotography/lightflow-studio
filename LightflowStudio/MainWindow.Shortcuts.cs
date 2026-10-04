@@ -1,0 +1,182 @@
+using Lightflow.Actions;
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Data;
+
+namespace LightflowStudio;
+
+public partial class MainWindow
+{
+    private ShortcutProfile _shortcutProfile = new();
+    private ShortcutProfile _shortcutDraft = new();
+    private KeyboardShortcutResolver _shortcutResolver = new(new(), ShortcutPlatform.Windows);
+    private bool _shortcutsChanged;
+    private bool _shortcutsCanSave = true;
+    private BindableCommand? _captureCommand;
+    private KeyboardGesture? _captureGesture;
+    private Key? _captureKeyRelease;
+    private string ShortcutPath => Path.Combine(Path.GetDirectoryName(_storage.Locations.SettingsPath)!, "keyboard-shortcuts.json");
+    internal sealed record ShortcutRow(string Id, string Category, string Label, string Context, string Current, string Default, string State);
+
+    private void InitializeShortcuts()
+    {
+        var loaded = KeyboardShortcutStore.Load(ShortcutPath);
+        _shortcutProfile = loaded.Profile;
+        _shortcutDraft = _shortcutProfile.Copy();
+        _shortcutsCanSave = loaded.CanSave;
+        ApplyShortcutResolver();
+        ShortcutMessage.Text = loaded.Diagnostic ?? "Changes apply when you select Save Settings.";
+        RefreshShortcutRows();
+        Deactivated += (_, _) => CancelShortcutCapture();
+    }
+    private void ApplyShortcutResolver()
+    {
+        _shortcutResolver = new(_shortcutProfile, ShortcutPlatform.Windows);
+        if (_playerViewerHost is { } host) {
+            host.CancelPlayerActionSessions();
+            host.Shortcuts = _shortcutResolver;
+        }
+    }
+    private bool TryHandleShellShortcut(System.Windows.Input.KeyEventArgs e)
+    {
+        if (MainTabs.SelectedIndex != 0 || !IsEnabled || System.Windows.Interop.ComponentDispatcher.IsThreadModal) return false;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var input = e.OriginalSource as DependencyObject;
+        if (PlayerKeyboardOwnership.Owns(key, Keyboard.Modifiers, input, PlayerOwnsShortcutContext() ? _playerViewerHost! : BrowserGridRows,
+            PlayerOwnsShortcutContext() ? _playerViewerHost!.Filmstrip : BrowserGridRows)) return false;
+        var gesture = WindowsKeyboardShortcuts.Translate(key, Keyboard.Modifiers);
+        var command = gesture is null ? null : _shortcutResolver.Resolve(gesture, PlayerOwnsShortcutContext() ? ShortcutContext.Player : ShortcutContext.Browser);
+        return command is not null && ReviewShellActions.Descriptors.Any(a => a.Id == command.Action.Id) && DispatchConfiguredShell(command, e.IsRepeat);
+    }
+    private bool DispatchConfiguredShell(BindableCommand command, bool repeat)
+    {
+        if (repeat && command.Action.Repeat != ActionRepeatPolicy.BoundedRelative) return true;
+        _ = DispatchShellActionAsync(command.Action.Id, command.Arguments, ReviewShellKeyboard, repeat);
+        return true;
+    }
+    internal bool TryHandleConfiguredBrowserShortcut(Key key, ModifierKeys modifiers, DependencyObject? input, bool repeat = false)
+    {
+        if (!BrowserSemanticContext.Presented || !BrowserSemanticContext.InteractionAvailable || BrowserOwnsLocalKey(key, modifiers, input)) return false;
+        var gesture = WindowsKeyboardShortcuts.Translate(key, modifiers);
+        var command = gesture is null ? null : _shortcutResolver.Resolve(gesture, ShortcutContext.Browser);
+        if (command is null || !BrowserActions.Descriptors.Any(a => a.Id == command.Action.Id)) return false;
+        if (repeat && command.Action.Repeat != ActionRepeatPolicy.BoundedRelative) return true;
+        var arguments = command.Arguments;
+        if (arguments is NavigateSelectionArguments nav) {
+            var columns = _browserGrid.Rows.FirstOrDefault()?.Tiles.Count ?? 1;
+            var distance = command.Distance == NavigationDistance.Row ? columns : command.Distance == NavigationDistance.Page ?
+                columns * Math.Max(1, (int)((FindBrowserGridScrollViewer()?.ViewportHeight ?? 380) /
+                    (_browserLayoutMode == BrowserLayoutMode.Details ? BrowserDetails.RowHeight : 150))) : 1;
+            arguments = nav with { Distance = Math.Clamp(distance, 1, 10000) };
+        }
+        _ = InvokeBrowserActionAsync(command.Action.Id, arguments, repeat, ActionInputKind.Keyboard);
+        return true;
+    }
+    private void RefreshShortcutRows()
+    {
+        if (ShortcutRows is null) return;
+        var query = ShortcutSearch.Text?.Trim() ?? "";
+        var rows = new KeyboardShortcutResolver(_shortcutDraft, ShortcutPlatform.Windows).Query()
+            .Where(i => $"{i.Label} {i.Category} {i.Command.Id} {i.Command.Context}".Contains(query, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(i => i.Category).ThenBy(i => i.Label)
+            .Select(i => new ShortcutRow(i.Command.Id, i.Category, i.Label, i.Command.Context.ToString(),
+                i.Current?.Display(ShortcutPlatform.Windows) ?? "Unassigned", i.Default?.Display(ShortcutPlatform.Windows) ?? "Unassigned",
+                i.Customized ? "Customized" : "Default")).ToArray();
+        var view = CollectionViewSource.GetDefaultView(rows);
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ShortcutRow.Category)));
+        ShortcutRows.ItemsSource = view;
+    }
+    private void ShortcutSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshShortcutRows();
+    private BindableCommand ShortcutFromButton(object sender) => KeyboardCommandCatalog.Commands.Single(c => c.Id == (string)((System.Windows.Controls.Button)sender).Tag);
+    private void ShortcutEdit_Click(object sender, RoutedEventArgs e)
+    {
+        _captureCommand = ShortcutFromButton(sender);
+        _captureGesture = null;
+        ShortcutCapture.Visibility = Visibility.Visible;
+        ShortcutApply.IsEnabled = false;
+        ShortcutCaptureText.Text = $"Press a shortcut for {_captureCommand.Label}. Escape cancels. Modifier-only presses are ignored.";
+        ShortcutCancel.Focus();
+    }
+    private bool TryCaptureShortcut(System.Windows.Input.KeyEventArgs e)
+    {
+        if (_captureCommand is null) return false;
+        if (MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Settings) || SettingsShortcutsPage.Visibility != Visibility.Visible) {
+            CancelShortcutCapture(); return false;
+        }
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key == Key.Escape) { e.Handled = true; CancelShortcutCapture(); return true; }
+        // Tab leaves recording and keeps normal focus navigation; a valid candidate leaves
+        // recording so Use Shortcut/Cancel remain operable by keyboard and assistive tools.
+        if (key == Key.Tab && _captureGesture is null) { CancelShortcutCapture(); return false; }
+        if (_captureGesture is not null) {
+            if (_captureKeyRelease == key) { e.Handled = true; return true; }
+            return false;
+        }
+        e.Handled = true;
+        if (e.IsRepeat) return true;
+        var gesture = WindowsKeyboardShortcuts.Translate(key, Keyboard.Modifiers);
+        if (gesture is null) return true;
+        var error = new KeyboardShortcutResolver(_shortcutDraft, ShortcutPlatform.Windows).Validate(_captureCommand, gesture);
+        _captureGesture = error is null ? gesture : null;
+        _captureKeyRelease = key;
+        ShortcutApply.IsEnabled = error is null;
+        ShortcutCaptureText.Text = error ?? $"{_captureCommand.Label}: {gesture.Display(ShortcutPlatform.Windows)}. Select Use Shortcut to stage this change.";
+        if (error is null) ShortcutApply.Focus();
+        return true;
+    }
+    private void ShortcutApply_Click(object sender, RoutedEventArgs e)
+    {
+        if (_captureCommand is null || _captureGesture is null) return;
+        _shortcutDraft.Set(_captureCommand, _captureGesture, ShortcutPlatform.Windows);
+        ChangedShortcuts();
+        CancelShortcutCapture();
+    }
+    private void ShortcutCancel_Click(object sender, RoutedEventArgs e) => CancelShortcutCapture();
+    private void CancelShortcutCapture()
+    {
+        if (_captureCommand is null) return;
+        _captureCommand = null; _captureGesture = null;
+        ShortcutCapture.Visibility = Visibility.Collapsed;
+        if (IsActive) ShortcutSearch.Focus();
+    }
+    private void ShortcutClear_Click(object sender, RoutedEventArgs e)
+    {
+        _shortcutDraft.Set(ShortcutFromButton(sender), null, ShortcutPlatform.Windows);
+        ChangedShortcuts();
+    }
+    private void ShortcutReset_Click(object sender, RoutedEventArgs e)
+    {
+        var command = ShortcutFromButton(sender);
+        var current = _shortcutDraft.Copy(); current.Reset(command.Id);
+        var resolver = new KeyboardShortcutResolver(current, ShortcutPlatform.Windows);
+        if (command.Default(ShortcutPlatform.Windows) is { } gesture && resolver.Validate(command, gesture) is { } error) {
+            ShortcutMessage.Text = error + " Clear or reset the conflicting command first."; return;
+        }
+        _shortcutDraft = current; ChangedShortcuts();
+    }
+    private void ShortcutResetAll_Click(object sender, RoutedEventArgs e) => ResetAllShortcuts();
+    private void ResetAllShortcuts() { _shortcutDraft.ResetAll(); CancelShortcutCapture(); ChangedShortcuts(); }
+    private void ChangedShortcuts()
+    {
+        _shortcutsChanged = true;
+        ShortcutMessage.Text = "Shortcut changes staged. Select Save Settings to apply them.";
+        RefreshShortcutRows();
+        if (IsActive && _captureCommand is null) ShortcutSearch.Focus();
+    }
+    private bool SaveShortcuts()
+    {
+        if (!_shortcutsChanged) return true;
+        if (!_shortcutsCanSave) { SettingsMessage.Text = "The shortcut file uses a newer schema. It has been retained; shortcut changes cannot be saved."; return false; }
+        var resolver = new KeyboardShortcutResolver(_shortcutDraft, ShortcutPlatform.Windows);
+        foreach (var info in resolver.Query()) if (info.Current is { } gesture && resolver.Validate(info.Command, gesture) is { } error) {
+            SettingsMessage.Text = $"{info.Label}: {error}"; return false;
+        }
+        try { KeyboardShortcutStore.Save(ShortcutPath, _shortcutDraft); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { SettingsMessage.Text = $"Shortcuts could not be saved: {error.Message}"; return false; }
+        _shortcutProfile = _shortcutDraft.Copy(); ApplyShortcutResolver(); _shortcutsChanged = false;
+        CancelShortcutCapture(); ShortcutMessage.Text = "Keyboard shortcuts saved.";
+        return true;
+    }
+}

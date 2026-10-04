@@ -291,6 +291,7 @@ public partial class MainWindow : Window
                 AboutVersionText.Text = $"Version {AppVersion.Display}  •  Built for the creative workflow";
                 _settings = _storage.Settings;
                 _state = AppStateStore.Load(_storage.Locations.StatePath);
+                InitializeShortcuts();
                 PopulateSettingsControls(_settings);
                 InitializeLegacyReview();
                 ApplyStateToBatch(_state);
@@ -1937,12 +1938,6 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
-        // Open the first selected asset in Browser order; #111 captures the complete selected subset.
-        if (e.Key == Key.Enter && _browserGrid.SelectedKeys.Count > 0)
-        {
-            e.Handled = true;
-            _ = InvokeBrowserActionAsync(BrowserActions.OpenCurrent, NoActionArguments.Instance, e.IsRepeat, ActionInputKind.Keyboard);
-        }
     }
 
     private void BrowserContextOpen_Click(object sender, RoutedEventArgs e) => OpenBrowserSelection();
@@ -2014,6 +2009,8 @@ public partial class MainWindow : Window
             preferredPreviewFrames: _storage.PreferredPreviewFrames,
             classifications: _storage.AssetClassifications, markers: _storage.Markers,
             rotations: _storage.VideoRotations);
+        _playerViewerHost.Shortcuts = _shortcutResolver;
+        _playerViewerHost.DispatchShellShortcut = DispatchConfiguredShell;
         _playerViewerHost.CatalogMutations = _storage.Mutations;
         _playerViewerHost.InitializeVisualIndex(_visualIndexFrames, () => _storage.Previews,
             _workspaceState.Current.Layout?.VisualIndexCount ?? 24);
@@ -2617,14 +2614,8 @@ public partial class MainWindow : Window
     /// <summary>Ctrl+F focuses the Browser search box, but only while the Browser workspace is showing an open, filterable location.</summary>
     private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (MainTabs.SelectedIndex == 0 && e.Key == Key.I && Keyboard.Modifiers == ModifierKeys.Control &&
-            !PlayerViewerHost.IsTextEntryControl(e.OriginalSource as DependencyObject))
-        {
-            _ = DispatchShellActionAsync(ReviewShellActions.TogglePanel, NoActionArguments.Instance, ReviewShellKeyboard, e.IsRepeat);
-            RightPanelToggle.Focus();
-            e.Handled = true;
-            return;
-        }
+        if (TryCaptureShortcut(e)) return;
+        if (TryHandleShellShortcut(e)) { e.Handled = true; return; }
         // Resolve active local interaction per key before semantic/legacy Player dispatch.
         if (PlayerOwnsShortcutContext() && _playerViewerHost!.TryHandleShortcut(
                 e.Key == Key.System ? e.SystemKey : e.Key, e.OriginalSource as DependencyObject, Keyboard.Modifiers, e.IsRepeat))
@@ -2653,7 +2644,7 @@ public partial class MainWindow : Window
                 return;
             }
         }
-        if (TryHandleBrowserClassificationShortcut(e.Key, Keyboard.Modifiers, inputOwner, e.IsRepeat))
+        if (TryHandleConfiguredBrowserShortcut(e.Key == Key.System ? e.SystemKey : e.Key, Keyboard.Modifiers, inputOwner, e.IsRepeat))
         {
             e.Handled = true;
             return;
@@ -2675,6 +2666,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (_captureKeyRelease == e.Key) { _captureKeyRelease = null; e.Handled = true; return; }
         if (!PlayerOwnsShortcutContext() || !_playerViewerHost!.TryHandleShortcutKeyUp(e.Key)) return;
         e.Handled = true;
     }
@@ -3390,6 +3382,7 @@ public partial class MainWindow : Window
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!ReferenceEquals(e.Source, MainTabs)) return;
+        if (MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Settings)) CancelShortcutCapture();
         if (IsLoaded && MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
         SyncBrowserStatusBarVisibility();
         if (RightPanelToggle is not null) RightPanelToggle.Visibility = MainTabs.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -3416,10 +3409,12 @@ public partial class MainWindow : Window
     {
         if (!IsInitialized || SettingsGeneralPage is null) return;
         var category = (SettingsCategoryList.SelectedItem as ListBoxItem)?.Tag as string ?? "General";
+        if (category != "Shortcuts") CancelShortcutCapture();
         SettingsGeneralPage.Visibility = category == "General" ? Visibility.Visible : Visibility.Collapsed;
         SettingsColorPage.Visibility = category == "Color" ? Visibility.Visible : Visibility.Collapsed;
         SettingsStoragePage.Visibility = category == "Storage" ? Visibility.Visible : Visibility.Collapsed;
         SettingsAdvancedPage.Visibility = category == "Advanced" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsShortcutsPage.Visibility = category == "Shortcuts" ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OpenAbout_Click(object sender, RoutedEventArgs e) =>
@@ -5627,6 +5622,7 @@ public partial class MainWindow : Window
             var previousCreativeFolder = _settings.CreativeLutFolder;
             var previousCameraRecursive = _settings.CameraLutIncludeSubfolders;
             var previousCreativeRecursive = _settings.CreativeLutIncludeSubfolders;
+            if (!SaveShortcuts()) return;
             _storage.SaveSettings(settings);
             _settings = _storage.Settings;
             var cameraChanged = !string.Equals(previousCameraFolder, _settings.CameraLutFolder, StringComparison.OrdinalIgnoreCase)
@@ -5651,6 +5647,7 @@ public partial class MainWindow : Window
 
     private void ResetSettings_Click(object sender, RoutedEventArgs e)
     {
+        ResetAllShortcuts();
         PopulateSettingsControls(AppSettings.Normalize(new AppSettings()));
         SettingsMessage.Text = "Default values loaded. Select Save Settings to apply them.";
     }

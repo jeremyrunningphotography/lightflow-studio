@@ -47,8 +47,13 @@ public sealed class SettingsLayoutTests
                 new { Name = "FFmpeg", Summary = "Bundled version available", Detail = "Version and executable path", Resolution = "Ready", IsReady = true },
                 new { Name = "NVIDIA NVENC", Summary = "Hardware encoder unavailable", Detail = "Diagnostic details", Resolution = "Check the driver and supported hardware.", IsReady = false }
             };
-            var pages = new[] { "General", "Color", "Storage", "Advanced" }
+            var pages = new[] { "General", "Color", "Storage", "Shortcuts", "Advanced" }
                 .Select(category => (ScrollViewer)grid.FindName("Settings" + category + "Page")).ToArray();
+            ((ItemsControl)grid.FindName("ShortcutRows")).ItemsSource = new Lightflow.Actions.KeyboardShortcutResolver(new(), Lightflow.Actions.ShortcutPlatform.Windows).Query().Take(8)
+                .Select(i => new MainWindow.ShortcutRow(i.Command.Id, i.Category, i.Label, i.Command.Context.ToString(),
+                    i.Current?.Display(Lightflow.Actions.ShortcutPlatform.Windows) ?? "Unassigned", i.Default?.Display(Lightflow.Actions.ShortcutPlatform.Windows) ?? "Unassigned", "Default")).ToArray();
+            var shortcutView = System.Windows.Data.CollectionViewSource.GetDefaultView(((ItemsControl)grid.FindName("ShortcutRows")).ItemsSource);
+            shortcutView.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription("Category"));
             var capture = Environment.GetEnvironmentVariable("LIGHTFLOW_SETTINGS_CAPTURE");
             foreach (var (width, height, scale) in new[] { (1090d, 590d, 1d), (1890d, 890d, 1d), (1090d, 590d, 1.5d), (1090d, 590d, 2d) })
             {
@@ -61,7 +66,7 @@ public sealed class SettingsLayoutTests
                     host.UpdateLayout();
                     var groupLeft = grid.TranslatePoint(new Point(), host).X;
                     Assert.Equal((width - grid.ActualWidth) / 2, groupLeft, 1);
-                    var cards = ((StackPanel)page.Content).Children.OfType<StackPanel>().Single();
+                    var cards = page.Name == "SettingsShortcutsPage" ? (StackPanel)page.Content : ((StackPanel)page.Content).Children.OfType<StackPanel>().Single();
                     var borders = cards.Children.OfType<Border>().ToArray();
                     for (var i = 1; i < borders.Length; i++)
                     {

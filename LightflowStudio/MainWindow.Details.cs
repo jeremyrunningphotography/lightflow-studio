@@ -196,17 +196,6 @@ public partial class MainWindow
 
     private bool NavigateBrowserKeyboard(System.Windows.Input.KeyEventArgs e)
     {
-        if (_browserGrid.Tiles.Count == 0 || e.Key is not (Key.Up or Key.Down or Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown)) return false;
-        if (BrowserOwnsLocalKey(e.Key, Keyboard.Modifiers, e.OriginalSource as DependencyObject)) return false;
-        var columns = _browserGrid.Rows[0].Tiles.Count;
-        var step = e.Key is Key.Up or Key.Down ? columns : e.Key is Key.PageUp or Key.PageDown ?
-            columns * Math.Max(1, (int)((FindBrowserGridScrollViewer()?.ViewportHeight ?? 380) /
-                (_browserLayoutMode == BrowserLayoutMode.Details ? BrowserDetails.RowHeight : 150))) : 1;
-        var movement = e.Key switch { Key.Home => BrowserMovement.First, Key.End => BrowserMovement.Last,
-            Key.Up or Key.Left or Key.PageUp => BrowserMovement.Previous, _ => BrowserMovement.Next };
-        _ = InvokeBrowserActionAsync(BrowserActions.NavigateSelection,
-            new NavigateSelectionArguments(movement, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift), Math.Clamp(step, 1, 10000)),
-            e.IsRepeat, ActionInputKind.Keyboard);
-        return true;
+        return TryHandleConfiguredBrowserShortcut(e.Key, Keyboard.Modifiers, e.OriginalSource as DependencyObject, e.IsRepeat);
     }
 }

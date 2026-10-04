@@ -1596,6 +1596,7 @@
          <ListBoxItem Tag="General" AutomationProperties.Name="General settings"><StackPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="General"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Captures and integrations"/></StackPanel></ListBoxItem>
          <ListBoxItem Tag="Color" AutomationProperties.Name="Color settings"><StackPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="Color"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Camera and creative LUTs"/></StackPanel></ListBoxItem>
          <ListBoxItem Tag="Storage" AutomationProperties.Name="Storage settings"><StackPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="Storage"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Catalog and Previews"/></StackPanel></ListBoxItem>
+         <ListBoxItem Tag="Shortcuts" AutomationProperties.Name="Keyboard Shortcuts settings"><StackPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="Keyboard Shortcuts"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Bindings and defaults"/></StackPanel></ListBoxItem>
          <ListBoxItem Tag="Advanced" AutomationProperties.Name="Advanced settings"><StackPanel><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="Advanced"/><TextBlock Margin="0,2,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Text="Requirements and diagnostics"/></StackPanel></ListBoxItem>
         </ListBox>
        </StackPanel>
@@ -1727,6 +1728,48 @@
            </StackPanel>
           </Border>
          </StackPanel>
+        </StackPanel>
+       </ScrollViewer>
+
+       <ScrollViewer x:Name="SettingsShortcutsPage" Style="{StaticResource SettingsPageScrollViewerStyle}" Visibility="Collapsed" AutomationProperties.Name="Keyboard Shortcuts settings page">
+        <StackPanel>
+         <TextBlock Style="{StaticResource SectionTitle}" FontSize="20" Text="Keyboard Shortcuts"/>
+         <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="Customize review commands. Text editors and local controls keep their keys. Changes apply with Save Settings."/>
+         <TextBlock Style="{StaticResource FieldLabel}" Margin="0,12,0,0" Text="SEARCH SHORTCUTS"/>
+         <TextBox x:Name="ShortcutSearch" Margin="0,12,0,8" AutomationProperties.Name="Search keyboard shortcuts" TextChanged="ShortcutSearch_TextChanged"/>
+         <Button HorizontalAlignment="Left" Content="Reset All Shortcuts" Click="ShortcutResetAll_Click" AutomationProperties.Name="Reset all keyboard shortcuts"/>
+         <TextBlock x:Name="ShortcutMessage" Style="{StaticResource SettingsDescriptionStyle}" TextWrapping="Wrap"/>
+         <Border x:Name="ShortcutCapture" Style="{StaticResource SettingsSectionStyle}" Visibility="Collapsed" Margin="0,8,0,12">
+          <StackPanel>
+           <TextBlock x:Name="ShortcutCaptureText" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+           <WrapPanel Margin="0,10,0,0">
+            <Button x:Name="ShortcutApply" Content="Use Shortcut" IsEnabled="False" Click="ShortcutApply_Click" AutomationProperties.Name="Use captured shortcut"/>
+            <Button x:Name="ShortcutCancel" Content="Cancel Capture" Click="ShortcutCancel_Click" AutomationProperties.Name="Cancel shortcut capture"/>
+           </WrapPanel>
+          </StackPanel>
+         </Border>
+         <ItemsControl x:Name="ShortcutRows">
+          <ItemsControl.GroupStyle>
+           <GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" FontSize="16" Text="{Binding Name}" Margin="0,14,0,8"/></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle>
+          </ItemsControl.GroupStyle>
+          <ItemsControl.ItemTemplate>
+           <DataTemplate>
+            <Border Style="{StaticResource SettingsSectionStyle}" Margin="0,0,0,8">
+             <StackPanel>
+              <TextBlock Foreground="{StaticResource MutedTextBrush}" FontSize="11"><Run Text="Available in: "/><Run Text="{Binding Context}"/></TextBlock>
+              <TextBlock Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Text="{Binding Label}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+              <TextBlock Foreground="{StaticResource TextBrush}" Margin="0,6,0,0"><Run Text="Current: "/><Run Text="{Binding Current}"/></TextBlock>
+              <TextBlock Foreground="{StaticResource MutedTextBrush}"><Run Text="Default: "/><Run Text="{Binding Default}"/><Run Text=" · "/><Run Text="{Binding State}"/></TextBlock>
+              <WrapPanel Margin="0,8,0,0">
+               <Button Content="Edit…" Tag="{Binding Id}" Click="ShortcutEdit_Click" AutomationProperties.Name="{Binding Label, StringFormat=Edit shortcut for {0}}"/>
+               <Button Content="Unassign" Tag="{Binding Id}" Click="ShortcutClear_Click" AutomationProperties.Name="{Binding Label, StringFormat=Unassign shortcut for {0}}"/>
+               <Button Content="Reset" Tag="{Binding Id}" Click="ShortcutReset_Click" AutomationProperties.Name="{Binding Label, StringFormat=Reset shortcut for {0}}"/>
+              </WrapPanel>
+             </StackPanel>
+            </Border>
+           </DataTemplate>
+          </ItemsControl.ItemTemplate>
+         </ItemsControl>
         </StackPanel>
        </ScrollViewer>
 

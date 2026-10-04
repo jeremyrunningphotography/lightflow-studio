@@ -1401,3 +1401,12 @@ No keyboard/OS/device identifiers enter shared contracts. Current playback prese
 macOS must replace that adapter, not redefine semantic IDs or durable intent. See [Player action policy and
 acceptance evidence](PLAYER_ACTIONS.md). Browser, review/presentation/Export actions, Settings bindings and TourBox-specific
 work remain separate children and decision gates.
+
+### Configurable keyboard shortcuts (#353)
+
+`Lightflow.Actions` now contains a neutral logical gesture/curated binding-variant catalog,
+versioned profile overrides, context conflicts and a resolver over the accepted 23 semantic
+actions. Windows input ownership precedes neutral lookup; local editing/Delete/navigation
+remain local. Settings stages capture/unassignment/reset and applies them through Save Settings.
+Profile-local `keyboard-shortcuts.json` stores no WPF keys or Catalog/workspace state.
+See [binding contracts, defaults, lifecycle, persistence and macOS/#354 boundaries](KEYBOARD_SHORTCUTS.md).

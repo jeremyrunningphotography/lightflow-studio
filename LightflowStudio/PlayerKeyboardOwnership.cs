@@ -23,6 +23,7 @@ internal static class PlayerKeyboardOwnership
         var navigation = key is Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown;
         var activation = key is Key.Space or Key.Enter or Key.Escape;
         var letter = key >= Key.A && key <= Key.Z && modifiers == ModifierKeys.None;
+        var digit = key >= Key.D0 && key <= Key.D9 && modifiers == ModifierKeys.None;
         for (var current = input; current is not null; current = Parent(current))
         {
             if (ReferenceEquals(current, player) || ReferenceEquals(current, filmstrip)) return false;
@@ -35,7 +36,7 @@ internal static class PlayerKeyboardOwnership
             if (current is Slider or Thumb) return navigation;
             if (current is ButtonBase && key is Key.Space or Key.Enter) return true;
             if (current is TabControl tabs && tabs.SelectedContent is DependencyObject content && Within(original, content)) return false;
-            if (current is Selector selector) return navigation || activation || (letter && selector.IsTextSearchEnabled);
+            if (current is Selector selector) return navigation || activation || ((letter || digit) && selector.IsTextSearchEnabled);
         }
         return false;
     }

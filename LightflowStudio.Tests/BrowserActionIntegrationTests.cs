@@ -9,7 +9,7 @@ using Xunit;
 namespace LightflowStudio.Tests;
 
 [Collection("STA dispatcher tests")]
-public sealed class BrowserActionIntegrationTests
+public sealed partial class BrowserActionIntegrationTests
 {
     private static readonly ActionInputSource Controller = new("direct-controller", ActionInputKind.Controller);
     private static Task<ActionResult> Invoke(MainWindow window, string id, ActionArguments args) =>

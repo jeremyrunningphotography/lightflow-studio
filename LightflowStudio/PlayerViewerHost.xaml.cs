@@ -1537,55 +1537,14 @@ public partial class PlayerViewerHost : UserControl
     internal bool TryHandleShortcut(Key key, DependencyObject? inputOwner, ModifierKeys modifiers, bool isRepeat = false)
     {
         if (IsTextEntryControl(inputOwner)) return false;
-        var activeModifiers = modifiers;
         if (PlayerKeyboardOwnership.Owns(key, modifiers, inputOwner, this, Filmstrip)) return false;
-        if (activeModifiers == ModifierKeys.None && key == Key.M)
-            return DispatchReviewKeyboard(PlayerActions.AddMarker, NoActionArguments.Instance, isRepeat);
-        if (activeModifiers == ModifierKeys.Alt && key is Key.Left or Key.Right)
-            return DispatchReviewKeyboard(PlayerActions.NavigateMarker,
-                new TraverseArguments(key == Key.Left ? TraversalDirection.Previous : TraversalDirection.Next), isRepeat);
-        if (activeModifiers == ModifierKeys.Control && key is Key.Left or Key.Right)
-            return DispatchReviewKeyboard(PlayerActions.TraverseReview,
-                new TraverseArguments(key == Key.Left ? TraversalDirection.Previous : TraversalDirection.Next), isRepeat);
-        if (key >= Key.D0 && key <= Key.D5)
-        {
-            _ = SetRatingAsync(key - Key.D0, toggleCurrent: false);
-            return _currentAsset?.AssetId is not null;
+        if (key == Key.Escape && modifiers == ModifierKeys.None) {
+            if (IsFullscreen) { ExitFullscreen(); return true; }
+            BackRequested?.Invoke(this, EventArgs.Empty);
+            return true;
         }
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && key is Key.Up or Key.Down)
-        {
-            _ = StepFlagAsync(key == Key.Up ? 1 : -1);
-            return _currentAsset?.AssetId is not null;
-        }
-        switch (key)
-        {
-            case Key.C:
-                return DispatchKeyboardAction(key, isRepeat);
-            case Key.Escape:
-                if (IsFullscreen) { ExitFullscreen(); return true; }
-                BackRequested?.Invoke(this, EventArgs.Empty);
-                return true;
-            case Key.Space:
-                return DispatchKeyboardAction(key, isRepeat);
-            case Key.I:
-                DispatchReviewKeyboard(PlayerActions.SetBoundary, new SetBoundaryArguments(WorkingRangeBoundary.In), isRepeat);
-                Focus();
-                return true;
-            case Key.O:
-                DispatchReviewKeyboard(PlayerActions.SetBoundary, new SetBoundaryArguments(WorkingRangeBoundary.Out), isRepeat);
-                Focus();
-                return true;
-            case Key.S:
-                DispatchReviewKeyboard(PlayerActions.CreateSubclip, NoActionArguments.Instance, isRepeat);
-                Focus();
-                return true;
-            case Key.Left:
-            case Key.Right:
-                return DispatchKeyboardAction(key, isRepeat);
-        }
-        return false;
+        return TryResolvePlayerShortcut(key, modifiers, isRepeat);
     }
-
     private async Task LoadClassificationAsync(Guid? assetId, long generation, CancellationToken token)
     {
         var classification = assetId is { } id && _classifications is not null
@@ -1664,7 +1623,10 @@ public partial class PlayerViewerHost : UserControl
 
     internal bool TryHandleShortcutKeyUp(Key key)
     {
-        return key == Key.C && EndKeyboardColorSession();
+        if (_keyboardColorKey != key) return false;
+        _keyboardColorKey = null;
+        EndKeyboardColorSession();
+        return true;
     }
 
     private void PlayerViewerHost_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)

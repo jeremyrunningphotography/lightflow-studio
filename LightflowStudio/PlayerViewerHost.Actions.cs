@@ -68,19 +68,6 @@ public partial class PlayerViewerHost
         var invocation = new ActionInvocation(action, arguments, TransportActionSource, Guid.NewGuid(), ActionTarget);
         PresentActionResult(invocation, await _actions.InvokeAsync(invocation));
     }
-    private bool DispatchKeyboardAction(Key key, bool repeat)
-    {
-        var action = key switch { Key.Space => PlayerActions.PlayPause, Key.Left or Key.Right => PlayerActions.StepFrame, _ => PlayerActions.ColorBypass };
-        var phase = key == Key.C ? ActionPhase.Begin : ActionPhase.Invoke;
-        if (key == Key.C)
-        {
-            if (!_actions.Eligibility(action, ActionTarget).Available) return false;
-            _keyboardColorSession ??= Guid.NewGuid();
-        }
-        ActionArguments arguments = key is Key.Left or Key.Right ? new FrameStepArguments(key == Key.Left ? -1 : 1) : NoActionArguments.Instance;
-        _ = DispatchKeyboardAsync(new(action, arguments, KeyboardActionSource, _keyboardColorSession ?? Guid.NewGuid(), ActionTarget, phase, repeat));
-        return true;
-    }
     private async Task DispatchKeyboardAsync(ActionInvocation invocation)
     {
         PresentActionResult(invocation, await _actions.InvokeAsync(invocation));

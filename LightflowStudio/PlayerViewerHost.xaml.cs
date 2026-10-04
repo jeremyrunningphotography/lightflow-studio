@@ -1591,9 +1591,19 @@ public partial class PlayerViewerHost : UserControl
         var classification = assetId is { } id && _classifications is not null
             ? (await _classifications.GetAsync([id], token).ConfigureAwait(true)).GetValueOrDefault(id)
             : null;
-        if (generation == _generation && !token.IsCancellationRequested) { _classification = classification; SyncClassificationControls(); }
+        if (generation == _generation && !token.IsCancellationRequested) {
+            if (classification is { } value) ApplyCommittedClassification(value);
+            else { _classification = null; SyncClassificationControls(); }
+        }
     }
 
+    internal void ApplyCommittedClassification(AssetClassification value)
+    {
+        if (_currentAsset?.AssetId != value.AssetId ||
+            _classification is { } current && current.AssetId == value.AssetId && current.Revision > value.Revision) return;
+        _classification = value;
+        SyncClassificationControls();
+    }
     private void SyncClassificationControls()
     {
         var ratingButtons = new[] { PlayerRating1, PlayerRating2, PlayerRating3, PlayerRating4, PlayerRating5 };
@@ -1615,19 +1625,21 @@ public partial class PlayerViewerHost : UserControl
         PlayerLabelPurple.IsChecked = _classification?.ColorLabel == AssetColorLabel.Purple;
     }
 
-    private async Task SaveClassificationAsync(AssetClassification value)
+    private async Task MutateClassificationAsync(Func<AssetClassification, AssetClassification> mutate)
     {
-        if (_classifications is null || _currentAsset?.AssetId != value.AssetId) return;
-        await _classifications.SaveAsync(value).ConfigureAwait(true);
+        if (_classifications is null || _currentAsset?.AssetId is not { } id) return;
+        var generation = _generation;
+        var value = await _classifications.UpdateAsync(id, mutate).ConfigureAwait(true);
+        if (generation != _generation || _currentAsset?.AssetId != id ||
+            _classification is { } current && current.AssetId == id && current.Revision > value.Revision) return;
         _classification = value;
         SyncClassificationControls();
         ClassificationChanged?.Invoke(this, value);
     }
-
-    private Task SetRatingAsync(int rating, bool toggleCurrent) => _classification is { } value
-        ? SaveClassificationAsync(value with { Rating = AssetClassificationCommandPolicy.SetRating(value.Rating, rating, toggleCurrent) }) : Task.CompletedTask;
-    private Task StepFlagAsync(int delta) => _classification is { } value
-        ? SaveClassificationAsync(value with { Flag = AssetClassificationCommandPolicy.StepFlag(value.Flag, delta) }) : Task.CompletedTask;
+    private Task SetRatingAsync(int rating, bool toggleCurrent) => MutateClassificationAsync(value => value with
+        { Rating = AssetClassificationCommandPolicy.SetRating(value.Rating, rating, toggleCurrent) });
+    private Task StepFlagAsync(int delta) => MutateClassificationAsync(value => value with
+        { Flag = AssetClassificationCommandPolicy.StepFlag(value.Flag, delta) });
     private void PlayerRating_Click(object sender, RoutedEventArgs e)
     {
         if (sender is ToggleButton { Tag: string text } && int.TryParse(text, out var rating))
@@ -1636,13 +1648,13 @@ public partial class PlayerViewerHost : UserControl
     private void PlayerFlag_Click(object sender, RoutedEventArgs e)
     {
         if (_classification is { } value && sender is ToggleButton { Tag: string text } && Enum.TryParse<AssetFlag>(text, out var flag))
-            _ = SaveClassificationAsync(value with { Flag = AssetClassificationCommandPolicy.ToggleFlag(value.Flag, flag) });
+            _ = MutateClassificationAsync(current => current with { Flag = AssetClassificationCommandPolicy.ToggleFlag(current.Flag, flag) });
     }
     private void PlayerColorLabel_Click(object sender, RoutedEventArgs e)
     {
         if (_classification is not { } value || sender is not ToggleButton { Tag: string text }) return;
         AssetColorLabel? label = text == "None" ? null : Enum.TryParse<AssetColorLabel>(text, out var parsed) ? parsed : null;
-        _ = SaveClassificationAsync(value with { ColorLabel = label });
+        _ = MutateClassificationAsync(current => current with { ColorLabel = label });
     }
 
     private void PlayerViewerHost_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)

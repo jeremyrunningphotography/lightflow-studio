@@ -39,7 +39,7 @@ public sealed class ReviewShellLiveTests
                 Assert.Equal(ActionOutcome.NoChange, (await Call(ReviewShellActions.ShowPanel, new PanelSurfaceArguments(ReviewPanelSurface.Inspector))).Outcome);
                 Assert.Equal(ActionUnavailableReason.SurfaceUnavailable, (await Call(ReviewShellActions.ShowPanel, new PanelSurfaceArguments(ReviewPanelSurface.Subclips))).Reason);
                 await Call(ReviewShellActions.TogglePanel, NoActionArguments.Instance); Assert.Equal(Visibility.Collapsed, window.HomeRightPanel.Visibility);
-                Assert.Equal(ActionUnavailableReason.ExportUnavailable, (await Call(ReviewShellActions.Export, new ExportEntryArguments(ExportEntry.BrowserVideos))).Reason);
+                Assert.Equal(ActionUnavailableReason.NoBrowser, (await Call(ReviewShellActions.Export, new ExportEntryArguments(ExportEntry.BrowserVideos))).Reason);
                 var stale = new ReviewShellInvocation(ReviewShellActions.TogglePanel, NoActionArguments.Instance, source, Guid.NewGuid(), target);
                 window.ApplyBrowserLayout(BrowserLayoutMode.Details, false);
                 Assert.Equal(ActionOutcome.Superseded, (await window.ShellActions.InvokeAsync(stale)).Outcome);

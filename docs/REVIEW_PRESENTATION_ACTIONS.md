@@ -1,6 +1,7 @@
 # Review presentation and Export semantic actions (#352)
 
-Base: accepted main `390544cdc7e198d899d0f1aeb44fce7491cae779` (#349/#350).
+Original parallel base: `390544cdc7e198d899d0f1aeb44fce7491cae779` (#349/#350).
+Reconciled by merging accepted #351 main 3eea7fea4ce376e1c2b671962b418584ce8e66af; prior review history is retained.
 This slice consumes `Lightflow.Actions` contracts/results/metadata and the existing serialized application
 interaction dispatcher. It introduces two narrow ports, rather than expanding the playback/Catalog port into
 shell ownership. No keyboard simulation, controller transport, mapping persistence or new Export engine exists.
@@ -98,3 +99,21 @@ regression coverage remains in the full Release suite. Run the pinned dependency
 full suite, build `Lightflow.Actions` independently, run the Companion tests, and rebuild with the required
 PullRequest packaging command after the final commit. Automated evidence does not substitute for owner visual,
 architecture or packaged hands-on acceptance.
+
+## Post-#351 reconciliation
+
+BrowserActions owns selection/navigation/Open/classification using its committed BrowserScopeIdentity and
+projection/presentation generations. ReviewShellActions owns thumbnail/panel presentation and Export entry state;
+its target observes BrowserSemanticContext.Target and its current selected IDs, plus Player/shell state. This keeps
+scope, Smart defining-query projection, presentation and pending-navigation changes authoritative for Export.
+Thumbnail stepping does not mutate the Browser target or selection and remains separate from navigation.
+Browser Export captures IDs from that same context; an uncommitted or non-interactive Browser cannot open Export.
+No second Browser scope/selection resolver is introduced. Player Export retains its existing entry/materializer policies.
+
+ActionContracts resolves the sole textual merge conflict as a superset. Main's enum order is retained, with #352
+runtime-only values appended; Serialized classification execution remains intact. The automatically merged
+MainWindow/Player classification routes retain UpdateAsync fresh-value mutations and revision publication guards.
+ReconciledActionInventoryTests verifies all four descriptor families and neutral assembly references.
+BrowserActionIntegrationTests adds Folder/static/Smart coexistence, unchanged selection/target during thumbnail
+steps, stale Export on selection/projection replacement and pending Browser scope admission coverage.
+Prior owner acceptance at 8941520 is preserved as evidence; the reconciled package still requires focused acceptance.

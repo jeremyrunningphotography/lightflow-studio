@@ -1183,6 +1183,7 @@ public partial class MainWindow : Window
         try { _browserCollectionTree.Select(null); }
         finally { _synchronizingCollectionTree = false; }
         _lastLoadedBrowserState = state;
+        _browserActionCommittedGeneration = _browserUiGeneration;
         var scope = state.Location is { } scopeLocation ? $"folder:{scopeLocation.RootId:D}:{scopeLocation.RelativeFolder}" : null;
         // A genuinely new scope (different folder, or navigating away from/into a location entirely) starts
         // sort/filter/search over: the media-area toolbar narrows *the current* scope, not a remembered one.
@@ -1940,17 +1941,13 @@ public partial class MainWindow : Window
         if (e.Key == Key.Enter && _browserGrid.SelectedKeys.Count > 0)
         {
             e.Handled = true;
-            OpenBrowserSelection();
+            _ = InvokeBrowserActionAsync(BrowserActions.OpenCurrent, NoActionArguments.Instance, e.IsRepeat, ActionInputKind.Keyboard);
         }
     }
 
     private void BrowserContextOpen_Click(object sender, RoutedEventArgs e) => OpenBrowserSelection();
 
-    private void OpenBrowserSelection()
-    {
-        if (_browserGrid.Tiles.FirstOrDefault(candidate => candidate.IsSelected) is { } tile)
-            _ = OpenBrowserPlayerViewerAsync(tile);
-    }
+    private void OpenBrowserSelection() => _ = InvokeBrowserActionAsync(BrowserActions.OpenCurrent, NoActionArguments.Instance);
 
     /// <summary>
     /// #110: opens one tile into the Browser's Player/Viewer presentation state. Resolves the tile's stable
@@ -1962,9 +1959,12 @@ public partial class MainWindow : Window
     /// update already checks — so a fast Locations-tree click landing while this is still awaiting
     /// <c>ResolveAsync</c> can never open a stale tile from the folder just left over the newly navigated one.
     /// </summary>
-    private async Task OpenBrowserPlayerViewerAsync(BrowserGridTile tile)
+    private Task OpenBrowserPlayerViewerAsync(BrowserGridTile tile) => tile.AssetId is { } id
+        ? InvokeBrowserActionAsync(BrowserActions.OpenCurrent, new OpenBrowserArguments(id)) : Task.CompletedTask;
+
+    private async Task<ActionResult> OpenBrowserPlayerViewerActionAsync(BrowserGridTile tile, BrowserActionTarget? target, CancellationToken token)
     {
-        if (!TryLeaveInspectorContext()) return;
+        if (!TryLeaveInspectorContext()) return new(ActionOutcome.Cancelled);
         using var editing = _inspector?.SuspendEditing();
         var generation = _browserUiGeneration;
         var asset = new PlayerViewerAsset(tile.RootId, tile.RelativePath, tile.Key, tile.Name,
@@ -1980,9 +1980,13 @@ public partial class MainWindow : Window
         {
             resolution = new(tile.RootId, tile.RelativePath, tile.Key, null, MediaRootAvailability.Unavailable, false, exception.Message);
         }
-        if (generation != _browserUiGeneration) return;
+        token.ThrowIfCancellationRequested();
+        if (generation != _browserUiGeneration || target != BrowserSemanticContext.Target) return new(ActionOutcome.Superseded);
 
-        await OpenResolvedBrowserPlayerAsync(asset, resolution, reviewSet: reviewSet);
+        await OpenResolvedBrowserPlayerAsync(asset, resolution, token: token, reviewSet: reviewSet);
+        return new(generation == _browserUiGeneration && _browserPresentation == BrowserPresentationMode.PlayerViewer &&
+            _browserActionPresentationGeneration == (target?.PresentationGeneration ?? 0) + 1 &&
+            _playerViewerHost?.CurrentAsset?.AssetId == asset.AssetId ? ActionOutcome.Completed : ActionOutcome.Superseded);
     }
 
     private async Task OpenResolvedBrowserPlayerAsync(PlayerViewerAsset asset, MediaPathResolution resolution,
@@ -2159,6 +2163,7 @@ public partial class MainWindow : Window
     private void SetBrowserPresentationMode(BrowserPresentationMode mode)
     {
         ResetBrowserAssetGesture();
+        if (_browserPresentation != mode) _browserActionPresentationGeneration++;
         _browserPresentation = mode;
         UpdateInspectorContext();
         BrowserGridHost.Visibility = mode == BrowserPresentationMode.Grid ? Visibility.Visible : Visibility.Collapsed;
@@ -2648,22 +2653,10 @@ public partial class MainWindow : Window
                 return;
             }
         }
-        if (_browserPresentation == BrowserPresentationMode.Grid &&
-            MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home) &&
-            !PlayerViewerHost.IsTextEntryControl(inputOwner))
+        if (TryHandleBrowserClassificationShortcut(e.Key, Keyboard.Modifiers, inputOwner, e.IsRepeat))
         {
-            if (e.Key >= Key.D0 && e.Key <= Key.D5)
-            {
-                _ = SetSelectedBrowserRatingsAsync(e.Key - Key.D0);
-                e.Handled = true;
-                return;
-            }
-            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.Key is Key.Up or Key.Down)
-            {
-                _ = StepSelectedBrowserFlagsAsync(e.Key == Key.Up ? 1 : -1);
-                e.Handled = true;
-                return;
-            }
+            e.Handled = true;
+            return;
         }
         if (e.Key == Key.Escape && MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)
             && Keyboard.FocusedElement is not System.Windows.Controls.Primitives.TextBoxBase
@@ -3123,16 +3116,7 @@ public partial class MainWindow : Window
         MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Home) &&
         _browserPresentation == BrowserPresentationMode.PlayerViewer && _playerViewerHost is not null;
 
-    private async Task SetSelectedBrowserRatingsAsync(int rating)
-    {
-        await _storage.Mutations.RunAsync(async () => {
-        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
-        {
-            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
-            await CommitBrowserClassificationAsync(value with { Rating = rating }).ConfigureAwait(true);
-        }
-    }, default);
-    }
+    private Task SetSelectedBrowserRatingsAsync(int rating) => InvokeBrowserActionAsync(BrowserActions.SetRating, new SetRatingArguments(rating));
 
     private void BrowserRating_Click(object sender, RoutedEventArgs e)
     {
@@ -3140,17 +3124,7 @@ public partial class MainWindow : Window
         _ = SetSelectedBrowserRatingsFromMenuAsync(rating);
     }
 
-    private async Task SetSelectedBrowserRatingsFromMenuAsync(int rating)
-    {
-        await _storage.Mutations.RunAsync(async () => {
-        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
-        {
-            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
-            await CommitBrowserClassificationAsync(value with
-                { Rating = AssetClassificationCommandPolicy.SetRating(value.Rating, rating, toggleCurrent: true) }).ConfigureAwait(true);
-        }
-    }, default);
-    }
+    private Task SetSelectedBrowserRatingsFromMenuAsync(int rating) => InvokeBrowserActionAsync(BrowserActions.SetRating, new SetRatingArguments(rating, ToggleCurrent: true));
 
     private void BrowserFlag_Click(object sender, RoutedEventArgs e)
     {
@@ -3158,16 +3132,7 @@ public partial class MainWindow : Window
         _ = SetSelectedBrowserFlagsAsync(flag);
     }
 
-    private async Task SetSelectedBrowserFlagsAsync(AssetFlag flag)
-    {
-        await _storage.Mutations.RunAsync(async () => {
-        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
-        {
-            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
-            await CommitBrowserClassificationAsync(value with { Flag = flag }).ConfigureAwait(true);
-        }
-    }, default);
-    }
+    private Task SetSelectedBrowserFlagsAsync(AssetFlag flag) => InvokeBrowserActionAsync(BrowserActions.SetFlag, new SetFlagArguments((ClassificationFlag)flag));
 
     private void BrowserColorLabel_Click(object sender, RoutedEventArgs e)
     {
@@ -3176,16 +3141,8 @@ public partial class MainWindow : Window
         _ = SetSelectedBrowserColorLabelsAsync(label);
     }
 
-    private async Task SetSelectedBrowserColorLabelsAsync(AssetColorLabel? label)
-    {
-        await _storage.Mutations.RunAsync(async () => {
-        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
-        {
-            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
-            await CommitBrowserClassificationAsync(value with { ColorLabel = label }).ConfigureAwait(true);
-        }
-    }, default);
-    }
+    private Task SetSelectedBrowserColorLabelsAsync(AssetColorLabel? label) => InvokeBrowserActionAsync(BrowserActions.SetColorLabel,
+        new SetColorLabelArguments(label is { } value ? (ClassificationColorLabel)value : null));
 
     private void BrowserAddKeyword_Click(object sender, RoutedEventArgs e)
     {
@@ -3195,51 +3152,24 @@ public partial class MainWindow : Window
         _ = AddSelectedBrowserKeywordAsync(keyword);
     }
 
-    private async Task AddSelectedBrowserKeywordAsync(string keyword)
-    {
-        await _storage.Mutations.RunAsync(async () => {
-        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
-        {
-            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
-            await CommitBrowserClassificationAsync(value with { Keywords = [.. value.Keywords, keyword] }).ConfigureAwait(true);
-        }
-    }, default);
-    }
+    private Task AddSelectedBrowserKeywordAsync(string keyword) => UpdateBrowserKeywordsAsync(value => value with { Keywords = [.. value.Keywords, keyword] });
 
     private void BrowserClearKeywords_Click(object sender, RoutedEventArgs e) => _ = ClearSelectedBrowserKeywordsAsync();
 
-    private async Task ClearSelectedBrowserKeywordsAsync()
-    {
-        await _storage.Mutations.RunAsync(async () => {
-        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
-        {
-            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
-            await CommitBrowserClassificationAsync(value with { Keywords = [] }).ConfigureAwait(true);
-        }
-    }, default);
-    }
+    private Task ClearSelectedBrowserKeywordsAsync() => UpdateBrowserKeywordsAsync(value => value with { Keywords = [] });
 
-    private async Task StepSelectedBrowserFlagsAsync(int delta)
-    {
-        await _storage.Mutations.RunAsync(async () => {
-        foreach (var tile in _browserGrid.SelectedTilesInBrowserOrder.Where(tile => tile.AssetId is not null))
-        {
-            var value = tile.Classification ?? AssetClassification.Empty(tile.AssetId!.Value);
-            await CommitBrowserClassificationAsync(value with
-                { Flag = AssetClassificationCommandPolicy.StepFlag(value.Flag, delta) }).ConfigureAwait(true);
-        }
-    }, default);
-    }
+    private Task StepSelectedBrowserFlagsAsync(int delta) => InvokeBrowserActionAsync(BrowserActions.StepFlag,
+        new StepFlagArguments(delta > 0 ? TraversalDirection.Next : TraversalDirection.Previous));
 
-    private async Task CommitBrowserClassificationAsync(AssetClassification value)
+    private async Task UpdateBrowserKeywordsAsync(Func<AssetClassification, AssetClassification> mutate)
     {
-        await _storage.AssetClassifications.SaveAsync(value).ConfigureAwait(true);
-        InvalidateInspector();
-        var revision = ++_browserAssetStateRevision;
-        _browserAssetStateRevisions[value.AssetId] = revision;
-        _browserGrid.ApplyClassification(value);
-        _browserGrid.ReapplyQuery();
-        UpdateBrowserStatusText();
+        var target = BrowserSemanticContext.Target;
+        var ids = _browserGrid.SelectedAssetIdsInBrowserOrder.ToArray();
+        await _storage.Mutations.RunAsync(async () => {
+            var values = new List<AssetClassification>();
+            foreach (var id in ids) values.Add(await _storage.AssetClassifications.UpdateAsync(id, mutate));
+            if (IsSameBrowserContext(target)) PublishBrowserClassifications(values);
+        });
     }
 
     /// <summary>
@@ -4649,6 +4579,7 @@ public partial class MainWindow : Window
 
     private void ApplyCollectionScope(BrowserCollectionScope scope, long generation)
     {
+        _browserActionCommittedGeneration = generation;
         ActivateCollectionScopeSelection(BrowserCollectionTreeModel.Flatten(_browserCollectionTree.Roots)
             .FirstOrDefault(node => node.Id == scope.Collection.CollectionId));
         var queryScope = $"collection:{scope.Collection.CollectionId:D}";

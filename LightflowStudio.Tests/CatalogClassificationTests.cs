@@ -39,6 +39,18 @@ public sealed class CatalogClassificationTests
             Assert.Equal(AssetColorLabel.Blue, restored.ColorLabel);
             Assert.Equal(["Ceremony", "favorites"], restored.Keywords);
             Assert.Equal(1, restored.Revision);
+            // Two service adapters for one session must share serialization; mutate fresh fields, not the old snapshot.
+            var second = new CatalogAssetClassificationStore(() => session);
+            await Task.WhenAll(store.UpdateAsync(assetId, value => value with { Rating = 2 }),
+                second.UpdateAsync(assetId, value => value with { Flag = AssetFlag.Rejected }),
+                store.UpdateAsync(assetId, value => value with { ColorLabel = null }),
+                second.UpdateAsync(assetId, value => value with { Keywords = [.. value.Keywords, "new"] }));
+            var combined = (await store.GetAsync([assetId]))[assetId];
+            Assert.Equal(2, combined.Rating); Assert.Equal(AssetFlag.Rejected, combined.Flag);
+            Assert.Null(combined.ColorLabel); Assert.Equal(["Ceremony", "favorites", "new"], combined.Keywords);
+            Assert.Equal(5, combined.Revision);
+            var clamped = await second.UpdateAsync(assetId, value => value with { Flag = AssetClassificationCommandPolicy.StepFlag(value.Flag, -1) });
+            Assert.Equal(combined.Revision, clamped.Revision);
         }
         finally
         {

@@ -13,10 +13,11 @@ public partial class MainWindow
     internal ReviewShellTarget ShellActionTarget
     {
         get {
-            // Stable identities and scope, never focus or visual selection containers.
+            // Observe the committed #351 Browser authority, never focus or visual containers.
+            var browser = BrowserSemanticContext;
             var signature = string.Join("|", _workspaceClosed, MainTabs.SelectedIndex, _browserPresentation, _browserLayoutMode,
-                _lastLoadedBrowserState?.Location, _activeCollectionScope?.Collection.CollectionId, _browserUiGeneration, _browserScopeIdentity, _playerViewerHost?.ActionTarget,
-                string.Join(",", _browserGrid.SelectedAssetIdsInBrowserOrder),
+                browser.Target, _browserUiGeneration, _playerViewerHost?.ActionTarget,
+                string.Join(",", browser.SelectedAssetIds),
                 string.Join(",", _playerViewerHost?.SelectedSubclipIds.OrderBy(id => id).ToArray() ?? []),
                 string.Join(",", _playerViewerHost?.AllSubclipIds ?? []));
             if (signature != _reviewShellSignature) { _reviewShellSignature = signature; _reviewShellRevision++; }
@@ -59,7 +60,12 @@ public partial class MainWindow
             }
             if (window._browserEncodingHandoffCts is not null) return new(false, ActionUnavailableReason.OperationInProgress);
             if (arguments is not ExportEntryArguments export) return new(false, ActionUnavailableReason.InvalidArguments);
-            var browser = !Player && window._browserPresentation == BrowserPresentationMode.Grid;
+            var browserContext = window.BrowserSemanticContext;
+            var browser = !Player && browserContext.Presented;
+            if (export.Entry is ExportEntry.BrowserVideos or ExportEntry.BrowserSubclips) {
+                if (browserContext.Target is null) return new(false, ActionUnavailableReason.NoBrowser);
+                if (!browserContext.InteractionAvailable) return new(false, ActionUnavailableReason.ModalInteraction);
+            }
             var video = Player && window._playerViewerHost?.CurrentAsset is { Kind: MediaPresentationKind.Video, AssetId: not null } &&
                 window._playerViewerHost.SemanticActions.Eligibility(PlayerActions.PlayPause, window._playerViewerHost.ActionTarget).Available;
             var eligible = export.Entry switch {
@@ -107,7 +113,7 @@ public partial class MainWindow
             Check(target, token);
             var host = window._playerViewerHost;
             var player = entry is ExportEntry.PlayerVideo or ExportEntry.PlayerSelectedSubclips or ExportEntry.PlayerAllSubclips;
-            var assets = player ? new[] { host!.CurrentAsset!.AssetId!.Value } : window._browserGrid.SelectedAssetIdsInBrowserOrder.ToArray();
+            var assets = player ? new[] { host!.CurrentAsset!.AssetId!.Value } : window.BrowserSemanticContext.SelectedAssetIds.ToArray();
             var location = window._lastLoadedBrowserState?.Location;
             var context = location is null ? null : new CapabilitySourceContext(location.RootId, location.RelativeFolder);
             Func<bool> current = () => window.ShellActionTarget == target;

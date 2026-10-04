@@ -34,12 +34,49 @@ internal interface IAssetClassificationStore
     Task<IReadOnlyDictionary<Guid, AssetClassification>> GetAsync(IReadOnlyCollection<Guid> assetIds,
         CancellationToken cancellationToken = default);
     Task SaveAsync(AssetClassification classification, CancellationToken cancellationToken = default);
+    /// <summary>Fresh-value mutation under the Catalog-owned classification serialization boundary.</summary>
+    Task<AssetClassification> UpdateAsync(Guid assetId, Func<AssetClassification, AssetClassification> mutate,
+        CancellationToken token = default) => throw new NotSupportedException("This read-only classification adapter cannot mutate.");
 }
 
 internal sealed class CatalogAssetClassificationStore(Func<CatalogDatabaseSession?> session,
     Func<DateTimeOffset>? utcNow = null) : IAssetClassificationStore
 {
     private const int QueryBatchSize = 400;
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CatalogDatabaseSession, SemaphoreSlim> Gates = new();
+    public async Task<AssetClassification> UpdateAsync(Guid assetId, Func<AssetClassification, AssetClassification> mutate,
+        CancellationToken token = default)
+    {
+        var capturedSession = RequireSession();
+        return await capturedSession.Mutations.RunAsync(async () => {
+            var gate = Gates.GetValue(capturedSession, _ => new(1, 1));
+            await gate.WaitAsync(token).ConfigureAwait(false);
+            try {
+                if (!ReferenceEquals(capturedSession, RequireSession())) throw new InvalidOperationException("The Catalog changed.");
+                var current = (await GetAsync([assetId], token).ConfigureAwait(false))[assetId];
+                var updated = mutate(current);
+                if (updated.AssetId != assetId) throw new InvalidOperationException("Classification identity cannot change.");
+                if (updated.Rating == current.Rating && updated.Flag == current.Flag && updated.ColorLabel == current.ColorLabel &&
+                    updated.Keywords.SequenceEqual(current.Keywords)) return current;
+                await SaveCoreAsync(updated, token).ConfigureAwait(false);
+                return (await GetAsync([assetId], token).ConfigureAwait(false))[assetId];
+            }
+            finally { gate.Release(); }
+        }, token).ConfigureAwait(false);
+    }
+    public async Task SaveAsync(AssetClassification classification, CancellationToken cancellationToken = default)
+    {
+        var capturedSession = RequireSession();
+        await capturedSession.Mutations.RunAsync(async () => {
+            var gate = Gates.GetValue(capturedSession, _ => new(1, 1));
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try {
+                if (!ReferenceEquals(capturedSession, RequireSession())) throw new InvalidOperationException("The Catalog changed.");
+                await SaveCoreAsync(classification, cancellationToken).ConfigureAwait(false);
+            }
+            finally { gate.Release(); }
+        }, cancellationToken).ConfigureAwait(false);
+    }
     private readonly Func<DateTimeOffset> _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
 
     public Task<IReadOnlyDictionary<Guid, AssetClassification>> GetAsync(IReadOnlyCollection<Guid> assetIds,
@@ -66,7 +103,7 @@ internal sealed class CatalogAssetClassificationStore(Func<CatalogDatabaseSessio
         return result;
     }, cancellationToken);
 
-    public Task SaveAsync(AssetClassification classification, CancellationToken cancellationToken = default) {
+    private Task SaveCoreAsync(AssetClassification classification, CancellationToken cancellationToken = default) {
         return RequireSession().Mutations.RunAsync(() => { return Task.Run(() =>
     {
         if (classification.Rating is < 0 or > 5) throw new ArgumentOutOfRangeException(nameof(classification));

@@ -37,10 +37,12 @@ public sealed partial class PlayerViewerHostLeaseTests
                 var entries = new[] { new MediaFolderEntry(root.RootId, "clip.mp4", "CLIP.MP4", "clip.mp4", false,
                     new(MediaTypeCategory.Video), asset.FileSizeBytes, DateTimeOffset.UtcNow, AssetId: asset.AssetId) };
                 grid.Populate(entries); grid.SelectSingle(0);
-                Assert.True(window.ShellActions.Eligibility(ReviewShellActions.Export, window.ShellActionTarget, new ExportEntryArguments(ExportEntry.BrowserSubclips)).Available);
+                Assert.Equal(ActionUnavailableReason.NoBrowser, window.ShellActions.Eligibility(ReviewShellActions.Export, window.ShellActionTarget, new ExportEntryArguments(ExportEntry.BrowserSubclips)).Reason);
                 Assert.False(window.ShellActions.Eligibility(ReviewShellActions.Export, window.ShellActionTarget, new ExportEntryArguments(ExportEntry.BrowserVideos)).Available);
                 typeof(MainWindow).GetField("_lastLoadedBrowserState", flags)!.SetValue(window,
                     new BrowserFolderState(new(root.RootId, "Export semantics", media, ""), BrowserFolderStatus.Ready, entries, null, false, false, false));
+                typeof(MainWindow).GetField("_browserActionCommittedGeneration", flags)!.SetValue(window,
+                    typeof(MainWindow).GetField("_browserUiGeneration", flags)!.GetValue(window));
                 var playerAsset = new PlayerViewerAsset(root.RootId, "clip.mp4", "CLIP.MP4", "clip.mp4", MediaPresentationKind.Video, asset.AssetId);
                 await host.OpenAsync(playerAsset, new(root.RootId, "clip.mp4", "CLIP.MP4", Path.Combine(media, "clip.mp4"), MediaRootAvailability.Online, true));
                 host.SubclipsList.SelectedItem = host.SubclipsList.Items[1];

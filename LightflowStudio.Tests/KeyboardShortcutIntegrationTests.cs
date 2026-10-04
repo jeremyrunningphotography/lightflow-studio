@@ -48,7 +48,7 @@ public sealed partial class PlayerViewerHostLeaseTests
         });
     }
     [Theory]
-    [InlineData("release")][InlineData("focus")][InlineData("deactivate")][InlineData("replace")][InlineData("modal")]
+    [InlineData("release")][InlineData("alt-release")][InlineData("focus")][InlineData("deactivate")][InlineData("replace")][InlineData("modal")]
     public async Task ConfiguredShortcuts_ColorHoldRetainsReleaseAndCancellation(string ending)
     {
         await StaDispatcher.RunAsync(async () => {
@@ -58,7 +58,8 @@ public sealed partial class PlayerViewerHostLeaseTests
             var cache = new FakeLutLibrary(new Dictionary<Guid,string> { [camera] = WriteIdentityCube(folder.FullName, "camera.cube") });
             await using var coordinator = new MediaPlaybackCoordinator(() => new MediaPlaybackService(backend));
             var host = new PlayerViewerHost(coordinator, lutCache: cache, assetColors: colors, cameraLutFolder: () => folder.FullName, creativeLutFolder: () => folder.FullName);
-            var profile = new ShortcutProfile(); profile.Set(KeyboardCommandCatalog.Commands.Single(c => c.Id == "player.color-bypass"), new("B", ShortcutModifiers.Shift), ShortcutPlatform.Windows);
+            var modifiers = ending == "alt-release" ? ModifierKeys.Alt | ModifierKeys.Shift : ModifierKeys.Shift;
+            var profile = new ShortcutProfile(); profile.Set(KeyboardCommandCatalog.Commands.Single(c => c.Id == "player.color-bypass"), new("B", ending == "alt-release" ? ShortcutModifiers.Alt | ShortcutModifiers.Shift : ShortcutModifiers.Shift), ShortcutPlatform.Windows);
             host.Shortcuts = new(profile, ShortcutPlatform.Windows);
             var window = CreateSubclipWindow(host); window.ShowActivated = false; window.Left = -32000; window.Show();
             try {
@@ -66,10 +67,19 @@ public sealed partial class PlayerViewerHostLeaseTests
                 await WaitUntilAsync(() => host.CameraLutCombo.Items.Count >= 2, "LUT"); host.CameraLutCombo.SelectedIndex = 1;
                 await WaitUntilAsync(() => colors.SetCount == 1 && !backend.ColorCalls[^1].Bypass, "Color");
                 Assert.False(host.TryHandleShortcut(InputKey.C, host, ModifierKeys.None));
-                Assert.True(host.TryHandleShortcut(InputKey.B, host, ModifierKeys.Shift)); Assert.True(backend.ColorCalls[^1].Bypass);
+                Assert.True(host.TryHandleShortcut(InputKey.B, host, modifiers)); Assert.True(backend.ColorCalls[^1].Bypass);
                 Assert.False(host.TryHandleShortcutKeyUp(InputKey.C)); Assert.True(backend.ColorCalls[^1].Bypass);
                 switch (ending) {
                     case "release": Assert.True(host.TryHandleShortcutKeyUp(InputKey.B)); break;
+                    case "alt-release":
+                        var surface = new Border();
+                        using (var input = new PlayerSurfaceInput(surface, () => { }, () => { }, (_, _) => { }, _ => { }, (_, _) => false, host.TryHandleShortcutKeyUp)) {
+                            var up = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, InputKey.B) { RoutedEvent = Keyboard.PreviewKeyUpEvent };
+                            typeof(KeyEventArgs).GetMethod("MarkSystem", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(up, []);
+                            Assert.Equal(InputKey.System, up.Key); Assert.Equal(InputKey.B, up.SystemKey);
+                            surface.RaiseEvent(up); Assert.True(up.Handled);
+                        }
+                        break;
                     case "focus": host.RaiseEvent(new KeyboardFocusChangedEventArgs(Keyboard.PrimaryDevice, 0, host, null) { RoutedEvent = UIElement.LostKeyboardFocusEvent }); break;
                     case "deactivate": typeof(PlayerViewerHost).GetMethod("ActionWindowDeactivated", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(host, [window, EventArgs.Empty]); break;
                     case "replace": var next = ReviewAsset("next-color.mp4"); await host.OpenAsync(next, ReviewPath(next)); break;
@@ -78,8 +88,8 @@ public sealed partial class PlayerViewerHostLeaseTests
                 Assert.False((bool)typeof(PlayerViewerHost).GetField("_momentaryColorBypass", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host)!);
                 if (ending != "replace") Assert.False(backend.ColorCalls[^1].Bypass);
                 var calls = backend.ColorCalls.Count;
-                Assert.True(host.TryHandleShortcut(InputKey.B, host, ModifierKeys.Shift, true)); Assert.Equal(calls, backend.ColorCalls.Count);
-                Assert.Equal(ending != "release", host.TryHandleShortcut(InputKey.B, host, ModifierKeys.None, true)); Assert.Equal(calls, backend.ColorCalls.Count);
+                Assert.True(host.TryHandleShortcut(InputKey.B, host, modifiers, true)); Assert.Equal(calls, backend.ColorCalls.Count);
+                Assert.Equal(ending is not ("release" or "alt-release"), host.TryHandleShortcut(InputKey.B, host, ModifierKeys.None, true)); Assert.Equal(calls, backend.ColorCalls.Count);
                 if (ending is "focus" or "deactivate" or "modal") {
                     // Release outside the window may be missed; a fresh press can begin again.
                     Assert.True(host.TryHandleShortcut(InputKey.B, host, ModifierKeys.Shift));

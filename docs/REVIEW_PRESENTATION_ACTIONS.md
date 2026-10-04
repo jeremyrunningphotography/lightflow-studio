@@ -13,7 +13,7 @@ shell ownership. No keyboard simulation, controller transport, mapping persisten
 | PlaybackReviewOptions / current cadence | `player.review-speed` | Existing typed six presets 1/8× through 4×; preserve cadence and playback service ownership |
 | Player viewport / DPI sizing / retained-frame and still transforms | `viewer.zoom`, `viewer.step-zoom` | Fit, 50%, 100%, 200%, 400%; one signed preset step, no wrap; Fit resets pan |
 | Current PresentedRange loop policy | `player.presentation-toggle(Loop)` | Ready video only; retains full-source/working-range/selected-Subclip loop behavior |
-| Same-window PlayerFullscreenPresentation | `player.presentation-toggle(Fullscreen)` | Ready visual and Window; same Player/lease/source; existing overlay and exit restoration |
+| Same-window PlayerFullscreenPresentation | `player.presentation-toggle(Fullscreen)` | Assigned source and Window, including loading; same Player/lease/source; existing overlay and exit restoration |
 | FilmstripVisible / workspace capture | `player.presentation-toggle(Filmstrip)` | Existing review presentation preference; fullscreen keeps filmstrip hidden |
 | BrowserGridLayout / ApplyBrowserThumbnailSize | `browser.step-thumbnail-size` | One signed notch, bounded existing six levels; Browser Grid only; same cached data/reflow/persistence lifecycle |
 | Shared contextual Right Panel | `review.toggle-right-panel`, `review.show-panel` | Inspector, Jobs, Subclips, Visual Index only when available; Home only, unavailable in fullscreen; no focus grab or editor commit/discard |

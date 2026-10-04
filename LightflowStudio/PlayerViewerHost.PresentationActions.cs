@@ -48,7 +48,7 @@ public partial class PlayerViewerHost
                 ReviewPresentationActions.Zoom or ReviewPresentationActions.StepZoom => new(readyVisual, readyVisual ? ActionUnavailableReason.None : ActionUnavailableReason.ViewportUnavailable),
                 ReviewPresentationActions.Toggle when arguments is PresentationToggleArguments { Toggle: PresentationToggle.Mute } => new(audio, audio ? ActionUnavailableReason.None : ActionUnavailableReason.AudioUnavailable),
                 ReviewPresentationActions.Toggle when arguments is PresentationToggleArguments { Toggle: PresentationToggle.Loop } => new(video, video ? ActionUnavailableReason.None : ActionUnavailableReason.SourceUnavailable),
-                ReviewPresentationActions.Toggle when arguments is PresentationToggleArguments { Toggle: PresentationToggle.Fullscreen } => new(readyVisual && Window.GetWindow(host) is not null, readyVisual && Window.GetWindow(host) is not null ? ActionUnavailableReason.None : ActionUnavailableReason.ViewportUnavailable),
+                ReviewPresentationActions.Toggle when arguments is PresentationToggleArguments { Toggle: PresentationToggle.Fullscreen } => new(host._currentAsset is not null && Window.GetWindow(host) is not null, host._currentAsset is not null && Window.GetWindow(host) is not null ? ActionUnavailableReason.None : ActionUnavailableReason.ViewportUnavailable),
                 ReviewPresentationActions.Toggle => new(host._currentAsset is not null, host._currentAsset is not null ? ActionUnavailableReason.None : ActionUnavailableReason.SourceUnavailable),
                 _ => new(false, ActionUnavailableReason.UnknownAction)
             };

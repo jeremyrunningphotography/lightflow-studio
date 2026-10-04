@@ -68,6 +68,8 @@ public sealed partial class PlayerViewerHostLeaseTests
                 if (milestone != PlayerOpenMilestone.PresentationSurfaceCreated) return;
                 checkedLoading = true;
                 Assert.False(host!.PresentationActions.Eligibility(ReviewPresentationActions.Zoom, host.ActionTarget, new ZoomArguments(ReviewZoom.Fit)).Available);
+                Assert.True(host.PresentationActions.Eligibility(ReviewPresentationActions.Toggle, host.ActionTarget, new PresentationToggleArguments(PresentationToggle.Fullscreen)).Available);
+                host.ToggleFullscreen(); Assert.True(host.IsFullscreen); host.ToggleFullscreen(); Assert.False(host.IsFullscreen);
             });
             var window = CreateSubclipWindow(host); window.ShowActivated = false; window.Left = -32000; window.Opacity = 0; window.Show();
             var folder = Directory.CreateTempSubdirectory("lightflow-352-still-").FullName;

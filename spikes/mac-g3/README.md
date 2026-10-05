@@ -1,0 +1,91 @@
+# M3 / G3 isolated proof checkpoint
+
+Issue: [#370](https://github.com/jeremyrunningphotography/lightflow-studio/issues/370).
+Epic: [#366](https://github.com/jeremyrunningphotography/lightflow-studio/issues/366).
+Source baseline: `e302a20d888161d6face6e311610d67eab9c1512`, fetched 2026-10-05.
+
+**Incomplete G3.** Windows headless evidence and a Mac-reproducible source slice exist.
+No actual Apple Silicon execution, accepted performance limits, native media host,
+complete Settings parity or owner acceptance exists. This checkpoint must not close #370.
+
+The experiment is independent of the production solution: no project references,
+Catalog access, media-folder writes, product package changes or production migration.
+All runtime commands require an explicit absolute `--data-root`.
+
+Workspace: `C:\Git\Agents\Agent-X3-Avalonia-Proof`.
+Branch: `codex/370-avalonia-ui-image-proof`.
+Windows evidence root: `C:\Git\Agents\Agent-X3-Avalonia-Proof\.cache\g3-evidence`.
+Windows acceptance root: `C:\Git\Agents\Agent-X3-Avalonia-Proof\.cache\g3-acceptance`.
+
+## Reproduce Windows headless evidence
+
+From the independent clone:
+
+```powershell
+$env:NUGET_PACKAGES = 'C:\Git\Agents\Agent-X3-Avalonia-Proof\.cache\nuget'
+dotnet restore .\spikes\mac-g3\Lightflow.G3.csproj --locked-mode
+dotnet build .\spikes\mac-g3\Lightflow.G3.csproj -c Release --no-restore --disable-build-servers
+dotnet .\spikes\mac-g3\bin\Release\net8.0\Lightflow.G3.dll --headless --data-root 'C:\Git\Agents\Agent-X3-Avalonia-Proof\.cache\g3-evidence'
+```
+
+The headless backend creates no Windows HWND. It uses real Skia software rendering,
+control layout and synthetic input, not the Windows/macOS native platform. WPF/native
+product tests still require `scripts\Test-Noninteractive.ps1`; none were substituted
+with this experiment. Two Avalonia analyzer/compiler version warnings remain on SDK
+8.0.423; analyzer assemblies require compiler 4.14 while this SDK has compiler 4.11.
+Native Mac continuation should use a compatible task toolchain and record its version.
+
+## Explicit interactive Windows experiment
+
+Published experimental executable (requires .NET 8):
+
+```powershell
+& "C:\Git\Agents\Agent-X3-Avalonia-Proof\artifacts\g3-proof\Lightflow.G3.exe" --data-root "C:\Git\Agents\Agent-X3-Avalonia-Proof\.cache\g3-acceptance"
+```
+
+This is the experimental Avalonia app, not the shipping WPF executable. It has not
+received native hands-on acceptance. No PR is ready or opened at this checkpoint.
+The mandatory freshly packaged `artifacts\release\LightflowStudio\LightflowStudio.exe`
+validation remains a later PR-handoff requirement; it would provide Windows product
+package evidence, not Mac G3 evidence.
+
+## Reproduce on an Apple Silicon Mac
+
+Windows cross-publish to `artifacts\g3-mac-arm64` succeeded with `-r osx-arm64
+--self-contained false`. It contains the Mac apphost and Avalonia/Skia/HarfBuzz dylibs.
+This is compilation/static packaging evidence only: no native library was executed,
+and no signed/notarized `.app` was produced. Artifact hashes are preserved separately.
+
+Use an independent clone and a task-owned absolute root. Record `sw_vers`, `uname -m`,
+`system_profiler SPHardwareDataType SPDisplaysDataType`, `dotnet --info`, source SHA,
+display profile/scale and actual isolation arrangement. These commands build/run the
+same source; they do not install paid controls or change the production TFM.
+
+```sh
+export NUGET_PACKAGES="$PWD/.cache/g3-nuget"
+dotnet restore spikes/mac-g3/Lightflow.G3.csproj --locked-mode
+dotnet build spikes/mac-g3/Lightflow.G3.csproj -c Release --no-restore --disable-build-servers
+dotnet spikes/mac-g3/bin/Release/net8.0/Lightflow.G3.dll --headless --data-root "$PWD/.cache/g3-mac-headless"
+# Explicit interactive acceptance, on the owner's chosen task session:
+dotnet spikes/mac-g3/bin/Release/net8.0/Lightflow.G3.dll --data-root "$PWD/.cache/g3-mac-acceptance"
+```
+
+Do not automate global input on an owner's active Mac desktop. Headless Mac results
+also do not qualify AppKit, Retina, VoiceOver or native Player composition.
+The pending native and semantic cases are in [AVALONIA_UI_PROOF.md](AVALONIA_UI_PROOF.md).
+
+## Artifacts
+
+- [UI proof and remaining gate](AVALONIA_UI_PROOF.md)
+- [Free control evaluation and cost](FREE_CONTROL_EVALUATION.md)
+- [Image proof and format gaps](IMAGE_PIPELINE_PROOF.md)
+- [Raw measurements](evidence/UI_PERFORMANCE_RESULTS.json) and [CSV](evidence/UI_PERFORMANCE_RESULTS.csv)
+- [Published Windows headless smoke](evidence/PACKAGED_SMOKE_RESULTS.json)
+- [Windows artifact hashes](evidence/WINDOWS_ARTIFACT_HASHES.csv) and [Mac cross-publish hashes](evidence/MAC_CROSS_PUBLISH_HASHES.csv)
+- [Package version/license/archive hashes](evidence/DEPENDENCY_LICENSE_MANIFEST.json)
+- [Fixture hashes](evidence/FIXTURE_HASHES.csv)
+- Headless screenshots: [Grid](evidence/100000-grid.png), [Details](evidence/100000-details.png), [Settings](evidence/settings.png)
+
+Fixtures are deterministically generated by `ImageEvidence.cs`; 32 unique 320×200 PNGs
+are reused across synthetic media rows. This exercises realization/decode churn, not
+a representative camera-image corpus, source metadata or slow storage.

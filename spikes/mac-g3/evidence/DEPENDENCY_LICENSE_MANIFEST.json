@@ -1,0 +1,226 @@
+[
+  {
+    "Id": "Avalonia",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia/12.1.3",
+    "ArchiveSha256": "DFFB6605B02E144866CB23765EB5AF7255379EBB7EDE75CF11066F3248D83734"
+  },
+  {
+    "Id": "Avalonia.Angle.Windows.Natives",
+    "Version": "2.1.27548.20260419",
+    "License": "LICENSE",
+    "LicenseType": "file",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.Angle.Windows.Natives/2.1.27548.20260419",
+    "ArchiveSha256": "76D67901097E9173D155EFC4C2B7D2C8E3122F2C2E0415028EB0C88478A386F9"
+  },
+  {
+    "Id": "Avalonia.BuildServices",
+    "Version": "11.3.2",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.BuildServices/11.3.2",
+    "ArchiveSha256": "EB0C74EAD8D229640E957D9CCDDA7A5A1D27BB055AA71E6A7FFB3C423E707B8D"
+  },
+  {
+    "Id": "Avalonia.Desktop",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.Desktop/12.1.3",
+    "ArchiveSha256": "CB766A358825707944D19F220BD0CA922C92119DDAD701B8D8CD9A2578CC9C3B"
+  },
+  {
+    "Id": "Avalonia.Fonts.Inter",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.Fonts.Inter/12.1.3",
+    "ArchiveSha256": "F6B4B0360F2E735C3FE4FCEEC367F10BA23B535DBBD47AC284C52451E8392E4A"
+  },
+  {
+    "Id": "Avalonia.FreeDesktop",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.FreeDesktop/12.1.3",
+    "ArchiveSha256": "29480EE3D57CE26578B2098A34D14F7AF9DB8E6C829DD22BA527E62D387C1475"
+  },
+  {
+    "Id": "Avalonia.FreeDesktop.AtSpi",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.FreeDesktop.AtSpi/12.1.3",
+    "ArchiveSha256": "01949081AF07DBD105B8F80929C10561CA252EFF3BA74E1DF26D0B0AF6E85DCC"
+  },
+  {
+    "Id": "Avalonia.HarfBuzz",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.HarfBuzz/12.1.3",
+    "ArchiveSha256": "6BC88FDBD2F264B8C7B32E1C8C771532909895F1383FAA8325940F0D1AAAB734"
+  },
+  {
+    "Id": "Avalonia.Headless",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.Headless/12.1.3",
+    "ArchiveSha256": "0BDC5E46D89D1687F64252799F5026708DD563DCA0FB1F4E12E7EC7483979A6C"
+  },
+  {
+    "Id": "Avalonia.Native",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.Native/12.1.3",
+    "ArchiveSha256": "661FA194F6DE785647A19ECA6934958496FAD2D0F2A4DDA2E791F565CD2C88EE"
+  },
+  {
+    "Id": "Avalonia.Remote.Protocol",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.Remote.Protocol/12.1.3",
+    "ArchiveSha256": "F892FA7D0C42CF8E017398C6A1E3350E532A46DF93B02C384FBA0BE3F6AE1696"
+  },
+  {
+    "Id": "Avalonia.Skia",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.Skia/12.1.3",
+    "ArchiveSha256": "E29CA41BDFEB1C941361603E2C69DAF47EA90681416A3129FD05559567881E2A"
+  },
+  {
+    "Id": "Avalonia.Themes.Fluent",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.Themes.Fluent/12.1.3",
+    "ArchiveSha256": "66E31D7D76168BD0CD050D3324A549791DE46AE083D133D0CEE55F3F651BC1B1"
+  },
+  {
+    "Id": "Avalonia.Win32",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.Win32/12.1.3",
+    "ArchiveSha256": "D88F3FEB8341BDC3A2C2622A8FAEAB85D3A94934A02F82592E631BE6AA94B729"
+  },
+  {
+    "Id": "Avalonia.X11",
+    "Version": "12.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Avalonia.X11/12.1.3",
+    "ArchiveSha256": "A63AD8959F67551369A790375150D939F72A1B1EB400E1658FE5546E0F78842E"
+  },
+  {
+    "Id": "HarfBuzzSharp",
+    "Version": "8.3.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/HarfBuzzSharp/8.3.1.3",
+    "ArchiveSha256": "FFE644863A4EB3C078B4C3F0DEF0F2B90A861991C9116BF2DD668A31A0F09AB5"
+  },
+  {
+    "Id": "HarfBuzzSharp.NativeAssets.Linux",
+    "Version": "8.3.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.Linux/8.3.1.3",
+    "ArchiveSha256": "7DE58E9DAFFC9DCBE6AEAEC2C670DCCEFD5F69C576A68655E51F8EC82B687295"
+  },
+  {
+    "Id": "HarfBuzzSharp.NativeAssets.macOS",
+    "Version": "8.3.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.macOS/8.3.1.3",
+    "ArchiveSha256": "E962AC27F8C5F691E7696710BDA7B3739015E9F96EDD7B0EC50B3B8B8046609B"
+  },
+  {
+    "Id": "HarfBuzzSharp.NativeAssets.WebAssembly",
+    "Version": "8.3.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.WebAssembly/8.3.1.3",
+    "ArchiveSha256": "6AB06223CD9F5CF8C0A9FB6A9C6ED6737051CD9EBEBCA77B6F9F2F412589564D"
+  },
+  {
+    "Id": "HarfBuzzSharp.NativeAssets.Win32",
+    "Version": "8.3.1.3",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.Win32/8.3.1.3",
+    "ArchiveSha256": "58D51098B595152C01293F71ED47614B3F53D8503BC226EFC23B8F7B0FF7C943"
+  },
+  {
+    "Id": "MicroCom.Runtime",
+    "Version": "0.11.6",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/MicroCom.Runtime/0.11.6",
+    "ArchiveSha256": "453AF6D34477B19BB2C62D17436E68C76A75915B7947509B1FF601B36D7E78D8"
+  },
+  {
+    "Id": "SkiaSharp",
+    "Version": "3.119.4",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/SkiaSharp/3.119.4",
+    "ArchiveSha256": "E32A449D31945C0B9D169EB5BC676E1E3F589AAB69888E49D703FDC1C384C176"
+  },
+  {
+    "Id": "SkiaSharp.NativeAssets.Linux",
+    "Version": "3.119.4",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/SkiaSharp.NativeAssets.Linux/3.119.4",
+    "ArchiveSha256": "FAE0554059B1107EF7888E46C20BDFB548401EF7A7A6F7391AD4FADC7432D50A"
+  },
+  {
+    "Id": "SkiaSharp.NativeAssets.macOS",
+    "Version": "3.119.4",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/SkiaSharp.NativeAssets.macOS/3.119.4",
+    "ArchiveSha256": "F7F2F539CE5BBA337AA4A8D6EAC25CAF58CBDD12EDF3F32DDCC98294E730CF2C"
+  },
+  {
+    "Id": "SkiaSharp.NativeAssets.WebAssembly",
+    "Version": "3.119.4",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/SkiaSharp.NativeAssets.WebAssembly/3.119.4",
+    "ArchiveSha256": "C4B7EC581B05169BF9420EFD188322FB908CE980DF720FFFA32C0D941E58DC9D"
+  },
+  {
+    "Id": "SkiaSharp.NativeAssets.Win32",
+    "Version": "3.119.4",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/SkiaSharp.NativeAssets.Win32/3.119.4",
+    "ArchiveSha256": "5A5698B1B4E1FDC9FFE9868DF6874DB5FA69F21A4DE76BA71A01A542E9B43391"
+  },
+  {
+    "Id": "System.IO.Pipelines",
+    "Version": "8.0.0",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/System.IO.Pipelines/8.0.0",
+    "ArchiveSha256": "2DDA41D6CE2F433B0E3836B188AB2D2E4B39ED7F434C3E43E9C3F1F03135C301"
+  },
+  {
+    "Id": "Tmds.DBus.Protocol",
+    "Version": "0.94.1",
+    "License": "MIT",
+    "LicenseType": "expression",
+    "NuGetUrl": "https://www.nuget.org/packages/Tmds.DBus.Protocol/0.94.1",
+    "ArchiveSha256": "4F71D06AC40E725FFBCF1B79853DD93218695A84F23D36FAFC85F477A4C9580F"
+  }
+]

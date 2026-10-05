@@ -1,0 +1,5 @@
+"mode","count","populationMs","scrollLayoutP50Ms","scrollLayoutP95Ms","maxRealized","distinctContainers","managedAllocatedBytesSinceWindowStart","managedLiveBytes","processPrivateBytes"
+"Grid","10000","379.1923","23.2008","26.3173","5","6","196590504","13812960","80367616"
+"Details18Columns","10000","379.1923","22.7952","39.2871","11","12","588125400","14760872","76935168"
+"Grid","100000","66.7422","13.7227","29.0753","5","6","220424888","46891024","118009856"
+"Details18Columns","100000","66.7422","14.9573","32.6863","11","12","611284464","47581728","119967744"

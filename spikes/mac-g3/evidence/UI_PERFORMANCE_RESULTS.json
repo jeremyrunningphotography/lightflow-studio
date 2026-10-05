@@ -1,0 +1,312 @@
+{
+  "timestampUtc": "2026-10-05T23:29:07.9472182Z",
+  "os": "Microsoft Windows 10.0.26200",
+  "architecture": "X64",
+  "runtime": ".NET 8.0.29",
+  "avalonia": "12.1.3.0",
+  "backend": "Avalonia.Headless \u002B Skia software",
+  "measurements": [
+    {
+      "mode": "Grid",
+      "count": 10000,
+      "populationMs": 379.1923,
+      "scrollLayoutP50Ms": 23.2008,
+      "scrollLayoutP95Ms": 26.3173,
+      "maxRealized": 5,
+      "distinctContainers": 6,
+      "totalContainerObservations": 400,
+      "reuseObserved": true,
+      "tileTemplateBuilds": 412,
+      "thumbnailLoads": 2095,
+      "thumbnailDisposals": 2070,
+      "managedAllocatedBytesSinceWindowStart": 196590504,
+      "managedLiveBytes": 13812960,
+      "processPrivateBytes": 80367616,
+      "selectionTransfer": true,
+      "localTextInputOwnership": true,
+      "measurement": "Headless software render/layout; not native frame latency"
+    },
+    {
+      "mode": "Details18Columns",
+      "count": 10000,
+      "populationMs": 379.1923,
+      "scrollLayoutP50Ms": 22.7952,
+      "scrollLayoutP95Ms": 39.2871,
+      "maxRealized": 11,
+      "distinctContainers": 12,
+      "totalContainerObservations": 880,
+      "reuseObserved": true,
+      "tileTemplateBuilds": 417,
+      "thumbnailLoads": 3069,
+      "thumbnailDisposals": 3044,
+      "managedAllocatedBytesSinceWindowStart": 588125400,
+      "managedLiveBytes": 14760872,
+      "processPrivateBytes": 76935168,
+      "selectionTransfer": true,
+      "localTextInputOwnership": true,
+      "measurement": "Headless software render/layout; not native frame latency"
+    },
+    {
+      "test": "bitmap-teardown",
+      "count": 10000,
+      "ThumbnailLoads": 3091,
+      "ThumbnailDisposals": 3091,
+      "balanced": true
+    },
+    {
+      "mode": "Grid",
+      "count": 100000,
+      "populationMs": 66.7422,
+      "scrollLayoutP50Ms": 13.7227,
+      "scrollLayoutP95Ms": 29.0753,
+      "maxRealized": 5,
+      "distinctContainers": 6,
+      "totalContainerObservations": 400,
+      "reuseObserved": true,
+      "tileTemplateBuilds": 412,
+      "thumbnailLoads": 2095,
+      "thumbnailDisposals": 2070,
+      "managedAllocatedBytesSinceWindowStart": 220424888,
+      "managedLiveBytes": 46891024,
+      "processPrivateBytes": 118009856,
+      "selectionTransfer": true,
+      "localTextInputOwnership": true,
+      "measurement": "Headless software render/layout; not native frame latency"
+    },
+    {
+      "mode": "Details18Columns",
+      "count": 100000,
+      "populationMs": 66.7422,
+      "scrollLayoutP50Ms": 14.9573,
+      "scrollLayoutP95Ms": 32.6863,
+      "maxRealized": 11,
+      "distinctContainers": 12,
+      "totalContainerObservations": 880,
+      "reuseObserved": true,
+      "tileTemplateBuilds": 417,
+      "thumbnailLoads": 3069,
+      "thumbnailDisposals": 3044,
+      "managedAllocatedBytesSinceWindowStart": 611284464,
+      "managedLiveBytes": 47581728,
+      "processPrivateBytes": 119967744,
+      "selectionTransfer": true,
+      "localTextInputOwnership": true,
+      "measurement": "Headless software render/layout; not native frame latency"
+    },
+    {
+      "test": "bitmap-teardown",
+      "count": 100000,
+      "ThumbnailLoads": 3091,
+      "ThumbnailDisposals": 3091,
+      "balanced": true
+    }
+  ],
+  "images": [
+    {
+      "test": "decode",
+      "format": "Png",
+      "width": 3,
+      "height": 2,
+      "alpha": "Premul",
+      "sha256": "0BC9EDA3601A6F8867986A4FE6F15876A2C13B2012EFACC16A40CD4E84F37711"
+    },
+    {
+      "test": "decode",
+      "format": "Jpeg",
+      "width": 3,
+      "height": 2,
+      "alpha": "Opaque",
+      "sha256": "8A0EB1B082EF8A4405E6316BB926346FFBE2DAB19739BCBAF69CE8A54583C283"
+    },
+    {
+      "test": "decode",
+      "format": "Webp",
+      "width": 3,
+      "height": 2,
+      "alpha": "Opaque",
+      "sha256": "A8C93489EE497DE457155D81C4A4522A38A2B232111EF99CB00874EB344DC16F"
+    },
+    {
+      "test": "gif",
+      "decoded": true,
+      "frames": 1
+    },
+    {
+      "test": "format-gap",
+      "fixture": "vector.bmp",
+      "decoded": true,
+      "width": 2,
+      "height": 1,
+      "sha256": "5B4E76193D01C2120224A102F709E92CDA35BD0E4EB7B3F100001890FF7457B5"
+    },
+    {
+      "test": "format-gap",
+      "fixture": "vector.tiff",
+      "decoded": false,
+      "width": null,
+      "height": null,
+      "sha256": "DAA4846E1E84CF23EC8A046540A91D6AF635E77A05C60AFD3A1A87EB44CAD0C3"
+    },
+    {
+      "test": "orientation",
+      "orientation": 1,
+      "width": 3,
+      "height": 2,
+      "pixels": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "sha256": "644C4DBDACCA6AAEB2D9D1335716B6EE9FFE09DC12F11EF614A1D056311586AC",
+      "passed": true
+    },
+    {
+      "test": "orientation",
+      "orientation": 2,
+      "width": 3,
+      "height": 2,
+      "pixels": [
+        2,
+        1,
+        0,
+        5,
+        4,
+        3
+      ],
+      "sha256": "20E03D9EC4BB3F783575021DF8843261FC1108A59DA4085AE53874C36B072808",
+      "passed": true
+    },
+    {
+      "test": "orientation",
+      "orientation": 3,
+      "width": 3,
+      "height": 2,
+      "pixels": [
+        5,
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      "sha256": "D65DBFF9076893879D5228104E50D43982E768E50FE0F651EDEE942A932035DC",
+      "passed": true
+    },
+    {
+      "test": "orientation",
+      "orientation": 4,
+      "width": 3,
+      "height": 2,
+      "pixels": [
+        3,
+        4,
+        5,
+        0,
+        1,
+        2
+      ],
+      "sha256": "A756006511C25CB7FED9E7F2D3CCD746A5749433EBA9AE724C7FBF3E5CFA7CF7",
+      "passed": true
+    },
+    {
+      "test": "orientation",
+      "orientation": 5,
+      "width": 2,
+      "height": 3,
+      "pixels": [
+        0,
+        3,
+        1,
+        4,
+        2,
+        5
+      ],
+      "sha256": "D56A9F62D1C8A5949A3E991D2CF6ECF5685CB5AF576D2560FA1014E7ABF1E090",
+      "passed": true
+    },
+    {
+      "test": "orientation",
+      "orientation": 6,
+      "width": 2,
+      "height": 3,
+      "pixels": [
+        3,
+        0,
+        4,
+        1,
+        5,
+        2
+      ],
+      "sha256": "DD185DF131FA3E316C3D9DB9D2762F873C92C1DAAA04235B486B13A16B0A7D02",
+      "passed": true
+    },
+    {
+      "test": "orientation",
+      "orientation": 7,
+      "width": 2,
+      "height": 3,
+      "pixels": [
+        5,
+        2,
+        4,
+        1,
+        3,
+        0
+      ],
+      "sha256": "689A515A1881B96CF56F106A76682CC8DA78755AB56D83FBB45D9C23E45B31F4",
+      "passed": true
+    },
+    {
+      "test": "orientation",
+      "orientation": 8,
+      "width": 2,
+      "height": 3,
+      "pixels": [
+        2,
+        5,
+        1,
+        4,
+        0,
+        3
+      ],
+      "sha256": "9C4F201C65F1224CDF6FC897EC88AD9E6E2F74C50D5F52C8AC955D2722C5AED9",
+      "passed": true
+    },
+    {
+      "test": "linear-profile-to-srgb",
+      "red": 188,
+      "alpha": 128,
+      "expectedRed": 188,
+      "sourceIsSrgb": false,
+      "pngChunks": [
+        "IHDR",
+        "sBIT",
+        "iCCP",
+        "IDAT",
+        "IEND"
+      ],
+      "passed": true,
+      "limitation": "A failed encoded round-trip may be fixture profile loss; inspect PNG chunks before attributing decoder behavior."
+    },
+    {
+      "test": "linear-to-srgb-canvas",
+      "red": 188,
+      "alpha": 128,
+      "expectedRed": 188,
+      "passed": true
+    },
+    {
+      "test": "malformed",
+      "rejected": true
+    },
+    {
+      "test": "source-file-release",
+      "deleted": true,
+      "pixelStillReadable": true
+    }
+  ],
+  "disposition": "G3 pending actual Apple Silicon and agreed thresholds; Windows headless evidence only"
+}

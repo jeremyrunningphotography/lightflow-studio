@@ -16,6 +16,8 @@ Both scripts enter the same process boundary automatically. GitHub Actions uses 
 
 Logs are retained beneath the owning checkout's `artifacts\validation\<run>\output.log`; TRX files remain under `LightflowStudio.Tests\TestResults`. A setup/desktop/launch failure fails closed; there is no interactive fallback. Validation needs permission to create a Windows desktop and job. An unavailable desktop is a validation failure, not a skipped test. The launcher timeout is two hours; VSTest retains the existing five-minute hang-dump policy.
 
+The child process receives task-local TEMP/TMP beneath `.cache\validation-temp\<run>`, so existing temporary test profiles and native fixtures remain in their owning checkout. This is process-local; the user's environment is unchanged. Package smoke continues to pass its explicit disposable `--data-root` under `artifacts\release`.
+
 ## RCA and safe reproduction
 
 At main `a827470ab0338790c5697d9fcfaebe9231a70670`:

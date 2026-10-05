@@ -7,11 +7,13 @@ function Invoke-NoninteractiveValidation {
     New-Item -ItemType Directory -Path $run -Force | Out-Null
     $request = Join-Path $run 'request.xml'
     $log = Join-Path $run 'output.log'
-    @{ Script = [IO.Path]::GetFullPath($ScriptPath); Parameters = $Parameters } | Export-Clixml -LiteralPath $request
+    $temporaryDirectory = Join-Path $root ('.cache\validation-temp\' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+    New-Item -ItemType Directory -Path $temporaryDirectory -Force | Out-Null
+    @{ Script = [IO.Path]::GetFullPath($ScriptPath); Parameters = $Parameters; TemporaryDirectory = $temporaryDirectory } | Export-Clixml -LiteralPath $request
     # Paths are data in the request. EncodedCommand receives no interpolated script/parameter text.
     $quotedRequest = $request.Replace("'", "''")
     $quotedLog = $log.Replace("'", "''")
-    $body = "`$ErrorActionPreference = 'Stop'; try { `$r = Import-Clixml -LiteralPath '$quotedRequest'; `$p = `$r.Parameters; & `$r.Script @p *> '$quotedLog'; if (`$LASTEXITCODE) { exit `$LASTEXITCODE }; exit 0 } catch { `$_ | Out-String | Add-Content -LiteralPath '$quotedLog'; exit 1 }"
+    $body = "`$ErrorActionPreference = 'Stop'; try { `$r = Import-Clixml -LiteralPath '$quotedRequest'; `$env:TEMP = `$r.TemporaryDirectory; `$env:TMP = `$r.TemporaryDirectory; `$p = `$r.Parameters; & `$r.Script @p *> '$quotedLog'; if (`$LASTEXITCODE) { exit `$LASTEXITCODE }; exit 0 } catch { `$_ | Out-String | Add-Content -LiteralPath '$quotedLog'; exit 1 }"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($body))
     $exe = (Get-Command powershell.exe).Source
     $desktop = New-Object ValidationDesktop

@@ -7,7 +7,10 @@ function Invoke-NoninteractiveValidation {
     New-Item -ItemType Directory -Path $run -Force | Out-Null
     $request = Join-Path $run 'request.xml'
     $log = Join-Path $run 'output.log'
-    $temporaryDirectory = Join-Path $root ('.cache\validation-temp\' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+    # Repository-less publication tests must have no .git ancestor. This sibling
+    # area belongs to the same task, independently of every other clone/profile.
+    $validationArea = Join-Path ([IO.Path]::GetDirectoryName($root)) ((Split-Path $root -Leaf) + '.validation')
+    $temporaryDirectory = Join-Path $validationArea ('temp\' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
     New-Item -ItemType Directory -Path $temporaryDirectory -Force | Out-Null
     @{ Script = [IO.Path]::GetFullPath($ScriptPath); Parameters = $Parameters; TemporaryDirectory = $temporaryDirectory } | Export-Clixml -LiteralPath $request
     # Paths are data in the request. EncodedCommand receives no interpolated script/parameter text.

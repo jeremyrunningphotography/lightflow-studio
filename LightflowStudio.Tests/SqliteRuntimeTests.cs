@@ -48,6 +48,9 @@ public sealed class SqliteRuntimeTests
                     UseShellExecute = false, CreateNoWindow = true,
                     RedirectStandardOutput = true, RedirectStandardError = true
                 };
+                // A test host launched from PowerShell 7 can inherit that edition's
+                // module path; let Windows PowerShell discover its own built-in modules.
+                start.Environment.Remove("PSModulePath");
                 foreach (var argument in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
                     Path.Combine(repository.FullName, "scripts", "Test-SqliteRuntimeEvidence.ps1"),
                     "-ReportPath", report, "-LockPath", lockPath, "-PackageDirectory", package,
@@ -61,7 +64,8 @@ public sealed class SqliteRuntimeTests
                 return (process.ExitCode, await errors);
             }
 
-            Assert.Equal(0, (await CheckAsync()).ExitCode);
+            var valid = await CheckAsync();
+            Assert.True(valid.ExitCode == 0, valid.Errors);
             graph["dependencies"]!["net8.0-windows7.0"]!["SQLitePCLRaw.core"]!["resolved"] = "2.1.6";
             var stale = await CheckAsync();
             Assert.NotEqual(0, stale.ExitCode);

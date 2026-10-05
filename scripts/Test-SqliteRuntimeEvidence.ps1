@@ -13,10 +13,14 @@ if ($report.Version -ne '3.53.3' -or $report.CatalogSchema -ne 19 -or -not $repo
 }
 $lock = Get-Content -LiteralPath $LockPath -Raw | ConvertFrom-Json
 $familyNames = @('SQLitePCLRaw.bundle_e_sqlite3', 'SQLitePCLRaw.core', 'SQLitePCLRaw.lib.e_sqlite3', 'SQLitePCLRaw.provider.e_sqlite3')
+$verifiedManagedGraph = $false
 foreach ($framework in $lock.dependencies.PSObject.Properties) {
     $family = @($framework.Value.PSObject.Properties | Where-Object Name -Like 'SQLitePCLRaw.*')
+    # Some SDKs include the SQLite-free Actions framework in the publish lock.
+    if ($family.Count -eq 0 -and -not $framework.Value.'Microsoft.Data.Sqlite' -and -not $framework.Value.'Microsoft.Data.Sqlite.Core') { continue }
     # RID sections are asset deltas, not a second complete managed graph.
     if ($framework.Name -notlike '*/*' -and $family.Count -ne 4) { throw "Unexpected SQLite graph in $($framework.Name)." }
+    if ($framework.Name -notlike '*/*') { $verifiedManagedGraph = $true }
     foreach ($component in $family) {
         if ($component.Name -notin $familyNames -or $component.Value.resolved -ne '2.1.13') { throw 'Stale or unexpected SQLitePCLRaw component.' }
     }
@@ -25,6 +29,7 @@ foreach ($framework in $lock.dependencies.PSObject.Properties) {
         if ($framework.Value.$name.resolved -ne '8.0.29') { throw 'Unexpected managed SQLite provider version.' }
     }
 }
+if (-not $verifiedManagedGraph) { throw 'Publish lock has no complete managed SQLite graph.' }
 $asset = Join-Path $repositoryRoot '.cache\nuget\packages\sqlitepclraw.lib.e_sqlite3\2.1.13\runtimes\win-x64\native\e_sqlite3.dll'
 $assetHash = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash
 if ($report.NativeSha256 -ne $assetHash -or

@@ -18,7 +18,9 @@ function Invoke-NoninteractiveValidation {
     $quotedLog = $log.Replace("'", "''")
     $body = "`$ErrorActionPreference = 'Stop'; try { `$r = Import-Clixml -LiteralPath '$quotedRequest'; `$env:TEMP = `$r.TemporaryDirectory; `$env:TMP = `$r.TemporaryDirectory; `$p = `$r.Parameters; & `$r.Script @p *> '$quotedLog'; if (`$LASTEXITCODE) { exit `$LASTEXITCODE }; exit 0 } catch { `$_ | Out-String | Add-Content -LiteralPath '$quotedLog'; exit 1 }"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($body))
-    $exe = (Get-Command powershell.exe).Source
+    # Preserve the caller's edition/module environment (CI uses PowerShell 7;
+    # the required local packaging command uses Windows PowerShell).
+    $exe = Join-Path $PSHOME $(if ($PSVersionTable.PSEdition -eq 'Core') { 'pwsh.exe' } else { 'powershell.exe' })
     $desktop = New-Object ValidationDesktop
     Write-Host "Noninteractive validation desktop: $($desktop.Name); log: $log"
     $timer = [Diagnostics.Stopwatch]::StartNew()

@@ -2,12 +2,18 @@
 
 ## Source of truth
 
-Durable product intent lives in `docs/`.
-
-GitHub issues represent actionable work. An issue should link to its relevant specification
-instead of duplicating the entire document.
+GitHub issues are the durable specification for current product work and acceptance.
+Accepted `main` establishes delivered behavior; native issue relationships and the
+[Roadmap Project](https://github.com/users/jeremyrunningphotography/projects/4) establish
+current hierarchy, planning fields and disposition. Documentation supplies reusable
+contracts and context. Issues may link to those documents while recording current
+decisions explicitly. Follow [AGENTS.md](../AGENTS.md) for reconciliation and review.
 
 ## Recommended labels
+
+The label lists below record the initial backlog scaffold. The live Project's Area
+and Priority fields use the current planning vocabulary. Legacy label/field conflicts
+require an owner taxonomy decision; do not synchronize or remove labels automatically.
 
 ### Type
 
@@ -55,14 +61,17 @@ instead of duplicating the entire document.
 - `release:1.3`
 - `release:future`
 
-## Recommended project fields
+## Current Project fields
 
-- Status: Idea, Discovery, Ready, In Progress, Blocked, Done
-- Priority: P0, P1, P2, P3
-- Product Area
-- Effort
-- Target Release
-- Confidence: Low, Medium, High
+Use the live Project's existing values rather than creating fields from this document.
+At the October 5, 2026 reconciliation:
+
+- Status: Backlog, Next, In Progress, Review, Done
+- Priority: P0 — Critical, P1 — High, P2 — Normal, P3 — Later
+- Area: the Project's existing capability/ownership areas
+
+Unset Area/Priority is not permission to guess. Done includes documented completed
+disposition such as Not Planned, without changing the issue's closure reason.
 
 ## Issue structure
 

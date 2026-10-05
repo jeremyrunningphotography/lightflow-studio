@@ -95,4 +95,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" dist/* --verify-tag --generate-notes --title "Lightflow Studio ${{ github.ref_name }}"
+        run: gh release create "${{ github.ref_name }}" dist/* --repo "$env:GITHUB_REPOSITORY" --verify-tag --generate-notes --title "Lightflow Studio ${{ github.ref_name }}"

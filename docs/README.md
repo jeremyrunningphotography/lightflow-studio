@@ -1,12 +1,18 @@
 # Lightflow Studio Documentation
 
-This directory contains the durable product and technical definition for Lightflow Studio.
+This directory supports Lightflow Studio's product and technical authorities.
+GitHub issues define current requirements and acceptance criteria; accepted `main`
+defines delivered behavior. Native issue relationships and the
+[Roadmap Project](https://github.com/users/jeremyrunningphotography/projects/4) define
+current planning and disposition. Follow [AGENTS.md](../AGENTS.md) for the workflow.
+Documentation records shared contracts, design context and evidence; it does not
+supersede current issue decisions or maintain a competing live roadmap.
 
 ## Core documents
 
 - [Product Vision](PRODUCT_VISION.md)
-- [Roadmap](ROADMAP.md)
-- [Architecture](ARCHITECTURE.md)
+- [Historical planning snapshot](ROADMAP.md)
+- [Current system map and architecture authority index](ARCHITECTURE.md)
 - [UI Guidelines](UI_GUIDELINES.md)
 - [Release Planning](RELEASE_PLAN.md)
 - [Backlog and GitHub workflow](BACKLOG_WORKFLOW.md)
@@ -24,5 +30,6 @@ This directory contains the durable product and technical definition for Lightfl
 ## Feature specifications
 
 Feature specifications live under `features/` and describe behavior, acceptance criteria,
-dependencies, and future expansion. GitHub issues should reference these documents rather
-than duplicate them.
+dependencies, and future expansion. Issues may link to reusable specifications, but
+current issue decisions and acceptance criteria remain authoritative. Check disposition
+before treating older future scope as a commitment.

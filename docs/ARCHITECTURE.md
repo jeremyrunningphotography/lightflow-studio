@@ -1,5 +1,51 @@
 # Architecture
 
+## Current system map and authority index
+
+This map describes accepted `main`. GitHub issues define current product requirements;
+native issue relationships and the [Roadmap Project](https://github.com/users/jeremyrunningphotography/projects/4)
+define work structure and disposition. Follow [AGENTS.md](../AGENTS.md) when changing them.
+The focused contracts linked below and the implementation describe delivered behavior;
+an older issue-specific paragraph is not a new product commitment.
+
+| Boundary | Current owner and invariant | Detailed authority |
+| --- | --- | --- |
+| Catalog | SQLite lifecycle/session services own durable AssetId, logical roots, authored organization, Color, ranges, Subclips and markers. Previews never own authored intent. | [Persistence ADR](decisions/0001-lightflow-catalog-persistence.md), [storage](#storage-locations-and-catalog-persistence), [backup/recovery](catalog-backup-272.md) |
+| Browser | One navigation/discovery/reconciliation pipeline feeds the shared Grid/Details model, query and selection. Known Catalog content may appear provisionally before filesystem revalidation. | [Revisit architecture/evidence](performance/browser-131.md), [Grid/Details](performance/browser-227.md), [Browser actions](BROWSER_ACTIONS.md) |
+| Player | PlayerViewerHost consumes one playback-coordinator lease; decoded timestamps, source generations and range policy remain authoritative. Review controls do not create another decoder or durable edit intent. | [Playback](#interactive-video-playback), [filmstrip/review set](performance/player-111.md), [review controls](performance/player-199.md), [rotation](VIDEO_ROTATION.md) |
+| Preview / metadata | Separate rebuildable SQLite/cache storage owns normalized/raw provider metadata and generated pixels. Bounded demand, source/work identity and conditional publication reject stale work. | [Preview persistence](#rebuildable-preview-persistence-and-cache), [technical video metadata](FFPROBE_TECHNICAL_METADATA.md), [retry boundaries](#preview-work-bounds-321), [explicit regeneration](#explicit-preview-regeneration-329) |
+| Jobs | JobsAdmission owns application-wide starts/slots and queue pause. Capability adapters retain execution, cancellation, recovery and provenance; shared compact/full Jobs are projections. | [Unified Jobs](#unified-jobs-presentation), [command policy](#jobs-command-eligibility-and-cleanup-297), [Export scheduler](#independent-global-export-scheduler) |
+| Export | Owned setup/preflight modal materializes immutable per-file intent; GlobalExportScheduler owns reservations, durable queue and recovery. Encoding owns FFmpeg execution and safe partial publication. | [Focused Export](#focused-export-action-and-background-ownership), [scheduler](#independent-global-export-scheduler), [output lifecycle](#encoding-output-lifecycle), [semantic handoffs](REVIEW_PRESENTATION_ACTIONS.md) |
+| Color | AssetId-keyed Camera then Creative intent is renderer-independent. Live Player, rebuildable Previews and immutable Export snapshots consume it through their own adapters. | [Live Color](#live-player-color), [materialization](#browser-color-materialization-and-encoding) |
+| Collections / Smart Collections | Catalog services own hierarchy and authored membership/query definitions. Smart defining membership and transient Browser view refinement remain separate stages of the same query pipeline. | [Smart Collections](SMART_COLLECTIONS.md), [organization contracts](#logical-media-roots-and-machine-mappings) |
+| Inspector | Shared Right Panel consumes authoritative Browser/Player context and bounded shared metadata/Catalog reads. Descriptive editing is Catalog-owned; Inspector owns no probe, decoder or persistence engine. | [Shared Right Panel](#shared-right-panel-inspector-subclips-and-global-jobs-223--225--238), [descriptions](#creator-authored-descriptions-216) |
+| Settings / persistence | Saved profile preferences, workspace presentation, Export defaults and keyboard overrides have distinct owners. Storage operations use explicit transactional boundaries. | [Settings authority](#settings-authority-291), [workspace restoration](performance/workspace-247.md), [keyboard persistence](KEYBOARD_SHORTCUTS.md), [storage relocation](#configurable-catalog-and-preview-storage) |
+| Semantic actions / input | Platform-neutral Lightflow.Actions defines discoverable typed actions and target/session policy. Windows local input ownership precedes semantic resolution; application ports call existing services. | [Player actions](PLAYER_ACTIONS.md), [Browser actions](BROWSER_ACTIONS.md), [review/presentation/Export](REVIEW_PRESENTATION_ACTIONS.md), [shortcuts](KEYBOARD_SHORTCUTS.md) |
+| NLE integration | Accepted Premiere companion/bridge owns handoff reconciliation and native Subclip/marker projection. Proxy attachment was Not Planned; Resolve handoff remains backlog research/product work. | [Premiere companion](premiere-companion.md), [markers](premiere-markers-259.md), [accepted Epic #255](https://github.com/jeremyrunningphotography/lightflow-studio/issues/255), [Resolve Epic #322](https://github.com/jeremyrunningphotography/lightflow-studio/issues/322) |
+| Platform | WPF shell/input and Flyleaf/D3D11 playback are Windows adapters; durable semantics contain no platform runtime objects. macOS replacement boundaries remain explicit. | [Platform boundaries](#platform-boundaries), focused action contracts above |
+
+### Startup and storage validation authority
+
+The accepted [conditional clean-startup contract](performance/startup-340.md) governs
+Catalog and Preview activation: matching durable evidence from both stores and the
+completed session permits bounded current-schema readiness without global scans or
+an unsolicited usage census. Missing/uncertain evidence, interruption, migration,
+restore or readiness anomalies select the protected deep paths. This does not certify
+untouched pages or weaken migration, backup, restore, identity or mutation safety.
+[Packaged isolation/evidence](performance/startup-isolation-340.md) records validation
+conditions; original evidence SHAs and task paths remain historical.
+
+### Reading the retained detail
+
+The sections below retain accepted implementation contracts and their evolution.
+Use focused documents for capability detail rather than copying those contracts into
+new summaries. Issue-specific scope statements such as “#91 adds no scheduling” describe
+that slice, not everything delivered afterward. Earlier Browser presentation ordering
+is superseded by #131; batch runtime descriptions apply to retained legacy compatibility,
+while modern Export uses independent Jobs. Historical validation/research records retain
+their original acceptance state, SHAs and paths; final disposition lives in merged PRs
+and issues. The roadmap snapshot is [historical planning](ROADMAP.md).
+
 ## Technical video metadata (#311)
 
 The existing FFprobe path normalizes component depth and chroma through generated,
@@ -135,8 +181,8 @@ the view. Missing, stale, failed, and offline source states remain explicit, and
 
 The Inspector does not parse or display raw provider metadata. The underlying #70 raw contracts are retained for
 other consumers. Friendly groups reflect the existing normalized contract; no Location/Creator data is invented where
-#70 does not supply it. Catalog classification is a separately labeled read-only group. Metadata export (#224),
-descriptive editing (#216), and richer analysis (#207) remain separate work.
+#70 does not supply it. Catalog classification is a separately labeled read-only group. Metadata export (#224)
+and richer analysis (#207) remain backlog work. Descriptive editing (#216) is delivered through Catalog-owned contracts described below.
 
 Hydration is cancellable, debounced, and generation-guarded, including cached-image completion. Hiding the panel
 retires pending work. Inspector focus prevents shell Browser file actions and Player shortcuts from consuming its
@@ -360,7 +406,7 @@ WPF views and code-behind currently own navigation, dialogs, accessibility behav
 
 `MainWindow` is the permanent Lightflow application shell, with Browser/Player as its stable home rather than one peer module among many. Focused actions such as Export open owned modals without replacing or rebuilding that home. The global bottom Jobs affordance opens the secondary full Jobs destination; its explicit Back action returns to the already-live Browser/Player context. The Browser-only Right Panel Jobs tab exposes compact global activity using the same width, toggle, and resize boundary as Inspector/Subclips. A restrained upper-right application menu exposes Settings and About without recreating a module strip or capability launcher. `ShellDestination` maps only these supported transitions; retired or unknown tab identities resolve to Home. Legacy Review & Rerun alone may enter a hidden compatibility review surface after `EncodingHistoryRerun` revalidation, and that surface has no permanent navigation or persisted shell identity.
 
-Settings remains a lightweight shell utility hosted alongside the live Home surface. Its presentation uses a compact
+The earlier Settings layout described here is superseded by [Settings authority #291](#settings-authority-291) and [configurable shortcuts #353](KEYBOARD_SHORTCUTS.md). Settings remains a lightweight shell utility hosted alongside the live Home surface. Its presentation uses a compact
 keyboard-navigable category list with one contextual page for General folders, Color, Export, Storage, or Tools.
 Ordinary preferences are separated from Catalog/Preview maintenance, and uncommon encoder and recovery controls use
 progressive disclosure. The existing explicit Save boundary remains intentional: a save validates the complete
@@ -409,7 +455,7 @@ The grid is virtualized by grouping tiles into fixed-width rows (`BrowserGridLay
 
 `IMediaRootMonitoringService` gained a `FolderRefreshed` event, raised with the same `(RootId, RelativeFolder)` key it already computes internally when its debounced authoritative refresh completes. `MainWindow` subscribes and re-runs the existing `BrowserNavigationSession.RefreshAsync` path when the changed folder matches the one currently open, so external filesystem changes reach an open Browser view without any Browser-owned `FileSystemWatcher`; explicit Refresh remains the authoritative recovery path regardless. Issue #108 deliberately does not add sorting/filtering/search, Player/Viewer, filmstrip navigation, Inspector, Color/LUT controls, Collections, ratings/tags, Compare, or a user-facing thumbnail-size control; Issues #109–#112 extend this workspace.
 
-Issue #109 adds indexed sort/filter/search and lightweight status entirely in the media-area toolbar, never the Locations sidebar (which stays scope-only, with no permanent Filters section). `BrowserQuery` (`SortMode`, `SortDescending`, `Filters`, `SearchText`) is a small, WPF-independent record with no dependency on how the current scope was reached — filesystem folder today, Favorite/Collection/Smart Collection later per #74 — so a future Smart Collection can capture one as saved query intent without any transient UI control ever coupling directly to Collection persistence. `BrowserGridModel` now separates the full presentable set (`_allTiles`, the identity/thumbnail/metadata home, unaffected by the current query) from its query-applied projection (`_visibleTiles`, what `Tiles`/`Rows`/tile `Index` actually reflect); `BrowserQueryEngine.Apply` is a pure filter→search→sort function over already-resident tile data — faceted filtering over stacked `BrowserFilterPredicate`s (predicates for the *same* `Field` OR together, since they are alternative values of one facet; predicates for *different* fields AND together, each narrowing the previous group's result — ordinary faceted search, never exposed to the user as an explicit AND/OR choice, only which values are checked where), filename/path substring search, and sorting by name, capture date, filesystem modified date, media type, file size, or video duration — so applying a query never synchronously probes a source file. Capture date and duration are progressively populated from #91's existing metadata probe (already scheduled by the same discovery batch #108 already consumed for thumbnails) via `BrowserDerivedWorkProjection.AssetsNeedingMetadataLookup`/`BrowserQueryEngine.ExtractSortableMetadata`, mirroring the thumbnail-lookup projection including its `NotNeeded` case; items missing a sort-relevant value always sort to the end regardless of direction rather than jumping to the top on Descending. Because that metadata can still be arriving after a folder opens, `MainWindow` coalesces at most one re-sort roughly 800ms after any capture-date/duration-relevant change settles, rather than resorting per asset while a large folder streams in.
+Issue #109 adds indexed sort/filter/search and lightweight status entirely in the media-area toolbar, never the Locations sidebar (which stays scope-only, with no permanent Filters section). `BrowserQuery` (`SortMode`, `SortDescending`, `Filters`, `SearchText`) is a small, WPF-independent record with no dependency on how the current scope was reached — filesystem folders and delivered static/Smart Collections; Favorites remain backlog #323 — so a Smart Collection captures one as saved query intent through the accepted #217 contract without any transient UI control ever coupling directly to Collection persistence. `BrowserGridModel` now separates the full presentable set (`_allTiles`, the identity/thumbnail/metadata home, unaffected by the current query) from its query-applied projection (`_visibleTiles`, what `Tiles`/`Rows`/tile `Index` actually reflect); `BrowserQueryEngine.Apply` is a pure filter→search→sort function over already-resident tile data — faceted filtering over stacked `BrowserFilterPredicate`s (predicates for the *same* `Field` OR together, since they are alternative values of one facet; predicates for *different* fields AND together, each narrowing the previous group's result — ordinary faceted search, never exposed to the user as an explicit AND/OR choice, only which values are checked where), filename/path substring search, and sorting by name, capture date, filesystem modified date, media type, file size, or video duration — so applying a query never synchronously probes a source file. Capture date and duration are progressively populated from #91's existing metadata probe (already scheduled by the same discovery batch #108 already consumed for thumbnails) via `BrowserDerivedWorkProjection.AssetsNeedingMetadataLookup`/`BrowserQueryEngine.ExtractSortableMetadata`, mirroring the thumbnail-lookup projection including its `NotNeeded` case; items missing a sort-relevant value always sort to the end regardless of direction rather than jumping to the top on Descending. Because that metadata can still be arriving after a folder opens, `MainWindow` coalesces at most one re-sort roughly 800ms after any capture-date/duration-relevant change settles, rather than resorting per asset while a large folder streams in.
 
 The revised interaction model (still #109) replaces a row of permanent one-off filter `ComboBox`es with progressive disclosure: `BrowserFilterPredicate` is plain, equatable data (`Field` plus a per-field value — only `MediaType` is implemented; the enum exists so later fields such as date, file size, duration, camera, lens, resolution, frame rate, rating, labels, flags, and keywords extend the same shape rather than requiring a redesign) with computed, non-stored `Label`/`Matches`/`RemoveAutomationLabel` members, so two predicates describing the same condition stay structurally equal without a hand-written `Equals`. `BrowserQuery.WithFilterAdded`/`WithFilterRemoved` are the only ways `Filters` changes, each returning a new immutable query (`WithFilterAdded` is a no-op if the predicate is already active; `WithFilterRemoved` returns the same instance — `Assert.Same`-testable — if it was never active). Because `Filters` is a list, `BrowserQuery`'s auto-generated record equality cannot reliably compare two queries for content equality (list members compare by reference, not sequence), so `BrowserGridModel.SetQuery` no longer short-circuits on an "unchanged" query — recomputation is cheap enough that this is a deliberate simplicity-over-micro-optimization tradeoff rather than a hand-rolled `Equals` override.
 
@@ -619,7 +665,7 @@ Self-contained packaging runs the published executable in a non-UI `--verify-cat
 
 Schema version 1 contains only `CatalogInfo`, append-only `SchemaMigrations`, `MediaRoots`, `MediaRootMappings`, and `MediaAssets`. Stable GUID strings are relational identity. Assets use a logical RootId plus a forward-slash relative path and a separately normalized lookup key; absolute filesystem mappings live only in the machine/root mapping table. Size, UTC last-write ticks, optional versioned source fingerprint, source/root availability status, and fixed UTC ISO-8601 timestamps establish the durable patterns consumed by #81 and #82. Foreign keys, root/path and root/machine uniqueness, status/path checks, and expected lookup indexes are database-enforced. Ratings, labels, collections, derived metadata, and Preview data are intentionally absent.
 
-`PRAGMA user_version` is authoritative. Migrations are contiguous, ordered, forward-only, and run one version per explicit transaction; successful versions append a diagnostic ledger row inside the same transaction. Version 1 establishes both the SQLite header application ID and the `CatalogInfo` identity row in its transaction. New databases traverse the version-zero migration chain. Existing older Catalogs first receive a full integrity check and must pass the provider-neutral `ICatalogMigrationBackup` seam before any migration starts. `SqliteCatalogRecoveryService` now fills that seam with a validated SQLite online backup; a failed backup blocks migration. Ordinary open validates SQLite readability, the header-level Lightflow application ID, supported schema, migration ledger, Catalog identity row, and `quick_check` through a read-only preflight before applying mutable runtime policy. Non-SQLite input is classified as unreadable, while a failed SQLite integrity check is classified as corruption; both preserve the original file and never trigger replacement creation.
+`PRAGMA user_version` is authoritative. Migrations are contiguous, ordered, forward-only, and run one version per explicit transaction; successful versions append a diagnostic ledger row inside the same transaction. Version 1 establishes both the SQLite header application ID and the `CatalogInfo` identity row in its transaction. New databases traverse the version-zero migration chain. Existing older Catalogs first receive a full integrity check and must pass the provider-neutral `ICatalogMigrationBackup` seam before any migration starts. `SqliteCatalogRecoveryService` now fills that seam with a validated SQLite online backup; a failed backup blocks migration. Ordinary open validates SQLite readability, the header-level Lightflow application ID, supported schema, migration ledger and Catalog identity row through read-only preflight before applying mutable runtime policy. Global `quick_check` is conditional under the accepted [clean-startup contract](performance/startup-340.md): eligible clean current-schema starts use bounded readiness; uncertain, interrupted, migration, restore and anomaly paths retain deep validation. Non-SQLite input is classified as unreadable, while a failed SQLite integrity check is classified as corruption; both preserve the original file and never trigger replacement creation.
 
 #79 owns location persistence, destination validation, relocation, atomic configuration switching, and storage UI. #81 owns Media Root behavior and relative-path normalization APIs. #82 owns Asset repositories, fingerprint calculation, and source-observation semantics. #83 adds the recovery lifecycle described below.
 
@@ -636,7 +682,7 @@ The History page presents summaries and detailed per-item outcomes. **Review & R
 - `JobCancellation` owns the cooperative cancellation token used by application and adapter code.
 - `SequentialJobRunner` remains available for simple one-at-a-time capabilities. `JobRuntime<TOptions,TData>` is the application-level, WPF-free operational runtime for live Jobs. It consumes an already immutable `JobPlan`, publishes typed job/per-item snapshots to observers, and owns only transient worker gates, cancellation, clocks, and callbacks.
 
-#### Live Jobs runtime and recovery
+#### Live Jobs runtime and recovery (retained batch compatibility)
 
 Jobs deliberately have three layers. `JobDefinition`/`JobPlan` contain immutable, persistable materialized intent (including ordered item IDs, source identity, ranges, assigned Camera/Creative Color, planned output paths, and the file-level parallelism value). `JobRuntimeCheckpoint` contains versioned recoverable operational state. `JobRuntime` contains transient machinery and is never serialized. WPF, FFmpeg `Process` objects, cancellation sources, semaphores, observers, and callbacks do not cross those boundaries.
 
@@ -648,9 +694,9 @@ File concurrency is bounded from 1 through 8, with 2 as the initial default; 1 p
 
 Pause uses **drain-and-pause** semantics. A pause request immediately closes the launch gate, reports `Pausing` while existing file exports finish, and reports `Paused` only after they drain. Drain time is active execution time; the active clock stops only on entry to fully `Paused`, excludes the fully paused interval, and resumes with the same accumulated throughput history. Resume reopens the gate for the same materialized waiting items. Lightflow does not use native process suspension for live Jobs: suspending several FFmpeg processes while redirected progress/error pipes and cancellation are active is not a reliable process-tree contract. Cancellation closes the launch gate, terminally cancels waiting items, and reports `Cancelling` only while active executors/process trees are cooperatively terminating; it becomes terminal `Cancelled` after all workers exit. Encoding adapters remain responsible for killing their child process trees and cleaning `.lightflow` partials.
 
-`jobs-runtime.json` is a separate atomic, schema-versioned operational checkpoint from `job-history.json`. Checkpoints are serialized in observed lifecycle order whenever the job state changes, any per-item state changes (including entry to Running or any terminal result), the final completion timestamp appears, or aggregate progress crosses a coarse integer-percent boundary; arbitrary fractional progress callbacks inside the same bucket do not write. This guarantees a later parallel worker transition cannot be overwritten by an older checkpoint and terminal warnings, errors, and typed result data are durable with the item state. On restart, completed items remain completed and waiting or explicitly paused work retains that disposition after materialized sources, outputs, identities, and LUT resources are revalidated. An item recorded Running is never inferred complete from output existence and is surfaced as `NeedsAttention`; stale or unavailable materialized resources do the same. Startup does not silently auto-run recovered work before #170/#171 provide the review surface. Shutdown cancels/drains runtime executors, which in turn terminate FFmpeg process trees and persist truthful unfinished state before process exit.
+`jobs-runtime.json` is a separate atomic, schema-versioned operational checkpoint from `job-history.json`. Checkpoints are serialized in observed lifecycle order whenever the job state changes, any per-item state changes (including entry to Running or any terminal result), the final completion timestamp appears, or aggregate progress crosses a coarse integer-percent boundary; arbitrary fractional progress callbacks inside the same bucket do not write. This guarantees a later parallel worker transition cannot be overwritten by an older checkpoint and terminal warnings, errors, and typed result data are durable with the item state. On restart, completed items remain completed and waiting or explicitly paused work retains that disposition after materialized sources, outputs, identities, and LUT resources are revalidated. An item recorded Running is never inferred complete from output existence and is surfaced as `NeedsAttention`; stale or unavailable materialized resources do the same. Retained batch recovery requires explicit review; the delivered #170/#171 surfaces expose modern per-file recovery through the scheduler below. Shutdown cancels/drains runtime executors, which in turn terminate FFmpeg process trees and persist truthful unfinished state before process exit.
 
-Jobs and History remain distinct. Jobs represent current/recent operational state and may be cleared without changing History. History receives one final typed result, not a record per runtime transition, and remains the durable provenance and Review & Rerun surface. The future #170 drawer and #171 workspace subscribe to runtime snapshots; they do not inspect FFmpeg processes or own scheduling.
+Jobs and History remain distinct. Jobs represent current/recent operational state and may be cleared without changing History. History receives one final typed result, not a record per runtime transition, and remains the durable provenance and Review & Rerun surface. The delivered #170 compact surface and #171 workspace project runtime/scheduler snapshots; they do not inspect FFmpeg processes or own scheduling. Modern per-file Export follows the scheduler section below.
 
 Runtime objects are transient and are not part of persisted job definitions.
 
@@ -710,7 +756,7 @@ The planner exposes only the intended final media path and remains side-effect f
 
 Modern Export snapshots one typed `ExportDestination` in the immutable Encoding definition. `SpecificFolder` resolves every item directly against the selected directory; `SameFolderAsOriginal` resolves each item against its own source directory. An optional single-segment subfolder is appended to either base. Source-relative hierarchy and Collection membership never participate in modern Export destination resolution. The planner materializes each complete output path before queue admission, so Jobs, retries, and History retain the accepted paths; duplicate flattened names remain blocking preflight collisions. Older persisted definitions without this optional destination snapshot continue through the legacy Batch Encode path fields.
 
-Immediately before an item starts, runtime hygiene removes only that exact sibling partial path. A locked or otherwise undeletable stale partial blocks the item instead of allowing FFmpeg to overwrite or mingle with it. Lightflow does not scan arbitrary folders or delete files based on a generic substring. Broader startup cleanup is intentionally deferred because current execution is serial and item-scoped ownership is the safer boundary.
+Immediately before an item starts, runtime hygiene removes only that exact sibling partial path. A locked or otherwise undeletable stale partial blocks the item instead of allowing FFmpeg to overwrite or mingle with it. Lightflow does not scan arbitrary folders or delete files based on a generic substring. Broader startup cleanup remains deferred; exact item-scoped ownership applies even when modern Jobs run concurrently.
 
 FFmpeg writes directly to the sibling partial in the final destination directory. Because `.lightflow` is deliberately the terminal extension, `FfmpegCommandBuilder` explicitly selects the output muxer from the typed `OutputContainer` (`mp4`, `mov`, or `matroska`) instead of relying on filename inference. At this same typed encode/mux boundary, HEVC-in-MP4 selects the Apple-compatible `hvc1` sample entry and disables synthesis of an inherited `tmcd` track; H.264 and non-MP4 outputs retain their existing behavior. FFprobe validates the partial artifact. Only a successful encode and successful validation permit finalization:
 
@@ -750,7 +796,7 @@ Issue #135 evaluated stabilizing Flyleaf, replacing only its audio path, and rep
 The selected partial replacement keeps Flyleaf as the video renderer, clock, and decoded-PTS authority. `FfmpegAudioPlayback` uses the already-bundled playback `ffmpeg.exe` to decode only the selected embedded audio stream and feeds bounded PCM to NAudio/WaveOut. This remains one shared backend below both Trim and Player; it is not a Browser-specific engine.
 
 ```text
-Future browser or trim surface
+Player or trim surface
         ↓
 IMediaPlaybackService + MediaPlaybackView
         ↓
@@ -775,7 +821,7 @@ Sources open asynchronously and settle on the first decoded frame while paused. 
 
 For VFR input, forward stepping advances through decoded frames and publishes each frame's actual timestamp. Flyleaf's built-in backward-step fallback converts time through nominal frame duration and is therefore deliberately not used. Lightflow reconstructs a backward step by seeking to an earlier point, decoding forward through actual presentation timestamps, and settling on the immediate predecessor. `MediaPlaybackService` suppresses backend frame notifications for the whole step and publishes only that settled result, preventing the Player timeline from exposing the internal seek/forward walk. If an exact predecessor cannot be established, the operation fails rather than returning an estimated boundary. Integration tests generate genuine VFR media and compare forward, backward, seek, and extraction results with FFprobe frame timestamps.
 
-Flyleaf accepts millisecond seek targets, so arbitrary seek requests are target approximations; the timestamp returned after seek is always the actual frame Flyleaf displayed, not the requested value. Future trim UI must store the returned displayed timestamp. Sources with missing timestamps may cause FFmpeg/Flyleaf to synthesize timestamps; such values are reported as decoded presentation timing but should be diagnosed before they are used as edit boundaries.
+Flyleaf accepts millisecond seek targets, so arbitrary seek requests are target approximations; the timestamp returned after seek is always the actual frame Flyleaf displayed, not the requested value. Trim and working-range consumers store the returned displayed timestamp. Sources with missing timestamps may cause FFmpeg/Flyleaf to synthesize timestamps; such values are reported as decoded presentation timing but should be diagnosed before they are used as edit boundaries.
 
 #### Seeking and frame extraction
 
@@ -791,7 +837,7 @@ Flyleaf owns the authoritative video clock, decoded timestamps, video queue, and
 
 Hardware video decoding is requested automatically. Flyleaf falls back to software decoding when the source or device cannot use hardware acceleration; the application contract reports which path actually opened. Playback correctness does not depend on a GPU vendor. The current Flyleaf renderer supports HDR-to-SDR processing, but Issue #53 does not add display calibration, HDR output signaling, or user controls. The audio companion intentionally normalizes supported layouts to stereo; advanced routing remains out of scope.
 
-Issue #153 adds a narrow generic GPU post-process seam to the renderer. An optional runtime-only factory creates one synchronous processor per D3D11 device lifetime. When configured, both FlyleafVP and D3D11VP convert into a reusable BGRA render-target/shader-resource intermediate, then the processor writes the final live or snapshot target before Direct2D and subtitle overlays. Calls run under Flyleaf's render lock; borrowed context/views cannot be retained, and the processor cannot present, flush, dispose renderer-owned resources, or block. Exceptions fail open through an unprocessed GPU copy. Device reset disposes the processor and intermediate surfaces before the context/device and recreates them afterward. `Player.RequestRender()` invalidates the retained frame while paused. With no factory configured, the original direct-to-target path is preserved without an intermediate or extra pass. This seam contains no Lightflow Color, LUT, or assignment concepts; #146 is its first planned consumer.
+Issue #153 adds a narrow generic GPU post-process seam to the renderer. An optional runtime-only factory creates one synchronous processor per D3D11 device lifetime. When configured, both FlyleafVP and D3D11VP convert into a reusable BGRA render-target/shader-resource intermediate, then the processor writes the final live or snapshot target before Direct2D and subtitle overlays. Calls run under Flyleaf's render lock; borrowed context/views cannot be retained, and the processor cannot present, flush, dispose renderer-owned resources, or block. Exceptions fail open through an unprocessed GPU copy. Device reset disposes the processor and intermediate surfaces before the context/device and recreates them afterward. `Player.RequestRender()` invalidates the retained frame while paused. With no factory configured, the original direct-to-target path is preserved without an intermediate or extra pass. This seam contains no Lightflow Color, LUT, or assignment concepts; delivered #146 consumes it through the Lightflow playback adapter.
 
 #### Packaging and licensing
 
@@ -1055,15 +1101,15 @@ Default rules:
 - Use temporary outputs and atomic moves where a capability supports them.
 - Remove incomplete temporary output after failure unless diagnostics require retention.
 
-## Future boundaries
+## Delivered boundaries and remaining future work
 
 ### Persistent history — Issue #35
 
-History will serialize durable, capability-specific job definitions/plans/results. It should not serialize `JobExecution`, `JobCancellation`, delegates, controls, or process objects.
+Delivered History serializes durable, capability-specific job definitions/plans/results. It does not serialize `JobExecution`, `JobCancellation`, delegates, controls, or process objects.
 
 ### Frame-accurate trimming — Issues #52–#55
 
-Playback and trim UI remain separate features. Timestamp-backed `MediaRange` and effective-duration weighting are already represented. The future Encoding adapter will translate the selected range into accurate FFmpeg behavior and result metadata.
+Playback and trim UI retain separate ownership. Delivered timestamp-backed `MediaRange`, resolved exclusive processing boundaries and effective-duration weighting feed the Encoding adapter and result metadata; see [progress semantics](#progress-semantics) and [per-file trim editing](#per-file-trim-editing).
 
 ### Workflow pipelines — Issue #47
 
@@ -1099,7 +1145,7 @@ Focus on high-value flows such as selecting inputs, reviewing a plan, starting/c
 
 - MVVM framework or continued in-house patterns
 - Dependency injection container
-- Job history storage format and schema versioning
+- Further capability-specific History schema decisions (the delivered Encoding JSON format/versioning is documented under [persistent job history](#persistent-job-history))
 - RAW conversion engine
 - Image processing library
 - ExifTool packaging approach
@@ -1146,7 +1192,7 @@ The owned `ExportDialog` is configuration and preflight only. It reads current L
 
 Name Parts, per-input Camera/Creative Color policy, source traits, saved ranges, source identities, and container-derived output extensions become immutable during final queue materialization. Explicit LUT overrides are copied through the content-addressed Encoding LUT resource store; queued work never retains a live configured LUT-folder path or links back to mutable Browser/Player/Catalog state.
 
-The dedicated Encoding destination is retired. Its proven controls remain loaded only as the smallest hidden compatibility review surface for legacy Review & Rerun records whose recovery, output, and LUT semantics are not representable by the modern focused modal. `EncodingHistoryRerun.Prepare` and `Materialize` still revalidate sources/resources/output identity before that review surface opens, and execution still requires an explicit user action. No Browser/Player or modern Export path can navigate there.
+The preceding application-lifetime plan executor describes the earlier #165 batch implementation; modern per-file submission/execution is owned by the independent global Export scheduler below. The dedicated Encoding destination is retired. Its proven controls remain loaded only as the smallest hidden compatibility review surface for legacy Review & Rerun records whose recovery, output, and LUT semantics are not representable by the modern focused modal. `EncodingHistoryRerun.Prepare` and `Materialize` still revalidate sources/resources/output identity before that review surface opens, and execution still requires an explicit user action. No Browser/Player or modern Export path can navigate there.
 ## Independent global Export scheduler
 
 Modern Export execution follows this boundary:
@@ -1327,7 +1373,7 @@ already occurs independently of that checkbox.
 Browser Locations exposes Add Location, Rename Location and Reconnect Location through the existing
 IMediaRootService. RootId, relative-path identity and machine mappings are unchanged. Opening Settings
 or changing categories does not enumerate or mutate Media Roots. Storage relocation/Preview maintenance
-and manual backup/restore retain existing services; #271/#272 remain separate future work.
+and manual backup/restore retain existing services. #272 backup-on-exit is delivered; #271 remains open for the fuller explicit storage-location product model.
 
 See [the source authority audit](validation/settings-291-authority.md) for the complete control inventory.
 
@@ -1335,6 +1381,8 @@ See [the source authority audit](validation/settings-291-authority.md) for the c
 
 Smart Collections persist required logical Source plus versioned Browser-compatible defining query, and share the existing Collections hierarchy. Candidate discovery, defining membership, and transient view filtering remain separate stages of the existing Browser pipeline. See [Smart Collection architecture](SMART_COLLECTIONS.md) for persistence, concurrency, discovery, editor, and query-extension contracts.
 
+
+### Preview work bounds (#321)
 
 Issue #321 bounds automatic Preview work at both discovery scheduling and generator execution.
 Preview schema 4 adds independent metadata/thumbnail retry deadlines; an unchanged failed source/work
@@ -1399,8 +1447,7 @@ before semantic admission; transport, keyboard and direct controller fixtures sh
 Player lease, range-aware playback, queue and Color presentation through an explicit WPF application port.
 No keyboard/OS/device identifiers enter shared contracts. Current playback presentation remains WPF-bearing;
 macOS must replace that adapter, not redefine semantic IDs or durable intent. See [Player action policy and
-acceptance evidence](PLAYER_ACTIONS.md). Browser, review/presentation/Export actions, Settings bindings and TourBox-specific
-work remain separate children and decision gates.
+acceptance evidence](PLAYER_ACTIONS.md). Browser actions (#351), review/presentation/Export actions (#352) and Settings bindings (#353) are delivered through the focused contracts indexed above. #354 Console acceptance remains hardware-gated; independent #346 still gates deep integration selection.
 
 ### Configurable keyboard shortcuts (#353)
 

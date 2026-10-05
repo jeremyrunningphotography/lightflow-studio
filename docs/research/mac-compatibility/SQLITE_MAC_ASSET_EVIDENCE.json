@@ -1,0 +1,20 @@
+{
+  "PackageSha256": "D07D13B4779123CFA56B3348B504D57A2AB6FC10C764FB6E2C9D787987E39201",
+  "Assets": [
+    {
+      "Asset": "runtimes/osx-x64/native/libe_sqlite3.dylib",
+      "Bytes": 1724472,
+      "Magic": "CF-FA-ED-FE",
+      "CpuType": 16777223,
+      "ContainsExpectedVersion": true
+    },
+    {
+      "Asset": "runtimes/osx-arm64/native/libe_sqlite3.dylib",
+      "Bytes": 1696624,
+      "Magic": "CF-FA-ED-FE",
+      "CpuType": 16777228,
+      "ContainsExpectedVersion": true
+    }
+  ],
+  "Evidence": "Archive and Mach-O metadata only; not loaded, executed or signed"
+}

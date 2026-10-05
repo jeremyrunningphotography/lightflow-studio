@@ -23,6 +23,10 @@ This directory contains the durable product and technical definition for Lightfl
 
 ## Feature specifications
 
+Controller setup: [TourBox Elite Plus Console mapping and physical acceptance](tourbox/README.md).
+This proposed supported-preset path consumes the accepted semantic shortcuts; hardware acceptance
+and a real Console export remain pending under #354.
+
 Feature specifications live under `features/` and describe behavior, acceptance criteria,
 dependencies, and future expansion. GitHub issues should reference these documents rather
 than duplicate them.

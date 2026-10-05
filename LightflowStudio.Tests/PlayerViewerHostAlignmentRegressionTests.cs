@@ -73,8 +73,7 @@ public sealed class PlayerViewerHostAlignmentRegressionTests
     public void ArrowKeys_UseTheSharedStepPathAndPreserveSliderTextAndSelectorInteraction()
     {
         var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "PlayerViewerHost.xaml.cs"));
-        Assert.Contains("case Key.Left:", source);
-        Assert.Contains("case Key.Right:", source);
+        Assert.Contains("TryResolvePlayerShortcut(key, modifiers, isRepeat)", source);
         // Shared step behavior and readiness are validated through keyboard/controller integration,
         // rather than tying this presentation check to the old Slider.IsEnabled shortcut dispatch.
         Assert.Contains("PlayerKeyboardOwnership.Owns", source);

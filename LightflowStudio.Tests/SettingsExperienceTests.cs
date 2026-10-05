@@ -16,13 +16,13 @@ public sealed class SettingsExperienceTests
 
         Assert.Equal("0", (string?)categories.Attribute("SelectedIndex"));
         Assert.Equal("SettingsCategoryList_SelectionChanged", (string?)categories.Attribute("SelectionChanged"));
-        Assert.Equal(["General", "Color", "Storage", "Advanced"],
+        Assert.Equal(["General", "Color", "Storage", "Shortcuts", "Advanced"],
             items.Select(item => (string?)item.Attribute("Tag")));
         Assert.All(items, item => Assert.False(string.IsNullOrWhiteSpace(
             (string?)item.Attribute("AutomationProperties.Name"))));
 
         Assert.Null(Named(document, "SettingsGeneralPage").Attribute("Visibility"));
-        Assert.All(new[] { "SettingsColorPage", "SettingsStoragePage", "SettingsAdvancedPage" },
+        Assert.All(new[] { "SettingsColorPage", "SettingsStoragePage", "SettingsShortcutsPage", "SettingsAdvancedPage" },
             name => Assert.Equal("Collapsed", (string?)Named(document, name).Attribute("Visibility")));
     }
 

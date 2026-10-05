@@ -92,20 +92,8 @@ public partial class MainWindow
         _browserGrid.ReapplyQuery();
         UpdateBrowserStatusText();
     }
-    internal bool TryHandleBrowserClassificationShortcut(Key key, ModifierKeys modifiers, DependencyObject? input, bool repeat = false)
-    {
-        if (!BrowserSemanticContext.Presented || BrowserOwnsLocalKey(key, modifiers, input)) return false;
-        if (modifiers == ModifierKeys.None && key >= Key.D0 && key <= Key.D5) {
-            _ = InvokeBrowserActionAsync(BrowserActions.SetRating, new SetRatingArguments(key - Key.D0), repeat, ActionInputKind.Keyboard);
-            return true;
-        }
-        if (modifiers == ModifierKeys.Control && key is Key.Up or Key.Down) {
-            _ = InvokeBrowserActionAsync(BrowserActions.StepFlag,
-                new StepFlagArguments(key == Key.Up ? TraversalDirection.Next : TraversalDirection.Previous), repeat, ActionInputKind.Keyboard);
-            return true;
-        }
-        return false;
-    }
+    internal bool TryHandleBrowserClassificationShortcut(Key key, ModifierKeys modifiers, DependencyObject? input, bool repeat = false) =>
+        TryHandleConfiguredBrowserShortcut(key, modifiers, input, repeat);
     private bool BrowserOwnsLocalKey(Key key, ModifierKeys modifiers, DependencyObject? input) =>
         BrowserPickerOwnsNumber(key, input) ||
         PlayerKeyboardOwnership.Within(input, HomeRightPanel) ||

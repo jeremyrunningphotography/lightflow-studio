@@ -115,14 +115,14 @@ internal sealed class PlayerSurfaceInput : IDisposable
     }
     internal bool HandleKeyDown(Key key, DependencyObject? owner, bool repeat)
     {
-        if (_repeatAwareKey is not null && (key is Key.Space or Key.Left or Key.Right or Key.C or Key.I or Key.O or Key.S or Key.M))
+        if (_repeatAwareKey is not null)
         {
             return _repeatAwareKey(key, owner, repeat);
         }
         return !repeat ? _key(key, owner) : key == Key.Space;
     }
     private void KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
-    { if (!e.Handled) e.Handled = _keyUp(e.Key); }
+    { if (!e.Handled) e.Handled = _keyUp(e.Key == Key.System ? e.SystemKey : e.Key); }
     private void Unloaded(object sender, RoutedEventArgs e) => Cancel();
     internal void Cancel() { _origin = null; if (_surface.IsMouseCaptured) _surface.ReleaseMouseCapture(); }
     public void Dispose()

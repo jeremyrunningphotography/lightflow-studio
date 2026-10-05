@@ -67,6 +67,9 @@ $startupSmoke = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudi
     -ArgumentList "--data-root", "`"$smokeDataRoot`"", "--startup-smoke-test", "--jobs-workspace-smoke-test", "--startup-presentation-report", "`"$presentationReport`"" -WorkingDirectory $appDirectory `
     -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $stagingRoot 'startup.stdout.log') `
     -RedirectStandardError (Join-Path $stagingRoot 'startup.stderr.log')
+# Keep the query handle alive: Windows PowerShell's redirected Start-Process
+# object can otherwise lose ExitCode when the process terminates before querying it.
+$null = $startupSmoke.Handle
 try {
     if ($startupSmoke.WaitForExit(8000)) {
         throw "Packaged application exited during the Browser startup smoke test (exit code $($startupSmoke.ExitCode))."
@@ -119,6 +122,7 @@ if (-not $backupSmokeDataRoot.StartsWith($stagingRoot + '\', [StringComparison]:
 $backupSmoke = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
     -ArgumentList "--verify-catalog-backup-paths", "--data-root", "`"$backupSmokeDataRoot`"" `
     -WorkingDirectory $appDirectory -PassThru -WindowStyle Hidden
+$null = $backupSmoke.Handle
 try {
     if (-not $backupSmoke.WaitForExit(60000)) { throw "Packaged Catalog backup boundary verification timed out." }
     Copy-Item -LiteralPath (Join-Path $backupSmokeDataRoot "backup-path-verification.jsonl") `

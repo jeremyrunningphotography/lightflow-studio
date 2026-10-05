@@ -31,6 +31,25 @@ Future feature work should define shared semantics, add shared contract tests, i
 shared views and thin adapters, then qualify both platforms. Platform-specific behavior
 must be deliberate and observable. This planning does not freeze unrelated Windows work.
 
+## Subsequent owner review: Catalog portability — 2026-10-05
+
+The owner accepted the research/planning direction and authorized qualification and merge
+of PR #371, reviewed at `ebd337f546ea8807c819184917bf9ab2fde880c9`.
+This additional product direction is separate from the historical investigation:
+
+User-authored Lightflow metadata remains Catalog-owned. Lightflow will not adopt a
+Kyno-style sidecar metadata architecture or scatter Lightflow metadata sidecars through
+media folders. The long-term target is one logical Catalog usable by either supported
+platform, including from a supported central location such as a NAS. Machine/platform
+media-root resolution may differ; one logical root may resolve through different Windows
+paths and macOS mounts.
+
+Cross-platform Catalog portability/access, root/path remapping and simultaneous/concurrent
+Catalog access are distinct. The first is the product goal; this decision neither claims
+nor authorizes concurrent multi-writer NAS Catalog support. It prescribes no implementation,
+locking model or schema change. M2 / #369 remains responsible for proving safe identity,
+root/path policy and supported storage constraints.
+
 ## Decisions still open
 
 - Minimum supported macOS version and exact supported hardware/resource requirements.

@@ -162,7 +162,7 @@ From the repository root:
 
 ```powershell
 dotnet build .\LightflowStudio\LightflowStudio.csproj -c Release
-dotnet test .\LightflowStudio.Tests\LightflowStudio.Tests.csproj
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Noninteractive.ps1
 ```
 
 For a self-contained package with verified dependencies and startup checks:
@@ -174,6 +174,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build-Release.
 
 Use a task-owned `--data-root` when testing experimental builds. See
 [development data profiles](docs/development-data-profiles.md).
+
+Automated tests and package builds run on a private Windows desktop, preserving real
+WPF/native rendering and focus semantics without presenting windows on your desktop.
+Use `Test-Noninteractive.ps1 -Filter "FullyQualifiedName~PlayerArrow"` for focused
+Release tests. Direct WPF test launches outside that boundary fail before presentation.
+See [noninteractive validation](docs/noninteractive-validation.md) for the contract,
+logs, and desktop acceptance command. The executable launch above stays interactive.
 
 For processing tools in a development build, Lightflow checks the FFmpeg location saved
 in Settings, then `ffmpeg\bin\ffmpeg.exe` beside the application, then Windows `PATH`.

@@ -113,18 +113,24 @@ public sealed class ReleasePackagingTests
             .GetProperty("net8.0-windows7.0");
         Assert.Equal("8.0.29", packages.GetProperty("Microsoft.Data.Sqlite").GetProperty("resolved").GetString());
         Assert.Equal("8.0.29", packages.GetProperty("Microsoft.Data.Sqlite.Core").GetProperty("resolved").GetString());
-        Assert.Equal("2.1.6", packages.GetProperty("SQLitePCLRaw.bundle_e_sqlite3").GetProperty("resolved").GetString());
-        Assert.Equal("2.1.6", packages.GetProperty("SQLitePCLRaw.lib.e_sqlite3").GetProperty("resolved").GetString());
+        var bundle = project.Descendants("PackageReference").Single(element =>
+            element.Attribute("Include")?.Value == "SQLitePCLRaw.bundle_e_sqlite3");
+        Assert.Equal("[2.1.13]", bundle.Attribute("Version")?.Value);
+        Assert.Equal("Direct", packages.GetProperty("SQLitePCLRaw.bundle_e_sqlite3").GetProperty("type").GetString());
+        AssertSqliteFamily(packages);
 
         using var testLockDocument = JsonDocument.Parse(
             File.ReadAllText(PathAtRoot("LightflowStudio.Tests", "packages.lock.json")));
         var testPackages = testLockDocument.RootElement.GetProperty("dependencies")
             .GetProperty("net8.0-windows7.0");
         Assert.Equal("8.0.29", testPackages.GetProperty("Microsoft.Data.Sqlite").GetProperty("resolved").GetString());
-        Assert.Equal("2.1.6", testPackages.GetProperty("SQLitePCLRaw.lib.e_sqlite3").GetProperty("resolved").GetString());
+        AssertSqliteFamily(testPackages);
 
         var release = File.ReadAllText(PathAtRoot("scripts", "Build-Release.ps1"));
         Assert.Contains("IncludeNativeLibrariesForSelfExtract=true", release);
+        Assert.Contains("LightflowStudio.publish.packages.lock.json", release);
+        Assert.Contains("-p:LightflowPublishLockRoot=$stagingRoot", release);
+        Assert.Contains("$(MSBuildProjectName).publish.packages.lock.json", File.ReadAllText(PathAtRoot("Directory.Build.props")));
         Assert.Contains("--verify-catalog-runtime", release);
         Assert.Contains("Start-Process", release);
         Assert.Contains("-WorkingDirectory $appDirectory", release);
@@ -136,7 +142,7 @@ public sealed class ReleasePackagingTests
             release.IndexOf("if (-not $SkipInstaller)", StringComparison.Ordinal));
         var notices = File.ReadAllText(PathAtRoot("THIRD-PARTY-NOTICES.md"));
         Assert.Contains("Microsoft.Data.Sqlite 8.0.29", notices);
-        Assert.Contains("SQLitePCLRaw 2.1.6", notices);
+        Assert.Contains("SQLitePCLRaw 2.1.13", notices);
         Assert.Contains("sqlite.org/copyright", notices);
         Assert.Contains("Microsoft.Data.Sqlite", File.ReadAllText(
             PathAtRoot("scripts", "Test-PackageContents.ps1")));
@@ -271,6 +277,15 @@ public sealed class ReleasePackagingTests
         Assert.Contains("Directory.Build.props", releaseScript);
         Assert.Contains("VersionPrefix", releaseScript);
         Assert.Matches(@"^\d+\.\d+\.\d+$", version);
+    }
+
+    private static void AssertSqliteFamily(JsonElement packages)
+    {
+        var family = packages.EnumerateObject().Where(package => package.Name.StartsWith("SQLitePCLRaw.", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(new[] { "SQLitePCLRaw.bundle_e_sqlite3", "SQLitePCLRaw.core", "SQLitePCLRaw.lib.e_sqlite3", "SQLitePCLRaw.provider.e_sqlite3" }, family.Select(package => package.Name).OrderBy(name => name, StringComparer.Ordinal));
+        Assert.All(family, package => Assert.Equal("2.1.13", package.Value.GetProperty("resolved").GetString()));
+        using var actions = JsonDocument.Parse(File.ReadAllText(PathAtRoot("Lightflow.Actions", "packages.lock.json")));
+        Assert.DoesNotContain(actions.RootElement.GetProperty("dependencies").EnumerateObject().SelectMany(framework => framework.Value.EnumerateObject()), package => package.Name.Contains("Sqlite", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string PathAtRoot(params string[] parts) =>

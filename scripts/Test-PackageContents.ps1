@@ -15,6 +15,8 @@ $requiredFiles = @(
     "LightflowStudio.exe",
     "LightflowStudio.ico",
     "THIRD-PARTY-NOTICES.md",
+    "licenses\SQLitePCLRaw-LICENSE.TXT",
+    "licenses\SQLitePCLRaw-NOTICE.TXT",
     "flyleaf-package.json",
     "flyleaf-fast-seek.md",
     "PremiereHelper\Export-V1-Clips.jsx",
@@ -41,7 +43,7 @@ if ((Get-FileHash -LiteralPath (Join-Path $packageRoot 'LightflowStudio.ico')).H
 }
 
 $thirdPartyNotices = Get-Content -LiteralPath (Join-Path $packageRoot "THIRD-PARTY-NOTICES.md") -Raw
-$requiredNoticeMarkers = @("FlyleafLib 3.11.8-lightflow.1", "no packaging-time source patch", "28f5dd4b3f4c09b6de37524a2e2cd7626f6d844e", "Microsoft.Data.Sqlite 8.0.29", "SQLitePCLRaw 2.1.6", "sqlite.org/copyright")
+$requiredNoticeMarkers = @("FlyleafLib 3.11.8-lightflow.1", "no packaging-time source patch", "28f5dd4b3f4c09b6de37524a2e2cd7626f6d844e", "Microsoft.Data.Sqlite 8.0.29", "SQLitePCLRaw 2.1.13", "Apache-2.0", "sqlite.org/copyright")
 foreach ($marker in $requiredNoticeMarkers) {
     if ($thirdPartyNotices.IndexOf($marker, [StringComparison]::Ordinal) -lt 0) {
         throw "Staged third-party notices are missing the Catalog database dependency: $marker"

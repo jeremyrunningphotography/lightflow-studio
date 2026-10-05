@@ -29,7 +29,7 @@ $appDirectory = Join-Path $stagingRoot "LightflowStudio"
 $ffmpegDirectory = Join-Path $appDirectory "ffmpeg"
 $playbackDirectory = Join-Path $appDirectory "playback\ffmpeg"
 $project = Join-Path $repositoryRoot "LightflowStudio\LightflowStudio.csproj"
-$publishLockFile = Join-Path $stagingRoot "publish.packages.lock.json"
+$publishLockFile = Join-Path $stagingRoot "LightflowStudio.publish.packages.lock.json"
 $totalTimer = [Diagnostics.Stopwatch]::StartNew()
 
 function Write-StageTiming([string]$Name, [Diagnostics.Stopwatch]$Timer) {
@@ -42,12 +42,14 @@ if (-not $stagingRoot.StartsWith($repositoryRoot + '\', [StringComparison]::Ordi
 if (Test-Path -LiteralPath $stagingRoot) { Remove-Item -LiteralPath $stagingRoot -Recurse -Force }
 if (Test-Path -LiteralPath $OutputDirectory) { Remove-Item -LiteralPath $OutputDirectory -Recurse -Force }
 New-Item -ItemType Directory -Path $appDirectory, $OutputDirectory -Force | Out-Null
+$env:DOTNET_BUNDLE_EXTRACT_BASE_DIR = Join-Path $stagingRoot 'bundle-extract'
+New-Item -ItemType Directory -Path $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR -Force | Out-Null
 
 Write-Host "Publishing Lightflow Studio $Version..." -ForegroundColor Cyan
 $stageTimer = [Diagnostics.Stopwatch]::StartNew()
 dotnet publish $project -c Release -r win-x64 --self-contained true --disable-build-servers `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-    -p:NuGetLockFilePath=$publishLockFile `
+    -p:LightflowPublishLockRoot=$stagingRoot `
     -p:DebugType=None -p:DebugSymbols=false -o $appDirectory
 if ($LASTEXITCODE -ne 0) { throw "Application publish failed." }
 & (Join-Path $PSScriptRoot "Test-ApplicationIcon.ps1") -ExecutablePath (Join-Path $appDirectory "LightflowStudio.exe")
@@ -56,9 +58,11 @@ $smokeDataRoot = Join-Path $stagingRoot ("startup-data-" + [Guid]::NewGuid().ToS
 New-Item -ItemType Directory -Path $smokeDataRoot | Out-Null
 Write-Host "Packaged smoke data root: $smokeDataRoot"
 $catalogRuntimeCheck = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
-    -ArgumentList "--verify-catalog-runtime", "--data-root", "`"$smokeDataRoot`"" -WorkingDirectory $appDirectory `
+    -ArgumentList "--verify-catalog-runtime", "--sqlite-runtime-report", "`"$(Join-Path $stagingRoot 'sqlite-runtime.json')`"", "--data-root", "`"$smokeDataRoot`"" -WorkingDirectory $appDirectory `
     -Wait -PassThru -WindowStyle Hidden
 if ($catalogRuntimeCheck.ExitCode -ne 0) { throw "Packaged Catalog SQLite runtime verification failed." }
+& (Join-Path $PSScriptRoot "Test-SqliteRuntimeEvidence.ps1") `
+    -ReportPath (Join-Path $stagingRoot "sqlite-runtime.json") -LockPath $publishLockFile -PackageDirectory $appDirectory
 
 # Exercise the real packaged WPF startup through MainWindow.Loaded and delayed template rendering.
 # The process must remain alive after Browser storage initialization; short-lived XAML/startup crashes fail packaging.
@@ -140,6 +144,7 @@ finally {
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "PremiereHelper") -Destination (Join-Path $appDirectory "PremiereHelper") -Recurse -Force
 & (Join-Path $PSScriptRoot "Build-PremiereCompanion.ps1") -OutputPath (Join-Path $appDirectory "PremiereCompanion\LightflowStudio.ccx")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "THIRD-PARTY-NOTICES.md") -Destination $appDirectory -Force
+Copy-Item -LiteralPath (Join-Path $repositoryRoot "dependencies\licenses") -Destination (Join-Path $appDirectory "licenses") -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "dependencies\flyleaf.json") -Destination (Join-Path $appDirectory "flyleaf-package.json") -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "dependencies\flyleaf-fast-seek.md") -Destination $appDirectory -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "LightflowStudio\Assets\Branding\LightflowStudio.ico") -Destination $appDirectory -Force

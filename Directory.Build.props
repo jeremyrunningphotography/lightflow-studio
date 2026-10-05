@@ -3,5 +3,7 @@
     <!-- The single authoritative product version. Use set-version.ps1 to change it. -->
     <VersionPrefix>1.0.0</VersionPrefix>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Publish restores must not let referenced projects overwrite the app's lock. -->
+    <NuGetLockFilePath Condition="'$(LightflowPublishLockRoot)' != ''">$(LightflowPublishLockRoot)\$(MSBuildProjectName).publish.packages.lock.json</NuGetLockFilePath>
   </PropertyGroup>
 </Project>

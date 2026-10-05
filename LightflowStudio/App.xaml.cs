@@ -84,7 +84,9 @@ public partial class App : System.Windows.Application
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             base.OnStartup(e);
-            var verified = CatalogPackageRuntimeVerifier.VerifyAsync().GetAwaiter().GetResult();
+            var reportSwitch = Array.IndexOf(e.Args, "--sqlite-runtime-report");
+            var reportPath = reportSwitch >= 0 && reportSwitch + 1 < e.Args.Length ? e.Args[reportSwitch + 1] : null;
+            var verified = CatalogPackageRuntimeVerifier.VerifyAsync(reportPath).GetAwaiter().GetResult();
             Shutdown(verified ? 0 : 1);
             return;
         }

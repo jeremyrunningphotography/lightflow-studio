@@ -16,6 +16,7 @@ supersede current issue decisions or maintain a competing live roadmap.
 - [UI Guidelines](UI_GUIDELINES.md)
 - [Release Planning](RELEASE_PLAN.md)
 - [Backlog and GitHub workflow](BACKLOG_WORKFLOW.md)
+- [Mac compatibility research and accepted planning](research/mac-compatibility/README.md)
 
 ## Capability specifications
 

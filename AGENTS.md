@@ -36,6 +36,8 @@
 
 ## PR preparation and functional-test artifact
 
+- Run automated Release tests through `scripts\Test-Noninteractive.ps1` (use `-Filter` for focused validation). WPF/native tests and `Build-Release.ps1` require the shared private-desktop boundary; do not bypass it or switch its desktop into view. Explicit hands-on executable launches remain interactive. See `docs/noninteractive-validation.md`.
+
 - For parallel agent work, use full independent clones under `C:\Git\Agents` (not Git worktrees). Keep edits, build outputs, and data roots within the owning task workspace; never reuse another task's outputs or Jeremy's canonical checkout.
 - Launch any agent/test build with `--data-root "<absolute task-owned directory>"`, including packaged hands-on tests. Never launch an experimental build against normal user storage. Packaging supplies its own disposable isolated smoke root.
 - Report the exact workspace, packaged executable, and isolated data-root paths in the handoff. Isolation does not authorize merging; normal review and explicit acceptance still apply.

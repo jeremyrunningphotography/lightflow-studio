@@ -9,6 +9,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'NoninteractiveValidation.ps1')
+if (-not [ValidationDesktop]::IsNoninteractive) {
+    Invoke-NoninteractiveValidation -ScriptPath $PSCommandPath -Parameters $PSBoundParameters
+    return
+}
+[ValidationDesktop]::RequireNoninteractive()
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 $versionProps = [xml](Get-Content -LiteralPath (Join-Path $repositoryRoot "Directory.Build.props") -Raw)
@@ -59,7 +65,8 @@ if ($catalogRuntimeCheck.ExitCode -ne 0) { throw "Packaged Catalog SQLite runtim
 $presentationReport = Join-Path $stagingRoot "startup-presentation.txt"
 $startupSmoke = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
     -ArgumentList "--data-root", "`"$smokeDataRoot`"", "--startup-smoke-test", "--jobs-workspace-smoke-test", "--startup-presentation-report", "`"$presentationReport`"" -WorkingDirectory $appDirectory `
-    -PassThru -WindowStyle Hidden
+    -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $stagingRoot 'startup.stdout.log') `
+    -RedirectStandardError (Join-Path $stagingRoot 'startup.stderr.log')
 try {
     if ($startupSmoke.WaitForExit(8000)) {
         throw "Packaged application exited during the Browser startup smoke test (exit code $($startupSmoke.ExitCode))."

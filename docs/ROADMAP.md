@@ -1,4 +1,12 @@
-# Product Roadmap
+# Historical product planning snapshot
+
+This is the older 0.8.1-era planning snapshot, retained for product evolution context.
+Its baseline, version assignments and future sequencing are historical, not current
+availability or release commitments. Current planning lives in the
+[Roadmap Project](https://github.com/users/jeremyrunningphotography/projects/4),
+GitHub issues and their native relationships. See [the current system map](ARCHITECTURE.md)
+for delivered architectural ownership and [release planning](RELEASE_PLAN.md) for
+source/version/publication decisions. The original snapshot follows unchanged.
 
 This roadmap begins with the actual 0.8.1 product rather than treating the project as
 greenfield. Version assignments are directional and may change as technical discovery

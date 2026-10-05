@@ -85,10 +85,17 @@ under the MIT License:
 
 - Microsoft.Data.Sqlite source and license: <https://github.com/dotnet/efcore>
 
-Microsoft.Data.Sqlite uses SQLitePCLRaw 2.1.6, also distributed under the MIT
-License, to load the bundled native `e_sqlite3` library:
+Microsoft.Data.Sqlite uses the explicitly pinned SQLitePCLRaw 2.1.13 bundle,
+core, provider.e_sqlite3 and lib.e_sqlite3 packages, distributed under Apache-2.0,
+to load the bundled native `e_sqlite3` library. This corrects an existing MIT
+notice mismatch; it is not an established license change in this update.
 
 - SQLitePCLRaw source and license: <https://github.com/ericsink/SQLitePCL.raw>
+
+The distribution includes the upstream Apache license and complete NOTICE in
+`licenses/SQLitePCLRaw-LICENSE.TXT` and `licenses/SQLitePCLRaw-NOTICE.TXT`.
+The NOTICE covers upstream optional configurations too; Lightflow uses the
+standard SQLite bundle, without SQLCipher or encryption extensions.
 
 SQLite itself is in the public domain. The SQLite project and public-domain
 dedication are available at <https://www.sqlite.org/copyright.html>.

@@ -400,6 +400,13 @@ public sealed class CatalogDatabaseTests : IDisposable
 
     [Fact]
     public async Task RealisticMultiAssetVersionSevenCatalog_MigratesSafelyAndReopensRepeatedly()
+        => await QualifyVersionSevenCatalogAsync(verifyFailureRollback: false);
+
+    [Fact]
+    public async Task HistoricalUnsafeMigration_DeterministicFailurePreservesVersionSevenCatalog()
+        => await QualifyVersionSevenCatalogAsync(verifyFailureRollback: true);
+
+    private async Task QualifyVersionSevenCatalogAsync(bool verifyFailureRollback)
     {
         var locations = CreateLocations();
         var versionSeven = await new CatalogDatabaseService(locations, null, CatalogMigrations.All.Take(7).ToArray())
@@ -446,43 +453,56 @@ public sealed class CatalogDatabaseTests : IDisposable
             ("$contiguousAsset", contiguousAssetId.ToString("D")), ("$now", now));
         await versionSeven.Session!.DisposeAsync();
 
-        var unsafeVersionEight = CatalogMigrations.All.Take(7).Concat(
-        [
-            new CatalogMigration(8, "Original unsafe exact-range migration", (connection, transaction, _) =>
-            {
-                using var command = connection.CreateCommand();
-                command.Transaction = transaction;
-                command.CommandText = """
-                    DELETE FROM Subclips AS duplicate
-                    WHERE EXISTS (
-                        SELECT 1 FROM Subclips AS keeper
-                        WHERE keeper.AssetId=duplicate.AssetId
-                          AND keeper.InTicks=duplicate.InTicks AND keeper.OutTicks=duplicate.OutTicks
-                          AND keeper.Ordinal < duplicate.Ordinal);
-                    UPDATE Subclips SET Ordinal=Ordinal+1000000000;
+        if (verifyFailureRollback)
+        {
+            var unsafeVersionEight = CatalogMigrations.All.Take(7).Concat(
+            [
+                new CatalogMigration(8, "Original unsafe exact-range migration", (connection, transaction, _) =>
+                {
+                    using var command = connection.CreateCommand();
+                    command.Transaction = transaction;
+                    command.CommandText = """
+                        DELETE FROM Subclips AS duplicate
+                        WHERE EXISTS (
+                            SELECT 1 FROM Subclips AS keeper
+                            WHERE keeper.AssetId=duplicate.AssetId
+                              AND keeper.InTicks=duplicate.InTicks AND keeper.OutTicks=duplicate.OutTicks
+                              AND keeper.Ordinal < duplicate.Ordinal);
+                        UPDATE Subclips SET Ordinal=Ordinal+1000000000;
+                        """;
+                    command.ExecuteNonQuery();
+                    // Historical evidence: after the writes above the old migration executed
+                    // this self-referential remainder, which hit an ordinal UNIQUE violation
+                    // under SQLite 3.41.2's query plan. SQLite 3.53.3 instead returns Ready.
+                    // That does not establish the old design as safe. Keep the remainder as
+                    // evidence, and inject failure independently of either runtime's planner.
+                    /*
                     WITH Ranked AS (
                         SELECT SubclipId, ROW_NUMBER() OVER
                             (PARTITION BY AssetId ORDER BY Ordinal,SubclipId)-1 AS NewOrdinal
                         FROM Subclips)
                     UPDATE Subclips SET Ordinal=(SELECT NewOrdinal FROM Ranked
                         WHERE Ranked.SubclipId=Subclips.SubclipId);
-                    """;
-                command.ExecuteNonQuery();
-            })
-        ]).ToArray();
-        var failed = await new CatalogDatabaseService(locations, new RecordingBackup(), unsafeVersionEight)
-            .OpenExistingAsync();
-        Assert.Equal(CatalogOpenStatus.MigrationFailed, failed.Status);
-        Assert.Contains("UNIQUE constraint failed: Subclips.AssetId, Subclips.Ordinal", failed.Diagnostic);
-        Assert.Equal(7, ReadUserVersion(locations.CatalogDatabasePath));
+                    */
+                    command.CommandText = "INSERT INTO LightflowTestOnlyMissingMigrationTable VALUES (1);";
+                    command.ExecuteNonQuery();
+                })
+            ]).ToArray();
+            var failed = await new CatalogDatabaseService(locations, new RecordingBackup(), unsafeVersionEight)
+                .OpenExistingAsync();
+            Assert.Equal(CatalogOpenStatus.MigrationFailed, failed.Status);
+            Assert.Contains("no such table: LightflowTestOnlyMissingMigrationTable", failed.Diagnostic);
+            Assert.Equal(7, ReadUserVersion(locations.CatalogDatabasePath));
 
-        var rolledBack = await new CatalogDatabaseService(locations, null, CatalogMigrations.All.Take(7).ToArray())
-            .OpenExistingAsync();
-        Assert.Equal(9L, Convert.ToInt64(Scalar(rolledBack.Session!, "SELECT count(*) FROM Subclips;")));
-        Assert.Equal([keepId, overlapId, discardId, renamedId],
-            (await new CatalogSubclipService(() => rolledBack.Session).ListAsync(manyAssetId))
-                .Select(item => item.SubclipId));
-        await rolledBack.Session!.DisposeAsync();
+            var rolledBack = await new CatalogDatabaseService(locations, null, CatalogMigrations.All.Take(7).ToArray())
+                .OpenExistingAsync();
+            Assert.Equal(9L, Convert.ToInt64(Scalar(rolledBack.Session!, "SELECT count(*) FROM Subclips;")));
+            Assert.Equal([keepId, overlapId, discardId, renamedId],
+                (await new CatalogSubclipService(() => rolledBack.Session).ListAsync(manyAssetId))
+                    .Select(item => item.SubclipId));
+            await rolledBack.Session!.DisposeAsync();
+            return;
+        }
 
         var backup = new RecordingBackup();
         var migrated = await new CatalogDatabaseService(locations, backup).OpenExistingAsync();

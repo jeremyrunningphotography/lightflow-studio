@@ -22,6 +22,7 @@
     <PackageReference Include="FlyleafLib" Version="[3.11.8-lightflow.1]" />
     <PackageReference Include="NAudio.WinMM" Version="2.3.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="[8.0.29]" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="[2.1.13]" />
   </ItemGroup>
   <ItemGroup>
     <None Remove="Assets\Branding\LightflowStudio.ico" />

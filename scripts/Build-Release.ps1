@@ -45,7 +45,7 @@ New-Item -ItemType Directory -Path $appDirectory, $OutputDirectory -Force | Out-
 
 Write-Host "Publishing Lightflow Studio $Version..." -ForegroundColor Cyan
 $stageTimer = [Diagnostics.Stopwatch]::StartNew()
-dotnet publish $project -c Release -r win-x64 --self-contained true `
+dotnet publish $project -c Release -r win-x64 --self-contained true --disable-build-servers `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:NuGetLockFilePath=$publishLockFile `
     -p:DebugType=None -p:DebugSymbols=false -o $appDirectory

@@ -11,7 +11,7 @@ if (-not [ValidationDesktop]::IsNoninteractive) {
     return
 }
 [ValidationDesktop]::RequireNoninteractive()
-$testArguments = @('test', (Join-Path $PSScriptRoot '..\LightflowStudio.Tests\LightflowStudio.Tests.csproj'), '-c', 'Release', '--logger', "trx;LogFileName=$ResultsName", '--blame-hang-timeout', '5m', '--blame-hang-dump-type', 'mini')
+$testArguments = @('test', (Join-Path $PSScriptRoot '..\LightflowStudio.Tests\LightflowStudio.Tests.csproj'), '-c', 'Release', '--disable-build-servers', '--logger', "trx;LogFileName=$ResultsName", '--blame-hang-timeout', '5m', '--blame-hang-dump-type', 'mini')
 if ($Filter) { $testArguments += @('--filter', $Filter) }
 if ($NoBuild) { $testArguments += '--no-build' }
 if ($NoRestore) { $testArguments += '--no-restore' }

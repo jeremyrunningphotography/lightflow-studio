@@ -52,6 +52,8 @@ No launcher calls `SwitchDesktop`, `SendInput`, `SetCursorPos`, or global mouse 
 
 `ValidationDesktop` starts the child suspended, assigns a kill-on-close job, then resumes it. It does not enable job breakaway. Nonzero results, timeout and orphan descendants fail the run. Success requires zero active owned processes; disposal terminates any remaining descendants, including smoke processes, without touching user-started processes. Unique desktops isolate concurrent clones; they do not isolate unrelated system resources such as Premiere's fixed TCP port.
 
+Test builds and publishing disable persistent .NET build servers inside the boundary so they cannot outlive an otherwise successful validation command. This changes build-process lifetime, not test selection or application behavior.
+
 No new interactive test exception was added. No ordinary test was skipped. A production-visible validation mode was not added: only the existing explicit smoke switch gains a safety guard. Normal executable/acceptance startup, branding/splash, render pipeline, local focus and activation remain unchanged.
 
 Microsoft contracts: [Desktops](https://learn.microsoft.com/en-us/windows/win32/winstation/desktops), [CreateDesktop](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createdesktopw), [SetThreadDesktop](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setthreaddesktop). The generic contract is noninteractive presentation; this implementation is intentionally Windows-specific. No macOS or broad fixture/parallelism framework is introduced.

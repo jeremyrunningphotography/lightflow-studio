@@ -18,5 +18,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LightflowStudio\LightflowStudio.csproj" />
+    <Compile Include="..\scripts\ValidationDesktop.cs" Link="ValidationDesktop.cs" />
   </ItemGroup>
 </Project>

@@ -9,6 +9,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'NoninteractiveValidation.ps1')
+if (-not [ValidationDesktop]::IsNoninteractive) {
+    Invoke-NoninteractiveValidation -ScriptPath $PSCommandPath -Parameters $PSBoundParameters
+    return
+}
+[ValidationDesktop]::RequireNoninteractive()
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 $versionProps = [xml](Get-Content -LiteralPath (Join-Path $repositoryRoot "Directory.Build.props") -Raw)
@@ -41,7 +47,7 @@ New-Item -ItemType Directory -Path $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR -Force | 
 
 Write-Host "Publishing Lightflow Studio $Version..." -ForegroundColor Cyan
 $stageTimer = [Diagnostics.Stopwatch]::StartNew()
-dotnet publish $project -c Release -r win-x64 --self-contained true `
+dotnet publish $project -c Release -r win-x64 --self-contained true --disable-build-servers `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:LightflowPublishLockRoot=$stagingRoot `
     -p:DebugType=None -p:DebugSymbols=false -o $appDirectory
@@ -63,7 +69,11 @@ if ($catalogRuntimeCheck.ExitCode -ne 0) { throw "Packaged Catalog SQLite runtim
 $presentationReport = Join-Path $stagingRoot "startup-presentation.txt"
 $startupSmoke = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
     -ArgumentList "--data-root", "`"$smokeDataRoot`"", "--startup-smoke-test", "--jobs-workspace-smoke-test", "--startup-presentation-report", "`"$presentationReport`"" -WorkingDirectory $appDirectory `
-    -PassThru -WindowStyle Hidden
+    -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $stagingRoot 'startup.stdout.log') `
+    -RedirectStandardError (Join-Path $stagingRoot 'startup.stderr.log')
+# Keep the query handle alive: Windows PowerShell's redirected Start-Process
+# object can otherwise lose ExitCode when the process terminates before querying it.
+$null = $startupSmoke.Handle
 try {
     if ($startupSmoke.WaitForExit(8000)) {
         throw "Packaged application exited during the Browser startup smoke test (exit code $($startupSmoke.ExitCode))."
@@ -116,6 +126,7 @@ if (-not $backupSmokeDataRoot.StartsWith($stagingRoot + '\', [StringComparison]:
 $backupSmoke = Start-Process -FilePath (Join-Path $appDirectory "LightflowStudio.exe") `
     -ArgumentList "--verify-catalog-backup-paths", "--data-root", "`"$backupSmokeDataRoot`"" `
     -WorkingDirectory $appDirectory -PassThru -WindowStyle Hidden
+$null = $backupSmoke.Handle
 try {
     if (-not $backupSmoke.WaitForExit(60000)) { throw "Packaged Catalog backup boundary verification timed out." }
     Copy-Item -LiteralPath (Join-Path $backupSmokeDataRoot "backup-path-verification.jsonl") `

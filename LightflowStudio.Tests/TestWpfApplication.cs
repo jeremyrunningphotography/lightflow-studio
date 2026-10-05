@@ -29,6 +29,7 @@ internal static class TestWpfApplication
 
     public static void EnsureLoaded()
     {
+        ValidationDesktop.RequireNoninteractive();
         if (System.Windows.Application.Current is not null) return;
         lock (Gate)
         {

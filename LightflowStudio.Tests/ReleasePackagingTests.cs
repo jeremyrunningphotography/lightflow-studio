@@ -210,7 +210,11 @@ public sealed class ReleasePackagingTests
         var workflow = File.ReadAllText(PathAtRoot(".github", "workflows", "ci-release.yml"));
 
         Assert.Contains("needs: test", workflow);
-        Assert.Contains("dotnet test", workflow);
+        Assert.Contains("Test-Noninteractive.ps1 -NoRestore", workflow);
+        var runner = File.ReadAllText(PathAtRoot("scripts", "Test-Noninteractive.ps1"));
+        Assert.Contains("Invoke-NoninteractiveValidation", runner);
+        Assert.Contains("RequireNoninteractive", runner);
+        Assert.Contains("'test'", runner);
         Assert.Contains("Build-Release.ps1", workflow);
         Assert.Contains("GITHUB_REF_NAME", workflow);
         Assert.Contains("SHA256SUMS.txt", File.ReadAllText(PathAtRoot("scripts", "Build-Release.ps1")));

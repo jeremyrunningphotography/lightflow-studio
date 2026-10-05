@@ -812,6 +812,7 @@ internal static class StaDispatcher
 
     private static Dispatcher CreateDispatcher()
     {
+        ValidationDesktop.RequireNoninteractive();
         var ready = new TaskCompletionSource<Dispatcher>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {

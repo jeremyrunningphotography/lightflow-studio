@@ -30,6 +30,7 @@ public partial class App : System.Windows.Application
         try
         {
             _ = LightflowStorageLocations.Current;
+            ValidationPresentation.ValidateStartup(e.Args, LightflowStorageLocations.Current.IsIsolated);
             // Explicit headless diagnostics have no splash; share their validation with storage too.
             if (e.Args.Any(argument => argument is "--verify-preview-regeneration" or "--verify-preview-quiescence" or
                 "--verify-catalog-backup-paths" || argument == CatalogPackageRuntimeVerifier.CommandLineSwitch ||

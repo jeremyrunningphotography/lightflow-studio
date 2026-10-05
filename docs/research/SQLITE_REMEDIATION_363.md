@@ -66,7 +66,7 @@ The actual packaged `--verify-catalog-migration-copy` path also opened a schema-
 
 Focused tests cover Catalog lifecycle, migrations, recovery/native backup, exit backup, WAL/checkpoint, restore/rollback, long-path backup/restore and corrupt/wrong-identity/future-schema rejection; collections/descriptions/classifications; Preview persistence/startup; and Browser query behavior. The full suite additionally covers Smart Collections, recursive scope, metadata/search/sort/aspect-ratio/review filters, markers/Subclips/ranges, Color/rotation, asset copy, mutation/revision and relocation behavior.
 
-Catalog policy remains WAL, FULL synchronous, foreign keys and 5000 ms timeout. Preview schema remains 4 with existing payload versions and rebuildable ownership; metadata/retry/artifact persistence and readiness tests passed. Local WAL and the unchanged UNC DELETE selection were inspected. **No live SMB-share test is claimed:** localhost admin share was unavailable in this environment. Actual UNC I/O remains a qualification limit, not a silently substituted local-share test.
+Catalog policy remains WAL, FULL synchronous, foreign keys and 5000 ms timeout. Preview schema remains 4 with existing payload versions and rebuildable ownership; metadata/retry/artifact persistence and readiness tests passed. Production PreviewStoreService was also exercised against both a local task-owned directory and the existing machine-name SMB admin share (`\\DARKMATTER\C$\Git\Agents\Agent-W-SQLite\work\unc-preview-cache`). Source/thumbnail records survived service close/reopen under SQLite 3.53.3. The actual service connection reported local WAL versus UNC DELETE, synchronous NORMAL (1), timeout 5000 ms and schema 4. The localhost alias was unavailable; the machine-name share worked. This qualifies the tested SMB path, not every network filesystem.
 
 ## Native options, licenses and platforms
 
@@ -80,8 +80,8 @@ Shared Catalog/provider initialization remains unchanged; osx-x64/arm64 assets e
 
 ## Validation and owner handoff
 
-- Focused qualification: **375 passed**, zero failed/skipped. Final separate migration checks also passed.
-- Full Release: **2726 passed, 1 skipped, 0 failed**; the skipped test requires an installed Premiere host/Companion acceptance environment.
+- Focused qualification: **375 passed**, zero failed/skipped. Final separate migration checks also passed on both old and new runtimes.
+- Full Release after incorporating accepted main `f0670f4386e13836e8f405098541b267232e4d3f`: **2729 passed, 1 skipped, 0 failed**; the skipped test requires an installed Premiere host/Companion acceptance environment.
 - Companion: **90 passed**.
 - Independent Lightflow.Actions Release build: passed.
 - Local Release installer/portable builds and extracted runtime/package checks: passed.

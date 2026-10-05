@@ -33,3 +33,13 @@ versions require rechecking when execution is authorized.
 
 Only the Epic and M0–M3 are planned now. M1–M3 are unstarted proofs. The later roadmap
 remains a proposal: no M4+ implementation or issues are authorized by this planning work.
+
+Current specifications:
+
+- [Mac Compatibility Epic #366](https://github.com/jeremyrunningphotography/lightflow-studio/issues/366)
+- [M0 decision record #367](https://github.com/jeremyrunningphotography/lightflow-studio/issues/367)
+- [M1 Player proof #368](https://github.com/jeremyrunningphotography/lightflow-studio/issues/368)
+- [M2 Catalog proof #369](https://github.com/jeremyrunningphotography/lightflow-studio/issues/369)
+- [M3 UI/image proof #370](https://github.com/jeremyrunningphotography/lightflow-studio/issues/370)
+
+See [planning preservation validation](PLANNING_VALIDATION.md) for checks on this documentation change.

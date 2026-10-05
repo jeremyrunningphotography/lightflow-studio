@@ -128,6 +128,9 @@ public sealed class ReleasePackagingTests
 
         var release = File.ReadAllText(PathAtRoot("scripts", "Build-Release.ps1"));
         Assert.Contains("IncludeNativeLibrariesForSelfExtract=true", release);
+        Assert.Contains("LightflowStudio.publish.packages.lock.json", release);
+        Assert.Contains("-p:LightflowPublishLockRoot=$stagingRoot", release);
+        Assert.Contains("$(MSBuildProjectName).publish.packages.lock.json", File.ReadAllText(PathAtRoot("Directory.Build.props")));
         Assert.Contains("--verify-catalog-runtime", release);
         Assert.Contains("Start-Process", release);
         Assert.Contains("-WorkingDirectory $appDirectory", release);

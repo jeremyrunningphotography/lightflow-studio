@@ -23,7 +23,7 @@ $appDirectory = Join-Path $stagingRoot "LightflowStudio"
 $ffmpegDirectory = Join-Path $appDirectory "ffmpeg"
 $playbackDirectory = Join-Path $appDirectory "playback\ffmpeg"
 $project = Join-Path $repositoryRoot "LightflowStudio\LightflowStudio.csproj"
-$publishLockFile = Join-Path $stagingRoot "publish.packages.lock.json"
+$publishLockFile = Join-Path $stagingRoot "LightflowStudio.publish.packages.lock.json"
 $totalTimer = [Diagnostics.Stopwatch]::StartNew()
 
 function Write-StageTiming([string]$Name, [Diagnostics.Stopwatch]$Timer) {
@@ -43,7 +43,7 @@ Write-Host "Publishing Lightflow Studio $Version..." -ForegroundColor Cyan
 $stageTimer = [Diagnostics.Stopwatch]::StartNew()
 dotnet publish $project -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-    -p:NuGetLockFilePath=$publishLockFile `
+    -p:LightflowPublishLockRoot=$stagingRoot `
     -p:DebugType=None -p:DebugSymbols=false -o $appDirectory
 if ($LASTEXITCODE -ne 0) { throw "Application publish failed." }
 & (Join-Path $PSScriptRoot "Test-ApplicationIcon.ps1") -ExecutablePath (Join-Path $appDirectory "LightflowStudio.exe")

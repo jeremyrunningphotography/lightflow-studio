@@ -1,0 +1,17 @@
+{
+  "crash_integrity": "ok",
+  "disruption": "none",
+  "executed_source_sha256": "d3b8999ef7ee3639b7b0c79e3c16cb4dea2691517aead9feadcfb263c9bd0407",
+  "local_wal_present_before_kill": true,
+  "machine": "arm64",
+  "os_release": "25.6.0",
+  "platform": "Darwin",
+  "public_source_change": "Only safety-guard normalization: private hardcoded parent replaced with explicit supplied parent validated below an existing SMB mount. Experiment logic unchanged; no rerun after B2 gate.",
+  "public_source_sha256": "dc2f75cac35c05a0bdad62e691a9896083019122d7a88d9cde2d54961353500d",
+  "python": "3.9.6",
+  "retained_fixtures": true,
+  "runtime_limit": "Python SQLite supplementary model/transport control, not pinned Lightflow provider",
+  "source_main": "6c61451cf4f22d773b38a67eea0787b2110113e6",
+  "sqlite": "3.51.0",
+  "storage": "mounted SMB 3.1.1 NAS/share; disposable uniquely owned directory"
+}

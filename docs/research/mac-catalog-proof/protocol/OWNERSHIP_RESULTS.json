@@ -1,0 +1,53 @@
+[
+  {
+    "classification": "proven",
+    "others_rejected": 7,
+    "participants": 8,
+    "primitive": "create",
+    "scope": "one Mac SMB client, separate processes; not cross-host/server trace",
+    "winners": 1
+  },
+  {
+    "classification": "proven",
+    "others_rejected": 7,
+    "participants": 8,
+    "primitive": "mkdir",
+    "scope": "one Mac SMB client, separate processes; not cross-host/server trace",
+    "winners": 1
+  },
+  {
+    "classification": "proven",
+    "initial_result": {
+      "acquired": false,
+      "errno": 45
+    },
+    "primitive": "fcntl byte-range lock",
+    "scope": "observed macOS mounted-SMB API result"
+  },
+  {
+    "classification": "proven",
+    "initial_result": {
+      "acquired": true
+    },
+    "primitive": "flock",
+    "scope": "observed macOS mounted-SMB API result"
+  },
+  {
+    "classification": "proven",
+    "metadata_survives": true,
+    "owner_killed": true,
+    "primitive": "separate flock + replace",
+    "scope": "real SMB rename; loss/return schedule simulated by SIGKILL and separate stale operation, not network partition",
+    "second_process_rejected": true,
+    "stale_replace_succeeded_while_successor_locked": true,
+    "successor_lock_acquired": true
+  },
+  {
+    "classification": "proven",
+    "errno": 17,
+    "primitive": "renamex_np RENAME_EXCL",
+    "return": -1,
+    "scope": "existing target only; not ownership CAS or restart durability",
+    "target_preserved": true
+  }
+]

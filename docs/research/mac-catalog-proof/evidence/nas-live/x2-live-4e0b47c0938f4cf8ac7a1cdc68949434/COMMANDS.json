@@ -1,0 +1,17 @@
+[
+  {
+    "mount": [
+      "//jeremy.running@JRVault._smb._tcp.local/Development on /Volumes/Development (smbfs, nodev, nosuid, mounted by jeremyrunning)"
+    ]
+  },
+  {
+    "argv": [
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/dotnet",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/bin/Release/net8.0/X2CatalogProof.dll",
+      "nas-alternative",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/x2-live-4e0b47c0938f4cf8ac7a1cdc68949434",
+      "/Volumes/Development/codex/x2-live-4e0b47c0938f4cf8ac7a1cdc68949434"
+    ],
+    "timeout": 150
+  }
+]

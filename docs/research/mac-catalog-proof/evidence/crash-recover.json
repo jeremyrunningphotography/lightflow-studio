@@ -1,0 +1,30 @@
+{
+  "checks": [
+    {
+      "name": "production Catalog open: Ready ",
+      "passed": true
+    },
+    {
+      "name": "committed edit survives and uncommitted edit rolls back after SIGKILL",
+      "passed": true
+    },
+    {
+      "name": "post-kill integrity",
+      "passed": true
+    },
+    {
+      "name": "closed-owner checkpoint",
+      "passed": true
+    }
+  ],
+  "assetId": "04e05ee1-122c-45b6-8cc5-8e9ab8054ded",
+  "after": {
+    "AssetId": "04e05ee1-122c-45b6-8cc5-8e9ab8054ded",
+    "Title": "X2 title 27",
+    "Description": "Unicode caf\u00E9 / cafe\u0301 / \u6771\u4EAC",
+    "Notes": "X2 committed before kill",
+    "CreatorOverride": "Jeremy",
+    "CreditOverride": "X2 proof",
+    "Revision": 2
+  }
+}

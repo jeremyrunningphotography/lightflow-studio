@@ -1,0 +1,66 @@
+[
+  {
+    "name": "production Catalog create: Created ",
+    "passed": true
+  },
+  {
+    "name": "create path root",
+    "passed": true
+  },
+  {
+    "name": "offline root retains assets",
+    "passed": true
+  },
+  {
+    "name": "remounted root becomes online",
+    "passed": true
+  },
+  {
+    "name": "new machine has no physical mapping",
+    "passed": true
+  },
+  {
+    "name": "second machine remaps existing RootId",
+    "passed": true
+  },
+  {
+    "name": "remap preserves RootId",
+    "passed": true
+  },
+  {
+    "name": "actual pinned native SQLite version",
+    "passed": true
+  },
+  {
+    "name": "production Preview persistence reopen",
+    "passed": true
+  },
+  {
+    "name": "path Catalog backup",
+    "passed": true
+  },
+  {
+    "name": "closed-owner checkpoint",
+    "passed": true
+  },
+  {
+    "name": "closed-owner protected restore",
+    "passed": true
+  },
+  {
+    "name": "restore rollback",
+    "passed": true
+  },
+  {
+    "name": "production Catalog open: Ready ",
+    "passed": true
+  },
+  {
+    "name": "reopen identity stable",
+    "passed": true
+  },
+  {
+    "name": "backup restore rollback all-table equality",
+    "passed": true
+  }
+]

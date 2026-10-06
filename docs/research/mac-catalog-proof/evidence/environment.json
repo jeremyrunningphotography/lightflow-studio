@@ -1,0 +1,18 @@
+{
+  "host": {
+    "model": "Mac14,9",
+    "chip": "Apple M2 Pro",
+    "cores": 12,
+    "memoryGiB": 32,
+    "macOS": "26.6.2",
+    "build": "25G83",
+    "processArchitecture": "Arm64"
+  },
+  "sdk": "8.0.423",
+  "runtime": "8.0.29",
+  "baseline": "e302a20d888161d6face6e311610d67eab9c1512",
+  "taskRoot": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68",
+  "sdkSha512": "aab7ecf40e6c8f25e0bef2e9c597d7d810cc304802b47dcf5cc72c4993f7d2d3c940951247d87b2a707c99d945f0b2e7dba6ede0c6f02c29c203fcc53b36cd32",
+  "caseSensitiveImageDetached": true,
+  "dotnetInfo": ".NET SDK:\n Version:           8.0.423\n Commit:            62e3aa2c1f\n Workload version:  8.0.400-manifests.a04bdf47\n MSBuild version:   17.11.48+02bf66295\n\nRuntime Environment:\n OS Name:     Mac OS X\n OS Version:  26.6\n OS Platform: Darwin\n RID:         osx-arm64\n Base Path:   /Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/sdk/8.0.423/\n\n.NET workloads installed:\nConfigured to use loose manifests when installing new manifests.\nThere are no installed workloads to display.\n\nHost:\n  Version:      8.0.29\n  Architecture: arm64\n  Commit:       18fd75c847\n\n.NET SDKs installed:\n  8.0.423 [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 8.0.29 [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 8.0.29 [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  Not set\n\nglobal.json file:\n  Not found\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download\n"
+}

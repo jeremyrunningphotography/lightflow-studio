@@ -1,0 +1,14 @@
+/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/NasLive.cs(91,104): warning CS8602: Dereference of a possibly null reference. [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/X2CatalogProof.csproj]
+/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/NasLive.cs(102,338): warning CS8602: Dereference of a possibly null reference. [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/X2CatalogProof.csproj]
+/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/NasLive.cs(102,372): warning CS8602: Dereference of a possibly null reference. [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/X2CatalogProof.csproj]
+  X2CatalogProof -> /Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/bin/Release/net8.0/X2CatalogProof.dll
+
+Build succeeded.
+
+/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/NasLive.cs(91,104): warning CS8602: Dereference of a possibly null reference. [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/X2CatalogProof.csproj]
+/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/NasLive.cs(102,338): warning CS8602: Dereference of a possibly null reference. [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/X2CatalogProof.csproj]
+/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/NasLive.cs(102,372): warning CS8602: Dereference of a possibly null reference. [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/X2CatalogProof.csproj]
+    3 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:21.67

@@ -1,0 +1,101 @@
+{
+  "scope": "/Volumes/Development/codex/x2-nas-b38645db11f54a40b1ace5e7fb373d8e",
+  "share": "smb://JRVault/Development",
+  "protocol": "smbfs",
+  "liveSQLiteOnNAS": false,
+  "rows": [
+    {
+      "label": "case",
+      "a": "Case.mov",
+      "b": "case.mov",
+      "secondCreate": "existing-name",
+      "sameFileId": true,
+      "aDevice": 905972583,
+      "aInode": 266,
+      "bDevice": 905972583,
+      "bInode": 266,
+      "hashA": "b8cc6c793f2b77c68598d07948b594e02bcbfef7633f4af58d024acb34c94d38",
+      "hashB": "b8cc6c793f2b77c68598d07948b594e02bcbfef7633f4af58d024acb34c94d38"
+    },
+    {
+      "label": "unicode",
+      "a": "café.mov",
+      "b": "café.mov",
+      "secondCreate": "existing-name",
+      "sameFileId": true,
+      "aDevice": 905972583,
+      "aInode": 269,
+      "bDevice": 905972583,
+      "bInode": 269,
+      "hashA": "8542b2c8e1c1de06259c83e5f2a96559699e474f569412278fbc8384e2a16b4a",
+      "hashB": "8542b2c8e1c1de06259c83e5f2a96559699e474f569412278fbc8384e2a16b4a"
+    },
+    {
+      "label": "backslash",
+      "a": "nested/name.mov",
+      "b": "nested\\name.mov",
+      "secondCreate": "created",
+      "sameFileId": false,
+      "aDevice": 905972583,
+      "aInode": 273,
+      "bDevice": 905972583,
+      "bInode": 276,
+      "hashA": "6313ca754f133b61b726c907c221755b434ba873d1a7c2cf7767f790508e7ac0",
+      "hashB": "71ee48d4dad86b39c98fba293bd8bf658ce6c199786c6e7080bfdf53234a7916"
+    },
+    {
+      "label": "spaces",
+      "a": "trim.mov",
+      "b": " trim.mov ",
+      "secondCreate": "created",
+      "sameFileId": false,
+      "aDevice": 905972583,
+      "aInode": 278,
+      "bDevice": 905972583,
+      "bInode": 280,
+      "hashA": "1a92fdcbecff051058b3cd2fc415f723612b7861e809d3d798e34453be8eb263",
+      "hashB": "a34221bea7889720fa1ae9ed267525a2d0e8ba7573dc03e21312326a84971a8c"
+    },
+    {
+      "name": "CON.mov",
+      "result": "created"
+    },
+    {
+      "name": "colon:name.mov",
+      "result": "created"
+    },
+    {
+      "name": "question?.mov",
+      "result": "created"
+    },
+    {
+      "name": "trailing-dot.mov.",
+      "result": "created"
+    },
+    {
+      "name": "emoji-😀.mov",
+      "result": "created"
+    }
+  ],
+  "limitations": [
+    "No disconnect/unmount or permission fault induced",
+    "fsync success is not proof of remote power-loss durability",
+    "No SQLite network locking/WAL qualification",
+    "No production MediaRoot service qualification in this filesystem-only probe"
+  ],
+  "closedBackupTransport": {
+    "sourceSha256": "d42eda27981e41379d094087588b7140088ac7589dc38be0436d9fcb9cfa798b",
+    "nasReadbackSha256": "d42eda27981e41379d094087588b7140088ac7589dc38be0436d9fcb9cfa798b",
+    "returnedSha256": "d42eda27981e41379d094087588b7140088ac7589dc38be0436d9fcb9cfa798b",
+    "allTableSnapshotEqual": true,
+    "operations": [
+      "exclusive create",
+      "flush/fsync",
+      "readback",
+      "same-directory rename",
+      "copy back to local",
+      "local pinned-provider all-table read"
+    ]
+  },
+  "status": "completed-bounded-probe"
+}

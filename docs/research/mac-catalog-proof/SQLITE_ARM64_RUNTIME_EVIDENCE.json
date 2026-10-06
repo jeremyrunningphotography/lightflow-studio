@@ -1,0 +1,568 @@
+{
+  "status": "measured-arm64-bounded-proof",
+  "environment": {
+    "host": {
+      "model": "Mac14,9",
+      "chip": "Apple M2 Pro",
+      "cores": 12,
+      "memoryGiB": 32,
+      "macOS": "26.6.2",
+      "build": "25G83",
+      "processArchitecture": "Arm64"
+    },
+    "sdk": "8.0.423",
+    "runtime": "8.0.29",
+    "baseline": "e302a20d888161d6face6e311610d67eab9c1512",
+    "taskRoot": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68",
+    "sdkSha512": "aab7ecf40e6c8f25e0bef2e9c597d7d810cc304802b47dcf5cc72c4993f7d2d3c940951247d87b2a707c99d945f0b2e7dba6ede0c6f02c29c203fcc53b36cd32",
+    "caseSensitiveImageDetached": true,
+    "dotnetInfo": ".NET SDK:\n Version:           8.0.423\n Commit:            62e3aa2c1f\n Workload version:  8.0.400-manifests.a04bdf47\n MSBuild version:   17.11.48+02bf66295\n\nRuntime Environment:\n OS Name:     Mac OS X\n OS Version:  26.6\n OS Platform: Darwin\n RID:         osx-arm64\n Base Path:   /Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/sdk/8.0.423/\n\n.NET workloads installed:\nConfigured to use loose manifests when installing new manifests.\nThere are no installed workloads to display.\n\nHost:\n  Version:      8.0.29\n  Architecture: arm64\n  Commit:       18fd75c847\n\n.NET SDKs installed:\n  8.0.423 [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 8.0.29 [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 8.0.29 [/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  Not set\n\nglobal.json file:\n  Not found\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download\n"
+  },
+  "local": {
+    "architecture": "Arm64",
+    "os": "Darwin 25.6.0 Darwin Kernel Version 25.6.0: Fri Jul 31 19:18:48 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6020",
+    "framework": ".NET 8.0.29",
+    "catalog": {
+      "version": "3.53.3",
+      "sourceId": "2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62",
+      "compileOptions": [
+        "ATOMIC_INTRINSICS=1",
+        "COMPILER=clang-17.0.0",
+        "DEFAULT_AUTOVACUUM",
+        "DEFAULT_CACHE_SIZE=-2000",
+        "DEFAULT_FILE_FORMAT=4",
+        "DEFAULT_FOREIGN_KEYS",
+        "DEFAULT_JOURNAL_SIZE_LIMIT=-1",
+        "DEFAULT_MMAP_SIZE=0",
+        "DEFAULT_PAGE_SIZE=4096",
+        "DEFAULT_PCACHE_INITSZ=20",
+        "DEFAULT_RECURSIVE_TRIGGERS",
+        "DEFAULT_SECTOR_SIZE=4096",
+        "DEFAULT_SYNCHRONOUS=2",
+        "DEFAULT_WAL_AUTOCHECKPOINT=1000",
+        "DEFAULT_WAL_SYNCHRONOUS=2",
+        "DEFAULT_WORKER_THREADS=0",
+        "DIRECT_OVERFLOW_READ",
+        "DQS=0",
+        "ENABLE_COLUMN_METADATA",
+        "ENABLE_FTS3",
+        "ENABLE_FTS3_PARENTHESIS",
+        "ENABLE_FTS4",
+        "ENABLE_FTS5",
+        "ENABLE_GEOPOLY",
+        "ENABLE_MATH_FUNCTIONS",
+        "ENABLE_PREUPDATE_HOOK",
+        "ENABLE_RTREE",
+        "ENABLE_SESSION",
+        "ENABLE_SNAPSHOT",
+        "LIKE_DOESNT_MATCH_BLOBS",
+        "MALLOC_SOFT_LIMIT=1024",
+        "MAX_ATTACHED=10",
+        "MAX_COLUMN=2000",
+        "MAX_COMPOUND_SELECT=500",
+        "MAX_DEFAULT_PAGE_SIZE=8192",
+        "MAX_EXPR_DEPTH=1000",
+        "MAX_FUNCTION_ARG=1000",
+        "MAX_LENGTH=1000000000",
+        "MAX_LIKE_PATTERN_LENGTH=50000",
+        "MAX_MMAP_SIZE=0x7fff0000",
+        "MAX_PAGE_COUNT=0xfffffffe",
+        "MAX_PAGE_SIZE=65536",
+        "MAX_SQL_LENGTH=1000000000",
+        "MAX_TRIGGER_DEPTH=1000",
+        "MAX_VARIABLE_NUMBER=32766",
+        "MAX_VDBE_OP=250000000",
+        "MAX_WORKER_THREADS=8",
+        "MUTEX_PTHREADS",
+        "SYSTEM_MALLOC",
+        "TEMP_STORE=1",
+        "THREADSAFE=1"
+      ],
+      "schema": 19,
+      "applicationId": 1279677251,
+      "journal": "wal",
+      "synchronous": 2,
+      "foreignKeys": 1,
+      "busyTimeout": 5000,
+      "integrity": "ok"
+    },
+    "preview": {
+      "version": "3.53.3",
+      "sourceId": "2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62",
+      "compileOptions": [
+        "ATOMIC_INTRINSICS=1",
+        "COMPILER=clang-17.0.0",
+        "DEFAULT_AUTOVACUUM",
+        "DEFAULT_CACHE_SIZE=-2000",
+        "DEFAULT_FILE_FORMAT=4",
+        "DEFAULT_FOREIGN_KEYS",
+        "DEFAULT_JOURNAL_SIZE_LIMIT=-1",
+        "DEFAULT_MMAP_SIZE=0",
+        "DEFAULT_PAGE_SIZE=4096",
+        "DEFAULT_PCACHE_INITSZ=20",
+        "DEFAULT_RECURSIVE_TRIGGERS",
+        "DEFAULT_SECTOR_SIZE=4096",
+        "DEFAULT_SYNCHRONOUS=2",
+        "DEFAULT_WAL_AUTOCHECKPOINT=1000",
+        "DEFAULT_WAL_SYNCHRONOUS=2",
+        "DEFAULT_WORKER_THREADS=0",
+        "DIRECT_OVERFLOW_READ",
+        "DQS=0",
+        "ENABLE_COLUMN_METADATA",
+        "ENABLE_FTS3",
+        "ENABLE_FTS3_PARENTHESIS",
+        "ENABLE_FTS4",
+        "ENABLE_FTS5",
+        "ENABLE_GEOPOLY",
+        "ENABLE_MATH_FUNCTIONS",
+        "ENABLE_PREUPDATE_HOOK",
+        "ENABLE_RTREE",
+        "ENABLE_SESSION",
+        "ENABLE_SNAPSHOT",
+        "LIKE_DOESNT_MATCH_BLOBS",
+        "MALLOC_SOFT_LIMIT=1024",
+        "MAX_ATTACHED=10",
+        "MAX_COLUMN=2000",
+        "MAX_COMPOUND_SELECT=500",
+        "MAX_DEFAULT_PAGE_SIZE=8192",
+        "MAX_EXPR_DEPTH=1000",
+        "MAX_FUNCTION_ARG=1000",
+        "MAX_LENGTH=1000000000",
+        "MAX_LIKE_PATTERN_LENGTH=50000",
+        "MAX_MMAP_SIZE=0x7fff0000",
+        "MAX_PAGE_COUNT=0xfffffffe",
+        "MAX_PAGE_SIZE=65536",
+        "MAX_SQL_LENGTH=1000000000",
+        "MAX_TRIGGER_DEPTH=1000",
+        "MAX_VARIABLE_NUMBER=32766",
+        "MAX_VDBE_OP=250000000",
+        "MAX_WORKER_THREADS=8",
+        "MUTEX_PTHREADS",
+        "SYSTEM_MALLOC",
+        "TEMP_STORE=1",
+        "THREADSAFE=1"
+      ],
+      "schema": 4,
+      "applicationId": 1279676498,
+      "journal": "wal",
+      "synchronous": 1,
+      "foreignKeys": 1,
+      "busyTimeout": 5000,
+      "integrity": "ok"
+    },
+    "nativeImages": [
+      {
+        "path": "/usr/lib/libsqlite3.dylib",
+        "sha256": null,
+        "onDisk": false
+      },
+      {
+        "path": "/System/Library/PrivateFrameworks/PoirotSQLite.framework/Versions/A/PoirotSQLite",
+        "sha256": null,
+        "onDisk": false
+      },
+      {
+        "path": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/bin/Release/net8.0/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+        "sha256": "09FE20A6C050912A7944B2F2F2981DEBE31679F7919F523C87251AE8CF0F2DAA",
+        "onDisk": true
+      }
+    ],
+    "checks": [
+      {
+        "name": "production Catalog create: Created ",
+        "passed": true
+      },
+      {
+        "name": "create path root",
+        "passed": true
+      },
+      {
+        "name": "offline root retains assets",
+        "passed": true
+      },
+      {
+        "name": "remounted root becomes online",
+        "passed": true
+      },
+      {
+        "name": "new machine has no physical mapping",
+        "passed": true
+      },
+      {
+        "name": "second machine remaps existing RootId",
+        "passed": true
+      },
+      {
+        "name": "remap preserves RootId",
+        "passed": true
+      },
+      {
+        "name": "actual pinned native SQLite version",
+        "passed": true
+      },
+      {
+        "name": "production Preview persistence reopen",
+        "passed": true
+      }
+    ]
+  },
+  "caseSensitive": {
+    "architecture": "Arm64",
+    "os": "Darwin 25.6.0 Darwin Kernel Version 25.6.0: Fri Jul 31 19:18:48 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6020",
+    "framework": ".NET 8.0.29",
+    "catalog": {
+      "version": "3.53.3",
+      "sourceId": "2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62",
+      "compileOptions": [
+        "ATOMIC_INTRINSICS=1",
+        "COMPILER=clang-17.0.0",
+        "DEFAULT_AUTOVACUUM",
+        "DEFAULT_CACHE_SIZE=-2000",
+        "DEFAULT_FILE_FORMAT=4",
+        "DEFAULT_FOREIGN_KEYS",
+        "DEFAULT_JOURNAL_SIZE_LIMIT=-1",
+        "DEFAULT_MMAP_SIZE=0",
+        "DEFAULT_PAGE_SIZE=4096",
+        "DEFAULT_PCACHE_INITSZ=20",
+        "DEFAULT_RECURSIVE_TRIGGERS",
+        "DEFAULT_SECTOR_SIZE=4096",
+        "DEFAULT_SYNCHRONOUS=2",
+        "DEFAULT_WAL_AUTOCHECKPOINT=1000",
+        "DEFAULT_WAL_SYNCHRONOUS=2",
+        "DEFAULT_WORKER_THREADS=0",
+        "DIRECT_OVERFLOW_READ",
+        "DQS=0",
+        "ENABLE_COLUMN_METADATA",
+        "ENABLE_FTS3",
+        "ENABLE_FTS3_PARENTHESIS",
+        "ENABLE_FTS4",
+        "ENABLE_FTS5",
+        "ENABLE_GEOPOLY",
+        "ENABLE_MATH_FUNCTIONS",
+        "ENABLE_PREUPDATE_HOOK",
+        "ENABLE_RTREE",
+        "ENABLE_SESSION",
+        "ENABLE_SNAPSHOT",
+        "LIKE_DOESNT_MATCH_BLOBS",
+        "MALLOC_SOFT_LIMIT=1024",
+        "MAX_ATTACHED=10",
+        "MAX_COLUMN=2000",
+        "MAX_COMPOUND_SELECT=500",
+        "MAX_DEFAULT_PAGE_SIZE=8192",
+        "MAX_EXPR_DEPTH=1000",
+        "MAX_FUNCTION_ARG=1000",
+        "MAX_LENGTH=1000000000",
+        "MAX_LIKE_PATTERN_LENGTH=50000",
+        "MAX_MMAP_SIZE=0x7fff0000",
+        "MAX_PAGE_COUNT=0xfffffffe",
+        "MAX_PAGE_SIZE=65536",
+        "MAX_SQL_LENGTH=1000000000",
+        "MAX_TRIGGER_DEPTH=1000",
+        "MAX_VARIABLE_NUMBER=32766",
+        "MAX_VDBE_OP=250000000",
+        "MAX_WORKER_THREADS=8",
+        "MUTEX_PTHREADS",
+        "SYSTEM_MALLOC",
+        "TEMP_STORE=1",
+        "THREADSAFE=1"
+      ],
+      "schema": 19,
+      "applicationId": 1279677251,
+      "journal": "wal",
+      "synchronous": 2,
+      "foreignKeys": 1,
+      "busyTimeout": 5000,
+      "integrity": "ok"
+    },
+    "preview": {
+      "version": "3.53.3",
+      "sourceId": "2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62",
+      "compileOptions": [
+        "ATOMIC_INTRINSICS=1",
+        "COMPILER=clang-17.0.0",
+        "DEFAULT_AUTOVACUUM",
+        "DEFAULT_CACHE_SIZE=-2000",
+        "DEFAULT_FILE_FORMAT=4",
+        "DEFAULT_FOREIGN_KEYS",
+        "DEFAULT_JOURNAL_SIZE_LIMIT=-1",
+        "DEFAULT_MMAP_SIZE=0",
+        "DEFAULT_PAGE_SIZE=4096",
+        "DEFAULT_PCACHE_INITSZ=20",
+        "DEFAULT_RECURSIVE_TRIGGERS",
+        "DEFAULT_SECTOR_SIZE=4096",
+        "DEFAULT_SYNCHRONOUS=2",
+        "DEFAULT_WAL_AUTOCHECKPOINT=1000",
+        "DEFAULT_WAL_SYNCHRONOUS=2",
+        "DEFAULT_WORKER_THREADS=0",
+        "DIRECT_OVERFLOW_READ",
+        "DQS=0",
+        "ENABLE_COLUMN_METADATA",
+        "ENABLE_FTS3",
+        "ENABLE_FTS3_PARENTHESIS",
+        "ENABLE_FTS4",
+        "ENABLE_FTS5",
+        "ENABLE_GEOPOLY",
+        "ENABLE_MATH_FUNCTIONS",
+        "ENABLE_PREUPDATE_HOOK",
+        "ENABLE_RTREE",
+        "ENABLE_SESSION",
+        "ENABLE_SNAPSHOT",
+        "LIKE_DOESNT_MATCH_BLOBS",
+        "MALLOC_SOFT_LIMIT=1024",
+        "MAX_ATTACHED=10",
+        "MAX_COLUMN=2000",
+        "MAX_COMPOUND_SELECT=500",
+        "MAX_DEFAULT_PAGE_SIZE=8192",
+        "MAX_EXPR_DEPTH=1000",
+        "MAX_FUNCTION_ARG=1000",
+        "MAX_LENGTH=1000000000",
+        "MAX_LIKE_PATTERN_LENGTH=50000",
+        "MAX_MMAP_SIZE=0x7fff0000",
+        "MAX_PAGE_COUNT=0xfffffffe",
+        "MAX_PAGE_SIZE=65536",
+        "MAX_SQL_LENGTH=1000000000",
+        "MAX_TRIGGER_DEPTH=1000",
+        "MAX_VARIABLE_NUMBER=32766",
+        "MAX_VDBE_OP=250000000",
+        "MAX_WORKER_THREADS=8",
+        "MUTEX_PTHREADS",
+        "SYSTEM_MALLOC",
+        "TEMP_STORE=1",
+        "THREADSAFE=1"
+      ],
+      "schema": 4,
+      "applicationId": 1279676498,
+      "journal": "wal",
+      "synchronous": 1,
+      "foreignKeys": 1,
+      "busyTimeout": 5000,
+      "integrity": "ok"
+    },
+    "nativeImages": [
+      {
+        "path": "/usr/lib/libsqlite3.dylib",
+        "sha256": null,
+        "onDisk": false
+      },
+      {
+        "path": "/System/Library/PrivateFrameworks/PoirotSQLite.framework/Versions/A/PoirotSQLite",
+        "sha256": null,
+        "onDisk": false
+      },
+      {
+        "path": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/bin/Release/net8.0/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+        "sha256": "09FE20A6C050912A7944B2F2F2981DEBE31679F7919F523C87251AE8CF0F2DAA",
+        "onDisk": true
+      }
+    ],
+    "checks": [
+      {
+        "name": "production Catalog create: Created ",
+        "passed": true
+      },
+      {
+        "name": "create path root",
+        "passed": true
+      },
+      {
+        "name": "offline root retains assets",
+        "passed": true
+      },
+      {
+        "name": "remounted root becomes online",
+        "passed": true
+      },
+      {
+        "name": "new machine has no physical mapping",
+        "passed": true
+      },
+      {
+        "name": "second machine remaps existing RootId",
+        "passed": true
+      },
+      {
+        "name": "remap preserves RootId",
+        "passed": true
+      },
+      {
+        "name": "actual pinned native SQLite version",
+        "passed": true
+      },
+      {
+        "name": "production Preview persistence reopen",
+        "passed": true
+      }
+    ]
+  },
+  "dependencyHashes": [
+    {
+      "path": "work/nuget/microsoft.data.sqlite/8.0.29/microsoft.data.sqlite.8.0.29.nupkg",
+      "sha256": "0CA9D63CF63E0C04FB56DF7BD7D5CEB324594B83F7C9F96D53619ADF14A57E19",
+      "bytes": 34997
+    },
+    {
+      "path": "work/nuget/system.memory/4.5.3/system.memory.4.5.3.nupkg",
+      "sha256": "0AF97B45B45B46EF6A2B37910568DABD492C793DA3859054595D523E2A545859",
+      "bytes": 154054
+    },
+    {
+      "path": "work/nuget/sqlitepclraw.core/2.1.13/sqlitepclraw.core.2.1.13.nupkg",
+      "sha256": "D93D5F7AB3F864C47722A2D90048C31A1AAC743E153D87B9F4A07589EE2F9DAF",
+      "bytes": 36010
+    },
+    {
+      "path": "work/nuget/sqlitepclraw.core/2.1.6/sqlitepclraw.core.2.1.6.nupkg",
+      "sha256": "4715A39B9D8F766315F7C7600F2D010A917DF3CF81B2C45952000B2EFED31FF1",
+      "bytes": 34519
+    },
+    {
+      "path": "work/nuget/sqlitepclraw.provider.e_sqlite3/2.1.13/sqlitepclraw.provider.e_sqlite3.2.1.13.nupkg",
+      "sha256": "513EF2BA5D01C14D1E8032D9D2CA2C8985DF7EC7D351F0E40917476114AC1F9C",
+      "bytes": 60221
+    },
+    {
+      "path": "work/nuget/microsoft.data.sqlite.core/8.0.29/microsoft.data.sqlite.core.8.0.29.nupkg",
+      "sha256": "84CA10D6BF8DDD91C070F5F84E8A42074A347B2861C59C2A444748FED12E6612",
+      "bytes": 297407
+    },
+    {
+      "path": "work/nuget/sqlitepclraw.bundle_e_sqlite3/2.1.13/sqlitepclraw.bundle_e_sqlite3.2.1.13.nupkg",
+      "sha256": "89A216F8059D09CABCB45AB75AC2F180B733323C27D41CF9A981DC5F5B5C6C0F",
+      "bytes": 34062
+    },
+    {
+      "path": "work/nuget/sqlitepclraw.lib.e_sqlite3/2.1.13/sqlitepclraw.lib.e_sqlite3.2.1.13.nupkg",
+      "sha256": "D07D13B4779123CFA56B3348B504D57A2AB6FC10C764FB6E2C9D787987E39201",
+      "bytes": 18762900
+    },
+    {
+      "path": "work/nuget/sqlitepclraw.lib.e_sqlite3/2.1.13/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+      "sha256": "09FE20A6C050912A7944B2F2F2981DEBE31679F7919F523C87251AE8CF0F2DAA",
+      "bytes": 1696624
+    }
+  ],
+  "packageLicenses": [
+    {
+      "package": "Microsoft.Data.Sqlite",
+      "version": "8.0.29",
+      "license": "MIT",
+      "nuspecSha256": "75baf92767b0ceee8469d6fbed06f34cc66eb1509c7e7b2132eb6556e1e8b966",
+      "path": "work/nuget/microsoft.data.sqlite/8.0.29/microsoft.data.sqlite.nuspec"
+    },
+    {
+      "package": "System.Memory",
+      "version": "4.5.3",
+      "license": null,
+      "nuspecSha256": "d38da361a4741fa4f1ad0c6d83489f450affdea4caefe3bcd3d3e19290b235c4",
+      "path": "work/nuget/system.memory/4.5.3/system.memory.nuspec"
+    },
+    {
+      "package": "SQLitePCLRaw.core",
+      "version": "2.1.13",
+      "license": "Apache-2.0",
+      "nuspecSha256": "8e410ff52c26114c7c3124cf3e77d663abbd9ec49801324ed1bc1aa7ea1c91ae",
+      "path": "work/nuget/sqlitepclraw.core/2.1.13/sqlitepclraw.core.nuspec"
+    },
+    {
+      "package": "SQLitePCLRaw.core",
+      "version": "2.1.6",
+      "license": "Apache-2.0",
+      "nuspecSha256": "4c7d78e1cd4dc523c2ee14f7c5c2ca40508706b1c0550aa16230b0577a1a443d",
+      "path": "work/nuget/sqlitepclraw.core/2.1.6/sqlitepclraw.core.nuspec"
+    },
+    {
+      "package": "SQLitePCLRaw.provider.e_sqlite3",
+      "version": "2.1.13",
+      "license": "Apache-2.0",
+      "nuspecSha256": "d31fbb24bed1097f15170bc81b1de4832213f9d50deab423ec8c7aa16995b1c7",
+      "path": "work/nuget/sqlitepclraw.provider.e_sqlite3/2.1.13/sqlitepclraw.provider.e_sqlite3.nuspec"
+    },
+    {
+      "package": "Microsoft.Data.Sqlite.Core",
+      "version": "8.0.29",
+      "license": "MIT",
+      "nuspecSha256": "2f085ee8d09de18991352b1c2685e3a534a47926cb0aebb06cce6e54647b9996",
+      "path": "work/nuget/microsoft.data.sqlite.core/8.0.29/microsoft.data.sqlite.core.nuspec"
+    },
+    {
+      "package": "SQLitePCLRaw.bundle_e_sqlite3",
+      "version": "2.1.13",
+      "license": "Apache-2.0",
+      "nuspecSha256": "f04f469c99056d21b928d6677ae2cd6db582fa0228ce934741ecefa2fae3c09d",
+      "path": "work/nuget/sqlitepclraw.bundle_e_sqlite3/2.1.13/sqlitepclraw.bundle_e_sqlite3.nuspec"
+    },
+    {
+      "package": "SQLitePCLRaw.lib.e_sqlite3",
+      "version": "2.1.13",
+      "license": "Apache-2.0",
+      "nuspecSha256": "5e0800665aeb09107c3b45e1162109efb9b83dbaad987a4eca5d686d34769e86",
+      "path": "work/nuget/sqlitepclraw.lib.e_sqlite3/2.1.13/sqlitepclraw.lib.e_sqlite3.nuspec"
+    }
+  ],
+  "resolvedGraph": {
+    "version": 1,
+    "dependencies": {
+      "net8.0": {
+        "Microsoft.Data.Sqlite": {
+          "type": "Direct",
+          "requested": "[8.0.29, 8.0.29]",
+          "resolved": "8.0.29",
+          "contentHash": "UT01MJBITsT5CFLK9bhYWjz847BHlC2em7nhBNCCSYsI72mIzrXHfrQT8R+huQKJGZo94/a9GWGzKPn7mmlMyw==",
+          "dependencies": {
+            "Microsoft.Data.Sqlite.Core": "8.0.29",
+            "SQLitePCLRaw.bundle_e_sqlite3": "2.1.6"
+          }
+        },
+        "SQLitePCLRaw.bundle_e_sqlite3": {
+          "type": "Direct",
+          "requested": "[2.1.13, 2.1.13]",
+          "resolved": "2.1.13",
+          "contentHash": "NlDixlC7uHmo+ojXRgkNvN0tQtVGpLDZ3x2OpgNj+G07VHh5cXSszFDrAiC4BpUiPwkcaeuQkMV9WQ123xVtmQ==",
+          "dependencies": {
+            "SQLitePCLRaw.lib.e_sqlite3": "2.1.13",
+            "SQLitePCLRaw.provider.e_sqlite3": "2.1.13"
+          }
+        },
+        "Microsoft.Data.Sqlite.Core": {
+          "type": "Transitive",
+          "resolved": "8.0.29",
+          "contentHash": "B/7Z0la03kNVdmZtgSN/PocA2nsPiVUq56iCh25oW8W31Yzg1ofrMWy79i0DcDOXuHjy7+jlsUlSNytwe9Et5A==",
+          "dependencies": {
+            "SQLitePCLRaw.core": "2.1.6"
+          }
+        },
+        "SQLitePCLRaw.core": {
+          "type": "Transitive",
+          "resolved": "2.1.13",
+          "contentHash": "2joofoinuHBFs0nMX3nKuXgxpXryRkCOdM2Ua6HBqQLLy6IW+5f28ZI+HAvMyF8vG7XfNz/lwfBfE6V4juru8Q==",
+          "dependencies": {
+            "System.Memory": "4.5.3"
+          }
+        },
+        "SQLitePCLRaw.lib.e_sqlite3": {
+          "type": "Transitive",
+          "resolved": "2.1.13",
+          "contentHash": "D2UAuiGxFYBqeRXjjjGgvJ5UQifzn6wefmSqeKU7XcNGKLbJRP6X7kcPZ6opOBJGdCIlgbSxTvDpBbLvsN594A=="
+        },
+        "SQLitePCLRaw.provider.e_sqlite3": {
+          "type": "Transitive",
+          "resolved": "2.1.13",
+          "contentHash": "ZU60dSqoSNRe49KcQDUmOVgdRtjITOssVXFtiISs+zJXDI4D2Sndwpn2NOtzDQNPu0ZAvpoLPQ+GLKv6iEZn8Q==",
+          "dependencies": {
+            "SQLitePCLRaw.core": "2.1.13"
+          }
+        },
+        "System.Memory": {
+          "type": "Transitive",
+          "resolved": "4.5.3",
+          "contentHash": "3oDzvc/zzetpTKWMShs1AADwZjQ/36HnsufHRPcOjyRAAMLDlu2iD33MBI2opxnezcVUtXyqDXXjoFMOU9c7SA=="
+        }
+      }
+    }
+  },
+  "limitations": [
+    "No packaged startup qualification",
+    "System shared-cache SQLite also loaded; e_sqlite3 selected provider",
+    "Windows transfer/return and physical NAS/removable pending"
+  ]
+}

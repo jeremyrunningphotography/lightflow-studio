@@ -1,0 +1,9 @@
+{
+  "pid": 86165,
+  "id": "0c8454ba-44ff-4d34-9df1-c652b5e0959b",
+  "journal": "delete",
+  "ready": true,
+  "db": "/Volumes/Development/codex/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff/delete-control/catalog.db",
+  "journalExists": true,
+  "walExists": false
+}

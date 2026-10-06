@@ -1,0 +1,33 @@
+{
+  "ownerGate": "material architecture stop; G2 open/unpassed",
+  "main": "aed6c2906637c8a5a9d71c1c18ac24bed48a8724",
+  "branch": "codex/x2-nas-qualification-20261005",
+  "priorBranch": "codex/x2-mac-catalog-proof-20261005",
+  "priorCommit": "80fca4d00247a0907722b15b87c7e96e73b0e222",
+  "workspace": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68",
+  "nativeParent": {
+    "number": 366,
+    "state": "open",
+    "verification": "GitHub REST parent read"
+  },
+  "prerequisite": {
+    "number": 367,
+    "state": "closed",
+    "stateReason": "completed",
+    "verification": "GitHub REST dependencies/blocked_by read"
+  },
+  "projectFields": "connector cannot read Project-v2; live Status/Area/Priority not verified",
+  "PR": "none; no PR-ready claim or merge",
+  "processState": "task build servers shut down; filtered inventory matched only the inventory command; no task processes remain",
+  "NASMount": "left mounted unchanged",
+  "NASFixturesPreserved": [
+    "/Volumes/Development/codex/x2-nas-b38645db11f54a40b1ace5e7fb373d8e",
+    "/Volumes/Development/codex/x2-live-4e0b47c0938f4cf8ac7a1cdc68949434",
+    "/Volumes/Development/codex/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff"
+  ],
+  "productionDiff": "empty vs main for LightflowStudio/Lightflow.Actions/LightflowStudio.Tests/scripts",
+  "X1X3": "owner reported paused; no message/resume or task work performed",
+  "WindowsRoundTrip": "unexecuted; supplemental exact NAS-control origin prepared",
+  "outcome": "D; recommended B/C direction, without claiming cross-platform pass",
+  "harnessDLLSha256": "6f4a40b46a3f0bb1232ca4763a60583dd6de00f9ef55ce8588029f391f755302"
+}

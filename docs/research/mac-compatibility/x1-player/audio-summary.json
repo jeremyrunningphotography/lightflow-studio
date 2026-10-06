@@ -1,0 +1,59 @@
+{
+  "mpv": {
+    "samples": 120,
+    "measured_wall_interval_seconds": 27.234550999943167,
+    "avsync_seconds_min": -0.00023464,
+    "avsync_seconds_max": 0.000114,
+    "avsync_seconds_mean": 3.7139333333333335e-06,
+    "avsync_end_minus_start": 0.000246015,
+    "speed_values": [
+      0.125,
+      0.25,
+      0.5,
+      1.0,
+      2.0,
+      4.0
+    ],
+    "reopen_volume": 37.0,
+    "pause_retained_hash_equal": true,
+    "speed_segments": [
+      {
+        "requested": 0.125,
+        "observed_media_seconds_per_wall_second": 0.12437810945215737
+      },
+      {
+        "requested": 0.25,
+        "observed_media_seconds_per_wall_second": 0.23583459500357115
+      },
+      {
+        "requested": 0.5,
+        "observed_media_seconds_per_wall_second": 0.49045513018776626
+      },
+      {
+        "requested": 1.0,
+        "observed_media_seconds_per_wall_second": 0.991325897772907
+      },
+      {
+        "requested": 2.0,
+        "observed_media_seconds_per_wall_second": 1.9982999077652615
+      },
+      {
+        "requested": 4.0,
+        "observed_media_seconds_per_wall_second": 3.996894535459007
+      }
+    ],
+    "loop_observed_min": 0.5,
+    "loop_observed_max": 1.433333333,
+    "loop_wraps": 4
+  },
+  "coreaudio": {
+    "samples": 95,
+    "wall_seconds": 9.796515,
+    "audio_sample_seconds": 9.796479166666666,
+    "difference_seconds": -3.583333333345706e-05,
+    "clock_rate_ratio": 0.9999963422366696,
+    "discontinuities": 0,
+    "errors": 0
+  },
+  "limits": "mpv avsync is an engine/driver estimate, not loopback measurement. CoreAudio is an independent sample-clock probe, not an integrated controlled Player AV-sync implementation. All output muted; physical audibility/device change/sleep-wake unqualified."
+}

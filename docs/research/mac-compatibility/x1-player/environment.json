@@ -1,0 +1,101 @@
+{
+  "date": "2026-10-05",
+  "workspace": "/Users/jeremyrunning/Git/agents/Agent-X1-Mac-Player",
+  "main": "e302a20d888161d6face6e311610d67eab9c1512",
+  "branch": "codex/368-mac-player-proof",
+  "model": "MacBook Pro Mac14,9",
+  "chip": "Apple M2 Pro (12 CPU / 19 GPU cores)",
+  "ram_gib": 32,
+  "macos": "26.6.2 (25G83)",
+  "process_arch": "arm64",
+  "dotnet": "No dotnet on PATH or standard /usr/local/share/dotnet, /opt/homebrew/share/dotnet, ~/.dotnet paths. Native C/Objective-C proof does not use .NET.",
+  "xcode": {
+    "command": [
+      "xcodebuild",
+      "-version"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance\n"
+  },
+  "clt": {
+    "command": [
+      "xcode-select",
+      "-p"
+    ],
+    "returncode": 0,
+    "stdout": "/Library/Developer/CommandLineTools\n",
+    "stderr": ""
+  },
+  "clang": {
+    "command": [
+      "clang",
+      "--version"
+    ],
+    "returncode": 0,
+    "stdout": "Apple clang version 21.0.0 (clang-2100.1.1.101)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin\n",
+    "stderr": ""
+  },
+  "swift": {
+    "command": [
+      "swift",
+      "--version"
+    ],
+    "returncode": 0,
+    "stdout": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)\nTarget: arm64-apple-macosx26.0\n",
+    "stderr": "swift-driver version: 1.148.6 "
+  },
+  "metal_codec": {
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Mac-Player/work/codec_probe"
+    ],
+    "returncode": 0,
+    "stdout": "{\"h264_hardware_supported\":1,\"hevc_hardware_supported\":1,\"av1_hardware_supported\":0,\"prores422_hardware_supported\":1}\n",
+    "stderr": ""
+  },
+  "fixture_ffmpeg": {
+    "command": [
+      "ffmpeg",
+      "-version"
+    ],
+    "returncode": 0,
+    "stdout": "ffmpeg version 9.0.1 Copyright (c) 2000-2026 the FFmpeg developers\nbuilt with Apple clang version 21.0.0 (clang-2100.1.1.101)\nconfiguration: --prefix=/opt/homebrew/Cellar/ffmpeg/9.0.1_1 --enable-shared --enable-pthreads --enable-version3 --cc=clang --host-cflags= --host-ldflags= --enable-ffplay --enable-gpl --enable-libsvtav1 --enable-libopus --enable-libx264 --enable-libmp3lame --enable-libdav1d --enable-libvmaf --enable-libvpx --enable-libx265 --enable-openssl --enable-videotoolbox --enable-audiotoolbox --enable-neon\nlibavutil      61.  1.101 / 61.  1.101\nlibavcodec     63.  1.101 / 63.  1.101\nlibavformat    63.  1.101 / 63.  1.101\nlibavdevice    63.  1.101 / 63.  1.101\nlibavfilter    12.  1.101 / 12.  1.101\nlibswscale     10.  1.101 / 10.  1.101\nlibswresample   7.  1.101 /  7.  1.101\n\nExiting with exit code 0\n",
+    "stderr": ""
+  },
+  "mpv": {
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Mac-Player/work/mpv_probe",
+      "--version"
+    ],
+    "returncode": 0,
+    "stdout": "FFmpeg=9.0.2\nconfiguration=--prefix=/opt/homebrew/Cellar/ffmpeg/9.0.2 --enable-shared --enable-pthreads --enable-version3 --cc=clang --host-cflags= --host-ldflags= --enable-ffplay --enable-gpl --enable-libsvtav1 --enable-libopus --enable-libx264 --enable-libmp3lame --enable-libdav1d --enable-libvmaf --enable-libvpx --enable-libx265 --enable-openssl --enable-videotoolbox --enable-audiotoolbox --enable-neon\nlicense=GPL version 3 or later\n",
+    "stderr": "mpv v0.41.0 api=131077\n"
+  },
+  "mpv_source": {
+    "command": [
+      "git",
+      "-C",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Mac-Player/work/deps/mpv",
+      "rev-parse",
+      "HEAD"
+    ],
+    "returncode": 0,
+    "stdout": "41f6a645068483470267271e1d09966ca3b9f413\n",
+    "stderr": ""
+  },
+  "controlled_ffmpeg_source": {
+    "command": [
+      "git",
+      "-C",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Mac-Player/work/deps/ffmpeg-source",
+      "rev-parse",
+      "HEAD"
+    ],
+    "returncode": 0,
+    "stdout": "bf1b838f2ab88b4f8fd83443325c782ea0e0f7fa\n",
+    "stderr": ""
+  },
+  "mpv_original_bottle_sha256": "7d498f6e80a4f6b4071c5f2862e1a228edac45961d52c713831e0cef8e1cf6ba",
+  "mpv_relocated_dylib_sha256": "cfba92d52f210a3f35071e10d9f8cd0b12c6659c5b6d95019c58ba7366c629c6",
+  "relocation": "Only task-owned Mach-O install names changed to @rpath, linked through task-local lib path; ad-hoc signed. Original downloaded bottle SHA verified before extraction. Not a signed/notarized distribution artifact."
+}

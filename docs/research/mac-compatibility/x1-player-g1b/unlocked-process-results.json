@@ -1,0 +1,57 @@
+[
+  {
+    "name": "hardware-color-unlocked",
+    "binary": "color_hardware",
+    "args": [
+      "work/data/rotation.mp4"
+    ],
+    "returncode": 0,
+    "seconds": 1.79718275,
+    "execution_context": "owner unlock confirmed before this serial matrix; no continuous visibility/lock telemetry"
+  },
+  {
+    "name": "shown-lifecycle-unlocked",
+    "binary": "supplemental",
+    "args": [
+      "shown-lifecycle",
+      "work/data/color.mp4"
+    ],
+    "returncode": 0,
+    "seconds": 8.43205425,
+    "execution_context": "owner unlock confirmed before this serial matrix; no continuous visibility/lock telemetry"
+  },
+  {
+    "name": "1080-hw-unlocked",
+    "binary": "integrated",
+    "args": [
+      "play",
+      "work/data/perf-1920x1080.mp4",
+      "work/data/audio-native.f32",
+      "20",
+      "1",
+      "1",
+      "1",
+      "0"
+    ],
+    "returncode": 0,
+    "seconds": 21.510645459000003,
+    "execution_context": "owner unlock confirmed before this serial matrix; no continuous visibility/lock telemetry"
+  },
+  {
+    "name": "4k-hw-unlocked",
+    "binary": "integrated",
+    "args": [
+      "play",
+      "work/data/perf-3840x2160.mp4",
+      "work/data/audio-native.f32",
+      "30",
+      "1",
+      "1",
+      "1",
+      "0"
+    ],
+    "returncode": 0,
+    "seconds": 31.657508375000003,
+    "execution_context": "owner unlock confirmed before this serial matrix; no continuous visibility/lock telemetry"
+  }
+]

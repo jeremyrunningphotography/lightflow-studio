@@ -1,0 +1,65 @@
+{
+  "base_sha": "7b7f1c2cac5426f7df145921d8890adde6f9c490",
+  "branch": "codex/368-mac-player-g1b",
+  "workspace": "/Users/jeremyrunning/Git/agents/Agent-X1-Mac-Player",
+  "scope": [
+    "docs/research/mac-compatibility/x1-player-g1b/",
+    "tools/X1MacPlayerG1b/"
+  ],
+  "disposition": "G1b-C",
+  "overall_G1": "REVISE / UNPASSED",
+  "publication": "Draft PR linked from #368; its head identifies the delivered proof commit",
+  "issue_368": "Open / Project In Progress, Player Area, Priority unset; native parent #366 and prerequisite #367 preserved",
+  "epic_366": "Open / In Progress; M0 and M2 complete, G1/G3/combined owner gate incomplete",
+  "project_verification": "Roadmap #4 UI inspected 2026-10-06; established fields and child relationships unchanged",
+  "X3": "remained paused; no messages, workspace changes or native execution requested",
+  "production": "no production migration, Catalog work or M4+",
+  "native_execution": "all bounded matrices completed; injected failures retained",
+  "cleanup": {
+    "native_processes": [],
+    "removed": [
+      {
+        "path": "work/deps/ffmpeg-source",
+        "bytes": 144665478
+      },
+      {
+        "path": "work/deps/lgpl-ffmpeg",
+        "bytes": 7061990
+      },
+      {
+        "path": "work/deps/avalonia",
+        "bytes": 92222764
+      },
+      {
+        "path": "work/g1b/integrated",
+        "bytes": 122488
+      },
+      {
+        "path": "work/g1b/supplemental",
+        "bytes": 141744
+      },
+      {
+        "path": "work/g1b/color_hardware",
+        "bytes": 122752
+      },
+      {
+        "path": "work/g1b/build.log",
+        "bytes": 15463
+      }
+    ],
+    "removed_bytes": 244352679,
+    "retained_directories_bytes": {
+      "work/data": 59544512,
+      "work/results": 44206673,
+      "work/g1b": 10340693
+    },
+    "note": "Only task-created disposable dependencies/builds removed. Exact long fixtures, prior corpus and measurements retained; no NAS or unrelated storage touched."
+  },
+  "retained_data": [
+    "work/data",
+    "work/results",
+    "work/g1b/long-cfr.mp4",
+    "work/g1b/long-vfr.mp4"
+  ],
+  "package_validation": "Mac-native spike only; no packaged product build/readiness claim"
+}

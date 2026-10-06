@@ -1,0 +1,128 @@
+{
+  "cases": [
+    {
+      "case": "reverse-cfr",
+      "oracle": {
+        "phase": "oracle",
+        "duration": 180,
+        "rss": 57393152,
+        "frames": 5400
+      },
+      "exact_checks": 300,
+      "cache": {
+        "phase": "cache-summary",
+        "max_accounted_bytes": 16588800,
+        "scope": "software frame refs; conservative BGRA byte accounting",
+        "misses": 6,
+        "byte_bound": 16777216,
+        "hits": 294
+      },
+      "latency_ms": {
+        "n": 300,
+        "min": 0.2803751267492771,
+        "mean": 0.8894642923648158,
+        "p50": 0.2843327820301056,
+        "p95": 0.31408341601490974,
+        "p99": 25.217875372618437,
+        "max": 43.919166550040245
+      },
+      "miss_latency_ms": {
+        "n": 6,
+        "min": 19.448624923825264,
+        "mean": 30.333625075096887,
+        "p50": 25.376041885465384,
+        "p95": 43.919166550040245,
+        "p99": 43.919166550040245,
+        "max": 43.919166550040245
+      },
+      "decoded_per_miss": {
+        "n": 6,
+        "min": 229,
+        "mean": 364,
+        "p50": 301,
+        "p95": 529,
+        "p99": 529,
+        "max": 529
+      },
+      "rss_bytes": {
+        "n": 300,
+        "min": 64389120,
+        "mean": 65137158.82666667,
+        "p50": 65142784,
+        "p95": 65781760,
+        "p99": 65830912,
+        "max": 65847296
+      },
+      "forward_after_reverse": {
+        "phase": "forward-after-reverse",
+        "exact": true,
+        "pts": 128512
+      }
+    },
+    {
+      "case": "reverse-vfr",
+      "oracle": {
+        "phase": "oracle",
+        "duration": 179.8,
+        "rss": 46792704,
+        "frames": 3000
+      },
+      "exact_checks": 300,
+      "cache": {
+        "phase": "cache-summary",
+        "max_accounted_bytes": 16588800,
+        "scope": "software frame refs; conservative BGRA byte accounting",
+        "misses": 6,
+        "byte_bound": 16777216,
+        "hits": 294
+      },
+      "latency_ms": {
+        "n": 300,
+        "min": 0.28016604483127594,
+        "mean": 0.7885018999998769,
+        "p50": 0.28724968433380127,
+        "p95": 0.311040785163641,
+        "p99": 21.992333699017763,
+        "max": 29.158124700188637
+      },
+      "miss_latency_ms": {
+        "n": 6,
+        "min": 21.289166994392872,
+        "mean": 25.267166706422966,
+        "p50": 28.73087488114834,
+        "p95": 29.158124700188637,
+        "p99": 29.158124700188637,
+        "max": 29.158124700188637
+      },
+      "decoded_per_miss": {
+        "n": 6,
+        "min": 226,
+        "mean": 264,
+        "p50": 298,
+        "p95": 301,
+        "p99": 301,
+        "max": 301
+      },
+      "rss_bytes": {
+        "n": 300,
+        "min": 53411840,
+        "mean": 54375055.36,
+        "p50": 54444032,
+        "p95": 55083008,
+        "p99": 55132160,
+        "max": 55148544
+      },
+      "forward_after_reverse": {
+        "phase": "forward-after-reverse",
+        "exact": true,
+        "pts": 230912
+      }
+    }
+  ],
+  "limits": [
+    "three fixed neighborhoods (EOF, middle, near index 300), 100 predecessor queries each; not random exhaustive queries",
+    "linear native pixel oracle plus independent ffprobe PTS list in fixtures.json",
+    "16 MiB conservative cache accounting only at 320x180; native frame refs retained, not a 4K reverse-memory qualification",
+    "cancelled-generation suppression is separately simulated; interruption of an expensive reverse decode not qualified"
+  ]
+}

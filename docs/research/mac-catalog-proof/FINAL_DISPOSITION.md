@@ -1,3 +1,5 @@
+> Historical NAS checkpoint. Superseded for current M2 scope by [completed P2 final recommendation](local-portability/P2_FINAL_RECOMMENDATION.md): G2 PASS recommended, owner acceptance pending. Historical findings below are retained.
+
 # M2 final disposition checklist — 2026-10-05
 
 Outcome D; G2 open/unpassed. Detailed evidence and reasoning: [LIVE_NAS_QUALIFICATION.md](LIVE_NAS_QUALIFICATION.md).

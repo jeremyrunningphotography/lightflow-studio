@@ -17,7 +17,8 @@
   {
     "scenario": "exFAT physical SSD WAL",
     "classification": "unresolved",
-    "scope": "fixture mkdir timed out"
+    "scope": "fixture mkdir timed out",
+    "initialP2Disposition": "deferred/non-goal; not G2 blocker"
   },
   {
     "scenario": "exFAT image two-process locking",
@@ -32,12 +33,14 @@
   {
     "scenario": "OS power loss/device cache flush",
     "classification": "unresolved",
-    "scope": "not performed"
+    "scope": "not performed",
+    "initialP2Disposition": "deferred/non-goal; not G2 blocker"
   },
   {
     "scenario": "physical eject/surprise removal",
     "classification": "unresolved",
-    "scope": "not authorized for other user data"
+    "scope": "not authorized for other user data",
+    "initialP2Disposition": "deferred/non-goal; not G2 blocker"
   },
   {
     "scenario": "image clean detach/remount",
@@ -57,17 +60,18 @@
   {
     "scenario": "physical external Catalog NAS backup",
     "classification": "unresolved",
-    "scope": "no physical Catalog test"
+    "scope": "no physical Catalog test",
+    "initialP2Disposition": "deferred/non-goal; not G2 blocker"
   },
   {
     "scenario": "Windows Mac Windows round trip",
-    "classification": "unresolved",
-    "scope": "owner-mediated handoff prepared, not executed"
+    "classification": "proven for tested P2 fixture",
+    "scope": "Windows owner report 36/34 checks; direct Mac 106 checks; verified closed transfer; P2_ROUNDTRIP_RESULTS.json"
   },
   {
     "scenario": "cross-platform restore",
-    "classification": "unresolved",
-    "scope": "no real Windows-origin fixture"
+    "classification": "proven for tested P2 fixture",
+    "scope": "Windows owner report 36/34 checks; direct Mac 106 checks; verified closed transfer; P2_ROUNDTRIP_RESULTS.json"
   },
   {
     "scenario": "Preview rebuild locality",
@@ -77,7 +81,7 @@
   {
     "scenario": "RootId remap",
     "classification": "proven",
-    "scope": "second simulated machine mapped same logical RootId"
+    "scope": "Real Windows/Mac round trip; same RootId, one Mac mapping, 32 stable AssetIds; no schema migration"
   },
   {
     "scenario": "case-sensitive media safety",
@@ -116,7 +120,7 @@
   },
   {
     "scenario": "P2 product policy",
-    "classification": "reasoned",
-    "scope": "recommended pending actual round trip and owner acceptance"
+    "classification": "PASS recommended",
+    "scope": "selected initial P2 research scope; owner acceptance pending; production implementation not claimed"
   }
 ]

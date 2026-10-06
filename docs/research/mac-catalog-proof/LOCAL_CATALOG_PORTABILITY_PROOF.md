@@ -1,10 +1,10 @@
 # Local Catalog portability — owner decision and bounded proof
 
-2026-10-06 · M2 / #369 · parent #366 · **G2: REVISE, open/unpassed**
+2026-10-06 · M2 / #369 · parent #366 · **G2: PASS recommended for P2 initial scope; owner acceptance pending**
 
 **Owner decision — 2026-10-06: Active Lightflow Catalogs on NAS/network filesystems are unsupported. Catalog portability between Windows and macOS will target supported local/removable storage and safe closed-Catalog transfer. NAS/network media remains in scope.**
 
-Recommend **P2, verified closed-Catalog transfer between native local filesystems, as the initial portability policy**. Keep P1, direct portable exFAT SSD operation, a qualification candidate. The Mac exFAT disk-image results are encouraging; they do not establish physical SSD or Windows interoperability. Neither the unfinished authority service nor generic network SQLite support remains a G2 requirement.
+Recommend **P2, verified closed-Catalog transfer between native local filesystems, as the initial portability policy**. Keep P1, direct portable exFAT SSD operation, a qualification candidate. The Mac exFAT disk-image results are encouraging; they do not establish physical SSD or Windows interoperability. P1 is deferred and is not an initial-scope blocker. The actual Windows → Mac → Windows round trip now passed (36 / 106 / 34 checks); see [final recommendation](local-portability/P2_FINAL_RECOMMENDATION.md). Neither the unfinished authority service nor generic network SQLite support remains a G2 requirement.
 
 ## Baseline and cancelled work
 
@@ -19,7 +19,7 @@ Historical [Outcome D](LIVE_NAS_QUALIFICATION.md), [architecture comparison](CEN
 | Active Catalog location | Evidence | Initial recommendation |
 |---|---|---|
 | Native Mac APFS, default case-insensitive | Real Apple Silicon production-linked create/open/WAL/FULL, 32-asset authored read/write, backup/restore, cross-process contention and Preview rebuild control | Preferred Mac-local storage, subject to normal application acceptance |
-| Native Windows NTFS | Existing Windows baseline; this turn did not execute Windows | Preferred Windows-local storage; actual same-Catalog return leg remains mandatory |
+| Native Windows NTFS | Owner-executed origin and return, local NTFS Fixed/Healthy; 36/34 checks | Preferred Windows-local storage; tested P2 round trip passed |
 | Direct external exFAT SSD | Owner supplied a writable USB SSD folder; filesystem identified as exFAT/local. New test-subfolder creation timed out before Catalog tests | Not qualified; no physical WAL/crash/eject result claimed |
 | exFAT disk image on this Mac | Verified mounted exFAT; production WAL/FULL, competing writer rejection, SIGKILL recovery, clean detach/remount, backup/local restore | Positive Mac-driver evidence only; insufficient for P1 product support |
 | APFS external SSD | Apple supports APFS on direct-attached storage; physical device not tested here | Mac-only candidate, not native Windows interchange |
@@ -51,11 +51,11 @@ The bounded alternative **passed**: use production SQLite-aware backup on local 
 
 Recommend this local-staging pattern for future network backup support; do not silently claim the existing direct-to-NAS backup path works. Keep previous verified backups when a new transfer fails. A partially copied file must not become the selected backup. A transfer manifest should bind CatalogId, schema, source snapshot hash and authored-state manifest; opening happens only after a verified local copy. The [SQLite backup API](https://www.sqlite.org/backup.html) supplies consistent snapshots. Raw-copying an active database or manually discarding WAL is not the transfer procedure.
 
-External-image Catalog → local backup/restore passed. Physical external SSD → NAS backup, actual Windows-created restore on Mac and Mac-created restore on Windows remain pending. The observed NAS backup failure does not independently block SQLite as the local Catalog database; closed staging addresses the storage role without restoring central-authority architecture.
+External-image Catalog → local backup/restore passed. Physical external SSD → NAS backup remains deferred. Actual Windows-created restore on Mac and Mac-created restore on Windows now passed; see the final P2 report. The observed NAS backup failure does not independently block SQLite as the local Catalog database; closed staging addresses the storage role without restoring central-authority architecture.
 
 ## Paths, RootId and authored identity
 
-Current schema already separates stable `MediaRoots.RootId`, machine-specific `MediaRootMappings(RootId, MachineId, PhysicalPath)` and `MediaAssets(RootId, RelativePath, RelativePathKey, AssetId)`. A second simulated machine was Unmapped until remapping the same RootId. No schema migration is needed merely to assign a Windows path and a Mac mount path to one logical root. Never identify a Catalog or asset by drive letter/mount spelling, or automatically reuse another machine's physical path.
+Current schema already separates stable `MediaRoots.RootId`, machine-specific `MediaRootMappings(RootId, MachineId, PhysicalPath)` and `MediaAssets(RootId, RelativePath, RelativePathKey, AssetId)`. A second simulated machine was Unmapped until remapping the same RootId. The completed real Windows/Mac round trip also preserved that RootId and added exactly one Mac mapping. No schema migration is needed merely to assign a Windows path and a Mac mount path to one logical root. Never identify a Catalog or asset by drive letter/mount spelling, or automatically reuse another machine's physical path.
 
 The current path key is uppercased after trimming and treating backslash as separator. It is not a complete cross-platform identity contract. [Existing APFS measurements](PATH_IDENTITY_MATRIX.md) and [new exFAT-image service probes](local-portability/EXFAT_IMAGE_PATHS.json), with [independent file identities](local-portability/EXFAT_IMAGE_IDENTITIES.json), show:
 
@@ -66,7 +66,7 @@ The current path key is uppercased after trimming and treating backslash as sepa
 
 Initial proposed policy: preflight both new and existing roots for portable-name/case/Unicode ambiguity; reject affected roots or offending names with a specific diagnostic, preserving all original rows and files. Do not normalize two physical entries into one AssetId, silently merge existing duplicate IDs, trim legal names, or reinterpret a literal Unix backslash. Initially reject symlink/reparse traversal (including linked ancestors/root aliases) unless an explicitly validated canonical containment policy is later approved. Runtime operations must revalidate, because a prior scan does not prevent a link being replaced later. Raw original spelling must remain available for diagnosis.
 
-Restrictive admission can use the current schema. General support for case-sensitive roots and versioned Unicode/exact-name keys would need a separately reviewed key-policy/migration design: audit collisions first, preserve stable IDs and relationships, protect a backup, and never rewrite conflicting rows automatically. No migration or production guard is implemented here. G2 remains open for owner acceptance of the initial policy and actual cross-platform verification.
+Restrictive admission can use the current schema. General support for case-sensitive roots and versioned Unicode/exact-name keys would need a separately reviewed key-policy/migration design: audit collisions first, preserve stable IDs and relationships, protect a backup, and never rewrite conflicting rows automatically. No migration or production guard is implemented here. Actual cross-platform verification is complete. Recommend G2 PASS for the selected P2 scope with the fail-closed policy; owner acceptance remains pending.
 
 ## Preview, close and safe removal
 
@@ -88,7 +88,7 @@ Proposed message: “Lightflow Catalogs must be stored on a supported local driv
 
 ## Gate, handoff and reproducibility
 
-**P2 recommended; P1 unqualified; G2 REVISE/open.** Outstanding: actual Windows→Mac→Windows authored-state/restore proof, physical SSD access and its WAL/lock/close/eject qualification, approved path safety and network-rejection contracts, and packaged application acceptance at the appropriate later gate. The unfinished authority service is explicitly excluded from this list.
+**P2 passed for the tested fixture; P1 deferred/unqualified; G2 PASS recommended for P2 initial research scope.** The completed 36/106/34-check round trip and [final disposition](local-portability/P2_FINAL_RECOMMENDATION.md) supersede the earlier pending-Windows gate. No evidence blocker remains inside that bounded research scope. #369 remains Open / In Progress pending owner acceptance. Path/network guards, staged backup UX and packaged application acceptance remain later implementation/qualification obligations; no implementation is claimed. Physical SSD, active network Catalogs and authority-service work do not block this recommendation.
 
 See [WINDOWS_HANDOFF.md](local-portability/WINDOWS_HANDOFF.md) for a bounded Windows-origin closed-transfer procedure, and [REPRODUCE.md](local-portability/REPRODUCE.md) for Mac commands and the filesystem precondition. The exact published branch/commit is recorded in the Draft PR/#369 handoff. [HASHES.json](local-portability/HASHES.json) binds public evidence and harness files.
 

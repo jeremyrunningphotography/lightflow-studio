@@ -1,6 +1,6 @@
-# Deferred Windows → Mac → Windows closed-Catalog handoff
+# Windows → Mac → Windows closed-Catalog handoff — completed
 
-**Not executed. No remote control. P2 first; physical P1 is a separate qualification.** No authority-service endpoint, owner token or central generation is part of this handoff.
+**Completed on proof commit `7d7adc1a6eb43292275aad3013e599ab1c8d407a`: 36 origin / 106 Mac / 34 return checks.** See [final evidence and JSON line-ending reproduction accommodation](P2_FINAL_RECOMMENDATION.md). Commands below are the retained procedure, not authorization to repeat it. P1 is deferred. No authority-service endpoint, owner token or central generation is part of this handoff.
 
 Use a fresh independent task clone on Windows NTFS. Preserve any existing X2 clone/fixtures. Record the exact published commit from this Draft PR/#369 before running. No Lightflow GUI is launched by these commands; WPF/private-desktop tests and package/hands-on acceptance remain separate gates.
 
@@ -64,4 +64,4 @@ if ($LASTEXITCODE -ne 0) { throw 'Return verification failed' }
 
 Only after the owner resolves the provided folder's access timeout and authorizes any whole-drive eject step: identify the actual exFAT filesystem, block/cluster sizes and USB device; create a unique fixture beneath the task-safe parent; keep Preview on the host. Require create/open/edit/reopen, separate-process SQLite locking, SQLite-aware backups, close/checkpoint/no handles, normal OS eject, the same logical Catalog on the other host, another clean close/eject and return. Verify all authored tables and expected mappings/deltas throughout. Do not format, repartition, force-detach or cable-pull a drive containing user data. A spare disposable device is needed for destructive/power-loss qualification.
 
-Stop for any unexpected identity/row/bytes difference or ambiguous path. No silent merge, filename rewrite, schema migration, sidecar, authority-service restart or database replacement is authorized. G2 remains open until the revised accepted criteria are actually met.
+Stop for any unexpected identity/row/bytes difference or ambiguous path. No silent merge, filename rewrite, schema migration, sidecar, authority-service restart or database replacement is authorized. G2 PASS is recommended for the revised P2 research scope, pending owner acceptance; physical SSD qualification is not a blocker.

@@ -1,0 +1,152 @@
+[
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "second owner rejected"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "stale heartbeat"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "wrong base generation"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "candidate upload interrupted"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "verification failure"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "promotion failure"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "candidate corrupt"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "duplicate publication"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "publication retry"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "NAS unavailable"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "NAS returns unchanged"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "owner crash"
+  },
+  {
+    "boundary": "fenced=True is an unimplemented prerequisite, not a discovered SMB primitive",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "explicit takeover"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "stale owner returns"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "stale publication rejected"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "NAS returns changed"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "lost acknowledgement"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "acknowledgement reconciliation"
+  },
+  {
+    "boundary": "atomic authority oracle, not SMB",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "clean release"
+  },
+  {
+    "boundary": "local Python SQLite process SIGKILL; not production provider/OS power loss",
+    "classification": "proven",
+    "passed": true,
+    "scenario": "local WAL recovery"
+  },
+  {
+    "boundary": "missing manifest blocks selection; no automatic rollback",
+    "classification": "simulated",
+    "passed": true,
+    "scenario": "current generation missing"
+  },
+  {
+    "boundary": "closed payload readback/hash preserved; authority recovery transition unimplemented",
+    "classification": "proven",
+    "passed": true,
+    "scenario": "previous generation recovery"
+  },
+  {
+    "boundary": "no disruptive experiment authorized/executed",
+    "classification": "unresolved",
+    "passed": null,
+    "scenario": "physical NAS loss/reconnect"
+  },
+  {
+    "boundary": "separate-lock design counterexample; no qualified replacement primitive",
+    "classification": "unresolved",
+    "passed": null,
+    "scenario": "server-enforced stale publication rejection"
+  },
+  {
+    "boundary": "unpublished edits may be lost; central/previous survival depends on durability",
+    "classification": "reasoned only",
+    "passed": null,
+    "scenario": "machine loss"
+  }
+]

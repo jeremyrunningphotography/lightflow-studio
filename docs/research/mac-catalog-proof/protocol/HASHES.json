@@ -1,0 +1,11 @@
+{
+  "docs/research/mac-catalog-proof/CENTRAL_CATALOG_PROTOCOL_PROOF.md": "bbd470bfd5f90b44bb7ae65ee7b33f96195edc4541882570850c2e01ab63776f",
+  "docs/research/mac-catalog-proof/protocol/FAULT_MATRIX.json": "8afd920b45eaaeb8932c1aa1d502ec3a10af34fea8feb3ecc33c21629f19bea8",
+  "docs/research/mac-catalog-proof/protocol/OWNERSHIP_RESULTS.json": "ef0736a6628f0cab1b1f27f7830a4bda7470568bf9bc79e49f9be2dbbc7742b3",
+  "docs/research/mac-catalog-proof/protocol/PERFORMANCE.json": "e61b302a1026c3cbd340925b172ed17d82a1bd78921d29763eed5645055c30de",
+  "docs/research/mac-catalog-proof/protocol/PROVENANCE.json": "867083bd9002b8b6e0c1d018966822f6d32589173238d461a3aec198f0e5ba18",
+  "docs/research/mac-catalog-proof/protocol/PUBLICATION_RESULTS.json": "10e0b1d29419019bca92005fec46a10f0ada83f0a0b2eccb87410998d60b2c6d",
+  "docs/research/mac-catalog-proof/protocol/STATE_MODEL.json": "7c755968deba99a9d941d7ae0eb6884d79ef8fc20271cd64fcba028ed3767ee0",
+  "docs/research/mac-catalog-proof/protocol/WINDOWS_HANDOFF.md": "326b38eae1672b1cdb5f096cfd3ab903e7306bc9daa8c9ce7552d54ca27370cf",
+  "tools/X2CentralProtocolProof/proof.py": "dc2f75cac35c05a0bdad62e691a9896083019122d7a88d9cde2d54961353500d"
+}

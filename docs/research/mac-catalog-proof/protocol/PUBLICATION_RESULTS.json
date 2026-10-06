@@ -1,0 +1,10 @@
+{
+  "authority_promotion": "unresolved; intentionally not executed",
+  "corrupt_hash_rejected": true,
+  "current_payload_unchanged": true,
+  "durable_server_power_loss": "unresolved",
+  "missing_manifest_blocks_automatic_open": true,
+  "partial_hash_rejected": true,
+  "previous_payload_unchanged": true,
+  "recovery": "verified closed previous payload copied locally; no authority promotion"
+}

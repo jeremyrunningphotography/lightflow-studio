@@ -1,0 +1,21 @@
+{
+  "kind": "semantic contract; atomic authority transition is a specification oracle, not implemented service or qualified SMB adapter",
+  "authority": ["CatalogId", "protocolVersion", "epoch", "ownerSession", "sequence", "generationId", "parentGenerationId", "payloadLength", "payloadSha256", "previousGeneration", "publicationId"],
+  "local": ["CatalogId", "authorityIdentity", "ownerSession", "epoch", "baseGeneration", "localDbAndWal", "dirtyOrUnknown", "pendingPublicationIdAndHash", "lastAcknowledgedGeneration"],
+  "states": ["Closed", "Acquiring", "Active", "Publishing", "Protected", "RecoveryRequired"],
+  "operations": {
+    "acquire": "atomically admit one session; verify CatalogId, protocol and committed payload; never infer permission from expired heartbeat",
+    "validate": "verify identity, generation, payload integrity/hash and current admission before enabling writes",
+    "openLocal": "verified standalone snapshot becomes local WAL; Preview stays separate",
+    "publish": "snapshot locally; transfer unique candidate; verify; atomically require current owner epoch and exact expected parent at promotion; reject stale token/base",
+    "acknowledge": "record exact publication/generation identity; lost acknowledgement reconciles by identity, never blind retry",
+    "heartbeat": "diagnostic liveness only; no authority to take over",
+    "release": "drain dirty boundary, final verified publication, durable release; failed publication retains recovery state",
+    "recover": "preserve local DB/WAL; unknown dirty state means recovery; missing/corrupt current blocks automatic open; explicit verified previous recovery creates a new generation",
+    "takeover": "explicit abandoned-work warning and confirmation plus server-enforced invalidation/serialized successor; timeout or confirmation alone insufficient"
+  },
+  "protected_operations": ["all Catalog authored mutations", "import/asset identity creation", "background Catalog writes", "migration", "restore", "publication", "automatic ownership takeover"],
+  "protected_reads": "local review may continue with visibly stale central-save status; no mutation side effects",
+  "fencing_adapter": "unresolved for pure SMB; recommend minimal central authority/publication service, not implemented",
+  "invariants": ["at most one admitted authoring session", "stale epoch cannot promote", "wrong base cannot promote", "immutable candidate never overwrites current/previous", "acknowledged generation never silently rolls back", "duplicate publication id is idempotent only for matching request", "no automatic divergent-history merge"]
+}

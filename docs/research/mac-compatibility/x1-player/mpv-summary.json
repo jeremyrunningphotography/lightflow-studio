@@ -1,0 +1,1118 @@
+[
+  {
+    "fixture": "cfr",
+    "raw_start": 0.0,
+    "count": 120,
+    "forward_errors": [],
+    "reverse_errors": [],
+    "retained_after_seek_equal": true,
+    "seek_reported": 1.7,
+    "seek_pixel_pts": 1.7,
+    "playback_identity_mismatches": [
+      {
+        "phase": "play",
+        "time_pos": 0.133333333,
+        "retained_frame_pts": 0.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.266666667,
+        "retained_frame_pts": 0.233333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.4,
+        "retained_frame_pts": 0.366666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.5,
+        "retained_frame_pts": 0.466666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.633333333,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.733333333,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.866666667,
+        "retained_frame_pts": 0.833333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.0,
+        "retained_frame_pts": 0.966666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.133333333,
+        "retained_frame_pts": 1.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.266666667,
+        "retained_frame_pts": 1.233333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.466666667,
+        "retained_frame_pts": 1.4
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.7,
+        "retained_frame_pts": 1.633333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.933333333,
+        "retained_frame_pts": 1.866666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.166666667,
+        "retained_frame_pts": 2.1
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.4,
+        "retained_frame_pts": 2.333333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.633333333,
+        "retained_frame_pts": 2.566666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.933333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.666666667,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.866666667,
+        "retained_frame_pts": 0.8
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.733333333,
+        "retained_frame_pts": 0.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.9
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.633333333,
+        "retained_frame_pts": 0.566666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.866666667,
+        "retained_frame_pts": 0.8
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.733333333,
+        "retained_frame_pts": 0.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.9
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.633333333,
+        "retained_frame_pts": 0.566666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.866666667,
+        "retained_frame_pts": 0.8
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 0.966666667
+      }
+    ],
+    "video_pts_property_available": false
+  },
+  {
+    "fixture": "bframes",
+    "raw_start": 0.0,
+    "count": 120,
+    "forward_errors": [],
+    "reverse_errors": [],
+    "retained_after_seek_equal": true,
+    "seek_reported": 1.7,
+    "seek_pixel_pts": 1.7,
+    "playback_identity_mismatches": [
+      {
+        "phase": "play",
+        "time_pos": 0.133333333,
+        "retained_frame_pts": 0.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.266666667,
+        "retained_frame_pts": 0.233333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.366666667,
+        "retained_frame_pts": 0.333333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.5,
+        "retained_frame_pts": 0.466666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.633333333,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.733333333,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.866666667,
+        "retained_frame_pts": 0.833333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.0,
+        "retained_frame_pts": 0.966666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.133333333,
+        "retained_frame_pts": 1.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.233333333,
+        "retained_frame_pts": 1.2
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.433333333,
+        "retained_frame_pts": 1.366666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.633333333,
+        "retained_frame_pts": 1.566666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.866666667,
+        "retained_frame_pts": 1.8
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.1,
+        "retained_frame_pts": 2.033333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.333333333,
+        "retained_frame_pts": 2.266666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.566666667,
+        "retained_frame_pts": 2.5
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.9
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.666666667,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.866666667,
+        "retained_frame_pts": 0.8
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.733333333,
+        "retained_frame_pts": 0.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.933333333,
+        "retained_frame_pts": 0.866666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.6,
+        "retained_frame_pts": 0.533333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.833333333,
+        "retained_frame_pts": 0.766666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.7,
+        "retained_frame_pts": 0.633333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.9,
+        "retained_frame_pts": 0.833333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 0.966666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.933333333
+      }
+    ],
+    "video_pts_property_available": false
+  },
+  {
+    "fixture": "long_gop",
+    "raw_start": 0.0,
+    "count": 120,
+    "forward_errors": [],
+    "reverse_errors": [],
+    "retained_after_seek_equal": true,
+    "seek_reported": 1.7,
+    "seek_pixel_pts": 1.7,
+    "playback_identity_mismatches": [
+      {
+        "phase": "play",
+        "time_pos": 0.133333333,
+        "retained_frame_pts": 0.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.266666667,
+        "retained_frame_pts": 0.233333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.366666667,
+        "retained_frame_pts": 0.333333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.5,
+        "retained_frame_pts": 0.466666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.633333333,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.733333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.9,
+        "retained_frame_pts": 0.866666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.0,
+        "retained_frame_pts": 0.966666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.133333333,
+        "retained_frame_pts": 1.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.233333333,
+        "retained_frame_pts": 1.2
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.433333333,
+        "retained_frame_pts": 1.366666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.633333333,
+        "retained_frame_pts": 1.566666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.866666667,
+        "retained_frame_pts": 1.8
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.1,
+        "retained_frame_pts": 2.033333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.333333333,
+        "retained_frame_pts": 2.266666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.533333333,
+        "retained_frame_pts": 2.466666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.933333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.666666667,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.866666667,
+        "retained_frame_pts": 0.8
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.733333333,
+        "retained_frame_pts": 0.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.933333333,
+        "retained_frame_pts": 0.866666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.6,
+        "retained_frame_pts": 0.533333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.833333333,
+        "retained_frame_pts": 0.766666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.7,
+        "retained_frame_pts": 0.633333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.933333333,
+        "retained_frame_pts": 0.866666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.6,
+        "retained_frame_pts": 0.533333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.8,
+        "retained_frame_pts": 0.733333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.933333333
+      }
+    ],
+    "video_pts_property_available": false
+  },
+  {
+    "fixture": "vfr",
+    "raw_start": 0.0,
+    "count": 65,
+    "forward_errors": [],
+    "reverse_errors": [],
+    "retained_after_seek_equal": true,
+    "seek_reported": 1.733333333,
+    "seek_pixel_pts": 1.733333333,
+    "playback_identity_mismatches": [
+      {
+        "phase": "play",
+        "time_pos": 0.133333333,
+        "retained_frame_pts": 0.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.266666667,
+        "retained_frame_pts": 0.233333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.366666667,
+        "retained_frame_pts": 0.333333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.5,
+        "retained_frame_pts": 0.466666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.6,
+        "retained_frame_pts": 0.566666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.733333333,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.866666667,
+        "retained_frame_pts": 0.833333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.0,
+        "retained_frame_pts": 0.966666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.4,
+        "retained_frame_pts": 1.333333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.666666667,
+        "retained_frame_pts": 1.6
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.933333333,
+        "retained_frame_pts": 1.866666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.2,
+        "retained_frame_pts": 2.1
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.5,
+        "retained_frame_pts": 2.4
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.7,
+        "retained_frame_pts": 2.6
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.933333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.666666667,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.9,
+        "retained_frame_pts": 0.833333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.6,
+        "retained_frame_pts": 0.533333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.833333333,
+        "retained_frame_pts": 0.766666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.7,
+        "retained_frame_pts": 0.633333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.933333333,
+        "retained_frame_pts": 0.866666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.6,
+        "retained_frame_pts": 0.533333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.8,
+        "retained_frame_pts": 0.733333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.7,
+        "retained_frame_pts": 0.633333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.933333333,
+        "retained_frame_pts": 0.866666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.6,
+        "retained_frame_pts": 0.533333333
+      }
+    ],
+    "video_pts_property_available": false
+  },
+  {
+    "fixture": "nonzero",
+    "raw_start": 5.0,
+    "count": 120,
+    "forward_errors": [],
+    "reverse_errors": [],
+    "retained_after_seek_equal": true,
+    "seek_reported": 5.0,
+    "seek_pixel_pts": 5.0,
+    "playback_identity_mismatches": [
+      {
+        "phase": "play",
+        "time_pos": 5.133333333,
+        "retained_frame_pts": 5.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 5.266666667,
+        "retained_frame_pts": 5.233333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 5.4,
+        "retained_frame_pts": 5.366666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 5.533333333,
+        "retained_frame_pts": 5.5
+      },
+      {
+        "phase": "play",
+        "time_pos": 5.666666667,
+        "retained_frame_pts": 5.633333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 5.8,
+        "retained_frame_pts": 5.766666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 5.933333333,
+        "retained_frame_pts": 5.9
+      },
+      {
+        "phase": "play",
+        "time_pos": 6.066666667,
+        "retained_frame_pts": 6.033333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 6.2,
+        "retained_frame_pts": 6.166666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 6.333333333,
+        "retained_frame_pts": 6.3
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 6.533333333,
+        "retained_frame_pts": 6.466666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 6.766666667,
+        "retained_frame_pts": 6.7
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 7.0,
+        "retained_frame_pts": 6.933333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 7.2,
+        "retained_frame_pts": 7.133333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 7.433333333,
+        "retained_frame_pts": 7.366666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 7.666666667,
+        "retained_frame_pts": 7.6
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 7.666666667
+      }
+    ],
+    "video_pts_property_available": false
+  },
+  {
+    "fixture": "audio",
+    "raw_start": 0.0,
+    "count": 120,
+    "forward_errors": [],
+    "reverse_errors": [],
+    "retained_after_seek_equal": true,
+    "seek_reported": 1.7,
+    "seek_pixel_pts": 1.7,
+    "playback_identity_mismatches": [
+      {
+        "phase": "play",
+        "time_pos": 0.133333333,
+        "retained_frame_pts": 0.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.266666667,
+        "retained_frame_pts": 0.233333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.4,
+        "retained_frame_pts": 0.366666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.533333333,
+        "retained_frame_pts": 0.5
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.666666667,
+        "retained_frame_pts": 0.633333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.733333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.9,
+        "retained_frame_pts": 0.866666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.033333333,
+        "retained_frame_pts": 1.0
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.133333333,
+        "retained_frame_pts": 1.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.233333333,
+        "retained_frame_pts": 1.2
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.433333333,
+        "retained_frame_pts": 1.366666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.666666667,
+        "retained_frame_pts": 1.6
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.9,
+        "retained_frame_pts": 1.833333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.1,
+        "retained_frame_pts": 2.033333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.3,
+        "retained_frame_pts": 2.233333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.533333333,
+        "retained_frame_pts": 2.466666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.933333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.666666667,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.9,
+        "retained_frame_pts": 0.833333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 0.966666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.933333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.666666667,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.9,
+        "retained_frame_pts": 0.833333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.6,
+        "retained_frame_pts": 0.533333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.833333333,
+        "retained_frame_pts": 0.766666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.7,
+        "retained_frame_pts": 0.633333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.9,
+        "retained_frame_pts": 0.833333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.6,
+        "retained_frame_pts": 0.533333333
+      }
+    ],
+    "video_pts_property_available": false
+  },
+  {
+    "fixture": "color",
+    "raw_start": 0.0,
+    "count": 120,
+    "forward_errors": [],
+    "reverse_errors": [],
+    "retained_after_seek_equal": true,
+    "seek_reported": 1.7,
+    "seek_pixel_pts": 1.7,
+    "playback_identity_mismatches": [
+      {
+        "phase": "play",
+        "time_pos": 0.133333333,
+        "retained_frame_pts": 0.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.266666667,
+        "retained_frame_pts": 0.233333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.4,
+        "retained_frame_pts": 0.366666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.533333333,
+        "retained_frame_pts": 0.5
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.666666667,
+        "retained_frame_pts": 0.633333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.733333333
+      },
+      {
+        "phase": "play",
+        "time_pos": 0.9,
+        "retained_frame_pts": 0.866666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.0,
+        "retained_frame_pts": 0.966666667
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.133333333,
+        "retained_frame_pts": 1.1
+      },
+      {
+        "phase": "play",
+        "time_pos": 1.233333333,
+        "retained_frame_pts": 1.2
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.433333333,
+        "retained_frame_pts": 1.366666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.666666667,
+        "retained_frame_pts": 1.6
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 1.9,
+        "retained_frame_pts": 1.833333333
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.133333333,
+        "retained_frame_pts": 2.066666667
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.366666667,
+        "retained_frame_pts": 2.3
+      },
+      {
+        "phase": "speed2",
+        "time_pos": 2.6,
+        "retained_frame_pts": 2.533333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.933333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.666666667,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.9,
+        "retained_frame_pts": 0.833333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 0.966666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.933333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.666666667,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.9,
+        "retained_frame_pts": 0.833333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.5,
+        "retained_frame_pts": 0.966666667
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.766666667,
+        "retained_frame_pts": 0.7
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.966666667,
+        "retained_frame_pts": 0.933333333
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.666666667,
+        "retained_frame_pts": 0.6
+      },
+      {
+        "phase": "loop",
+        "time_pos": 0.866666667,
+        "retained_frame_pts": 0.8
+      }
+    ],
+    "video_pts_property_available": false
+  }
+]

@@ -1,0 +1,534 @@
+[
+  {
+    "fixture": "cfr",
+    "hardware_requested": false,
+    "returncode": 0,
+    "seconds": 0.190714583,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 0,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "cb51612abaac104f",
+        "hash": "dc3d34b2244c44d8"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 30208,
+        "decoded_count": 61,
+        "previous_hash": "7b96ac783da45b39",
+        "hash": "dfdf7505330b3736"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 45568,
+        "decoded_count": 91,
+        "previous_hash": "9f05511aa28fabcb",
+        "hash": "24df13211d53bc49"
+      }
+    ]
+  },
+  {
+    "fixture": "cfr",
+    "hardware_requested": true,
+    "returncode": 0,
+    "seconds": 0.39223591700000005,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 120,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "cb51612abaac104f",
+        "hash": "dc3d34b2244c44d8"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 30208,
+        "decoded_count": 61,
+        "previous_hash": "7b96ac783da45b39",
+        "hash": "dfdf7505330b3736"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 45568,
+        "decoded_count": 91,
+        "previous_hash": "9f05511aa28fabcb",
+        "hash": "24df13211d53bc49"
+      }
+    ]
+  },
+  {
+    "fixture": "bframes",
+    "hardware_requested": false,
+    "returncode": 0,
+    "seconds": 0.14055366699999994,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 0,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "cef31f3c87583c62",
+        "hash": "e8262ef5259a559f"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 30208,
+        "decoded_count": 61,
+        "previous_hash": "03da9c2cfd7abe53",
+        "hash": "eea919458ca36315"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 45568,
+        "decoded_count": 91,
+        "previous_hash": "853f4842b8cd22eb",
+        "hash": "12a8de98f7217bb4"
+      }
+    ]
+  },
+  {
+    "fixture": "bframes",
+    "hardware_requested": true,
+    "returncode": 0,
+    "seconds": 0.42018741700000006,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 120,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "cef31f3c87583c62",
+        "hash": "e8262ef5259a559f"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 30208,
+        "decoded_count": 61,
+        "previous_hash": "03da9c2cfd7abe53",
+        "hash": "eea919458ca36315"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 45568,
+        "decoded_count": 91,
+        "previous_hash": "853f4842b8cd22eb",
+        "hash": "12a8de98f7217bb4"
+      }
+    ]
+  },
+  {
+    "fixture": "long_gop",
+    "hardware_requested": false,
+    "returncode": 0,
+    "seconds": 0.13873554200000004,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 0,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "cef31f3c87583c62",
+        "hash": "e8262ef5259a559f"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 30208,
+        "decoded_count": 61,
+        "previous_hash": "9d4b5d5abd471f93",
+        "hash": "1978883497620413"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 45568,
+        "decoded_count": 91,
+        "previous_hash": "d3a437b335da24af",
+        "hash": "09df38f6d96930f1"
+      }
+    ]
+  },
+  {
+    "fixture": "long_gop",
+    "hardware_requested": true,
+    "returncode": 0,
+    "seconds": 0.39933033400000006,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 120,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "cef31f3c87583c62",
+        "hash": "e8262ef5259a559f"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 30208,
+        "decoded_count": 61,
+        "previous_hash": "9d4b5d5abd471f93",
+        "hash": "1978883497620413"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 45568,
+        "decoded_count": 91,
+        "previous_hash": "d3a437b335da24af",
+        "hash": "09df38f6d96930f1"
+      }
+    ]
+  },
+  {
+    "fixture": "vfr",
+    "hardware_requested": false,
+    "returncode": 0,
+    "seconds": 0.09808729099999991,
+    "frame_count": 65,
+    "pts_sequence_equal": true,
+    "hardware_frames": 0,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "35651777491079f2",
+        "hash": "e54fc74d4c039fbb"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 29696,
+        "decoded_count": 46,
+        "previous_hash": "73d49511778c39b2",
+        "hash": "697e2f8c5b3a2236"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 44544,
+        "decoded_count": 56,
+        "previous_hash": "a06dc2962576bd8d",
+        "hash": "b5b93c379949c539"
+      }
+    ]
+  },
+  {
+    "fixture": "vfr",
+    "hardware_requested": true,
+    "returncode": 0,
+    "seconds": 0.3012473339999999,
+    "frame_count": 65,
+    "pts_sequence_equal": true,
+    "hardware_frames": 65,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "35651777491079f2",
+        "hash": "e54fc74d4c039fbb"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 29696,
+        "decoded_count": 46,
+        "previous_hash": "73d49511778c39b2",
+        "hash": "697e2f8c5b3a2236"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 44544,
+        "decoded_count": 56,
+        "previous_hash": "a06dc2962576bd8d",
+        "hash": "b5b93c379949c539"
+      }
+    ]
+  },
+  {
+    "fixture": "nonzero",
+    "hardware_requested": false,
+    "returncode": 0,
+    "seconds": 0.13889170799999961,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 0,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 92160,
+        "settled": 92160,
+        "previous": 91648,
+        "decoded_count": 31,
+        "previous_hash": "cef31f3c87583c62",
+        "hash": "e8262ef5259a559f"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 107520,
+        "settled": 107520,
+        "previous": 107008,
+        "decoded_count": 61,
+        "previous_hash": "9d4b5d5abd471f93",
+        "hash": "1978883497620413"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 122880,
+        "settled": 122880,
+        "previous": 122368,
+        "decoded_count": 91,
+        "previous_hash": "d3a437b335da24af",
+        "hash": "09df38f6d96930f1"
+      }
+    ]
+  },
+  {
+    "fixture": "nonzero",
+    "hardware_requested": true,
+    "returncode": 0,
+    "seconds": 0.4052037500000001,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 120,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 92160,
+        "settled": 92160,
+        "previous": 91648,
+        "decoded_count": 31,
+        "previous_hash": "cef31f3c87583c62",
+        "hash": "e8262ef5259a559f"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 107520,
+        "settled": 107520,
+        "previous": 107008,
+        "decoded_count": 61,
+        "previous_hash": "9d4b5d5abd471f93",
+        "hash": "1978883497620413"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 122880,
+        "settled": 122880,
+        "previous": 122368,
+        "decoded_count": 91,
+        "previous_hash": "d3a437b335da24af",
+        "hash": "09df38f6d96930f1"
+      }
+    ]
+  },
+  {
+    "fixture": "audio",
+    "hardware_requested": false,
+    "returncode": 0,
+    "seconds": 0.14557504199999993,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 0,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "cef31f3c87583c62",
+        "hash": "e8262ef5259a559f"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 30208,
+        "decoded_count": 61,
+        "previous_hash": "9d4b5d5abd471f93",
+        "hash": "1978883497620413"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 45568,
+        "decoded_count": 91,
+        "previous_hash": "d3a437b335da24af",
+        "hash": "09df38f6d96930f1"
+      }
+    ]
+  },
+  {
+    "fixture": "audio",
+    "hardware_requested": true,
+    "returncode": 0,
+    "seconds": 0.42701808399999974,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 120,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "cef31f3c87583c62",
+        "hash": "e8262ef5259a559f"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 30208,
+        "decoded_count": 61,
+        "previous_hash": "9d4b5d5abd471f93",
+        "hash": "1978883497620413"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 45568,
+        "decoded_count": 91,
+        "previous_hash": "d3a437b335da24af",
+        "hash": "09df38f6d96930f1"
+      }
+    ]
+  },
+  {
+    "fixture": "color",
+    "hardware_requested": false,
+    "returncode": 0,
+    "seconds": 0.2193369169999997,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 0,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "6b731b9c6b09f3b4",
+        "hash": "12d512f576f4c788"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 30208,
+        "decoded_count": 61,
+        "previous_hash": "bf4797d506080863",
+        "hash": "99acbb8a59bd24fd"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 45568,
+        "decoded_count": 91,
+        "previous_hash": "4fe9d68cf7a097c5",
+        "hash": "6f858beb0836b79c"
+      }
+    ]
+  },
+  {
+    "fixture": "color",
+    "hardware_requested": true,
+    "returncode": 0,
+    "seconds": 0.430715084,
+    "frame_count": 120,
+    "pts_sequence_equal": true,
+    "hardware_frames": 120,
+    "predecessors": [
+      {
+        "phase": "seek-predecessor",
+        "target": 15360,
+        "settled": 15360,
+        "previous": 14848,
+        "decoded_count": 31,
+        "previous_hash": "6b731b9c6b09f3b4",
+        "hash": "12d512f576f4c788"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 30720,
+        "settled": 30720,
+        "previous": 30208,
+        "decoded_count": 61,
+        "previous_hash": "bf4797d506080863",
+        "hash": "99acbb8a59bd24fd"
+      },
+      {
+        "phase": "seek-predecessor",
+        "target": 46080,
+        "settled": 46080,
+        "previous": 45568,
+        "decoded_count": 91,
+        "previous_hash": "4fe9d68cf7a097c5",
+        "hash": "6f858beb0836b79c"
+      }
+    ]
+  }
+]

@@ -1,0 +1,3 @@
+FFmpeg=n9.0.1 license=LGPL version 2.1 or later configuration=--prefix=/Users/jeremyrunning/Git/agents/Agent-X1-Mac-Player/work/deps/lgpl-ffmpeg --disable-everything --disable-autodetect --enable-shared --disable-static --disable-programs --disable-doc --enable-avcodec --enable-avformat --enable-swscale --enable-swresample --enable-decoder='h264,hevc,aac,pcm_s16le' --enable-parser='h264,hevc,aac' --enable-demuxer='mov,matroska' --enable-protocol=file --enable-hwaccel='h264_videotoolbox,hevc_videotoolbox' --enable-videotoolbox --enable-pthreads
+source_clockwise_rotation=0 start_pts=76800 time_base=1/15360
+Metal bridge: device=Apple M2 Pro format=875704438 planes=2 cache=0 Y=0 UV=0 textures=1

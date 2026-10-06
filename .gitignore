@@ -9,3 +9,4 @@ dist/
 /.claude/
 *.user
 *.suo
+/work/

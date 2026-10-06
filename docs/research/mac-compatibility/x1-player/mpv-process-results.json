@@ -1,0 +1,34 @@
+[
+  {
+    "fixture": "cfr",
+    "returncode": 0
+  },
+  {
+    "fixture": "bframes",
+    "returncode": 0
+  },
+  {
+    "fixture": "long_gop",
+    "returncode": 0
+  },
+  {
+    "fixture": "vfr",
+    "returncode": 0
+  },
+  {
+    "fixture": "nonzero",
+    "returncode": 0
+  },
+  {
+    "fixture": "audio",
+    "returncode": 0
+  },
+  {
+    "fixture": "color",
+    "returncode": 0
+  },
+  {
+    "fixture": "rotation",
+    "returncode": -6
+  }
+]

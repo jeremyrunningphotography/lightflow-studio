@@ -1,0 +1,2 @@
+mpv v0.41.0 api=131077
+Assertion failed: (x1 <= img->w && y1 <= img->h), function mp_image_crop, file mp_image.c, line 601.

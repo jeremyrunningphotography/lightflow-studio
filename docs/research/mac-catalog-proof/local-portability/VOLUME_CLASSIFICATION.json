@@ -1,0 +1,22 @@
+{
+  "native-apfs": {
+    "filesystem": "apfs",
+    "local": true,
+    "readOnly": false
+  },
+  "exfat-image": {
+    "filesystem": "exfat",
+    "local": true,
+    "readOnly": false
+  },
+  "physical-exfat": {
+    "filesystem": "exfat",
+    "local": true,
+    "readOnly": false
+  },
+  "network-smb": {
+    "filesystem": "smbfs",
+    "local": false,
+    "readOnly": false
+  }
+}

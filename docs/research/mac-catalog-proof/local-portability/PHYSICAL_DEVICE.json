@@ -1,0 +1,12 @@
+{
+  "filesystem": "exfat",
+  "local": true,
+  "bus": "USB",
+  "solidState": true,
+  "internal": false,
+  "writableReported": true,
+  "capacityBytes": 4000751370752,
+  "deviceBlockSize": 512,
+  "allocationBlockSize": 1048576,
+  "scope": "read-only diskutil/statfs inventory; fixture-folder creation timed out; no physical Catalog operation qualified"
+}

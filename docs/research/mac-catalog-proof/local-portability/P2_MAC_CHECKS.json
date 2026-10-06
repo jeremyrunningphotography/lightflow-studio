@@ -1,0 +1,426 @@
+[
+  {
+    "name": "correct prior round-trip leg",
+    "passed": true
+  },
+  {
+    "name": "incoming database SHA256",
+    "passed": true
+  },
+  {
+    "name": "incoming snapshot equality",
+    "passed": true
+  },
+  {
+    "name": "install incoming SQLite snapshot",
+    "passed": true
+  },
+  {
+    "name": "commit incoming installation",
+    "passed": true
+  },
+  {
+    "name": "production Catalog open: Ready ",
+    "passed": true
+  },
+  {
+    "name": "incoming CatalogId preserved",
+    "passed": true
+  },
+  {
+    "name": "before-operation all-table equality",
+    "passed": true
+  },
+  {
+    "name": "Mac leg executes on arm64 Mac",
+    "passed": true
+  },
+  {
+    "name": "foreign machine mapping not used",
+    "passed": true
+  },
+  {
+    "name": "map portable root on this machine",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 0",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 1",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 2",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 3",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 4",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 5",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 6",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 7",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 8",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 9",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 10",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 11",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 12",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 13",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 14",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 15",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 16",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 17",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 18",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 19",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 20",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 21",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 22",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 23",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 24",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 25",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 26",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 27",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 28",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 29",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 30",
+    "passed": true
+  },
+  {
+    "name": "stable AssetId resolves expected bytes 31",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged BrowserRecursiveScopes",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged CatalogInfo",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged CollectionAssets",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged CollectionSets",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged Collections",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged LutResources",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged MediaAssetClassifications",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged MediaAssetColor",
+    "passed": true
+  },
+  {
+    "name": "description row count unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "authored description field preserved 0",
+    "passed": true
+  },
+  {
+    "name": "authored description field preserved 1",
+    "passed": true
+  },
+  {
+    "name": "authored description field preserved 2",
+    "passed": true
+  },
+  {
+    "name": "authored description field preserved 4",
+    "passed": true
+  },
+  {
+    "name": "authored description field preserved 5",
+    "passed": true
+  },
+  {
+    "name": "authored description field preserved 7",
+    "passed": true
+  },
+  {
+    "name": "expected Mac authored mutation",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "other asset description unchanged",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged MediaAssetKeywords",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged MediaAssetPreferredFrames",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged MediaAssetRanges",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged MediaAssetVideoRotation",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged MediaAssets",
+    "passed": true
+  },
+  {
+    "name": "only one mapping added, original mappings unchanged",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged MediaRoots",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged PremiereHandoffs",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged PremiereMarkerHandoffs",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged PremiereSubclipHandoffs",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged SchemaMigrations",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged SmartCollectionDefinitions",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged Subclips",
+    "passed": true
+  },
+  {
+    "name": "round-trip table unchanged TimelineMarkers",
+    "passed": true
+  },
+  {
+    "name": "outgoing consistent snapshot",
+    "passed": true
+  },
+  {
+    "name": "closed-owner checkpoint",
+    "passed": true
+  }
+]

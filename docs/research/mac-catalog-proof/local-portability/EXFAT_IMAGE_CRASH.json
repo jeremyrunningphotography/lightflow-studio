@@ -1,0 +1,37 @@
+{
+  "termination": "SIGKILL of spawned process only",
+  "walPresentBeforeKill": true,
+  "walBytesBeforeKill": 8272,
+  "exitCode": -9,
+  "recovery": {
+    "checks": [
+      {
+        "name": "production Catalog open: Ready ",
+        "passed": true
+      },
+      {
+        "name": "committed edit survives and uncommitted edit rolls back after SIGKILL",
+        "passed": true
+      },
+      {
+        "name": "post-kill integrity",
+        "passed": true
+      },
+      {
+        "name": "closed-owner checkpoint",
+        "passed": true
+      }
+    ],
+    "assetId": "0c8454ba-44ff-4d34-9df1-c652b5e0959b",
+    "after": {
+      "AssetId": "0c8454ba-44ff-4d34-9df1-c652b5e0959b",
+      "Title": "X2 title 0",
+      "Description": "Unicode caf\u00e9 / cafe\u0301 / \u6771\u4eac",
+      "Notes": "X2 committed before kill",
+      "CreatorOverride": "Jeremy",
+      "CreditOverride": "X2 proof",
+      "Revision": 4
+    }
+  },
+  "scope": "process failure; not OS power loss or physical removal"
+}

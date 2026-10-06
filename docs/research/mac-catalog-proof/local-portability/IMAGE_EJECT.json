@@ -1,0 +1,9 @@
+{
+  "beforeDetachSha256": "3bd27897a493d3e987a641ed58736beae504a72d62116562bb73127b43355989",
+  "walAbsent": true,
+  "shmAbsent": true,
+  "scope": "clean close and OS detach/remount of task-owned disk image; not physical safe eject",
+  "afterRemountSha256": "3bd27897a493d3e987a641ed58736beae504a72d62116562bb73127b43355989",
+  "hashEqual": true,
+  "normalDetachSucceeded": true
+}

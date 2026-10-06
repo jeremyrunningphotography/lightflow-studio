@@ -1,0 +1,32 @@
+[
+  {
+    "kind": "input",
+    "value": {
+      "overlayWorks": true,
+      "videoWorks": false,
+      "clippedHit": "Grid",
+      "context": false,
+      "player": true,
+      "local": true,
+      "Clicks": 2,
+      "VideoClicks": 0,
+      "Keys": 2,
+      "Moves": 0,
+      "Wheels": 0,
+      "scope": "pinned private-API reflection: window-bound MouseDevice raw hit-testing; routed key/text; no OS key translation"
+    }
+  },
+  {
+    "kind": "failure",
+    "value": {
+      "error": "System.Exception: input fixture failed\n   at ProofWindow.InputCases() in /Users/jeremyrunning/Git/agents/Agent-X3-Avalonia-Proof/tools/X3AvaloniaIOSurface/Program.cs:line 103\n   at ProofWindow.Scenarios() in /Users/jeremyrunning/Git/agents/Agent-X3-Avalonia-Proof/tools/X3AvaloniaIOSurface/Program.cs:line 87\n   at ProofWindow.Run() in /Users/jeremyrunning/Git/agents/Agent-X3-Avalonia-Proof/tools/X3AvaloniaIOSurface/Program.cs:line 71\n   at App.<>c__DisplayClass1_0.<<OnFrameworkInitializationCompleted>b__0>d.MoveNext() in /Users/jeremyrunning/Git/agents/Agent-X3-Avalonia-Proof/tools/X3AvaloniaIOSurface/Program.cs:line 29"
+    }
+  },
+  {
+    "kind": "teardown",
+    "value": {
+      "surfaces": 0,
+      "producers": 0
+    }
+  }
+]

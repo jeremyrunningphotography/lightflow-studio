@@ -1,0 +1,678 @@
+[
+  {
+    "kind": "performance",
+    "value": {
+      "width": 1920,
+      "height": 1080,
+      "seconds": 10,
+      "overlays": false,
+      "n": 301,
+      "updateReleaseFps": 30.074860424171433,
+      "late": 0,
+      "elapsed": 10.0083591,
+      "cpuPercent": 21.022481251934877,
+      "allocated": 2852424,
+      "rss": 443564032,
+      "p50": 7.8442,
+      "p95": 9.0695,
+      "samples": [
+        {
+          "n": 30,
+          "rss": 440451072,
+          "allocated": 283456,
+          "gpuProducerMs": 0.1290834043174982,
+          "surfaces": 3
+        },
+        {
+          "n": 60,
+          "rss": 440909824,
+          "allocated": 575520,
+          "gpuProducerMs": 0.14274998102337122,
+          "surfaces": 3
+        },
+        {
+          "n": 90,
+          "rss": 441057280,
+          "allocated": 859872,
+          "gpuProducerMs": 0.12750003952533007,
+          "surfaces": 3
+        },
+        {
+          "n": 120,
+          "rss": 441384960,
+          "allocated": 1143184,
+          "gpuProducerMs": 0.09591667912900448,
+          "surfaces": 3
+        },
+        {
+          "n": 150,
+          "rss": 441696256,
+          "allocated": 1419384,
+          "gpuProducerMs": 0.13824994675815105,
+          "surfaces": 3
+        },
+        {
+          "n": 180,
+          "rss": 442040320,
+          "allocated": 1718736,
+          "gpuProducerMs": 0.17366663087159395,
+          "surfaces": 3
+        },
+        {
+          "n": 210,
+          "rss": 442482688,
+          "allocated": 1985816,
+          "gpuProducerMs": 0.11816667392849922,
+          "surfaces": 3
+        },
+        {
+          "n": 240,
+          "rss": 442843136,
+          "allocated": 2260272,
+          "gpuProducerMs": 0.12570840772241354,
+          "surfaces": 3
+        },
+        {
+          "n": 270,
+          "rss": 443154432,
+          "allocated": 2552568,
+          "gpuProducerMs": 0.1242499565705657,
+          "surfaces": 3
+        },
+        {
+          "n": 300,
+          "rss": 443531264,
+          "allocated": 2827896,
+          "gpuProducerMs": 0.20112493075430393,
+          "surfaces": 3
+        }
+      ],
+      "targetCadence": 30,
+      "compositionPixels": [
+        1920,
+        1080
+      ],
+      "presentedFps": null
+    }
+  },
+  {
+    "kind": "performance",
+    "value": {
+      "width": 1920,
+      "height": 1080,
+      "seconds": 10,
+      "overlays": true,
+      "n": 301,
+      "updateReleaseFps": 30.087964814074372,
+      "late": 0,
+      "elapsed": 10.0040003,
+      "cpuPercent": 19.30787086790096,
+      "allocated": 4730528,
+      "rss": 462471168,
+      "p50": 7.8225,
+      "p95": 10.4158,
+      "samples": [
+        {
+          "n": 30,
+          "rss": 462012416,
+          "allocated": 486344,
+          "gpuProducerMs": 0.1408749958500266,
+          "surfaces": 3
+        },
+        {
+          "n": 60,
+          "rss": 462127104,
+          "allocated": 959808,
+          "gpuProducerMs": 0.21395832300186157,
+          "surfaces": 3
+        },
+        {
+          "n": 90,
+          "rss": 462176256,
+          "allocated": 1433504,
+          "gpuProducerMs": 0.18704170361161232,
+          "surfaces": 3
+        },
+        {
+          "n": 120,
+          "rss": 462209024,
+          "allocated": 1906936,
+          "gpuProducerMs": 0.09020837023854256,
+          "surfaces": 3
+        },
+        {
+          "n": 150,
+          "rss": 462241792,
+          "allocated": 2381224,
+          "gpuProducerMs": 0.18033338710665703,
+          "surfaces": 3
+        },
+        {
+          "n": 180,
+          "rss": 462258176,
+          "allocated": 2853952,
+          "gpuProducerMs": 0.06445834878832102,
+          "surfaces": 3
+        },
+        {
+          "n": 210,
+          "rss": 462290944,
+          "allocated": 3319976,
+          "gpuProducerMs": 0.20225008483976126,
+          "surfaces": 3
+        },
+        {
+          "n": 240,
+          "rss": 462340096,
+          "allocated": 3793464,
+          "gpuProducerMs": 0.10487495455890894,
+          "surfaces": 3
+        },
+        {
+          "n": 270,
+          "rss": 462438400,
+          "allocated": 4258696,
+          "gpuProducerMs": 0.1160833053290844,
+          "surfaces": 3
+        },
+        {
+          "n": 300,
+          "rss": 462471168,
+          "allocated": 4722328,
+          "gpuProducerMs": 0.10537507478147745,
+          "surfaces": 3
+        }
+      ],
+      "targetCadence": 30,
+      "compositionPixels": [
+        1920,
+        1080
+      ],
+      "presentedFps": null
+    }
+  },
+  {
+    "kind": "performance",
+    "value": {
+      "width": 3840,
+      "height": 2160,
+      "seconds": 30,
+      "overlays": false,
+      "n": 901,
+      "updateReleaseFps": 30.02077084156697,
+      "late": 0,
+      "elapsed": 30.0125541,
+      "cpuPercent": 32.390420855896515,
+      "allocated": 9331912,
+      "rss": 334675968,
+      "p50": 11.5811,
+      "p95": 14.194,
+      "samples": [
+        {
+          "n": 30,
+          "rss": 471695360,
+          "allocated": 301848,
+          "gpuProducerMs": 0.6134998984634876,
+          "surfaces": 3
+        },
+        {
+          "n": 60,
+          "rss": 471744512,
+          "allocated": 611152,
+          "gpuProducerMs": 0.7020416669547558,
+          "surfaces": 3
+        },
+        {
+          "n": 90,
+          "rss": 471810048,
+          "allocated": 919536,
+          "gpuProducerMs": 0.6427917396649718,
+          "surfaces": 3
+        },
+        {
+          "n": 120,
+          "rss": 471826432,
+          "allocated": 1227328,
+          "gpuProducerMs": 0.6598333129659295,
+          "surfaces": 3
+        },
+        {
+          "n": 150,
+          "rss": 472088576,
+          "allocated": 1547344,
+          "gpuProducerMs": 0.6083333864808083,
+          "surfaces": 3
+        },
+        {
+          "n": 180,
+          "rss": 472449024,
+          "allocated": 1847288,
+          "gpuProducerMs": 0.6600833730772138,
+          "surfaces": 3
+        },
+        {
+          "n": 210,
+          "rss": 472776704,
+          "allocated": 2154624,
+          "gpuProducerMs": 0.6730000022798777,
+          "surfaces": 3
+        },
+        {
+          "n": 240,
+          "rss": 474939392,
+          "allocated": 2471616,
+          "gpuProducerMs": 0.6549166282638907,
+          "surfaces": 3
+        },
+        {
+          "n": 270,
+          "rss": 475283456,
+          "allocated": 2780232,
+          "gpuProducerMs": 0.6886250339448452,
+          "surfaces": 3
+        },
+        {
+          "n": 300,
+          "rss": 475627520,
+          "allocated": 3088136,
+          "gpuProducerMs": 0.7088750135153532,
+          "surfaces": 3
+        },
+        {
+          "n": 330,
+          "rss": 476004352,
+          "allocated": 3396488,
+          "gpuProducerMs": 0.5557499825954437,
+          "surfaces": 3
+        },
+        {
+          "n": 360,
+          "rss": 476217344,
+          "allocated": 3732776,
+          "gpuProducerMs": 0.7141666719689965,
+          "surfaces": 3
+        },
+        {
+          "n": 390,
+          "rss": 476233728,
+          "allocated": 4040320,
+          "gpuProducerMs": 0.6694166222587228,
+          "surfaces": 3
+        },
+        {
+          "n": 420,
+          "rss": 476250112,
+          "allocated": 4349144,
+          "gpuProducerMs": 0.4187501035630703,
+          "surfaces": 3
+        },
+        {
+          "n": 450,
+          "rss": 418332672,
+          "allocated": 4666496,
+          "gpuProducerMs": 0.5368749843910336,
+          "surfaces": 3
+        },
+        {
+          "n": 480,
+          "rss": 418365440,
+          "allocated": 4976208,
+          "gpuProducerMs": 0.6779582472518086,
+          "surfaces": 3
+        },
+        {
+          "n": 510,
+          "rss": 418414592,
+          "allocated": 5283960,
+          "gpuProducerMs": 0.6743751000612974,
+          "surfaces": 3
+        },
+        {
+          "n": 540,
+          "rss": 418447360,
+          "allocated": 5599728,
+          "gpuProducerMs": 0.7041667122393847,
+          "surfaces": 3
+        },
+        {
+          "n": 570,
+          "rss": 418463744,
+          "allocated": 5908784,
+          "gpuProducerMs": 0.7098750211298466,
+          "surfaces": 3
+        },
+        {
+          "n": 600,
+          "rss": 418496512,
+          "allocated": 6225608,
+          "gpuProducerMs": 0.6752916378900409,
+          "surfaces": 3
+        },
+        {
+          "n": 630,
+          "rss": 418496512,
+          "allocated": 6535608,
+          "gpuProducerMs": 0.7543750107288361,
+          "surfaces": 3
+        },
+        {
+          "n": 660,
+          "rss": 418545664,
+          "allocated": 6837280,
+          "gpuProducerMs": 0.6917499704286456,
+          "surfaces": 3
+        },
+        {
+          "n": 690,
+          "rss": 418578432,
+          "allocated": 7154752,
+          "gpuProducerMs": 0.6533749401569366,
+          "surfaces": 3
+        },
+        {
+          "n": 720,
+          "rss": 418594816,
+          "allocated": 7461616,
+          "gpuProducerMs": 0.6892082747071981,
+          "surfaces": 3
+        },
+        {
+          "n": 750,
+          "rss": 334528512,
+          "allocated": 7771168,
+          "gpuProducerMs": 0.9362082928419113,
+          "surfaces": 3
+        },
+        {
+          "n": 780,
+          "rss": 334561280,
+          "allocated": 8079760,
+          "gpuProducerMs": 0.42124988976866007,
+          "surfaces": 3
+        },
+        {
+          "n": 810,
+          "rss": 334610432,
+          "allocated": 8397336,
+          "gpuProducerMs": 0.43545826338231564,
+          "surfaces": 3
+        },
+        {
+          "n": 840,
+          "rss": 334626816,
+          "allocated": 8706008,
+          "gpuProducerMs": 0.6726250285282731,
+          "surfaces": 3
+        },
+        {
+          "n": 870,
+          "rss": 334659584,
+          "allocated": 9014784,
+          "gpuProducerMs": 0.703750061802566,
+          "surfaces": 3
+        },
+        {
+          "n": 900,
+          "rss": 334675968,
+          "allocated": 9323712,
+          "gpuProducerMs": 0.6847917102277279,
+          "surfaces": 3
+        }
+      ],
+      "targetCadence": 30,
+      "compositionPixels": [
+        3840,
+        2160
+      ],
+      "presentedFps": null
+    }
+  },
+  {
+    "kind": "performance",
+    "value": {
+      "width": 3840,
+      "height": 2160,
+      "seconds": 30,
+      "overlays": true,
+      "n": 901,
+      "updateReleaseFps": 30.022667780604273,
+      "late": 0,
+      "elapsed": 30.010658,
+      "cpuPercent": 34.32077471124269,
+      "allocated": 14673608,
+      "rss": 435552256,
+      "p50": 10.8786,
+      "p95": 15.2407,
+      "samples": [
+        {
+          "n": 30,
+          "rss": 434470912,
+          "allocated": 488920,
+          "gpuProducerMs": 0.6760000251233578,
+          "surfaces": 3
+        },
+        {
+          "n": 60,
+          "rss": 434503680,
+          "allocated": 970352,
+          "gpuProducerMs": 0.6625833921134472,
+          "surfaces": 3
+        },
+        {
+          "n": 90,
+          "rss": 434520064,
+          "allocated": 1460024,
+          "gpuProducerMs": 0.4447082756087184,
+          "surfaces": 3
+        },
+        {
+          "n": 120,
+          "rss": 434552832,
+          "allocated": 1957984,
+          "gpuProducerMs": 0.7093750173225999,
+          "surfaces": 3
+        },
+        {
+          "n": 150,
+          "rss": 434585600,
+          "allocated": 2449064,
+          "gpuProducerMs": 0.6399999838322401,
+          "surfaces": 3
+        },
+        {
+          "n": 180,
+          "rss": 434651136,
+          "allocated": 2927872,
+          "gpuProducerMs": 0.7190000033006072,
+          "surfaces": 3
+        },
+        {
+          "n": 210,
+          "rss": 434683904,
+          "allocated": 3409160,
+          "gpuProducerMs": 0.44175004586577415,
+          "surfaces": 3
+        },
+        {
+          "n": 240,
+          "rss": 434929664,
+          "allocated": 3895544,
+          "gpuProducerMs": 0.7139999652281404,
+          "surfaces": 3
+        },
+        {
+          "n": 270,
+          "rss": 434978816,
+          "allocated": 4392928,
+          "gpuProducerMs": 0.4109166329726577,
+          "surfaces": 3
+        },
+        {
+          "n": 300,
+          "rss": 434995200,
+          "allocated": 4879528,
+          "gpuProducerMs": 0.6463750032708049,
+          "surfaces": 3
+        },
+        {
+          "n": 330,
+          "rss": 435027968,
+          "allocated": 5360592,
+          "gpuProducerMs": 0.7426249794661999,
+          "surfaces": 3
+        },
+        {
+          "n": 360,
+          "rss": 435027968,
+          "allocated": 5850352,
+          "gpuProducerMs": 0.6470417138189077,
+          "surfaces": 3
+        },
+        {
+          "n": 390,
+          "rss": 435060736,
+          "allocated": 6339776,
+          "gpuProducerMs": 0.6880416767671704,
+          "surfaces": 3
+        },
+        {
+          "n": 420,
+          "rss": 435093504,
+          "allocated": 6835408,
+          "gpuProducerMs": 0.7162500405684114,
+          "surfaces": 3
+        },
+        {
+          "n": 450,
+          "rss": 435077120,
+          "allocated": 7323536,
+          "gpuProducerMs": 0.39766670670360327,
+          "surfaces": 3
+        },
+        {
+          "n": 480,
+          "rss": 435109888,
+          "allocated": 7812840,
+          "gpuProducerMs": 0.8148748893290758,
+          "surfaces": 3
+        },
+        {
+          "n": 510,
+          "rss": 435126272,
+          "allocated": 8310208,
+          "gpuProducerMs": 0.6960416212677956,
+          "surfaces": 3
+        },
+        {
+          "n": 540,
+          "rss": 435159040,
+          "allocated": 8804864,
+          "gpuProducerMs": 0.42225001379847527,
+          "surfaces": 3
+        },
+        {
+          "n": 570,
+          "rss": 435191808,
+          "allocated": 9277488,
+          "gpuProducerMs": 0.45241659972816706,
+          "surfaces": 3
+        },
+        {
+          "n": 600,
+          "rss": 435191808,
+          "allocated": 9759464,
+          "gpuProducerMs": 0.5599999567493796,
+          "surfaces": 3
+        },
+        {
+          "n": 630,
+          "rss": 435240960,
+          "allocated": 10241520,
+          "gpuProducerMs": 0.40675001218914986,
+          "surfaces": 3
+        },
+        {
+          "n": 660,
+          "rss": 435322880,
+          "allocated": 10751512,
+          "gpuProducerMs": 0.7819166639819741,
+          "surfaces": 3
+        },
+        {
+          "n": 690,
+          "rss": 435339264,
+          "allocated": 11224768,
+          "gpuProducerMs": 0.4036249592900276,
+          "surfaces": 3
+        },
+        {
+          "n": 720,
+          "rss": 435388416,
+          "allocated": 11713864,
+          "gpuProducerMs": 0.6191249703988433,
+          "surfaces": 3
+        },
+        {
+          "n": 750,
+          "rss": 435421184,
+          "allocated": 12204128,
+          "gpuProducerMs": 0.4235416417941451,
+          "surfaces": 3
+        },
+        {
+          "n": 780,
+          "rss": 435453952,
+          "allocated": 12693840,
+          "gpuProducerMs": 0.40625000838190317,
+          "surfaces": 3
+        },
+        {
+          "n": 810,
+          "rss": 435486720,
+          "allocated": 13182664,
+          "gpuProducerMs": 0.41137507651001215,
+          "surfaces": 3
+        },
+        {
+          "n": 840,
+          "rss": 435519488,
+          "allocated": 13678576,
+          "gpuProducerMs": 0.6321666296571493,
+          "surfaces": 3
+        },
+        {
+          "n": 870,
+          "rss": 435519488,
+          "allocated": 14167360,
+          "gpuProducerMs": 0.9416249813511968,
+          "surfaces": 3
+        },
+        {
+          "n": 900,
+          "rss": 435552256,
+          "allocated": 14665408,
+          "gpuProducerMs": 0.6488333456218243,
+          "surfaces": 3
+        }
+      ],
+      "targetCadence": 30,
+      "compositionPixels": [
+        3840,
+        2160
+      ],
+      "presentedFps": null
+    }
+  },
+  {
+    "kind": "cpu-fallback",
+    "value": {
+      "width": 3840,
+      "height": 2160,
+      "n": 30,
+      "p50": 33.1288,
+      "p95": 44.4702,
+      "fpsUpperBound": 28.269454261012438,
+      "path": "CPU readback + Bitmap allocation/copy + full composition snapshot/readback; includes audit capture cost, not presented fps"
+    }
+  }
+]

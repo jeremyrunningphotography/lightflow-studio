@@ -1,0 +1,169 @@
+{
+  "interop": "I3",
+  "G3": "C \u2014 REVISE",
+  "acknowledgement": "C",
+  "rows": [
+    {
+      "case": "normal surface import",
+      "status": "proven",
+      "evidence": "INTEROP_RUNTIME_RESULTS.json",
+      "scope_or_limit": "Real IOSurface-backed BGRA8 texture, matched device, native imports"
+    },
+    {
+      "case": "frame timeline",
+      "status": "proven",
+      "evidence": "TIMELINE_RESULTS.json",
+      "scope_or_limit": "GPU ready/release values; no presentation acknowledgement"
+    },
+    {
+      "case": "delayed producer",
+      "status": "proven",
+      "evidence": "TIMELINE_RESULTS.json",
+      "scope_or_limit": "200ms producer delay; early Task vs release fence"
+    },
+    {
+      "case": "delayed consumer",
+      "status": "proven",
+      "evidence": "TIMELINE_RESULTS.json",
+      "scope_or_limit": "150ms wait and reuse rejection"
+    },
+    {
+      "case": "stale frame",
+      "status": "simulated",
+      "evidence": "FRAME_IDENTITY_RESULTS.json",
+      "scope_or_limit": "Generation increment rejects old offer before update"
+    },
+    {
+      "case": "skipped frame",
+      "status": "simulated",
+      "evidence": "FRAME_IDENTITY_RESULTS.json",
+      "scope_or_limit": "Obsolete serial10 suppressed; no asynchronous coalescing queue"
+    },
+    {
+      "case": "generation replacement",
+      "status": "proven",
+      "evidence": "INTEROP_RUNTIME_RESULTS.json",
+      "scope_or_limit": "New dimensions/pools/device-compatible imports; epoch distinct"
+    },
+    {
+      "case": "lease hold/release",
+      "status": "proven",
+      "evidence": "TIMELINE_RESULTS.json",
+      "scope_or_limit": "Held full pixel hash stable, premature acquire denied"
+    },
+    {
+      "case": "resize",
+      "status": "proven",
+      "evidence": "RETINA_RESIZE_RESULTS.json",
+      "scope_or_limit": "Repeated logical sizes, actual2x; fixed source dimensions"
+    },
+    {
+      "case": "overlay",
+      "status": "proven",
+      "evidence": "OVERLAY_CLIPPING_RESULTS.json",
+      "scope_or_limit": "Four ordinary overlay types, independent status updates"
+    },
+    {
+      "case": "clipping",
+      "status": "proven",
+      "evidence": "OVERLAY_CLIPPING_RESULTS.json",
+      "scope_or_limit": "Rounded/rectangular clip and transform/opacity pixel oracle"
+    },
+    {
+      "case": "input",
+      "status": "proven",
+      "evidence": "INPUT_RESULTS.json",
+      "scope_or_limit": "Window-bound raw pipeline, hit region, editor/action ownership; no OS translation"
+    },
+    {
+      "case": "fullscreen",
+      "status": "proven",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope_or_limit": "Actual NSWindow style queried on enter/exit, 2x"
+    },
+    {
+      "case": "detach/reattach",
+      "status": "proven",
+      "evidence": "OVERLAY_CLIPPING_RESULTS.json",
+      "scope_or_limit": "Video disappears/reappears below persistent overlay"
+    },
+    {
+      "case": "close/reopen",
+      "status": "proven",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope_or_limit": "New host/resources and deterministic serial; no display ack"
+    },
+    {
+      "case": "close pending",
+      "status": "proven",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope_or_limit": "200ms pending producer drained/released after close"
+    },
+    {
+      "case": "producer loss",
+      "status": "simulated",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope_or_limit": "Availability record only, not complete recovery UI"
+    },
+    {
+      "case": "surface recreation",
+      "status": "proven",
+      "evidence": "INTEROP_RUNTIME_RESULTS.json",
+      "scope_or_limit": "Three-slot pools recreated on dimension changes"
+    },
+    {
+      "case": "device loss",
+      "status": "unresolved",
+      "evidence": "AVALONIA_IOSURFACE_PROOF.md",
+      "scope_or_limit": "No physical GPU loss; IsLost recovery not exercised"
+    },
+    {
+      "case": "teardown",
+      "status": "proven",
+      "evidence": "INTEROP_RUNTIME_RESULTS.json",
+      "scope_or_limit": "Own native surfaces/producers0; internal GPU allocation counts unavailable"
+    },
+    {
+      "case": "1080p sustained",
+      "status": "proven",
+      "evidence": "PERFORMANCE_RESULTS.json",
+      "scope_or_limit": "10s/mode30Hz update/release capacity, not presentedFPS"
+    },
+    {
+      "case": "4K sustained",
+      "status": "proven",
+      "evidence": "PERFORMANCE_RESULTS.json",
+      "scope_or_limit": "30s/mode30Hz update/release capacity, not presentedFPS"
+    },
+    {
+      "case": "final presentation acknowledgement",
+      "status": "unresolved",
+      "evidence": "ACKNOWLEDGEMENT_ANALYSIS.md",
+      "scope_or_limit": "C handshake required, final drawable serial callback unavailable"
+    },
+    {
+      "case": "minimum macOS deployment",
+      "status": "reasoned",
+      "evidence": "DEPENDENCY_PROVENANCE.json",
+      "scope_or_limit": "API floor12 from source, only26.6.2 executed"
+    },
+    {
+      "case": "cross-display scale",
+      "status": "unresolved",
+      "evidence": "RETINA_RESIZE_RESULTS.json",
+      "scope_or_limit": "Only physical2x display"
+    },
+    {
+      "case": "scroll container",
+      "status": "unresolved",
+      "evidence": "AVALONIA_IOSURFACE_PROOF.md",
+      "scope_or_limit": "Regular container clipping exercised, no dedicated scroll fixture"
+    },
+    {
+      "case": "activation/sleep/wake",
+      "status": "unresolved",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope_or_limit": "No actual deactivate/sleep transition; init-6661 preserved"
+    }
+  ]
+}

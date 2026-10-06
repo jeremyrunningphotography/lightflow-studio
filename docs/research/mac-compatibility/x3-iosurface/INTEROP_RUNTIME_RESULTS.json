@@ -1,0 +1,436 @@
+[
+  {
+    "kind": "interop",
+    "value": {
+      "w": 1920,
+      "h": 1080,
+      "epoch": 1,
+      "device": 4294968764,
+      "luid": "00000001000005BC",
+      "imageTypes": [
+        "IOSurfaceRef"
+      ],
+      "eventTypes": [
+        "MetalSharedEvent"
+      ],
+      "sync": "TimelineSemaphores",
+      "arm": "Arm64",
+      "avalonia": "11.3.8.0"
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 0,
+      "id": 54,
+      "pointer": "A239952B0",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 1,
+      "id": 101,
+      "pointer": "A239959A0",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 2,
+      "id": 342,
+      "pointer": "A239952A0",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.4285714285714286,
+        "Width": 1000,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "interop",
+    "value": {
+      "w": 1920,
+      "h": 1080,
+      "epoch": 2,
+      "device": 4294968764,
+      "luid": "00000001000005BC",
+      "imageTypes": [
+        "IOSurfaceRef"
+      ],
+      "eventTypes": [
+        "MetalSharedEvent"
+      ],
+      "sync": "TimelineSemaphores",
+      "arm": "Arm64",
+      "avalonia": "11.3.8.0"
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 0,
+      "id": 54,
+      "pointer": "A239959A0",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 1,
+      "id": 101,
+      "pointer": "A239952B0",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 2,
+      "id": 342,
+      "pointer": "A23996B50",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.5,
+        "Width": 1050,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "interop",
+    "value": {
+      "w": 1920,
+      "h": 1080,
+      "epoch": 3,
+      "device": 4294968764,
+      "luid": "00000001000005BC",
+      "imageTypes": [
+        "IOSurfaceRef"
+      ],
+      "eventTypes": [
+        "MetalSharedEvent"
+      ],
+      "sync": "TimelineSemaphores",
+      "arm": "Arm64",
+      "avalonia": "11.3.8.0"
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 0,
+      "id": 54,
+      "pointer": "A239952B0",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 1,
+      "id": 101,
+      "pointer": "A239959A0",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 2,
+      "id": 342,
+      "pointer": "A23995090",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.5,
+        "Width": 1050,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "interop",
+    "value": {
+      "w": 3840,
+      "h": 2160,
+      "epoch": 4,
+      "device": 4294968764,
+      "luid": "00000001000005BC",
+      "imageTypes": [
+        "IOSurfaceRef"
+      ],
+      "eventTypes": [
+        "MetalSharedEvent"
+      ],
+      "sync": "TimelineSemaphores",
+      "arm": "Arm64",
+      "avalonia": "11.3.8.0"
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 0,
+      "id": 54,
+      "pointer": "A239959A0",
+      "stride": 15360,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 1,
+      "id": 87,
+      "pointer": "A239952B0",
+      "stride": 15360,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 2,
+      "id": 98,
+      "pointer": "A23996460",
+      "stride": 15360,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.5,
+        "Width": 1050,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "interop",
+    "value": {
+      "w": 3840,
+      "h": 2160,
+      "epoch": 5,
+      "device": 4294968764,
+      "luid": "00000001000005BC",
+      "imageTypes": [
+        "IOSurfaceRef"
+      ],
+      "eventTypes": [
+        "MetalSharedEvent"
+      ],
+      "sync": "TimelineSemaphores",
+      "arm": "Arm64",
+      "avalonia": "11.3.8.0"
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 0,
+      "id": 54,
+      "pointer": "A239952B0",
+      "stride": 15360,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 1,
+      "id": 87,
+      "pointer": "A239959A0",
+      "stride": 15360,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 2,
+      "id": 98,
+      "pointer": "A23995090",
+      "stride": 15360,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.5,
+        "Width": 1050,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "interop",
+    "value": {
+      "w": 1920,
+      "h": 1080,
+      "epoch": 6,
+      "device": 4294968764,
+      "luid": "00000001000005BC",
+      "imageTypes": [
+        "IOSurfaceRef"
+      ],
+      "eventTypes": [
+        "MetalSharedEvent"
+      ],
+      "sync": "TimelineSemaphores",
+      "arm": "Arm64",
+      "avalonia": "11.3.8.0"
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 0,
+      "id": 54,
+      "pointer": "A23995270",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 1,
+      "id": 184,
+      "pointer": "A23995280",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 2,
+      "id": 191,
+      "pointer": "A23995290",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.4285714285714286,
+        "Width": 1000,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "interop",
+    "value": {
+      "w": 1920,
+      "h": 1080,
+      "epoch": 7,
+      "device": 4294968764,
+      "luid": "00000001000005BC",
+      "imageTypes": [
+        "IOSurfaceRef"
+      ],
+      "eventTypes": [
+        "MetalSharedEvent"
+      ],
+      "sync": "TimelineSemaphores",
+      "arm": "Arm64",
+      "avalonia": "11.3.8.0"
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 0,
+      "id": 342,
+      "pointer": "A23995F80",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 1,
+      "id": 369,
+      "pointer": "A239965C0",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "slot",
+    "value": {
+      "i": 2,
+      "id": 376,
+      "pointer": "A23996710",
+      "stride": 7680,
+      "textureSameSurface": true
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.4285714285714286,
+        "Width": 1000,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "teardown",
+    "value": {
+      "surfaces": 0,
+      "producers": 0
+    }
+  }
+]

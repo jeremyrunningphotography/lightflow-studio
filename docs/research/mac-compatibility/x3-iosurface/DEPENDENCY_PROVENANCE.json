@@ -1,0 +1,224 @@
+{
+  "main": "0991cedd319c59d310f8028b2abe6c738f0e69ea",
+  "avaloniaSourceCommit": "6dd9eb473b74a56cc42e5bc118cfe918b48a940b",
+  "packages": [
+    {
+      "package": "Avalonia.Desktop",
+      "version": "11.3.8",
+      "licenseExpression": "MIT",
+      "archiveSha256": "5ff820b11cec37ba373b8230e2ebe380e7655b9f176def09a6fe25951b857280",
+      "lockContentHash": "lod+Y6j/adzeANDCzhgJHPHPzsxXI3+i307MBctGoiQW0Ny6uGW7J+RIlQlNMawgsAbnCaa5ygEadTbGudXZWg==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "Avalonia.Themes.Fluent",
+      "version": "11.3.8",
+      "licenseExpression": "MIT",
+      "archiveSha256": "7d55dcf3e58f45add8917e0422dfd68f3f619c8ef2ea9bf73f570206110f80e8",
+      "lockContentHash": "RGlEs6PrEA3y/kVLMkaw4y4H8lrYO0/4IJXKJKAf8I1lRIy2hWnh0v9FYqcFn9OT7sVGWj/BZT4mnqYof94UyQ==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "Avalonia",
+      "version": "11.3.8",
+      "licenseExpression": "MIT",
+      "archiveSha256": "d1c337555b9d0d410b344fdf59e86e0a994f28b2138f0d616e0f481ad226db48",
+      "lockContentHash": "VurCL/l7FiJg+RF9iuDDhubpvY43c3bxK1QnW1UUbH3tEhBH+WUgfdp1P8ywWkSfWnx8DJPkTXXLf/4A17xvzw==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "Avalonia.Angle.Windows.Natives",
+      "version": "2.1.25547.20250602",
+      "licenseExpression": null,
+      "archiveSha256": "2c4fe510d007a6d9b3eaddd3fc0a09c2786975afb1b3b3eaae2346cdd71f83c3",
+      "lockContentHash": "ZL0VLc4s9rvNNFt19Pxm5UNAkmKNylugAwJPX9ulXZ6JWs/l6XZihPWWTyezaoNOVyEPU8YbURtW7XMAtqXH5A==",
+      "source": "https://api.nuget.org/v3/index.json",
+      "licenseFile": "ANGLE_LICENSE.txt",
+      "licenseSummary": "BSD-style ANGLE redistribution terms plus bundled notices; transitive Windows-only asset, not loaded by Mac"
+    },
+    {
+      "package": "Avalonia.BuildServices",
+      "version": "11.3.1",
+      "licenseExpression": "MIT",
+      "archiveSha256": "258700fc38131d1274dbf15c511aad2675d8861773922f0318408b919e3338d8",
+      "lockContentHash": "k/WwXbqwaCtmE0a90YXB9plT50ok6OgLBIr+DUYK16akJN82iK69kgkL1vGDd8XBvf77JM3O27znBuy7AEoFgg==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "Avalonia.FreeDesktop",
+      "version": "11.3.8",
+      "licenseExpression": "MIT",
+      "archiveSha256": "5c9a20696a3864d83f3ef72403a0f9104bb242779850a0de3e74fdb27370687b",
+      "lockContentHash": "jaPuqqPTBBJrUOUZ3SUhv+uD/Vy4D9Lk7W/nSdo0HPtGbUsCpuQVLILKukrYissY0eY4VQjo85VFH29hdCmduw==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "Avalonia.Native",
+      "version": "11.3.8",
+      "licenseExpression": "MIT",
+      "archiveSha256": "1e6e2e9de10ddeb415992a75022e1c0d24c9a62c580f3609cc49007acbf0c4fc",
+      "lockContentHash": "vzLHmFSN/d5KRtpbNCT/Yv+ErxD8PV7+hlbAI75N/QqVJgQ2JTCQ5TtHiebpkcEQgkICl0NHf9CQ8sCUnXj4Zw==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "Avalonia.Remote.Protocol",
+      "version": "11.3.8",
+      "licenseExpression": "MIT",
+      "archiveSha256": "a4221c42e4d37298a4e31839c7c63f42e5da5bf1a6367cbfe59055af46e198d5",
+      "lockContentHash": "9JukvgTHAOLL7h2aL5WXZGKkhHlW8Rk6Am5tvoxDvVJt/UHkYrtr9IcAg/iKff4GcA0ZYY6jsG2jmweEyC2WgQ==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "Avalonia.Skia",
+      "version": "11.3.8",
+      "licenseExpression": "MIT",
+      "archiveSha256": "15e27ab5d81e18a1e4bf424a3ceab67874f16834d3d2ddb227bc1abc12a7afaf",
+      "lockContentHash": "dyrtpwFbUnE6jgUQ1sLEIM8xtz/YSwOp6zsr0k2yqCsJpTsypBtdQg8YPNS3E4wK/rc9zsCObfONb8Zkb6/gsA==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "Avalonia.Win32",
+      "version": "11.3.8",
+      "licenseExpression": "MIT",
+      "archiveSha256": "630cf2178609b42cdc2e91b10dee94dd3a718dca9fb7c99c62350d9cbd8e7248",
+      "lockContentHash": "gOdOrBzGw/nzHkr/8aZKcYIARsiFqFD5SJjlKVd42tlXsy4ZE3Q+Mpq91FxZKTWOCs87UMoBpVSzImoq9JIrcQ==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "Avalonia.X11",
+      "version": "11.3.8",
+      "licenseExpression": "MIT",
+      "archiveSha256": "4a501692268661cf989eae1070edffc68af3d842165b2ad97075c893b17af22d",
+      "lockContentHash": "TKshsGs3Vy+DH7r2CcPHHoKi3qFMF46cjRTrBT+kge0w+7jo+RgWBLNt1wmlfGH2f4P7ecyApTXQA0c83qGcuA==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "HarfBuzzSharp",
+      "version": "8.3.1.1",
+      "licenseExpression": "MIT",
+      "archiveSha256": "eb5e32bfa6caf729e17549ef5b8c08920a417b6b2a4e1dbc53d7036737613dcd",
+      "lockContentHash": "tLZN66oe/uiRPTZfrCU4i8ScVGwqHNh5MHrXj0yVf4l7Mz0FhTGnQ71RGySROTmdognAs0JtluHkL41pIabWuQ==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "HarfBuzzSharp.NativeAssets.Linux",
+      "version": "8.3.1.1",
+      "licenseExpression": "MIT",
+      "archiveSha256": "b016decfa7dcf5ac5572c05b2076e9421fcc33934794c2604aee85cae6735725",
+      "lockContentHash": "3EZ1mpIiKWRLL5hUYA82ZHteeDIVaEA/Z0rA/wU6tjx6crcAkJnBPwDXZugBSfo8+J3EznvRJf49uMsqYfKrHg==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "HarfBuzzSharp.NativeAssets.macOS",
+      "version": "8.3.1.1",
+      "licenseExpression": "MIT",
+      "archiveSha256": "84adb429b5f63a97b020ee6a1b9816c39221e86a0b7080e014ea822488d747f4",
+      "lockContentHash": "jbtCsgftcaFLCA13tVKo5iWdElJScrulLTKJre36O4YQTIlwDtPPqhRZNk+Y0vv4D1gxbscasGRucUDfS44ofQ==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "HarfBuzzSharp.NativeAssets.WebAssembly",
+      "version": "8.3.1.1",
+      "licenseExpression": "MIT",
+      "archiveSha256": "98b2a82ea238ed91d7a9330bc0fd540a6edf683a6d51f42e90dbddabac3fc71c",
+      "lockContentHash": "loJweK2u/mH/3C2zBa0ggJlITIszOkK64HLAZB7FUT670dTg965whLFYHDQo69NmC4+d9UN0icLC9VHidXaVCA==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "HarfBuzzSharp.NativeAssets.Win32",
+      "version": "8.3.1.1",
+      "licenseExpression": "MIT",
+      "archiveSha256": "526e22c0b773f57b5a0d202cb6135975ebfa74c8b2ece0681ceae8accacc632a",
+      "lockContentHash": "UsJtQsfAJoFDZrXc4hCUfRPMqccfKZ0iumJ/upcUjz/cmsTgVFGNEL5yaJWmkqsuFYdMWbj/En5/kS4PFl9hBA==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "MicroCom.Runtime",
+      "version": "0.11.0",
+      "licenseExpression": "MIT",
+      "archiveSha256": "55dc293f97ec725bcda89ba9a5a3afc04c2fda87e7008e594b3d95f9411d2c5d",
+      "lockContentHash": "MEnrZ3UIiH40hjzMDsxrTyi8dtqB5ziv3iBeeU4bXsL/7NLSal9F1lZKpK+tfBRnUoDSdtcW3KufE4yhATOMCA==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "SkiaSharp",
+      "version": "2.88.9",
+      "licenseExpression": "MIT",
+      "archiveSha256": "8d9ff89d55d826daf3f5205feac61cfecd05c52ed178860ce24324ae1652fb6e",
+      "lockContentHash": "3MD5VHjXXieSHCleRLuaTXmL2pD0mB7CcOB1x2kA1I4bhptf4e3R27iM93264ZYuAq6mkUyX5XbcxnZvMJYc1Q==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "SkiaSharp.NativeAssets.Linux",
+      "version": "2.88.9",
+      "licenseExpression": "MIT",
+      "archiveSha256": "990fe805aa9147bd567d2eba9890af71cdee296ec23441e83cdd898a50dbc3f0",
+      "lockContentHash": "cWSaJKVPWAaT/WIn9c8T5uT/l4ETwHxNJTkEOtNKjphNo8AW6TF9O32aRkxqw3l8GUdUo66Bu7EiqtFh/XG0Zg==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "SkiaSharp.NativeAssets.macOS",
+      "version": "2.88.9",
+      "licenseExpression": "MIT",
+      "archiveSha256": "aaf1ae0268d71a318a33338f06f3fd55645538809219beda3557a353494b7bf8",
+      "lockContentHash": "Nv5spmKc4505Ep7oUoJ5vp3KweFpeNqxpyGDWyeEPTX2uR6S6syXIm3gj75dM0YJz7NPvcix48mR5laqs8dPuA==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "SkiaSharp.NativeAssets.WebAssembly",
+      "version": "2.88.9",
+      "licenseExpression": "MIT",
+      "archiveSha256": "be014be0f772dced51281a7e4fd3775b89e41fdcaead9d2cba8f2ede03e69a16",
+      "lockContentHash": "kt06RccBHSnAs2wDYdBSfsjIDbY3EpsOVqnlDgKdgvyuRA8ZFDaHRdWNx1VHjGgYzmnFCGiTJBnXFl5BqGwGnA==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "SkiaSharp.NativeAssets.Win32",
+      "version": "2.88.9",
+      "licenseExpression": "MIT",
+      "archiveSha256": "90fe573391a0c0719f3497dee13db23b934866d885ef50dda74a5dd6f1b957fe",
+      "lockContentHash": "wb2kYgU7iy84nQLYZwMeJXixvK++GoIuECjU4ECaUKNuflyRlJKyiRhN1MAHswvlvzuvkrjRWlK0Za6+kYQK7w==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "System.IO.Pipelines",
+      "version": "8.0.0",
+      "licenseExpression": "MIT",
+      "archiveSha256": "2dda41d6ce2f433b0e3836b188ab2d2e4b39ed7f434c3e43e9c3f1f03135c301",
+      "lockContentHash": "FHNOatmUq0sqJOkTx+UF/9YK1f180cnW5FVqnQMvYUN0elp6wFzbtPSiqbo1/ru8ICp43JM1i7kKkk6GsNGHlA==",
+      "source": "https://api.nuget.org/v3/index.json"
+    },
+    {
+      "package": "Tmds.DBus.Protocol",
+      "version": "0.21.2",
+      "licenseExpression": "MIT",
+      "archiveSha256": "81a2bfe5a02e9a6ca29faa6d9e16896e70348a1e3edb1003aedacb7c56c7c182",
+      "lockContentHash": "ScSMrUrrw8px4kK1Glh0fZv/HQUlg1078bNXNPfRPKQ3WbRzV9HpsydYEOgSoMK5LWICMf2bMwIFH0pGjxjcMA==",
+      "source": "https://api.nuget.org/v3/index.json"
+    }
+  ],
+  "binaryHashes": {
+    "tools/X3AvaloniaIOSurface/bin/Release/net8.0/osx-arm64/X3AvaloniaIOSurface.dll": "07da0f903d5902c63f7f70865f9e0e92be43d178e2a4864f626c9bf9450a41c1",
+    "work/x3-iosurface/libx3bridge.dylib": "7e5175e1c1a44e515712c01175cb1c0a649607c8dbd9950949b81e1a9f86a861"
+  },
+  "nativeFrameworks": [
+    "Foundation",
+    "AppKit",
+    "Metal",
+    "IOSurface"
+  ],
+  "nativeLicense": "Apple system/SDK terms; not MIT",
+  "apiFloor": "macOS 12.0 for accepted shared-event seam; executed only on 26.6.2",
+  "toolchain": ".NET SDK 8.0.425/runtime8.0.31 arm64; Apple CLI clang++ C++17 ARC",
+  "hardware": "Mac14,9 M2 Pro 32GB",
+  "os": "26.6.2 (25G83)",
+  "sourceHashes": {
+    "tools/X3AvaloniaIOSurface/packages.lock.json": "5c656b92c90aafabc2e6ebf244c9abd64207e130c428fc29654bcda5fef33c29",
+    "tools/X3AvaloniaIOSurface/run.py": "a88cece3bfb290c4652d0404552134e3481093f3806a4606850adda277f199db",
+    "tools/X3AvaloniaIOSurface/X3AvaloniaIOSurface.csproj": "e9d1515509d4d1145862a7eb2b916e6fca891cbd26de6c1871a072ba352c3a1e",
+    "tools/X3AvaloniaIOSurface/Native.cs": "e18a2eb09a50b060633d9df02788979faa3f0f2863179f914528ffabb39ac190",
+    "tools/X3AvaloniaIOSurface/bridge.mm": "8355974efee2617106040728bc292983721f209ed4ae5d21220d9ae7b7414c71",
+    "tools/X3AvaloniaIOSurface/verify.py": "16f7688601ef91eb18c174c97e854f467d0aeaf56dca8e3ef215f8f82cd0729b",
+    "tools/X3AvaloniaIOSurface/Program.cs": "837358d97848e0f92616ce997e2f8dbda09560fec24606af8e088f51b727a6dc"
+  }
+}

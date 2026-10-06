@@ -1,0 +1,37 @@
+[
+  {
+    "kind": "delayed-producer",
+    "value": {
+      "taskMs": 7.8065,
+      "releaseMs": 211.1831,
+      "ready": 2
+    }
+  },
+  {
+    "kind": "held-lease",
+    "value": {
+      "blocked": true,
+      "stable": true,
+      "hash": "C92E80A60A402383",
+      "Serial": 3
+    }
+  },
+  {
+    "kind": "stale-timeline",
+    "value": {
+      "oldReady": 14,
+      "expected": 17,
+      "releaseBefore": 14,
+      "releaseAfter": 17,
+      "oldInsufficient": true
+    }
+  },
+  {
+    "kind": "delayed-consumer",
+    "value": {
+      "before": 17,
+      "expected": 18,
+      "blocked": true
+    }
+  }
+]

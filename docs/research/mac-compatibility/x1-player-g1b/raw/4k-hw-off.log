@@ -1,0 +1,19 @@
+FFmpeg=n9.0.1 license=LGPL version 2.1 or later config=--prefix=/Users/jeremyrunning/Git/agents/Agent-X1-Mac-Player/work/deps/lgpl-ffmpeg --disable-everything --disable-autodetect --enable-shared --disable-static --disable-programs --disable-doc --enable-avfilter --enable-filter='atempo,abuffer,abuffersink,aformat,aresample' --enable-avcodec --enable-avformat --enable-swscale --enable-swresample --enable-decoder='h264,hevc,aac,pcm_s16le' --enable-parser='h264,hevc,aac' --enable-demuxer='mov,matroska' --enable-protocol=file --enable-hwaccel='h264_videotoolbox,hevc_videotoolbox' --enable-videotoolbox --enable-pthreads
+       31.44 real         2.31 user         2.25 sys
+           341884928  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               23629  page reclaims
+                  12  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+              127237  involuntary context switches
+          7390984809  instructions retired
+          7961913825  cycles elapsed
+           312624136  peak memory footprint

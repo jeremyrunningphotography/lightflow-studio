@@ -1,0 +1,53 @@
+{
+  "variants": [
+    {
+      "case": "hardware-color",
+      "variants": 20,
+      "acknowledged": 0,
+      "max_8bit_channel_error": 2,
+      "table_hashes": [
+        "1b21fbb6ae02ebe6",
+        "3efc38aaa50b0f93"
+      ]
+    },
+    {
+      "case": "hardware-color-unactivated",
+      "variants": 20,
+      "acknowledged": 0,
+      "max_8bit_channel_error": 2,
+      "table_hashes": [
+        "1b21fbb6ae02ebe6",
+        "3efc38aaa50b0f93"
+      ]
+    },
+    {
+      "case": "hardware-color-unlocked",
+      "variants": 20,
+      "acknowledged": 20,
+      "max_8bit_channel_error": 2,
+      "table_hashes": [
+        "1b21fbb6ae02ebe6",
+        "3efc38aaa50b0f93"
+      ]
+    },
+    {
+      "case": "semantic",
+      "variants": 20,
+      "acknowledged": 20,
+      "max_8bit_channel_error": 1,
+      "table_hashes": [
+        "1b21fbb6ae02ebe6",
+        "3efc38aaa50b0f93"
+      ]
+    }
+  ],
+  "retained_lease": {
+    "after": "3d786a7fdf8ecf5e",
+    "unchanged": true,
+    "serial": 2,
+    "before": "3d786a7fdf8ecf5e",
+    "pts": 0,
+    "action": "lease-retained-capture"
+  },
+  "limits": "CPU oracle is FFmpeg decoded BGRA plus independent CPU quarter-turn/trilinear stages. SDR limited-range BT.601 NV12 only; hardware conversion uses nearest chroma. No HDR/ICC/wide-gamut claim. Capture is backend surface readback, not a screenshot of UI overlays."
+}

@@ -1,0 +1,519 @@
+{
+  "cases": [
+    {
+      "case": "1080-hw-color",
+      "speed": 1,
+      "interval_seconds": 20,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 590,
+        "min": -28.854166666666668,
+        "mean": -13.532627118644085,
+        "p50": -12.979166666666659,
+        "p95": -6.854166666666779,
+        "p99": -5.020833333333336,
+        "max": -2.520833333333451
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": null,
+      "mean_offset_first_5_seconds": -13.743721461187228,
+      "mean_offset_last_5_seconds": -14.108221476510089,
+      "pause": {
+        "retained_serial": 591,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.1281666666666668,
+        "restart_count": 11,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 9
+    },
+    {
+      "case": "1080-hw-off",
+      "speed": 1,
+      "interval_seconds": 20,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 590,
+        "min": -29.4375,
+        "mean": -13.193220338983066,
+        "p50": -12.270833333333453,
+        "p95": -7.208333333333441,
+        "p99": -6.354166666666661,
+        "max": -2.9583333333333197
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": null,
+      "mean_offset_first_5_seconds": -12.752996575342477,
+      "mean_offset_last_5_seconds": -13.177852348993303,
+      "pause": {
+        "retained_serial": 591,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.1278125,
+        "restart_count": 11,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 9
+    },
+    {
+      "case": "1080-hw-sustained",
+      "speed": 1,
+      "interval_seconds": 60,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 1771,
+        "min": -35.10416666666668,
+        "mean": -13.944946357989851,
+        "p50": -13.583333333333357,
+        "p95": -7.0625000000000755,
+        "p99": -5.479166666666625,
+        "max": -3.395833333333424
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": null,
+      "mean_offset_first_5_seconds": -13.897817460317476,
+      "mean_offset_last_5_seconds": -12.824664429530216,
+      "pause": {
+        "retained_serial": 1772,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.1281666666666668,
+        "restart_count": 31,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 29
+    },
+    {
+      "case": "1080-hw-unlocked",
+      "speed": 1,
+      "interval_seconds": 20,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 590,
+        "min": -30.833333333333336,
+        "mean": -16.934957627118656,
+        "p50": -17.395833333333353,
+        "p95": -9.374999999999973,
+        "p99": -8.60416666666667,
+        "max": -5.458333333333343
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": null,
+      "mean_offset_first_5_seconds": -17.568635844748876,
+      "mean_offset_last_5_seconds": -16.17645413870247,
+      "pause": {
+        "retained_serial": 591,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.1277083333333333,
+        "restart_count": 11,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 9
+    },
+    {
+      "case": "1080-sw",
+      "speed": 1,
+      "interval_seconds": 15,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 404,
+        "min": -57.87500000000001,
+        "mean": -36.69997937293731,
+        "p50": -34.08333333333332,
+        "p95": -25.604166666666664,
+        "p99": -24.562500000000014,
+        "max": -18.916666666666618
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": null,
+      "mean_offset_first_5_seconds": -38.30529448621555,
+      "mean_offset_last_5_seconds": -37.7058080808081,
+      "pause": {
+        "retained_serial": 405,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.1277916666666667,
+        "restart_count": 9,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 7
+    },
+    {
+      "case": "4k-cpu-copy",
+      "speed": 1,
+      "interval_seconds": 15,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 321,
+        "min": -66.02083333333336,
+        "mean": -47.340212876427834,
+        "p50": -47.85416666666668,
+        "p95": -34.64583333333334,
+        "p99": -31.999999999999954,
+        "max": -30.000000000000068
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": null,
+      "mean_offset_first_5_seconds": -48.41082554517134,
+      "mean_offset_last_5_seconds": -45.960475077881625,
+      "pause": {
+        "retained_serial": 322,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.12825,
+        "restart_count": 9,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 7
+    },
+    {
+      "case": "4k-hw-color",
+      "speed": 1,
+      "interval_seconds": 30,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 841,
+        "min": -57.70833333333336,
+        "mean": -36.104662108600884,
+        "p50": -35.666666666666636,
+        "p95": -23.479166666666675,
+        "p99": -17.354166666666718,
+        "max": -8.791666666666794
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": null,
+      "mean_offset_first_5_seconds": -32.507239952718685,
+      "mean_offset_last_5_seconds": -35.19208037825061,
+      "pause": {
+        "retained_serial": 842,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.1277708333333334,
+        "restart_count": 16,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 14
+    },
+    {
+      "case": "4k-hw-off",
+      "speed": 1,
+      "interval_seconds": 30,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 880,
+        "min": -52.60416666666663,
+        "mean": -32.61946022727274,
+        "p50": -33.31250000000007,
+        "p95": -18.208333333333286,
+        "p99": -9.083333333333373,
+        "max": -4.479166666666735
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": null,
+      "mean_offset_first_5_seconds": -27.693921232876725,
+      "mean_offset_last_5_seconds": -42.43975225225227,
+      "pause": {
+        "retained_serial": 881,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.1276875,
+        "restart_count": 16,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 14
+    },
+    {
+      "case": "4k-hw-sustained",
+      "speed": 1,
+      "interval_seconds": 120,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 3279,
+        "min": -61.56249999999995,
+        "mean": -38.37362127681205,
+        "p50": -39.166666666666664,
+        "p95": -23.687499999999993,
+        "p99": -14.145833333333448,
+        "max": -4.374999999999941
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": null,
+      "mean_offset_first_5_seconds": -34.74072384428225,
+      "mean_offset_last_5_seconds": -42.23824404761906,
+      "pause": {
+        "retained_serial": 3280,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.1278958333333333,
+        "restart_count": 60,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 58
+    },
+    {
+      "case": "4k-hw-unlocked",
+      "speed": 1,
+      "interval_seconds": 30,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 817,
+        "min": -57.91666666666669,
+        "mean": -36.98176764585885,
+        "p50": -36.3125000000001,
+        "p95": -23.729166666666668,
+        "p99": -14.37499999999995,
+        "max": -6.666666666666744
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": null,
+      "mean_offset_first_5_seconds": -35.786192214111935,
+      "mean_offset_last_5_seconds": -37.9129196642686,
+      "pause": {
+        "retained_serial": 818,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.12825,
+        "restart_count": 16,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 14
+    },
+    {
+      "case": "4k-sw",
+      "speed": 1,
+      "interval_seconds": 15,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 178,
+        "min": -99.56250000000009,
+        "mean": -84.92919007490639,
+        "p50": -82.06250000000003,
+        "p95": -68.1666666666666,
+        "p99": -67.66666666666664,
+        "max": -60.1875000000001
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": null,
+      "mean_offset_first_5_seconds": -85.97737068965519,
+      "mean_offset_last_5_seconds": -86.57118055555557,
+      "pause": {
+        "retained_serial": 179,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.128375,
+        "restart_count": 9,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 7
+    },
+    {
+      "case": "audio-1",
+      "speed": 1,
+      "interval_seconds": 30,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 899,
+        "min": -21.812499999999783,
+        "mean": -12.833959028550423,
+        "p50": -12.729166666666632,
+        "p95": -8.104166666665789,
+        "p99": -7.895833333334046,
+        "max": -3.833333333334209
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": 0.007421049704563954,
+      "mean_offset_first_5_seconds": -12.407657657657682,
+      "mean_offset_last_5_seconds": -12.350993377483757,
+      "pause": {
+        "retained_serial": 900,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.1291458333333333,
+        "restart_count": 2,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 0
+    },
+    {
+      "case": "audio-double",
+      "speed": 2,
+      "interval_seconds": 15,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 515,
+        "min": -61.08333333333405,
+        "mean": -40.62524271844685,
+        "p50": -42.54166666666742,
+        "p95": -25.208333333333428,
+        "p99": -24.958333333333215,
+        "max": -8.500000000000007
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": 0.014662584387630136,
+      "mean_offset_first_5_seconds": -40.40245664739894,
+      "mean_offset_last_5_seconds": -42.66642011834362,
+      "pause": {
+        "retained_serial": 516,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.25775,
+        "restart_count": 2,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 0
+    },
+    {
+      "case": "audio-half",
+      "speed": 0.5,
+      "interval_seconds": 15,
+      "source_pts_minus_audio_sample_clock_ms": {
+        "n": 224,
+        "min": -12.052083333333464,
+        "mean": -7.551432291666743,
+        "p50": -7.5520833333333135,
+        "p95": -5.260416666666677,
+        "p99": -3.5104166666668144,
+        "max": -3.0937500000005196
+      },
+      "audio_clock_vs_wall_slope_ms_per_second": 0.003633880042089686,
+      "mean_offset_first_5_seconds": -7.2138231981982175,
+      "mean_offset_last_5_seconds": -7.964166666666802,
+      "pause": {
+        "retained_serial": 225,
+        "running": false,
+        "clock_delta": 0,
+        "action": "audio-pause"
+      },
+      "resume": {
+        "clock_advanced": true,
+        "action": "audio-resume"
+      },
+      "seek_resume": {
+        "source_clock": 1.0640625,
+        "restart_count": 2,
+        "output_muted": true,
+        "origin": 1,
+        "action": "seek-resume-clock"
+      },
+      "loops": 0
+    }
+  ],
+  "injected_restart": [
+    {
+      "action": "audio-stop-recreate",
+      "before": 0.2783541666666667,
+      "stopped": -1,
+      "restart_count": 2,
+      "scope": "actual queue disposal/recreation; simulated interruption, no physical device change or callback-starvation injection",
+      "resumed": 0.5565,
+      "after_wait": -1
+    },
+    {
+      "roundtrip": 0.25,
+      "action": "volume-parameter",
+      "scope": "queue parameter only; no audible amplitude oracle"
+    }
+  ],
+  "architecture": "predecoded FFmpeg AAC mono F32/48kHz -> native LGPL atempo -> AudioQueue three 1024-sample buffers, gain zero; source clock = seek origin + played sample time / 48000 * speed; video chooses decoded source PTS <= clock + 1/60s*speed, then waits for native presented handler",
+  "limits": [
+    "source-frame offset sampled after callback, not at physical display/speaker instant",
+    "predecode and affine tempo mapping do not prove streaming packet PTS, atempo startup/seek sample origin or pitch/audibility",
+    "speed segments .5/1/2 are separate opens, not mid-playback changes; .125/.25/4 not qualified here",
+    "loop disposes/restarts queue: measured playback, explicit discontinuity; no seamless-loop claim",
+    "silent step stops audio; volume parameter roundtrip only; no preserved volume across source opens",
+    "injected AudioQueue stop/recreation is not an actual underrun or device-change detector"
+  ]
+}

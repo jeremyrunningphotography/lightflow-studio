@@ -1,0 +1,76 @@
+[
+  {
+    "name": "leases",
+    "args": [
+      "leases",
+      "work/data/color.mp4"
+    ],
+    "returncode": 0,
+    "expected_returncode": 0,
+    "seconds": 0.935279375
+  },
+  {
+    "name": "surface-pressure",
+    "args": [
+      "pressure",
+      "work/data/color.mp4"
+    ],
+    "returncode": 13,
+    "expected_returncode": 13,
+    "seconds": 0.35975683299999994
+  },
+  {
+    "name": "shown-lifecycle",
+    "args": [
+      "shown-lifecycle",
+      "work/data/color.mp4"
+    ],
+    "returncode": 0,
+    "expected_returncode": 0,
+    "seconds": 7.040651166
+  },
+  {
+    "name": "audio-fault",
+    "args": [
+      "audio-fault",
+      "work/data/audio-native.f32"
+    ],
+    "returncode": 0,
+    "expected_returncode": 0,
+    "seconds": 1.047355542
+  },
+  {
+    "name": "decode-failure",
+    "args": [
+      "leases",
+      "work/g1b/does-not-exist.mp4"
+    ],
+    "returncode": 2,
+    "expected_returncode": 2,
+    "seconds": 0.253867541
+  },
+  {
+    "name": "1080-hw-sustained",
+    "args": [
+      "sustained",
+      "work/data/perf-1920x1080.mp4",
+      "work/data/audio-native.f32",
+      "60"
+    ],
+    "returncode": 0,
+    "expected_returncode": 0,
+    "seconds": 61.353250792
+  },
+  {
+    "name": "4k-hw-sustained",
+    "args": [
+      "sustained",
+      "work/data/perf-3840x2160.mp4",
+      "work/data/audio-native.f32",
+      "120"
+    ],
+    "returncode": 0,
+    "expected_returncode": 0,
+    "seconds": 121.67504112499999
+  }
+]

@@ -1,0 +1,184 @@
+{
+  "checks": [
+    {
+      "case": "1080-hw-color",
+      "present_attempts": 592,
+      "valid_ack": 591,
+      "unacknowledged": 1
+    },
+    {
+      "case": "1080-hw-off",
+      "present_attempts": 592,
+      "valid_ack": 591,
+      "unacknowledged": 1
+    },
+    {
+      "case": "1080-hw-sustained",
+      "present_attempts": 1773,
+      "valid_ack": 1772,
+      "unacknowledged": 1
+    },
+    {
+      "case": "1080-hw-unlocked",
+      "present_attempts": 592,
+      "valid_ack": 591,
+      "unacknowledged": 1
+    },
+    {
+      "case": "1080-sw",
+      "present_attempts": 406,
+      "valid_ack": 405,
+      "unacknowledged": 1
+    },
+    {
+      "case": "4k-cpu-copy",
+      "present_attempts": 323,
+      "valid_ack": 322,
+      "unacknowledged": 1
+    },
+    {
+      "case": "4k-hw-color",
+      "present_attempts": 843,
+      "valid_ack": 842,
+      "unacknowledged": 1
+    },
+    {
+      "case": "4k-hw-off",
+      "present_attempts": 882,
+      "valid_ack": 881,
+      "unacknowledged": 1
+    },
+    {
+      "case": "4k-hw-sustained",
+      "present_attempts": 3281,
+      "valid_ack": 3280,
+      "unacknowledged": 1
+    },
+    {
+      "case": "4k-hw-unlocked",
+      "present_attempts": 819,
+      "valid_ack": 818,
+      "unacknowledged": 1
+    },
+    {
+      "case": "4k-sw",
+      "present_attempts": 180,
+      "valid_ack": 179,
+      "unacknowledged": 1
+    },
+    {
+      "case": "audio-1",
+      "present_attempts": 901,
+      "valid_ack": 900,
+      "unacknowledged": 1
+    },
+    {
+      "case": "audio-double",
+      "present_attempts": 517,
+      "valid_ack": 516,
+      "unacknowledged": 1
+    },
+    {
+      "case": "audio-fault",
+      "present_attempts": 0,
+      "valid_ack": 0,
+      "unacknowledged": 0
+    },
+    {
+      "case": "audio-half",
+      "present_attempts": 226,
+      "valid_ack": 225,
+      "unacknowledged": 1
+    },
+    {
+      "case": "decode-failure",
+      "present_attempts": 0,
+      "valid_ack": 0,
+      "unacknowledged": 0
+    },
+    {
+      "case": "hardware-color",
+      "present_attempts": 21,
+      "valid_ack": 0,
+      "unacknowledged": 21
+    },
+    {
+      "case": "hardware-color-unactivated",
+      "present_attempts": 21,
+      "valid_ack": 0,
+      "unacknowledged": 21
+    },
+    {
+      "case": "hardware-color-unlocked",
+      "present_attempts": 21,
+      "valid_ack": 20,
+      "unacknowledged": 1
+    },
+    {
+      "case": "leases",
+      "present_attempts": 8,
+      "valid_ack": 7,
+      "unacknowledged": 1
+    },
+    {
+      "case": "lifecycle",
+      "present_attempts": 7,
+      "valid_ack": 1,
+      "unacknowledged": 6
+    },
+    {
+      "case": "reverse-cfr",
+      "present_attempts": 0,
+      "valid_ack": 0,
+      "unacknowledged": 0
+    },
+    {
+      "case": "reverse-vfr",
+      "present_attempts": 0,
+      "valid_ack": 0,
+      "unacknowledged": 0
+    },
+    {
+      "case": "semantic",
+      "present_attempts": 26,
+      "valid_ack": 25,
+      "unacknowledged": 1
+    },
+    {
+      "case": "shown-lifecycle",
+      "present_attempts": 13,
+      "valid_ack": 5,
+      "unacknowledged": 8
+    },
+    {
+      "case": "shown-lifecycle-unlocked",
+      "present_attempts": 13,
+      "valid_ack": 6,
+      "unacknowledged": 7
+    },
+    {
+      "case": "surface-pressure",
+      "present_attempts": 4,
+      "valid_ack": 3,
+      "unacknowledged": 1
+    }
+  ],
+  "semantic_expected_pts": {
+    "paused": 0,
+    "paused-retry": 0,
+    "forward": 512,
+    "reverse": 0,
+    "seek": 30720
+  },
+  "timebase": [
+    1,
+    15360
+  ],
+  "stale_retained_unchanged": true,
+  "limits": [
+    "single Asset/session per case; source replacement/concurrent callbacks not qualified",
+    "no physical scanout oracle; Mac was observed locked after original matrix, transition time unknown; post-owner-unlock reruns are separately identified",
+    "publication is only last confirmed native presentation, not a guarantee that a rehosted/occluded view is currently showing it",
+    "GPU-only large playback has no per-frame CPU pixel hash/oracle; zero error in those rows means not evaluated"
+  ]
+}

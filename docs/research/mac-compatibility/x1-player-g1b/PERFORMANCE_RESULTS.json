@@ -1,0 +1,1177 @@
+{
+  "cases": [
+    {
+      "case": "1080-hw-color",
+      "requested_seconds": 20,
+      "frames_submitted": 591,
+      "native_acknowledged": 590,
+      "ack_fps": 29.5,
+      "scheduled_skips": 0,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 590,
+        "min": -28.854166666666668,
+        "mean": -13.532627118644085,
+        "p50": -12.979166666666659,
+        "p95": -6.854166666666779,
+        "p99": -5.020833333333336,
+        "max": -2.520833333333451
+      },
+      "producer_gpu_command_ms": {
+        "n": 591,
+        "min": 0.44545833952724934,
+        "mean": 0.8718573043907657,
+        "p50": 0.9706249693408608,
+        "p95": 1.2982500484213233,
+        "p99": 2.2024166537448764,
+        "max": 3.2982499105855823
+      },
+      "cpu_readback_upload_ms": {
+        "n": 591,
+        "min": 0,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "rss_during_playback_bytes": {
+        "n": 591,
+        "min": 94814208,
+        "mean": 112968040.392555,
+        "p50": 109789184,
+        "p95": 118964224,
+        "p99": 118980608,
+        "max": 118980608
+      },
+      "rss_after_seek_capture_bytes": 151289856,
+      "process_cpu_percent_one_core": 15.141509433962263,
+      "first_10_seconds": {
+        "ack": 295,
+        "mean_gpu_ms": 0.900249715926031,
+        "mean_rss": 107351355.8779661
+      },
+      "last_10_seconds": {
+        "ack": 295,
+        "mean_gpu_ms": 0.8431409627704297,
+        "mean_rss": 118646263.3220339
+      },
+      "loops": 9,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": true,
+        "cpu_copy": false,
+        "dropped": 0,
+        "rss": 151289856,
+        "seconds": 20,
+        "hw": true
+      }
+    },
+    {
+      "case": "1080-hw-off",
+      "requested_seconds": 20,
+      "frames_submitted": 591,
+      "native_acknowledged": 590,
+      "ack_fps": 29.5,
+      "scheduled_skips": 0,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 590,
+        "min": -29.4375,
+        "mean": -13.193220338983066,
+        "p50": -12.270833333333453,
+        "p95": -7.208333333333441,
+        "p99": -6.354166666666661,
+        "max": -2.9583333333333197
+      },
+      "producer_gpu_command_ms": {
+        "n": 591,
+        "min": 0.20949996542185545,
+        "mean": 0.4582806004214458,
+        "p50": 0.45775005128234625,
+        "p95": 0.9743749396875501,
+        "p99": 1.7572917276993394,
+        "max": 2.7902916772291064
+      },
+      "cpu_readback_upload_ms": {
+        "n": 591,
+        "min": 0,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "rss_during_playback_bytes": {
+        "n": 591,
+        "min": 94928896,
+        "mean": 114839836.15566836,
+        "p50": 116736000,
+        "p95": 117964800,
+        "p99": 118046720,
+        "max": 118046720
+      },
+      "rss_after_seek_capture_bytes": 150372352,
+      "process_cpu_percent_one_core": 15.01416430594901,
+      "first_10_seconds": {
+        "ack": 294,
+        "mean_gpu_ms": 0.4610293422078042,
+        "mean_rss": 112748557.93197279
+      },
+      "last_10_seconds": {
+        "ack": 296,
+        "mean_gpu_ms": 0.4555595436171201,
+        "mean_rss": 116984250.8108108
+      },
+      "loops": 9,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": false,
+        "cpu_copy": false,
+        "dropped": 0,
+        "rss": 150372352,
+        "seconds": 20,
+        "hw": true
+      }
+    },
+    {
+      "case": "1080-hw-sustained",
+      "requested_seconds": 60,
+      "frames_submitted": 1772,
+      "native_acknowledged": 1771,
+      "ack_fps": 29.516666666666666,
+      "scheduled_skips": 0,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 1771,
+        "min": -35.10416666666668,
+        "mean": -13.944946357989851,
+        "p50": -13.583333333333357,
+        "p95": -7.0625000000000755,
+        "p99": -5.479166666666625,
+        "max": -3.395833333333424
+      },
+      "producer_gpu_command_ms": {
+        "n": 1772,
+        "min": 0.4446249222382903,
+        "mean": 0.8852936426134523,
+        "p50": 0.9708333527669311,
+        "p95": 1.4739999314770103,
+        "p99": 2.144958358258009,
+        "max": 3.3667500829324126
+      },
+      "cpu_readback_upload_ms": {
+        "n": 1772,
+        "min": 0,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "rss_during_playback_bytes": {
+        "n": 1772,
+        "min": 94781440,
+        "mean": 117615780.11738148,
+        "p50": 118620160,
+        "p95": 120111104,
+        "p99": 120143872,
+        "max": 120160256
+      },
+      "rss_after_seek_capture_bytes": 152403968,
+      "process_cpu_percent_one_core": 14.49535300831567,
+      "first_10_seconds": {
+        "ack": 294,
+        "mean_gpu_ms": 0.9721476750188589,
+        "mean_rss": 110269446.9659864
+      },
+      "last_10_seconds": {
+        "ack": 296,
+        "mean_gpu_ms": 0.8457164969169408,
+        "mean_rss": 119423695.56756757
+      },
+      "loops": 29,
+      "thermal_samples": [
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 0,
+          "rss": 52838400
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 5.338566249702126,
+          "rss": 112279552
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 10.701409624889493,
+          "rss": 118374400
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 16.050876665860415,
+          "rss": 118472704
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 21.41898345761001,
+          "rss": 118521856
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 26.735579040832818,
+          "rss": 118554624
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 32.08087758300826,
+          "rss": 118669312
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 37.45760762458667,
+          "rss": 120045568
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 42.8152499999851,
+          "rss": 120045568
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 48.15939737483859,
+          "rss": 119996416
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 53.49485141597688,
+          "rss": 120061952
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 58.83181949984282,
+          "rss": 120111104
+        }
+      ],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": true,
+        "cpu_copy": false,
+        "dropped": 0,
+        "rss": 152403968,
+        "seconds": 60,
+        "hw": true
+      }
+    },
+    {
+      "case": "1080-hw-unlocked",
+      "requested_seconds": 20,
+      "frames_submitted": 591,
+      "native_acknowledged": 590,
+      "ack_fps": 29.5,
+      "scheduled_skips": 0,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 590,
+        "min": -30.833333333333336,
+        "mean": -16.934957627118656,
+        "p50": -17.395833333333353,
+        "p95": -9.374999999999973,
+        "p99": -8.60416666666667,
+        "max": -5.458333333333343
+      },
+      "producer_gpu_command_ms": {
+        "n": 591,
+        "min": 0.44670829083770514,
+        "mean": 0.7991290890789778,
+        "p50": 0.8908333256840706,
+        "p95": 0.9764999849721789,
+        "p99": 1.4571250649169087,
+        "max": 2.527875010855496
+      },
+      "cpu_readback_upload_ms": {
+        "n": 591,
+        "min": 0,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "rss_during_playback_bytes": {
+        "n": 591,
+        "min": 94683136,
+        "mean": 114350145.84094755,
+        "p50": 117178368,
+        "p95": 118472704,
+        "p99": 118489088,
+        "max": 118489088
+      },
+      "rss_after_seek_capture_bytes": 150814720,
+      "process_cpu_percent_one_core": 17.82224290367613,
+      "first_10_seconds": {
+        "ack": 294,
+        "mean_gpu_ms": 0.7608166094362533,
+        "mean_rss": 110641709.27891156
+      },
+      "last_10_seconds": {
+        "ack": 296,
+        "mean_gpu_ms": 0.8365955806299541,
+        "mean_rss": 118099968
+      },
+      "loops": 9,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": true,
+        "cpu_copy": false,
+        "dropped": 0,
+        "rss": 150814720,
+        "seconds": 20,
+        "hw": true
+      }
+    },
+    {
+      "case": "1080-sw",
+      "requested_seconds": 15,
+      "frames_submitted": 405,
+      "native_acknowledged": 404,
+      "ack_fps": 26.933333333333334,
+      "scheduled_skips": 36,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 404,
+        "min": -57.87500000000001,
+        "mean": -36.69997937293731,
+        "p50": -34.08333333333332,
+        "p95": -25.604166666666664,
+        "p99": -24.562500000000014,
+        "max": -18.916666666666618
+      },
+      "producer_gpu_command_ms": {
+        "n": 405,
+        "min": 0.3572084242478013,
+        "mean": 0.7101947556675217,
+        "p50": 0.7715834071859717,
+        "p95": 0.905750086531043,
+        "p99": 2.1676250034943223,
+        "max": 3.6106250481680036
+      },
+      "cpu_readback_upload_ms": {
+        "n": 405,
+        "min": 0,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "rss_during_playback_bytes": {
+        "n": 405,
+        "min": 126992384,
+        "mean": 147403004.83950618,
+        "p50": 149143552,
+        "p95": 150503424,
+        "p99": 150519808,
+        "max": 150519808
+      },
+      "rss_after_seek_capture_bytes": 160825344,
+      "process_cpu_percent_one_core": 52.57924176507147,
+      "first_10_seconds": {
+        "ack": 272,
+        "mean_gpu_ms": 0.7019987768966102,
+        "mean_rss": 146005955.7647059
+      },
+      "last_10_seconds": {
+        "ack": 271,
+        "mean_gpu_ms": 0.7059750936726088,
+        "mean_rss": 149967709.5202952
+      },
+      "loops": 7,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": true,
+        "cpu_copy": false,
+        "dropped": 36,
+        "rss": 160825344,
+        "seconds": 15,
+        "hw": false
+      }
+    },
+    {
+      "case": "4k-cpu-copy",
+      "requested_seconds": 15,
+      "frames_submitted": 322,
+      "native_acknowledged": 321,
+      "ack_fps": 21.4,
+      "scheduled_skips": 118,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 321,
+        "min": -66.02083333333336,
+        "mean": -47.340212876427834,
+        "p50": -47.85416666666668,
+        "p95": -34.64583333333334,
+        "p99": -31.999999999999954,
+        "max": -30.000000000000068
+      },
+      "producer_gpu_command_ms": {
+        "n": 322,
+        "min": 1.7558749532327056,
+        "mean": 3.3576942337474422,
+        "p50": 3.301666583865881,
+        "p95": 5.371375009417534,
+        "p99": 5.545624997466803,
+        "max": 6.274375016801059
+      },
+      "cpu_readback_upload_ms": {
+        "n": 322,
+        "min": 4.813875071704388,
+        "mean": 9.104450406819026,
+        "p50": 9.254457894712687,
+        "p95": 9.919125121086836,
+        "p99": 10.393500328063965,
+        "max": 10.505500249564648
+      },
+      "rss_during_playback_bytes": {
+        "n": 322,
+        "min": 218890240,
+        "mean": 311659399.1552795,
+        "p50": 314392576,
+        "p95": 314621952,
+        "p99": 314736640,
+        "max": 348110848
+      },
+      "rss_after_seek_capture_bytes": 346619904,
+      "process_cpu_percent_one_core": 28.234582829504234,
+      "first_10_seconds": {
+        "ack": 214,
+        "mean_gpu_ms": 3.3212813519367894,
+        "mean_rss": 310682442.1682243
+      },
+      "last_10_seconds": {
+        "ack": 214,
+        "mean_gpu_ms": 3.393938866657179,
+        "mean_rss": 314438895.25233644
+      },
+      "loops": 7,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": true,
+        "cpu_copy": true,
+        "dropped": 118,
+        "rss": 346619904,
+        "seconds": 15,
+        "hw": true
+      }
+    },
+    {
+      "case": "4k-hw-color",
+      "requested_seconds": 30,
+      "frames_submitted": 842,
+      "native_acknowledged": 841,
+      "ack_fps": 28.033333333333335,
+      "scheduled_skips": 43,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 841,
+        "min": -57.70833333333336,
+        "mean": -36.104662108600884,
+        "p50": -35.666666666666636,
+        "p95": -23.479166666666675,
+        "p99": -17.354166666666718,
+        "max": -8.791666666666794
+      },
+      "producer_gpu_command_ms": {
+        "n": 842,
+        "min": 1.752499956637621,
+        "mean": 3.3477682106234488,
+        "p50": 3.817916731350124,
+        "p95": 4.9701250391080976,
+        "p99": 5.566666717641056,
+        "max": 6.948958267457783
+      },
+      "cpu_readback_upload_ms": {
+        "n": 842,
+        "min": 0,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "rss_during_playback_bytes": {
+        "n": 842,
+        "min": 118587392,
+        "mean": 183695131.36342043,
+        "p50": 186400768,
+        "p95": 191676416,
+        "p99": 191791104,
+        "max": 191791104
+      },
+      "rss_after_seek_capture_bytes": 310722560,
+      "process_cpu_percent_one_core": 14.697497624326894,
+      "first_10_seconds": {
+        "ack": 279,
+        "mean_gpu_ms": 3.3184059133659716,
+        "mean_rss": 173738284.96057346
+      },
+      "last_10_seconds": {
+        "ack": 282,
+        "mean_gpu_ms": 3.270975026344973,
+        "mean_rss": 191074333.0496454
+      },
+      "loops": 14,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": true,
+        "cpu_copy": false,
+        "dropped": 43,
+        "rss": 310722560,
+        "seconds": 30,
+        "hw": true
+      }
+    },
+    {
+      "case": "4k-hw-off",
+      "requested_seconds": 30,
+      "frames_submitted": 881,
+      "native_acknowledged": 880,
+      "ack_fps": 29.333333333333332,
+      "scheduled_skips": 5,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 880,
+        "min": -52.60416666666663,
+        "mean": -32.61946022727274,
+        "p50": -33.31250000000007,
+        "p95": -18.208333333333286,
+        "p99": -9.083333333333373,
+        "max": -4.479166666666735
+      },
+      "producer_gpu_command_ms": {
+        "n": 881,
+        "min": 0.8207500213757157,
+        "mean": 1.6409982024627514,
+        "p50": 1.7732499400153756,
+        "p95": 2.473666681908071,
+        "p99": 3.0539999715983868,
+        "max": 4.8258749302476645
+      },
+      "cpu_readback_upload_ms": {
+        "n": 881,
+        "min": 0,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "rss_during_playback_bytes": {
+        "n": 881,
+        "min": 118685696,
+        "mean": 190548542.18388194,
+        "p50": 191971328,
+        "p95": 214663168,
+        "p99": 214908928,
+        "max": 214908928
+      },
+      "rss_after_seek_capture_bytes": 341835776,
+      "process_cpu_percent_one_core": 14.503816793893131,
+      "first_10_seconds": {
+        "ack": 294,
+        "mean_gpu_ms": 1.621999431379317,
+        "mean_rss": 172490083.26530612
+      },
+      "last_10_seconds": {
+        "ack": 293,
+        "mean_gpu_ms": 1.6735335641124194,
+        "mean_rss": 207813929.06484643
+      },
+      "loops": 14,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": false,
+        "cpu_copy": false,
+        "dropped": 5,
+        "rss": 341835776,
+        "seconds": 30,
+        "hw": true
+      }
+    },
+    {
+      "case": "4k-hw-sustained",
+      "requested_seconds": 120,
+      "frames_submitted": 3280,
+      "native_acknowledged": 3279,
+      "ack_fps": 27.325,
+      "scheduled_skips": 258,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 3279,
+        "min": -61.56249999999995,
+        "mean": -38.37362127681205,
+        "p50": -39.166666666666664,
+        "p95": -23.687499999999993,
+        "p99": -14.145833333333448,
+        "max": -4.374999999999941
+      },
+      "producer_gpu_command_ms": {
+        "n": 3280,
+        "min": 1.751875039190054,
+        "mean": 3.3610144419959043,
+        "p50": 3.8174166111275554,
+        "p95": 5.021666642278433,
+        "p99": 5.391833372414112,
+        "max": 7.74300005286932
+      },
+      "cpu_readback_upload_ms": {
+        "n": 3280,
+        "min": 0,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "rss_during_playback_bytes": {
+        "n": 3280,
+        "min": 118734848,
+        "mean": 222345230.98536587,
+        "p50": 228753408,
+        "p95": 229064704,
+        "p99": 229163008,
+        "max": 229195776
+      },
+      "rss_after_seek_capture_bytes": 356024320,
+      "process_cpu_percent_one_core": 13.579942457870942,
+      "first_10_seconds": {
+        "ack": 278,
+        "mean_gpu_ms": 3.242309804061066,
+        "mean_rss": 182354804.02877697
+      },
+      "last_10_seconds": {
+        "ack": 276,
+        "mean_gpu_ms": 3.264711348110459,
+        "mean_rss": 228925202.55072463
+      },
+      "loops": 58,
+      "thermal_samples": [
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 1.2479722499847412e-07,
+          "rss": 52887552
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 5.331879540812224,
+          "rss": 198000640
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 10.688695665914565,
+          "rss": 214548480
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 16.076126040890813,
+          "rss": 218349568
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 21.394750291015953,
+          "rss": 220479488
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 26.77347912499681,
+          "rss": 220282880
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 32.149478249717504,
+          "rss": 220250112
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 37.47980837477371,
+          "rss": 227573760
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 42.79058566596359,
+          "rss": 228524032
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 48.12384825013578,
+          "rss": 228835328
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 53.45553641580045,
+          "rss": 228933632
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 58.784708166029304,
+          "rss": 228753408
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 64.10283999983221,
+          "rss": 228868096
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 69.4787231660448,
+          "rss": 228786176
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 74.8831564579159,
+          "rss": 228835328
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 80.23077341588214,
+          "rss": 229113856
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 85.57208945788443,
+          "rss": 228818944
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 90.90623720781878,
+          "rss": 221249536
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 96.26497487490997,
+          "rss": 229031936
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 101.6082712081261,
+          "rss": 228786176
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 106.94852462504059,
+          "rss": 228835328
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 112.2838727911003,
+          "rss": 228884480
+        },
+        {
+          "phase": "thermal-rss",
+          "thermal_state": 0,
+          "wall": 117.62571895774454,
+          "rss": 228786176
+        }
+      ],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": true,
+        "cpu_copy": false,
+        "dropped": 258,
+        "rss": 356024320,
+        "seconds": 120,
+        "hw": true
+      }
+    },
+    {
+      "case": "4k-hw-unlocked",
+      "requested_seconds": 30,
+      "frames_submitted": 818,
+      "native_acknowledged": 817,
+      "ack_fps": 27.233333333333334,
+      "scheduled_skips": 65,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 817,
+        "min": -57.91666666666669,
+        "mean": -36.98176764585885,
+        "p50": -36.3125000000001,
+        "p95": -23.729166666666668,
+        "p99": -14.37499999999995,
+        "max": -6.666666666666744
+      },
+      "producer_gpu_command_ms": {
+        "n": 818,
+        "min": 1.7531249905005097,
+        "mean": 3.0654141186135377,
+        "p50": 3.003499936312437,
+        "p95": 4.314416670240462,
+        "p99": 5.195291712880135,
+        "max": 7.058124989271164
+      },
+      "cpu_readback_upload_ms": {
+        "n": 818,
+        "min": 0,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "rss_during_playback_bytes": {
+        "n": 818,
+        "min": 118538240,
+        "mean": 184813883.46210268,
+        "p50": 191168512,
+        "p95": 191660032,
+        "p99": 191709184,
+        "max": 191709184
+      },
+      "rss_after_seek_capture_bytes": 310476800,
+      "process_cpu_percent_one_core": 16.582278481012658,
+      "first_10_seconds": {
+        "ack": 276,
+        "mean_gpu_ms": 2.9757353557320987,
+        "mean_rss": 172607933.2173913
+      },
+      "last_10_seconds": {
+        "ack": 271,
+        "mean_gpu_ms": 3.198483546876187,
+        "mean_rss": 191138887.79335794
+      },
+      "loops": 14,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": true,
+        "cpu_copy": false,
+        "dropped": 65,
+        "rss": 310476800,
+        "seconds": 30,
+        "hw": true
+      }
+    },
+    {
+      "case": "4k-sw",
+      "requested_seconds": 15,
+      "frames_submitted": 179,
+      "native_acknowledged": 178,
+      "ack_fps": 11.866666666666667,
+      "scheduled_skips": 252,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 178,
+        "min": -99.56250000000009,
+        "mean": -84.92919007490639,
+        "p50": -82.06250000000003,
+        "p95": -68.1666666666666,
+        "p99": -67.66666666666664,
+        "max": -60.1875000000001
+      },
+      "producer_gpu_command_ms": {
+        "n": 179,
+        "min": 1.3912082649767399,
+        "mean": 2.994148747464798,
+        "p50": 3.0248750699684024,
+        "p95": 4.173541674390435,
+        "p99": 5.005916580557823,
+        "max": 5.3885417291894555
+      },
+      "cpu_readback_upload_ms": {
+        "n": 179,
+        "min": 0,
+        "mean": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "rss_during_playback_bytes": {
+        "n": 179,
+        "min": 248004608,
+        "mean": 337837439.2849162,
+        "p50": 340672512,
+        "p95": 359497728,
+        "p99": 359530496,
+        "max": 359530496
+      },
+      "rss_after_seek_capture_bytes": 400523264,
+      "process_cpu_percent_one_core": 89.07766990291262,
+      "first_10_seconds": {
+        "ack": 118,
+        "mean_gpu_ms": 3.003978469385371,
+        "mean_rss": 331342795.9322034
+      },
+      "last_10_seconds": {
+        "ack": 120,
+        "mean_gpu_ms": 2.9183468771710372,
+        "mean_rss": 346328541.8666667
+      },
+      "loops": 7,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": true,
+        "cpu_copy": false,
+        "dropped": 252,
+        "rss": 400523264,
+        "seconds": 15,
+        "hw": false
+      }
+    },
+    {
+      "case": "audio-1",
+      "requested_seconds": 30,
+      "frames_submitted": 900,
+      "native_acknowledged": 899,
+      "ack_fps": 29.966666666666665,
+      "scheduled_skips": 0,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 899,
+        "min": -21.812499999999783,
+        "mean": -12.833959028550423,
+        "p50": -12.729166666666632,
+        "p95": -8.104166666665789,
+        "p99": -7.895833333334046,
+        "max": -3.833333333334209
+      },
+      "producer_gpu_command_ms": {
+        "n": 900,
+        "min": 0.02274999860674143,
+        "mean": 0.10081157579811083,
+        "p50": 0.048041692934930325,
+        "p95": 0.4122916143387556,
+        "p99": 0.7206249283626676,
+        "max": 1.820750068873167
+      },
+      "cpu_readback_upload_ms": {
+        "n": 900,
+        "min": 0.012540724128484726,
+        "mean": 0.034730411134660244,
+        "p50": 0.027665868401527405,
+        "p95": 0.06704218685626984,
+        "p99": 0.08395826444029808,
+        "max": 0.28958311304450035
+      },
+      "rss_during_playback_bytes": {
+        "n": 900,
+        "min": 89292800,
+        "mean": 92414243.27111112,
+        "p50": 92471296,
+        "p95": 92471296,
+        "p99": 92471296,
+        "max": 92471296
+      },
+      "rss_after_seek_capture_bytes": 100253696,
+      "process_cpu_percent_one_core": 21.364221364221365,
+      "first_10_seconds": {
+        "ack": 298,
+        "mean_gpu_ms": 0.10541596859318499,
+        "mean_rss": 92320431.24832214
+      },
+      "last_10_seconds": {
+        "ack": 301,
+        "mean_gpu_ms": 0.11263967745402129,
+        "mean_rss": 92463784.39867109
+      },
+      "loops": 0,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 1,
+        "color": true,
+        "cpu_copy": false,
+        "dropped": 0,
+        "rss": 100253696,
+        "seconds": 30,
+        "hw": true
+      }
+    },
+    {
+      "case": "audio-double",
+      "requested_seconds": 15,
+      "frames_submitted": 516,
+      "native_acknowledged": 515,
+      "ack_fps": 34.333333333333336,
+      "scheduled_skips": 382,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 515,
+        "min": -61.08333333333405,
+        "mean": -40.62524271844685,
+        "p50": -42.54166666666742,
+        "p95": -25.208333333333428,
+        "p99": -24.958333333333215,
+        "max": -8.500000000000007
+      },
+      "producer_gpu_command_ms": {
+        "n": 516,
+        "min": 0.021583400666713715,
+        "mean": 0.07826574449066448,
+        "p50": 0.0484582269564271,
+        "p95": 0.3150833072140813,
+        "p99": 0.6496666464954615,
+        "max": 1.7948750173673034
+      },
+      "cpu_readback_upload_ms": {
+        "n": 516,
+        "min": 0.011666212230920792,
+        "mean": 0.028754996005878893,
+        "p50": 0.025541987270116806,
+        "p95": 0.05641672760248184,
+        "p99": 0.08029164746403694,
+        "max": 0.15608267858624458
+      },
+      "rss_during_playback_bytes": {
+        "n": 516,
+        "min": 88571904,
+        "mean": 91554077.76744185,
+        "p50": 91619328,
+        "p95": 91717632,
+        "p99": 91717632,
+        "max": 91717632
+      },
+      "rss_after_seek_capture_bytes": 95895552,
+      "process_cpu_percent_one_core": 22.090852520224022,
+      "first_10_seconds": {
+        "ack": 346,
+        "mean_gpu_ms": 0.07421663973071327,
+        "mean_rss": 91490481.57225433
+      },
+      "last_10_seconds": {
+        "ack": 342,
+        "mean_gpu_ms": 0.08033272369127524,
+        "mean_rss": 91643808.1871345
+      },
+      "loops": 0,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 2,
+        "color": true,
+        "cpu_copy": false,
+        "dropped": 382,
+        "rss": 95895552,
+        "seconds": 15,
+        "hw": true
+      }
+    },
+    {
+      "case": "audio-half",
+      "requested_seconds": 15,
+      "frames_submitted": 225,
+      "native_acknowledged": 224,
+      "ack_fps": 14.933333333333334,
+      "scheduled_skips": 0,
+      "frame_pts_minus_audio_clock_ms": {
+        "n": 224,
+        "min": -12.052083333333464,
+        "mean": -7.551432291666743,
+        "p50": -7.5520833333333135,
+        "p95": -5.260416666666677,
+        "p99": -3.5104166666668144,
+        "max": -3.0937500000005196
+      },
+      "producer_gpu_command_ms": {
+        "n": 225,
+        "min": 0.022541615180671215,
+        "mean": 0.07284870319482353,
+        "p50": 0.04800001624971628,
+        "p95": 0.2832916798070073,
+        "p99": 0.4645417211577296,
+        "max": 1.1557916877791286
+      },
+      "cpu_readback_upload_ms": {
+        "n": 225,
+        "min": 0.017917249351739883,
+        "mean": 0.0471505688296424,
+        "p50": 0.03683287650346756,
+        "p95": 0.09149964898824692,
+        "p99": 0.13183290138840675,
+        "max": 0.42174989357590675
+      },
+      "rss_during_playback_bytes": {
+        "n": 225,
+        "min": 112705536,
+        "mean": 115040583.68,
+        "p50": 114966528,
+        "p95": 115605504,
+        "p99": 115654656,
+        "max": 115654656
+      },
+      "rss_after_seek_capture_bytes": 131104768,
+      "process_cpu_percent_one_core": 17.375231053604434,
+      "first_10_seconds": {
+        "ack": 149,
+        "mean_gpu_ms": 0.07251342492890638,
+        "mean_rss": 114834576.32214765
+      },
+      "last_10_seconds": {
+        "ack": 150,
+        "mean_gpu_ms": 0.07230499914536874,
+        "mean_rss": 115206280.53333333
+      },
+      "loops": 0,
+      "thermal_samples": [],
+      "mode": {
+        "action": "playback-summary",
+        "speed": 0.5,
+        "color": true,
+        "cpu_copy": false,
+        "dropped": 0,
+        "rss": 131104768,
+        "seconds": 15,
+        "hw": true
+      }
+    }
+  ],
+  "limits": [
+    "serial blocking render/present/capture experiment, not optimized Player",
+    "30fps synthetic H264 2-second 1080p/4K files replayed with queue restart at each loop; audio is parallel predecoded 40-second input, not same 2-second encoded AV stream",
+    "GPU statistic is producer command only; consumer/compositor GPU utilization not instrumented",
+    "decode_batch_ms includes scheduling wait and must not be interpreted as pure decode cost; throughput is integrated acknowledged fps",
+    "two decoded frames and three output slots are bounded; RSS is measured process resident memory, not an allocation/leak diagnosis",
+    "no underrun detector, physical AV loopback, power metrics or thermal saturation run; 60/120 second trend only; Mac lock was observed afterward, exact transition time unknown, desktop visibility not continuously monitored; post-unlock 20/30-second cases separately identified",
+    "CPU copy includes readback, allocation and consumer texture upload, excluding capture hashing; not an Avalonia bitmap benchmark"
+  ]
+}

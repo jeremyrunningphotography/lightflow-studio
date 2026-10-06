@@ -1,0 +1,179 @@
+{
+  "statuses": [
+    "proven",
+    "simulated",
+    "reasoned",
+    "unresolved"
+  ],
+  "gate": "G1b-C; G1 REVISE / UNPASSED",
+  "rows": [
+    {
+      "case": "normal playback",
+      "status": "proven",
+      "evidence": "FRAME_AUTHORITY_RESULTS.json",
+      "scope_or_limit": "Native acknowledged serial/PTS association on deterministic corpus; no physical scanout oracle, no per-frame large-image readback."
+    },
+    {
+      "case": "pause",
+      "status": "proven",
+      "evidence": "AUDIO_SYNC_RESULTS.json",
+      "scope_or_limit": "AudioQueue clock freezes and retained serial remains; paused software frame/capture exact."
+    },
+    {
+      "case": "seek",
+      "status": "proven",
+      "evidence": "FRAME_AUTHORITY_RESULTS.json",
+      "scope_or_limit": "Exact raw PTS at 2s; stop output, decode/retain target, resume sample clock at origin 1s; source normalization/concurrent seek not qualified."
+    },
+    {
+      "case": "forward step",
+      "status": "proven",
+      "evidence": "FRAME_AUTHORITY_RESULTS.json",
+      "scope_or_limit": "PTS 0 -> 512 in timebase 1/15360; silent software path."
+    },
+    {
+      "case": "reverse step",
+      "status": "proven",
+      "evidence": "REVERSE_STEP_RESULTS.json",
+      "scope_or_limit": "600 exact PTS/pixel predecessor queries over 180s CFR/VFR, plus paused return to PTS0."
+    },
+    {
+      "case": "speed segments",
+      "status": "proven",
+      "evidence": "AUDIO_SYNC_RESULTS.json",
+      "scope_or_limit": ".5/1/2 separately opened atempo/output segments; source PTS remains rational; 2x scheduling skips disclosed."
+    },
+    {
+      "case": "speed change during playback",
+      "status": "unresolved",
+      "evidence": "AUDIO_SYNC_RESULTS.json",
+      "scope_or_limit": "No live tempo/state transition test; .125/.25/4 not exercised by G1b."
+    },
+    {
+      "case": "loop",
+      "status": "proven",
+      "evidence": "PERFORMANCE_RESULTS.json",
+      "scope_or_limit": "Explicit queue restart and generation rebase across 2s clip loops; discontinuity/gap allowed only as disclosed experiment, not semantic acceptance."
+    },
+    {
+      "case": "seamless loop",
+      "status": "unresolved",
+      "evidence": "AUDIO_SYNC_RESULTS.json",
+      "scope_or_limit": "No same-encoded-stream audio/video seam or audible gap oracle."
+    },
+    {
+      "case": "Color change",
+      "status": "proven",
+      "evidence": "COLOR_CAPTURE_RESULTS.json",
+      "scope_or_limit": "20 software and 20 post-unlock hardware rotation/Color variants; maximum channel errors 1 and 2 respectively."
+    },
+    {
+      "case": "Compare Original",
+      "status": "proven",
+      "evidence": "COLOR_CAPTURE_RESULTS.json",
+      "scope_or_limit": "Same source PTS; Camera/Creative bypass through CPU/GPU comparisons."
+    },
+    {
+      "case": "capture",
+      "status": "proven",
+      "evidence": "COLOR_CAPTURE_RESULTS.json",
+      "scope_or_limit": "Captured successful serial matches acknowledged native record; full-resolution backend transforms; held texture hash unchanged after six draws."
+    },
+    {
+      "case": "concurrent capture/source replacement",
+      "status": "unresolved",
+      "evidence": "PRESENTED_FRAME_CONTRACT.md",
+      "scope_or_limit": "Single-source serialized experiment; no competing capture and source replacement test."
+    },
+    {
+      "case": "fullscreen",
+      "status": "proven",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope_or_limit": "Actual NSWindow fullscreen style/backing dimensions and nonzero presented callback after retries; Spaces navigation and UI focus restoration unqualified."
+    },
+    {
+      "case": "resize",
+      "status": "proven",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope_or_limit": "Shown 640x360 logical, 1280 pixel width on scale2; cross-display scale transition untested."
+    },
+    {
+      "case": "reopen",
+      "status": "proven",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope_or_limit": "Post-unlock four close/reopen retries acknowledge; first draws do not. General visibility/recovery policy remains incomplete."
+    },
+    {
+      "case": "deactivate/reactivate",
+      "status": "unresolved",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope_or_limit": "Programmatic deactivate request left NSApp.active true, so no actual transition qualified."
+    },
+    {
+      "case": "decode failure",
+      "status": "proven",
+      "evidence": "raw/decode-failure.log",
+      "scope_or_limit": "Missing input exits2; native process/window terminates. Production error reporting/recovery unimplemented."
+    },
+    {
+      "case": "end-of-stream decoder",
+      "status": "reasoned",
+      "evidence": "../../../../tools/X1MacPlayerG1b/integrated.mm",
+      "scope_or_limit": "Decoder returns null after drain; loop path exercised. Nonloop Player retain-at-EOF behavior not exercised."
+    },
+    {
+      "case": "audio underrun/restart",
+      "status": "simulated",
+      "evidence": "AUDIO_SYNC_RESULTS.json",
+      "scope_or_limit": "Actual stop/dispose/recreate and restored origin advance; interruption simulated, no callback starvation/underrun detection or physical device change."
+    },
+    {
+      "case": "render/surface recreation",
+      "status": "proven",
+      "evidence": "FRAME_AUTHORITY_RESULTS.json",
+      "scope_or_limit": "IOSurface output dimension changes and host reopen exercised; stable per-slot allocation generation not implemented (emitted value is pool epoch)."
+    },
+    {
+      "case": "stale frame generation",
+      "status": "simulated",
+      "evidence": "FRAME_AUTHORITY_RESULTS.json",
+      "scope_or_limit": "Inject generation change after producer GPU completion; obsolete candidate cannot publish, prior retained identity unchanged."
+    },
+    {
+      "case": "cancelled seek",
+      "status": "simulated",
+      "evidence": "FRAME_AUTHORITY_RESULTS.json",
+      "scope_or_limit": "Generation cancellation model only; not interruption of an expensive active seek/redecode."
+    },
+    {
+      "case": "surface pressure",
+      "status": "simulated",
+      "evidence": "raw/surface-pressure.jsonl.gz",
+      "scope_or_limit": "Hold all three slots: explicit exit13, no overwrite; graceful scheduling/coalescing recovery not implemented."
+    },
+    {
+      "case": "device/surface loss",
+      "status": "unresolved",
+      "evidence": "PRESENTATION_INTEROP_CONTRACT.md",
+      "scope_or_limit": "No physical GPU/audio device loss induced; invalidation/recreation contract specified only."
+    },
+    {
+      "case": "sleep/wake",
+      "status": "unresolved",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope_or_limit": "Not induced; no system sleep or power preference changes."
+    },
+    {
+      "case": "Avalonia clipping/overlays/input",
+      "status": "unresolved",
+      "evidence": "PRESENTATION_INTEROP_CONTRACT.md",
+      "scope_or_limit": "Pinned import APIs inspected; native primitive tested; no Avalonia runtime execution and X3 remains paused."
+    },
+    {
+      "case": "UI presentation acknowledgement",
+      "status": "unresolved",
+      "evidence": "PRESENTATION_INTEROP_CONTRACT.md",
+      "scope_or_limit": "Surface snapshot update/lifetime Task is not display acknowledgement; final composed snapshot-to-serial association still required."
+    }
+  ]
+}

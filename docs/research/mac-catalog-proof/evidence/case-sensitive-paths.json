@@ -1,0 +1,98 @@
+[
+  {
+    "label": "case-only",
+    "a": "Case.mov",
+    "b": "case.mov",
+    "samePhysical": false,
+    "firstStatus": "Succeeded",
+    "secondStatus": "AlreadyExists",
+    "requestedHash": "9C305334AB56EF09CE1032C2AD9F2E66DD5100E4AA79D047E5F26905751E1BEB",
+    "resolvedHash": "5C0FB43404718276E002407EB9D8EC8A951AD720731C57EBBE869CFD2E1D7AC9",
+    "firstId": "71e7fdbf-b172-4a52-9487-4b0b8812353d",
+    "lookupId": "71e7fdbf-b172-4a52-9487-4b0b8812353d",
+    "physicalPath": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/case-mount/media/Case.mov",
+    "keyA": "CASE.MOV",
+    "keyB": "CASE.MOV"
+  },
+  {
+    "label": "NFC-NFD",
+    "a": "caf\u00E9.mov",
+    "b": "cafe\u0301.mov",
+    "samePhysical": true,
+    "firstStatus": "Succeeded",
+    "secondStatus": "Succeeded",
+    "requestedHash": "B4574B1EE18AA338BBA232EBF8563CC299DC52DE3ADB5914BA3FD4C79A334642",
+    "resolvedHash": "B4574B1EE18AA338BBA232EBF8563CC299DC52DE3ADB5914BA3FD4C79A334642",
+    "firstId": "e86fbb61-067b-4e52-a09e-cd1a2a3a7a80",
+    "lookupId": "e29cfd4f-cf1a-4cb6-8487-64934101e7ac",
+    "physicalPath": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/case-mount/media/cafe\u0301.mov",
+    "keyA": "CAF\u00C9.MOV",
+    "keyB": "CAFE\u0301.MOV"
+  },
+  {
+    "label": "literal-backslash",
+    "a": "nested/name.mov",
+    "b": "nested\\name.mov",
+    "samePhysical": false,
+    "firstStatus": "Succeeded",
+    "secondStatus": "AlreadyExists",
+    "requestedHash": "5103C5D263D2539738F27F1F9D5EB67B09C8C69F74A31E8AE74A35AD092C8C2C",
+    "resolvedHash": "9753C8E2C9DAF0EA1CB369E108B83A3A03D2FE4C2ABC6B275739D165EFADBE77",
+    "firstId": "deb962ae-012f-4953-9a8c-1314fd656391",
+    "lookupId": "deb962ae-012f-4953-9a8c-1314fd656391",
+    "physicalPath": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/case-mount/media/nested/name.mov",
+    "keyA": "NESTED/NAME.MOV",
+    "keyB": "NESTED/NAME.MOV"
+  },
+  {
+    "label": "leading-trailing-space",
+    "a": "trim.mov",
+    "b": " trim.mov ",
+    "samePhysical": false,
+    "firstStatus": "Succeeded",
+    "secondStatus": "AlreadyExists",
+    "requestedHash": "CEFDB1F8320008ED0318FFB7804CA1FD3101205B4588441E7CFD88F4C2BCDF1B",
+    "resolvedHash": "E39E93895C12B41B6E31DF0449CBE406D57820880679F457DC1BB332525887C9",
+    "firstId": "a8411187-aecf-45c2-b42c-379bfcf0364b",
+    "lookupId": "a8411187-aecf-45c2-b42c-379bfcf0364b",
+    "physicalPath": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/case-mount/media/trim.mov",
+    "keyA": "TRIM.MOV",
+    "keyB": "TRIM.MOV"
+  },
+  {
+    "label": "legal-name",
+    "name": "CON.mov",
+    "status": "Succeeded",
+    "id": "5f48b9ff-b1dc-4ea4-870a-22cf380eabf9"
+  },
+  {
+    "label": "legal-name",
+    "name": "colon:name.mov",
+    "status": "Succeeded",
+    "id": "aecbffcc-4a1f-4f8b-bd4e-09d1fc344b56"
+  },
+  {
+    "label": "legal-name",
+    "name": "question?.mov",
+    "status": "Succeeded",
+    "id": "d093eef1-50f2-4868-b6c1-0a63a02697e9"
+  },
+  {
+    "label": "legal-name",
+    "name": "trailing-dot.mov.",
+    "status": "Succeeded",
+    "id": "c7c80d17-1aa6-4c00-92cf-9be1b83637d4"
+  },
+  {
+    "label": "legal-name",
+    "name": "emoji-\uD83D\uDE00.mov",
+    "status": "Succeeded",
+    "id": "56bd8f26-f7bf-49d7-8b5e-57e65c5810ef"
+  },
+  {
+    "label": "symlink escape",
+    "status": "Succeeded",
+    "path": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/case-mount/media/link-out/escape.mov",
+    "target": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/case-mount/outside-fixture"
+  }
+]

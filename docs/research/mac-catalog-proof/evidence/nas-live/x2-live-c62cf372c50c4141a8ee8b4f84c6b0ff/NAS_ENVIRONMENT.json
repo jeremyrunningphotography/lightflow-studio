@@ -1,0 +1,18 @@
+{
+  "nas": "/Volumes/Development/codex/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff",
+  "local": "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff",
+  "mountType": "smbfs",
+  "statvfs": {
+    "blockSize": 2097152,
+    "fragmentSize": 1024,
+    "blocks": 268435456,
+    "available": 268433116,
+    "flags": 2,
+    "nameMax": 255
+  },
+  "capabilitiesExit": 0,
+  "branch": "codex/x2-nas-qualification-20261005",
+  "headBeforeHarnessCommit": "7e2d04e37cc5ef1e65927aaf91e7e4a95751e189",
+  "baseline": "aed6c2906637c8a5a9d71c1c18ac24bed48a8724",
+  "clientTimeZone": "America/Los_Angeles"
+}

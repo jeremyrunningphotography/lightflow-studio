@@ -1,0 +1,58 @@
+[
+  {
+    "package": "Microsoft.Data.Sqlite",
+    "version": "8.0.29",
+    "license": "MIT",
+    "nuspecSha256": "75baf92767b0ceee8469d6fbed06f34cc66eb1509c7e7b2132eb6556e1e8b966",
+    "path": "work/nuget/microsoft.data.sqlite/8.0.29/microsoft.data.sqlite.nuspec"
+  },
+  {
+    "package": "System.Memory",
+    "version": "4.5.3",
+    "license": null,
+    "nuspecSha256": "d38da361a4741fa4f1ad0c6d83489f450affdea4caefe3bcd3d3e19290b235c4",
+    "path": "work/nuget/system.memory/4.5.3/system.memory.nuspec"
+  },
+  {
+    "package": "SQLitePCLRaw.core",
+    "version": "2.1.13",
+    "license": "Apache-2.0",
+    "nuspecSha256": "8e410ff52c26114c7c3124cf3e77d663abbd9ec49801324ed1bc1aa7ea1c91ae",
+    "path": "work/nuget/sqlitepclraw.core/2.1.13/sqlitepclraw.core.nuspec"
+  },
+  {
+    "package": "SQLitePCLRaw.core",
+    "version": "2.1.6",
+    "license": "Apache-2.0",
+    "nuspecSha256": "4c7d78e1cd4dc523c2ee14f7c5c2ca40508706b1c0550aa16230b0577a1a443d",
+    "path": "work/nuget/sqlitepclraw.core/2.1.6/sqlitepclraw.core.nuspec"
+  },
+  {
+    "package": "SQLitePCLRaw.provider.e_sqlite3",
+    "version": "2.1.13",
+    "license": "Apache-2.0",
+    "nuspecSha256": "d31fbb24bed1097f15170bc81b1de4832213f9d50deab423ec8c7aa16995b1c7",
+    "path": "work/nuget/sqlitepclraw.provider.e_sqlite3/2.1.13/sqlitepclraw.provider.e_sqlite3.nuspec"
+  },
+  {
+    "package": "Microsoft.Data.Sqlite.Core",
+    "version": "8.0.29",
+    "license": "MIT",
+    "nuspecSha256": "2f085ee8d09de18991352b1c2685e3a534a47926cb0aebb06cce6e54647b9996",
+    "path": "work/nuget/microsoft.data.sqlite.core/8.0.29/microsoft.data.sqlite.core.nuspec"
+  },
+  {
+    "package": "SQLitePCLRaw.bundle_e_sqlite3",
+    "version": "2.1.13",
+    "license": "Apache-2.0",
+    "nuspecSha256": "f04f469c99056d21b928d6677ae2cd6db582fa0228ce934741ecefa2fae3c09d",
+    "path": "work/nuget/sqlitepclraw.bundle_e_sqlite3/2.1.13/sqlitepclraw.bundle_e_sqlite3.nuspec"
+  },
+  {
+    "package": "SQLitePCLRaw.lib.e_sqlite3",
+    "version": "2.1.13",
+    "license": "Apache-2.0",
+    "nuspecSha256": "5e0800665aeb09107c3b45e1162109efb9b83dbaad987a4eca5d686d34769e86",
+    "path": "work/nuget/sqlitepclraw.lib.e_sqlite3/2.1.13/sqlitepclraw.lib.e_sqlite3.nuspec"
+  }
+]

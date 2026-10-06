@@ -1,0 +1,5 @@
+System.ArgumentException: Preview source fingerprints must be hexadecimal. (Parameter 'fingerprint')
+   at LightflowStudio.PreviewSourceIdentity..ctor(Int64 fileSizeBytes, Int64 lastWriteUtcTicks, Int32 fingerprintVersion, String fingerprint) in /Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/LightflowStudio/PreviewPersistence.cs:line 36
+   at Program.NasAlternative(String local, String nas) in /Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/NasLive.cs:line 100
+   at Program.NasAlternative(String local, String nas) in /Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/NasLive.cs:line 100
+   at Program.Main(String[] args) in /Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/Program.cs:line 226

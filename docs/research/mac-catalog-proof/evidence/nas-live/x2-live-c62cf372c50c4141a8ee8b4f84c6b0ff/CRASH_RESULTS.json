@@ -1,0 +1,23 @@
+[
+  {
+    "journal": "delete",
+    "pid": 86165,
+    "exit": -9,
+    "artifactsAfterKill": {
+      "-wal": {
+        "exists": false,
+        "bytes": null
+      },
+      "-shm": {
+        "exists": false,
+        "bytes": null
+      },
+      "-journal": {
+        "exists": true,
+        "bytes": 17920
+      }
+    },
+    "recovery": "passed",
+    "limits": "process termination, not server/network/power failure"
+  }
+]

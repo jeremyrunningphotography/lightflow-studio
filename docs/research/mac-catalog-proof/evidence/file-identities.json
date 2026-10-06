@@ -1,0 +1,163 @@
+[
+  {
+    "path": "work/data/local-media-02/question?.mov",
+    "device": 16777231,
+    "inode": 39187848,
+    "size": 13,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/local-media-02/CON.mov",
+    "device": 16777231,
+    "inode": 39187846,
+    "size": 7,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/local-media-02/caf\u00e9.mov",
+    "device": 16777231,
+    "inode": 39187840,
+    "size": 21,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/local-media-02/colon:name.mov",
+    "device": 16777231,
+    "inode": 39187847,
+    "size": 14,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/local-media-02/trailing-dot.mov.",
+    "device": 16777231,
+    "inode": 39187849,
+    "size": 17,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/local-media-02/Case.mov",
+    "device": 16777231,
+    "inode": 39187839,
+    "size": 23,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/local-media-02/ trim.mov ",
+    "device": 16777231,
+    "inode": 39187845,
+    "size": 36,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/local-media-02/nested\\name.mov",
+    "device": 16777231,
+    "inode": 39187843,
+    "size": 31,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/local-media-02/emoji-\ud83d\ude00.mov",
+    "device": 16777231,
+    "inode": 39187850,
+    "size": 14,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/local-media-02/trim.mov",
+    "device": 16777231,
+    "inode": 39187844,
+    "size": 28,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/local-media-02/nested/name.mov",
+    "device": 16777231,
+    "inode": 39187842,
+    "size": 23,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/question?.mov",
+    "device": 16777239,
+    "inode": 29,
+    "size": 13,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/caf\u00e9.mov",
+    "device": 16777239,
+    "inode": 21,
+    "size": 21,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/colon:name.mov",
+    "device": 16777239,
+    "inode": 28,
+    "size": 14,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/trailing-dot.mov.",
+    "device": 16777239,
+    "inode": 30,
+    "size": 17,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/CON.mov",
+    "device": 16777239,
+    "inode": 27,
+    "size": 7,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/case.mov",
+    "device": 16777239,
+    "inode": 20,
+    "size": 23,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/ trim.mov ",
+    "device": 16777239,
+    "inode": 26,
+    "size": 36,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/Case.mov",
+    "device": 16777239,
+    "inode": 19,
+    "size": 15,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/nested\\name.mov",
+    "device": 16777239,
+    "inode": 24,
+    "size": 31,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/emoji-\ud83d\ude00.mov",
+    "device": 16777239,
+    "inode": 31,
+    "size": 14,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/trim.mov",
+    "device": 16777239,
+    "inode": 25,
+    "size": 28,
+    "isSymlink": false
+  },
+  {
+    "path": "work/data/case-mount/media/nested/name.mov",
+    "device": 16777239,
+    "inode": 23,
+    "size": 23,
+    "isSymlink": false
+  }
+]

@@ -1,0 +1,51 @@
+
+==================================================================================================
+SHARE                         ATTRIBUTE TYPE                VALUE
+==================================================================================================
+Development                   
+                              SERVER_NAME                   JRVault._smb._tcp.local
+                              USER_ID                       501
+                              SMB_NEGOTIATE                 SMBV_NEG_SMB1_ENABLED
+                              SMB_NEGOTIATE                 SMBV_NEG_SMB2_ENABLED
+                              SMB_NEGOTIATE                 SMBV_NEG_SMB3_ENABLED
+                              SMB_VERSION                   SMB_3.1.1
+                              SMB_ENCRYPT_ALGORITHMS        AES_128_CCM_ENABLED
+                              SMB_ENCRYPT_ALGORITHMS        AES_128_GCM_ENABLED
+                              SMB_ENCRYPT_ALGORITHMS        AES_256_CCM_ENABLED
+                              SMB_ENCRYPT_ALGORITHMS        AES_256_GCM_ENABLED
+                              SMB_CURR_ENCRYPT_ALGORITHM    OFF
+                              SMB_SIGN_ALGORITHMS           AES_128_CMAC_ENABLED
+                              SMB_SIGN_ALGORITHMS           AES_128_GMAC_ENABLED
+                              SMB_CURR_SIGN_ALGORITHM       AES_128_GMAC
+                              COMPRESSION_IO_THRESHOLD      4096
+                              COMPRESSION_CHUNK_LEN         262144
+                              COMPRESSION_MAX_FAIL_CNT      5
+                              WRITE_COMPRESSION_CNT         0
+                              WRITE_CNT_LZ77Huff            0
+                              WRITE_CNT_LZ77                0
+                              WRITE_CNT_LZNT1               0
+                              WRITE_CNT_FWD_PATTERN         0
+                              WRITE_CNT_BWD_PATTERN         0
+                              READ_COMPRESSION_CNT          0
+                              READ_CNT_LZ77Huff             0
+                              READ_CNT_LZ77                 0
+                              READ_CNT_LZNT1                0
+                              READ_CNT_FWD_PATTERN          0
+                              READ_CNT_BWD_PATTERN          0
+                              SMB_SHARE_TYPE                DISK
+                              SIGNING_SUPPORTED             TRUE
+                              SIGNING_REQUIRED              TRUE
+                              EXTENDED_SECURITY_SUPPORTED   TRUE
+                              UNIX_SUPPORT                  TRUE
+                              LARGE_FILE_SUPPORTED          TRUE
+                              OS_X_SERVER                   TRUE
+                              FILE_IDS_SUPPORTED            TRUE
+                              DFS_SUPPORTED                 TRUE
+                              FILE_LEASING_SUPPORTED        TRUE
+                              MULTI_CREDIT_SUPPORTED        TRUE
+                              DIR_LEASING_SUPPORTED         TRUE
+                              SIGNING_ON                    TRUE
+                              SESSION_RECONNECT_TIME        0:0
+                              SESSION_RECONNECT_COUNT       0
+
+--------------------------------------------------------------------------------------------------

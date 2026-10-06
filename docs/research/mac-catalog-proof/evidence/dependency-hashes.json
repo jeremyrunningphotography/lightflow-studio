@@ -1,0 +1,47 @@
+[
+  {
+    "path": "work/nuget/microsoft.data.sqlite/8.0.29/microsoft.data.sqlite.8.0.29.nupkg",
+    "sha256": "0CA9D63CF63E0C04FB56DF7BD7D5CEB324594B83F7C9F96D53619ADF14A57E19",
+    "bytes": 34997
+  },
+  {
+    "path": "work/nuget/system.memory/4.5.3/system.memory.4.5.3.nupkg",
+    "sha256": "0AF97B45B45B46EF6A2B37910568DABD492C793DA3859054595D523E2A545859",
+    "bytes": 154054
+  },
+  {
+    "path": "work/nuget/sqlitepclraw.core/2.1.13/sqlitepclraw.core.2.1.13.nupkg",
+    "sha256": "D93D5F7AB3F864C47722A2D90048C31A1AAC743E153D87B9F4A07589EE2F9DAF",
+    "bytes": 36010
+  },
+  {
+    "path": "work/nuget/sqlitepclraw.core/2.1.6/sqlitepclraw.core.2.1.6.nupkg",
+    "sha256": "4715A39B9D8F766315F7C7600F2D010A917DF3CF81B2C45952000B2EFED31FF1",
+    "bytes": 34519
+  },
+  {
+    "path": "work/nuget/sqlitepclraw.provider.e_sqlite3/2.1.13/sqlitepclraw.provider.e_sqlite3.2.1.13.nupkg",
+    "sha256": "513EF2BA5D01C14D1E8032D9D2CA2C8985DF7EC7D351F0E40917476114AC1F9C",
+    "bytes": 60221
+  },
+  {
+    "path": "work/nuget/microsoft.data.sqlite.core/8.0.29/microsoft.data.sqlite.core.8.0.29.nupkg",
+    "sha256": "84CA10D6BF8DDD91C070F5F84E8A42074A347B2861C59C2A444748FED12E6612",
+    "bytes": 297407
+  },
+  {
+    "path": "work/nuget/sqlitepclraw.bundle_e_sqlite3/2.1.13/sqlitepclraw.bundle_e_sqlite3.2.1.13.nupkg",
+    "sha256": "89A216F8059D09CABCB45AB75AC2F180B733323C27D41CF9A981DC5F5B5C6C0F",
+    "bytes": 34062
+  },
+  {
+    "path": "work/nuget/sqlitepclraw.lib.e_sqlite3/2.1.13/sqlitepclraw.lib.e_sqlite3.2.1.13.nupkg",
+    "sha256": "D07D13B4779123CFA56B3348B504D57A2AB6FC10C764FB6E2C9D787987E39201",
+    "bytes": 18762900
+  },
+  {
+    "path": "work/nuget/sqlitepclraw.lib.e_sqlite3/2.1.13/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+    "sha256": "09FE20A6C050912A7944B2F2F2981DEBE31679F7919F523C87251AE8CF0F2DAA",
+    "bytes": 1696624
+  }
+]

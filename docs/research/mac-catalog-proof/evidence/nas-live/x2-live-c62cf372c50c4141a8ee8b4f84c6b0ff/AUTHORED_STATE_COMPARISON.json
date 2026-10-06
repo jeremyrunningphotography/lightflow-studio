@@ -1,0 +1,53 @@
+{
+  "status": "passed",
+  "beforeToAfterAllowedDifferences": [
+    {
+      "table": "MediaAssetDescriptions",
+      "id": "0c8454ba-44ff-4d34-9df1-c652b5e0959b",
+      "column": "Notes"
+    },
+    {
+      "table": "MediaAssetDescriptions",
+      "id": "0c8454ba-44ff-4d34-9df1-c652b5e0959b",
+      "column": "Revision"
+    },
+    {
+      "table": "MediaAssetDescriptions",
+      "id": "0c8454ba-44ff-4d34-9df1-c652b5e0959b",
+      "column": "UpdatedUtc"
+    }
+  ],
+  "postKillDifferences": [
+    {
+      "table": "MediaAssetDescriptions",
+      "id": "0c8454ba-44ff-4d34-9df1-c652b5e0959b",
+      "column": "Notes"
+    }
+  ],
+  "allOtherTablesAndRowsEqual": true,
+  "tableCounts": {
+    "BrowserRecursiveScopes": 1,
+    "CatalogInfo": 1,
+    "CollectionAssets": 32,
+    "CollectionSets": 1,
+    "Collections": 2,
+    "LutResources": 1,
+    "MediaAssetClassifications": 32,
+    "MediaAssetColor": 32,
+    "MediaAssetDescriptions": 32,
+    "MediaAssetKeywords": 96,
+    "MediaAssetPreferredFrames": 32,
+    "MediaAssetRanges": 32,
+    "MediaAssetVideoRotation": 32,
+    "MediaAssets": 32,
+    "MediaRootMappings": 1,
+    "MediaRoots": 1,
+    "PremiereHandoffs": 1,
+    "PremiereMarkerHandoffs": 1,
+    "PremiereSubclipHandoffs": 1,
+    "SchemaMigrations": 19,
+    "SmartCollectionDefinitions": 1,
+    "Subclips": 32,
+    "TimelineMarkers": 32
+  }
+}

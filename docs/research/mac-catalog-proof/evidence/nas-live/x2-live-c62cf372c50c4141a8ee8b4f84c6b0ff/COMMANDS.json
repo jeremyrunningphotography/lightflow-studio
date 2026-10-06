@@ -1,0 +1,50 @@
+[
+  {
+    "mount": [
+      "//jeremy.running@JRVault._smb._tcp.local/Development on /Volumes/Development (smbfs, nodev, nosuid, mounted by jeremyrunning)"
+    ]
+  },
+  {
+    "argv": [
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/dotnet",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/bin/Release/net8.0/X2CatalogProof.dll",
+      "nas-alternative",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff",
+      "/Volumes/Development/codex/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff"
+    ],
+    "timeout": 150
+  },
+  {
+    "argv": [
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/dotnet",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/bin/Release/net8.0/X2CatalogProof.dll",
+      "nas-crash-child",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff",
+      "/Volumes/Development/codex/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff/delete-ready.json",
+      "delete"
+    ]
+  },
+  {
+    "argv": [
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/dotnet",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/bin/Release/net8.0/X2CatalogProof.dll",
+      "nas-crash-recover",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff",
+      "/Volumes/Development/codex/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff/delete-recovery.json",
+      "delete"
+    ],
+    "timeout": 150
+  },
+  {
+    "argv": [
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/toolchain/dotnet/dotnet",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/tools/X2CatalogProof/bin/Release/net8.0/X2CatalogProof.dll",
+      "snapshot",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/final-control-export/catalog.db",
+      "/Users/jeremyrunning/Git/agents/Agent-X2-Mac-Catalog-Proof-20261005-01a10e68/work/data/x2-live-c62cf372c50c4141a8ee8b4f84c6b0ff/source-snapshot.json"
+    ],
+    "timeout": 150
+  }
+]

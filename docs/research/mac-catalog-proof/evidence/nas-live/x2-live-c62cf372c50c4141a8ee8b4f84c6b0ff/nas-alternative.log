@@ -1,0 +1,11 @@
+START production restore into NAS
+DONE production restore into NAS 2360.829
+START current production NAS open attempt
+DONE current production NAS open attempt 999.9367
+START DELETE live source to NAS production backup
+DONE DELETE live source to NAS production backup 3206.8337
+START DELETE live source to local production backup
+DONE DELETE live source to local production backup 1254.6035
+START DELETE closed protected replacement
+DONE DELETE closed protected replacement 6373.609
+{"mode":"nas-alternative","checks":41,"status":"completed"}

@@ -1,0 +1,82 @@
+[
+  {
+    "base": "work/data/local-media-02",
+    "a": "Case.mov",
+    "b": "case.mov",
+    "aDev": 16777231,
+    "aIno": 39187839,
+    "bDev": 16777231,
+    "bIno": 39187839,
+    "sameFileId": true
+  },
+  {
+    "base": "work/data/local-media-02",
+    "a": "caf\u00e9.mov",
+    "b": "cafe\u0301.mov",
+    "aDev": 16777231,
+    "aIno": 39187840,
+    "bDev": 16777231,
+    "bIno": 39187840,
+    "sameFileId": true
+  },
+  {
+    "base": "work/data/local-media-02",
+    "a": "nested/name.mov",
+    "b": "nested\\name.mov",
+    "aDev": 16777231,
+    "aIno": 39187842,
+    "bDev": 16777231,
+    "bIno": 39187843,
+    "sameFileId": false
+  },
+  {
+    "base": "work/data/local-media-02",
+    "a": "trim.mov",
+    "b": " trim.mov ",
+    "aDev": 16777231,
+    "aIno": 39187844,
+    "bDev": 16777231,
+    "bIno": 39187845,
+    "sameFileId": false
+  },
+  {
+    "base": "work/data/case-mount/media",
+    "a": "Case.mov",
+    "b": "case.mov",
+    "aDev": 16777239,
+    "aIno": 19,
+    "bDev": 16777239,
+    "bIno": 20,
+    "sameFileId": false
+  },
+  {
+    "base": "work/data/case-mount/media",
+    "a": "caf\u00e9.mov",
+    "b": "cafe\u0301.mov",
+    "aDev": 16777239,
+    "aIno": 21,
+    "bDev": 16777239,
+    "bIno": 21,
+    "sameFileId": true
+  },
+  {
+    "base": "work/data/case-mount/media",
+    "a": "nested/name.mov",
+    "b": "nested\\name.mov",
+    "aDev": 16777239,
+    "aIno": 23,
+    "bDev": 16777239,
+    "bIno": 24,
+    "sameFileId": false
+  },
+  {
+    "base": "work/data/case-mount/media",
+    "a": "trim.mov",
+    "b": " trim.mov ",
+    "aDev": 16777239,
+    "aIno": 25,
+    "bDev": 16777239,
+    "bIno": 26,
+    "sameFileId": false
+  }
+]

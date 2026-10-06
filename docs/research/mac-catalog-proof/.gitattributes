@@ -1,0 +1,2 @@
+# Preserve native smbutil output verbatim, including padded share names.
+evidence/nas-live/**/smb-capabilities.txt whitespace=-blank-at-eol

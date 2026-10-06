@@ -1,0 +1,22 @@
+[
+  {
+    "a": "Case.mov",
+    "b": "case.mov",
+    "sameDeviceAndInode": true
+  },
+  {
+    "a": "caf\u00e9.mov",
+    "b": "cafe\u0301.mov",
+    "sameDeviceAndInode": true
+  },
+  {
+    "a": "nested/name.mov",
+    "b": "nested\\name.mov",
+    "sameDeviceAndInode": false
+  },
+  {
+    "a": "trim.mov",
+    "b": " trim.mov ",
+    "sameDeviceAndInode": false
+  }
+]

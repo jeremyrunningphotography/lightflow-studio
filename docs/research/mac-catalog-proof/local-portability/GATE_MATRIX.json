@@ -1,0 +1,122 @@
+[
+  {
+    "scenario": "arm64 SQLite loading",
+    "classification": "proven",
+    "scope": "native selected SQLite 3.53.3/hash; linked persistence only"
+  },
+  {
+    "scenario": "APFS Catalog lifecycle",
+    "classification": "proven",
+    "scope": "48 bounded checks"
+  },
+  {
+    "scenario": "exFAT image WAL/FULL",
+    "classification": "proven",
+    "scope": "48 bounded checks; disk image only"
+  },
+  {
+    "scenario": "exFAT physical SSD WAL",
+    "classification": "unresolved",
+    "scope": "fixture mkdir timed out"
+  },
+  {
+    "scenario": "exFAT image two-process locking",
+    "classification": "proven",
+    "scope": "reader succeeds, writer BUSY5, reacquires"
+  },
+  {
+    "scenario": "exFAT image process crash",
+    "classification": "proven",
+    "scope": "owned SIGKILL, committed retained/uncommitted rolled back"
+  },
+  {
+    "scenario": "OS power loss/device cache flush",
+    "classification": "unresolved",
+    "scope": "not performed"
+  },
+  {
+    "scenario": "physical eject/surprise removal",
+    "classification": "unresolved",
+    "scope": "not authorized for other user data"
+  },
+  {
+    "scenario": "image clean detach/remount",
+    "classification": "proven",
+    "scope": "WAL/SHM absent and DB hash unchanged"
+  },
+  {
+    "scenario": "direct WAL-source NAS backup",
+    "classification": "proven failure",
+    "scope": "CANTOPEN14 during destination journal finalization"
+  },
+  {
+    "scenario": "closed local backup NAS transfer",
+    "classification": "proven",
+    "scope": "hash equal; local restore every-table equality"
+  },
+  {
+    "scenario": "physical external Catalog NAS backup",
+    "classification": "unresolved",
+    "scope": "no physical Catalog test"
+  },
+  {
+    "scenario": "Windows Mac Windows round trip",
+    "classification": "unresolved",
+    "scope": "owner-mediated handoff prepared, not executed"
+  },
+  {
+    "scenario": "cross-platform restore",
+    "classification": "unresolved",
+    "scope": "no real Windows-origin fixture"
+  },
+  {
+    "scenario": "Preview rebuild locality",
+    "classification": "proven",
+    "scope": "fresh local Preview; Catalog every-table equality"
+  },
+  {
+    "scenario": "RootId remap",
+    "classification": "proven",
+    "scope": "second simulated machine mapped same logical RootId"
+  },
+  {
+    "scenario": "case-sensitive media safety",
+    "classification": "proven failure",
+    "scope": "historical distinct-file folded-key collision"
+  },
+  {
+    "scenario": "exFAT image NFC NFD safety",
+    "classification": "proven failure",
+    "scope": "same physical inode/two AssetIds"
+  },
+  {
+    "scenario": "backslash/space exact-name safety",
+    "classification": "proven failure",
+    "scope": "wrong lookup bytes"
+  },
+  {
+    "scenario": "symlink containment safety",
+    "classification": "proven failure",
+    "scope": "Mac driver import reaches task-owned outside target"
+  },
+  {
+    "scenario": "Mac volume classification",
+    "classification": "proven",
+    "scope": "statfs distinguishes tested APFS/exFAT/SMB"
+  },
+  {
+    "scenario": "Windows network detector",
+    "classification": "reasoned",
+    "scope": "contract only, not executed"
+  },
+  {
+    "scenario": "initial portable root policy",
+    "classification": "reasoned",
+    "scope": "reject ambiguity; no migration implemented"
+  },
+  {
+    "scenario": "P2 product policy",
+    "classification": "reasoned",
+    "scope": "recommended pending actual round trip and owner acceptance"
+  }
+]

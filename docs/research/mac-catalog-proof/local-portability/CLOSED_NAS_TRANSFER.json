@@ -1,0 +1,103 @@
+{
+  "method": "locally finalized SQLite-aware backup; closed byte copy to NAS; hash verified; closed copy back; production restore locally",
+  "sourceSha256": "6a75d6af3346692bf00381b4f173e77302e9487f015b94bd7aff23202bf2d885",
+  "nasSha256": "6a75d6af3346692bf00381b4f173e77302e9487f015b94bd7aff23202bf2d885",
+  "returnedSha256": "6a75d6af3346692bf00381b4f173e77302e9487f015b94bd7aff23202bf2d885",
+  "allHashesEqual": true,
+  "NASDatabaseOpened": false,
+  "restore": {
+    "runtime": {
+      "version": "3.53.3",
+      "sourceId": "2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62",
+      "compileOptions": [
+        "ATOMIC_INTRINSICS=1",
+        "COMPILER=clang-17.0.0",
+        "DEFAULT_AUTOVACUUM",
+        "DEFAULT_CACHE_SIZE=-2000",
+        "DEFAULT_FILE_FORMAT=4",
+        "DEFAULT_FOREIGN_KEYS",
+        "DEFAULT_JOURNAL_SIZE_LIMIT=-1",
+        "DEFAULT_MMAP_SIZE=0",
+        "DEFAULT_PAGE_SIZE=4096",
+        "DEFAULT_PCACHE_INITSZ=20",
+        "DEFAULT_RECURSIVE_TRIGGERS",
+        "DEFAULT_SECTOR_SIZE=4096",
+        "DEFAULT_SYNCHRONOUS=2",
+        "DEFAULT_WAL_AUTOCHECKPOINT=1000",
+        "DEFAULT_WAL_SYNCHRONOUS=2",
+        "DEFAULT_WORKER_THREADS=0",
+        "DIRECT_OVERFLOW_READ",
+        "DQS=0",
+        "ENABLE_COLUMN_METADATA",
+        "ENABLE_FTS3",
+        "ENABLE_FTS3_PARENTHESIS",
+        "ENABLE_FTS4",
+        "ENABLE_FTS5",
+        "ENABLE_GEOPOLY",
+        "ENABLE_MATH_FUNCTIONS",
+        "ENABLE_PREUPDATE_HOOK",
+        "ENABLE_RTREE",
+        "ENABLE_SESSION",
+        "ENABLE_SNAPSHOT",
+        "LIKE_DOESNT_MATCH_BLOBS",
+        "MALLOC_SOFT_LIMIT=1024",
+        "MAX_ATTACHED=10",
+        "MAX_COLUMN=2000",
+        "MAX_COMPOUND_SELECT=500",
+        "MAX_DEFAULT_PAGE_SIZE=8192",
+        "MAX_EXPR_DEPTH=1000",
+        "MAX_FUNCTION_ARG=1000",
+        "MAX_LENGTH=1000000000",
+        "MAX_LIKE_PATTERN_LENGTH=50000",
+        "MAX_MMAP_SIZE=0x7fff0000",
+        "MAX_PAGE_COUNT=0xfffffffe",
+        "MAX_PAGE_SIZE=65536",
+        "MAX_SQL_LENGTH=1000000000",
+        "MAX_TRIGGER_DEPTH=1000",
+        "MAX_VARIABLE_NUMBER=32766",
+        "MAX_VDBE_OP=250000000",
+        "MAX_WORKER_THREADS=8",
+        "MUTEX_PTHREADS",
+        "SYSTEM_MALLOC",
+        "TEMP_STORE=1",
+        "THREADSAFE=1"
+      ],
+      "schema": 19,
+      "applicationId": 1279677251,
+      "journal": "wal",
+      "locking": "normal",
+      "synchronous": 2,
+      "foreignKeys": 1,
+      "busyTimeout": 5000,
+      "integrity": "ok"
+    },
+    "checks": [
+      {
+        "name": "fresh restore root",
+        "passed": true
+      },
+      {
+        "name": "closed transfer restore",
+        "passed": true
+      },
+      {
+        "name": "closed transfer installed",
+        "passed": true
+      },
+      {
+        "name": "production Catalog open: Ready ",
+        "passed": true
+      },
+      {
+        "name": "closed transfer all-table equality",
+        "passed": true
+      },
+      {
+        "name": "closed-owner checkpoint",
+        "passed": true
+      }
+    ],
+    "sourceHash": "6A75D6AF3346692BF00381B4F173E77302E9487F015B94BD7AFF23202BF2D885"
+  },
+  "limit": "same Mac; no network interruption or cross-platform leg"
+}

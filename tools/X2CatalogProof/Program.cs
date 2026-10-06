@@ -145,9 +145,9 @@ internal static partial class Program
         Assert(JsonSerializer.Serialize(Snapshot(l.CatalogDatabasePath))==original,"backup restore rollback all-table equality"); Save(Path.Combine(data,"checks.json"),Checks);
     }
     sealed class FixedMachine(string value):IMachineIdentityProvider {public string GetMachineId()=>value;}
-    static async Task Crash(string mode,string data,string signal)
+    static async Task Crash(string mode,string data,string signal,string? catalog=null)
     {
-        var l=Locations(data);await using var s=await Catalog(l,false);var assets=await new CatalogMediaAssetRepository(()=>s).ListAsync();var id=assets[0].AssetId;
+        var l=catalog is null?Locations(data):PortableLocations(data,catalog);await using var s=await Catalog(l,false);var assets=await new CatalogMediaAssetRepository(()=>s).ListAsync();var id=assets[0].AssetId;
         var store=new CatalogAssetDescriptionStore(()=>s);
         if(mode=="crash-child")
         {
@@ -224,7 +224,12 @@ internal static partial class Program
         try
         {
             if(args.Length<3) throw new ArgumentException("seed <task-data-root> <output-dir> | probe <task-data-root> <media-dir> | snapshot <db> <json>");
-            if(args[0]=="nas-vfs") NasVfs(Owned(args[1]),args[2]);
+            if(args[0]=="local-portability") await LocalPortability(Owned(args[1]),Owned(args[2]),Owned(args[3]),args[4]);
+            else if(args[0] is "portable-crash-child" or "portable-crash-recover") await Crash(args[0].Replace("portable-",""),Owned(args[1]),Owned(args[3]),Owned(args[2]));
+            else if(args[0]=="portable-restore") await PortableRestore(Owned(args[1]),Owned(args[2]));
+            else if(args[0]=="portable-paths") await PortablePaths(Owned(args[1]),Owned(args[2]));
+            else if(args[0]=="portable-contend") PortableContend(Owned(args[1]),Owned(args[2]));
+            else if(args[0]=="nas-vfs") NasVfs(Owned(args[1]),args[2]);
             else if(args[0]=="nas-alternative") await NasAlternative(Owned(args[1]),args[2]);
             else if(args[0]=="nas-live") await NasLive(Owned(args[1]),args[2]);
             else if(args[0] is "nas-crash-child" or "nas-crash-recover") await NasCrash(args[0],Owned(args[1]),args[2],Owned(args[3]),args[4]);

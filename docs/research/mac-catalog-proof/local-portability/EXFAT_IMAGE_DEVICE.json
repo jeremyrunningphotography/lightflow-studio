@@ -1,0 +1,10 @@
+{
+  "FilesystemType": "exfat",
+  "BusProtocol": "Disk Image",
+  "Internal": false,
+  "Writable": true,
+  "VolumeAllocationBlockSize": 4096,
+  "DeviceBlockSize": 512,
+  "Size": 268434944,
+  "scope": "task-owned disk image; not physical SSD"
+}

@@ -1,0 +1,13 @@
+{
+  "sourceMain": "21adb19f760e4ec07c17270e995cb5588044396c",
+  "platform": "Darwin",
+  "osRelease": "25.6.0",
+  "architecture": "arm64",
+  "build": "Release net8.0; SDK 8.0.423; .NET 8.0.29; no production package changes",
+  "buildResult": "0 warnings, 0 errors with --no-restore --disable-build-servers",
+  "nativeSqliteSha256": "09fe20a6c050912a7944b2f2f2981debe31679f7919f523c87251ae8cf0f2daa",
+  "prototypeStatus": "authority-service work stopped and preserved on historical branch only",
+  "scope": "native APFS and exFAT image tests, NAS closed-file storage; no physical SSD or actual Windows proof",
+  "guardTest": "expected exfat on APFS work directory rejected before fixture creation",
+  "publicationRedaction": "private local/NAS/device names, credentials and transfer paths excluded; technical negative results preserved"
+}

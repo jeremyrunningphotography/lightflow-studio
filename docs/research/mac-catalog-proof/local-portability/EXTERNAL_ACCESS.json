@@ -1,0 +1,12 @@
+[
+  {
+    "operation": "stat",
+    "exit": 0,
+    "stdout": "/\n",
+    "stderr": ""
+  },
+  {
+    "operation": "mkdir",
+    "timeoutSeconds": 10
+  }
+]

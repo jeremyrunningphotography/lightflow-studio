@@ -1,0 +1,299 @@
+{
+  "runtime": {
+    "version": "3.53.3",
+    "sourceId": "2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62",
+    "compileOptions": [
+      "ATOMIC_INTRINSICS=1",
+      "COMPILER=clang-17.0.0",
+      "DEFAULT_AUTOVACUUM",
+      "DEFAULT_CACHE_SIZE=-2000",
+      "DEFAULT_FILE_FORMAT=4",
+      "DEFAULT_FOREIGN_KEYS",
+      "DEFAULT_JOURNAL_SIZE_LIMIT=-1",
+      "DEFAULT_MMAP_SIZE=0",
+      "DEFAULT_PAGE_SIZE=4096",
+      "DEFAULT_PCACHE_INITSZ=20",
+      "DEFAULT_RECURSIVE_TRIGGERS",
+      "DEFAULT_SECTOR_SIZE=4096",
+      "DEFAULT_SYNCHRONOUS=2",
+      "DEFAULT_WAL_AUTOCHECKPOINT=1000",
+      "DEFAULT_WAL_SYNCHRONOUS=2",
+      "DEFAULT_WORKER_THREADS=0",
+      "DIRECT_OVERFLOW_READ",
+      "DQS=0",
+      "ENABLE_COLUMN_METADATA",
+      "ENABLE_FTS3",
+      "ENABLE_FTS3_PARENTHESIS",
+      "ENABLE_FTS4",
+      "ENABLE_FTS5",
+      "ENABLE_GEOPOLY",
+      "ENABLE_MATH_FUNCTIONS",
+      "ENABLE_PREUPDATE_HOOK",
+      "ENABLE_RTREE",
+      "ENABLE_SESSION",
+      "ENABLE_SNAPSHOT",
+      "LIKE_DOESNT_MATCH_BLOBS",
+      "MALLOC_SOFT_LIMIT=1024",
+      "MAX_ATTACHED=10",
+      "MAX_COLUMN=2000",
+      "MAX_COMPOUND_SELECT=500",
+      "MAX_DEFAULT_PAGE_SIZE=8192",
+      "MAX_EXPR_DEPTH=1000",
+      "MAX_FUNCTION_ARG=1000",
+      "MAX_LENGTH=1000000000",
+      "MAX_LIKE_PATTERN_LENGTH=50000",
+      "MAX_MMAP_SIZE=0x7fff0000",
+      "MAX_PAGE_COUNT=0xfffffffe",
+      "MAX_PAGE_SIZE=65536",
+      "MAX_SQL_LENGTH=1000000000",
+      "MAX_TRIGGER_DEPTH=1000",
+      "MAX_VARIABLE_NUMBER=32766",
+      "MAX_VDBE_OP=250000000",
+      "MAX_WORKER_THREADS=8",
+      "MUTEX_PTHREADS",
+      "SYSTEM_MALLOC",
+      "TEMP_STORE=1",
+      "THREADSAFE=1"
+    ],
+    "schema": 19,
+    "applicationId": 1279677251,
+    "journal": "wal",
+    "locking": "normal",
+    "synchronous": 2,
+    "foreignKeys": 1,
+    "busyTimeout": 5000,
+    "integrity": "ok"
+  },
+  "timings": [
+    {
+      "operation": "authored commit",
+      "ms": 4.7755
+    },
+    {
+      "operation": "SQLite-aware backup",
+      "ms": 8.1265
+    }
+  ],
+  "checks": [
+    {
+      "name": "fresh disposable Catalog",
+      "passed": true
+    },
+    {
+      "name": "production Catalog create: Created ",
+      "passed": true
+    },
+    {
+      "name": "create WAL on candidate filesystem",
+      "passed": true
+    },
+    {
+      "name": "closed-owner checkpoint",
+      "passed": true
+    },
+    {
+      "name": "install representative SQLite-aware closed fixture",
+      "passed": true
+    },
+    {
+      "name": "install committed",
+      "passed": true
+    },
+    {
+      "name": "all incoming authored rows and identities preserved",
+      "passed": true
+    },
+    {
+      "name": "production Catalog open: Ready ",
+      "passed": true
+    },
+    {
+      "name": "32 representative assets",
+      "passed": true
+    },
+    {
+      "name": "authored readback",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table BrowserRecursiveScopes",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table CatalogInfo",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table CollectionAssets",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table CollectionSets",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table Collections",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table LutResources",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table MediaAssetClassifications",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table MediaAssetColor",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table MediaAssetKeywords",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table MediaAssetPreferredFrames",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table MediaAssetRanges",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table MediaAssetVideoRotation",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table MediaAssets",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table MediaRootMappings",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table MediaRoots",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table PremiereHandoffs",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table PremiereMarkerHandoffs",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table PremiereSubclipHandoffs",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table SchemaMigrations",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table SmartCollectionDefinitions",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table Subclips",
+      "passed": true
+    },
+    {
+      "name": "unchanged authored table TimelineMarkers",
+      "passed": true
+    },
+    {
+      "name": "fresh machine-local Preview has no imported state",
+      "passed": true
+    },
+    {
+      "name": "Preview replacement does not alter any Catalog-owned row",
+      "passed": true
+    },
+    {
+      "name": "separate process reader succeeds/writer SQLITE_BUSY",
+      "passed": true
+    },
+    {
+      "name": "writer reacquires after release",
+      "passed": true
+    },
+    {
+      "name": "SQLite-aware backup destination",
+      "passed": true
+    },
+    {
+      "name": "backup all-table equality",
+      "passed": true
+    },
+    {
+      "name": "restore to native local storage",
+      "passed": true
+    },
+    {
+      "name": "local restore commit",
+      "passed": true
+    },
+    {
+      "name": "production Catalog open: Ready ",
+      "passed": true
+    },
+    {
+      "name": "restored CatalogId",
+      "passed": true
+    },
+    {
+      "name": "restored every-table equality",
+      "passed": true
+    },
+    {
+      "name": "closed-owner checkpoint",
+      "passed": true
+    },
+    {
+      "name": "clean close leaves no uncheckpointed WAL",
+      "passed": true
+    },
+    {
+      "name": "production Catalog open: Ready ",
+      "passed": true
+    },
+    {
+      "name": "clean reopen stable CatalogId",
+      "passed": true
+    },
+    {
+      "name": "closed-owner checkpoint",
+      "passed": true
+    }
+  ],
+  "nativeImages": [
+    {
+      "path": "/usr/lib/libsqlite3.dylib",
+      "sha256": null,
+      "onDisk": false
+    },
+    {
+      "path": "/System/Library/PrivateFrameworks/PoirotSQLite.framework/Versions/A/PoirotSQLite",
+      "sha256": null,
+      "onDisk": false
+    },
+    {
+      "path": "tools/X2CatalogProof/bin/Release/net8.0/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+      "sha256": "09FE20A6C050912A7944B2F2F2981DEBE31679F7919F523C87251AE8CF0F2DAA",
+      "onDisk": true
+    }
+  ],
+  "catalogId": "bf89b8ba-5a73-4394-93ac-46508f9d9fc3",
+  "assetCount": 32,
+  "preview": "separate machine-local directory; rebuilt without Catalog mutation",
+  "sourceHash": "D42EDA27981E41379D094087588B7140088AC7589DC38BE0436D9FCB9CFA798B",
+  "backupHash": "0501C7F106E4845FFF3045EA7F3AEC98DB3F44F6230347BA7AE392EAB80B45AA",
+  "catalogHash": "8AD418FD0365A5E5148B7CF4C29637E27177E30414A531D8F98BED6258A7400A",
+  "limits": [
+    "one Mac process/driver proof, not physical SSD or Windows qualification",
+    "SIGKILL tested separately; no power failure or unsafe hardware removal",
+    "production instance coordinator/UI excluded"
+  ]
+}

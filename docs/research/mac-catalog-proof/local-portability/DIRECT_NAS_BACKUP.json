@@ -1,0 +1,7 @@
+{
+  "Succeeded": false,
+  "Diagnostic": "Catalog backup failed while finalizing SQLite journal at the NAS staging destination; SQLite Error 14: unable to open database file (SQLite 14/14).",
+  "source": "native APFS active Catalog with production WAL/FULL",
+  "destination": "task-owned SMB 3.1.1 backup directory",
+  "scope": "reproduced with workspace alias and direct destination; not an active NAS Catalog test"
+}

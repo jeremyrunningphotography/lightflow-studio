@@ -1,0 +1,112 @@
+{
+  "rows": [
+    {
+      "scenario": "case",
+      "a": "Case.mov",
+      "b": "case.mov",
+      "sameContents": true,
+      "createFirst": "Succeeded",
+      "createSecond": "AlreadyExists",
+      "firstId": "bcdf3afe-2ac6-4595-b327-84fccd6c9d9c",
+      "secondId": null,
+      "lookupId": "bcdf3afe-2ac6-4595-b327-84fccd6c9d9c",
+      "requestedHash": "2581F7528A3E50F9480FD3272EC114588293A32E86FD0FD615BA7F49A61D3AD1",
+      "lookupHash": "2581F7528A3E50F9480FD3272EC114588293A32E86FD0FD615BA7F49A61D3AD1",
+      "keyA": "CASE.MOV",
+      "keyB": "CASE.MOV"
+    },
+    {
+      "scenario": "unicode",
+      "a": "caf\u00e9.mov",
+      "b": "cafe\u0301.mov",
+      "sameContents": true,
+      "createFirst": "Succeeded",
+      "createSecond": "Succeeded",
+      "firstId": "704c4485-0595-4b8c-b552-f73a81632168",
+      "secondId": "442d3f87-7933-4ade-88b3-582d05c7e365",
+      "lookupId": "442d3f87-7933-4ade-88b3-582d05c7e365",
+      "requestedHash": "2581F7528A3E50F9480FD3272EC114588293A32E86FD0FD615BA7F49A61D3AD1",
+      "lookupHash": "2581F7528A3E50F9480FD3272EC114588293A32E86FD0FD615BA7F49A61D3AD1",
+      "keyA": "CAF\u00c9.MOV",
+      "keyB": "CAFE\u0301.MOV"
+    },
+    {
+      "scenario": "backslash",
+      "a": "nested/name.mov",
+      "b": "nested\\name.mov",
+      "sameContents": false,
+      "createFirst": "Succeeded",
+      "createSecond": "AlreadyExists",
+      "firstId": "13854ae6-2be2-4ca7-a714-d13da2420f58",
+      "secondId": null,
+      "lookupId": "13854ae6-2be2-4ca7-a714-d13da2420f58",
+      "requestedHash": "2581F7528A3E50F9480FD3272EC114588293A32E86FD0FD615BA7F49A61D3AD1",
+      "lookupHash": "A7937B64B8CAA58F03721BB6BACF5C78CB235FEBE0E70B1B84CD99541461A08E",
+      "keyA": "NESTED/NAME.MOV",
+      "keyB": "NESTED/NAME.MOV"
+    },
+    {
+      "scenario": "spaces",
+      "a": "trim.mov",
+      "b": " trim.mov ",
+      "sameContents": false,
+      "createFirst": "Succeeded",
+      "createSecond": "AlreadyExists",
+      "firstId": "cd7e9427-d3d6-47c5-84ef-10bed98c6131",
+      "secondId": null,
+      "lookupId": "cd7e9427-d3d6-47c5-84ef-10bed98c6131",
+      "requestedHash": "2581F7528A3E50F9480FD3272EC114588293A32E86FD0FD615BA7F49A61D3AD1",
+      "lookupHash": "A7937B64B8CAA58F03721BB6BACF5C78CB235FEBE0E70B1B84CD99541461A08E",
+      "keyA": "TRIM.MOV",
+      "keyB": "TRIM.MOV"
+    },
+    {
+      "scenario": "name",
+      "name": "CON.mov",
+      "status": "Succeeded"
+    },
+    {
+      "scenario": "name",
+      "name": "colon:name.mov",
+      "status": "Succeeded"
+    },
+    {
+      "scenario": "name",
+      "name": "question?.mov",
+      "status": "Succeeded"
+    },
+    {
+      "scenario": "name",
+      "name": "trailing-dot.mov.",
+      "status": "Succeeded"
+    },
+    {
+      "scenario": "name",
+      "name": "emoji-\ud83d\ude00.mov",
+      "status": "Succeeded"
+    },
+    {
+      "scenario": "symlink",
+      "created": true,
+      "importStatus": "Succeeded"
+    }
+  ],
+  "checks": [
+    {
+      "name": "production Catalog create: Created ",
+      "passed": true
+    },
+    {
+      "name": "create portable root",
+      "passed": true
+    },
+    {
+      "name": "new machine unmapped",
+      "passed": true
+    },
+    {
+      "name": "existing RootId remapped without migration",
+      "passed": true
+    }
+  ]
+}

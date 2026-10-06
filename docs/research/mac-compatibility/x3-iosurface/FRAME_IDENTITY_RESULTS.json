@@ -1,0 +1,193 @@
+[
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "normal",
+      "LastComposed": 1,
+      "decoded": 1,
+      "match": true,
+      "color": "QCAg/w=="
+    }
+  },
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "delayed",
+      "LastComposed": 2,
+      "decoded": 2,
+      "match": true,
+      "color": "YCAg/w=="
+    }
+  },
+  {
+    "kind": "stale-rejected",
+    "value": {
+      "Serial": 10,
+      "Generation": 1,
+      "current": 2
+    }
+  },
+  {
+    "kind": "generation",
+    "value": {
+      "Generation": 2,
+      "LastComposed": 9,
+      "staleAccepted": false
+    }
+  },
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "overlays",
+      "LastComposed": 9,
+      "decoded": 9,
+      "match": true,
+      "color": "n0Ag/w=="
+    }
+  },
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "pause",
+      "LastComposed": 12,
+      "decoded": 12,
+      "match": true,
+      "color": "YGAg/w=="
+    }
+  },
+  {
+    "kind": "action",
+    "value": {
+      "action": "pause",
+      "Serial": 12,
+      "Pts": 6144,
+      "Generation": 2,
+      "Compare": false,
+      "CameraHash": "none"
+    }
+  },
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "forward",
+      "LastComposed": 13,
+      "decoded": 13,
+      "match": true,
+      "color": "gGAg/w=="
+    }
+  },
+  {
+    "kind": "action",
+    "value": {
+      "action": "forward",
+      "Serial": 13,
+      "Pts": 6656,
+      "Generation": 2,
+      "Compare": false,
+      "CameraHash": "none"
+    }
+  },
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "reverse",
+      "LastComposed": 14,
+      "decoded": 14,
+      "match": true,
+      "color": "n2Ag/w=="
+    }
+  },
+  {
+    "kind": "action",
+    "value": {
+      "action": "reverse",
+      "Serial": 14,
+      "Pts": 6144,
+      "Generation": 2,
+      "Compare": false,
+      "CameraHash": "none"
+    }
+  },
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "seek",
+      "LastComposed": 15,
+      "decoded": 15,
+      "match": true,
+      "color": "IIAg/w=="
+    }
+  },
+  {
+    "kind": "action",
+    "value": {
+      "action": "seek",
+      "Serial": 15,
+      "Pts": 30720,
+      "Generation": 3,
+      "Compare": false,
+      "CameraHash": "none"
+    }
+  },
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "color-state",
+      "LastComposed": 16,
+      "decoded": 16,
+      "match": true,
+      "color": "QIAg/w=="
+    }
+  },
+  {
+    "kind": "action",
+    "value": {
+      "action": "color-state",
+      "Serial": 16,
+      "Pts": 30720,
+      "Generation": 3,
+      "Compare": true,
+      "CameraHash": "synthetic-state-hash"
+    }
+  },
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "stale-timeline",
+      "LastComposed": 17,
+      "decoded": 17,
+      "match": true,
+      "color": "YIAg/w=="
+    }
+  },
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "snapshot-after-source-reuse",
+      "LastComposed": 18,
+      "decoded": 18,
+      "match": true,
+      "color": "gIAg/w=="
+    }
+  },
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "reused-source-new-frame",
+      "LastComposed": 19,
+      "decoded": 19,
+      "match": true,
+      "color": "n4Ag/w=="
+    }
+  },
+  {
+    "kind": "frame-identity",
+    "value": {
+      "name": "reopen",
+      "LastComposed": 2535,
+      "decoded": 2535,
+      "match": true,
+      "color": "IGBA/w=="
+    }
+  }
+]

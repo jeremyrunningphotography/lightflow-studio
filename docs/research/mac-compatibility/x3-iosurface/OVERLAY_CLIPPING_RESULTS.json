@@ -1,0 +1,62 @@
+{
+  "background": [
+    24,
+    32,
+    42
+  ],
+  "overlay": [
+    0,
+    255,
+    0
+  ],
+  "outsideAndRoundedCorner": [
+    [
+      24,
+      32,
+      42
+    ],
+    [
+      24,
+      32,
+      42
+    ],
+    [
+      24,
+      32,
+      42
+    ],
+    [
+      24,
+      32,
+      42
+    ],
+    [
+      24,
+      32,
+      42
+    ]
+  ],
+  "overlayOffPixel": [
+    159,
+    64,
+    32
+  ],
+  "detachBackground": [
+    24,
+    32,
+    42
+  ],
+  "reattachVideoPixel": [
+    159,
+    64,
+    32
+  ],
+  "opacityTransformVideoPixel": [
+    91,
+    48,
+    37
+  ],
+  "status": "proven offscreen GPU composition snapshots",
+  "physicalDisplay": "unresolved",
+  "source": "independent standard-library PNG filter decoder; verify.py"
+}

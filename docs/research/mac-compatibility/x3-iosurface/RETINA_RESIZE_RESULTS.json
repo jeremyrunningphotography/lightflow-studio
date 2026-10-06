@@ -1,0 +1,176 @@
+[
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.4285714285714286,
+        "Width": 1000,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "resize",
+    "value": {
+      "i": 0,
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.3846153846153846,
+        "Width": 900,
+        "Height": 650
+      },
+      "sourceWidth": 1920,
+      "sourceHeight": 1080,
+      "Generation": 2
+    }
+  },
+  {
+    "kind": "resize",
+    "value": {
+      "i": 1,
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.4090909090909092,
+        "Width": 930,
+        "Height": 660
+      },
+      "sourceWidth": 1920,
+      "sourceHeight": 1080,
+      "Generation": 2
+    }
+  },
+  {
+    "kind": "resize",
+    "value": {
+      "i": 2,
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.4328358208955223,
+        "Width": 960,
+        "Height": 670
+      },
+      "sourceWidth": 1920,
+      "sourceHeight": 1080,
+      "Generation": 2
+    }
+  },
+  {
+    "kind": "resize",
+    "value": {
+      "i": 3,
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.4558823529411764,
+        "Width": 990,
+        "Height": 680
+      },
+      "sourceWidth": 1920,
+      "sourceHeight": 1080,
+      "Generation": 2
+    }
+  },
+  {
+    "kind": "resize",
+    "value": {
+      "i": 4,
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.4782608695652173,
+        "Width": 1020,
+        "Height": 690
+      },
+      "sourceWidth": 1920,
+      "sourceHeight": 1080,
+      "Generation": 2
+    }
+  },
+  {
+    "kind": "resize",
+    "value": {
+      "i": 5,
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.5,
+        "Width": 1050,
+        "Height": 700
+      },
+      "sourceWidth": 1920,
+      "sourceHeight": 1080,
+      "Generation": 2
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.5,
+        "Width": 1050,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.5,
+        "Width": 1050,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.5,
+        "Width": 1050,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.5,
+        "Width": 1050,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.4285714285714286,
+        "Width": 1000,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  },
+  {
+    "kind": "window",
+    "value": {
+      "RenderScaling": 2,
+      "ClientSize": {
+        "AspectRatio": 1.4285714285714286,
+        "Width": 1000,
+        "Height": 700
+      },
+      "handle": "NSWindow"
+    }
+  }
+]

@@ -1,0 +1,54 @@
+[
+  {
+    "kind": "producer-loss",
+    "value": {
+      "simulated": true,
+      "LastComposed": 9,
+      "visiblePresented": false
+    }
+  },
+  {
+    "kind": "fullscreen",
+    "value": {
+      "WindowState": 3,
+      "ClientSize": {
+        "AspectRatio": 1.592920353982301,
+        "Width": 1800,
+        "Height": 1130
+      },
+      "RenderScaling": 2,
+      "native": "[{\"height\":1130,\"miniaturized\":false,\"fullscreen\":true,\"visible\":true,\"active\":true,\"title\":\"Lightflow \u2014 IOSurface presentation proof\",\"width\":1800,\"scale\":2}]"
+    }
+  },
+  {
+    "kind": "fullscreen-exit",
+    "value": {
+      "WindowState": 0,
+      "ClientSize": {
+        "AspectRatio": 1.5,
+        "Width": 1050,
+        "Height": 700
+      },
+      "RenderScaling": 2,
+      "native": "[{\"height\":700,\"miniaturized\":false,\"fullscreen\":false,\"visible\":true,\"active\":true,\"title\":\"Lightflow \u2014 IOSurface presentation proof\",\"width\":1050,\"scale\":2}]"
+    }
+  },
+  {
+    "kind": "close-pending",
+    "value": {
+      "Serial": 2534,
+      "updateCompleted": true,
+      "visiblePresented": false,
+      "native": "[{\"height\":700,\"miniaturized\":false,\"fullscreen\":false,\"visible\":true,\"active\":true,\"title\":\"Lightflow \u2014 IOSurface presentation proof\",\"width\":1050,\"scale\":2},{\"height\":700,\"miniaturized\":false,\"fullscreen\":false,\"visible\":false,\"active\":true,\"title\":\"Lightflow \u2014 IOSurface presentation proof\",\"width\":1000,\"scale\":2}]"
+    }
+  },
+  {
+    "kind": "reopen",
+    "value": {
+      "Serial": 2535,
+      "Generation": 9,
+      "visiblePresented": false,
+      "native": "[{\"height\":700,\"miniaturized\":false,\"fullscreen\":false,\"visible\":true,\"active\":true,\"title\":\"Lightflow \u2014 IOSurface presentation proof\",\"width\":1050,\"scale\":2},{\"height\":700,\"miniaturized\":false,\"fullscreen\":false,\"visible\":false,\"active\":true,\"title\":\"Lightflow \u2014 IOSurface presentation proof\",\"width\":1000,\"scale\":2},{\"height\":700,\"miniaturized\":false,\"fullscreen\":false,\"visible\":true,\"active\":true,\"title\":\"Lightflow \u2014 IOSurface presentation proof\",\"width\":1000,\"scale\":2}]"
+    }
+  }
+]

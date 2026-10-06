@@ -1,0 +1,35 @@
+[
+  {
+    "kind": "focus",
+    "value": {
+      "editorBefore": true,
+      "editorAfter": true,
+      "videoFocused": false
+    }
+  },
+  {
+    "kind": "input-api",
+    "value": {
+      "Clicks": 1,
+      "Keys": 1,
+      "scope": "routed events only; no native hit-test proof"
+    }
+  },
+  {
+    "kind": "input",
+    "value": {
+      "overlayWorks": true,
+      "videoWorks": true,
+      "clippedHit": "Grid",
+      "context": true,
+      "player": true,
+      "local": true,
+      "Clicks": 2,
+      "VideoClicks": 1,
+      "Keys": 2,
+      "Moves": 2,
+      "Wheels": 1,
+      "scope": "pinned private-API reflection: window-bound MouseDevice raw hit-testing; raw key/text through TopLevel input pipeline; no OS key translation"
+    }
+  }
+]

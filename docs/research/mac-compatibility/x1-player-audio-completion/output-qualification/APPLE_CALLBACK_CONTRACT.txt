@@ -1,0 +1,5 @@
+Apple AudioQueueOutputCallback documentation:
+https://developer.apple.com/documentation/audiotoolbox/audioqueueoutputcallback
+Excerpt: "When the system invokes this callback, you cannot assume that the audio data from the newly-available buffer has been played."
+Installed SDK independently describes buffer acquisition/reuse. Completion of buffer acquisition is not a played endpoint.
+EOF must use a separate draining/completion signal; see AudioQueuePropertyListenerProc and AudioQueueStop(false).

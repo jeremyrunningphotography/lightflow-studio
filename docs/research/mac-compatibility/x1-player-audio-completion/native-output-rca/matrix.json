@@ -1,0 +1,170 @@
+[
+  {
+    "case": "minimal-stress-0",
+    "args": [
+      "2",
+      "4800",
+      "0",
+      "silent"
+    ],
+    "returncode": 0,
+    "elapsed": 3.347973417,
+    "start": {
+      "api": "AudioQueueStart",
+      "status": 0,
+      "elapsed": 0.057306
+    },
+    "final": {
+      "finalCallbacks": 30,
+      "refills": 27,
+      "refillError": 0
+    }
+  },
+  {
+    "case": "minimal-stress-1",
+    "args": [
+      "2",
+      "4800",
+      "0",
+      "silent"
+    ],
+    "returncode": 0,
+    "elapsed": 2.900330625,
+    "start": {
+      "api": "AudioQueueStart",
+      "status": 0,
+      "elapsed": 0.035143
+    },
+    "final": {
+      "finalCallbacks": 30,
+      "refills": 27,
+      "refillError": 0
+    }
+  },
+  {
+    "case": "minimal-stress-2",
+    "args": [
+      "2",
+      "4800",
+      "0",
+      "silent"
+    ],
+    "returncode": 0,
+    "elapsed": 2.937320583000001,
+    "start": {
+      "api": "AudioQueueStart",
+      "status": 0,
+      "elapsed": 0.050308
+    },
+    "final": {
+      "finalCallbacks": 30,
+      "refills": 27,
+      "refillError": 0
+    }
+  },
+  {
+    "case": "minimal-stress-3",
+    "args": [
+      "2",
+      "4800",
+      "0",
+      "silent"
+    ],
+    "returncode": 0,
+    "elapsed": 2.907177916,
+    "start": {
+      "api": "AudioQueueStart",
+      "status": 0,
+      "elapsed": 0.033272
+    },
+    "final": {
+      "finalCallbacks": 30,
+      "refills": 27,
+      "refillError": 0
+    }
+  },
+  {
+    "case": "minimal-stress-4",
+    "args": [
+      "2",
+      "4800",
+      "0",
+      "silent"
+    ],
+    "returncode": 0,
+    "elapsed": 2.9262612919999995,
+    "start": {
+      "api": "AudioQueueStart",
+      "status": 0,
+      "elapsed": 0.034787
+    },
+    "final": {
+      "finalCallbacks": 30,
+      "refills": 27,
+      "refillError": 0
+    }
+  },
+  {
+    "case": "mono",
+    "args": [
+      "1",
+      "4800",
+      "0",
+      "silent"
+    ],
+    "returncode": 0,
+    "elapsed": 2.9312745830000004,
+    "start": {
+      "api": "AudioQueueStart",
+      "status": 0,
+      "elapsed": 0.034527
+    },
+    "final": {
+      "finalCallbacks": 30,
+      "refills": 27,
+      "refillError": 0
+    }
+  },
+  {
+    "case": "mono-1024",
+    "args": [
+      "1",
+      "1024",
+      "0",
+      "silent"
+    ],
+    "returncode": 0,
+    "elapsed": 2.893348917000001,
+    "start": {
+      "api": "AudioQueueStart",
+      "status": 0,
+      "elapsed": 0.034315
+    },
+    "final": {
+      "finalCallbacks": 132,
+      "refills": 129,
+      "refillError": 0
+    }
+  },
+  {
+    "case": "mono-1024-service",
+    "args": [
+      "1",
+      "1024",
+      "1",
+      "silent"
+    ],
+    "returncode": 0,
+    "elapsed": 2.910607625000001,
+    "start": {
+      "api": "AudioQueueStart",
+      "status": 0,
+      "elapsed": 0.034166
+    },
+    "final": {
+      "finalCallbacks": 133,
+      "refills": 130,
+      "refillError": 0
+    }
+  }
+]

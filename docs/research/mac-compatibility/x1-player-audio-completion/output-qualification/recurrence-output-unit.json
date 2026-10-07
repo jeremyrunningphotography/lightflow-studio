@@ -1,0 +1,16 @@
+{
+  "returncode": 0,
+  "stdout": "{\"create\":0,\"callback\":0,\"initialize\":0,\"start\":0,\"seconds\":3.239106,\"render_callbacks\":0,\"frames\":0,\"scope\":\"three-second all-zero CoreAudio output-unit RCA, not audio clock proof\"}\n",
+  "stderr": "",
+  "elapsed": 3.792335,
+  "session_before": {
+    "screenLockedReported": true,
+    "onConsole": true,
+    "loginDone": true
+  },
+  "session_after": {
+    "screenLockedReported": true,
+    "onConsole": true,
+    "loginDone": true
+  }
+}

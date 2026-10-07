@@ -1,0 +1,79 @@
+{
+  "returncode": 0,
+  "seconds": 5.927488167,
+  "events": [
+    {
+      "reason": "source-ended",
+      "raw": 48023,
+      "generation": 1,
+      "wall": 2608469.781560041,
+      "supplied": 48000,
+      "kind": "clock-invalidated",
+      "protected_samples": 48000
+    },
+    {
+      "last_video_pts": 0.9666666666666667,
+      "restart_ms": 43.816833291202784,
+      "last_render_wall": 2608469.754772625,
+      "generation": 2,
+      "wall": 2608469.825485416,
+      "first_video_pts": 0,
+      "kind": "loop-rebase",
+      "loop": 1,
+      "last_audio_source": 1,
+      "first_audio_source": 0
+    },
+    {
+      "reason": "source-ended",
+      "raw": 48010,
+      "generation": 2,
+      "wall": 2608470.837274541,
+      "supplied": 48000,
+      "kind": "clock-invalidated",
+      "protected_samples": 48000
+    },
+    {
+      "last_video_pts": 0.9666666666666667,
+      "restart_ms": 17.15150009840727,
+      "last_render_wall": 2608470.807708416,
+      "generation": 3,
+      "wall": 2608470.854474708,
+      "first_video_pts": 0,
+      "kind": "loop-rebase",
+      "loop": 2,
+      "last_audio_source": 1,
+      "first_audio_source": 0
+    },
+    {
+      "reason": "source-ended",
+      "raw": 48005,
+      "generation": 3,
+      "wall": 2608471.871826458,
+      "supplied": 48000,
+      "kind": "clock-invalidated",
+      "protected_samples": 48000
+    },
+    {
+      "last_video_pts": 0.9666666666666667,
+      "restart_ms": 30.76083306223154,
+      "last_render_wall": 2608471.8421815,
+      "generation": 4,
+      "wall": 2608471.902643208,
+      "first_video_pts": 0,
+      "kind": "loop-rebase",
+      "loop": 3,
+      "last_audio_source": 1,
+      "first_audio_source": 0
+    },
+    {
+      "frames": 116,
+      "loops": 3,
+      "active_queues": 0,
+      "rss": 49790976,
+      "known_invalid_schedules": 0,
+      "skips": 0,
+      "seconds": 4.010846083052456,
+      "kind": "av-summary"
+    }
+  ]
+}

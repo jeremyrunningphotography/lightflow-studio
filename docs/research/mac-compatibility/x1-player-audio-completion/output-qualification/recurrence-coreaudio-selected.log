@@ -1,0 +1,10 @@
+2026-10-07 08:32:24.406 Df audio-proof[51702:d15d75] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 08:32:24.435 Df audio-proof[51702:d15d75] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x103eaea28, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 08:32:39.439 E  audio-proof[51702:d15d75] [com.apple.coreaudio:aqme]                AQMEIO.cpp:201   timed out after 15.000s (0 0); suspension count=0 (IOSuspensions: , , , , , , , , , , , , ) (maybe stale)
+2026-10-07 08:32:39.440 Df audio-proof[51702:d15d90] [com.apple.coreaudio:AMCP]          HALC_ProxyIOContext.cpp:1594  HALC_ProxyIOContext::IOWorkLoop: ending the transport, stopping the io thread
+2026-10-07 08:32:39.484 E  audio-proof[51702:d15d75] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:455   AQME Default-Output: client stopping after failed start: <AudioQueueObject@0x103eabde0; ; [51702]; play>; running count now 0
+2026-10-07 08:34:17.130 Df startup[51732:d16619] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 08:34:17.158 Df startup[51732:d16619] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x1011af4a8, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 08:34:32.163 E  startup[51732:d16619] [com.apple.coreaudio:aqme]                AQMEIO.cpp:201   timed out after 15.000s (0 0); suspension count=0 (IOSuspensions: , , , , , , , , , , , , ) (maybe stale)
+2026-10-07 08:34:32.163 Df startup[51732:d1661a] [com.apple.coreaudio:AMCP]          HALC_ProxyIOContext.cpp:1594  HALC_ProxyIOContext::IOWorkLoop: ending the transport, stopping the io thread
+2026-10-07 08:34:32.210 E  startup[51732:d16619] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:455   AQME Default-Output: client stopping after failed start: <AudioQueueObject@0x1011ad8c0; ; [51732]; play>; running count now 0

@@ -1,0 +1,81 @@
+{
+  "g1": "REVISE / UNPASSED",
+  "entries": [
+    {
+      "requirement": "supply_cap",
+      "status": "simulation-only"
+    },
+    {
+      "requirement": "detect_actual_underrun",
+      "status": "blocked-native-start"
+    },
+    {
+      "requirement": "stale_generation",
+      "status": "simulation-and-candidate-only"
+    },
+    {
+      "requirement": "seek_flush",
+      "status": "native-feed-slices-pass; queue-generation-blocked"
+    },
+    {
+      "requirement": "rate_source_mapping",
+      "status": "native-feed-pass; live-clock-blocked"
+    },
+    {
+      "requirement": "loop_rebase",
+      "status": "candidate-only"
+    },
+    {
+      "requirement": "pause_freeze",
+      "status": "simulation-only"
+    },
+    {
+      "requirement": "resume_no_counter_jump",
+      "status": "new-epoch-candidate; native-blocked"
+    },
+    {
+      "requirement": "restart_epoch",
+      "status": "6-failed-native-starts; no-recovered-epoch"
+    },
+    {
+      "requirement": "invalid_clock_video_hold",
+      "status": "failed-start-contains-no-scheduling; live-underrun-blocked"
+    },
+    {
+      "requirement": "streaming_feed",
+      "status": "native-bounded-fixture-pass"
+    },
+    {
+      "requirement": "backpressure",
+      "status": "native-pull-stops-decode"
+    },
+    {
+      "requirement": "device_recovery",
+      "status": "reasoned-dispose/new-epoch; actual-device-switch-deferred"
+    },
+    {
+      "requirement": "physical_listening",
+      "status": "deferred-packaged-acceptance"
+    },
+    {
+      "requirement": "audioqueue_start_rca",
+      "status": "native-I/O-timeout-layer-established; underlying-HAL-cause-unresolved"
+    },
+    {
+      "requirement": "final_UIAccepted",
+      "status": "accepted-contract; future-X3-integration"
+    }
+  ],
+  "native_passes": [
+    "streaming AAC feed .5/1/2x",
+    "1x independent PCM hash",
+    "0/2/5s native seek slices",
+    "pull backpressure"
+  ],
+  "native_failures": [
+    "6 final valid-buffer stress starts -66681",
+    "frozen/silent/run-loop baselines fail",
+    "12 empty starts fail; primed start fails after3072 prepared frames; early stress matrices partial"
+  ],
+  "scope": "No simulated entry is relabelled as native qualification"
+}

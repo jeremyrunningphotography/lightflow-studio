@@ -1,0 +1,116 @@
+[
+  {
+    "name": "underrun",
+    "returncode": 0,
+    "seconds": 2.00865475,
+    "command": [
+      "${X1_WORKSPACE}/work/audio/audio-proof",
+      "starve",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "--data-root",
+      "${X1_WORKSPACE}/work/audio/data-root"
+    ]
+  },
+  {
+    "name": "av-half",
+    "returncode": 0,
+    "seconds": 20.514045333,
+    "command": [
+      "${X1_WORKSPACE}/work/audio/audio-proof",
+      "av",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      ".5",
+      "20",
+      "--data-root",
+      "${X1_WORKSPACE}/work/audio/data-root"
+    ]
+  },
+  {
+    "name": "av-one",
+    "returncode": 0,
+    "seconds": 20.271337917,
+    "command": [
+      "${X1_WORKSPACE}/work/audio/audio-proof",
+      "av",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "1",
+      "20",
+      "--data-root",
+      "${X1_WORKSPACE}/work/audio/data-root"
+    ]
+  },
+  {
+    "name": "av-double",
+    "returncode": 0,
+    "seconds": 15.266254333,
+    "command": [
+      "${X1_WORKSPACE}/work/audio/audio-proof",
+      "av",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "2",
+      "15",
+      "--data-root",
+      "${X1_WORKSPACE}/work/audio/data-root"
+    ]
+  },
+  {
+    "name": "live-rates",
+    "returncode": 0,
+    "seconds": 15.257708708000003,
+    "command": [
+      "${X1_WORKSPACE}/work/audio/audio-proof",
+      "rates",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "1",
+      "15",
+      "--data-root",
+      "${X1_WORKSPACE}/work/audio/data-root"
+    ]
+  },
+  {
+    "name": "loops",
+    "returncode": 0,
+    "seconds": 9.288665209000001,
+    "command": [
+      "${X1_WORKSPACE}/work/audio/audio-proof",
+      "loops",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "1",
+      "9",
+      "--data-root",
+      "${X1_WORKSPACE}/work/audio/data-root"
+    ]
+  },
+  {
+    "name": "av-recovery",
+    "returncode": 0,
+    "seconds": 5.247467584000006,
+    "command": [
+      "${X1_WORKSPACE}/work/audio/audio-proof",
+      "recover",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "1",
+      "5",
+      "--data-root",
+      "${X1_WORKSPACE}/work/audio/data-root"
+    ]
+  },
+  {
+    "name": "start-restart-stress",
+    "returncode": 0,
+    "seconds": 1.6091646670000017,
+    "command": [
+      "${X1_WORKSPACE}/work/audio/audio-proof",
+      "stress",
+      "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+      "--data-root",
+      "${X1_WORKSPACE}/work/audio/data-root"
+    ]
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "returncode": 0,
+  "elapsed": 0.186448083,
+  "native_prepare_only": 0,
+  "sandbox_encoder_attempts": [
+    {
+      "format": "aac",
+      "exit": 2
+    },
+    {
+      "format": "aac ",
+      "exit": 2
+    }
+  ],
+  "encoder_native_format": "aac ",
+  "played": false,
+  "owner_acceptance": "not obtained",
+  "input_sha256": "1518d416cdccf4d3a0e8016c641205d447d013386292f11b706c74677dfd2d94"
+}

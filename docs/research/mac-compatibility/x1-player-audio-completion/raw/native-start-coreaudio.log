@@ -1,0 +1,239 @@
+2026-10-06 21:01:11.518 E  audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]                AQMEIO.cpp:201   timed out after 15.000s (0 0); suspension count=0 (IOSuspensions: , , , , , , , , , , , , ) (maybe stale)
+2026-10-06 21:01:11.518 Df audio-proof[32494:cbcc67] [com.apple.coreaudio:aqme] aqmeio@0x1012b6348 Stop id=72
+2026-10-06 21:01:11.518 Df audio-proof[32494:cbcc4d] [com.apple.coreaudio:AMCP]          HALC_ProxyIOContext.cpp:1594  HALC_ProxyIOContext::IOWorkLoop: ending the transport, stopping the io thread
+2026-10-06 21:01:11.561 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:11.562 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 0]. BT device UIDS: {(
+2026-10-06 21:01:11.562 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:01:11.563 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:11.563 Df audio-proof[32494:cbcc67] [com.apple.coreaudio:aqme] aqmeio@0x1012b6348 Stop id=72
+2026-10-06 21:01:11.563 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:162   <-- setPlayState IOState: [0, 0]. BT device UIDS: {(
+2026-10-06 21:01:11.563 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=0, err=0
+2026-10-06 21:01:11.563 E  audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:455   AQME Default-Output: client stopping after failed start: <AudioQueueObject@0x9c1114000; ; [32494]; play>; running count now 0
+2026-10-06 21:01:11.563 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:618   ~AudioQueueObject: aq@0x9c1114000: Deleting
+2026-10-06 21:01:11.567 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x9c0c2a4c0, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:01:11.567 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:488   AudioQueueObject: aq@0x9c1114000: New output; format  1 ch,  48000 Hz, Float32 (passthrough? no)
+2026-10-06 21:01:11.568 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:3258  CheckSpatialization: aq@0x9c1114000 CheckSpatialization mAutomaticSpatialization=1, mSpatializationEnabled=0 mContentRequiresAUSpatialMixer=0 mHasMetadata=0 mIsOffline=0 STSLabel valid:0 is stereo: 0
+2026-10-06 21:01:11.568 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10040 SetLoudnessFromLM: -> aq@0x9c1114000:
+2026-10-06 21:01:11.568 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10158 SetLoudnessFromLM: is CoreAudioServices/LoudnessManager enabled? yes
+2026-10-06 21:01:11.568 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10161 SetLoudnessFromLM: is CoreAudioServices/LoudnessManagerV2 enabled? yes
+2026-10-06 21:01:11.568 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10164 SetLoudnessFromLM: is CoreAudioServices/lm-disable-hardware-check on? no
+2026-10-06 21:01:11.568 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10167 SetLoudnessFromLM: is hardware supported? no
+2026-10-06 21:01:11.568 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10177 SetLoudnessFromLM: hardware not supported, Loudness Manager disabled
+2026-10-06 21:01:11.568 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x9c0c2a4c0, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:01:11.576 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=3, err=0
+2026-10-06 21:01:11.577 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:1563  User-selected BT device category is 0
+2026-10-06 21:01:11.577 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:SpatialMgr] SpatializationManager.cpp:184   Spatial info for binding = Default-Output: {
+2026-10-06 21:01:11.577 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:5770  ApplyParameters: aq@0x9c1114000 volume 0.000 1.000 1.000 1.000 1.000 1.000, 1.000
+2026-10-06 21:01:11.577 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:245   AQME Default-Output: client starting: <AudioQueueObject@0x9c1114000; ; [32494]; play>; running count now 1
+2026-10-06 21:01:11.577 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-06 21:01:11.583 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Started  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:11.585 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 1]. BT device UIDS: {(
+2026-10-06 21:01:11.585 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:01:11.585 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x1012b6348, device 72 (BuiltInSpeakerDevice), AudioDeviceStart (err 0)
+2026-10-06 21:01:26.592 E  audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]                AQMEIO.cpp:201   timed out after 15.000s (0 0); suspension count=0 (IOSuspensions: , , , , , , , , , , , , ) (maybe stale)
+2026-10-06 21:01:26.592 Df audio-proof[32494:cbcc67] [com.apple.coreaudio:aqme] aqmeio@0x1012b6348 Stop id=72
+2026-10-06 21:01:26.592 Df audio-proof[32494:cbcc4d] [com.apple.coreaudio:AMCP]          HALC_ProxyIOContext.cpp:1594  HALC_ProxyIOContext::IOWorkLoop: ending the transport, stopping the io thread
+2026-10-06 21:01:26.634 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:26.635 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 0]. BT device UIDS: {(
+2026-10-06 21:01:26.635 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:01:26.635 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:26.635 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:162   <-- setPlayState IOState: [0, 0]. BT device UIDS: {(
+2026-10-06 21:01:26.635 Df audio-proof[32494:cbcc67] [com.apple.coreaudio:aqme] aqmeio@0x1012b6348 Stop id=72
+2026-10-06 21:01:26.636 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=0, err=0
+2026-10-06 21:01:26.636 E  audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:455   AQME Default-Output: client stopping after failed start: <AudioQueueObject@0x9c1114000; ; [32494]; play>; running count now 0
+2026-10-06 21:01:26.636 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:618   ~AudioQueueObject: aq@0x9c1114000: Deleting
+2026-10-06 21:01:26.641 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x9c0c2a4c0, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:01:26.641 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:488   AudioQueueObject: aq@0x9c1114000: New output; format  1 ch,  48000 Hz, Float32 (passthrough? no)
+2026-10-06 21:01:26.642 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:3258  CheckSpatialization: aq@0x9c1114000 CheckSpatialization mAutomaticSpatialization=1, mSpatializationEnabled=0 mContentRequiresAUSpatialMixer=0 mHasMetadata=0 mIsOffline=0 STSLabel valid:0 is stereo: 0
+2026-10-06 21:01:26.642 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10040 SetLoudnessFromLM: -> aq@0x9c1114000:
+2026-10-06 21:01:26.642 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10158 SetLoudnessFromLM: is CoreAudioServices/LoudnessManager enabled? yes
+2026-10-06 21:01:26.642 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10161 SetLoudnessFromLM: is CoreAudioServices/LoudnessManagerV2 enabled? yes
+2026-10-06 21:01:26.642 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10164 SetLoudnessFromLM: is CoreAudioServices/lm-disable-hardware-check on? no
+2026-10-06 21:01:26.642 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10167 SetLoudnessFromLM: is hardware supported? no
+2026-10-06 21:01:26.642 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10177 SetLoudnessFromLM: hardware not supported, Loudness Manager disabled
+2026-10-06 21:01:26.642 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x9c0c2a4c0, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:01:26.649 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=3, err=0
+2026-10-06 21:01:26.650 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:1563  User-selected BT device category is 0
+2026-10-06 21:01:26.650 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:SpatialMgr] SpatializationManager.cpp:184   Spatial info for binding = Default-Output: {
+2026-10-06 21:01:26.650 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:5770  ApplyParameters: aq@0x9c1114000 volume 0.000 1.000 1.000 1.000 1.000 1.000, 1.000
+2026-10-06 21:01:26.651 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:245   AQME Default-Output: client starting: <AudioQueueObject@0x9c1114000; ; [32494]; play>; running count now 1
+2026-10-06 21:01:26.651 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-06 21:01:26.658 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Started  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:26.661 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 1]. BT device UIDS: {(
+2026-10-06 21:01:26.661 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:01:26.661 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x1012b6348, device 72 (BuiltInSpeakerDevice), AudioDeviceStart (err 0)
+2026-10-06 21:01:41.668 E  audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]                AQMEIO.cpp:201   timed out after 15.000s (0 0); suspension count=0 (IOSuspensions: , , , , , , , , , , , , ) (maybe stale)
+2026-10-06 21:01:41.668 Df audio-proof[32494:cbcc67] [com.apple.coreaudio:aqme] aqmeio@0x1012b6348 Stop id=72
+2026-10-06 21:01:41.668 Df audio-proof[32494:cbcc4d] [com.apple.coreaudio:AMCP]          HALC_ProxyIOContext.cpp:1594  HALC_ProxyIOContext::IOWorkLoop: ending the transport, stopping the io thread
+2026-10-06 21:01:41.710 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:41.711 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 0]. BT device UIDS: {(
+2026-10-06 21:01:41.711 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:01:41.711 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:41.711 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:162   <-- setPlayState IOState: [0, 0]. BT device UIDS: {(
+2026-10-06 21:01:41.711 Df audio-proof[32494:cbcc67] [com.apple.coreaudio:aqme] aqmeio@0x1012b6348 Stop id=72
+2026-10-06 21:01:41.712 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=0, err=0
+2026-10-06 21:01:41.712 E  audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:455   AQME Default-Output: client stopping after failed start: <AudioQueueObject@0x9c1114000; ; [32494]; play>; running count now 0
+2026-10-06 21:01:41.712 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:618   ~AudioQueueObject: aq@0x9c1114000: Deleting
+2026-10-06 21:01:41.716 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x9c0c2a4c0, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:01:41.716 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:488   AudioQueueObject: aq@0x9c1114000: New output; format  1 ch,  48000 Hz, Float32 (passthrough? no)
+2026-10-06 21:01:41.718 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:3258  CheckSpatialization: aq@0x9c1114000 CheckSpatialization mAutomaticSpatialization=1, mSpatializationEnabled=0 mContentRequiresAUSpatialMixer=0 mHasMetadata=0 mIsOffline=0 STSLabel valid:0 is stereo: 0
+2026-10-06 21:01:41.718 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10040 SetLoudnessFromLM: -> aq@0x9c1114000:
+2026-10-06 21:01:41.718 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10158 SetLoudnessFromLM: is CoreAudioServices/LoudnessManager enabled? yes
+2026-10-06 21:01:41.718 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10161 SetLoudnessFromLM: is CoreAudioServices/LoudnessManagerV2 enabled? yes
+2026-10-06 21:01:41.718 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10164 SetLoudnessFromLM: is CoreAudioServices/lm-disable-hardware-check on? no
+2026-10-06 21:01:41.718 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10167 SetLoudnessFromLM: is hardware supported? no
+2026-10-06 21:01:41.718 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10177 SetLoudnessFromLM: hardware not supported, Loudness Manager disabled
+2026-10-06 21:01:41.718 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x9c0c2a4c0, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:01:41.725 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=3, err=0
+2026-10-06 21:01:41.727 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:1563  User-selected BT device category is 0
+2026-10-06 21:01:41.727 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:SpatialMgr] SpatializationManager.cpp:184   Spatial info for binding = Default-Output: {
+2026-10-06 21:01:41.727 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:5770  ApplyParameters: aq@0x9c1114000 volume 0.000 1.000 1.000 1.000 1.000 1.000, 1.000
+2026-10-06 21:01:41.727 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:245   AQME Default-Output: client starting: <AudioQueueObject@0x9c1114000; ; [32494]; play>; running count now 1
+2026-10-06 21:01:41.727 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-06 21:01:41.732 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Started  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:41.735 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 1]. BT device UIDS: {(
+2026-10-06 21:01:41.735 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:01:41.735 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x1012b6348, device 72 (BuiltInSpeakerDevice), AudioDeviceStart (err 0)
+2026-10-06 21:01:56.740 E  audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]                AQMEIO.cpp:201   timed out after 15.000s (0 0); suspension count=0 (IOSuspensions: , , , , , , , , , , , , ) (maybe stale)
+2026-10-06 21:01:56.740 Df audio-proof[32494:cbcc67] [com.apple.coreaudio:aqme] aqmeio@0x1012b6348 Stop id=72
+2026-10-06 21:01:56.740 Df audio-proof[32494:cbcc4d] [com.apple.coreaudio:AMCP]          HALC_ProxyIOContext.cpp:1594  HALC_ProxyIOContext::IOWorkLoop: ending the transport, stopping the io thread
+2026-10-06 21:01:56.784 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:56.785 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 0]. BT device UIDS: {(
+2026-10-06 21:01:56.785 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:01:56.785 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:56.785 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:162   <-- setPlayState IOState: [0, 0]. BT device UIDS: {(
+2026-10-06 21:01:56.785 Df audio-proof[32494:cbcc67] [com.apple.coreaudio:aqme] aqmeio@0x1012b6348 Stop id=72
+2026-10-06 21:01:56.785 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=0, err=0
+2026-10-06 21:01:56.785 E  audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:455   AQME Default-Output: client stopping after failed start: <AudioQueueObject@0x9c1114000; ; [32494]; play>; running count now 0
+2026-10-06 21:01:56.785 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:618   ~AudioQueueObject: aq@0x9c1114000: Deleting
+2026-10-06 21:01:56.788 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x9c0c2a4c0, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:01:56.788 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:488   AudioQueueObject: aq@0x9c1114000: New output; format  1 ch,  48000 Hz, Float32 (passthrough? no)
+2026-10-06 21:01:56.789 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:3258  CheckSpatialization: aq@0x9c1114000 CheckSpatialization mAutomaticSpatialization=1, mSpatializationEnabled=0 mContentRequiresAUSpatialMixer=0 mHasMetadata=0 mIsOffline=0 STSLabel valid:0 is stereo: 0
+2026-10-06 21:01:56.789 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10040 SetLoudnessFromLM: -> aq@0x9c1114000:
+2026-10-06 21:01:56.789 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10158 SetLoudnessFromLM: is CoreAudioServices/LoudnessManager enabled? yes
+2026-10-06 21:01:56.789 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10161 SetLoudnessFromLM: is CoreAudioServices/LoudnessManagerV2 enabled? yes
+2026-10-06 21:01:56.789 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10164 SetLoudnessFromLM: is CoreAudioServices/lm-disable-hardware-check on? no
+2026-10-06 21:01:56.789 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10167 SetLoudnessFromLM: is hardware supported? no
+2026-10-06 21:01:56.789 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10177 SetLoudnessFromLM: hardware not supported, Loudness Manager disabled
+2026-10-06 21:01:56.789 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x9c0c2a4c0, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:01:56.797 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=3, err=0
+2026-10-06 21:01:56.798 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:1563  User-selected BT device category is 0
+2026-10-06 21:01:56.798 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:SpatialMgr] SpatializationManager.cpp:184   Spatial info for binding = Default-Output: {
+2026-10-06 21:01:56.798 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:5770  ApplyParameters: aq@0x9c1114000 volume 0.000 1.000 1.000 1.000 1.000 1.000, 1.000
+2026-10-06 21:01:56.799 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:245   AQME Default-Output: client starting: <AudioQueueObject@0x9c1114000; ; [32494]; play>; running count now 1
+2026-10-06 21:01:56.799 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-06 21:01:56.803 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Started  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:01:56.804 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 1]. BT device UIDS: {(
+2026-10-06 21:01:56.804 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:01:56.804 Df audio-proof[32494:cbcc2c] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x1012b6348, device 72 (BuiltInSpeakerDevice), AudioDeviceStart (err 0)
+2026-10-06 21:02:32.516 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AMCP] System_Input_Processing_Notification_Handler.mm:460   System_Input_Processing_Notification_Handler::is_vi_available(): Voice isolation DSP is unavailable for client with no bundle id (AVFoundation is available, application is not in client deny list, application is not FaceTime variant)
+2026-10-06 21:02:32.567 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x8328021f0, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:02:32.568 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:488   AudioQueueObject: aq@0x8335b0000: New output; format  1 ch,  48000 Hz, Float32 (passthrough? no)
+2026-10-06 21:02:32.569 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]            HeadTracker.mm:110   HeadTrackerSession 0x8329b0140 created for movie spatialization.
+2026-10-06 21:02:32.569 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]            HeadTracker.mm:110   HeadTrackerSession 0x8329b01e0 created for music spatialization.
+2026-10-06 21:02:32.569 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2226  [AddSpatialPropertiesListener] objectID=72
+2026-10-06 21:02:32.569 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2248  aqmeio@0x832a38c18: [AddSpatialPropertiesListener] Installed listener 0x832944a00
+2026-10-06 21:02:32.569 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]           AQMixEngine.cpp:735   AQMEDevice (0x10520b148) has neither a defaultOutStreamClient nor a defaultInStreamClient
+2026-10-06 21:02:32.577 Df audio-proof[32657:cbf385] [com.apple.coreaudio:EnhanceDialogueProcessor] EnhanceDialogueProcessor.cpp:244   EnhanceDialogueProcessor() - Product does not support Enhance Dialogue
+2026-10-06 21:02:32.577 Df audio-proof[32657:cbf385] [com.apple.coreaudio:EnhanceDialogueProcessor] EnhanceDialogueProcessor.cpp:244   EnhanceDialogueProcessor() - Product does not support Enhance Dialogue
+2026-10-06 21:02:32.577 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x832a97ba0, from  2 ch,  48000 Hz, Float32, deinterleaved to  2 ch,  48000 Hz, Float32, interleaved
+2026-10-06 21:02:32.577 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:3258  CheckSpatialization: aq@0x8335b0000 CheckSpatialization mAutomaticSpatialization=1, mSpatializationEnabled=0 mContentRequiresAUSpatialMixer=0 mHasMetadata=0 mIsOffline=0 STSLabel valid:0 is stereo: 0
+2026-10-06 21:02:32.577 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10040 SetLoudnessFromLM: -> aq@0x8335b0000:
+2026-10-06 21:02:32.577 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10158 SetLoudnessFromLM: is CoreAudioServices/LoudnessManager enabled? yes
+2026-10-06 21:02:32.577 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10161 SetLoudnessFromLM: is CoreAudioServices/LoudnessManagerV2 enabled? yes
+2026-10-06 21:02:32.577 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10164 SetLoudnessFromLM: is CoreAudioServices/lm-disable-hardware-check on? no
+2026-10-06 21:02:32.578 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]        LoudnessManager.mm:1257  GetHardwarePlatformKey: found acoustic ID: 14
+2026-10-06 21:02:32.578 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]        LoudnessManager.mm:1387  GetHardwarePlatformKey: GetHardwarePlatformKey(): hardware platform key is Mac
+2026-10-06 21:02:32.578 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10167 SetLoudnessFromLM: is hardware supported? no
+2026-10-06 21:02:32.578 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10177 SetLoudnessFromLM: hardware not supported, Loudness Manager disabled
+2026-10-06 21:02:32.578 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x832004600, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:02:32.585 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=3, err=0
+2026-10-06 21:02:32.589 Df audio-proof[32657:cbf385] [com.apple.coreaudio:SpatialMgr] SpatializationManager.cpp:1420  Loaded preset file /System/Library/Audio/Tunings/AID14/AU/aid14-aumx-3dem-appl.aupreset
+2026-10-06 21:02:32.589 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:1563  User-selected BT device category is 0
+2026-10-06 21:02:32.589 Df audio-proof[32657:cbf385] [com.apple.coreaudio:SpatialMgr] SpatializationManager.cpp:184   Spatial info for binding = Default-Output: {
+2026-10-06 21:02:32.589 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:5770  ApplyParameters: aq@0x8335b0000 volume 0.000 1.000 1.000 1.000 1.000 1.000, 1.000
+2026-10-06 21:02:32.589 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:245   AQME Default-Output: client starting: <AudioQueueObject@0x8335b0000; ; [32657]; play>; running count now 1
+2026-10-06 21:02:32.589 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-06 21:02:32.615 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client]   AVAudioSession_MacOS.mm:1021  initForMacOS
+2026-10-06 21:02:32.616 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client]     SessionCore_Create.mm:99    Created session 0x832a24720 with ID: 0x2a208e
+2026-10-06 21:02:32.617 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Started  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:02:32.618 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 1]. BT device UIDS: {(
+2026-10-06 21:02:32.618 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:02:32.618 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x832a38c18, device 72 (BuiltInSpeakerDevice), AudioDeviceStart (err 0)
+2026-10-06 21:02:47.624 E  audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]                AQMEIO.cpp:201   timed out after 15.000s (0 0); suspension count=0 (IOSuspensions: , , , , , , , , , , , , ) (maybe stale)
+2026-10-06 21:02:47.624 Df audio-proof[32657:cbf3c3] [com.apple.coreaudio:aqme] aqmeio@0x832a38c18 Stop id=72
+2026-10-06 21:02:47.624 Df audio-proof[32657:cbf3a1] [com.apple.coreaudio:AMCP]          HALC_ProxyIOContext.cpp:1594  HALC_ProxyIOContext::IOWorkLoop: ending the transport, stopping the io thread
+2026-10-06 21:02:47.667 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:02:47.668 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 0]. BT device UIDS: {(
+2026-10-06 21:02:47.668 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:02:47.668 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:02:47.668 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:162   <-- setPlayState IOState: [0, 0]. BT device UIDS: {(
+2026-10-06 21:02:47.668 Df audio-proof[32657:cbf3c3] [com.apple.coreaudio:aqme] aqmeio@0x832a38c18 Stop id=72
+2026-10-06 21:02:47.669 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=0, err=0
+2026-10-06 21:02:47.669 E  audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:455   AQME Default-Output: client stopping after failed start: <AudioQueueObject@0x8335b0000; ; [32657]; play>; running count now 0
+2026-10-06 21:02:47.670 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:618   ~AudioQueueObject: aq@0x8335b0000: Deleting
+2026-10-06 21:02:47.674 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x8320045d0, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:02:47.674 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:488   AudioQueueObject: aq@0x8335b0000: New output; format  1 ch,  48000 Hz, Float32 (passthrough? no)
+2026-10-06 21:02:47.676 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:3258  CheckSpatialization: aq@0x8335b0000 CheckSpatialization mAutomaticSpatialization=1, mSpatializationEnabled=0 mContentRequiresAUSpatialMixer=0 mHasMetadata=0 mIsOffline=0 STSLabel valid:0 is stereo: 0
+2026-10-06 21:02:47.676 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10040 SetLoudnessFromLM: -> aq@0x8335b0000:
+2026-10-06 21:02:47.676 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10158 SetLoudnessFromLM: is CoreAudioServices/LoudnessManager enabled? yes
+2026-10-06 21:02:47.676 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10161 SetLoudnessFromLM: is CoreAudioServices/LoudnessManagerV2 enabled? yes
+2026-10-06 21:02:47.676 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10164 SetLoudnessFromLM: is CoreAudioServices/lm-disable-hardware-check on? no
+2026-10-06 21:02:47.676 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10167 SetLoudnessFromLM: is hardware supported? no
+2026-10-06 21:02:47.676 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10177 SetLoudnessFromLM: hardware not supported, Loudness Manager disabled
+2026-10-06 21:02:47.676 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0x832004570, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:02:47.684 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=3, err=0
+2026-10-06 21:02:47.685 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:1563  User-selected BT device category is 0
+2026-10-06 21:02:47.685 Df audio-proof[32657:cbf385] [com.apple.coreaudio:SpatialMgr] SpatializationManager.cpp:184   Spatial info for binding = Default-Output: {
+2026-10-06 21:02:47.685 Df audio-proof[32657:cbf385] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:5770  ApplyParameters: aq@0x8335b0000 volume 0.000 1.000 1.000 1.000 1.000 1.000, 1.000
+2026-10-06 21:02:47.685 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:245   AQME Default-Output: client starting: <AudioQueueObject@0x8335b0000; ; [32657]; play>; running count now 1
+2026-10-06 21:02:47.685 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-06 21:02:47.692 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Started  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:02:47.693 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 1]. BT device UIDS: {(
+2026-10-06 21:02:47.693 Df audio-proof[32657:cbf385] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:02:47.693 Df audio-proof[32657:cbf385] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x832a38c18, device 72 (BuiltInSpeakerDevice), AudioDeviceStart (err 0)
+2026-10-06 21:02:56.385 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AMCP] System_Input_Processing_Notification_Handler.mm:460   System_Input_Processing_Notification_Handler::is_vi_available(): Voice isolation DSP is unavailable for client with no bundle id (AVFoundation is available, application is not in client deny list, application is not FaceTime variant)
+2026-10-06 21:02:56.431 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0xa37408300, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:02:56.431 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:488   AudioQueueObject: aq@0xa3685c000: New output; format  1 ch,  48000 Hz, Float32 (passthrough? no)
+2026-10-06 21:02:56.431 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]            HeadTracker.mm:110   HeadTrackerSession 0x102d90550 created for movie spatialization.
+2026-10-06 21:02:56.431 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]            HeadTracker.mm:110   HeadTrackerSession 0x102da56b0 created for music spatialization.
+2026-10-06 21:02:56.432 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2226  [AddSpatialPropertiesListener] objectID=72
+2026-10-06 21:02:56.432 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2248  aqmeio@0x102dac118: [AddSpatialPropertiesListener] Installed listener 0xa3683c980
+2026-10-06 21:02:56.432 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]           AQMixEngine.cpp:735   AQMEDevice (0x102dabfd8) has neither a defaultOutStreamClient nor a defaultInStreamClient
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:EnhanceDialogueProcessor] EnhanceDialogueProcessor.cpp:244   EnhanceDialogueProcessor() - Product does not support Enhance Dialogue
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:EnhanceDialogueProcessor] EnhanceDialogueProcessor.cpp:244   EnhanceDialogueProcessor() - Product does not support Enhance Dialogue
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0xa37408390, from  2 ch,  48000 Hz, Float32, deinterleaved to  2 ch,  48000 Hz, Float32, interleaved
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:3258  CheckSpatialization: aq@0xa3685c000 CheckSpatialization mAutomaticSpatialization=1, mSpatializationEnabled=0 mContentRequiresAUSpatialMixer=0 mHasMetadata=0 mIsOffline=0 STSLabel valid:0 is stereo: 0
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10040 SetLoudnessFromLM: -> aq@0xa3685c000:
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10158 SetLoudnessFromLM: is CoreAudioServices/LoudnessManager enabled? yes
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10161 SetLoudnessFromLM: is CoreAudioServices/LoudnessManagerV2 enabled? yes
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10164 SetLoudnessFromLM: is CoreAudioServices/lm-disable-hardware-check on? no
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AQ]        LoudnessManager.mm:1257  GetHardwarePlatformKey: found acoustic ID: 14
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AQ]        LoudnessManager.mm:1387  GetHardwarePlatformKey: GetHardwarePlatformKey(): hardware platform key is Mac
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10167 SetLoudnessFromLM: is hardware supported? no
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10177 SetLoudnessFromLM: hardware not supported, Loudness Manager disabled
+2026-10-06 21:02:56.440 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0xa374083f0, from  1 ch,  48000 Hz, Float32 to  1 ch,  48000 Hz, Float32 (actually:  1 ch,  48000 Hz, Float32)
+2026-10-06 21:02:56.448 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=3, err=0
+2026-10-06 21:02:56.452 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:SpatialMgr] SpatializationManager.cpp:1420  Loaded preset file /System/Library/Audio/Tunings/AID14/AU/aid14-aumx-3dem-appl.aupreset
+2026-10-06 21:02:56.453 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:1563  User-selected BT device category is 0
+2026-10-06 21:02:56.453 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:SpatialMgr] SpatializationManager.cpp:184   Spatial info for binding = Default-Output: {
+2026-10-06 21:02:56.453 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:5770  ApplyParameters: aq@0xa3685c000 volume 0.000 1.000 1.000 1.000 1.000 1.000, 1.000
+2026-10-06 21:02:56.453 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:245   AQME Default-Output: client starting: <AudioQueueObject@0xa3685c000; ; [32668]; play>; running count now 1
+2026-10-06 21:02:56.453 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-06 21:02:56.478 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:as_client]   AVAudioSession_MacOS.mm:1021  initForMacOS
+2026-10-06 21:02:56.479 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:as_client]     SessionCore_Create.mm:99    Created session 0xa37420700 with ID: 0x2a208f
+2026-10-06 21:02:56.481 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Started  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:02:56.481 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 1]. BT device UIDS: {(
+2026-10-06 21:02:56.481 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:02:56.481 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x102dac118, device 72 (BuiltInSpeakerDevice), AudioDeviceStart (err 0)
+2026-10-06 21:03:11.482 E  baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]                AQMEIO.cpp:201   timed out after 15.000s (0 0); suspension count=0 (IOSuspensions: , , , , , , , , , , , , ) (maybe stale)
+2026-10-06 21:03:11.482 Df baseline-audio[32668:cbf76a] [com.apple.coreaudio:aqme] aqmeio@0x102dac118 Stop id=72
+2026-10-06 21:03:11.482 Df baseline-audio[32668:cbf765] [com.apple.coreaudio:AMCP]          HALC_ProxyIOContext.cpp:1594  HALC_ProxyIOContext::IOWorkLoop: ending the transport, stopping the io thread
+2026-10-06 21:03:11.524 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:03:11.526 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:124   Sent updated IOState to server: [0, 0]. BT device UIDS: {(
+2026-10-06 21:03:11.526 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:167   <-- setPlayState Server update was required.
+2026-10-06 21:03:11.526 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:131   --> setPlayState Stopped  Output {BuiltInSpeakerDevice, 0xa}
+2026-10-06 21:03:11.526 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:as_client] SessionCore_macOS_Legacy.mm:162   <-- setPlayState IOState: [0, 0]. BT device UIDS: {(
+2026-10-06 21:03:11.526 Df baseline-audio[32668:cbf76a] [com.apple.coreaudio:aqme] aqmeio@0x102dac118 Stop id=72
+2026-10-06 21:03:11.526 Df baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]        MEMixerChannel.cpp:3300  mFormatID='lpcm', mNumChannels=1, mBestAvailableContentType=0, mContentspatializable=0, mSpatializationStatus=0, err=0
+2026-10-06 21:03:11.526 E  baseline-audio[32668:cbf73b] [com.apple.coreaudio:aqme]  MEDeviceStreamClient.cpp:455   AQME Default-Output: client stopping after failed start: <AudioQueueObject@0xa3685c000; ; [32668]; play>; running count now 0

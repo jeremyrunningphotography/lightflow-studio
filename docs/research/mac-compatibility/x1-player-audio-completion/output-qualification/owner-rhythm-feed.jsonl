@@ -1,0 +1,6 @@
+{"rate":0.5,"eof":true,"max_fifo":4712,"input_extent":10,"output_hash":"91162f97923737f2","kind":"stream-feed","decoded_samples":477888,"produced_samples":953960,"decoded_frames":467}
+{"rate":1,"eof":true,"max_fifo":1984,"input_extent":10,"output_hash":"74ac89e4b73195b1","kind":"stream-feed","decoded_samples":477888,"produced_samples":477888,"decoded_frames":467}
+{"rate":2,"eof":true,"max_fifo":2952,"input_extent":10,"output_hash":"a47b2ee587959eee","kind":"stream-feed","decoded_samples":477888,"produced_samples":239496,"decoded_frames":467}
+{"origin":0,"end":0.5,"max_fifo":1984,"kind":"feed-seek-backpressure","decoded_samples":21888,"produced_samples":21888,"decoded_paused_without_pull":true}
+{"origin":2,"end":2.5,"max_fifo":1280,"kind":"feed-seek-backpressure","decoded_samples":24000,"produced_samples":24000,"decoded_paused_without_pull":true}
+{"origin":5,"end":5.5,"max_fifo":1664,"kind":"feed-seek-backpressure","decoded_samples":24000,"produced_samples":24000,"decoded_paused_without_pull":true}

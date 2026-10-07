@@ -1,0 +1,14 @@
+{
+  "task_audio_processes": [],
+  "removed_bytes": 174320048,
+  "removed_paths": [
+    "work/audio",
+    "work/deps",
+    "work/native-output-rca",
+    "work/owner-listening"
+  ],
+  "retained_fixture_bytes": 521580092,
+  "global_audio_configuration_changed": false,
+  "owner_action": "physical unlock only",
+  "production_changed": false
+}

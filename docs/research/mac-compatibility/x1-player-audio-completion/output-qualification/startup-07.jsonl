@@ -1,0 +1,61 @@
+{"api": "HAL default output", "status": 0}
+{"api": "HAL UID", "status": 0}
+{"api": "new", "status": 0}
+{"api": "set queue to same default UID", "status": 0}
+{"api": "queue UID", "status": 0, "sameDefault": 1, "uid": "normalized-fe8f9fe212905612"}
+{"api": "queue device rate", "status": 0, "value": 48000}
+{"api": "allocate", "status": 0}
+{"api": "enqueue", "status": 0}
+{"api": "allocate", "status": 0}
+{"api": "enqueue", "status": 0}
+{"api": "allocate", "status": 0}
+{"api": "enqueue", "status": 0}
+{"api": "start", "status": 0, "ms": 26.045, "mode": 1}
+{"poll": 0, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": -469, "callbacks": 0, "flags": 7}
+{"poll": 1, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 132, "callbacks": 0, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 2, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 733, "callbacks": 1, "flags": 7}
+{"poll": 3, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 1333, "callbacks": 1, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 4, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 1934, "callbacks": 2, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 5, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 2535, "callbacks": 3, "flags": 7}
+{"poll": 6, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 3136, "callbacks": 3, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 7, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 3737, "callbacks": 4, "flags": 7}
+{"poll": 8, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 4338, "callbacks": 4, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 9, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 4939, "callbacks": 5, "flags": 7}
+{"poll": 10, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 5540, "callbacks": 5, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 11, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 6141, "callbacks": 6, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 12, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 6742, "callbacks": 7, "flags": 7}
+{"poll": 13, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 7343, "callbacks": 7, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 14, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 7944, "callbacks": 8, "flags": 7}
+{"poll": 15, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 8546, "callbacks": 8, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 16, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 9152, "callbacks": 9, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 17, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 9757, "callbacks": 10, "flags": 7}
+{"poll": 18, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 10304, "callbacks": 10, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 19, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 10811, "callbacks": 11, "flags": 7}
+{"poll": 20, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 11416, "callbacks": 11, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 21, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 12014, "callbacks": 12, "flags": 7}
+{"poll": 22, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 12619, "callbacks": 12, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 23, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 13212, "callbacks": 13, "flags": 7}
+{"poll": 24, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 13759, "callbacks": 13, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 25, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 14365, "callbacks": 14, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 26, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 14886, "callbacks": 15, "flags": 7}
+{"poll": 27, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 15490, "callbacks": 15, "flags": 7}
+{"api": "refill", "status": 0}
+{"poll": 28, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 16015, "callbacks": 16, "flags": 7}
+{"poll": 29, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 16503, "callbacks": 16, "flags": 7}
+{"api": "stop", "status": 0}
+{"api": "dispose", "status": 0}

@@ -1,0 +1,16 @@
+{
+  "returncode": 1,
+  "stdout": "",
+  "stderr": "Error: AudioQueueStart failed (-66681)\n",
+  "elapsed": 15.145274291,
+  "session_before": {
+    "screenLockedReported": true,
+    "onConsole": true,
+    "loginDone": true
+  },
+  "session_after": {
+    "screenLockedReported": true,
+    "onConsole": true,
+    "loginDone": true
+  }
+}

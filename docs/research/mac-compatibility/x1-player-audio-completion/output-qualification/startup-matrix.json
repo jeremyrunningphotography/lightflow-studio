@@ -1,0 +1,170 @@
+[
+  {
+    "case": 0,
+    "mode": 0,
+    "returncode": 0,
+    "elapsed": 0.88800625,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 49.976,
+      "mode": 0
+    },
+    "callbacks": 16,
+    "nonzero": []
+  },
+  {
+    "case": 1,
+    "mode": 1,
+    "returncode": 0,
+    "elapsed": 0.5432227499999999,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 27.777,
+      "mode": 1
+    },
+    "callbacks": 17,
+    "nonzero": []
+  },
+  {
+    "case": 2,
+    "mode": 0,
+    "returncode": 0,
+    "elapsed": 0.49026362499999987,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 26.642,
+      "mode": 0
+    },
+    "callbacks": 16,
+    "nonzero": []
+  },
+  {
+    "case": 3,
+    "mode": 2,
+    "returncode": 0,
+    "elapsed": 0.4870875829999999,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 26.955,
+      "mode": 2
+    },
+    "callbacks": 16,
+    "nonzero": []
+  },
+  {
+    "case": 4,
+    "mode": 0,
+    "returncode": 0,
+    "elapsed": 0.4896793749999997,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 27.329,
+      "mode": 0
+    },
+    "callbacks": 16,
+    "nonzero": []
+  },
+  {
+    "case": 5,
+    "mode": 3,
+    "returncode": 0,
+    "elapsed": 0.491837667,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 26.631,
+      "mode": 3
+    },
+    "callbacks": 3,
+    "nonzero": []
+  },
+  {
+    "case": 6,
+    "mode": 0,
+    "returncode": 0,
+    "elapsed": 0.48455220899999984,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 27.098,
+      "mode": 0
+    },
+    "callbacks": 16,
+    "nonzero": []
+  },
+  {
+    "case": 7,
+    "mode": 1,
+    "returncode": 0,
+    "elapsed": 0.5277533750000005,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 26.045,
+      "mode": 1
+    },
+    "callbacks": 16,
+    "nonzero": []
+  },
+  {
+    "case": 8,
+    "mode": 0,
+    "returncode": 0,
+    "elapsed": 0.48562404199999953,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 27.165,
+      "mode": 0
+    },
+    "callbacks": 16,
+    "nonzero": []
+  },
+  {
+    "case": 9,
+    "mode": 2,
+    "returncode": 0,
+    "elapsed": 0.48896054099999997,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 26.251,
+      "mode": 2
+    },
+    "callbacks": 16,
+    "nonzero": []
+  },
+  {
+    "case": 10,
+    "mode": 0,
+    "returncode": 0,
+    "elapsed": 0.4935437079999998,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 27.112,
+      "mode": 0
+    },
+    "callbacks": 16,
+    "nonzero": []
+  },
+  {
+    "case": 11,
+    "mode": 3,
+    "returncode": 0,
+    "elapsed": 0.4944597920000007,
+    "start": {
+      "api": "start",
+      "status": 0,
+      "ms": 27.389,
+      "mode": 3
+    },
+    "callbacks": 3,
+    "nonzero": []
+  }
+]

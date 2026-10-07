@@ -1,0 +1,73 @@
+{
+  "sandbox_attempt": {
+    "file": "underrun-first.jsonl",
+    "exit": 3,
+    "error": -66680,
+    "not_native_device_evidence": true
+  },
+  "native_no_prime": {
+    "file": "underrun-native.jsonl",
+    "exit": 3,
+    "error": -66681,
+    "supplied": 3072
+  },
+  "empty_start": {
+    "file": "start-stress.jsonl.gz",
+    "rows": 87,
+    "empty_starts": 12,
+    "empty_start_status": -66681,
+    "partial_valid_stress_attempts": 5,
+    "outcome": "long negative-start sequence and primed stress interrupted before planned 40 cases; NOT evidence of an indefinite API hang"
+  },
+  "prime_start": {
+    "file": "start-valid-stress.jsonl.gz",
+    "rows": 7,
+    "prime_status": 0,
+    "prepared_frames": 3072,
+    "start_status": -66681,
+    "outcome": "one primed start emitted failure; remaining planned stress interrupted; initially zero output was not a proven hang"
+  },
+  "frozen_baseline": {
+    "file": "baseline-audio.jsonl",
+    "exit": 4,
+    "cause": "failed AudioQueueStart; log confirms device-start-success then 15s I/O timeout"
+  },
+  "gain_one_silent": {
+    "file": "silent-start.jsonl",
+    "exit": 4,
+    "error": -66681
+  },
+  "runloop_background_start": {
+    "file": "runloop-start.jsonl",
+    "exit": 4,
+    "error": -66681
+  },
+  "superseded_stress": {
+    "file": "start-stress-bounded.jsonl",
+    "outcome": "terminated after seek-feed bug discovered; partial diagnostic only"
+  },
+  "source_fixes": [
+    "preserve AAC priming at origin0",
+    "continue past discarded preroll until valid data",
+    "use actual returned count in feed oracle",
+    "bypass atempo at1x",
+    "reject empty feed before start",
+    "check old supplied extent before refill",
+    "resume via new source epoch"
+  ],
+  "interpretation": "Repeated current-runtime failure, not a generalized product/architecture impossibility. No audio-service restart, output-device change or owner process termination.",
+  "output_unit_check": {
+    "result": {
+      "create": 0,
+      "callback": 0,
+      "initialize": 0,
+      "start": 0,
+      "seconds": 3.251214,
+      "render_callbacks": 0,
+      "frames": 0,
+      "scope": "three-second all-zero CoreAudio output-unit RCA, not audio clock proof"
+    },
+    "interpretation": "Initialization/start success but no callbacks in measured interval; supports current native I/O callback availability blocker beyond new AudioQueue feeder; not a replacement architecture proof",
+    "untimed_preliminary": "No claims based on first loop-only observation; final result explicitly measures wall duration"
+  }
+}

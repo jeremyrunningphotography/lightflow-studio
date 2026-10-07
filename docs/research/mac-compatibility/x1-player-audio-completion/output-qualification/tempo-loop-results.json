@@ -1,0 +1,234 @@
+[
+  {
+    "name": "loops-half",
+    "returncode": 0,
+    "seconds": 7.3152789590000005,
+    "events": [
+      {
+        "raw": -1,
+        "generation": 1,
+        "wall": 2611686.547914041,
+        "supplied": 95040,
+        "kind": "drain-complete",
+        "running_status": 0,
+        "protected_samples": 95040,
+        "running": 0
+      },
+      {
+        "last_video_pts": 0.9666666666666667,
+        "restart_ms": 33.80950028076768,
+        "last_render_wall": 2611686.431167416,
+        "generation": 2,
+        "wall": 2611686.581834166,
+        "first_video_pts": 0,
+        "kind": "loop-rebase",
+        "loop": 1,
+        "last_audio_source": 0.99,
+        "first_audio_source": 0
+      },
+      {
+        "raw": -1,
+        "generation": 2,
+        "wall": 2611688.649640541,
+        "supplied": 95040,
+        "kind": "drain-complete",
+        "running_status": 0,
+        "protected_samples": 95040,
+        "running": 0
+      },
+      {
+        "last_video_pts": 0.9666666666666667,
+        "restart_ms": 31.712542288005352,
+        "last_render_wall": 2611688.529633375,
+        "generation": 3,
+        "wall": 2611688.681576583,
+        "first_video_pts": 0,
+        "kind": "loop-rebase",
+        "loop": 2,
+        "last_audio_source": 0.99,
+        "first_audio_source": 0
+      },
+      {
+        "raw": -1,
+        "generation": 3,
+        "wall": 2611690.750801833,
+        "supplied": 95040,
+        "kind": "drain-complete",
+        "running_status": 0,
+        "protected_samples": 95040,
+        "running": 0
+      },
+      {
+        "last_video_pts": 0.9666666666666667,
+        "restart_ms": 29.85333278775215,
+        "last_render_wall": 2611690.634610791,
+        "generation": 4,
+        "wall": 2611690.780896541,
+        "first_video_pts": 0,
+        "kind": "loop-rebase",
+        "loop": 3,
+        "last_audio_source": 0.99,
+        "first_audio_source": 0
+      },
+      {
+        "frames": 101,
+        "loops": 3,
+        "active_queues": 0,
+        "rss": 48480256,
+        "known_invalid_schedules": 0,
+        "skips": 0,
+        "seconds": 7.007985374890268,
+        "kind": "av-summary"
+      }
+    ]
+  },
+  {
+    "name": "loops-double",
+    "returncode": 0,
+    "seconds": 4.260808542,
+    "events": [
+      {
+        "raw": -1,
+        "generation": 1,
+        "wall": 2611692.355192583,
+        "supplied": 24384,
+        "kind": "drain-complete",
+        "running_status": 0,
+        "protected_samples": 24000,
+        "running": 0
+      },
+      {
+        "last_video_pts": 1,
+        "restart_ms": 15.734542161226273,
+        "last_render_wall": 2611692.272030333,
+        "generation": 2,
+        "wall": 2611692.3709795,
+        "first_video_pts": 0,
+        "kind": "loop-rebase",
+        "loop": 1,
+        "last_audio_source": 1,
+        "first_audio_source": 0
+      },
+      {
+        "raw": -1,
+        "generation": 2,
+        "wall": 2611692.973894208,
+        "supplied": 24384,
+        "kind": "drain-complete",
+        "running_status": 0,
+        "protected_samples": 24000,
+        "running": 0
+      },
+      {
+        "last_video_pts": 1,
+        "restart_ms": 27.846416924148798,
+        "last_render_wall": 2611692.891408708,
+        "generation": 3,
+        "wall": 2611693.001770958,
+        "first_video_pts": 0,
+        "kind": "loop-rebase",
+        "loop": 2,
+        "last_audio_source": 1,
+        "first_audio_source": 0
+      },
+      {
+        "raw": -1,
+        "generation": 3,
+        "wall": 2611693.603386583,
+        "supplied": 24384,
+        "kind": "drain-complete",
+        "running_status": 0,
+        "protected_samples": 24000,
+        "running": 0
+      },
+      {
+        "last_video_pts": 1,
+        "restart_ms": 29.43604066967964,
+        "last_render_wall": 2611693.520634375,
+        "generation": 4,
+        "wall": 2611693.63287575,
+        "first_video_pts": 0,
+        "kind": "loop-rebase",
+        "loop": 3,
+        "last_audio_source": 1,
+        "first_audio_source": 0
+      },
+      {
+        "raw": -1,
+        "generation": 4,
+        "wall": 2611694.232613833,
+        "supplied": 24384,
+        "kind": "drain-complete",
+        "running_status": 0,
+        "protected_samples": 24000,
+        "running": 0
+      },
+      {
+        "last_video_pts": 1,
+        "restart_ms": 30.623374972492456,
+        "last_render_wall": 2611694.152386458,
+        "generation": 5,
+        "wall": 2611694.263302208,
+        "first_video_pts": 0,
+        "kind": "loop-rebase",
+        "loop": 4,
+        "last_audio_source": 1,
+        "first_audio_source": 0
+      },
+      {
+        "raw": -1,
+        "generation": 5,
+        "wall": 2611694.862029375,
+        "supplied": 24384,
+        "kind": "drain-complete",
+        "running_status": 0,
+        "protected_samples": 24000,
+        "running": 0
+      },
+      {
+        "last_video_pts": 1,
+        "restart_ms": 29.398166108876467,
+        "last_render_wall": 2611694.779929083,
+        "generation": 6,
+        "wall": 2611694.891546291,
+        "first_video_pts": 0,
+        "kind": "loop-rebase",
+        "loop": 5,
+        "last_audio_source": 1,
+        "first_audio_source": 0
+      },
+      {
+        "raw": -1,
+        "generation": 6,
+        "wall": 2611695.491472833,
+        "supplied": 24384,
+        "kind": "drain-complete",
+        "running_status": 0,
+        "protected_samples": 24000,
+        "running": 0
+      },
+      {
+        "last_video_pts": 1,
+        "restart_ms": 29.292375314980745,
+        "last_render_wall": 2611695.411140208,
+        "generation": 7,
+        "wall": 2611695.520997166,
+        "first_video_pts": 0,
+        "kind": "loop-rebase",
+        "loop": 6,
+        "last_audio_source": 1,
+        "first_audio_source": 0
+      },
+      {
+        "frames": 199,
+        "loops": 6,
+        "active_queues": 0,
+        "rss": 50298880,
+        "known_invalid_schedules": 0,
+        "skips": 0,
+        "seconds": 4.011484208982438,
+        "kind": "av-summary"
+      }
+    ]
+  }
+]

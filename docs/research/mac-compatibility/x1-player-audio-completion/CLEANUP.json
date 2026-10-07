@@ -1,0 +1,22 @@
+{
+  "removed_bytes": 152156526,
+  "removed": [
+    "work/deps task-only source/libraries/builds/logs",
+    "work/audio task-only binaries/generated files/data root"
+  ],
+  "durable_raw_archives_preserved": true,
+  "prior_evidence_unchanged": true,
+  "retained_task_fixtures": {
+    "work/data/perf-1920x1080.mp4": 1535926,
+    "work/data/long-1920x1080.mp4": 107527294,
+    "work/data/long-3840x2160.mp4": 396952825,
+    "work/data/perf-3840x2160.mp4": 5667442,
+    "work/data/color.mp4": 576937,
+    "work/data/audio-native.f32": 7680000,
+    "work/data/audio-sync.mp4": 1639668
+  },
+  "no_owner_data_modified": true,
+  "native_output_unavailable": "No OS/service/device changes attempted",
+  "process_check": "read-only ps check completed; no task audio/RCA processes remain",
+  "output_unit_rca_cleaned": true
+}

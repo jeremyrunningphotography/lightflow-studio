@@ -1,0 +1,71 @@
+{
+  "scope": "native FFmpeg decode/filter/feed; no output-device dependency",
+  "results": [
+    {
+      "rate": 0.5,
+      "eof": true,
+      "max_fifo": 4816,
+      "input_extent": 10,
+      "output_hash": "e25fcc7ec04b30b4",
+      "kind": "stream-feed",
+      "decoded_samples": 480000,
+      "produced_samples": 959184,
+      "decoded_frames": 469
+    },
+    {
+      "rate": 1,
+      "eof": true,
+      "max_fifo": 1024,
+      "input_extent": 10,
+      "output_hash": "e8e0d62c00d2ce88",
+      "kind": "stream-feed",
+      "decoded_samples": 480000,
+      "produced_samples": 480000,
+      "decoded_frames": 469
+    },
+    {
+      "rate": 2,
+      "eof": true,
+      "max_fifo": 1744,
+      "input_extent": 10,
+      "output_hash": "268bea8f73b3665a",
+      "kind": "stream-feed",
+      "decoded_samples": 480000,
+      "produced_samples": 240336,
+      "decoded_frames": 469
+    },
+    {
+      "origin": 0,
+      "end": 0.5,
+      "max_fifo": 1024,
+      "kind": "feed-seek-backpressure",
+      "decoded_samples": 24000,
+      "produced_samples": 24000,
+      "decoded_paused_without_pull": true
+    },
+    {
+      "origin": 2,
+      "end": 2.5,
+      "max_fifo": 1280,
+      "kind": "feed-seek-backpressure",
+      "decoded_samples": 24000,
+      "produced_samples": 24000,
+      "decoded_paused_without_pull": true
+    },
+    {
+      "origin": 5,
+      "end": 5.5,
+      "max_fifo": 1664,
+      "kind": "feed-seek-backpressure",
+      "decoded_samples": 24000,
+      "produced_samples": 24000,
+      "decoded_paused_without_pull": true
+    }
+  ],
+  "independent_pcm_hash": "e8e0d62c00d2ce88",
+  "one_x_matches_independent_decode": true,
+  "bounded_output_fifo_bytes_max": 19264,
+  "queue_buffer_bytes": 12288,
+  "backpressure": "native feeder has no autonomous worker; decode only on pull; queue service only free slots",
+  "limitations": "format probe/codec internal buffers not included in FIFO accounting; single mono 48k AAC fixture; atempo output count differs slightly from nominal length; physical content/render alignment unmeasured"
+}

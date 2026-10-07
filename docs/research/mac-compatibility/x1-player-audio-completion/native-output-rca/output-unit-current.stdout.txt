@@ -1,0 +1,1 @@
+{"create":0,"callback":0,"initialize":0,"start":0,"seconds":3.238698,"render_callbacks":303,"frames":142532,"scope":"three-second all-zero CoreAudio output-unit RCA, not audio clock proof"}

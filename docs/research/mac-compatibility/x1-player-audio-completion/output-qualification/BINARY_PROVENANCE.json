@@ -1,0 +1,18 @@
+{
+  "unchanged_across_owner_unlock": true,
+  "binary_sha256": {
+    "startup": "c6c850bf0f8cbe0abea6cc4230d76ba19ba67297bb66f8e3ccee84165c7f637f",
+    "output-unit": "673b26a1fb39b5483e520e270699bf3c3748d2e6cc4b80372f17535fc26ea675",
+    "session": "e0c539e2bbfd0876ab0b497b299d504b5250b9aff9189d8d312acb4127e977db",
+    "environment": "e342c2128938d378dd1b3aa66b28a3b3301d553d601a5cacbc36190b85dea445",
+    "audio-proof": "7430c1f6b7d5d8703a5a0e8dbf3cdac094f68deb77d076986e3ba3ac0e62fc2a"
+  },
+  "ffmpeg_commit": "bf1b838f2ab88b4f8fd83443325c782ea0e0f7fa",
+  "license": "LGPL2.1+; same previously qualified configuration; no new dependency",
+  "fixture_sha256": "d9ce7aa7524cbeef0011e9afe39960434f20251577b57e94bea87042fe0aed12",
+  "final_binary_sha256": "36c55275540be2b95015a18ab8e6cc3f00a5aaa179c1d8648f9cb931128a0c37",
+  "source_sha256": {
+    "tools/X1AudioCompletion/audio.hpp": "3c3e8f1444036589a1b2bb82187a8009eed643295002b7573d42f38e42e980ed",
+    "tools/X1AudioCompletion/main.mm": "89f138bd4fdc4af1c9373edeae311f5546f60a7a1bc897c33574e828a1f049ab"
+  }
+}

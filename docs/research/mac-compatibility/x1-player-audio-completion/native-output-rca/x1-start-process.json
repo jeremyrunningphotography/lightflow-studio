@@ -1,0 +1,12 @@
+{
+  "returncode": 0,
+  "seconds": 2.86131975,
+  "count": 6,
+  "command": [
+    "${X1_WORKSPACE}/work/audio/audio-proof",
+    "stress",
+    "${X1_WORKSPACE}/work/data/audio-sync.mp4",
+    "--data-root",
+    "${X1_WORKSPACE}/work/audio/data-root"
+  ]
+}

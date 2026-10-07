@@ -1,0 +1,100 @@
+[
+  {
+    "event": {
+      "last_pts_seconds": 0.9666666666666667,
+      "new_origin": 0,
+      "generation": 2,
+      "scope": "explicit queue restart; discontinuity measured, not gapless",
+      "kind": "loop-boundary",
+      "loop": 1,
+      "restart_ms": 16.42566593363881
+    },
+    "first_pts": 0,
+    "first_generation": 2,
+    "last_to_first_render_ready_ms": 67.2234590165317
+  },
+  {
+    "event": {
+      "last_pts_seconds": 0.9666666666666667,
+      "new_origin": 0,
+      "generation": 3,
+      "scope": "explicit queue restart; discontinuity measured, not gapless",
+      "kind": "loop-boundary",
+      "loop": 2,
+      "restart_ms": 20.699291955679655
+    },
+    "first_pts": 0,
+    "first_generation": 3,
+    "last_to_first_render_ready_ms": 68.75116704031825
+  },
+  {
+    "event": {
+      "last_pts_seconds": 0.9666666666666667,
+      "new_origin": 0,
+      "generation": 4,
+      "scope": "explicit queue restart; discontinuity measured, not gapless",
+      "kind": "loop-boundary",
+      "loop": 3,
+      "restart_ms": 20.08420927450061
+    },
+    "first_pts": 0,
+    "first_generation": 4,
+    "last_to_first_render_ready_ms": 68.08162480592728
+  },
+  {
+    "event": {
+      "last_pts_seconds": 0.9666666666666667,
+      "new_origin": 0,
+      "generation": 5,
+      "scope": "explicit queue restart; discontinuity measured, not gapless",
+      "kind": "loop-boundary",
+      "loop": 4,
+      "restart_ms": 19.01650009676814
+    },
+    "first_pts": 0,
+    "first_generation": 5,
+    "last_to_first_render_ready_ms": 67.71637499332428
+  },
+  {
+    "event": {
+      "last_pts_seconds": 0.9666666666666667,
+      "new_origin": 0,
+      "generation": 6,
+      "scope": "explicit queue restart; discontinuity measured, not gapless",
+      "kind": "loop-boundary",
+      "loop": 5,
+      "restart_ms": 19.643167033791542
+    },
+    "first_pts": 0,
+    "first_generation": 6,
+    "last_to_first_render_ready_ms": 67.393499892205
+  },
+  {
+    "event": {
+      "last_pts_seconds": 0.9666666666666667,
+      "new_origin": 0,
+      "generation": 7,
+      "scope": "explicit queue restart; discontinuity measured, not gapless",
+      "kind": "loop-boundary",
+      "loop": 6,
+      "restart_ms": 34.74104218184948
+    },
+    "first_pts": 0,
+    "first_generation": 7,
+    "last_to_first_render_ready_ms": 79.10024980083108
+  },
+  {
+    "event": {
+      "last_pts_seconds": 0.9666666666666667,
+      "new_origin": 0,
+      "generation": 8,
+      "scope": "explicit queue restart; discontinuity measured, not gapless",
+      "kind": "loop-boundary",
+      "loop": 7,
+      "restart_ms": 45.42624996975064
+    },
+    "first_pts": 0,
+    "first_generation": 8,
+    "last_to_first_render_ready_ms": 88.93766719847918
+  }
+]

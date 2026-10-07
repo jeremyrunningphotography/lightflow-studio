@@ -1,0 +1,172 @@
+[
+  {
+    "name": "4k-native-baseline",
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/completion/completion",
+      "native",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/long-3840x2160.mp4",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-native.f32",
+      "12",
+      "1",
+      "1",
+      "0",
+      "0",
+      "0"
+    ],
+    "returncode": 0,
+    "seconds": 13.408332875000001
+  },
+  {
+    "name": "4k-backend-color",
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/completion/completion",
+      "backend",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/long-3840x2160.mp4",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-native.f32",
+      "60",
+      "1",
+      "1",
+      "0",
+      "0",
+      "0"
+    ],
+    "returncode": 0,
+    "seconds": 60.347963166
+  },
+  {
+    "name": "4k-backend-off",
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/completion/completion",
+      "backend",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/long-3840x2160.mp4",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-native.f32",
+      "60",
+      "1",
+      "0",
+      "0",
+      "0",
+      "0"
+    ],
+    "returncode": 0,
+    "seconds": 60.364841
+  },
+  {
+    "name": "1080-backend-color",
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/completion/completion",
+      "backend",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/long-1920x1080.mp4",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-native.f32",
+      "15",
+      "1",
+      "1",
+      "0",
+      "0",
+      "0"
+    ],
+    "returncode": 0,
+    "seconds": 15.297641749999997
+  },
+  {
+    "name": "av-half",
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/completion/completion",
+      "backend",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-sync.mp4",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-native.f32",
+      "20",
+      "0.5",
+      "1",
+      "0",
+      "0",
+      "0"
+    ],
+    "returncode": 0,
+    "seconds": 20.361435583000002
+  },
+  {
+    "name": "av-one",
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/completion/completion",
+      "backend",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-sync.mp4",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-native.f32",
+      "20",
+      "1",
+      "1",
+      "0",
+      "0",
+      "0"
+    ],
+    "returncode": 0,
+    "seconds": 20.266395665999994
+  },
+  {
+    "name": "av-double",
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/completion/completion",
+      "backend",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-sync.mp4",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-native.f32",
+      "15",
+      "2",
+      "1",
+      "0",
+      "0",
+      "0"
+    ],
+    "returncode": 0,
+    "seconds": 15.262145625000016
+  },
+  {
+    "name": "speed-live",
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/completion/completion",
+      "backend",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-sync.mp4",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-native.f32",
+      "22",
+      "1",
+      "1",
+      "1",
+      "0",
+      "0"
+    ],
+    "returncode": 0,
+    "seconds": 22.24445424999999
+  },
+  {
+    "name": "loop",
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/completion/completion",
+      "backend",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-sync.mp4",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-native.f32",
+      "8",
+      "1",
+      "1",
+      "0",
+      "0",
+      "1"
+    ],
+    "returncode": 0,
+    "seconds": 8.281607250000008
+  },
+  {
+    "name": "recovery",
+    "command": [
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/completion/completion",
+      "backend",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-sync.mp4",
+      "/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/data/audio-native.f32",
+      "8",
+      "1",
+      "1",
+      "0",
+      "1",
+      "0"
+    ],
+    "returncode": 0,
+    "seconds": 8.298279708999985
+  }
+]

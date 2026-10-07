@@ -1,0 +1,17 @@
+{
+  "acknowledgement_requirement": "C",
+  "physical_scanout_required": false,
+  "status": "proposal pending owner review; actual UI callback not implemented in this slice",
+  "operations": {
+    "current-frame reporting": "UIAccepted",
+    "paused frame": "UIAccepted",
+    "forward/reverse step completion": "UIAccepted, exact decoded predecessor/successor",
+    "seek completion": "UIAccepted, settled actual PTS",
+    "capture": "UIAccepted token + same RenderReady completed pixels/lease",
+    "In/Out/markers": "UIAccepted source PTS",
+    "Subclip": "stored authored range derived from authoritative source PTS",
+    "review traversal": "UIAccepted settled target identity",
+    "Color/Compare": "RenderReady new revision then UIAccepted",
+    "playback UI state": "UIAccepted; audio clock only schedules candidates"
+  }
+}

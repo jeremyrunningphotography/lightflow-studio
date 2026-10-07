@@ -1,0 +1,11 @@
+# Proposed backend ↔ UI handshake, version 2
+
+Research proposal derived from Windows semantics; owner acceptance pending. Supersedes no frozen accepted artifact by editing it. Transport remains accepted BGRA8 IOSurfaceRef + MetalSharedEvent, with compatible device identity, immutable source PTS/timebase, orientation/Color revision, source/surface generation, serial, ready/release values and retained lease.
+
+Backend offers RenderReady records only after its ready fence establishes completed source-resolution render. UI imports in the normal Avalonia tree. Update Task and GPU release have their accepted distinct meanings. UI waits for actual ready/release state required by the pinned Skia snapshot path, checks active source/host/surface generation, and installs the snapshot in a dispatcher-ordered visual transaction. It replies **UIAccepted(token, hostGeneration, transactionRevision)** only for the exact accepted visual state. Shared Player atomically publishes that token and retains its backend capture lease. Import/update Task alone never publishes it.
+
+Acceptance means logical composition-state installation/submission, not final overlay rendering, drawable callback or physical scanout. Current-frame reporting, completed step/seek, authored timing and review consume only that token. Capture pins the same token and completed backend pixels. Cancellation invalidates pending tokens; it does not relabel the previous retained frame. Hidden/replaced host invalidates UI authority until a fresh acceptance. Ready/release events and capture leases prevent reuse even if the next visual token is already installed.
+
+Decoded/GPU-ready/composed or submitted telemetry may be recorded separately. Only the one UIAccepted record is current. A physical presentation timestamp, if available, is supplementary timing evidence associated with that token; never an alternate source-clock identity.
+
+Required later X3 verification: implement the semantic callback in its isolated adapter, test a delayed producer/update, cancellation, playing capture, Color/Compare revision and host replacement; validate token/pixels/current/authored identity together. X1 does not resume X3. A public final-scanout callback is not required by the derived contract, but dispatcher/snapshot publication ordering remains an executable obligation.

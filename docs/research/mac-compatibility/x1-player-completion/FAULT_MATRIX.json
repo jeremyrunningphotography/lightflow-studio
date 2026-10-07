@@ -1,0 +1,192 @@
+{
+  "G1": "REVISE",
+  "acknowledgement_requirement": "C",
+  "coverage": [
+    {
+      "case": "pause",
+      "status": "proven",
+      "evidence": "raw/semantic-ready.jsonl.gz; frozen G1b frame/reverse/color results",
+      "limit": "backend GPU-ready/capture identity; final UIAccepted unimplemented; pause audio tail separately unresolved"
+    },
+    {
+      "case": "step-forward",
+      "status": "proven",
+      "evidence": "raw/semantic-ready.jsonl.gz; frozen G1b frame/reverse/color results",
+      "limit": "backend GPU-ready/capture identity; final UIAccepted unimplemented; pause audio tail separately unresolved"
+    },
+    {
+      "case": "step-reverse",
+      "status": "proven",
+      "evidence": "raw/semantic-ready.jsonl.gz; frozen G1b frame/reverse/color results",
+      "limit": "backend GPU-ready/capture identity; final UIAccepted unimplemented; pause audio tail separately unresolved"
+    },
+    {
+      "case": "seek",
+      "status": "proven",
+      "evidence": "raw/semantic-ready.jsonl.gz; frozen G1b frame/reverse/color results",
+      "limit": "backend GPU-ready/capture identity; final UIAccepted unimplemented; pause audio tail separately unresolved"
+    },
+    {
+      "case": "capture",
+      "status": "proven",
+      "evidence": "raw/semantic-ready.jsonl.gz; frozen G1b frame/reverse/color results",
+      "limit": "backend GPU-ready/capture identity; final UIAccepted unimplemented; pause audio tail separately unresolved"
+    },
+    {
+      "case": "Color-change",
+      "status": "proven",
+      "evidence": "raw/semantic-ready.jsonl.gz; frozen G1b frame/reverse/color results",
+      "limit": "backend GPU-ready/capture identity; final UIAccepted unimplemented; pause audio tail separately unresolved"
+    },
+    {
+      "case": "Compare",
+      "status": "proven",
+      "evidence": "raw/semantic-ready.jsonl.gz; frozen G1b frame/reverse/color results",
+      "limit": "backend GPU-ready/capture identity; final UIAccepted unimplemented; pause audio tail separately unresolved"
+    },
+    {
+      "case": "stale-generation",
+      "status": "proven",
+      "evidence": "raw/semantic-ready.jsonl.gz; frozen G1b frame/reverse/color results",
+      "limit": "backend GPU-ready/capture identity; final UIAccepted unimplemented; pause audio tail separately unresolved"
+    },
+    {
+      "case": "cancelled-seek",
+      "status": "proven",
+      "evidence": "raw/semantic-ready.jsonl.gz; frozen G1b frame/reverse/color results",
+      "limit": "backend GPU-ready/capture identity; final UIAccepted unimplemented; pause audio tail separately unresolved"
+    },
+    {
+      "case": "normal-playback",
+      "status": "proven",
+      "evidence": "AV_SYNC_RESULTS.json;4K_PERFORMANCE_RESULTS.json",
+      "limit": "sample-clock/render readiness, predecoded audio; not physical AVsync or streaming causality"
+    },
+    {
+      "case": "0.5x",
+      "status": "proven",
+      "evidence": "AV_SYNC_RESULTS.json;4K_PERFORMANCE_RESULTS.json",
+      "limit": "sample-clock/render readiness, predecoded audio; not physical AVsync or streaming causality"
+    },
+    {
+      "case": "1x",
+      "status": "proven",
+      "evidence": "AV_SYNC_RESULTS.json;4K_PERFORMANCE_RESULTS.json",
+      "limit": "sample-clock/render readiness, predecoded audio; not physical AVsync or streaming causality"
+    },
+    {
+      "case": "2x",
+      "status": "proven",
+      "evidence": "AV_SYNC_RESULTS.json;4K_PERFORMANCE_RESULTS.json",
+      "limit": "sample-clock/render readiness, predecoded audio; not physical AVsync or streaming causality"
+    },
+    {
+      "case": "4K-sustained",
+      "status": "proven",
+      "evidence": "AV_SYNC_RESULTS.json;4K_PERFORMANCE_RESULTS.json",
+      "limit": "sample-clock/render readiness, predecoded audio; not physical AVsync or streaming causality"
+    },
+    {
+      "case": "live-speed-up",
+      "status": "proven",
+      "evidence": "SPEED_TRANSITION_RESULTS.json;LOOP_RESULTS.json",
+      "limit": "actual mid-session queue recreation; audible/seamless/perceptual continuity unresolved"
+    },
+    {
+      "case": "live-speed-down",
+      "status": "proven",
+      "evidence": "SPEED_TRANSITION_RESULTS.json;LOOP_RESULTS.json",
+      "limit": "actual mid-session queue recreation; audible/seamless/perceptual continuity unresolved"
+    },
+    {
+      "case": "loop",
+      "status": "proven",
+      "evidence": "SPEED_TRANSITION_RESULTS.json;LOOP_RESULTS.json",
+      "limit": "actual mid-session queue recreation; audible/seamless/perceptual continuity unresolved"
+    },
+    {
+      "case": "audio-underrun",
+      "status": "unresolved",
+      "evidence": "raw/actual-starvation.jsonl.gz",
+      "limit": "actual refill starvation proven; running/time false authority demonstrated; causal detection/protected clock unresolved"
+    },
+    {
+      "case": "decode-starvation",
+      "status": "simulated",
+      "evidence": "raw/recovery.jsonl.gz",
+      "limit": "100ms scheduler withheld; no real decode/device failure induced"
+    },
+    {
+      "case": "render-delay",
+      "status": "simulated",
+      "evidence": "raw/render-fault.jsonl.gz",
+      "limit": "120ms completion wait injection; actual held GPU pixels remain unchanged; not physicalGPUstall"
+    },
+    {
+      "case": "surface-replacement",
+      "status": "proven",
+      "evidence": "raw/render-fault.jsonl.gz",
+      "limit": "actual dimension/IOSurface change; UIhost callbacks simulated only"
+    },
+    {
+      "case": "UI-current/authored/capture-atomicity",
+      "status": "simulated",
+      "evidence": "STATE_AUTHORITY_RESULTS.json",
+      "limit": "42accepted/975rejected tokens,630checks; actual Avalonia semantic callback unimplemented"
+    },
+    {
+      "case": "close-reopen/fullscreen/Retina",
+      "status": "proven",
+      "evidence": "../x1-player-g1b/LIFECYCLE_RESULTS.json;../x3-iosurface/LIFECYCLE_RESULTS.json",
+      "limit": "reuse frozen accepted evidence; broader app lifecycle not rerun"
+    },
+    {
+      "case": "output-restart",
+      "status": "proven",
+      "evidence": "raw/actual-starvation.jsonl.gz;raw/recovery.jsonl.gz",
+      "limit": "queue disposed/recreated; physical device change not tested"
+    },
+    {
+      "case": "AudioQueue-CannotStart",
+      "status": "unresolved",
+      "evidence": "raw/render-delay.log;NEGATIVE_PROCESS_RESULTS.json",
+      "limit": "-66681 startup failure after successful matrix; exact cause unknown, no desktop/device inference"
+    },
+    {
+      "case": "physical-output-change",
+      "status": "deferred packaged acceptance",
+      "evidence": "PLAYER_COMPLETION_PROOF.md",
+      "limit": "no disruptive system changes; no physical speaker/display oracle"
+    },
+    {
+      "case": "sleep-wake",
+      "status": "deferred packaged acceptance",
+      "evidence": "PLAYER_COMPLETION_PROOF.md",
+      "limit": "no disruptive system changes; no physical speaker/display oracle"
+    },
+    {
+      "case": "cross-display/Spaces",
+      "status": "deferred packaged acceptance",
+      "evidence": "PLAYER_COMPLETION_PROOF.md",
+      "limit": "no disruptive system changes; no physical speaker/display oracle"
+    },
+    {
+      "case": "perceptualAV/pitch/loop",
+      "status": "deferred packaged acceptance",
+      "evidence": "PLAYER_COMPLETION_PROOF.md",
+      "limit": "no disruptive system changes; no physical speaker/display oracle"
+    },
+    {
+      "case": "streaming-tempo-source-causality",
+      "status": "unresolved",
+      "evidence": "raw/tempo-content.jsonl.gz",
+      "limit": "affine processed-sample mapping has measured content offsets; streaming/segment origins not qualified"
+    }
+  ],
+  "counts": {
+    "proven": 20,
+    "unresolved": 3,
+    "simulated": 3,
+    "deferred packaged acceptance": 4
+  }
+}

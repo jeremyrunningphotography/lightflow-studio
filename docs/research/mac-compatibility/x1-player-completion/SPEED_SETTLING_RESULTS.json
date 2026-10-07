@@ -1,0 +1,66 @@
+[
+  {
+    "event": {
+      "from": 1,
+      "wall": 4.000411542132497,
+      "generation": 2,
+      "scope": "actual live queue restart; predecoded atempo input, not seamless streaming",
+      "kind": "speed-transition",
+      "to": 2,
+      "source_origin": 3.9781041666666668,
+      "restart_ms": 63.44950012862682
+    },
+    "first_frame_source_offset_ms": -8.687499999999737,
+    "two_second_mean_source_offset_ms": -7.119746376811805,
+    "two_second_frames": 115,
+    "qualification": "sample-clock rebase only; streaming and audible transition unresolved"
+  },
+  {
+    "event": {
+      "from": 2,
+      "wall": 8.003207709174603,
+      "generation": 3,
+      "scope": "actual live queue restart; predecoded atempo input, not seamless streaming",
+      "kind": "speed-transition",
+      "to": 1,
+      "source_origin": 11.811979166666667,
+      "restart_ms": 29.72591621801257
+    },
+    "first_frame_source_offset_ms": -7.749999999999702,
+    "two_second_mean_source_offset_ms": -5.27334770115,
+    "two_second_frames": 58,
+    "qualification": "sample-clock rebase only; streaming and audible transition unresolved"
+  },
+  {
+    "event": {
+      "from": 1,
+      "wall": 12.001022667158395,
+      "generation": 4,
+      "scope": "actual live queue restart; predecoded atempo input, not seamless streaming",
+      "kind": "speed-transition",
+      "to": 0.5,
+      "source_origin": 15.758750000000001,
+      "restart_ms": 126.69091718271375
+    },
+    "first_frame_source_offset_ms": -1.708333333334977,
+    "two_second_mean_source_offset_ms": -3.0037202380963635,
+    "two_second_frames": 28,
+    "qualification": "sample-clock rebase only; streaming and audible transition unresolved"
+  },
+  {
+    "event": {
+      "from": 0.5,
+      "wall": 16.00119037507102,
+      "generation": 5,
+      "scope": "actual live queue restart; predecoded atempo input, not seamless streaming",
+      "kind": "speed-transition",
+      "to": 1,
+      "source_origin": 17.684239583333333,
+      "restart_ms": 32.019332982599735
+    },
+    "first_frame_source_offset_ms": -7.156250000001307,
+    "two_second_mean_source_offset_ms": -4.9985632183911095,
+    "two_second_frames": 58,
+    "qualification": "sample-clock rebase only; streaming and audible transition unresolved"
+  }
+]

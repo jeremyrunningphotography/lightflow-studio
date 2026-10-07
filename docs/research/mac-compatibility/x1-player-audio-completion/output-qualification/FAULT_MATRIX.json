@@ -1,0 +1,34 @@
+{
+  "measured": [
+    "native locked start failures across X1/minimal/afplay",
+    "locked AudioUnit start0/zero callbacks",
+    "same-binary unlock restoration",
+    "native withheld-refill protection",
+    "new-epoch recovery/source rebase",
+    "pause freeze",
+    "seek/rebase",
+    "stale protocol rejection",
+    "live rates 1-2-1-half-1",
+    "graceful EOF drain",
+    "exclusive loop range half/one/double",
+    "bounded start/pause/recreate stress"
+  ],
+  "preserved_failed": [
+    "historical six valid starts-66681",
+    "prior AudioUnit zero callbacks",
+    "new locked X1/minimal/afplay failures",
+    "early loop endpoint",
+    "intermediate 2x exclusive-end frame",
+    "sandbox AAC encoder discovery failures"
+  ],
+  "deferred": [
+    "physical sound/pitch/click acceptance",
+    "independent relock causality/internal OS mechanism",
+    "packaged background lock",
+    "physical device switches",
+    "sleep/wake",
+    "broad corpus",
+    "actual Avalonia UIAccepted callback",
+    "long resource leak soak"
+  ]
+}

@@ -1,0 +1,15 @@
+{"api": "HAL default output", "status": 0}
+{"api": "HAL UID", "status": 0}
+{"api": "new", "status": 0}
+{"api": "queue UID", "status": 0, "sameDefault": 0, "uid": "normalized-5ed8b80dee44975f"}
+{"api": "queue device rate", "status": 0, "value": 48000}
+{"api": "allocate", "status": 0}
+{"api": "enqueue", "status": 0}
+{"api": "allocate", "status": 0}
+{"api": "enqueue", "status": 0}
+{"api": "allocate", "status": 0}
+{"api": "enqueue", "status": 0}
+{"api": "start", "status": -66681, "ms": 15092.493, "mode": 0}
+{"api": "refill", "status": 0}
+{"api": "stop", "status": 0}
+{"api": "dispose", "status": 0}

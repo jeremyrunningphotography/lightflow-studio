@@ -52,6 +52,7 @@ public:
    int n=av_read_frame(fmt,pkt);if(n<0){ck(avcodec_send_packet(dec,nullptr));draining=true;}else if(pkt->stream_index==stream)ck(avcodec_send_packet(dec,pkt));av_packet_unref(pkt);
   }return false;
  }
+ bool exhausted()const{return eof&&fifo.empty();}
  size_t pull(float *dst,size_t count){
   while(fifo.size()<count&&!eof){
    int rc=graph?av_buffersink_get_frame(sink,out):AVERROR(EAGAIN);
@@ -70,7 +71,7 @@ class Audio {
  struct Slot{AudioQueueBufferRef b=nullptr;bool queued=false;uint64_t start=0,end=0,gen=0;};
  std::array<Slot,3> slots;std::mutex mutex;std::unique_ptr<StreamFeed> feed;
  const char*path;double limit=0,rawBase=0,playedBase=0,lastRaw=0,protectedSamples=0,pauseRaw=0;
- uint64_t submitted=0,completed=0,stale=0,freeCount=0,underruns=0,backpressure=0;bool valid=false,paused=false,withhold=false;
+ uint64_t submitted=0,completed=0,stale=0,freeCount=0,underruns=0,backpressure=0;bool valid=false,paused=false,withhold=false,draining=false,finished=false;
  std::vector<NSDictionary*> events;
 public:
  AudioQueueRef q=nullptr;std::atomic<uint64_t> filled{0},callbacks{0};double origin=0,speed=1;uint64_t restart=0,generation=0;bool running=false;OSStatus lastStart=0;
@@ -98,12 +99,17 @@ public:
    s.queued=true;submitted+=n;filled=submitted;any=true;
    events.push_back(@{@"kind":@"submit",@"generation":@(generation),@"start":@(s.start),@"end":@(s.end),@"input_extent":@(feed->inputExtent),@"fifo_samples":@(feed->maxFIFO),@"wall":@(now())});
   }if(any)backpressure++;
+  if(running&&feed->exhausted()&&!draining){
+   OSStatus rc=AudioQueueStop(q,false);if(rc){valid=false;events.push_back(@{@"kind":@"drain-error",@"status":@(rc)});}
+   else{draining=true;events.push_back(@{@"kind":@"drain-request",@"status":@(rc),@"generation":@(generation),@"supplied":@(submitted),@"wall":@(now())});}
+  }
  }
  OSStatus startEpoch(double seek,double rate,double end){
-  stop();origin=seek;speed=rate;limit=end;generation++;restart++;submitted=completed=0;protectedSamples=rawBase=playedBase=lastRaw=0;valid=true;paused=false;withhold=false;feed=std::make_unique<StreamFeed>(path,seek,rate,end);
+  stop();origin=seek;speed=rate;limit=end;generation++;restart++;submitted=completed=0;protectedSamples=rawBase=playedBase=lastRaw=0;valid=true;paused=false;withhold=false;draining=false;finished=false;feed=std::make_unique<StreamFeed>(path,seek,rate,end);
   AudioStreamBasicDescription f={};f.mSampleRate=48000;f.mFormatID=kAudioFormatLinearPCM;f.mFormatFlags=kAudioFormatFlagIsFloat|kAudioFormatFlagIsPacked;f.mBytesPerPacket=f.mBytesPerFrame=4;f.mFramesPerPacket=1;f.mChannelsPerFrame=1;f.mBitsPerChannel=32;
   OSStatus rc=AudioQueueNewOutput(&f,fill,this,NULL,NULL,0,&q);if(rc){q=nullptr;valid=false;return rc;}activeQueues++;
-  aqck(AudioQueueSetParameter(q,kAudioQueueParam_Volume,0));for(auto&s:slots){s={};aqck(AudioQueueAllocateBuffer(q,4096,&s.b));}
+  // Owner-only audition is opt-in and never changes system volume.
+  aqck(AudioQueueSetParameter(q,kAudioQueueParam_Volume,getenv("X1_AUDIBLE")&&!strcmp(getenv("X1_AUDIBLE"),"1")?.5:0));for(auto&s:slots){s={};aqck(AudioQueueAllocateBuffer(q,4096,&s.b));}
   service();if(!submitted){valid=false;lastStart=kAudioQueueErr_BufferEmpty;emit(@{@"kind":@"empty-feed-rejected",@"generation":@(generation)});return lastStart;}
   UInt32 prepared=0;OSStatus primed=0;
   if(getenv("X1_PRIME"))primed=AudioQueuePrime(q,0,&prepared);
@@ -115,16 +121,21 @@ public:
   if(rc||!(t.mFlags&kAudioTimeStampSampleTimeValid))return -1;
   if(discontinuity){valid=false;emit(@{@"kind":@"timeline-discontinuity",@"generation":@(generation)});}return t.mSampleTime;
  }
- double clock(){double r=raw();std::lock_guard<std::mutex> lock(mutex);
+ double clock(){double r=raw();UInt32 is=1,n=sizeof(is);OSStatus state=draining&&q?AudioQueueGetProperty(q,kAudioQueueProperty_IsRunning,&is,&n):-1;std::lock_guard<std::mutex> lock(mutex);
+  if(draining&&!finished&&!state&&!is){finished=true;valid=false;protectedSamples=submitted;protectedSamples=std::min(protectedSamples,std::max(0.,(feed->inputExtent-origin)*48000/speed));events.push_back(@{@"kind":@"drain-complete",@"generation":@(generation),@"raw":@(r),@"supplied":@(submitted),@"protected_samples":@(protectedSamples),@"drained_source_end":@(feed->inputExtent),@"decoded_samples":@(feed->decodedSamples),@"running_status":@(state),@"running":@(is),@"wall":@(now())});}
   if(!valid||r<0||paused)return origin+protectedSamples/48000*speed;
   double candidate=playedBase+std::max(0.,r-rawBase);if(r+1<lastRaw){valid=false;return origin+protectedSamples/48000*speed;}lastRaw=r;
   protectedSamples=std::max(protectedSamples,std::min(candidate,(double)submitted));
   protectedSamples=std::min(protectedSamples,std::max(0.,(feed->inputExtent-origin)*48000/speed));
   bool outstanding=false;for(auto&s:slots)outstanding|=s.queued;
-  if(candidate>=submitted||(!outstanding&&completed>=submitted)){
+  // Reuse callbacks acknowledge acquisition, not a played source endpoint.
+  // EOF drains to its bounded supplied extent; depletion remains conservative.
+  if(candidate>=submitted||(!outstanding&&completed>=submitted&&!feed->eof)){
    valid=false;underruns++;events.push_back(@{@"kind":@"clock-invalidated",@"reason":feed->eof?@"source-ended":@"underrun",@"generation":@(generation),@"raw":@(r),@"supplied":@(submitted),@"protected_samples":@(protectedSamples),@"wall":@(now())});
   }return origin+protectedSamples/48000*speed;
  }
+ double drainedSourceEnd(){std::lock_guard<std::mutex> lock(mutex);return finished&&feed?feed->inputExtent:-1;}
+ bool ended(){clock();std::lock_guard<std::mutex> lock(mutex);return finished;}
  bool usable(){std::lock_guard<std::mutex> lock(mutex);return valid&&!paused&&running;}
  void pause(){clock();aqck(AudioQueuePause(q));paused=true;running=false;pauseRaw=raw();}
  void resume(){double frozen=origin+protectedSamples/48000*speed;double r=speed,e=limit;aqck(startEpoch(frozen,r,e));}
@@ -132,7 +143,7 @@ public:
  void rejectStale(uint64_t g){std::lock_guard<std::mutex> lock(mutex);double before=protectedSamples;if(g!=generation)stale++;emit(@{@"kind":@"stale-injection",@"old_generation":@(g),@"current_generation":@(generation),@"rejected":@(g!=generation),@"clock_unchanged":@(before==protectedSamples),@"scope":@"protocol fault injection; disposed native queue callbacks joined"});}
  NSDictionary* snapshot(NSString*tag){double c=clock(),r=raw();UInt32 is=0,n=sizeof(is);OSStatus rc=q?AudioQueueGetProperty(q,kAudioQueueProperty_IsRunning,&is,&n):-1;std::lock_guard<std::mutex> lock(mutex);
   int outstanding=0;for(auto&s:slots)outstanding+=s.queued;
-  return @{@"kind":@"clock",@"tag":tag,@"generation":@(generation),@"source":@(c),@"origin":@(origin),@"rate":@(speed),@"raw_samples":@(r),@"protected_samples":@(protectedSamples),@"supplied":@(submitted),@"completed_extent":@(completed),@"outstanding":@(outstanding),@"valid":@(valid),@"paused":@(paused),@"running_property":@(is),@"running_status":@(rc),@"callbacks":@(callbacks.load()),@"decoded_samples":@(feed?feed->decodedSamples:0),@"fifo_max":@(feed?feed->maxFIFO:0),@"input_extent":@(feed?feed->inputExtent:0),@"stale":@(stale),@"backpressure_ticks":@(backpressure),@"wall":@(now())};
+  return @{@"kind":@"clock",@"tag":tag,@"generation":@(generation),@"source":@(c),@"origin":@(origin),@"rate":@(speed),@"raw_samples":@(r),@"protected_samples":@(protectedSamples),@"supplied":@(submitted),@"completed_extent":@(completed),@"outstanding":@(outstanding),@"valid":@(valid),@"paused":@(paused),@"draining":@(draining),@"finished":@(finished),@"running_property":@(is),@"running_status":@(rc),@"callbacks":@(callbacks.load()),@"decoded_samples":@(feed?feed->decodedSamples:0),@"fifo_max":@(feed?feed->maxFIFO:0),@"input_extent":@(feed?feed->inputExtent:0),@"stale":@(stale),@"backpressure_ticks":@(backpressure),@"wall":@(now())};
  }
  void stop(){if(q){AudioQueueRef old=q;AudioQueueStop(old,true);AudioQueueDispose(old,true);q=nullptr;activeQueues--;for(auto&s:slots)s={};running=false;valid=false;}feed.reset();}
  ~Audio(){stop();}

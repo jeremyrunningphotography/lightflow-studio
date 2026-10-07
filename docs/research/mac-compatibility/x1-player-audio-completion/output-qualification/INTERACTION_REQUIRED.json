@@ -1,0 +1,13 @@
+{
+  "condition": "console session reports locked; paired unlock comparison pending",
+  "native_queue_start": -66681,
+  "afplay_exit": 1,
+  "afplay_start": -66681,
+  "audio_unit_start": 0,
+  "audio_unit_callbacks": 0,
+  "device_alive": 1,
+  "default_device_id": 72,
+  "rate": 48000,
+  "task_audio_processes": [],
+  "owner_action": "Unlock Mac and leave awake; no configuration change"
+}

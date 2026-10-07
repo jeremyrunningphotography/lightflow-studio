@@ -1,0 +1,288 @@
+{
+  "defaultOutput" : {
+    "status" : 0,
+    "value" : 72
+  },
+  "devices" : [
+    {
+      "uid" : {
+        "status" : 0,
+        "value" : "normalized-53da67aa6478e6cc"
+      },
+      "manufacturer" : {
+        "status" : 0,
+        "value" : "Apple Inc."
+      },
+      "id" : 84,
+      "rate" : {
+        "status" : 0,
+        "value" : 48000
+      },
+      "model" : {
+        "status" : 0,
+        "value" : "normalized-79e2a3f58709b345"
+      },
+      "transport" : {
+        "status" : 0,
+        "value" : 1667463012
+      },
+      "alive" : {
+        "status" : 0,
+        "value" : 1
+      },
+      "outputStreams" : {
+        "status" : 0,
+        "streams" : [
+
+        ],
+        "sizeStatus" : 0
+      },
+      "name" : {
+        "status" : 0,
+        "value" : "normalized-ae1dbcdd2e5d85fe"
+      },
+      "running" : {
+        "status" : 0,
+        "value" : 0
+      }
+    },
+    {
+      "uid" : {
+        "status" : 0,
+        "value" : "normalized-672e782964f78070"
+      },
+      "manufacturer" : {
+        "status" : 0,
+        "value" : "Apple Inc."
+      },
+      "id" : 79,
+      "rate" : {
+        "status" : 0,
+        "value" : 48000
+      },
+      "model" : {
+        "status" : 0,
+        "value" : "normalized-57b520c0b881597d"
+      },
+      "transport" : {
+        "status" : 0,
+        "value" : 1651274862
+      },
+      "alive" : {
+        "status" : 0,
+        "value" : 1
+      },
+      "outputStreams" : {
+        "status" : 0,
+        "streams" : [
+
+        ],
+        "sizeStatus" : 0
+      },
+      "name" : {
+        "status" : 0,
+        "value" : "normalized-554424ae9e1d49f0"
+      },
+      "running" : {
+        "status" : 0,
+        "value" : 0
+      }
+    },
+    {
+      "uid" : {
+        "status" : 0,
+        "value" : "normalized-fe8f9fe212905612"
+      },
+      "manufacturer" : {
+        "status" : 0,
+        "value" : "Apple Inc."
+      },
+      "id" : 72,
+      "rate" : {
+        "status" : 0,
+        "value" : 48000
+      },
+      "model" : {
+        "status" : 0,
+        "value" : "normalized-a9e0c70585121f5f"
+      },
+      "transport" : {
+        "status" : 0,
+        "value" : 1651274862
+      },
+      "alive" : {
+        "status" : 0,
+        "value" : 1
+      },
+      "outputStreams" : {
+        "status" : 0,
+        "streams" : [
+          {
+            "id" : 73,
+            "virtual" : {
+              "status" : 0,
+              "asbd" : {
+                "framesPacket" : 1,
+                "rate" : 48000,
+                "channels" : 2,
+                "bytesFrame" : 8,
+                "bits" : 32,
+                "bytesPacket" : 8,
+                "flags" : 9,
+                "formatID" : 1819304813
+              }
+            },
+            "physicalAvailable" : {
+              "status" : 0,
+              "formats" : [
+                {
+                  "minRate" : 96000,
+                  "asbd" : {
+                    "framesPacket" : 1,
+                    "rate" : 96000,
+                    "channels" : 2,
+                    "bytesFrame" : 8,
+                    "bits" : 32,
+                    "bytesPacket" : 8,
+                    "flags" : 9,
+                    "formatID" : 1819304813
+                  },
+                  "maxRate" : 96000
+                },
+                {
+                  "minRate" : 88200,
+                  "asbd" : {
+                    "framesPacket" : 1,
+                    "rate" : 88200,
+                    "channels" : 2,
+                    "bytesFrame" : 8,
+                    "bits" : 32,
+                    "bytesPacket" : 8,
+                    "flags" : 9,
+                    "formatID" : 1819304813
+                  },
+                  "maxRate" : 88200
+                },
+                {
+                  "minRate" : 48000,
+                  "asbd" : {
+                    "framesPacket" : 1,
+                    "rate" : 48000,
+                    "channels" : 2,
+                    "bytesFrame" : 8,
+                    "bits" : 32,
+                    "bytesPacket" : 8,
+                    "flags" : 9,
+                    "formatID" : 1819304813
+                  },
+                  "maxRate" : 48000
+                },
+                {
+                  "minRate" : 44100,
+                  "asbd" : {
+                    "framesPacket" : 1,
+                    "rate" : 44100,
+                    "channels" : 2,
+                    "bytesFrame" : 8,
+                    "bits" : 32,
+                    "bytesPacket" : 8,
+                    "flags" : 9,
+                    "formatID" : 1819304813
+                  },
+                  "maxRate" : 44100
+                }
+              ],
+              "sizeStatus" : 0
+            },
+            "virtualAvailable" : {
+              "status" : 0,
+              "formats" : [
+                {
+                  "minRate" : 96000,
+                  "asbd" : {
+                    "framesPacket" : 1,
+                    "rate" : 96000,
+                    "channels" : 2,
+                    "bytesFrame" : 8,
+                    "bits" : 32,
+                    "bytesPacket" : 8,
+                    "flags" : 9,
+                    "formatID" : 1819304813
+                  },
+                  "maxRate" : 96000
+                },
+                {
+                  "minRate" : 88200,
+                  "asbd" : {
+                    "framesPacket" : 1,
+                    "rate" : 88200,
+                    "channels" : 2,
+                    "bytesFrame" : 8,
+                    "bits" : 32,
+                    "bytesPacket" : 8,
+                    "flags" : 9,
+                    "formatID" : 1819304813
+                  },
+                  "maxRate" : 88200
+                },
+                {
+                  "minRate" : 48000,
+                  "asbd" : {
+                    "framesPacket" : 1,
+                    "rate" : 48000,
+                    "channels" : 2,
+                    "bytesFrame" : 8,
+                    "bits" : 32,
+                    "bytesPacket" : 8,
+                    "flags" : 9,
+                    "formatID" : 1819304813
+                  },
+                  "maxRate" : 48000
+                },
+                {
+                  "minRate" : 44100,
+                  "asbd" : {
+                    "framesPacket" : 1,
+                    "rate" : 44100,
+                    "channels" : 2,
+                    "bytesFrame" : 8,
+                    "bits" : 32,
+                    "bytesPacket" : 8,
+                    "flags" : 9,
+                    "formatID" : 1819304813
+                  },
+                  "maxRate" : 44100
+                }
+              ],
+              "sizeStatus" : 0
+            },
+            "physical" : {
+              "status" : 0,
+              "asbd" : {
+                "framesPacket" : 1,
+                "rate" : 48000,
+                "channels" : 2,
+                "bytesFrame" : 8,
+                "bits" : 32,
+                "bytesPacket" : 8,
+                "flags" : 9,
+                "formatID" : 1819304813
+              }
+            }
+          }
+        ],
+        "sizeStatus" : 0
+      },
+      "name" : {
+        "status" : 0,
+        "value" : "normalized-a3164e1518183d0e"
+      },
+      "running" : {
+        "status" : 0,
+        "value" : 0
+      }
+    }
+  ],
+  "devicesSizeStatus" : 0,
+  "devicesStatus" : 0
+}

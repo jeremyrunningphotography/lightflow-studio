@@ -1,0 +1,38 @@
+2026-10-07 07:59:40.285 Df startup[51516:d13a47] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:40.314 Df startup[51516:d13a47] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x104d33728, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:40.695 Df startup[51516:d13a47] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512
+2026-10-07 07:59:40.815 Df startup[51517:d13aab] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:40.822 Df startup[51517:d13aab] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x100ed7788, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:41.204 Df startup[51517:d13aab] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512
+2026-10-07 07:59:41.215 Df startup[51517:d13aad] [com.apple.coreaudio:AMCP]          HALC_ProxyIOContext.cpp:1594  HALC_ProxyIOContext::IOWorkLoop: ending the transport, stopping the io thread
+2026-10-07 07:59:41.352 Df startup[51520:d13adf] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:41.359 Df startup[51520:d13adf] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x104973788, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:41.732 Df startup[51520:d13adf] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512
+2026-10-07 07:59:41.846 Df startup[51521:d13aef] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:41.853 Df startup[51521:d13aef] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x100b5fb88, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:42.232 Df startup[51521:d13aef] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512
+2026-10-07 07:59:42.331 Df startup[51522:d13b02] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:42.338 Df startup[51522:d13b02] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x10290b788, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:42.713 Df startup[51522:d13b02] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512
+2026-10-07 07:59:42.821 Df startup[51523:d13b12] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:42.829 Df startup[51523:d13b12] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x100877788, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:43.205 Df startup[51523:d13b12] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512
+2026-10-07 07:59:43.308 Df startup[51524:d13b22] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:43.315 Df startup[51524:d13b22] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x10348b788, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:43.694 Df startup[51524:d13b22] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512
+2026-10-07 07:59:43.799 Df startup[51526:d13b37] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:43.806 Df startup[51526:d13b37] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x1030e3788, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:44.181 Df startup[51526:d13b37] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512
+2026-10-07 07:59:44.190 Df startup[51526:d13b38] [com.apple.coreaudio:AMCP]          HALC_ProxyIOContext.cpp:1594  HALC_ProxyIOContext::IOWorkLoop: ending the transport, stopping the io thread
+2026-10-07 07:59:44.322 Df startup[51527:d13b4d] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:44.329 Df startup[51527:d13b4d] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x104bb7788, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:44.703 Df startup[51527:d13b4d] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512
+2026-10-07 07:59:44.809 Df startup[51529:d13b6d] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:44.816 Df startup[51529:d13b6d] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x102a3fb88, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:45.187 Df startup[51529:d13b6d] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512
+2026-10-07 07:59:45.299 Df startup[51530:d13b7e] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:45.307 Df startup[51530:d13b7e] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x104a5b788, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:45.678 Df startup[51530:d13b7e] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512
+2026-10-07 07:59:45.795 Df startup[51531:d13b8a] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize starting IO deviceID=72, frame size is 512
+2026-10-07 07:59:45.802 Df startup[51531:d13b8a] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2826  aqmeio@0x105247788, device 72 (NORMALIZED_BUILTIN_OUTPUT), AudioDeviceStart (err 0)
+2026-10-07 07:59:46.177 Df startup[51531:d13b8a] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2857  FetchAndLogFrameSize GetCurrentIOBufferFrameSize deviceID=72, frame size is 512

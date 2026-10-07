@@ -1,0 +1,44 @@
+{"api": "HAL default output", "status": 0}
+{"api": "HAL UID", "status": 0}
+{"api": "new", "status": 0}
+{"api": "queue UID", "status": 0, "sameDefault": 0, "uid": "normalized-5ed8b80dee44975f"}
+{"api": "queue device rate", "status": 0, "value": 48000}
+{"api": "allocate", "status": 0}
+{"api": "enqueue", "status": 0}
+{"api": "allocate", "status": 0}
+{"api": "enqueue", "status": 0}
+{"api": "allocate", "status": 0}
+{"api": "enqueue", "status": 0}
+{"api": "start", "status": 0, "ms": 26.631, "mode": 3}
+{"poll": 0, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": -470, "callbacks": 0, "flags": 7}
+{"poll": 1, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 131, "callbacks": 0, "flags": 7}
+{"poll": 2, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 732, "callbacks": 1, "flags": 7}
+{"poll": 3, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 1332, "callbacks": 1, "flags": 7}
+{"poll": 4, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 1933, "callbacks": 2, "flags": 7}
+{"poll": 5, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 2534, "callbacks": 3, "flags": 7}
+{"poll": 6, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 3135, "callbacks": 3, "flags": 7}
+{"poll": 7, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 3736, "callbacks": 3, "flags": 7}
+{"poll": 8, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 4337, "callbacks": 3, "flags": 7}
+{"poll": 9, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 4938, "callbacks": 3, "flags": 7}
+{"poll": 10, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 5539, "callbacks": 3, "flags": 7}
+{"poll": 11, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 6139, "callbacks": 3, "flags": 7}
+{"poll": 12, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 6740, "callbacks": 3, "flags": 7}
+{"poll": 13, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 7341, "callbacks": 3, "flags": 7}
+{"poll": 14, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 7943, "callbacks": 3, "flags": 7}
+{"poll": 15, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 8547, "callbacks": 3, "flags": 7}
+{"poll": 16, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 9144, "callbacks": 3, "flags": 7}
+{"poll": 17, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 9725, "callbacks": 3, "flags": 7}
+{"poll": 18, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 10257, "callbacks": 3, "flags": 7}
+{"poll": 19, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 10861, "callbacks": 3, "flags": 7}
+{"poll": 20, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 11415, "callbacks": 3, "flags": 7}
+{"poll": 21, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 11976, "callbacks": 3, "flags": 7}
+{"poll": 22, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 12578, "callbacks": 3, "flags": 7}
+{"poll": 23, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 13129, "callbacks": 3, "flags": 7}
+{"poll": 24, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 13706, "callbacks": 3, "flags": 7}
+{"poll": 25, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 14281, "callbacks": 3, "flags": 7}
+{"poll": 26, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 14865, "callbacks": 3, "flags": 7}
+{"poll": 27, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 15469, "callbacks": 3, "flags": 7}
+{"poll": 28, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 16074, "callbacks": 3, "flags": 7}
+{"poll": 29, "runningStatus": 0, "running": 1, "timeStatus": 0, "raw": 16573, "callbacks": 3, "flags": 7}
+{"api": "stop", "status": 0}
+{"api": "dispose", "status": 0}

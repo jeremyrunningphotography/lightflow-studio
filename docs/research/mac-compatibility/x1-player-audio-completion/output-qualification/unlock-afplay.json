@@ -1,0 +1,16 @@
+{
+  "returncode": 0,
+  "stdout": "",
+  "stderr": "",
+  "elapsed": 1.8740217500000003,
+  "session_before": {
+    "screenLockedReported": "not reported",
+    "onConsole": true,
+    "loginDone": true
+  },
+  "session_after": {
+    "screenLockedReported": "not reported",
+    "onConsole": true,
+    "loginDone": true
+  }
+}

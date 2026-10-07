@@ -1,0 +1,7 @@
+{"origin":0,"status":-66681,"rate":1,"generation":1,"prepared_frames":0,"supplied":3072,"prime_status":0,"wall":2610411.783241875,"active_queues":1,"kind":"epoch-start"}
+{"end":1024,"start":0,"generation":1,"wall":2610396.6842895411,"input_extent":0.021333333333333333,"kind":"submit","fifo_samples":1024}
+{"end":2048,"start":1024,"generation":1,"wall":2610396.684314291,"input_extent":0.042666666666666665,"kind":"submit","fifo_samples":1024}
+{"end":3072,"start":2048,"generation":1,"wall":2610396.6843338329,"input_extent":0.064000000000000001,"kind":"submit","fifo_samples":1024}
+{"generation":1,"kind":"buffer-completion","end":1024,"wall":2610411.7832356249,"start":0}
+{"generation":1,"kind":"buffer-completion","end":2048,"wall":2610411.7832708331,"start":1024}
+{"generation":1,"kind":"buffer-completion","end":3072,"wall":2610411.7832725411,"start":2048}

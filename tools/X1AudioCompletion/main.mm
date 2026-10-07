@@ -3,20 +3,20 @@ static void tick(Audio&a,double seconds,NSString*tag,bool servicing=true){double
 static void starvation(const char*path){Audio a(path);aqck(a.startEpoch(0,1,120));tick(a,.25,@"normal");a.hold(true);emit(a.snapshot(@"withhold-start"));tick(a,.5,@"starving");double protectedEnd=a.clock();uint64_t old=a.generation;emit(a.snapshot(@"starvation-end"));double t=now();aqck(a.startEpoch(protectedEnd,1,120));a.rejectStale(old);emit(@{@"kind":@"underrun-recovery",@"origin":@(protectedEnd),@"generation":@(a.generation),@"gap_ms":@((now()-t)*1000)});tick(a,.4,@"recovered");a.pause();double before=a.clock();tick(a,.15,@"paused",false);double after=a.clock();a.resume();emit(@{@"kind":@"pause-invariant",@"before":@(before),@"after":@(after),@"delta":@(after-before),@"resume_source":@(a.clock())});tick(a,.2,@"resumed");old=a.generation;aqck(a.startEpoch(2,1,120));a.rejectStale(old);tick(a,.2,@"seek");a.stop();a.drainEvents();emit(@{@"kind":@"queue-count",@"active":@(Audio::activeQueues.load())});}
 static void avRun(const char*media,const char*audio,double rate,double seconds,bool transitions,bool loops,bool underrun){
  Decoder d(media,true);Audio a(audio);Renderer r;State state;state.camera=state.creative=true;Frame current=d.next(),future=d.next();
- aqck(a.startEpoch(0,rate,loops?1:120));r.generation=a.generation;double start=now(),nextClock=0;int transition=0;uint64_t published=UINT64_MAX,draws=0,skips=0,loop=0,invalidSchedules=0;bool held=false,recovered=false;double recoveryAt=0,lastRender=0;
+ double playbackEnd=loops?1:120;aqck(a.startEpoch(0,rate,playbackEnd));r.generation=a.generation;double start=now(),nextClock=0;int transition=0;uint64_t published=UINT64_MAX,draws=0,skips=0,loop=0,invalidSchedules=0;bool held=false,recovered=false;double recoveryAt=0,lastRender=0;
  while(now()-start<seconds){@autoreleasepool{
   a.service();double c=a.clock();double wall=now()-start;a.drainEvents();
   if(underrun&&!held&&wall>1){held=true;a.hold(true);emit(a.snapshot(@"av-withhold"));}
   if(underrun&&held&&!recovered&&!a.usable()){double t=now();uint64_t old=a.generation;emit(a.snapshot(@"av-invalid"));std::this_thread::sleep_for(std::chrono::milliseconds(100));aqck(a.startEpoch(c,rate,120));r.generation=a.generation;a.rejectStale(old);recovered=true;recoveryAt=wall;emit(@{@"kind":@"av-recovery",@"origin":@(c),@"restart_ms":@((now()-t)*1000),@"generation":@(a.generation)});continue;}
   if(transitions&&transition<4&&wall>=(transition+1)*3){double oldRate=rate,oldSource=c;uint64_t old=a.generation;double rates[]={2,1,.5,1};rate=rates[transition++];double t=now();aqck(a.startEpoch(c,rate,120));r.generation=a.generation;a.rejectStale(old);emit(@{@"kind":@"rate-transition",@"from":@(oldRate),@"to":@(rate),@"origin":@(oldSource),@"restart_ms":@((now()-t)*1000),@"generation":@(a.generation),@"last_render_wall":@(lastRender),@"wall":@(now())});continue;}
-  if(loops&&!a.usable()){
-   double t=now();uint64_t old=a.generation;emit(a.snapshot(@"loop-last-audio"));double lastPTS=r.retained?r.retained->source->pts*av_q2d(d.tb):-1;
+  if(loops&&a.ended()){
+   double t=now();uint64_t old=a.generation;emit(a.snapshot(@"loop-last-audio"));double lastPTS=r.retained?r.retained->source->pts*av_q2d(d.tb):-1;double drainedEnd=a.drainedSourceEnd();
    aqck(a.startEpoch(0,rate,1));r.generation=a.generation;a.rejectStale(old);d.seek(0);current=d.next();future=d.next();published=UINT64_MAX;loop++;
-   emit(@{@"kind":@"loop-rebase",@"loop":@(loop),@"last_audio_source":@(c),@"last_video_pts":@(lastPTS),@"first_audio_source":@0,@"first_video_pts":@(current->pts*av_q2d(d.tb)),@"generation":@(a.generation),@"restart_ms":@((now()-t)*1000),@"last_render_wall":@(lastRender),@"wall":@(now())});continue;
+   emit(@{@"kind":@"loop-rebase",@"loop":@(loop),@"last_audio_source":@(c),@"drained_source_end":@(drainedEnd),@"exclusive_source_end":@(playbackEnd),@"last_video_pts":@(lastPTS),@"first_audio_source":@0,@"first_video_pts":@(current->pts*av_q2d(d.tb)),@"generation":@(a.generation),@"restart_ms":@((now()-t)*1000),@"last_render_wall":@(lastRender),@"wall":@(now())});continue;
   }
   if(now()>nextClock){emit(a.snapshot(@"av"));nextClock=now()+.025;}
   if(!a.usable()){std::this_thread::sleep_for(std::chrono::milliseconds(1));continue;}
-  int advanced=0;while(future&&future->pts*av_q2d(d.tb)<=c){current=future;future=d.next();advanced++;}
+  int advanced=0;while(future&&future->pts*av_q2d(d.tb)<=c&&(!loops||future->pts*av_q2d(d.tb)<playbackEnd)){current=future;future=d.next();advanced++;}
   if(current&&current->sequence!=published){
    if(!a.usable()){invalidSchedules++;continue;}
    double before=now();NSMutableDictionary* row=[r.present(current,state,@"audio-clock-render-ready",false) mutableCopy];double after=a.clock();double pts=current->pts*av_q2d(d.tb);

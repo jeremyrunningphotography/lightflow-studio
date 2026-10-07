@@ -1,0 +1,54 @@
+[
+  {
+    "path": "tools/X3G3Completion/CompletionWindow.cs",
+    "sha256": "c56bba324e5d9ce81cb736ad5c44f930f78cdbc9d473652e131eb0df44ecde5e"
+  },
+  {
+    "path": "tools/X3G3Completion/DetailsProof.cs",
+    "sha256": "5451f2eb16120677c96da2c76045484fd7e17a24e97b06c5a7d22a931900cbd9"
+  },
+  {
+    "path": "tools/X3G3Completion/ImageProof.cs",
+    "sha256": "9e9fcd82f03282100d6c55bfbd0c54b30fc96a417a4bebf565ff2a2c57643f3d"
+  },
+  {
+    "path": "tools/X3G3Completion/ImageVectors.cs",
+    "sha256": "4819b3898788309c6aef56014fc5982d6a93af8bdefc997c1cc3bb0dd3d5c257"
+  },
+  {
+    "path": "tools/X3G3Completion/InputProof.cs",
+    "sha256": "f4ed801e1b5bd8427e33bcea938f5f92f8e6662192eab6ee11383ef7cdbd723e"
+  },
+  {
+    "path": "tools/X3G3Completion/Native.cs",
+    "sha256": "5eb58fe40d14a184fff0225c8e336dbea2c83da254953fe6e428779b4a23ff19"
+  },
+  {
+    "path": "tools/X3G3Completion/Program.cs",
+    "sha256": "5bd8a1db642127a1504c92bc59d476b25f642830ab694d3e06a8aa52753a8e5d"
+  },
+  {
+    "path": "tools/X3G3Completion/X3G3Completion.csproj",
+    "sha256": "8ed3d2144eee8fb72f7c1ecb144b1a3a1f96e7efe218edeab8fa624d38d240d3"
+  },
+  {
+    "path": "tools/X3G3Completion/archive_evidence.py",
+    "sha256": "d915caeee2da37aeb555ed5b19690e07aa71d6e953139a7e55ad0fb304ed9d28"
+  },
+  {
+    "path": "tools/X3G3Completion/bridge.mm",
+    "sha256": "5e35849c8ea8e9831466b2861b84d145c764afa0266847c0cb543198da319466"
+  },
+  {
+    "path": "tools/X3G3Completion/packages.lock.json",
+    "sha256": "43dd6050e6511cb9a8b643501d4c50be1232abab4685346665a105270a964c5f"
+  },
+  {
+    "path": "tools/X3G3Completion/run.py",
+    "sha256": "fe677314494e5d2971f0c42e6ded4fa1bad919880a6a68f5faeace874afe346a"
+  },
+  {
+    "path": "tools/X3G3Completion/verify_evidence.py",
+    "sha256": "d4bf70a3bdea5c9279d75095cb131630421b0d0a0a3eaeb53c0eddfefd385826"
+  }
+]

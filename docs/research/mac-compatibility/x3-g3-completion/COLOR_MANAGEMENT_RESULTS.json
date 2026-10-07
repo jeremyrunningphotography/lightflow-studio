@@ -1,0 +1,442 @@
+{
+  "authoritativeRuns": [
+    "final-2",
+    "input-final-qualified"
+  ],
+  "records": [
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 0,
+        "alpha": 0,
+        "expected": 0,
+        "skia": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "imageIO": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 0,
+        "alpha": 64,
+        "expected": 0,
+        "skia": [
+          0,
+          0,
+          0,
+          64
+        ],
+        "imageIO": [
+          0,
+          0,
+          0,
+          64
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 0,
+        "alpha": 128,
+        "expected": 0,
+        "skia": [
+          0,
+          0,
+          0,
+          128
+        ],
+        "imageIO": [
+          0,
+          0,
+          0,
+          128
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 0,
+        "alpha": 255,
+        "expected": 0,
+        "skia": [
+          0,
+          0,
+          0,
+          255
+        ],
+        "imageIO": [
+          0,
+          0,
+          0,
+          255
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 64,
+        "alpha": 0,
+        "expected": 0,
+        "skia": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "imageIO": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 64,
+        "alpha": 64,
+        "expected": 34,
+        "skia": [
+          34,
+          34,
+          34,
+          64
+        ],
+        "imageIO": [
+          34,
+          34,
+          34,
+          64
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 64,
+        "alpha": 128,
+        "expected": 69,
+        "skia": [
+          69,
+          69,
+          69,
+          128
+        ],
+        "imageIO": [
+          69,
+          69,
+          69,
+          128
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 64,
+        "alpha": 255,
+        "expected": 137,
+        "skia": [
+          137,
+          137,
+          137,
+          255
+        ],
+        "imageIO": [
+          137,
+          137,
+          137,
+          255
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 128,
+        "alpha": 0,
+        "expected": 0,
+        "skia": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "imageIO": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 128,
+        "alpha": 64,
+        "expected": 47,
+        "skia": [
+          47,
+          47,
+          47,
+          64
+        ],
+        "imageIO": [
+          47,
+          47,
+          47,
+          64
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 128,
+        "alpha": 128,
+        "expected": 94,
+        "skia": [
+          94,
+          94,
+          94,
+          128
+        ],
+        "imageIO": [
+          94,
+          94,
+          94,
+          128
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 128,
+        "alpha": 255,
+        "expected": 188,
+        "skia": [
+          188,
+          188,
+          188,
+          255
+        ],
+        "imageIO": [
+          188,
+          188,
+          188,
+          255
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 192,
+        "alpha": 0,
+        "expected": 0,
+        "skia": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "imageIO": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 192,
+        "alpha": 64,
+        "expected": 56,
+        "skia": [
+          56,
+          56,
+          56,
+          64
+        ],
+        "imageIO": [
+          56,
+          56,
+          56,
+          64
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 192,
+        "alpha": 128,
+        "expected": 113,
+        "skia": [
+          113,
+          113,
+          113,
+          128
+        ],
+        "imageIO": [
+          113,
+          113,
+          113,
+          128
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 192,
+        "alpha": 255,
+        "expected": 225,
+        "skia": [
+          225,
+          225,
+          225,
+          255
+        ],
+        "imageIO": [
+          225,
+          225,
+          225,
+          255
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 255,
+        "alpha": 0,
+        "expected": 0,
+        "skia": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "imageIO": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 255,
+        "alpha": 64,
+        "expected": 64,
+        "skia": [
+          64,
+          64,
+          64,
+          64
+        ],
+        "imageIO": [
+          64,
+          64,
+          64,
+          64
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 255,
+        "alpha": 128,
+        "expected": 128,
+        "skia": [
+          128,
+          128,
+          128,
+          128
+        ],
+        "imageIO": [
+          128,
+          128,
+          128,
+          128
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "icc-vector",
+      "value": {
+        "linear": 255,
+        "alpha": 255,
+        "expected": 255,
+        "skia": [
+          255,
+          255,
+          255,
+          255
+        ],
+        "imageIO": [
+          255,
+          255,
+          255,
+          255
+        ],
+        "ok": true
+      }
+    },
+    {
+      "kind": "layer-color-adapter",
+      "value": {
+        "before": "[{\"tagged\":false,\"before\":\"nil\",\"class\":\"CAMetalLayer\",\"after\":\"nil\",\"pixelFormat\":80}]",
+        "after": "[{\"tagged\":true,\"before\":\"nil\",\"class\":\"CAMetalLayer\",\"after\":\"kCGColorSpaceSRGB\",\"pixelFormat\":80}]"
+      }
+    },
+    {
+      "kind": "display-profile",
+      "value": {
+        "native": "[{\"iccBytes\":4064,\"active\":true,\"screenColorSpace\":\"Color LCD\",\"windowColorSpace\":\"sRGB IEC61966-2.1\",\"scale\":2}]",
+        "intent": "source profile -> explicit sRGB SDR pixels; platform presentation profile requires explicit tagging; physical calibration deferred"
+      }
+    }
+  ]
+}

@@ -1,0 +1,285 @@
+{
+  "authoritativeRuns": [
+    "final-2",
+    "input-final-qualified"
+  ],
+  "records": [
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (K, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "supported shortcut (K, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (K, Meta)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "supported shortcut (K, Meta)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (K, Alt)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "supported shortcut (K, Alt)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (K, Control)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "supported shortcut (K, Control)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (K, Shift)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "supported shortcut (K, Shift)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (Left, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "supported shortcut (Left, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (Right, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "supported shortcut (Right, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (Up, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "supported shortcut (Up, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (Down, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "supported shortcut (Down, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (Space, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "supported shortcut (Space, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (Delete, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "local Delete/Backspace not collapsed into bindable gesture",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "capture suppresses global (Back, None)",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "local Delete/Backspace not collapsed into bindable gesture",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "modifier-only ignored",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "Escape cancel restores focus",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "shared resolver conflict",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "text owner suppresses globals and accepts text",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "Command+A remains local text selection",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "shortcut resumes outside editor",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "raw right-click opens context menu",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "context action independent of incidental focus",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "stale menu target disabled and suppressed",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "Control-click adapter",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "Escape dismisses context menu",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "keyboard restored after menu",
+        "ok": true
+      }
+    },
+    {
+      "kind": "assert",
+      "value": {
+        "message": "native Settings menu exported after activation",
+        "ok": true
+      }
+    },
+    {
+      "kind": "native-menu",
+      "value": {
+        "json": "[{\"title\":\"\",\"enabled\":true,\"key\":\"\",\"modifiers\":0},{\"title\":\"About Avalonia\",\"enabled\":true,\"key\":\"\",\"modifiers\":0},{\"title\":\"-\",\"enabled\":false,\"key\":\"\",\"modifiers\":0},{\"title\":\"Services\",\"enabled\":true,\"key\":\"\",\"modifiers\":0},{\"title\":\"-\",\"enabled\":false,\"key\":\"\",\"modifiers\":0},{\"title\":\"Hide Lightflow X3 IOSurface Proof\",\"enabled\":true,\"key\":\"h\",\"modifiers\":1048576},{\"title\":\"Hide Others\",\"enabled\":true,\"key\":\"q\",\"modifiers\":1572864},{\"title\":\"Show All\",\"enabled\":true,\"key\":\"\",\"modifiers\":0},{\"title\":\"-\",\"enabled\":false,\"key\":\"\",\"modifiers\":0},{\"title\":\"Quit\",\"enabled\":true,\"key\":\"q\",\"modifiers\":1048576},{\"title\":\"Settings\u2026\",\"enabled\":true,\"key\":\",\",\"modifiers\":1048576}]",
+        "shortcut": "Command+K",
+        "windows": "Ctrl+K"
+      }
+    },
+    {
+      "kind": "input-summary",
+      "value": {
+        "actions": 2,
+        "menuActions": 1,
+        "conflict": true,
+        "staleContext": true,
+        "scope": "actual Avalonia TopLevel raw input, not OS keyboard translation; production shared resolver unchanged"
+      }
+    }
+  ]
+}

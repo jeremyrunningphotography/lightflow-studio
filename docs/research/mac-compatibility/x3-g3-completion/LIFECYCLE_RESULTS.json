@@ -1,0 +1,75 @@
+{
+  "authoritativeRuns": [
+    "final-2",
+    "input-final-qualified"
+  ],
+  "records": [
+    {
+      "kind": "activation",
+      "value": {
+        "active": true
+      }
+    },
+    {
+      "kind": "fullscreen",
+      "value": {
+        "WindowState": 3,
+        "RenderScaling": 2,
+        "native": "[{\"height\":1130,\"miniaturized\":false,\"fullscreen\":true,\"visible\":true,\"active\":true,\"title\":\"Lightflow \u2014 G3 IOSurface completion\",\"width\":1800,\"scale\":2}]"
+      }
+    },
+    {
+      "kind": "activation",
+      "value": {
+        "active": false
+      }
+    },
+    {
+      "kind": "activation",
+      "value": {
+        "active": true
+      }
+    },
+    {
+      "kind": "activation",
+      "value": {
+        "active": false
+      }
+    },
+    {
+      "kind": "activation",
+      "value": {
+        "active": true
+      }
+    },
+    {
+      "kind": "lifecycle",
+      "value": {
+        "activates": 2,
+        "deactivates": 2,
+        "focus": true,
+        "scale": 2,
+        "closeReopen": true
+      }
+    },
+    {
+      "kind": "activation",
+      "value": {
+        "active": false
+      }
+    },
+    {
+      "kind": "activation",
+      "value": {
+        "active": false
+      }
+    },
+    {
+      "kind": "teardown",
+      "value": {
+        "surfaces": 0,
+        "producers": 0
+      }
+    }
+  ]
+}

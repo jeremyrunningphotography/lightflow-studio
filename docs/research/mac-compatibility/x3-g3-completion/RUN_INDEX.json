@@ -1,0 +1,250 @@
+[
+  {
+    "run": "details-1",
+    "assertions": 24,
+    "failures": [],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "details-2",
+    "assertions": 24,
+    "failures": [],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "final-1",
+    "assertions": 257,
+    "failures": [],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "final-2",
+    "assertions": 257,
+    "failures": [],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "images-1",
+    "assertions": 129,
+    "failures": [],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "input-1",
+    "assertions": 0,
+    "failures": [
+      {
+        "error": "System.MissingMethodException: Constructor on type 'Avalonia.Input.Raw.RawKeyEventArgs' not found.\n   at System.RuntimeType.CreateInstanceImpl(BindingFlags bindingAttr, Binder binder, Object[] args, CultureInfo culture)\n   at RawDriver.Make[T](Object[] args) in TASK_ROOT/tools/X3G3Completion/InputProof.cs:line 22\n   at RawDriver.Key(Key key, RawInputModifiers mods) in TASK_ROOT/tools/X3G3Completion/InputProof.cs:line 24\n   at InputProof.Run(CompletionWindow w) in TASK_ROOT/tools/X3G3Completion/InputProof.cs:line 43\n   at CompletionWindow.Run() in TASK_ROOT/tools/X3G3Completion/CompletionWindow.cs:line 63\n   at App.<>c__DisplayClass1_0.<<OnFrameworkInitializationCompleted>b__0>d.MoveNext() in TASK_ROOT/tools/X3G3Completion/Program.cs:line 29"
+      }
+    ],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "input-4",
+    "assertions": 0,
+    "failures": [
+      {
+        "error": "System.MissingMethodException: Constructor on type 'Avalonia.Input.Raw.RawKeyEventArgs' not found.\n   at System.RuntimeType.CreateInstanceImpl(BindingFlags bindingAttr, Binder binder, Object[] args, CultureInfo culture)\n   at RawDriver.Make[T](Object[] args) in TASK_ROOT/tools/X3G3Completion/InputProof.cs:line 22\n   at RawDriver.Key(Key key, RawInputModifiers mods) in TASK_ROOT/tools/X3G3Completion/InputProof.cs:line 24\n   at InputProof.Run(CompletionWindow w) in TASK_ROOT/tools/X3G3Completion/InputProof.cs:line 43\n   at CompletionWindow.Run() in TASK_ROOT/tools/X3G3Completion/CompletionWindow.cs:line 63\n   at App.<>c__DisplayClass1_0.<<OnFrameworkInitializationCompleted>b__0>d.MoveNext() in TASK_ROOT/tools/X3G3Completion/Program.cs:line 29"
+      }
+    ],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "input-5",
+    "assertions": 0,
+    "failures": [
+      {
+        "error": "System.Exception: RawKeyEventArgs constructors: Void .ctor(Avalonia.Input.IInputDevice, UInt64, Avalonia.Input.IInputRoot, Avalonia.Input.Raw.RawKeyEventType, Avalonia.Input.Key, Avalonia.Input.RawInputModifiers, Avalonia.Input.PhysicalKey, System.String, Avalonia.Input.KeyDeviceType) args:KeyboardDevice,UInt64,CompletionWindow,RawKeyEventType,Key,RawInputModifiers,PhysicalKey,String,KeyDeviceType\n   at RawDriver.Make[T](Object[] args) in TASK_ROOT/tools/X3G3Completion/InputProof.cs:line 22\n   at RawDriver.Key(Key key, RawInputModifiers mods) in TASK_ROOT/tools/X3G3Completion/InputProof.cs:line 24\n   at InputProof.Run(CompletionWindow w) in TASK_ROOT/tools/X3G3Completion/InputProof.cs:line 43\n   at CompletionWindow.Run() in TASK_ROOT/tools/X3G3Completion/CompletionWindow.cs:line 63\n   at App.<>c__DisplayClass1_0.<<OnFrameworkInitializationCompleted>b__0>d.MoveNext() in TASK_ROOT/tools/X3G3Completion/Program.cs:line 29"
+      }
+    ],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "input-6",
+    "assertions": 14,
+    "failures": [
+      {
+        "error": "System.Exception: supported shortcut (Space, None)\n   at CompletionWindow.Check(Boolean ok, String message) in TASK_ROOT/tools/X3G3Completion/CompletionWindow.cs:line 32\n   at InputProof.Run(CompletionWindow w) in TASK_ROOT/tools/X3G3Completion/InputProof.cs:line 43\n   at CompletionWindow.Run() in TASK_ROOT/tools/X3G3Completion/CompletionWindow.cs:line 63\n   at App.<>c__DisplayClass1_0.<<OnFrameworkInitializationCompleted>b__0>d.MoveNext() in TASK_ROOT/tools/X3G3Completion/Program.cs:line 29"
+      }
+    ],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "input-7",
+    "assertions": 28,
+    "failures": [],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "input-bundle-1",
+    "assertions": 31,
+    "failures": [
+      {
+        "error": "System.NullReferenceException: Object reference not set to an instance of an object.\n   at InputProof.Run(CompletionWindow w) in TASK_ROOT/tools/X3G3Completion/InputProof.cs:line 50\n   at CompletionWindow.Run() in TASK_ROOT/tools/X3G3Completion/CompletionWindow.cs:line 64\n   at App.<>c__DisplayClass1_0.<<OnFrameworkInitializationCompleted>b__0>d.MoveNext() in TASK_ROOT/tools/X3G3Completion/Program.cs:line 29"
+      }
+    ],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "input-bundle-3",
+    "assertions": 36,
+    "failures": [],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "input-final-qualified",
+    "assertions": 37,
+    "failures": [],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "input-published",
+    "assertions": 36,
+    "failures": [],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "interop-1",
+    "assertions": 12,
+    "failures": [
+      {
+        "error": "System.Exception: backpressure slot leased\n   at SurfaceAdapter.Offer(UInt64 serial, Int32 generation, Int32 delay, Nullable`1 forcedSlot) in TASK_ROOT/tools/X3G3Completion/Program.cs:line 48\n   at CompletionWindow.New(UInt64 serial, Int32 delay) in TASK_ROOT/tools/X3G3Completion/CompletionWindow.cs:line 51\n   at CompletionWindow.Interop() in TASK_ROOT/tools/X3G3Completion/CompletionWindow.cs:line 56\n   at CompletionWindow.Run() in TASK_ROOT/tools/X3G3Completion/CompletionWindow.cs:line 63\n   at App.<>c__DisplayClass1_0.<<OnFrameworkInitializationCompleted>b__0>d.MoveNext() in TASK_ROOT/tools/X3G3Completion/Program.cs:line 29"
+      }
+    ],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  },
+  {
+    "run": "interop-2",
+    "assertions": 26,
+    "failures": [],
+    "teardown": [
+      {
+        "kind": "teardown",
+        "value": {
+          "surfaces": 0,
+          "producers": 0
+        }
+      }
+    ]
+  }
+]

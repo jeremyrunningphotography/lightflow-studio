@@ -1,0 +1,85 @@
+$ sw_vers
+ProductName:		macOS
+ProductVersion:		26.6.2
+BuildVersion:		25G83
+
+$ uname -m
+arm64
+
+$ sysctl -n hw.model hw.memsize machdep.cpu.brand_string
+sysctl: sysctl fmt -1 1024 1: Operation not permitted
+
+$ xcode-select -p
+/Library/Developer/CommandLineTools
+
+$ xcrun clang --version
+Apple clang version 21.0.0 (clang-2100.1.1.101)
+Target: arm64-apple-darwin25.6.0
+Thread model: posix
+InstalledDir: /Library/Developer/CommandLineTools/usr/bin
+
+$ work/toolchain/dotnet8/dotnet --info
+.NET SDK:
+ Version:           8.0.425
+ Commit:            4a98f641c7
+ Workload version:  8.0.400-manifests.ac071bc2
+ MSBuild version:   17.11.48+02bf66295
+
+Runtime Environment:
+ OS Name:     Mac OS X
+ OS Version:  26.6
+ OS Platform: Darwin
+ RID:         osx-arm64
+ Base Path:   TASK_ROOT/work/toolchain/dotnet8/sdk/8.0.425/
+
+.NET workloads installed:
+Configured to use loose manifests when installing new manifests.
+There are no installed workloads to display.
+
+Host:
+  Version:      8.0.31
+  Architecture: arm64
+  Commit:       1219a42122
+
+.NET SDKs installed:
+  8.0.425 [TASK_ROOT/work/toolchain/dotnet8/sdk]
+
+.NET runtimes installed:
+  Microsoft.AspNetCore.App 8.0.31 [TASK_ROOT/work/toolchain/dotnet8/shared/Microsoft.AspNetCore.App]
+  Microsoft.NETCore.App 8.0.31 [TASK_ROOT/work/toolchain/dotnet8/shared/Microsoft.NETCore.App]
+
+Other architectures found:
+  None
+
+Environment variables:
+  Not set
+
+global.json file:
+  Not found
+
+Learn more:
+  https://aka.ms/dotnet/info
+
+Download .NET:
+  https://aka.ms/dotnet/download
+
+Host-visible query: sysctl -n hw.model hw.memsize machdep.cpu.brand_string
+Mac14,9
+34359738368
+Apple M2 Pro
+
+{
+  "sppci_model": "Apple M2 Pro",
+  "spdisplays_vendor": "sppci_vendor_Apple",
+  "spdisplays_metal": null,
+  "displays": [
+    {
+      "_name": "Color LCD",
+      "spdisplays_resolution": null,
+      "spdisplays_pixels": null,
+      "spdisplays_main": "spdisplays_yes",
+      "spdisplays_online": "spdisplays_yes",
+      "spdisplays_retina": null
+    }
+  ]
+}

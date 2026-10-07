@@ -1,0 +1,113 @@
+{
+  "scope": "native start and one recreation retry per case; no successful playback stress",
+  "starts": [
+    {
+      "origin": 0,
+      "status": -66681,
+      "rate": 0.5,
+      "generation": 1,
+      "prepared_frames": 0,
+      "supplied": 3072,
+      "prime_status": 0,
+      "wall": 2569418.923614041,
+      "active_queues": 1,
+      "kind": "epoch-start"
+    },
+    {
+      "origin": 0,
+      "status": -66681,
+      "rate": 0.5,
+      "generation": 2,
+      "prepared_frames": 0,
+      "supplied": 3072,
+      "prime_status": 0,
+      "wall": 2569434.003084416,
+      "active_queues": 1,
+      "kind": "epoch-start"
+    },
+    {
+      "origin": 0.05,
+      "status": -66681,
+      "rate": 1,
+      "generation": 1,
+      "prepared_frames": 0,
+      "supplied": 3072,
+      "prime_status": 0,
+      "wall": 2569449.0746955,
+      "active_queues": 1,
+      "kind": "epoch-start"
+    },
+    {
+      "origin": 0.05,
+      "status": -66681,
+      "rate": 1,
+      "generation": 2,
+      "prepared_frames": 0,
+      "supplied": 3072,
+      "prime_status": 0,
+      "wall": 2569464.150063,
+      "active_queues": 1,
+      "kind": "epoch-start"
+    },
+    {
+      "origin": 0.1,
+      "status": -66681,
+      "rate": 2,
+      "generation": 1,
+      "prepared_frames": 0,
+      "supplied": 3072,
+      "prime_status": 0,
+      "wall": 2569479.22561875,
+      "active_queues": 1,
+      "kind": "epoch-start"
+    },
+    {
+      "origin": 0.1,
+      "status": -66681,
+      "rate": 2,
+      "generation": 2,
+      "prepared_frames": 0,
+      "supplied": 3072,
+      "prime_status": 0,
+      "wall": 2569494.296791708,
+      "active_queues": 1,
+      "kind": "epoch-start"
+    }
+  ],
+  "attempts": [
+    {
+      "status": -66681,
+      "ms": 30232.667709235102,
+      "kind": "stress-attempt",
+      "attempt": 0,
+      "active": 0,
+      "rss": 31162368
+    },
+    {
+      "status": -66681,
+      "ms": 30147.03237498179,
+      "kind": "stress-attempt",
+      "attempt": 1,
+      "active": 0,
+      "rss": 31260672
+    },
+    {
+      "status": -66681,
+      "ms": 30146.483124699444,
+      "kind": "stress-attempt",
+      "attempt": 2,
+      "active": 0,
+      "rss": 32227328
+    }
+  ],
+  "summary": {
+    "active_queues": 0,
+    "initial_failures": 3,
+    "attempts": 3,
+    "kind": "stress-summary",
+    "recovered": 0,
+    "rss_before": 8667136,
+    "rss_after": 32227328
+  },
+  "interpretation": "6/6 current-session starts fail; 0 recoveries; disposed queue count zero. Not a statistical product reliability or allocation leak claim; successful pause/resume/rate/loop stress blocked."
+}

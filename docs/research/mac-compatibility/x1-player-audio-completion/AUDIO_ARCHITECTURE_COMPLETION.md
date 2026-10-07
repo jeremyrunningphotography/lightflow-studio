@@ -1,0 +1,19 @@
+# Final bounded audio architecture proof
+
+**G1 remains REVISE / UNPASSED. This slice cannot recommend PASS.** The protected-clock and bounded feed are concrete candidates, but native output repeatedly failed before playback. Actual protected-clock underrun/recovery, live rates, loops and AV timing are consequently unqualified. This is a runtime execution blocker, not evidence that FFmpeg + Metal/CoreAudio + IOSurface is impossible or that its selection must change. Owner review should distinguish that blocker from an architecture rejection; restoring native I/O and running the prepared bounded matrix remains necessary before claiming audio architecture completion.
+
+Owner-accepted #378 head c4b81406730b0ecb46c58b3a04573d2ab96e2162 merged normally as 7dec8f7372ba0af06bc15969ec0a976de7984900. Fresh proof starts from that main in Agent-X1-Player-Completion, branch codex/368-mac-player-audio-completion. Prior accepted artifacts remain unchanged. No production linkage, Catalog work, X3 execution or M4+.
+
+## Measurements and execution boundary
+
+Native FFmpeg AAC decode → mono float48k → bounded atempo feed works without whole-file PCM preload. Ten-second input decodes exactly480000 samples. Output counts .5/1/2x are959184/480000/240336; maximum observed FIFO4816 samples (19264 bytes), plus three4096-byte queue buffers.1x output hash matches the separately decoded frozen PCM. Native half-second seek slices at0/2/5s each decode/output24000 samples; no consumer pull means no additional decode. These are narrow native feed results, not whole codec/demux memory qualification or an audible tempo oracle. atempo boundary count deviations and prior content-envelope error remain explicit; sample-index×rate is a semantic interval mapping with content uncertainty, not exact waveform-source identity.
+
+AudioQueueStart failed with -66681 after valid native supply. Frozen baseline, all-zero PCM at gain1 and AppKit/main-run-loop/background-start baseline also fail. CoreAudio task-process logs report AudioDeviceStart err0 followed by15-second I/O timeout, suspension count0. Built-in speakers enumerate at48k. This narrows the failing layer; the underlying HAL/device/service cause is unresolved. No owner system settings, device, service or processes were changed. Sandbox -66680 is a distinct access failure. Empty-start attempts returned -66681, and a primed queue prepared3072 frames then failed at start; long partial stress sequences were interrupted, not passed. Initially zero output was not evidence of an indefinite API hang. See AUDIOQUEUE_START_RCA.md, DIAGNOSTIC_ATTEMPTS.json and raw records.
+
+Clock ledger checks are explicitly simulation. No new native AV offsets, perceptual rate/loop acceptance, physical synchronization or successful underrun recovery are inferred. Prior #378 results remain valid for their original experiments, not a substitute for this protected-clock qualification.
+
+The prepared matrix is serial, gain0, explicit task data root, timeout-bound, and stops at failed start. The owner was asked whether the Mac is awake/unlocked and ordinary audio works; no answer or restoration is assumed. No speculative OS/device recovery was forced.
+
+## Gate
+
+Remaining material proof question: can the protected causal model and bounded feed behave correctly through real underrun, resume/rate/loop epochs and reliable native output? Evidence currently cannot answer it. A no-frame/invalid-clock start failure is safe containment, not a Player capability pass. Keep #368 Open / In Progress and G1 unpassed pending owner review. The final acknowledgement architecture remains operation-specific C; no blanket physical scanout gate. Estimate stays16–28 engineer-weeks, unapproved, excluding shared UI extraction/broader packaging. No numerical reduction is justified.

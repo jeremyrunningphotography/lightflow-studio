@@ -1,0 +1,42 @@
+{
+  "main": "7dec8f7372ba0af06bc15969ec0a976de7984900",
+  "hardware_os": {
+    "model": "MacBook Pro Mac14,9",
+    "chip": "Apple M2 Pro",
+    "cpu_cores": 12,
+    "ram_bytes": 34359738368
+  },
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83\n",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin\n",
+  "ffmpeg_commit": "bf1b838f2ab88b4f8fd83443325c782ea0e0f7fa",
+  "license": "LGPL-2.1-or-later; GPL/NONFREE/VERSION3 all disabled",
+  "atempo": true,
+  "paid_runtime": false,
+  "linkage": "work/audio/audio-proof:\n\t/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/deps/lgpl-ffmpeg/lib/libavformat.63.dylib (compatibility version 63.0.0, current version 63.1.101)\n\t/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/deps/lgpl-ffmpeg/lib/libavcodec.63.dylib (compatibility version 63.0.0, current version 63.1.101)\n\t/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/deps/lgpl-ffmpeg/lib/libavutil.61.dylib (compatibility version 61.0.0, current version 61.1.101)\n\t/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/deps/lgpl-ffmpeg/lib/libavfilter.12.dylib (compatibility version 12.0.0, current version 12.1.101)\n\t/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/deps/lgpl-ffmpeg/lib/libswscale.10.dylib (compatibility version 10.0.0, current version 10.1.101)\n\t/System/Library/Frameworks/Metal.framework/Versions/A/Metal (compatibility version 1.0.0, current version 373.2.0)\n\t/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit (compatibility version 45.0.0, current version 2685.60.104)\n\t/System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore (compatibility version 1.2.0, current version 1195.14.4)\n\t/System/Library/Frameworks/CoreVideo.framework/Versions/A/CoreVideo (compatibility version 1.2.0, current version 734.4.0)\n\t/System/Library/Frameworks/IOSurface.framework/Versions/A/IOSurface (compatibility version 1.0.0, current version 1.0.0)\n\t/System/Library/Frameworks/AudioToolbox.framework/Versions/A/AudioToolbox (compatibility version 1.0.0, current version 1000.0.0)\n\t/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (compatibility version 300.0.0, current version 5026.5.4)\n\t/usr/lib/libobjc.A.dylib (compatibility version 1.0.0, current version 228.0.0)\n\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2100.43.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)\n\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)\n",
+  "binary_sha256": "b6a2f0fbfe25d079bdfc98ba37c97211452f734104c6fd36f4db6052e3280527",
+  "inputs": [
+    {
+      "path": "work/data/audio-sync.mp4",
+      "bytes": 1639668,
+      "sha256": "d9ce7aa7524cbeef0011e9afe39960434f20251577b57e94bea87042fe0aed12"
+    },
+    {
+      "path": "work/data/audio-native.f32",
+      "bytes": 7680000,
+      "sha256": "2f0a6d123ae5aa1f1a904c9915b8423c6973e46cedf4483b33db0da07a3d2058"
+    }
+  ],
+  "source_sha256": {
+    "tools/X1AudioCompletion/build.py": "3630dee8d4dd8004cbb7c1975c084f8e7111a4bc522c11572c8527bfa208d837",
+    "tools/X1AudioCompletion/silent_start_rca.c": "28d82e711e532acb51fe07895c823b77ad931b97a3fe285910845657e2b57e3a",
+    "tools/X1AudioCompletion/clock_oracle.py": "84d9be86fdef17511b449f9769f6de71a5d5ddcf51bd93449b4f21b6ba623d97",
+    "tools/X1AudioCompletion/run.py": "3361e4619ad11057e3d406bfd91a30d1f9903f357d2500ce21029a8231751cd2",
+    "tools/X1AudioCompletion/runloop_start_rca.mm": "31c2ae70df46075c2323dea2ceab0ee115a01f970a1ed062fc9152e4544f3aae",
+    "tools/X1AudioCompletion/main.mm": "223faf2842d646b0f3395e867251599b8a20d87a56dc2985b3996f0267055347",
+    "tools/X1AudioCompletion/audio.hpp": "d4f6801f5b3342d0a17f68650e286a525eb9e3fe7b273505f108427d07801186",
+    "tools/X1AudioCompletion/verify.py": "9120cf42ba47c6263e3320eb6173a6087497dccfff2d8113f81df0a09ca01ac1"
+  },
+  "native_volume": "gain zero; silent RCA baseline uses all-zero PCM at gain1, not audible owner acceptance",
+  "prior_proofs_unchanged": true,
+  "generated_source_sha256": "1915999c723a048568635ce7696c71485c37b4e4e7356eaf1624c3d7405f7aa9"
+}

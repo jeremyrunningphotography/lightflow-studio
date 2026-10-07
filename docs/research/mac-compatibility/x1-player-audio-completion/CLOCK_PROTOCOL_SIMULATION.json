@@ -1,0 +1,708 @@
+{
+  "scope": "independent safety event ledger simulation; does NOT qualify native AudioQueue or production implementation",
+  "seed": 368378,
+  "assertions": 9300,
+  "epochs": 100,
+  "events": [
+    {
+      "epoch": 0,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 1.1662809086680865
+    },
+    {
+      "epoch": 1,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.06232549334804
+    },
+    {
+      "epoch": 2,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.915119895465104
+    },
+    {
+      "epoch": 3,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.569659039826899
+    },
+    {
+      "epoch": 4,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.612972142819188
+    },
+    {
+      "epoch": 5,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.663545327121886
+    },
+    {
+      "epoch": 6,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.612619198883867
+    },
+    {
+      "epoch": 7,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 7.252112857574336
+    },
+    {
+      "epoch": 8,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 9.173170375871448
+    },
+    {
+      "epoch": 9,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 4.565609746651189
+    },
+    {
+      "epoch": 10,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 7.400411446726782
+    },
+    {
+      "epoch": 11,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 1.6671623433049838
+    },
+    {
+      "epoch": 12,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.289801017672099
+    },
+    {
+      "epoch": 13,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.470276037431159
+    },
+    {
+      "epoch": 14,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 0.8937176774276615
+    },
+    {
+      "epoch": 15,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.793357945747008
+    },
+    {
+      "epoch": 16,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 9.565279171437307
+    },
+    {
+      "epoch": 17,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.248198236214969
+    },
+    {
+      "epoch": 18,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.026868531242968
+    },
+    {
+      "epoch": 19,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.914303464777628
+    },
+    {
+      "epoch": 20,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 4.753148746697103
+    },
+    {
+      "epoch": 21,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.05229409774611
+    },
+    {
+      "epoch": 22,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.821820626718127
+    },
+    {
+      "epoch": 23,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 0.17453422917721698
+    },
+    {
+      "epoch": 24,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 9.415372117938185
+    },
+    {
+      "epoch": 25,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 0.39411951582094423
+    },
+    {
+      "epoch": 26,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.193234334137125
+    },
+    {
+      "epoch": 27,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 3.364046207321984
+    },
+    {
+      "epoch": 28,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 2.198946286154514
+    },
+    {
+      "epoch": 29,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 4.156697855717238
+    },
+    {
+      "epoch": 30,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.30553277048715
+    },
+    {
+      "epoch": 31,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 7.831459496907463
+    },
+    {
+      "epoch": 32,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 1.386698358969155
+    },
+    {
+      "epoch": 33,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 3.7196835214853414
+    },
+    {
+      "epoch": 34,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 4.406076236721429
+    },
+    {
+      "epoch": 35,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.549471321526068
+    },
+    {
+      "epoch": 36,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 0.2364282638035208
+    },
+    {
+      "epoch": 37,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.382505817720176
+    },
+    {
+      "epoch": 38,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 9.533226252348936
+    },
+    {
+      "epoch": 39,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.217819613268905
+    },
+    {
+      "epoch": 40,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.600312867501271
+    },
+    {
+      "epoch": 41,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.459755285747312
+    },
+    {
+      "epoch": 42,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.70657444372158
+    },
+    {
+      "epoch": 43,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.509632908768046
+    },
+    {
+      "epoch": 44,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 3.191319637634519
+    },
+    {
+      "epoch": 45,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.322210070829382
+    },
+    {
+      "epoch": 46,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 2.4543757197962495
+    },
+    {
+      "epoch": 47,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 9.08646325000459
+    },
+    {
+      "epoch": 48,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 7.161290647767861
+    },
+    {
+      "epoch": 49,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.317773623898059
+    },
+    {
+      "epoch": 50,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 3.804925366451273
+    },
+    {
+      "epoch": 51,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.361645453741354
+    },
+    {
+      "epoch": 52,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.690846378369427
+    },
+    {
+      "epoch": 53,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 3.6471618608218663
+    },
+    {
+      "epoch": 54,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 4.8945583569670665
+    },
+    {
+      "epoch": 55,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 9.480668452183117
+    },
+    {
+      "epoch": 56,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.364902915729352
+    },
+    {
+      "epoch": 57,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.320392667813695
+    },
+    {
+      "epoch": 58,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 2.9509070298359847
+    },
+    {
+      "epoch": 59,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 10.059223165966447
+    },
+    {
+      "epoch": 60,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 4.914110542607246
+    },
+    {
+      "epoch": 61,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.651118108462427
+    },
+    {
+      "epoch": 62,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.271562952358097
+    },
+    {
+      "epoch": 63,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 0.9868607978006271
+    },
+    {
+      "epoch": 64,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.748401769575096
+    },
+    {
+      "epoch": 65,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.161643401063949
+    },
+    {
+      "epoch": 66,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.83754994669598
+    },
+    {
+      "epoch": 67,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 7.088384212048299
+    },
+    {
+      "epoch": 68,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.780799693995244
+    },
+    {
+      "epoch": 69,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.844012205683955
+    },
+    {
+      "epoch": 70,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 9.037696122866564
+    },
+    {
+      "epoch": 71,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.713533781897537
+    },
+    {
+      "epoch": 72,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.02145939396349
+    },
+    {
+      "epoch": 73,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 3.028056568665073
+    },
+    {
+      "epoch": 74,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 10.022796918707234
+    },
+    {
+      "epoch": 75,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.363369547861174
+    },
+    {
+      "epoch": 76,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 7.608258288770574
+    },
+    {
+      "epoch": 77,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 1.635473459795225
+    },
+    {
+      "epoch": 78,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.056709663586762
+    },
+    {
+      "epoch": 79,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.072873585255341
+    },
+    {
+      "epoch": 80,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 3.3408048202244816
+    },
+    {
+      "epoch": 81,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.5880548660110625
+    },
+    {
+      "epoch": 82,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 2.2018603352775936
+    },
+    {
+      "epoch": 83,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 4.898882721847399
+    },
+    {
+      "epoch": 84,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 9.222421564959532
+    },
+    {
+      "epoch": 85,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 9.956919492743387
+    },
+    {
+      "epoch": 86,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 7.892918651066542
+    },
+    {
+      "epoch": 87,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 3.1278827236238484
+    },
+    {
+      "epoch": 88,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 0.5288722499341284
+    },
+    {
+      "epoch": 89,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.861990357009122
+    },
+    {
+      "epoch": 90,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 5.850361730025126
+    },
+    {
+      "epoch": 91,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 6.412933933910209
+    },
+    {
+      "epoch": 92,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 3.1801935379792785
+    },
+    {
+      "epoch": 93,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 2.235352791911967
+    },
+    {
+      "epoch": 94,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 8.429644609741063
+    },
+    {
+      "epoch": 95,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 1.8335108922140118
+    },
+    {
+      "epoch": 96,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 7.157263056761858
+    },
+    {
+      "epoch": 97,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 1.4113615983111896
+    },
+    {
+      "epoch": 98,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 9.79419207182112
+    },
+    {
+      "epoch": 99,
+      "stale_rejected": true,
+      "underrun_cap": 3072,
+      "pause_frozen": true,
+      "resume_origin": 9.550939919615717
+    }
+  ]
+}

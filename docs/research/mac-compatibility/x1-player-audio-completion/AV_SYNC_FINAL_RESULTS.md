@@ -1,0 +1,5 @@
+# Final AV timing and proposed tolerance
+
+No new protected-clock0.5/1/2x AV offsets were measured; AudioQueueStart failed. Do not substitute the accepted #378 means (-3.60/-4.41/-9.83 source-ms; -7.20/-4.41/-4.92 equivalent wall-ms) for this experiment. Speaker/display sync remains unmeasured and is not a blanket architecture gate.
+
+Recommend exact accepted frame identity, no stale semantic publication, no clock advance beyond causally supplied output, explicit invalid/hold state at depletion, and exact generation/origin rebases. These are safety invariants, not perceptual tolerances. Retain one wall-time frame as a candidate AV scheduling discussion target only after successful protected-clock measurement plus tempo/content uncertainty; it is not owner-approved. The15–20s historical segments do not justify5ms/min drift. Recommend no numerical drift limit from this slice. Physical listening/device/sleep tests may remain packaged acceptance once architecture is actually demonstrated; lack of them alone is not why G1 remains unpassed.

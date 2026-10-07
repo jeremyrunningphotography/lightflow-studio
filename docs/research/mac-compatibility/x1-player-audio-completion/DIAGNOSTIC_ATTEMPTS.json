@@ -55,5 +55,19 @@
     "check old supplied extent before refill",
     "resume via new source epoch"
   ],
-  "interpretation": "Repeated current-runtime failure, not a generalized product/architecture impossibility. No audio-service restart, output-device change or owner process termination."
+  "interpretation": "Repeated current-runtime failure, not a generalized product/architecture impossibility. No audio-service restart, output-device change or owner process termination.",
+  "output_unit_check": {
+    "result": {
+      "create": 0,
+      "callback": 0,
+      "initialize": 0,
+      "start": 0,
+      "seconds": 3.251214,
+      "render_callbacks": 0,
+      "frames": 0,
+      "scope": "three-second all-zero CoreAudio output-unit RCA, not audio clock proof"
+    },
+    "interpretation": "Initialization/start success but no callbacks in measured interval; supports current native I/O callback availability blocker beyond new AudioQueue feeder; not a replacement architecture proof",
+    "untimed_preliminary": "No claims based on first loop-only observation; final result explicitly measures wall duration"
+  }
 }

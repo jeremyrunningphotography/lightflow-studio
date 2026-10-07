@@ -1,5 +1,5 @@
 {
-  "removed_bytes": 152119988,
+  "removed_bytes": 152156526,
   "removed": [
     "work/deps task-only source/libraries/builds/logs",
     "work/audio task-only binaries/generated files/data root"
@@ -17,5 +17,6 @@
   },
   "no_owner_data_modified": true,
   "native_output_unavailable": "No OS/service/device changes attempted",
-  "process_check": "read-only ps check completed; no task audio/RCA processes remain"
+  "process_check": "read-only ps check completed; no task audio/RCA processes remain",
+  "output_unit_rca_cleaned": true
 }

@@ -142,5 +142,11 @@
   "underrun.log": {
     "sha256": "0e075ddabeeb4de5e3d6f2a35c760df9700376ccd95fd70b4afddfa1e167c3d7",
     "bytes": 657
+  },
+  "output-unit-rca.jsonl.gz": {
+    "sha256": "04a6057fe7e2a7d6a19b76c3c298a80503ccd7935658539563c13ebcd5bc964a",
+    "raw_sha256": "23a885402c61694e60851fabcdd38afeaf700e54f9a29f706b898a2aee01f8c3",
+    "rows": 1,
+    "bytes": 155
   }
 }

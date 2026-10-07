@@ -32,11 +32,22 @@
     "tools/X1AudioCompletion/clock_oracle.py": "84d9be86fdef17511b449f9769f6de71a5d5ddcf51bd93449b4f21b6ba623d97",
     "tools/X1AudioCompletion/run.py": "3361e4619ad11057e3d406bfd91a30d1f9903f357d2500ce21029a8231751cd2",
     "tools/X1AudioCompletion/runloop_start_rca.mm": "31c2ae70df46075c2323dea2ceab0ee115a01f970a1ed062fc9152e4544f3aae",
+    "tools/X1AudioCompletion/output_unit_rca.c": "0f3cab6b7e3b490a912e1fab1e7ab9020e9e129e56e9ad6efab7df945811ff57",
     "tools/X1AudioCompletion/main.mm": "223faf2842d646b0f3395e867251599b8a20d87a56dc2985b3996f0267055347",
     "tools/X1AudioCompletion/audio.hpp": "d4f6801f5b3342d0a17f68650e286a525eb9e3fe7b273505f108427d07801186",
     "tools/X1AudioCompletion/verify.py": "9120cf42ba47c6263e3320eb6173a6087497dccfff2d8113f81df0a09ca01ac1"
   },
   "native_volume": "gain zero; silent RCA baseline uses all-zero PCM at gain1, not audible owner acceptance",
   "prior_proofs_unchanged": true,
-  "generated_source_sha256": "1915999c723a048568635ce7696c71485c37b4e4e7356eaf1624c3d7405f7aa9"
+  "generated_source_sha256": "1915999c723a048568635ce7696c71485c37b4e4e7356eaf1624c3d7405f7aa9",
+  "output_unit_rca": {
+    "frameworks": [
+      "AudioUnit",
+      "CoreAudio",
+      "CoreFoundation"
+    ],
+    "source_sha256": "0f3cab6b7e3b490a912e1fab1e7ab9020e9e129e56e9ad6efab7df945811ff57",
+    "binary_sha256": "2e23377d373712b877e2f9738fd2dc153f271708762c0f5d3997d352db7e629f",
+    "paid_runtime": false
+  }
 }

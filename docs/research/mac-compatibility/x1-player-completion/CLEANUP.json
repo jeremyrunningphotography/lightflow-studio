@@ -1,0 +1,19 @@
+{
+  "removed": [
+    {
+      "path": "work/deps",
+      "bytes": 151736872
+    },
+    {
+      "path": "work/completion",
+      "bytes": 663573
+    }
+  ],
+  "removed_bytes": 152400445,
+  "remaining_generated_fixture_bytes": 521580092,
+  "remaining_path": "work/data",
+  "deletion_guidance": "all remaining input media/PCM is task-generated and reproducible from FIXTURES.json; safe for owner deletion if regeneration acceptable; no owner media/Catalog data",
+  "native_execution": "stopped; no further proof iteration",
+  "durable_raw": "all final raw archives retained under new evidence directory",
+  "reproduction": "source tools, exact dependency/fixture pins and license retained"
+}

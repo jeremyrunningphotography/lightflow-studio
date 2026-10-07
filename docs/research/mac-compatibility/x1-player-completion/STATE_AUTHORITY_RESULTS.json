@@ -1,0 +1,221 @@
+{
+  "status": "proven in deterministic protocol simulation only",
+  "seed": 368,
+  "offered": 2000,
+  "accepted": 42,
+  "rejected": 975,
+  "operation_identity_checks": 630,
+  "native_UIAccepted_callback": "unimplemented; later isolated X3 qualification required",
+  "events": [
+    {
+      "serial": 1,
+      "generation": 1,
+      "host": 1
+    },
+    {
+      "serial": 4,
+      "generation": 1,
+      "host": 1
+    },
+    {
+      "serial": 6,
+      "generation": 1,
+      "host": 1
+    },
+    {
+      "serial": 7,
+      "generation": 1,
+      "host": 1
+    },
+    {
+      "serial": 9,
+      "generation": 1,
+      "host": 1
+    },
+    {
+      "serial": 11,
+      "generation": 1,
+      "host": 1
+    },
+    {
+      "serial": 15,
+      "generation": 1,
+      "host": 0
+    },
+    {
+      "serial": 21,
+      "generation": 2,
+      "host": 1
+    },
+    {
+      "serial": 27,
+      "generation": 2,
+      "host": 1
+    },
+    {
+      "serial": 30,
+      "generation": 2,
+      "host": 1
+    },
+    {
+      "serial": 43,
+      "generation": 3,
+      "host": 1
+    },
+    {
+      "serial": 49,
+      "generation": 3,
+      "host": 2
+    },
+    {
+      "serial": 59,
+      "generation": 4,
+      "host": 2
+    },
+    {
+      "serial": 61,
+      "generation": 4,
+      "host": 2
+    },
+    {
+      "serial": 72,
+      "generation": 4,
+      "host": 2
+    },
+    {
+      "serial": 101,
+      "generation": 6,
+      "host": 3
+    },
+    {
+      "serial": 115,
+      "generation": 7,
+      "host": 3
+    },
+    {
+      "serial": 123,
+      "generation": 7,
+      "host": 3
+    },
+    {
+      "serial": 152,
+      "generation": 9,
+      "host": 4
+    },
+    {
+      "serial": 177,
+      "generation": 10,
+      "host": 4
+    },
+    {
+      "serial": 240,
+      "generation": 13,
+      "host": 6
+    },
+    {
+      "serial": 260,
+      "generation": 14,
+      "host": 6
+    },
+    {
+      "serial": 342,
+      "generation": 19,
+      "host": 8
+    },
+    {
+      "serial": 346,
+      "generation": 19,
+      "host": 8
+    },
+    {
+      "serial": 349,
+      "generation": 19,
+      "host": 8
+    },
+    {
+      "serial": 368,
+      "generation": 20,
+      "host": 7
+    },
+    {
+      "serial": 384,
+      "generation": 21,
+      "host": 9
+    },
+    {
+      "serial": 438,
+      "generation": 24,
+      "host": 10
+    },
+    {
+      "serial": 460,
+      "generation": 25,
+      "host": 10
+    },
+    {
+      "serial": 497,
+      "generation": 27,
+      "host": 11
+    },
+    {
+      "serial": 535,
+      "generation": 29,
+      "host": 11
+    },
+    {
+      "serial": 553,
+      "generation": 30,
+      "host": 12
+    },
+    {
+      "serial": 575,
+      "generation": 31,
+      "host": 13
+    },
+    {
+      "serial": 801,
+      "generation": 43,
+      "host": 18
+    },
+    {
+      "serial": 916,
+      "generation": 49,
+      "host": 20
+    },
+    {
+      "serial": 1087,
+      "generation": 58,
+      "host": 24
+    },
+    {
+      "serial": 1130,
+      "generation": 60,
+      "host": 25
+    },
+    {
+      "serial": 1198,
+      "generation": 64,
+      "host": 26
+    },
+    {
+      "serial": 1206,
+      "generation": 64,
+      "host": 26
+    },
+    {
+      "serial": 1239,
+      "generation": 66,
+      "host": 27
+    },
+    {
+      "serial": 1433,
+      "generation": 76,
+      "host": 31
+    },
+    {
+      "serial": 1967,
+      "generation": 104,
+      "host": 41
+    }
+  ]
+}

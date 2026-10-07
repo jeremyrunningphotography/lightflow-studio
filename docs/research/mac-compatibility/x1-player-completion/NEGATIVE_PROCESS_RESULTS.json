@@ -1,0 +1,10 @@
+{
+  "case": "render-delay-audio-attempt",
+  "exit_code": 3,
+  "error": "AudioQueue -66681 kAudioQueueErr_CannotStart",
+  "header": "AudioToolbox.framework/Headers/AudioQueue.h:170",
+  "stage": "queue start",
+  "cause": "unresolved",
+  "native_rows": 0,
+  "follow_up": "GPU-only render fault successful; no new audio/desktop retry forced"
+}

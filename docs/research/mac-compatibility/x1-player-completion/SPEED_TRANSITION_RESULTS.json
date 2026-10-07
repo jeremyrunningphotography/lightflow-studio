@@ -1,0 +1,192 @@
+{
+  "events": {
+    "1080-backend-color": [],
+    "4k-backend-color": [],
+    "4k-backend-off": [],
+    "4k-native-baseline": [],
+    "actual-starvation": [],
+    "av-double": [],
+    "av-half": [],
+    "av-one": [],
+    "final-source-smoke": [],
+    "loop": [],
+    "recovery": [],
+    "render-delay": [],
+    "render-fault": [],
+    "semantic-ready": [],
+    "speed-live": [
+      {
+        "from": 1,
+        "wall": 4.000411542132497,
+        "generation": 2,
+        "scope": "actual live queue restart; predecoded atempo input, not seamless streaming",
+        "kind": "speed-transition",
+        "to": 2,
+        "source_origin": 3.9781041666666668,
+        "restart_ms": 63.44950012862682
+      },
+      {
+        "from": 2,
+        "wall": 8.003207709174603,
+        "generation": 3,
+        "scope": "actual live queue restart; predecoded atempo input, not seamless streaming",
+        "kind": "speed-transition",
+        "to": 1,
+        "source_origin": 11.811979166666667,
+        "restart_ms": 29.72591621801257
+      },
+      {
+        "from": 1,
+        "wall": 12.001022667158395,
+        "generation": 4,
+        "scope": "actual live queue restart; predecoded atempo input, not seamless streaming",
+        "kind": "speed-transition",
+        "to": 0.5,
+        "source_origin": 15.758750000000001,
+        "restart_ms": 126.69091718271375
+      },
+      {
+        "from": 0.5,
+        "wall": 16.00119037507102,
+        "generation": 5,
+        "scope": "actual live queue restart; predecoded atempo input, not seamless streaming",
+        "kind": "speed-transition",
+        "to": 1,
+        "source_origin": 17.684239583333333,
+        "restart_ms": 32.019332982599735
+      }
+    ],
+    "startup-metric-correction": [],
+    "tempo-content": []
+  },
+  "run": {
+    "summary": {
+      "frames": 709,
+      "decoded": 710,
+      "loops": 0,
+      "rss": 99893248,
+      "skipped": 0,
+      "cpu_seconds": 2.034095,
+      "seconds": 22.00489087495953,
+      "kind": "summary",
+      "authority_scope": "backend GPU snapshot only; UI acceptance not executed"
+    },
+    "metrics": {
+      "decode_ms": {
+        "n": 708,
+        "mean": 3.1223969335409967,
+        "p50": 3.2695839181542397,
+        "p95": 4.817583132535219,
+        "min": 0.1598750241100788,
+        "max": 5.998542066663504
+      },
+      "selection_decode_ms": {
+        "n": 709,
+        "mean": 3.1185440307979606,
+        "p50": 3.2696248963475227,
+        "p95": 4.818167071789503,
+        "min": 0.00016624107956886292,
+        "max": 5.999083165079355
+      },
+      "import_ms": {
+        "n": 709,
+        "mean": 0.03505669789039366,
+        "p50": 0.03616698086261749,
+        "p95": 0.06145797669887543,
+        "min": 0.0061248429119586945,
+        "max": 0.31341658905148506
+      },
+      "producer_wait_ms": {
+        "n": 709,
+        "mean": 0.8061623643447969,
+        "p50": 0.8282503113150597,
+        "p95": 1.0706670582294464,
+        "min": 0.21812506020069122,
+        "max": 2.2742091678082943
+      },
+      "drawable_ms": {
+        "n": 709,
+        "mean": 0.07476182904078695,
+        "p50": 0.07800012826919556,
+        "p95": 0.13149995356798172,
+        "min": 0.013874843716621399,
+        "max": 0.9554577991366386
+      },
+      "consumer_wait_ms": {
+        "n": 709,
+        "mean": 0.5206604007426623,
+        "p50": 0.5810409784317017,
+        "p95": 0.713791698217392,
+        "min": 0.14312518760561943,
+        "max": 1.3527912087738514
+      },
+      "gpu_ms": {
+        "n": 709,
+        "mean": 0.06463399110296256,
+        "p50": 0.04737498238682747,
+        "p95": 0.1816666917875409,
+        "min": 0.021458370611071587,
+        "max": 1.86625006608665
+      },
+      "ack_ms": {
+        "n": 709,
+        "mean": 0.5209564706849195,
+        "p50": 0.5812495946884155,
+        "p95": 0.7143327966332436,
+        "min": 0.1432499848306179,
+        "max": 1.3534999452531338
+      },
+      "render_ms": {
+        "n": 709,
+        "mean": 1.6270758149349387,
+        "p50": 1.7367498949170113,
+        "p95": 2.21212487667799,
+        "min": 0.47949980944395065,
+        "max": 3.624000120908022
+      },
+      "source_offset_before_ms": {
+        "n": 709,
+        "mean": -0.7540550070525517,
+        "p50": -0.68749999999973,
+        "p95": -0.052083333333285964,
+        "min": -2.354166666666657,
+        "max": 0
+      },
+      "source_offset_after_ms": {
+        "n": 709,
+        "mean": -6.474773742360513,
+        "p50": -6.062500000000526,
+        "p95": -3.4062500000011653,
+        "min": -14.64583333333458,
+        "max": -1.708333333334977
+      },
+      "wall_offset_after_ms": {
+        "n": 709,
+        "mean": -5.319449341796395,
+        "p50": -5.520833333335418,
+        "p95": -2.6770833333333854,
+        "min": -8.833333333335247,
+        "max": -1.6145833333336412
+      },
+      "rss": {
+        "n": 709,
+        "mean": 82338751.00705218,
+        "p50": 75743232,
+        "p95": 99909632,
+        "min": 66502656,
+        "max": 99909632
+      }
+    },
+    "frames": 709,
+    "scheduled_skips": 0,
+    "render_ready": 709,
+    "native_drawable_callbacks": 0,
+    "render_ready_fps": 32.22010979417338,
+    "cpu_percent_one_core": 9.243831344397618,
+    "queue_depth_max": 1,
+    "decode_startup_metric_excluded": 1,
+    "first_5s_source_offset_mean": -6.9766666666667385,
+    "last_5s_source_offset_mean": -5.147971854305036
+  },
+  "boundary": "actual queue recreation; predecoded atempo, source identity rebased; not seamless streaming"
+}

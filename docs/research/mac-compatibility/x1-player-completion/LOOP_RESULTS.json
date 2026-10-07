@@ -1,0 +1,215 @@
+{
+  "events": {
+    "1080-backend-color": [],
+    "4k-backend-color": [],
+    "4k-backend-off": [],
+    "4k-native-baseline": [],
+    "actual-starvation": [],
+    "av-double": [],
+    "av-half": [],
+    "av-one": [],
+    "final-source-smoke": [],
+    "loop": [
+      {
+        "last_pts_seconds": 0.9666666666666667,
+        "new_origin": 0,
+        "generation": 2,
+        "scope": "explicit queue restart; discontinuity measured, not gapless",
+        "kind": "loop-boundary",
+        "loop": 1,
+        "restart_ms": 16.42566593363881
+      },
+      {
+        "last_pts_seconds": 0.9666666666666667,
+        "new_origin": 0,
+        "generation": 3,
+        "scope": "explicit queue restart; discontinuity measured, not gapless",
+        "kind": "loop-boundary",
+        "loop": 2,
+        "restart_ms": 20.699291955679655
+      },
+      {
+        "last_pts_seconds": 0.9666666666666667,
+        "new_origin": 0,
+        "generation": 4,
+        "scope": "explicit queue restart; discontinuity measured, not gapless",
+        "kind": "loop-boundary",
+        "loop": 3,
+        "restart_ms": 20.08420927450061
+      },
+      {
+        "last_pts_seconds": 0.9666666666666667,
+        "new_origin": 0,
+        "generation": 5,
+        "scope": "explicit queue restart; discontinuity measured, not gapless",
+        "kind": "loop-boundary",
+        "loop": 4,
+        "restart_ms": 19.01650009676814
+      },
+      {
+        "last_pts_seconds": 0.9666666666666667,
+        "new_origin": 0,
+        "generation": 6,
+        "scope": "explicit queue restart; discontinuity measured, not gapless",
+        "kind": "loop-boundary",
+        "loop": 5,
+        "restart_ms": 19.643167033791542
+      },
+      {
+        "last_pts_seconds": 0.9666666666666667,
+        "new_origin": 0,
+        "generation": 7,
+        "scope": "explicit queue restart; discontinuity measured, not gapless",
+        "kind": "loop-boundary",
+        "loop": 6,
+        "restart_ms": 34.74104218184948
+      },
+      {
+        "last_pts_seconds": 0.9666666666666667,
+        "new_origin": 0,
+        "generation": 8,
+        "scope": "explicit queue restart; discontinuity measured, not gapless",
+        "kind": "loop-boundary",
+        "loop": 7,
+        "restart_ms": 45.42624996975064
+      }
+    ],
+    "recovery": [],
+    "render-delay": [],
+    "render-fault": [],
+    "semantic-ready": [],
+    "speed-live": [],
+    "startup-metric-correction": [],
+    "tempo-content": []
+  },
+  "run": {
+    "summary": {
+      "frames": 232,
+      "decoded": 240,
+      "loops": 7,
+      "rss": 75563008,
+      "skipped": 0,
+      "cpu_seconds": 0.619826,
+      "seconds": 8.01092395791784,
+      "kind": "summary",
+      "authority_scope": "backend GPU snapshot only; UI acceptance not executed"
+    },
+    "metrics": {
+      "decode_ms": {
+        "n": 231,
+        "mean": 3.0171351015438765,
+        "p50": 2.7016252279281616,
+        "p95": 4.724208265542984,
+        "min": 0.12624962255358696,
+        "max": 15.62354201450944
+      },
+      "selection_decode_ms": {
+        "n": 232,
+        "mean": 2.9223252886681466,
+        "p50": 2.6920828968286514,
+        "p95": 4.7247083857655525,
+        "min": 0.00012479722499847412,
+        "max": 15.623833984136581
+      },
+      "import_ms": {
+        "n": 232,
+        "mean": 0.03326651921238879,
+        "p50": 0.02620834857225418,
+        "p95": 0.05712499842047691,
+        "min": 0.00870879739522934,
+        "max": 0.3248332068324089
+      },
+      "producer_wait_ms": {
+        "n": 232,
+        "mean": 0.7187169976532459,
+        "p50": 0.6808750331401825,
+        "p95": 0.9670001454651356,
+        "min": 0.30683400109410286,
+        "max": 2.310583833605051
+      },
+      "drawable_ms": {
+        "n": 232,
+        "mean": 0.07047913647417364,
+        "p50": 0.06495881825685501,
+        "p95": 0.11325022205710411,
+        "min": 0.022707972675561905,
+        "max": 0.188333448022604
+      },
+      "consumer_wait_ms": {
+        "n": 232,
+        "mean": 0.5285999043202348,
+        "p50": 0.5197920836508274,
+        "p95": 0.8217501454055309,
+        "min": 0.16304198652505875,
+        "max": 1.9290423952043056
+      },
+      "gpu_ms": {
+        "n": 232,
+        "mean": 0.06688110468154453,
+        "p50": 0.045041670091450214,
+        "p95": 0.08541671559214592,
+        "min": 0.022625084966421127,
+        "max": 1.5839999541640282
+      },
+      "ack_ms": {
+        "n": 232,
+        "mean": 0.5288729925864729,
+        "p50": 0.5198330618441105,
+        "p95": 0.8218749426305294,
+        "min": 0.1632082276046276,
+        "max": 1.929625403136015
+      },
+      "render_ms": {
+        "n": 232,
+        "mean": 1.5217594938866537,
+        "p50": 1.5155826695263386,
+        "p95": 2.0803329534828663,
+        "min": 0.5683326162397861,
+        "max": 4.389917012304068
+      },
+      "source_offset_before_ms": {
+        "n": 232,
+        "mean": -0.6677442528735671,
+        "p50": -0.6666666666667043,
+        "p95": -0.06249999999996536,
+        "min": -2.2083333333332567,
+        "max": 0
+      },
+      "source_offset_after_ms": {
+        "n": 232,
+        "mean": -5.107758620689659,
+        "p50": -4.854166666666715,
+        "p95": -2.708333333333368,
+        "min": -16.854166666666725,
+        "max": -0.875
+      },
+      "wall_offset_after_ms": {
+        "n": 232,
+        "mean": -5.107758620689659,
+        "p50": -4.854166666666715,
+        "p95": -2.708333333333368,
+        "min": -16.854166666666725,
+        "max": -0.875
+      },
+      "rss": {
+        "n": 232,
+        "mean": 74493952,
+        "p50": 75595776,
+        "p95": 75628544,
+        "min": 66715648,
+        "max": 75628544
+      }
+    },
+    "frames": 232,
+    "scheduled_skips": 0,
+    "render_ready": 232,
+    "native_drawable_callbacks": 0,
+    "render_ready_fps": 28.96045465151317,
+    "cpu_percent_one_core": 7.737259812426209,
+    "queue_depth_max": 1,
+    "decode_startup_metric_excluded": 1,
+    "first_5s_source_offset_mean": -4.53752853881279,
+    "last_5s_source_offset_mean": -5.613570601851856
+  },
+  "gapless": false
+}

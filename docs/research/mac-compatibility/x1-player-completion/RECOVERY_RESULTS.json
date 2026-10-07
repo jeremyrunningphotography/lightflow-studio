@@ -1,0 +1,199 @@
+{
+  "events": {
+    "1080-backend-color": [],
+    "4k-backend-color": [],
+    "4k-backend-off": [],
+    "4k-native-baseline": [],
+    "actual-starvation": [
+      {
+        "before": 0.18597916666666667,
+        "property_status": 0,
+        "scope": "real AudioQueue callbacks withheld; output muted; no physical device change",
+        "withheld_refills": 3,
+        "enqueued_samples": 12288,
+        "is_running": 1,
+        "after": 0.4945625,
+        "kind": "actual-audio-starvation"
+      },
+      {
+        "recovered_clock": 0.2698333333333333,
+        "kind": "starvation-recovery",
+        "callbacks": 7,
+        "origin": 0.18597916666666667,
+        "restart": 2
+      }
+    ],
+    "av-double": [],
+    "av-half": [],
+    "av-one": [],
+    "final-source-smoke": [],
+    "loop": [],
+    "recovery": [
+      {
+        "ms": 128.5572499036789,
+        "kind": "rapid-pause-resume",
+        "clock_delta": 0.058374999999999844,
+        "held_serial": 60
+      },
+      {
+        "kind": "queue-depletion",
+        "scope": "injected queue stop, not callback-detected physical underrun",
+        "protected_serial": 60
+      },
+      {
+        "restart": 2,
+        "generation": 2,
+        "kind": "output-recreated",
+        "source_origin": 1.9789583333333334
+      },
+      {
+        "injected_ms": 100,
+        "kind": "decode-starvation",
+        "scope": "scheduler withholding; decoder/device stall simulated"
+      }
+    ],
+    "render-delay": [],
+    "render-fault": [
+      {
+        "scope": "CPU producer-completion wait injected; actual GPU snapshot/capture; no physical GPU stall",
+        "kind": "render-delay-invariant",
+        "held_hash_unchanged": true,
+        "held_serial": 1,
+        "new_serial": 2
+      }
+    ],
+    "semantic-ready": [],
+    "speed-live": [],
+    "startup-metric-correction": [],
+    "tempo-content": []
+  },
+  "run": {
+    "summary": {
+      "frames": 232,
+      "decoded": 234,
+      "loops": 0,
+      "rss": 75251712,
+      "skipped": 1,
+      "cpu_seconds": 0.7432580000000001,
+      "seconds": 8.01117429183796,
+      "kind": "summary",
+      "authority_scope": "backend GPU snapshot only; UI acceptance not executed"
+    },
+    "metrics": {
+      "decode_ms": {
+        "n": 231,
+        "mean": 3.525560943498498,
+        "p50": 3.763166256248951,
+        "p95": 4.389666020870209,
+        "min": 0.621291808784008,
+        "max": 7.681457791477442
+      },
+      "selection_decode_ms": {
+        "n": 232,
+        "mean": 3.5307171397264403,
+        "p50": 3.7749577313661575,
+        "p95": 4.393000155687332,
+        "min": 0.0003748573362827301,
+        "max": 7.883790880441666
+      },
+      "import_ms": {
+        "n": 232,
+        "mean": 0.04019200047156934,
+        "p50": 0.03695813938975334,
+        "p95": 0.0554998405277729,
+        "min": 0.0061248429119586945,
+        "max": 0.3509591333568096
+      },
+      "producer_wait_ms": {
+        "n": 232,
+        "mean": 0.8410520586666876,
+        "p50": 0.8563334122300148,
+        "p95": 0.9589591063559055,
+        "min": 0.5507087334990501,
+        "max": 1.886832993477583
+      },
+      "drawable_ms": {
+        "n": 232,
+        "mean": 0.07814050909003308,
+        "p50": 0.07787486538290977,
+        "p95": 0.11908309534192085,
+        "min": 0.017040874809026718,
+        "max": 0.2693338319659233
+      },
+      "consumer_wait_ms": {
+        "n": 232,
+        "mean": 0.5962975636317298,
+        "p50": 0.6255833432078362,
+        "p95": 0.7219580002129078,
+        "min": 0.2332078292965889,
+        "max": 0.8045826107263565
+      },
+      "gpu_ms": {
+        "n": 232,
+        "mean": 0.04418103771027306,
+        "p50": 0.04562491085380316,
+        "p95": 0.048041692934930325,
+        "min": 0.023291679099202156,
+        "max": 0.08058326784521341
+      },
+      "ack_ms": {
+        "n": 232,
+        "mean": 0.597083148273543,
+        "p50": 0.6260420195758343,
+        "p95": 0.7230420596897602,
+        "min": 0.23337500169873238,
+        "max": 0.8049160242080688
+      },
+      "render_ms": {
+        "n": 232,
+        "mean": 1.7601546253366718,
+        "p50": 1.823290716856718,
+        "p95": 2.07312498241663,
+        "min": 1.085792202502489,
+        "max": 2.8395000845193863
+      },
+      "source_offset_before_ms": {
+        "n": 232,
+        "mean": -0.8112428160920162,
+        "p50": -0.7083333333333386,
+        "p95": -0.06249999999996536,
+        "min": -26.562500000000266,
+        "max": 0
+      },
+      "source_offset_after_ms": {
+        "n": 232,
+        "mean": -6.094109195402394,
+        "p50": -6.145833333333961,
+        "p95": -3.6874999999998437,
+        "min": -36.583333333333634,
+        "max": -2.666666666666706
+      },
+      "wall_offset_after_ms": {
+        "n": 232,
+        "mean": -6.094109195402394,
+        "p50": -6.145833333333961,
+        "p95": -3.6874999999998437,
+        "min": -36.583333333333634,
+        "max": -2.666666666666706
+      },
+      "rss": {
+        "n": 232,
+        "mean": 73187751.72413793,
+        "p50": 75268096,
+        "p95": 75317248,
+        "min": 66633728,
+        "max": 75317248
+      }
+    },
+    "frames": 232,
+    "scheduled_skips": 1,
+    "render_ready": 232,
+    "native_drawable_callbacks": 0,
+    "render_ready_fps": 28.95954969252997,
+    "cpu_percent_one_core": 9.277765941970017,
+    "queue_depth_max": 1,
+    "decode_startup_metric_excluded": 1,
+    "first_5s_source_offset_mean": -6.059272300469518,
+    "last_5s_source_offset_mean": -6.198537527593955
+  }
+}

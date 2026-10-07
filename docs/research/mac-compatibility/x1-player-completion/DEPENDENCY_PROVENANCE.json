@@ -1,0 +1,88 @@
+{
+  "hardware": {
+    "model": "MacBook Pro Mac14,9",
+    "chip": "Apple M2 Pro",
+    "cpu_cores": 12,
+    "ram_bytes": 34359738368
+  },
+  "os": {
+    "version": "26.6.2",
+    "build": "25G83",
+    "arch": "arm64"
+  },
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin\n",
+  "ffmpeg": {
+    "version": "9.0.1",
+    "source_commit": "bf1b838f2ab88b4f8fd83443325c782ea0e0f7fa",
+    "license": "LGPL-2.1-or-later minimal configuration; no GPL/nonfree/version3",
+    "runtime_linkage": "work/completion/completion:\n\t/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/deps/lgpl-ffmpeg/lib/libavformat.63.dylib (compatibility version 63.0.0, current version 63.1.101)\n\t/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/deps/lgpl-ffmpeg/lib/libavcodec.63.dylib (compatibility version 63.0.0, current version 63.1.101)\n\t/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/deps/lgpl-ffmpeg/lib/libavutil.61.dylib (compatibility version 61.0.0, current version 61.1.101)\n\t/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/deps/lgpl-ffmpeg/lib/libavfilter.12.dylib (compatibility version 12.0.0, current version 12.1.101)\n\t/Users/jeremyrunning/Git/agents/Agent-X1-Player-Completion/work/deps/lgpl-ffmpeg/lib/libswscale.10.dylib (compatibility version 10.0.0, current version 10.1.101)\n\t/System/Library/Frameworks/Metal.framework/Versions/A/Metal (compatibility version 1.0.0, current version 373.2.0)\n\t/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit (compatibility version 45.0.0, current version 2685.60.104)\n\t/System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore (compatibility version 1.2.0, current version 1195.14.4)\n\t/System/Library/Frameworks/CoreVideo.framework/Versions/A/CoreVideo (compatibility version 1.2.0, current version 734.4.0)\n\t/System/Library/Frameworks/IOSurface.framework/Versions/A/IOSurface (compatibility version 1.0.0, current version 1.0.0)\n\t/System/Library/Frameworks/AudioToolbox.framework/Versions/A/AudioToolbox (compatibility version 1.0.0, current version 1000.0.0)\n\t/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (compatibility version 300.0.0, current version 5026.5.4)\n\t/usr/lib/libobjc.A.dylib (compatibility version 1.0.0, current version 228.0.0)\n\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2100.43.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)\n\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)\n",
+    "libraries": [
+      {
+        "name": "libavdevice.63.1.101.dylib",
+        "sha256": "a34cffa3623e69f863a882359db904189b523b89bdebbb56a862d2395a431307"
+      },
+      {
+        "name": "libavfilter.12.1.101.dylib",
+        "sha256": "d4c8c4130a67c61acc082ab782dee43bb880c1a2c47beb0ccdcbcdece1a67b70"
+      },
+      {
+        "name": "libswresample.7.1.101.dylib",
+        "sha256": "35a706bc24bfefe3dd043eb49bda967bf86c15dd339cc418cfec496a38f7a892"
+      },
+      {
+        "name": "libswscale.10.1.101.dylib",
+        "sha256": "df5a3a3926e6a5b253dd271c1f1b1592e304c30b4c74578e3ffa5818d5d2dac9"
+      },
+      {
+        "name": "libavutil.61.1.101.dylib",
+        "sha256": "42d7f9054bdbc3d8723001e500a7526e64f05eb2aa5cb4b8458ea15214a5b970"
+      },
+      {
+        "name": "libavcodec.63.1.101.dylib",
+        "sha256": "d9abbf12ede7ee86753c4073b0aa9287465e6f5ac1a73a1d64777d158a82160c"
+      },
+      {
+        "name": "libavformat.63.1.101.dylib",
+        "sha256": "5b061938f89a77f06b8a75ad7b44c478aa56284a17cac00071763dc787022b6d"
+      }
+    ],
+    "license_file": "FFMPEG_LGPL_2_1.txt",
+    "license_sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+  },
+  "fixture_generator": {
+    "version": "ffmpeg version 9.0.1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "role": "installed GPL generator only; not linked native proof"
+  },
+  "native_system_frameworks": [
+    "Metal",
+    "AppKit",
+    "QuartzCore",
+    "CoreVideo",
+    "IOSurface",
+    "AudioToolbox"
+  ],
+  "native_licenses": "Apple SDK/system framework terms; no native libraries redistributed",
+  "paid_dependency": false,
+  "files": {
+    "work/completion/completion": "d6241b83a0218da91f0de7fefc7dbdc7a9632851faa7b4bb85db2f2d7e03ad86",
+    "work/completion/completion-extended": "5fff790260e25d7e30a974e7099698487e99f83a523bfaddf73538f6c9c924be",
+    "tools/X1MacPlayerG1b/integrated.mm": "416be01a8a6ed9d32df9cd63beb249872d01d5b42dca445e9d9ced80c31be28a",
+    "tools/X1PlayerCompletion/build.py": "4f84afbb281181906cbe33346f6411792795b25756dfe3e80b233584a4567cbd",
+    "tools/X1PlayerCompletion/completion.mm": "7def6bc7461d1d5c5719b80b0b04d69b707496be75babacafcd7b8acc096a8a5"
+  },
+  "build_variants": {
+    "initial": "timing first-frame decode_ms incorrectly stored absolute monotonic seconds; excluded explicitly in analysis",
+    "extended": "corrected startup metric plus actual starvation and tempo-content checks",
+    "final": "adds render-delay injection; reproduction runs final variant"
+  },
+  "frozen_source": "tools/X1MacPlayerG1b/integrated.mm remains byte-identical on main",
+  "AV_ui_dependencies": "None linked in this native backend slice; frozen X3 Avalonia11.3.8/Skia2.88.9/HarfBuzz8.3.1.1 manifest unchanged",
+  "final_build": {
+    "warnings": 1,
+    "warning": "frozen fastMathEnabled deprecated by current Metal SDK",
+    "errors": 0,
+    "arm64": "work/completion/completion: Mach-O 64-bit executable arm64"
+  },
+  "measured_source_before_whitespace_cleanup": "7913f8fe190f949a8d8afed3981d278195a661d9644edc97a79e92449b1336c7",
+  "publication_source_change": "one trailing-whitespace cleanup only after final successful smoke; no executable behavior change"
+}

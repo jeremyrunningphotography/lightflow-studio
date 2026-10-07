@@ -1,0 +1,23 @@
+{
+  "hal_plugins": {
+    "/Library/Audio/Plug-Ins/HAL": [
+      "ParrotAudioPlugin.driver"
+    ],
+    "/System/Library/Audio/Plug-Ins/HAL": [
+      "AirPlay.driver",
+      "AppleAOPAudioPlugin.driver",
+      "AppleAVBAudio.driver",
+      "AppleAccessibilityAudio.driver",
+      "AppleTimeSyncAudioClock.driver",
+      "AppleVirtIOSound.driver",
+      "BTAudioHALPlugin.driver",
+      "BridgeAudioSP.driver",
+      "ContinuityCaptureAudioPlugin.driver",
+      "HearingAudioPlugin.driver",
+      "MacAudio.driver",
+      "usbaudiodxpc.driver"
+    ]
+  },
+  "task_audio_processes": [],
+  "process_metadata": "Private local path and signing diagnostics omitted from public evidence."
+}

@@ -1,0 +1,6 @@
+${APPLE_SDK}/System/Library/Frameworks/AudioToolbox.framework/Headers/AudioQueue.h
+112:     @constant   kAudioQueueErr_CannotStart
+152:     @constant   kAudioQueueErr_CannotStartYet
+170:     kAudioQueueErr_CannotStart          = -66681,
+186:     kAudioQueueErr_CannotStartYet       = -66665,
+Apple SDK comment: The audio queue has encountered a problem and cannot start. This general definition does not identify a HAL cause.

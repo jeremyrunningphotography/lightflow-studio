@@ -1,0 +1,32 @@
+{"asbd":{"rate":48000,"format":"lpcm","flags":9,"bytesPacket":8,"framesPacket":1,"bytesFrame":8,"channels":2,"bits":32},"framesBuffer":4800,"bufferCount":3,"dispatch":"AudioQueue internal thread, NULL runloop"}
+{"api":"AudioQueueNewOutput","status":0}
+{"api":"AudioQueueAllocateBuffer","status":0}
+{"api":"AudioQueueEnqueueBuffer","status":0}
+{"api":"AudioQueueAllocateBuffer","status":0}
+{"api":"AudioQueueEnqueueBuffer","status":0}
+{"api":"AudioQueueAllocateBuffer","status":0}
+{"api":"AudioQueueEnqueueBuffer","status":0}
+{"api":"AudioQueueStart","status":0,"elapsed":0.055556}
+{"poll":0,"runningStatus":0,"running":0,"timeStatus":-66678,"sampleTime":0.000,"flags":0,"discontinuity":0,"callbacks":0,"refills":0}
+{"poll":1,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":3879.000,"flags":7,"discontinuity":0,"callbacks":0,"refills":0}
+{"poll":2,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":8781.000,"flags":7,"discontinuity":0,"callbacks":2,"refills":2}
+{"poll":3,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":13798.000,"flags":7,"discontinuity":0,"callbacks":3,"refills":3}
+{"poll":4,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":18844.000,"flags":7,"discontinuity":0,"callbacks":4,"refills":4}
+{"poll":5,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":23888.000,"flags":7,"discontinuity":0,"callbacks":5,"refills":5}
+{"poll":6,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":28931.000,"flags":7,"discontinuity":0,"callbacks":6,"refills":6}
+{"poll":7,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":33976.000,"flags":7,"discontinuity":0,"callbacks":7,"refills":7}
+{"poll":8,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":38857.000,"flags":7,"discontinuity":0,"callbacks":8,"refills":8}
+{"poll":9,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":43695.000,"flags":7,"discontinuity":0,"callbacks":9,"refills":9}
+{"poll":10,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":48742.000,"flags":7,"discontinuity":0,"callbacks":10,"refills":10}
+{"poll":11,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":53750.000,"flags":7,"discontinuity":0,"callbacks":11,"refills":11}
+{"poll":12,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":58749.000,"flags":7,"discontinuity":0,"callbacks":12,"refills":12}
+{"poll":13,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":63750.000,"flags":7,"discontinuity":0,"callbacks":13,"refills":13}
+{"poll":14,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":68749.000,"flags":7,"discontinuity":0,"callbacks":14,"refills":14}
+{"poll":15,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":73574.000,"flags":7,"discontinuity":0,"callbacks":15,"refills":15}
+{"poll":16,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":78620.000,"flags":7,"discontinuity":0,"callbacks":16,"refills":16}
+{"poll":17,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":83636.000,"flags":7,"discontinuity":0,"callbacks":17,"refills":17}
+{"poll":18,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":88595.000,"flags":7,"discontinuity":0,"callbacks":18,"refills":18}
+{"poll":19,"runningStatus":0,"running":1,"timeStatus":0,"sampleTime":93638.000,"flags":7,"discontinuity":0,"callbacks":19,"refills":19}
+{"api":"AudioQueueStop immediate","status":0}
+{"api":"AudioQueueDispose immediate","status":0}
+{"finalCallbacks":23,"refills":20,"refillError":0}

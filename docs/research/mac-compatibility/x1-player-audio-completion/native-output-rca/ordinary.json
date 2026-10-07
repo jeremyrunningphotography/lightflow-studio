@@ -1,0 +1,14 @@
+{
+  "tool": "/usr/bin/afplay",
+  "returncode": 0,
+  "stdout": "",
+  "stderr": "",
+  "timeout": false,
+  "elapsed_seconds": 2.916958208,
+  "format": "48k stereo signed int16 LE WAV",
+  "tone_hz": 440,
+  "amplitude": 0.08,
+  "duration_seconds": 2,
+  "device": "unchanged system default",
+  "owner_audible_confirmation": "not obtained"
+}

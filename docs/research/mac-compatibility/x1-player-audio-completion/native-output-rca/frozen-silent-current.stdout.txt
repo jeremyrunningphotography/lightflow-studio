@@ -1,0 +1,10 @@
+{"index":0,"wall_seconds":0.109519000,"sample_time":4181.000000,"sample_rate":48000,"host_time":18718237969146,"flags":7,"status":0,"discontinuity":0,"enqueued_frames":19200}
+{"index":1,"wall_seconds":0.217849000,"sample_time":9381.000000,"sample_rate":48000,"host_time":18718240569218,"flags":7,"status":0,"discontinuity":0,"enqueued_frames":24000}
+{"index":2,"wall_seconds":0.326201000,"sample_time":14582.000000,"sample_rate":48000,"host_time":18718243169668,"flags":7,"status":0,"discontinuity":0,"enqueued_frames":28800}
+{"index":3,"wall_seconds":0.434522000,"sample_time":19782.000000,"sample_rate":48000,"host_time":18718245769379,"flags":7,"status":0,"discontinuity":0,"enqueued_frames":33600}
+{"index":4,"wall_seconds":0.542845000,"sample_time":24982.000000,"sample_rate":48000,"host_time":18718248369145,"flags":7,"status":0,"discontinuity":0,"enqueued_frames":38400}
+{"index":5,"wall_seconds":0.651175000,"sample_time":30181.000000,"sample_rate":48000,"host_time":18718250969059,"flags":7,"status":0,"discontinuity":0,"enqueued_frames":43200}
+{"index":6,"wall_seconds":0.759507000,"sample_time":35382.000000,"sample_rate":48000,"host_time":18718253568994,"flags":7,"status":0,"discontinuity":0,"enqueued_frames":48000}
+{"index":7,"wall_seconds":0.867843000,"sample_time":40582.000000,"sample_rate":48000,"host_time":18718256169079,"flags":7,"status":0,"discontinuity":0,"enqueued_frames":52800}
+{"index":8,"wall_seconds":0.976170000,"sample_time":45782.000000,"sample_rate":48000,"host_time":18718258768920,"flags":7,"status":0,"discontinuity":0,"enqueued_frames":57600}
+{"index":9,"wall_seconds":1.084504000,"sample_time":50981.000000,"sample_rate":48000,"host_time":18718261368904,"flags":7,"status":0,"discontinuity":0,"enqueued_frames":62400}

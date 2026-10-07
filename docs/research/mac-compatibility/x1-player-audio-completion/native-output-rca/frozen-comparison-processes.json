@@ -1,0 +1,12 @@
+[
+  {
+    "name": "output-unit-current",
+    "returncode": 0,
+    "elapsed": 3.594402875
+  },
+  {
+    "name": "frozen-silent-current",
+    "returncode": 0,
+    "elapsed": 1.4245326670000003
+  }
+]

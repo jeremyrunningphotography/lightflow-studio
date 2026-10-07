@@ -39,10 +39,11 @@ must be qualified later, just as sleep/wake and device switching must be.
 
 Twelve further silent setup probes varied explicit selection of the same device,
 task activity assertion, and withholding refills, returning to baseline between
-changes; all starts succeeded while output was available. Default queue UID is
-an Apple default-device alias, so its string differs from the HAL physical UID;
-this is not a routing mismatch. DeviceID72/512-frame hardware size in successful
-and failing transport logs match. Priming, gain, main-runloop, format/buffer and
+changes; all starts succeeded while output was available. The default queue property returns a UID string different from the HAL physical
+UID; explicit same-device selection returns the physical UID and also works.
+Native transport logs identify deviceID72 in both successful and failing cases,
+with512-frame hardware buffers. The string difference alone does not establish
+a routing mismatch or the exact semantics of that returned identifier. Priming, gain, main-runloop, format/buffer and
 feed explanations are not supported by the preserved controls.
 
 The general Apple -66681 definition supplies no deeper cause:

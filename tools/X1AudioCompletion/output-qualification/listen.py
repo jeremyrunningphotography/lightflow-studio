@@ -11,6 +11,8 @@ with wave.open(str(wav),'wb') as f:
  for i in range(48000*40):
   t=i/48000;phase=t%.25;env=min(1,phase/.008,max(0,(.18-phase)/.008));hz=notes[int(t/.25)%4];v=.09*env*(math.sin(2*math.pi*hz*t)+.25*math.sin(4*math.pi*hz*t));samples.extend(struct.pack('<h',int(32767*v)))
  f.writeframes(samples)
+# Replace only this script's task-generated encoded fixture on repeat runs.
+if media.exists():media.unlink()
 subprocess.run(['/usr/bin/afconvert','-f','m4af','-d','aac ','-b','128000',str(wav),str(media)],check=True)
 if args.prepare_only:
  print('Prepared deterministic fixture only; no listening acceptance or playback.');sys.exit(0)

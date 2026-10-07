@@ -1,0 +1,322 @@
+[
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/ACCESSIBILITY_RESULTS.json",
+    "sha256": "cab43732ccb5fb2b751bb0077b1445648e713c351e28ba6dbc102cfb1891b83c",
+    "bytes": 269764
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/ARCHITECTURE_CONVERGENCE_DRAFT.md",
+    "sha256": "cc6bdd7756ba040f817d33e41ed648eb60fe6828bcf1a16abb0606f01bfe123a",
+    "bytes": 1560
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/CLEANUP.json",
+    "sha256": "ec16ce38c476e401e92f8295f4098e1455f6013c2ef7471191c42dd2d1054ba5",
+    "bytes": 1027
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/COLOR_MANAGEMENT_RESULTS.json",
+    "sha256": "e8f3897018a03dffbba4441870a7b0b91431b8eda2a4038d89358f650f184483",
+    "bytes": 7271
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/DETAILS_PERFORMANCE_RESULTS.json",
+    "sha256": "8f1a154768bc6b367814c9cef86cdf534947a19bcf2456bed3e0e34faed58da2",
+    "bytes": 11410
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/DIAGNOSTIC_HISTORY.tar.gz",
+    "sha256": "2be90c355b5621aa8245368667950dd494802848d967eee6fbf7d664a33fe11a",
+    "bytes": 63871
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/ENVIRONMENT.txt",
+    "sha256": "7e8096bde4ac9bd66aab4677061d8266b51780781f2b2256a06a1dc903b08235",
+    "bytes": 1978
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/FAULT_MATRIX.json",
+    "sha256": "c94748c08dd07705474f4ee3ca60663c4f1212d3886c481e41443cdc9a2123db",
+    "bytes": 6250
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/FIXTURE_HASHES.json",
+    "sha256": "a1efc63e74684a1f785c1641303dc32be1ceed4e8a191a8fbc9bfe970935f89f",
+    "bytes": 10625
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/G3_COMPLETION_PROOF.md",
+    "sha256": "85bdbff82c332e6370a77518bab942d5e85499a94e4f8a85a99f805511702a16",
+    "bytes": 16475
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/IMAGE_PIPELINE_RESULTS.json",
+    "sha256": "681bf03f4d474d2ddf11326cbb0ac18c865811fe94a53a48e28a6bd534463570",
+    "bytes": 170474
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/LICENSES.tar.gz",
+    "sha256": "6bf4c6e270f5d9bf7332327493aa11c609cd0294489d9f57d3b045a87916ccd7",
+    "bytes": 285408
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/LIFECYCLE_RESULTS.json",
+    "sha256": "dce743fa37a8b0e2977a0647c78cc358a8de4d7bdb6fcfba2753cc5a2cdce8d8",
+    "bytes": 1336
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/MENU_COMMAND_RESULTS.json",
+    "sha256": "65ed083c30b50479062716118eb2fbfd2ee6a5e52a5889ddb8ffdb62338313e8",
+    "bytes": 6498
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/REPRODUCTION.md",
+    "sha256": "97aef1346408e70b99fd894c020de6cf000ff2c940d2d058973439efc11275fe",
+    "bytes": 4720
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/RUN_INDEX.json",
+    "sha256": "b684c5b72ca010ba8e069fe44f726c19815638c60776b5af7f9f7553ba6ec4c5",
+    "bytes": 7814
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/SELECTION_ANCHOR_RESULTS.json",
+    "sha256": "a4774ff87acae74b4cad2af40fa4b91567bfa3f693f28d28b42ba0d4b80392c8",
+    "bytes": 4328
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/SHARED_VIEW_ARCHITECTURE.md",
+    "sha256": "6d3dbaadd46ecddb4862a77611365b57fc6a5dd4412ef11891681701aa145c02",
+    "bytes": 2003
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/SHORTCUT_RESULTS.json",
+    "sha256": "dc65cf0f1cb1d2538ecafb4f45bd546b71964f1a8a7c137722cbd7a7397f86f9",
+    "bytes": 9075
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/SOURCE_HASHES.json",
+    "sha256": "8b991c129ab9d9979813174c18d1bd7ceaefe257970a4023e29d21be351c8570",
+    "bytes": 1839
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/UIACCEPTED_RESULTS.json",
+    "sha256": "8a1c69503ff398772319e252c49534d219ee858762a1568fc27fe5b4b8142523",
+    "bytes": 10680
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/VERSION_BASELINE.json",
+    "sha256": "5b47f80583368c1f63640f966299f14e1db3c0defd52d23f0ba61152f824e552",
+    "bytes": 19753
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/accessibility/final-2-Grid-native-ax.json.gz",
+    "sha256": "5563bce6a98d7d9dfbe3b19d2a4d1dd1a2fdd86653cbffb4857c096815703b1e",
+    "bytes": 905
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/accessibility/final-2-Grid-selected-native-ax.json.gz",
+    "sha256": "f2f03e83fb5cb7900f684daf2c9a2eb73b9782a4f7b573d36ba1ecf25a4b31f0",
+    "bytes": 910
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/accessibility/final-2-Player-accepted-native-ax.json.gz",
+    "sha256": "919b055730f14f8aad84c73121f3a3ad8bfa86654fbcdb6b60a72a0dfc2b4234",
+    "bytes": 424
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/accessibility/final-2-context-menu-native-ax.json.gz",
+    "sha256": "b89d9ed6d3d6f0e5895be22f6cc0812d988d0ba4e02afbe8406316c83f251e94",
+    "bytes": 856
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/accessibility/final-2-details-recycling-template-native-ax.json.gz",
+    "sha256": "0dd8bcb22c6e2b15eac508c4aa53403bd277d637eed7a5860a36579b7e313876",
+    "bytes": 2739
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/accessibility/final-2-details-retained-native-ax.json.gz",
+    "sha256": "c8eb5abeb1ed0e52474d1af48a48eea3571dda8d2e59bed136b5849c510c21bb",
+    "bytes": 3370
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/accessibility/final-2-details-stock-native-ax.json.gz",
+    "sha256": "0dd8bcb22c6e2b15eac508c4aa53403bd277d637eed7a5860a36579b7e313876",
+    "bytes": 2739
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/accessibility/final-2-settings-native-ax.json.gz",
+    "sha256": "f498a6e56e8285c291bc799f963a1a6cb5275957a9357a12d19eacd64ad16b4d",
+    "bytes": 672
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/accessibility/input-final-qualified-context-menu-native-ax.json.gz",
+    "sha256": "06a5741d0da54c279a585f6db1894556cc291ce956bb798b4d9691dc74db7251",
+    "bytes": 851
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/accessibility/input-final-qualified-settings-native-ax.json.gz",
+    "sha256": "ecb3c2bdaa3a605cc3a8767b21f74727cea202e20f0c786b319c807dde587197",
+    "bytes": 670
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/raw/final-1.jsonl.gz",
+    "sha256": "4d7a5478107a23badabaeb3a4a635bb10cf3dab4596ffafe8d9394f97c029f76",
+    "bytes": 19623
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/raw/final-2.jsonl.gz",
+    "sha256": "09f60b54f1f24495fab425eeedf1f20ce44f062e179f71916ed5f017d98bf602",
+    "bytes": 19624
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/raw/input-final-qualified.jsonl.gz",
+    "sha256": "83d6661b2db48ee3d73e31e926e6c3bd582344f5fede8ab64a56b19718a55116",
+    "bytes": 1395
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/color-source.png",
+    "sha256": "747193f06cf7283ad5b3485e344386bf52e6359a99aca7dad47a7fea129de923",
+    "bytes": 5453
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/compare-source.png",
+    "sha256": "d5f28fa4a9dae2393e7b0e9c00a0827d4ae277c13a3ee39bd0f4ec7f71d3fda7",
+    "bytes": 5467
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/context-menu.png",
+    "sha256": "7073c4ead63c01ee5682c90ec378a96c9b7c8dfe55fcb57b70fdb66204d878c1",
+    "bytes": 112717
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/details-retained.png",
+    "sha256": "17e58167e5db4e1c89e695065e3d47ab6c49af205b1f31425702c4e355ba824f",
+    "bytes": 485383
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/details-stock.png",
+    "sha256": "b82f37f486bef20cb0f67290b08f84b614926a44e3454176022166b2590b0a64",
+    "bytes": 247222
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/grid-restoration.png",
+    "sha256": "ea00b25ec870c7043b675d2d5afa0ac2a45c121266c90391a6b1ed7881155d7e",
+    "bytes": 79792
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/new-color-source.png",
+    "sha256": "122d056d417e99427c1130a87c1915e89ab6610ccafbd4c1f4be81c025e6a2a7",
+    "bytes": 5474
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/pause-source.png",
+    "sha256": "42de0b4b3ac51755c77075a3b3e8741154f9bbbc3da6450f6532e1314235232f",
+    "bytes": 5444
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/rapid-latest-source.png",
+    "sha256": "425dc11259add7ab31cc8e7921a9aaf48e2b69a1ea898d70fa58c2e49feb4453",
+    "bytes": 5495
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/reattached-source.png",
+    "sha256": "2a86faef2e302119cea300186d29e2a136e69d17a0b86bec6b8cc3081b6856b5",
+    "bytes": 5502
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/resized-surface-source.png",
+    "sha256": "f924f009877850abfebb5548b56776312c517bb3f43b276fc4a2780cc83afede",
+    "bytes": 5350
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/seek-source.png",
+    "sha256": "c029604edc37d4a6957a643b615abc52c9322f437514e2eff2f4223edfebcc89",
+    "bytes": 5457
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/settings-shortcuts.png",
+    "sha256": "e4dabdc4577694b4ca31bb955a8ff078625b831e01fee29b9e950b4aa11584b9",
+    "bytes": 87154
+  },
+  {
+    "path": "docs/research/mac-compatibility/x3-g3-completion/screenshots/step-source.png",
+    "sha256": "cd1e5c5bd6b2d95fb093249aadb7ab370ae2e874015fc18b7c98503ee7c11b61",
+    "bytes": 5458
+  },
+  {
+    "path": "tools/X3G3Completion/CompletionWindow.cs",
+    "sha256": "c56bba324e5d9ce81cb736ad5c44f930f78cdbc9d473652e131eb0df44ecde5e",
+    "bytes": 9471
+  },
+  {
+    "path": "tools/X3G3Completion/DetailsProof.cs",
+    "sha256": "5451f2eb16120677c96da2c76045484fd7e17a24e97b06c5a7d22a931900cbd9",
+    "bytes": 13180
+  },
+  {
+    "path": "tools/X3G3Completion/ImageProof.cs",
+    "sha256": "9e9fcd82f03282100d6c55bfbd0c54b30fc96a417a4bebf565ff2a2c57643f3d",
+    "bytes": 5333
+  },
+  {
+    "path": "tools/X3G3Completion/ImageVectors.cs",
+    "sha256": "4819b3898788309c6aef56014fc5982d6a93af8bdefc997c1cc3bb0dd3d5c257",
+    "bytes": 10382
+  },
+  {
+    "path": "tools/X3G3Completion/InputProof.cs",
+    "sha256": "f4ed801e1b5bd8427e33bcea938f5f92f8e6662192eab6ee11383ef7cdbd723e",
+    "bytes": 12353
+  },
+  {
+    "path": "tools/X3G3Completion/Native.cs",
+    "sha256": "5eb58fe40d14a184fff0225c8e336dbea2c83da254953fe6e428779b4a23ff19",
+    "bytes": 2223
+  },
+  {
+    "path": "tools/X3G3Completion/Program.cs",
+    "sha256": "5bd8a1db642127a1504c92bc59d476b25f642830ab694d3e06a8aa52753a8e5d",
+    "bytes": 7132
+  },
+  {
+    "path": "tools/X3G3Completion/X3G3Completion.csproj",
+    "sha256": "8ed3d2144eee8fb72f7c1ecb144b1a3a1f96e7efe218edeab8fa624d38d240d3",
+    "bytes": 544
+  },
+  {
+    "path": "tools/X3G3Completion/archive_evidence.py",
+    "sha256": "0e5fc63314017ac8c57f0199dd58fe3750fe989c083421cd49cfe0c0fef63f2b",
+    "bytes": 5731
+  },
+  {
+    "path": "tools/X3G3Completion/bridge.mm",
+    "sha256": "5e35849c8ea8e9831466b2861b84d145c764afa0266847c0cb543198da319466",
+    "bytes": 12925
+  },
+  {
+    "path": "tools/X3G3Completion/fixtures/tiff-lzw.tiff",
+    "sha256": "9b0aea0481dedc8ea4456e26816a8255a3a2d21c640941e38f157c774641b893",
+    "bytes": 3370
+  },
+  {
+    "path": "tools/X3G3Completion/fixtures/tiff-packbits.tiff",
+    "sha256": "20faea9168f863a70a20b073c30b4079951b74b83aafb4f1fca45a98559d8cb0",
+    "bytes": 3358
+  },
+  {
+    "path": "tools/X3G3Completion/packages.lock.json",
+    "sha256": "43dd6050e6511cb9a8b643501d4c50be1232abab4685346665a105270a964c5f",
+    "bytes": 9730
+  },
+  {
+    "path": "tools/X3G3Completion/run.py",
+    "sha256": "fe677314494e5d2971f0c42e6ded4fa1bad919880a6a68f5faeace874afe346a",
+    "bytes": 1089
+  },
+  {
+    "path": "tools/X3G3Completion/verify_evidence.py",
+    "sha256": "d4bf70a3bdea5c9279d75095cb131630421b0d0a0a3eaeb53c0eddfefd385826",
+    "bytes": 3642
+  }
+]

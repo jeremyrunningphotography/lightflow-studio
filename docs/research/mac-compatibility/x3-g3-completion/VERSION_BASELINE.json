@@ -1,0 +1,474 @@
+{
+  "main": "1777a4bbb7921ed481f49b204262bb3521ea2922",
+  "avalonia": "12.1.3",
+  "tableView": "Avalonia.Controls core 12.1.3 MIT",
+  "skiaSharp": "3.119.4",
+  "harfBuzzSharp": "8.3.1.3",
+  "avaloniaSourceCommit": "8eeda4f6f546165b3f72e63c9f42247abb306905",
+  "sdk": "8.0.425",
+  "nativeBridgeDeploymentTarget": "macOS 12.0",
+  "testedOS": "26.6.2 (25G83)",
+  "productOSFloor": "not established",
+  "packages": [
+    {
+      "name": "Avalonia.Desktop",
+      "version": "12.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia/",
+        "branch": "refs/heads/release/12.1.3",
+        "commit": "8eeda4f6f546165b3f72e63c9f42247abb306905"
+      },
+      "nugetContentHash": "kjCpRlBIK5OZDnQ01Hd43CF0Mq4eQ9ndABiDCJAGtLD7lbzX6KxJ08vIK4N1VAiY4/enAUz8oT8q4O6bSybrBQ==",
+      "nupkgSha256": "cb766a358825707944d19f220bd0ca922c92119ddad701b8d8cd9a2578cc9c3b",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.desktop/12.1.3/avalonia.desktop.12.1.3.nupkg"
+    },
+    {
+      "name": "Avalonia.Themes.Fluent",
+      "version": "12.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia/",
+        "branch": "refs/heads/release/12.1.3",
+        "commit": "8eeda4f6f546165b3f72e63c9f42247abb306905"
+      },
+      "nugetContentHash": "ens/GHfXXk0W1ZScHZ2XG6DFiVyUVKR+0O8QK6zkviMNAPQCNwkftXlRVSFSQGtBYxXoJHZMsKYvCLEtVyzkug==",
+      "nupkgSha256": "66e31d7d76168bd0cd050d3324a549791de46ae083d133d0cee55f3f651bc1b1",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.themes.fluent/12.1.3/avalonia.themes.fluent.12.1.3.nupkg"
+    },
+    {
+      "name": "Avalonia",
+      "version": "12.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia/",
+        "branch": "refs/heads/release/12.1.3",
+        "commit": "8eeda4f6f546165b3f72e63c9f42247abb306905"
+      },
+      "nugetContentHash": "l0VGyGn1OwqFrhmIhIHivvrQP0DtBD4Vn2F1vLYgGA2X2qHg0DMVRAln/6xOTLBUYoTopiVAujN0jtH8MpVSeA==",
+      "nupkgSha256": "dffb6605b02e144866cb23765eb5af7255379ebb7ede75cf11066f3248d83734",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia/12.1.3/avalonia.12.1.3.nupkg"
+    },
+    {
+      "name": "Avalonia.Angle.Windows.Natives",
+      "version": "2.1.27548.20260419",
+      "license": "LICENSE",
+      "licenseType": {
+        "type": "file"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/angle/",
+        "commit": "1c89805903c1482166356d3b950d474973180e61"
+      },
+      "nugetContentHash": "l17nI3XVDN3oMnpjf2pnmJg0YTwK4m6NLsn/itAjDMdObTFxN77D5F1M9sRMSfViSY3KKcse1ROczwgoWLJsnA==",
+      "nupkgSha256": "76d67901097e9173d155efc4c2b7d2c8e3122f2c2e0415028eb0c88478a386f9",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.angle.windows.natives/2.1.27548.20260419/avalonia.angle.windows.natives.2.1.27548.20260419.nupkg"
+    },
+    {
+      "name": "Avalonia.BuildServices",
+      "version": "11.3.2",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia.BuildServices",
+        "commit": "777f975b0a0cecf0311273711d56697212c558c0"
+      },
+      "nugetContentHash": "qHDToxto1e3hci5YqbG9n0Ty8mlp3zBUN5wT66wKqaDVzXyQ0do3EnRILd4Ke9jpvsktaPpgE0YjEk7hornryQ==",
+      "nupkgSha256": "eb0c74ead8d229640e957d9ccdda7a5a1d27bb055aa71e6a7ffb3c423e707b8d",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.buildservices/11.3.2/avalonia.buildservices.11.3.2.nupkg"
+    },
+    {
+      "name": "Avalonia.FreeDesktop",
+      "version": "12.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia/",
+        "branch": "refs/heads/release/12.1.3",
+        "commit": "8eeda4f6f546165b3f72e63c9f42247abb306905"
+      },
+      "nugetContentHash": "yEvk7qm0QPzgQwFZZTAIUXt31sQOSSeOSVTDrcm/Pk+5klNN+8C08kIJs9ZD8RY9esHVk2g6VHPab6DceJYRCw==",
+      "nupkgSha256": "29480ee3d57ce26578b2098a34d14f7af9db8e6c829dd22ba527e62d387c1475",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.freedesktop/12.1.3/avalonia.freedesktop.12.1.3.nupkg"
+    },
+    {
+      "name": "Avalonia.FreeDesktop.AtSpi",
+      "version": "12.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia/",
+        "branch": "refs/heads/release/12.1.3",
+        "commit": "8eeda4f6f546165b3f72e63c9f42247abb306905"
+      },
+      "nugetContentHash": "t9dP6VQAKGlXtftNuj7QzFtE54AI1qH1dwFmDEJlvI5gweCLNR8ebgRCLlO/bSLWzzV8dZtb6mB/glZ8soisDw==",
+      "nupkgSha256": "01949081af07dbd105b8f80929c10561ca252eff3ba74e1df26d0b0af6e85dcc",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.freedesktop.atspi/12.1.3/avalonia.freedesktop.atspi.12.1.3.nupkg"
+    },
+    {
+      "name": "Avalonia.HarfBuzz",
+      "version": "12.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia/",
+        "branch": "refs/heads/release/12.1.3",
+        "commit": "8eeda4f6f546165b3f72e63c9f42247abb306905"
+      },
+      "nugetContentHash": "XcO9BBsmZHMIK+e+yy1TGsytlhqa7o4ih2Y7B0Q7OKh91GEEerbEc6v/X2kRmluKxyYNSmkwH5Uzj53FtjJngA==",
+      "nupkgSha256": "6bc88fdbd2f264b8c7b32e1c8c771532909895f1383faa8325940f0d1aaab734",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.harfbuzz/12.1.3/avalonia.harfbuzz.12.1.3.nupkg"
+    },
+    {
+      "name": "Avalonia.Native",
+      "version": "12.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia/",
+        "branch": "refs/heads/release/12.1.3",
+        "commit": "8eeda4f6f546165b3f72e63c9f42247abb306905"
+      },
+      "nugetContentHash": "TP6G8mF8vPufxycwe/dfLTsNhqQOGBt2Os5MtJshUGfVQ8zlYUG8K8JckPE+dweuDraAKq305aHXseReD7UgXQ==",
+      "nupkgSha256": "661fa194f6de785647a19eca6934958496fad2d0f2a4dda2e791f565cd2c88ee",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.native/12.1.3/avalonia.native.12.1.3.nupkg"
+    },
+    {
+      "name": "Avalonia.Remote.Protocol",
+      "version": "12.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia/",
+        "branch": "refs/heads/release/12.1.3",
+        "commit": "8eeda4f6f546165b3f72e63c9f42247abb306905"
+      },
+      "nugetContentHash": "HcF69DKyihgg5coLOSp7GTqxQvWAy58LMKauwcHA28uSBJVwu0h5+gTNdJA8Sn/nqJVTRDU98zYsk6i1QSwDVQ==",
+      "nupkgSha256": "f892fa7d0c42cf8e017398c6a1e3350e532a46df93b02c384fba0be3f6ae1696",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.remote.protocol/12.1.3/avalonia.remote.protocol.12.1.3.nupkg"
+    },
+    {
+      "name": "Avalonia.Skia",
+      "version": "12.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia/",
+        "branch": "refs/heads/release/12.1.3",
+        "commit": "8eeda4f6f546165b3f72e63c9f42247abb306905"
+      },
+      "nugetContentHash": "fYfSecJ6vQT3zB9vWl2DOoBK6JM4Mzxpz7KbUPxJePjY/yUl2OyhjKCyUcGZF2DV5mpAYfCOT4rdKEk8hP/lCA==",
+      "nupkgSha256": "e29ca41bdfeb1c941361603e2c69daf47ea90681416a3129fd05559567881e2a",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.skia/12.1.3/avalonia.skia.12.1.3.nupkg"
+    },
+    {
+      "name": "Avalonia.Win32",
+      "version": "12.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia/",
+        "branch": "refs/heads/release/12.1.3",
+        "commit": "8eeda4f6f546165b3f72e63c9f42247abb306905"
+      },
+      "nugetContentHash": "RXSOmQGV5uKS9orIeE8a5oGz9QukzBnQTP3dtT9uJUhIIuZracy3ItoW8gtlZGBs3lzhEFTZlOk1Fn/Zxj/iAg==",
+      "nupkgSha256": "d88f3feb8341bdc3a2c2622a8faeab85d3a94934a02f82592e631be6aa94b729",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.win32/12.1.3/avalonia.win32.12.1.3.nupkg"
+    },
+    {
+      "name": "Avalonia.X11",
+      "version": "12.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/AvaloniaUI/Avalonia/",
+        "branch": "refs/heads/release/12.1.3",
+        "commit": "8eeda4f6f546165b3f72e63c9f42247abb306905"
+      },
+      "nugetContentHash": "NWkfAGgERPlYRKpiB18t5auSFA/Ffd++uZsUEtHPc/maitjydNJVDmtY21pUqR2QvAeTCl1nRAagi+j9bKVyKw==",
+      "nupkgSha256": "a63ad8959f67551369a790375150d939f72a1b1eb400e1658fe5546e0f78842e",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/avalonia.x11/12.1.3/avalonia.x11.12.1.3.nupkg"
+    },
+    {
+      "name": "HarfBuzzSharp",
+      "version": "8.3.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://go.microsoft.com/fwlink/?linkid=868515",
+        "branch": "release/3.119.2",
+        "commit": "2888c737ad016d584c74525e2d35db5097ea8576"
+      },
+      "nugetContentHash": "NGZ2+ZVNPM+NdHB/asW0/ykWngyHWwcqjrbN2nDeH1B/aptPGlCUl8wkQ2cSJxw5fdWgdmIPmNuTPWpLwNVXWg==",
+      "nupkgSha256": "ffe644863a4eb3c078b4c3f0def0f2b90a861991c9116bf2dd668a31a0f09ab5",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/harfbuzzsharp/8.3.1.3/harfbuzzsharp.8.3.1.3.nupkg"
+    },
+    {
+      "name": "HarfBuzzSharp.NativeAssets.Linux",
+      "version": "8.3.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://go.microsoft.com/fwlink/?linkid=868515",
+        "branch": "release/3.119.2",
+        "commit": "2888c737ad016d584c74525e2d35db5097ea8576"
+      },
+      "nugetContentHash": "RI6A1LgmooU30+4QIyFt5rmBCzP0VzTR+587IJSGvYIsHHWlahFufihYxtraLfsIhW7I8dn6+xX+DZGygOPKWQ==",
+      "nupkgSha256": "7de58e9daffc9dcbe6aeaec2c670dccefd5f69c576a68655e51f8ec82b687295",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/harfbuzzsharp.nativeassets.linux/8.3.1.3/harfbuzzsharp.nativeassets.linux.8.3.1.3.nupkg"
+    },
+    {
+      "name": "HarfBuzzSharp.NativeAssets.macOS",
+      "version": "8.3.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://go.microsoft.com/fwlink/?linkid=868515",
+        "branch": "release/3.119.2",
+        "commit": "2888c737ad016d584c74525e2d35db5097ea8576"
+      },
+      "nugetContentHash": "KPTq0xnslkI6nAo0jh3ptcQPJvZZr7MWYXa2jUe4SnHc9q+JlHElmNXp0sfFoiTgoCX7WOYpYsurypuH9Gehxw==",
+      "nupkgSha256": "e962ac27f8c5f691e7696710bda7b3739015e9f96edd7b0ec50b3b8b8046609b",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/harfbuzzsharp.nativeassets.macos/8.3.1.3/harfbuzzsharp.nativeassets.macos.8.3.1.3.nupkg"
+    },
+    {
+      "name": "HarfBuzzSharp.NativeAssets.WebAssembly",
+      "version": "8.3.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://go.microsoft.com/fwlink/?linkid=868515",
+        "branch": "release/3.119.2",
+        "commit": "2888c737ad016d584c74525e2d35db5097ea8576"
+      },
+      "nugetContentHash": "w2QfdNm9Uz/sUa0B5D+OnVQhyq3G/fBq6ibQMdWBlQqqwh0g0/5j3RFvYqZAmRZ5+RzvjVe8o8SFFnWYUSkuxA==",
+      "nupkgSha256": "6ab06223cd9f5cf8c0a9fb6a9c6ed6737051cd9ebebca77b6f9f2f412589564d",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/harfbuzzsharp.nativeassets.webassembly/8.3.1.3/harfbuzzsharp.nativeassets.webassembly.8.3.1.3.nupkg"
+    },
+    {
+      "name": "HarfBuzzSharp.NativeAssets.Win32",
+      "version": "8.3.1.3",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://go.microsoft.com/fwlink/?linkid=868515",
+        "branch": "release/3.119.2",
+        "commit": "2888c737ad016d584c74525e2d35db5097ea8576"
+      },
+      "nugetContentHash": "bx8CE8Js+XGX8PUxAHCBDEORt5aaBYtMN4Hr9QFs57Xithh6yjUyYqksizH6eRDhJkwsGI+SXWmPmMm8lZC9Pw==",
+      "nupkgSha256": "58d51098b595152c01293f71ed47614b3f53d8503bc226efc23b8f7b0ff7c943",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/harfbuzzsharp.nativeassets.win32/8.3.1.3/harfbuzzsharp.nativeassets.win32.8.3.1.3.nupkg"
+    },
+    {
+      "name": "MicroCom.Runtime",
+      "version": "0.11.6",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/kekekeks/MicroCom",
+        "commit": "76785efcafd91b5902fd19dd11145f6dd655b7b4"
+      },
+      "nugetContentHash": "NdNWGDiZ6eS/Mf/9+QHR91cj1K7Hy+PX9yrHI/zM7xFYuj9IWT2uxtB6sCHjrnxAeLV9fut1R6zHDUGKX6f9lQ==",
+      "nupkgSha256": "453af6d34477b19bb2c62d17436e68c76a75915b7947509b1ff601b36d7e78d8",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/microcom.runtime/0.11.6/microcom.runtime.0.11.6.nupkg"
+    },
+    {
+      "name": "SkiaSharp",
+      "version": "3.119.4",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://go.microsoft.com/fwlink/?linkid=868515",
+        "branch": "release/3.119.4",
+        "commit": "f568ac94dd768ef9a2f593537cfde2dd0d348ef5"
+      },
+      "nugetContentHash": "53NOSUZ1Us+91Sm0uCkIivh/k7jOowRErZT2sIWwPFN9mLUvdxnE6rS4sWo4255+Rd2MWUSF+j0NMZHD6Cke+Q==",
+      "nupkgSha256": "e32a449d31945c0b9d169eb5bc676e1e3f589aab69888e49d703fdc1c384c176",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/skiasharp/3.119.4/skiasharp.3.119.4.nupkg"
+    },
+    {
+      "name": "SkiaSharp.NativeAssets.Linux",
+      "version": "3.119.4",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://go.microsoft.com/fwlink/?linkid=868515",
+        "branch": "release/3.119.4",
+        "commit": "f568ac94dd768ef9a2f593537cfde2dd0d348ef5"
+      },
+      "nugetContentHash": "UAyVzbqNfZsZbKbzj68zXLyUyF/SbTKmzTfOO6qDu++dtIUMMTzPBe8oOuzU/DiewpfKoUUlOSsJmqWc6blxBw==",
+      "nupkgSha256": "fae0554059b1107ef7888e46c20bdfb548401ef7a7a6f7391ad4fadc7432d50a",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/skiasharp.nativeassets.linux/3.119.4/skiasharp.nativeassets.linux.3.119.4.nupkg"
+    },
+    {
+      "name": "SkiaSharp.NativeAssets.macOS",
+      "version": "3.119.4",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://go.microsoft.com/fwlink/?linkid=868515",
+        "branch": "release/3.119.4",
+        "commit": "f568ac94dd768ef9a2f593537cfde2dd0d348ef5"
+      },
+      "nugetContentHash": "fgBOWEqbY012x7gMfJU4ezgz6dfhJb30Z6YdW35h85Zoe39+a8YNbAAwL29ihPfWoppg5AjvyKNzD1oCvlqWwA==",
+      "nupkgSha256": "f7f2f539ce5bba337aa4a8d6eac25caf58cbdd12edf3f32ddcc98294e730cf2c",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/skiasharp.nativeassets.macos/3.119.4/skiasharp.nativeassets.macos.3.119.4.nupkg"
+    },
+    {
+      "name": "SkiaSharp.NativeAssets.WebAssembly",
+      "version": "3.119.4",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://go.microsoft.com/fwlink/?linkid=868515",
+        "branch": "release/3.119.4",
+        "commit": "f568ac94dd768ef9a2f593537cfde2dd0d348ef5"
+      },
+      "nugetContentHash": "S1HOxtBbD4bYDtA2e9WH5TX+lxqRrTPvKjrjttRhxnHNNu7YY8VFo/LeCP7tNqoTA6PV+8vsvNbmRUEC2ip8RQ==",
+      "nupkgSha256": "c4b7ec581b05169bf9420efd188322fb908ce980df720fffa32c0d941e58dc9d",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/skiasharp.nativeassets.webassembly/3.119.4/skiasharp.nativeassets.webassembly.3.119.4.nupkg"
+    },
+    {
+      "name": "SkiaSharp.NativeAssets.Win32",
+      "version": "3.119.4",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://go.microsoft.com/fwlink/?linkid=868515",
+        "branch": "release/3.119.4",
+        "commit": "f568ac94dd768ef9a2f593537cfde2dd0d348ef5"
+      },
+      "nugetContentHash": "XOpbx/4CReO2wYsq2s6rbvdauc6dntG4Zv499sHGTJ87bwZaFXszFkwql3+FIZMc8kUPeaj3Mx2ezIJmo8a1Kg==",
+      "nupkgSha256": "5a5698b1b4e1fdc9ffe9868df6874db5fa69f21a4de76ba71a01a542e9b43391",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/skiasharp.nativeassets.win32/3.119.4/skiasharp.nativeassets.win32.3.119.4.nupkg"
+    },
+    {
+      "name": "System.IO.Pipelines",
+      "version": "8.0.0",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/dotnet/runtime",
+        "commit": "5535e31a712343a63f5d7d796cd874e563e5ac14"
+      },
+      "nugetContentHash": "FHNOatmUq0sqJOkTx+UF/9YK1f180cnW5FVqnQMvYUN0elp6wFzbtPSiqbo1/ru8ICp43JM1i7kKkk6GsNGHlA==",
+      "nupkgSha256": "2dda41d6ce2f433b0e3836b188ab2d2e4b39ed7f434c3e43e9c3f1f03135c301",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/system.io.pipelines/8.0.0/system.io.pipelines.8.0.0.nupkg"
+    },
+    {
+      "name": "Tmds.DBus.Protocol",
+      "version": "0.94.1",
+      "license": "MIT",
+      "licenseType": {
+        "type": "expression"
+      },
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/tmds/Tmds.DBus.git",
+        "branch": "refs/heads/main",
+        "commit": "b4a7fed0b878f74cb54f7cca84d2889af4e596ba"
+      },
+      "nugetContentHash": "11YMr7FnAbL83bQmVxlhbIKHvSLxjO81D12Ej0QMSGXMDTxNA9MTOa4MQxx43nv5el/efuPHwzyrj6a5ha2gug==",
+      "nupkgSha256": "4f71d06ac40e725ffbcf1b79853dd93218695a84f23d36fafc85f477a4c9580f",
+      "provenance": "https://api.nuget.org/v3-flatcontainer/tmds.dbus.protocol/0.94.1/tmds.dbus.protocol.0.94.1.nupkg"
+    }
+  ],
+  "nativeArtifacts": [
+    {
+      "path": "tools/X3G3Completion/bin/Release/net8.0/osx-arm64/libHarfBuzzSharp.dylib",
+      "sha256": "b2d7d39a46954b3d7310540bdf393f398ac4194ee029b995deeb1db0c161c43d",
+      "bytes": 2922800
+    },
+    {
+      "path": "tools/X3G3Completion/bin/Release/net8.0/osx-arm64/libAvaloniaNative.dylib",
+      "sha256": "42765b28691538bcfbe6ed3ec39afc5c899b43cc9b7cf0ca550f91a0f1fc6533",
+      "bytes": 1565568
+    },
+    {
+      "path": "tools/X3G3Completion/bin/Release/net8.0/osx-arm64/libSkiaSharp.dylib",
+      "sha256": "e09f07ae1df62ded475351f56d8dc8366cd679043f28b65d9dee597a5fd0da6c",
+      "bytes": 15201456
+    },
+    {
+      "path": "work/g3-completion/libx3bridge.dylib",
+      "sha256": "61b26a87ab04bb6e7b98c4c7a6a33e98d03f285d32a1e34751dbcaf4d9a2b107",
+      "bytes": 80400
+    }
+  ]
+}

@@ -1,0 +1,461 @@
+{
+  "authoritativeRuns": [
+    "final-2",
+    "input-final-qualified"
+  ],
+  "records": [
+    {
+      "kind": "interop",
+      "value": {
+        "w": 1024,
+        "h": 576,
+        "epoch": 1,
+        "device": 4294968764,
+        "luid": "00000001000005BC",
+        "imageTypes": [
+          "IOSurfaceRef"
+        ],
+        "eventTypes": [
+          "MetalSharedEvent"
+        ],
+        "sync": "TimelineSemaphores",
+        "arm": "Arm64",
+        "avalonia": "12.1.3.0"
+      }
+    },
+    {
+      "kind": "slot",
+      "value": {
+        "i": 0,
+        "id": 284,
+        "pointer": "A1F669BD0",
+        "stride": 4096,
+        "textureSameSurface": true
+      }
+    },
+    {
+      "kind": "slot",
+      "value": {
+        "i": 1,
+        "id": 365,
+        "pointer": "A1F669BE0",
+        "stride": 4096,
+        "textureSameSurface": true
+      }
+    },
+    {
+      "kind": "slot",
+      "value": {
+        "i": 2,
+        "id": 1045,
+        "pointer": "A1F669BF0",
+        "stride": 4096,
+        "textureSameSurface": true
+      }
+    },
+    {
+      "kind": "UIAccepted",
+      "value": {
+        "scenario": "pause",
+        "Serial": 1,
+        "Generation": 1,
+        "ColorRevision": 1,
+        "SurfaceGeneration": 1,
+        "HostGeneration": 1,
+        "surface": 284,
+        "transaction": 1,
+        "ms": 13.9267,
+        "callbackThread": 1,
+        "dispatcher": true,
+        "boundary": "new isolated snapshot installed, RequestCommitAsync processed, current token rechecked",
+        "physicalScanout": false
+      }
+    },
+    {
+      "kind": "capture-token",
+      "value": {
+        "scenario": "pause",
+        "Serial": 1,
+        "decoded": 1,
+        "ColorRevision": 1,
+        "Generation": 1,
+        "hash": "2A6C028643E86383",
+        "blocked": true,
+        "releaseTimeline": 1
+      }
+    },
+    {
+      "kind": "UIAccepted",
+      "value": {
+        "scenario": "step",
+        "Serial": 2,
+        "Generation": 1,
+        "ColorRevision": 1,
+        "SurfaceGeneration": 1,
+        "HostGeneration": 1,
+        "surface": 365,
+        "transaction": 2,
+        "ms": 9.9858,
+        "callbackThread": 1,
+        "dispatcher": true,
+        "boundary": "new isolated snapshot installed, RequestCommitAsync processed, current token rechecked",
+        "physicalScanout": false
+      }
+    },
+    {
+      "kind": "capture-token",
+      "value": {
+        "scenario": "step",
+        "Serial": 2,
+        "decoded": 2,
+        "ColorRevision": 1,
+        "Generation": 1,
+        "hash": "FD71AD605286383",
+        "blocked": true,
+        "releaseTimeline": 2
+      }
+    },
+    {
+      "kind": "UIAccepted",
+      "value": {
+        "scenario": "seek",
+        "Serial": 3,
+        "Generation": 2,
+        "ColorRevision": 1,
+        "SurfaceGeneration": 1,
+        "HostGeneration": 1,
+        "surface": 1045,
+        "transaction": 3,
+        "ms": 16.1181,
+        "callbackThread": 1,
+        "dispatcher": true,
+        "boundary": "new isolated snapshot installed, RequestCommitAsync processed, current token rechecked",
+        "physicalScanout": false
+      }
+    },
+    {
+      "kind": "capture-token",
+      "value": {
+        "scenario": "seek",
+        "Serial": 3,
+        "decoded": 3,
+        "ColorRevision": 1,
+        "Generation": 2,
+        "hash": "E4B3EB80DF8BC383",
+        "blocked": true,
+        "releaseTimeline": 3
+      }
+    },
+    {
+      "kind": "UIAccepted",
+      "value": {
+        "scenario": "color",
+        "Serial": 4,
+        "Generation": 2,
+        "ColorRevision": 2,
+        "SurfaceGeneration": 1,
+        "HostGeneration": 1,
+        "surface": 284,
+        "transaction": 4,
+        "ms": 8.7692,
+        "callbackThread": 1,
+        "dispatcher": true,
+        "boundary": "new isolated snapshot installed, RequestCommitAsync processed, current token rechecked",
+        "physicalScanout": false
+      }
+    },
+    {
+      "kind": "capture-token",
+      "value": {
+        "scenario": "color",
+        "Serial": 4,
+        "decoded": 4,
+        "ColorRevision": 2,
+        "Generation": 2,
+        "hash": "237DDA80EE896383",
+        "blocked": true,
+        "releaseTimeline": 4
+      }
+    },
+    {
+      "kind": "UIAccepted",
+      "value": {
+        "scenario": "compare",
+        "Serial": 5,
+        "Generation": 2,
+        "ColorRevision": 3,
+        "SurfaceGeneration": 1,
+        "HostGeneration": 1,
+        "surface": 365,
+        "transaction": 5,
+        "ms": 15.4157,
+        "callbackThread": 1,
+        "dispatcher": true,
+        "boundary": "new isolated snapshot installed, RequestCommitAsync processed, current token rechecked",
+        "physicalScanout": false
+      }
+    },
+    {
+      "kind": "capture-token",
+      "value": {
+        "scenario": "compare",
+        "Serial": 5,
+        "decoded": 5,
+        "ColorRevision": 3,
+        "Generation": 2,
+        "hash": "58BF36A0974BC383",
+        "blocked": true,
+        "releaseTimeline": 5
+      }
+    },
+    {
+      "kind": "rejected",
+      "value": {
+        "scenario": "stale-generation",
+        "Serial": 6,
+        "Generation": 1,
+        "ColorRevision": 3,
+        "stage": "before-update"
+      }
+    },
+    {
+      "kind": "rejected",
+      "value": {
+        "scenario": "stale-color",
+        "Serial": 7,
+        "Generation": 2,
+        "ColorRevision": 2,
+        "stage": "before-update"
+      }
+    },
+    {
+      "kind": "rejected",
+      "value": {
+        "scenario": "inflight-stale-color",
+        "Serial": 8,
+        "stage": "after-update"
+      }
+    },
+    {
+      "kind": "UIAccepted",
+      "value": {
+        "scenario": "new-color",
+        "Serial": 9,
+        "Generation": 2,
+        "ColorRevision": 4,
+        "SurfaceGeneration": 1,
+        "HostGeneration": 1,
+        "surface": 284,
+        "transaction": 6,
+        "ms": 14.9504,
+        "callbackThread": 1,
+        "dispatcher": true,
+        "boundary": "new isolated snapshot installed, RequestCommitAsync processed, current token rechecked",
+        "physicalScanout": false
+      }
+    },
+    {
+      "kind": "capture-token",
+      "value": {
+        "scenario": "new-color",
+        "Serial": 9,
+        "decoded": 9,
+        "ColorRevision": 4,
+        "Generation": 2,
+        "hash": "7AD9A8A7292CC383",
+        "blocked": true,
+        "releaseTimeline": 9
+      }
+    },
+    {
+      "kind": "rejected",
+      "value": {
+        "scenario": "rapid-obsolete",
+        "Serial": 10,
+        "stage": "after-update"
+      }
+    },
+    {
+      "kind": "UIAccepted",
+      "value": {
+        "scenario": "rapid-latest",
+        "Serial": 11,
+        "Generation": 2,
+        "ColorRevision": 4,
+        "SurfaceGeneration": 1,
+        "HostGeneration": 1,
+        "surface": 1045,
+        "transaction": 7,
+        "ms": 11.0063,
+        "callbackThread": 1,
+        "dispatcher": true,
+        "boundary": "new isolated snapshot installed, RequestCommitAsync processed, current token rechecked",
+        "physicalScanout": false
+      }
+    },
+    {
+      "kind": "capture-token",
+      "value": {
+        "scenario": "rapid-latest",
+        "Serial": 11,
+        "decoded": 11,
+        "ColorRevision": 4,
+        "Generation": 2,
+        "hash": "C78EAA05C0AF2383",
+        "blocked": true,
+        "releaseTimeline": 11
+      }
+    },
+    {
+      "kind": "rejected",
+      "value": {
+        "scenario": "detached",
+        "Serial": 12,
+        "Generation": 2,
+        "ColorRevision": 4,
+        "stage": "before-update"
+      }
+    },
+    {
+      "kind": "UIAccepted",
+      "value": {
+        "scenario": "reattached",
+        "Serial": 13,
+        "Generation": 2,
+        "ColorRevision": 4,
+        "SurfaceGeneration": 1,
+        "HostGeneration": 2,
+        "surface": 365,
+        "transaction": 8,
+        "ms": 15.1047,
+        "callbackThread": 1,
+        "dispatcher": true,
+        "boundary": "new isolated snapshot installed, RequestCommitAsync processed, current token rechecked",
+        "physicalScanout": false
+      }
+    },
+    {
+      "kind": "capture-token",
+      "value": {
+        "scenario": "reattached",
+        "Serial": 13,
+        "decoded": 13,
+        "ColorRevision": 4,
+        "Generation": 2,
+        "hash": "CE7E3D745EF2383",
+        "blocked": true,
+        "releaseTimeline": 13
+      }
+    },
+    {
+      "kind": "interop",
+      "value": {
+        "w": 1280,
+        "h": 720,
+        "epoch": 2,
+        "device": 4294968764,
+        "luid": "00000001000005BC",
+        "imageTypes": [
+          "IOSurfaceRef"
+        ],
+        "eventTypes": [
+          "MetalSharedEvent"
+        ],
+        "sync": "TimelineSemaphores",
+        "arm": "Arm64",
+        "avalonia": "12.1.3.0"
+      }
+    },
+    {
+      "kind": "slot",
+      "value": {
+        "i": 0,
+        "id": 284,
+        "pointer": "A1F669BE0",
+        "stride": 5120,
+        "textureSameSurface": true
+      }
+    },
+    {
+      "kind": "slot",
+      "value": {
+        "i": 1,
+        "id": 365,
+        "pointer": "A1F669BD0",
+        "stride": 5120,
+        "textureSameSurface": true
+      }
+    },
+    {
+      "kind": "slot",
+      "value": {
+        "i": 2,
+        "id": 1045,
+        "pointer": "A1F66A040",
+        "stride": 5120,
+        "textureSameSurface": true
+      }
+    },
+    {
+      "kind": "rejected",
+      "value": {
+        "scenario": "old-surface",
+        "Serial": 14,
+        "Generation": 2,
+        "ColorRevision": 4,
+        "stage": "before-update"
+      }
+    },
+    {
+      "kind": "UIAccepted",
+      "value": {
+        "scenario": "resized-surface",
+        "Serial": 15,
+        "Generation": 2,
+        "ColorRevision": 4,
+        "SurfaceGeneration": 2,
+        "HostGeneration": 3,
+        "surface": 365,
+        "transaction": 9,
+        "ms": 15.6974,
+        "callbackThread": 1,
+        "dispatcher": true,
+        "boundary": "new isolated snapshot installed, RequestCommitAsync processed, current token rechecked",
+        "physicalScanout": false
+      }
+    },
+    {
+      "kind": "capture-token",
+      "value": {
+        "scenario": "resized-surface",
+        "Serial": 15,
+        "decoded": 15,
+        "ColorRevision": 4,
+        "Generation": 2,
+        "hash": "69D108616EF3C383",
+        "blocked": true,
+        "releaseTimeline": 15
+      }
+    },
+    {
+      "kind": "interop-complete",
+      "value": {
+        "RenderScaling": 2,
+        "epoch": 2,
+        "host": 3,
+        "transaction": 9,
+        "versions": {
+          "avalonia": "12.1.3.0",
+          "skia": "3.119.0.0"
+        }
+      }
+    },
+    {
+      "kind": "teardown",
+      "value": {
+        "surfaces": 0,
+        "producers": 0
+      }
+    }
+  ]
+}

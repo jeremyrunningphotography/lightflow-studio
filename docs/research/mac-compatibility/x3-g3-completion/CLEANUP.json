@@ -1,0 +1,43 @@
+{
+  "taskOwnedOnly": true,
+  "removed": [
+    {
+      "path": "work/avalonia-12.1.3",
+      "bytesRemoved": 150849106,
+      "existsAfter": false
+    },
+    {
+      "path": "work/g3-completion",
+      "bytesRemoved": 36052832,
+      "existsAfter": false
+    },
+    {
+      "path": "work/toolchain/dotnet8",
+      "bytesRemoved": 621819430,
+      "existsAfter": false
+    },
+    {
+      "path": ".cache/g3-completion",
+      "bytesRemoved": 495196630,
+      "existsAfter": false
+    },
+    {
+      "path": ".cache/nuget",
+      "bytesRemoved": 1381837841,
+      "existsAfter": false
+    },
+    {
+      "path": "tools/X3G3Completion/bin",
+      "bytesRemoved": 29327422,
+      "existsAfter": false
+    },
+    {
+      "path": "tools/X3G3Completion/obj",
+      "bytesRemoved": 681054,
+      "existsAfter": false
+    }
+  ],
+  "frozenOriginalBranch": "codex/370-avalonia-ui-image-proof at d25e2ad591547d3a012175606f930c9f4af414fe retained",
+  "previousNativeCaches": "preserved",
+  "proofProcesses": "none observed before cleanup"
+}

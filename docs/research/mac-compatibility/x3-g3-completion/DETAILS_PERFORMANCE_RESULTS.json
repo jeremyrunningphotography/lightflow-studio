@@ -1,0 +1,531 @@
+{
+  "authoritativeRuns": [
+    "final-2",
+    "input-final-qualified"
+  ],
+  "records": [
+    {
+      "kind": "population",
+      "value": {
+        "count": 10000,
+        "mode": "stock",
+        "populationMs": 1.8407,
+        "usableMs": 216.1213
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 10000,
+        "mode": "stock",
+        "cycle": 0,
+        "allocated": 806003040,
+        "workingSet": 276250624,
+        "Created": 24,
+        "Prepared": 1219,
+        "Cleared": 1196,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 10000,
+        "mode": "stock",
+        "cycle": 1,
+        "allocated": 1465763984,
+        "workingSet": 280133632,
+        "Created": 24,
+        "Prepared": 2438,
+        "Cleared": 2415,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 10000,
+        "mode": "stock",
+        "cycle": 2,
+        "allocated": 2129227072,
+        "workingSet": 280870912,
+        "Created": 24,
+        "Prepared": 3657,
+        "Cleared": 3634,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-summary",
+      "value": {
+        "count": 10000,
+        "mode": "stock",
+        "steps": 180,
+        "allocated": 2129229624,
+        "collections": [
+          256,
+          83,
+          81
+        ],
+        "maxRows": 23,
+        "maxCells": 414,
+        "uniqueRows": 24,
+        "uniqueCells": 432,
+        "Created": 24,
+        "Prepared": 3680,
+        "Cleared": 3657,
+        "p50": 27.911,
+        "p95": 122.4395,
+        "maxMs": 149.4501,
+        "rss": [
+          276250624,
+          280133632,
+          280870912
+        ],
+        "multiselect": 2,
+        "columnResizeReorder": true,
+        "thumbnailDecode": false
+      }
+    },
+    {
+      "kind": "population",
+      "value": {
+        "count": 10000,
+        "mode": "recycling-template",
+        "populationMs": 0.8371,
+        "usableMs": 142.214
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 10000,
+        "mode": "recycling-template",
+        "cycle": 0,
+        "allocated": 820559776,
+        "workingSet": 291815424,
+        "Created": 24,
+        "Prepared": 1219,
+        "Cleared": 1196,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 10000,
+        "mode": "recycling-template",
+        "cycle": 1,
+        "allocated": 1657543440,
+        "workingSet": 293666816,
+        "Created": 24,
+        "Prepared": 2438,
+        "Cleared": 2415,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 10000,
+        "mode": "recycling-template",
+        "cycle": 2,
+        "allocated": 2493535512,
+        "workingSet": 293797888,
+        "Created": 24,
+        "Prepared": 3657,
+        "Cleared": 3634,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-summary",
+      "value": {
+        "count": 10000,
+        "mode": "recycling-template",
+        "steps": 180,
+        "allocated": 2493542056,
+        "collections": [
+          300,
+          100,
+          98
+        ],
+        "maxRows": 23,
+        "maxCells": 414,
+        "uniqueRows": 24,
+        "uniqueCells": 432,
+        "Created": 24,
+        "Prepared": 3680,
+        "Cleared": 3657,
+        "p50": 39.0723,
+        "p95": 43.3471,
+        "maxMs": 53.3948,
+        "rss": [
+          291815424,
+          293666816,
+          293797888
+        ],
+        "multiselect": 2,
+        "columnResizeReorder": true,
+        "thumbnailDecode": false
+      }
+    },
+    {
+      "kind": "population",
+      "value": {
+        "count": 10000,
+        "mode": "retained",
+        "populationMs": 0.5113,
+        "usableMs": 142.104
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 10000,
+        "mode": "retained",
+        "cycle": 0,
+        "allocated": 197890512,
+        "workingSet": 289619968,
+        "Created": 25,
+        "Prepared": 1272,
+        "Cleared": 1248,
+        "maxRows": 24,
+        "maxCells": 432
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 10000,
+        "mode": "retained",
+        "cycle": 1,
+        "allocated": 398639048,
+        "workingSet": 289439744,
+        "Created": 25,
+        "Prepared": 2544,
+        "Cleared": 2520,
+        "maxRows": 24,
+        "maxCells": 432
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 10000,
+        "mode": "retained",
+        "cycle": 2,
+        "allocated": 600117776,
+        "workingSet": 290390016,
+        "Created": 25,
+        "Prepared": 3816,
+        "Cleared": 3792,
+        "maxRows": 24,
+        "maxCells": 432
+      }
+    },
+    {
+      "kind": "details-summary",
+      "value": {
+        "count": 10000,
+        "mode": "retained",
+        "steps": 180,
+        "allocated": 600223504,
+        "collections": [
+          77,
+          40,
+          12
+        ],
+        "maxRows": 24,
+        "maxCells": 432,
+        "uniqueRows": 25,
+        "uniqueCells": 450,
+        "Created": 25,
+        "Prepared": 3840,
+        "Cleared": 3816,
+        "p50": 6.0022,
+        "p95": 16.7048,
+        "maxMs": 36.1648,
+        "rss": [
+          289619968,
+          289439744,
+          290390016
+        ],
+        "multiselect": 2,
+        "columnResizeReorder": true,
+        "thumbnailDecode": false
+      }
+    },
+    {
+      "kind": "population",
+      "value": {
+        "count": 100000,
+        "mode": "stock",
+        "populationMs": 9.2252,
+        "usableMs": 142.0721
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 100000,
+        "mode": "stock",
+        "cycle": 0,
+        "allocated": 648973752,
+        "workingSet": 315899904,
+        "Created": 24,
+        "Prepared": 1219,
+        "Cleared": 1196,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 100000,
+        "mode": "stock",
+        "cycle": 1,
+        "allocated": 1312904616,
+        "workingSet": 316178432,
+        "Created": 24,
+        "Prepared": 2438,
+        "Cleared": 2415,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 100000,
+        "mode": "stock",
+        "cycle": 2,
+        "allocated": 1976117064,
+        "workingSet": 321404928,
+        "Created": 24,
+        "Prepared": 3657,
+        "Cleared": 3634,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-summary",
+      "value": {
+        "count": 100000,
+        "mode": "stock",
+        "steps": 180,
+        "allocated": 1976126936,
+        "collections": [
+          264,
+          106,
+          54
+        ],
+        "maxRows": 23,
+        "maxCells": 414,
+        "uniqueRows": 24,
+        "uniqueCells": 432,
+        "Created": 24,
+        "Prepared": 3680,
+        "Cleared": 3657,
+        "p50": 23.8954,
+        "p95": 52.7447,
+        "maxMs": 72.9655,
+        "rss": [
+          315899904,
+          316178432,
+          321404928
+        ],
+        "multiselect": 2,
+        "columnResizeReorder": true,
+        "thumbnailDecode": false
+      }
+    },
+    {
+      "kind": "population",
+      "value": {
+        "count": 100000,
+        "mode": "recycling-template",
+        "populationMs": 9.579,
+        "usableMs": 142.0782
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 100000,
+        "mode": "recycling-template",
+        "cycle": 0,
+        "allocated": 821869992,
+        "workingSet": 389873664,
+        "Created": 24,
+        "Prepared": 1219,
+        "Cleared": 1196,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 100000,
+        "mode": "recycling-template",
+        "cycle": 1,
+        "allocated": 1657356272,
+        "workingSet": 391053312,
+        "Created": 24,
+        "Prepared": 2438,
+        "Cleared": 2415,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 100000,
+        "mode": "recycling-template",
+        "cycle": 2,
+        "allocated": 2492912504,
+        "workingSet": 390250496,
+        "Created": 24,
+        "Prepared": 3657,
+        "Cleared": 3634,
+        "maxRows": 23,
+        "maxCells": 414
+      }
+    },
+    {
+      "kind": "details-summary",
+      "value": {
+        "count": 100000,
+        "mode": "recycling-template",
+        "steps": 180,
+        "allocated": 2492917744,
+        "collections": [
+          325,
+          126,
+          61
+        ],
+        "maxRows": 23,
+        "maxCells": 414,
+        "uniqueRows": 24,
+        "uniqueCells": 432,
+        "Created": 24,
+        "Prepared": 3680,
+        "Cleared": 3657,
+        "p50": 34.2245,
+        "p95": 59.2531,
+        "maxMs": 84.8984,
+        "rss": [
+          389873664,
+          391053312,
+          390250496
+        ],
+        "multiselect": 2,
+        "columnResizeReorder": true,
+        "thumbnailDecode": false
+      }
+    },
+    {
+      "kind": "population",
+      "value": {
+        "count": 100000,
+        "mode": "retained",
+        "populationMs": 35.7012,
+        "usableMs": 142.0877
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 100000,
+        "mode": "retained",
+        "cycle": 0,
+        "allocated": 198045928,
+        "workingSet": 388972544,
+        "Created": 25,
+        "Prepared": 1272,
+        "Cleared": 1248,
+        "maxRows": 24,
+        "maxCells": 432
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 100000,
+        "mode": "retained",
+        "cycle": 1,
+        "allocated": 398406688,
+        "workingSet": 388972544,
+        "Created": 25,
+        "Prepared": 2544,
+        "Cleared": 2520,
+        "maxRows": 24,
+        "maxCells": 432
+      }
+    },
+    {
+      "kind": "details-cycle",
+      "value": {
+        "count": 100000,
+        "mode": "retained",
+        "cycle": 2,
+        "allocated": 598133088,
+        "workingSet": 395395072,
+        "Created": 25,
+        "Prepared": 3816,
+        "Cleared": 3792,
+        "maxRows": 24,
+        "maxCells": 432
+      }
+    },
+    {
+      "kind": "details-summary",
+      "value": {
+        "count": 100000,
+        "mode": "retained",
+        "steps": 180,
+        "allocated": 598173656,
+        "collections": [
+          74,
+          36,
+          5
+        ],
+        "maxRows": 24,
+        "maxCells": 432,
+        "uniqueRows": 25,
+        "uniqueCells": 450,
+        "Created": 25,
+        "Prepared": 3840,
+        "Cleared": 3816,
+        "p50": 5.8665,
+        "p95": 12.2682,
+        "maxMs": 36.3605,
+        "rss": [
+          388972544,
+          388972544,
+          395395072
+        ],
+        "multiselect": 2,
+        "columnResizeReorder": true,
+        "thumbnailDecode": false
+      }
+    },
+    {
+      "kind": "grid-recycling",
+      "value": {
+        "Created": 7,
+        "Prepared": 36
+      }
+    }
+  ]
+}

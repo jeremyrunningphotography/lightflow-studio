@@ -1,0 +1,213 @@
+{
+  "authoritativeRuns": [
+    "final-2",
+    "input-final-qualified"
+  ],
+  "records": [
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "Grid-to-Details-0",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 55550,
+        "anchor": true,
+        "first": 55527,
+        "last": 55550,
+        "realized": 24
+      }
+    },
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "Details-to-Grid-0",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 55550,
+        "anchor": true,
+        "first": 55532,
+        "last": 55555,
+        "realized": 6
+      }
+    },
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "Grid-to-Details-1",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 55550,
+        "anchor": true,
+        "first": 55527,
+        "last": 55550,
+        "realized": 24
+      }
+    },
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "Details-to-Grid-1",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 55550,
+        "anchor": true,
+        "first": 55532,
+        "last": 55555,
+        "realized": 6
+      }
+    },
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "Grid-to-Details-2",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 55550,
+        "anchor": true,
+        "first": 55527,
+        "last": 55550,
+        "realized": 24
+      }
+    },
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "Details-to-Grid-2",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 55550,
+        "anchor": true,
+        "first": 55532,
+        "last": 55555,
+        "realized": 6
+      }
+    },
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "refresh-new-instances",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 55550,
+        "anchor": true,
+        "first": 55527,
+        "last": 55550,
+        "realized": 24
+      }
+    },
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "sort-reversed",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 55550,
+        "anchor": true,
+        "first": 55550,
+        "last": 55527,
+        "realized": 24
+      }
+    },
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "filter-survivors",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 55550,
+        "anchor": true,
+        "first": 55550,
+        "last": 55573,
+        "realized": 24
+      }
+    },
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "return-from-Player",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 55550,
+        "anchor": true,
+        "first": 55527,
+        "last": 55550,
+        "realized": 24
+      }
+    },
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "large-jump",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 99990,
+        "anchor": true,
+        "first": 99967,
+        "last": 99990,
+        "realized": 24
+      }
+    },
+    {
+      "kind": "selection-anchor",
+      "value": {
+        "reason": "Grid-large-jump",
+        "primary": 55555,
+        "selected": [
+          55555,
+          55556
+        ],
+        "visibleAnchor": 99990,
+        "anchor": true,
+        "first": 99968,
+        "last": 99991,
+        "realized": 6
+      }
+    },
+    {
+      "kind": "filter-hidden-selection",
+      "value": {
+        "selected": [
+          55555,
+          55556
+        ],
+        "primary": 55555,
+        "visibleFallback": 0,
+        "rangeAnchorReset": true,
+        "scope": "identity policy; no exact pixel restoration"
+      }
+    }
+  ]
+}

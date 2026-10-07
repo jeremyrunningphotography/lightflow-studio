@@ -1,0 +1,200 @@
+{
+  "gate": "G3 PASS recommendation; owner acceptance pending",
+  "cases": [
+    {
+      "case": "UIAccepted exact token",
+      "status": "proven",
+      "evidence": "UIACCEPTED_RESULTS.json",
+      "scope": "9 real native imports and exact-token callbacks; synthetic producer"
+    },
+    {
+      "case": "stale frame",
+      "status": "proven",
+      "evidence": "UIACCEPTED_RESULTS.json",
+      "scope": "generation and rapid supersession rejected"
+    },
+    {
+      "case": "stale Color revision",
+      "status": "proven",
+      "evidence": "UIACCEPTED_RESULTS.json",
+      "scope": "before and after update rejected"
+    },
+    {
+      "case": "release fencing",
+      "status": "proven",
+      "evidence": "UIACCEPTED_RESULTS.json",
+      "scope": "independent GPU release and retained source lease"
+    },
+    {
+      "case": "resize generation",
+      "status": "proven",
+      "evidence": "UIACCEPTED_RESULTS.json",
+      "scope": "new producer epoch rejects obsolete offer"
+    },
+    {
+      "case": "Grid virtualization",
+      "status": "proven",
+      "evidence": "DETAILS_PERFORMANCE_RESULTS.json",
+      "scope": "6 bands/24 tile cells; prior native thumbnail evidence retained"
+    },
+    {
+      "case": "Details virtualization",
+      "status": "proven",
+      "evidence": "DETAILS_PERFORMANCE_RESULTS.json",
+      "scope": "10k/100k, 18 columns, bounded identities"
+    },
+    {
+      "case": "selection restoration",
+      "status": "proven",
+      "evidence": "SELECTION_ANCHOR_RESULTS.json",
+      "scope": "stable AssetIds and primary across projections"
+    },
+    {
+      "case": "anchor restoration",
+      "status": "proven",
+      "evidence": "SELECTION_ANCHOR_RESULTS.json",
+      "scope": "12 visible-identity cases; no exact pixels"
+    },
+    {
+      "case": "shortcut capture",
+      "status": "proven",
+      "evidence": "SHORTCUT_RESULTS.json",
+      "scope": "window raw input; OS keyboard translation not exercised"
+    },
+    {
+      "case": "shortcut conflict",
+      "status": "proven",
+      "evidence": "SHORTCUT_RESULTS.json",
+      "scope": "unchanged shared resolver"
+    },
+    {
+      "case": "menu/action state",
+      "status": "proven",
+      "evidence": "MENU_COMMAND_RESULTS.json",
+      "scope": "native Settings export; one routed Click and stale target suppression"
+    },
+    {
+      "case": "context menu",
+      "status": "proven",
+      "evidence": "MENU_COMMAND_RESULTS.json",
+      "scope": "raw right/control click and Escape"
+    },
+    {
+      "case": "accessibility item",
+      "status": "proven",
+      "evidence": "ACCESSIBILITY_RESULTS.json",
+      "scope": "native named and selected Grid AXRow"
+    },
+    {
+      "case": "accessibility cell",
+      "status": "proven",
+      "evidence": "ACCESSIBILITY_RESULTS.json",
+      "scope": "named static text under row; not AXTable provider"
+    },
+    {
+      "case": "focus order",
+      "status": "proven",
+      "evidence": "SHORTCUT_RESULTS.json",
+      "scope": "bounded Tab button-to-button and explicit restore"
+    },
+    {
+      "case": "TIFF fallback",
+      "status": "proven",
+      "evidence": "IMAGE_PIPELINE_RESULTS.json",
+      "scope": "uncompressed/LZW/PackBits native ImageIO"
+    },
+    {
+      "case": "EXIF orientation",
+      "status": "proven",
+      "evidence": "IMAGE_PIPELINE_RESULTS.json",
+      "scope": "8 literal transforms; normalized Avalonia dimensions"
+    },
+    {
+      "case": "ICC transform",
+      "status": "proven",
+      "evidence": "COLOR_MANAGEMENT_RESULTS.json",
+      "scope": "20 explicit linear to sRGB vectors"
+    },
+    {
+      "case": "alpha",
+      "status": "proven",
+      "evidence": "COLOR_MANAGEMENT_RESULTS.json",
+      "scope": "exact alpha; premul channel tolerance 1"
+    },
+    {
+      "case": "image resource cleanup",
+      "status": "proven",
+      "evidence": "IMAGE_PIPELINE_RESULTS.json",
+      "scope": "100 native decode/free, buffers zero"
+    },
+    {
+      "case": "activate/deactivate",
+      "status": "proven",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope": "two each in bounded window transitions"
+    },
+    {
+      "case": "fullscreen",
+      "status": "proven",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope": "native fullscreen flag and scale2"
+    },
+    {
+      "case": "detach/reattach",
+      "status": "proven",
+      "evidence": "UIACCEPTED_RESULTS.json",
+      "scope": "host invalidation and new acceptance"
+    },
+    {
+      "case": "close/reopen",
+      "status": "proven",
+      "evidence": "LIFECYCLE_RESULTS.json",
+      "scope": "new window after child close, not Dock last-window reopen"
+    },
+    {
+      "case": "actual FFmpeg decode in X3",
+      "status": "simulated",
+      "scope": "Synthetic native producer; accepted G1 remains authority."
+    },
+    {
+      "case": "hidden filter selection policy",
+      "status": "reasoned",
+      "scope": "Preserve hidden IDs; fallback to surviving primary or first row."
+    },
+    {
+      "case": "shared Windows/Mac view maintenance",
+      "status": "reasoned",
+      "scope": "Zero whole-view forks required in representative proof."
+    },
+    {
+      "case": "VoiceOver speech/actions",
+      "status": "deferred packaged acceptance",
+      "scope": "Native AX inspected; speech/rotor/action UX not exercised."
+    },
+    {
+      "case": "physical display color parity",
+      "status": "deferred packaged acceptance",
+      "scope": "Explicit SDR profile adapter proven; calibrated observation deferred."
+    },
+    {
+      "case": "packaged lifecycle",
+      "status": "deferred packaged acceptance",
+      "scope": "Dock/quit/reopen, sleep/wake, multi-display and signing."
+    },
+    {
+      "case": "interactive retained Details header",
+      "status": "deferred packaged acceptance",
+      "scope": "Width/order API proof; production drag/header not implemented."
+    },
+    {
+      "case": "native startup -6661",
+      "status": "unresolved",
+      "scope": "Intermittent native render timer initialization; no established root cause."
+    },
+    {
+      "case": "default application-menu conventions",
+      "status": "deferred packaged acceptance",
+      "scope": "About branding and Hide Others shortcut require explicit adapter."
+    }
+  ]
+}

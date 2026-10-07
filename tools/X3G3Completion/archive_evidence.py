@@ -9,7 +9,7 @@ W=R/'work/g3-completion'
 D.mkdir(parents=True,exist_ok=True)
 def digest(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 def save(name,v): (D/name).write_text((json.dumps(v,indent=2)+'\n').replace(str(R),'TASK_ROOT'))
-def normalized(b): return b.replace(str(R).encode(),b'TASK_ROOT')
+def normalized(b): return b.replace(str(R).encode(),b'TASK_ROOT').replace(str(Path.home()).encode(),b'LOCAL_HOME')
 def gz(src,dest):
  dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(gzip.compress(normalized(src.read_bytes()),mtime=0))
 def rows(run):return [json.loads(x) for x in (C/run/'results.jsonl').read_text().splitlines()]

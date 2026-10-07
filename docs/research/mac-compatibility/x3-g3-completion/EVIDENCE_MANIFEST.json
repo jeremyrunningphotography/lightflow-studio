@@ -26,8 +26,8 @@
   },
   {
     "path": "docs/research/mac-compatibility/x3-g3-completion/DIAGNOSTIC_HISTORY.tar.gz",
-    "sha256": "a992fda582cb8467c24f0f094b17805a2e8e6be3343507180540ce2dcb73513f",
-    "bytes": 63874
+    "sha256": "2be90c355b5621aa8245368667950dd494802848d967eee6fbf7d664a33fe11a",
+    "bytes": 63871
   },
   {
     "path": "docs/research/mac-compatibility/x3-g3-completion/ENVIRONMENT.txt",
@@ -96,7 +96,7 @@
   },
   {
     "path": "docs/research/mac-compatibility/x3-g3-completion/SOURCE_HASHES.json",
-    "sha256": "2c06438bebeb8dc6492c9d893cfd8eb342e218b0d193834d3a1dd15402259063",
+    "sha256": "8b991c129ab9d9979813174c18d1bd7ceaefe257970a4023e29d21be351c8570",
     "bytes": 1839
   },
   {
@@ -286,8 +286,8 @@
   },
   {
     "path": "tools/X3G3Completion/archive_evidence.py",
-    "sha256": "d915caeee2da37aeb555ed5b19690e07aa71d6e953139a7e55ad0fb304ed9d28",
-    "bytes": 5682
+    "sha256": "0e5fc63314017ac8c57f0199dd58fe3750fe989c083421cd49cfe0c0fef63f2b",
+    "bytes": 5731
   },
   {
     "path": "tools/X3G3Completion/bridge.mm",

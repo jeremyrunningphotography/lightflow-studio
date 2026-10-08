@@ -25,4 +25,3 @@ This lightweight registry records identity and number allocation. GitHub remains
 - Update status as assignments progress. Link actual issues and PRs when available; do not invent missing GitHub references or relationships.
 - Preserve historical names, including completed XR, XC and XM agents.
 - Keep the registry concise and allocation a lightweight repository documentation operation. Do not introduce a database, coordinator service, automation platform or custom numbering tool.
-

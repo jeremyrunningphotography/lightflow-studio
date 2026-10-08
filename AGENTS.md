@@ -50,3 +50,15 @@
 - Confirm the packaged startup smoke test and dependency validation pass, verify the executable timestamp is newer than the PR commit, and confirm no packaging smoke-test process remains running.
 - If the executable or packaged FFmpeg files are locked, inspect for a hidden leftover `LightflowStudio.exe`; obtain approval before terminating a user-started process, then rebuild.
 - Include the refreshed local executable path in the final PR handoff so it is immediately clear which binary Jeremy should test.
+
+## Agent assignment naming
+
+- Future assignments use `LF-[PLATFORM]-[ACTIVITY]-[NUMBER]`; `LF` identifies Lightflow Studio.
+- Platform codes describe required execution, not feature support: `WIN` (Windows), `MAC` (macOS), `ANY` (either), `BOTH` (both). Windows work on shared code is still `WIN`; do not select `BOTH` merely because a feature supports both platforms.
+- Choose one primary activity, without compound codes: `DEV` (development, implementation, refactoring, fixes), `RES` (research, investigation, architecture analysis, technical proofs), `DOC` (documentation, ADRs, maintenance), `TST` (testing, QA, regression validation, verification), `OPS` (build, CI, packaging, releases, infrastructure), `REV` (independent code/architecture review, implementation assessment).
+- Use one global monotonically increasing sequence across platforms and activities, with at least three digits. Reserve `000` for the foundational naming assignment; regular assignments begin at `001`. Never reuse numbers, including cancelled, abandoned or superseded assignments; after `999`, continue with `1000`.
+- Session titles use `[AGENT-ID] — [SHORT DESCRIPTION]`. Keep descriptions short, specific and human-readable. Roadmap identifiers such as R1 or WQ, issue/PR numbers and Epic references belong in specifications and GitHub records, not session titles.
+- Continuations retain their original ID, number, primary session title and responsibility unless explicitly revised. Routine corrections, CI troubleshooting, acceptance feedback, documentation corrections, PR reconciliation and merge/cleanup retain the ID; materially separate assignments receive new numbers.
+- Prefix task-owned workspaces with the agent ID, for example `C:\Git\Agents\LF-WIN-DEV-001-Classification` or `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-004-Example`. Use independent full clones; do not share mutable workspaces or use Git worktrees unless future owner-approved repository policy explicitly changes that rule.
+- Check and maintain [the assignment registry](docs/AGENT_ASSIGNMENTS.md) for number allocation and status. Include the agent ID in initial handoffs, meaningful progress reports, final reports and task-owned evidence/workspace documentation, and PR descriptions where useful.
+- Historical XR, XC, XM and other agents retain existing names; do not retroactively rename completed agents. IDs identify work assignments, not permanent agent identities.

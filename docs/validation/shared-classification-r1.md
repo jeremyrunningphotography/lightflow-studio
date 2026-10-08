@@ -1,6 +1,6 @@
 # Shared classification extraction — R1 / LF-WIN-DEV-001
 
-Issue [#383](https://github.com/jeremyrunningphotography/lightflow-studio/issues/383), native child of Epic #366. Owner-authorized bounded implementation; architecture and packaged hands-on acceptance remain required before merge. Baseline: fetched main `ab4bfa5ee7a02745537ca1d46a832ad63ac5b376`.
+Issue [#383](https://github.com/jeremyrunningphotography/lightflow-studio/issues/383), native child of Epic #366. Jeremy explicitly accepted architecture, automated validation and packaged hands-on functionality as PASS on 2026-10-08. Accepted head: `63fb05f594c140cdd94b2cd328a0f158df780620`; [PR #385](https://github.com/jeremyrunningphotography/lightflow-studio/pull/385) merged normally as `589beb399208cb574cb6f5e5f5b5ef29815f7f24`. #383 is Completed / Project Done, and this assignment is Done; Epic #366 remains Open / In Progress. Baseline: fetched main `ab4bfa5ee7a02745537ca1d46a832ad63ac5b376`.
 
 ## Implemented boundary
 
@@ -29,7 +29,9 @@ Local Release evidence (unchanged implementation/test inputs at `3466831`; this 
 
 New real-Catalog tests exercise whole-batch admission during quiescence (including completion), missing-asset partial failure through the existing dispatcher, fresh concurrent fields/readback and no-op revisions. Real WPF tests exercise changed same-scope presentation/projection, older revision rejection, captured selection/replacement scope, current Player refresh, Folder/static/Smart workflows and Catalog reopen. Existing tests remain authoritative.
 
-The PR CI runs the same neutral project on Windows and macOS with .NET 8 and locked restore, independently of the unchanged required Windows test/package jobs. Final-head full Windows tests, installer/portable CI, local package startup/dependency checks and timestamps are recorded in the PR handoff after execution; this document does not predeclare them passed.
+Accepted-head [CI run 37852671360](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/37852671360) succeeded: neutral Windows/macOS tests with .NET 8 and locked restore, required Windows Unit tests and installer/package validation. Tagged release publication was correctly skipped. Local actual portable ZIP generation/checksum/content validation and final-head PullRequest packaging passed startup/workspace/Jobs, graceful shutdown, Catalog backup/restore, icons, pinned SQLite runtime and dependency checks. The accepted executable was refreshed at 2026-10-08 22:19:05.409 UTC, after the final commit at 22:18:44 UTC; SHA-256 `94c02644c25d04ee19a641ce7f085c3939c9a7aa8a3765e4f6b1f1e17c0b572a`. No packaged smoke process remained at handoff. This is historical acceptance evidence for the unchanged implementation, not a claim that the retained executable is rebuilt from every later documentation commit.
+
+An earlier implementation-head CI run encountered a Catalog file-lock error during cleanup of an unchanged workspace-restoration fixture. All 17 fixture cases passed in isolation; final accepted-head CI passed without weakening assertions or altering production shutdown. Accepted logs, TRX files, package metadata and the portable ZIP remain in the task-owned workspace. Merge/status documentation is handled in a separate post-merge PR rather than modifying the accepted implementation head.
 
 Workspace: `C:\Git\Agents\LF-WIN-DEV-001-Classification`.
 
@@ -41,6 +43,6 @@ Isolated owner acceptance root: `C:\Git\Agents\LF-WIN-DEV-001-Classification\.ca
 & "C:\Git\Agents\LF-WIN-DEV-001-Classification\artifacts\release\LightflowStudio\LightflowStudio.exe" --data-root "C:\Git\Agents\LF-WIN-DEV-001-Classification\.cache\acceptance-r1"
 ```
 
-Hands-on: exercise multi-selection rating assignment/menu toggle, flag assignment/clamped stepping, all Color labels/clear and keyword preservation in Folder/static/Smart scopes, Grid/Details and Browser/Player round trips. Reopen the isolated profile to verify durable values; compare existing visuals/interactions. Explicit owner acceptance remains the merge gate.
+Hands-on: exercise multi-selection rating assignment/menu toggle, flag assignment/clamped stepping, all Color labels/clear and keyword preservation in Folder/static/Smart scopes, Grid/Details and Browser/Player round trips. Reopen the isolated profile to verify durable values; compare existing visuals/interactions. Jeremy completed this packaged acceptance and authorized the normal merge; no remaining R1 acceptance gate is open.
 
 This slice establishes neutral shared classification execution and Windows compatibility. It does not establish a Mac application, shared UI, Catalog portability qualification or authorization of later migration work.

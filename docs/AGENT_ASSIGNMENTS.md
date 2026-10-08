@@ -9,7 +9,7 @@ This lightweight registry records identity and number allocation. GitHub remains
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
 | 000 | LF-ANY-DOC-000 | Agent Naming Convention | [PR #382](https://github.com/jeremyrunningphotography/lightflow-studio/pull/382) | In Progress; Done upon merge and reconciliation |
-| 001 | LF-WIN-DEV-001 | Shared Classification Extraction | [Issue #383](https://github.com/jeremyrunningphotography/lightflow-studio/issues/383) | In Progress; owner-authorized R1 |
+| 001 | LF-WIN-DEV-001 | Shared Classification Extraction | [Issue #383](https://github.com/jeremyrunningphotography/lightflow-studio/issues/383), [Draft PR #385](https://github.com/jeremyrunningphotography/lightflow-studio/pull/385) | Review; architecture and hands-on acceptance pending |
 | 002 | LF-WIN-RES-002 | Windows Avalonia Presentation Proof | Not yet linked | Planned |
 
 000 transitions to Done after successful merge and reconciliation. 001 is the owner-authorized bounded R1 shared classification extraction (#383); it does not authorize later migration. 002 is the proposed early Windows GPU/Avalonia presentation qualification. Reservations alone do not authorize execution.

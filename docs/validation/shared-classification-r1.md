@@ -18,11 +18,14 @@ The source-linked X2CatalogProof now references the shared contracts rather than
 
 ## Validation and acceptance
 
-Initial focused Release evidence:
+Local Release evidence (unchanged implementation/test inputs at `3466831`; this follow-up adds only assignment/validation documentation):
 
 - Neutral tests: 19 passed, zero skipped, with pinned locked restore.
 - Windows private-desktop classification / Browser semantic / real Browser integration / lifecycle / new shared-Catalog cases: 82 passed, zero skipped; no owned processes remain.
+- Full Windows private-desktop suite: 2,738 passed, one existing opt-in Premiere acceptance skip, zero failures; no owned processes remain.
+- Premiere companion: 90 passed.
 - X2CatalogProof Release build: zero errors/warnings.
+- Release portable ZIP generated, checksum/contents verified; packaged startup, workspace/Jobs, Catalog backup/restore, SQLite runtime and dependency checks passed. Final hands-on executable is refreshed with the mandatory PullRequest command after the last commit; its timestamp and process cleanup are recorded in the PR.
 
 New real-Catalog tests exercise whole-batch admission during quiescence (including completion), missing-asset partial failure through the existing dispatcher, fresh concurrent fields/readback and no-op revisions. Real WPF tests exercise changed same-scope presentation/projection, older revision rejection, captured selection/replacement scope, current Player refresh, Folder/static/Smart workflows and Catalog reopen. Existing tests remain authoritative.
 

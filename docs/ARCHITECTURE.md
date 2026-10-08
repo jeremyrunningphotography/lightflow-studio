@@ -46,6 +46,33 @@ while modern Export uses independent Jobs. Historical validation/research record
 their original acceptance state, SHAs and paths; final disposition lives in merged PRs
 and issues. The roadmap snapshot is [historical planning](ROADMAP.md).
 
+## Shared Windows/Mac target and migration status
+
+The owner selected one shared product architecture and authorized its documentation on 2026-10-08. This section records target direction, not delivered migration. The retained production sections below remain current Windows authority.
+
+| Status | Meaning in this package |
+| --- | --- |
+| Current implemented production | WPF/WinForms Windows app, neutral Actions, Flyleaf/D3D video plus FFmpeg/WaveOut audio, SQLite Catalog and rebuildable Preview |
+| Owner-accepted bounded research | G1 Player, G2 selected P2 portability, G3 Avalonia/UI/image PASS; exact scope and limits in immutable evidence |
+| Accepted target architecture | One shared neutral C# application/workflow/actions and Avalonia UI, narrow Windows/Mac adapters, incremental Windows continuity |
+| Proposed implementation | Assembly names/ports, R1–R7/WQ, enforcement/CI details and all engineering estimates; separate acceptance/authorization required |
+| Deferred or unqualified | Product toolchain/OS/hardware matrix, numeric tolerances, Windows GPU seam, full accessibility/display/audio/lifecycle/packaging qualification |
+
+Publication is a documentation review gate. It does not authorize R1, WQ, M4+ or release, and does not close Epic #366. Its GitHub combined checkbox remained open when inspected; the latest owner instruction selects the direction and documentation scope without silently reconciling issue/Project state.
+
+Target authorities:
+
+- [Shared product and incremental migration ADR](decisions/0002-shared-product-incremental-migration.md).
+- [Ownership/dependency ADR](decisions/0003-ownership-dependency-direction.md) and [current-to-target map, dependency diagram and governance](architecture/shared-product-boundaries.md).
+- [Player identity/acknowledgement/resource ADR](decisions/0004-player-frame-ownership.md): preserve operation-specific Decoded/RenderReady/UIAccepted, independent release and same-token capture. Windows presentation still needs early WQ.
+- [Catalog portability/storage ADR](decisions/0005-catalog-portability-storage-roles.md): Catalog-owned metadata, logical IDs/per-machine root mapping, local active SQLite, P2 closed transfer, distinct NAS media/backup roles; no multi-writer inference.
+- [Image/Preview/Color ADR](decisions/0006-image-preview-color-boundaries.md): common owned pixels/Skia, narrow format gaps, exact-once orientation and shared Camera→Creative intent; physical parity remains qualification.
+- [Qualification/release ADR](decisions/0007-cross-platform-qualification.md), [proposed migration and acceptance gates](architecture/migration-and-qualification.md) and [immutable evidence/status index](architecture/convergence-evidence.md).
+
+Future features normally have one shared domain/application behavior owner, workflow, action architecture and Avalonia view implementation. Platform adapters supply capabilities and native resources, not independent product behavior. Shared application contracts cannot expose WPF/WinForms/native presentation/graphics/audio objects. Selection stays shared with stable AssetId and visible anchors; realization and Preview demand remain bounded. The preferred shared Details architecture is a custom retained-cell control; its budget and completion are not approved by direction acceptance.
+
+WPF remains shipping during incremental extraction. Compatibility adapters consume one shared behavior owner; each slice identifies legacy replacement/retirement and retains existing contracts. Windows retirement requires explicit functional, visual, performance, packaging and owner hands-on acceptance. No big-bang rewrite or permanent dual architecture is selected.
+
 ## Technical video metadata (#311)
 
 The existing FFprobe path normalizes component depth and chroma through generated,

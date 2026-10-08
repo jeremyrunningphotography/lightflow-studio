@@ -18,6 +18,15 @@ supersede current issue decisions or maintain a competing live roadmap.
 - [Backlog and GitHub workflow](BACKLOG_WORKFLOW.md)
 - [Mac compatibility research and accepted planning](research/mac-compatibility/README.md)
 
+## Shared Windows/Mac architecture
+
+The target direction is owner-selected; production remains Windows WPF until qualified migration slices are accepted. Proposed implementation and estimates are not execution approval.
+
+- [Architecture Decision Records](decisions/README.md)
+- [Shared boundaries, dependency map and governance](architecture/shared-product-boundaries.md)
+- [Proposed migration, R1/WQ and qualification gates](architecture/migration-and-qualification.md)
+- [Immutable convergence evidence and acceptance chronology](architecture/convergence-evidence.md)
+
 ## Capability specifications
 
 - [Video Processing](capabilities/VIDEO_PROCESSING.md)

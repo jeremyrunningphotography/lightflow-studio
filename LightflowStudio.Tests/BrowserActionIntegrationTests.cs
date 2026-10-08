@@ -1,3 +1,4 @@
+using Lightflow.Domain;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -222,6 +223,29 @@ public sealed partial class BrowserActionIntegrationTests
         Assert.NotEqual(shell, window.ShellActionTarget);
         Assert.Equal(ActionUnavailableReason.NoBrowser, window.ShellActions.Eligibility(ReviewShellActions.Export,
             window.ShellActionTarget, new ExportEntryArguments(ExportEntry.BrowserSubclips)).Reason);
+        return null;
+    });
+    [Fact]
+    public Task SharedClassificationPublishesAfterSameScopeProjectionAndPresentationChanges() => WithWindow(async (window, storage, directory) => {
+        var (root, ids, collection) = await Seed(storage, directory);
+        await Load(window, storage, directory, root, collection, BrowserScopeKind.Collection);
+        var grid = Field<BrowserGridModel>(window, "_browserGrid"); grid.SelectAll();
+        using var barrier = await storage.Mutations.QuiesceAsync();
+        var pending = Invoke(window, BrowserActions.SetRating, new SetRatingArguments(4));
+        Assert.False(pending.IsCompleted);
+        var target = window.BrowserSemanticContext.Target!;
+        grid.SetQuery(new() { SortMode = BrowserSortMode.Name, SortDescending = true });
+        Set(window, "_browserActionPresentationGeneration", target.PresentationGeneration + 1);
+        Assert.NotEqual(target, window.BrowserSemanticContext.Target);
+        barrier.Dispose();
+        Assert.Equal(ActionOutcome.Completed, (await pending).Outcome);
+        foreach (var value in (await storage.AssetClassifications.GetAsync(ids)).Values) {
+            var tile = grid.Tiles.Single(t => t.AssetId == value.AssetId);
+            Assert.Equal(4, tile.Classification!.Rating);
+            Assert.Equal(value.Revision, tile.Classification.Revision);
+            grid.ApplyClassification(value with { Rating = 1, Revision = value.Revision - 1 });
+            Assert.Equal(4, tile.Classification.Rating);
+        }
         return null;
     });
     private static async Task WaitFor(Func<Task<bool>> condition) {

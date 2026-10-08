@@ -11,6 +11,28 @@ permissions:
   contents: read
 
 jobs:
+  neutral:
+    name: Neutral classification (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+      - name: Test shared classification without Windows targeting packs
+        run: dotnet test Lightflow.Application.Tests/Lightflow.Application.Tests.csproj -c Release --disable-build-servers -p:RestoreLockedMode=true --logger "trx;LogFileName=neutral.trx"
+      - name: Preserve neutral results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: neutral-classification-${{ matrix.os }}
+          path: Lightflow.Application.Tests/TestResults/*.trx
+          if-no-files-found: error
+          retention-days: 14
+
   test:
     name: Unit tests
     runs-on: windows-latest

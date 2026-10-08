@@ -1,43 +1,8 @@
+using Lightflow.Application;
+using Lightflow.Domain;
 using Microsoft.Data.Sqlite;
 
 namespace LightflowStudio;
-
-internal enum AssetFlag { Rejected = -1, Unflagged = 0, Picked = 1 }
-internal enum AssetColorLabel { Red = 1, Yellow = 2, Green = 3, Blue = 4, Purple = 5 }
-
-internal static class AssetClassificationCommandPolicy
-{
-    public static int SetRating(int current, int requested, bool toggleCurrent)
-    {
-        if (requested is < 0 or > 5) throw new ArgumentOutOfRangeException(nameof(requested));
-        return toggleCurrent && requested > 0 && current == requested ? 0 : requested;
-    }
-
-    public static AssetFlag StepFlag(AssetFlag current, int delta) =>
-        (AssetFlag)Math.Clamp((int)current + Math.Sign(delta), (int)AssetFlag.Rejected, (int)AssetFlag.Picked);
-
-    public static AssetFlag ToggleFlag(AssetFlag current, AssetFlag requested)
-    {
-        if (requested == AssetFlag.Unflagged) throw new ArgumentOutOfRangeException(nameof(requested));
-        return current == requested ? AssetFlag.Unflagged : requested;
-    }
-}
-
-internal sealed record AssetClassification(Guid AssetId, int Rating, AssetFlag Flag,
-    AssetColorLabel? ColorLabel, IReadOnlyList<string> Keywords, long Revision = 0)
-{
-    public static AssetClassification Empty(Guid assetId) => new(assetId, 0, AssetFlag.Unflagged, null, []);
-}
-
-internal interface IAssetClassificationStore
-{
-    Task<IReadOnlyDictionary<Guid, AssetClassification>> GetAsync(IReadOnlyCollection<Guid> assetIds,
-        CancellationToken cancellationToken = default);
-    Task SaveAsync(AssetClassification classification, CancellationToken cancellationToken = default);
-    /// <summary>Fresh-value mutation under the Catalog-owned classification serialization boundary.</summary>
-    Task<AssetClassification> UpdateAsync(Guid assetId, Func<AssetClassification, AssetClassification> mutate,
-        CancellationToken token = default) => throw new NotSupportedException("This read-only classification adapter cannot mutate.");
-}
 
 internal sealed class CatalogAssetClassificationStore(Func<CatalogDatabaseSession?> session,
     Func<DateTimeOffset>? utcNow = null) : IAssetClassificationStore

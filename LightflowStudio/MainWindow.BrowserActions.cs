@@ -1,3 +1,5 @@
+using Lightflow.Domain;
+using Lightflow.Application;
 using Lightflow.Actions;
 using System.Windows;
 using System.Windows.Input;
@@ -63,19 +65,12 @@ public partial class MainWindow
             ActionArguments arguments, CancellationToken token)
         {
             if (Context.Target != target) return new(ActionOutcome.Superseded);
-            return await owner._storage.Mutations.RunAsync(async () => {
-                var values = new List<AssetClassification>();
-                foreach (var id in ids) values.Add(await owner._storage.AssetClassifications.UpdateAsync(id, value => arguments switch {
-                    SetRatingArguments rating => value with { Rating = AssetClassificationCommandPolicy.SetRating(value.Rating, rating.Rating, rating.ToggleCurrent) },
-                    SetFlagArguments flag => value with { Flag = (AssetFlag)flag.Flag },
-                    StepFlagArguments step => value with { Flag = AssetClassificationCommandPolicy.StepFlag(value.Flag, (int)step.Direction) },
-                    SetColorLabelArguments label => value with { ColorLabel = label.Label is { } color ? (AssetColorLabel)color : null },
-                    _ => throw new ArgumentOutOfRangeException(nameof(arguments))
-                }, token));
-                if (!owner.IsSameBrowserContext(target)) return new ActionResult(ActionOutcome.Superseded);
-                owner.PublishBrowserClassifications(values);
-                return new ActionResult(ActionOutcome.Completed);
-            }, token);
+            return await new AssetClassificationService(owner._storage.AssetClassifications, owner._storage.Mutations)
+                .ExecuteAsync(ids, arguments, values => {
+                    if (!owner.IsSameBrowserContext(target)) return new ActionResult(ActionOutcome.Superseded);
+                    owner.PublishBrowserClassifications(values);
+                    return new ActionResult(ActionOutcome.Completed);
+                }, token);
         }
     }
     private bool IsSameBrowserContext(BrowserActionTarget? target) => target is not null &&

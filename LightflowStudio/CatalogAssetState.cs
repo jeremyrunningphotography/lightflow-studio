@@ -1,3 +1,4 @@
+using Lightflow.Domain;
 using Microsoft.Data.Sqlite;
 
 namespace LightflowStudio;

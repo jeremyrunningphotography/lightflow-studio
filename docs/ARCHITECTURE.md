@@ -52,7 +52,7 @@ The owner selected one shared product architecture and authorized its documentat
 
 | Status | Meaning in this package |
 | --- | --- |
-| Current implemented production | WPF/WinForms Windows app, neutral Actions, Flyleaf/D3D video plus FFmpeg/WaveOut audio, SQLite Catalog and rebuildable Preview |
+| Current implemented production | WPF/WinForms Windows app, neutral Actions plus accepted R1 Domain/Application classification execution, Flyleaf/D3D video plus FFmpeg/WaveOut audio, SQLite Catalog and rebuildable Preview |
 | Owner-accepted bounded research | G1 Player, G2 selected P2 portability, G3 Avalonia/UI/image PASS; exact scope and limits in immutable evidence |
 | Accepted target architecture | One shared neutral C# application/workflow/actions and Avalonia UI, narrow Windows/Mac adapters, incremental Windows continuity |
 | Proposed implementation | Assembly names/ports, R1–R7/WQ, enforcement/CI details and all engineering estimates; separate acceptance/authorization required |
@@ -72,6 +72,10 @@ Target authorities:
 Future features normally have one shared domain/application behavior owner, workflow, action architecture and Avalonia view implementation. Platform adapters supply capabilities and native resources, not independent product behavior. Shared application contracts cannot expose WPF/WinForms/native presentation/graphics/audio objects. Selection stays shared with stable AssetId and visible anchors; realization and Preview demand remain bounded. The preferred shared Details architecture is a custom retained-cell control; its budget and completion are not approved by direction acceptance.
 
 WPF remains shipping during incremental extraction. Compatibility adapters consume one shared behavior owner; each slice identifies legacy replacement/retirement and retains existing contracts. Windows retirement requires explicit functional, visual, performance, packaging and owner hands-on acceptance. No big-bang rewrite or permanent dual architecture is selected.
+
+### First completed production extraction: R1
+
+Jeremy accepted R1 architecture, automated validation and packaged hands-on behavior at `63fb05f594c140cdd94b2cd328a0f158df780620`; [PR #385](https://github.com/jeremyrunningphotography/lightflow-studio/pull/385) merged normally as `589beb399208cb574cb6f5e5f5b5ef29815f7f24`. net8.0 `Lightflow.Domain` owns classification values and `Lightflow.Application` owns the existing policy/store contracts and captured Browser mutation execution. The WPF adapter retains scope checks/publication; concrete Catalog storage, session serialization, mutation lifecycle and existing Actions authority are unchanged. See [Browser authority](BROWSER_ACTIONS.md) and [accepted R1 validation](validation/shared-classification-r1.md). This supersedes the R1 planning disposition above only for the bounded completed extraction; broader project/port proposals remain gated. Epic #366 remains Open / In Progress. Mac application support and R2/later migration are not authorized by this completion.
 
 ## Technical video metadata (#311)
 

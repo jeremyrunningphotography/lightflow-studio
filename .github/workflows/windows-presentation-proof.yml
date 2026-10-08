@@ -1,0 +1,30 @@
+name: Windows presentation evidence
+on:
+  pull_request:
+    paths:
+      - 'research/windows-presentation/**'
+      - 'docs/research/windows-presentation/**'
+      - '.github/workflows/windows-presentation-proof.yml'
+permissions:
+  contents: read
+jobs:
+  proof:
+    name: Presentation proof build and evidence
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.423
+      - name: Build pinned isolated harness
+        shell: powershell
+        run: .\research\windows-presentation\Build-Proof.ps1
+      - name: Verify recorded native evidence
+        shell: powershell
+        run: |
+          Expand-Archive .\docs\research\windows-presentation\evidence\qualified.zip .\artifacts\recorded-proof
+          .\research\windows-presentation\Verify-Evidence.ps1 -DataRoot .\artifacts\recorded-proof
+      - uses: actions/upload-artifact@v6
+        with:
+          name: windows-presentation-harness
+          path: artifacts/windows-presentation/package

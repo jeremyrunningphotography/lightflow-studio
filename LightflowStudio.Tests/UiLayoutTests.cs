@@ -1,3 +1,5 @@
+using Lightflow.Domain;
+using Lightflow.Application;
 using System.Xml.Linq;
 using System.Windows.Media;
 using Xunit;
@@ -1514,7 +1516,7 @@ public class UiLayoutTests
         var pickedFlag = flag.Descendants(ns + "Viewbox").Single(viewbox =>
             (string?)viewbox.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PickedFlagShape");
         Assert.Contains(pickedFlag.Descendants(ns + "DataTrigger"), trigger =>
-            (string?)trigger.Attribute("Value") == "{x:Static local:AssetFlag.Picked}");
+            (string?)trigger.Attribute("Value") == "{x:Static domain:AssetFlag.Picked}");
         Assert.Contains(pickedFlag.Descendants(ns + "Path"), path =>
             (string?)path.Attribute("Data") == "{StaticResource ClassificationPickedFlagGeometry}");
         Assert.Contains(flag.Descendants(ns + "Path"), path =>
@@ -1534,7 +1536,7 @@ public class UiLayoutTests
             (string?)path.Attribute("Data") == "{StaticResource ClassificationRejectedXGeometry}" &&
             (string?)path.Attribute("Stroke") == "{StaticResource ClassificationRejectedActiveBrush}");
         Assert.Contains(flag.Descendants(ns + "DataTrigger"), trigger =>
-            (string?)trigger.Attribute("Value") == "{x:Static local:AssetFlag.Unflagged}" &&
+            (string?)trigger.Attribute("Value") == "{x:Static domain:AssetFlag.Unflagged}" &&
             trigger.Descendants(ns + "Setter").Any(setter => (string?)setter.Attribute("Value") == "Collapsed"));
         Assert.NotNull(Named(document, "BrowserHybridLowerStateOverlay"));
     }

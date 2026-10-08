@@ -8,7 +8,7 @@ This lightweight registry records identity and number allocation. GitHub remains
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 000 | LF-ANY-DOC-000 | Agent Naming Convention | Pending documentation PR | In Progress |
+| 000 | LF-ANY-DOC-000 | Agent Naming Convention | [PR #382](https://github.com/jeremyrunningphotography/lightflow-studio/pull/382) | In Progress; Done upon merge and reconciliation |
 | 001 | LF-WIN-DEV-001 | Shared Classification Extraction | Not yet linked | Planned |
 | 002 | LF-WIN-RES-002 | Windows Avalonia Presentation Proof | Not yet linked | Planned |
 

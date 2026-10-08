@@ -190,15 +190,21 @@ sealed class Proof(Window window, Grid scene, SurfaceControl video, Button overl
             Check(!await Offer(invalidated,duringUpdate:()=>host++),"no callback publishes after host invalidation");
             retained.Leases--; retained=null; video.Clear(); await Retire();
             await Accept(New()); Capture("rehost");
+            var resizeTimer=Stopwatch.StartNew();
             window.Width=1000; scene.Width=720; video.Width=720;
+            await compositor.RequestCommitAsync();
+            Log("resizeCost",new {commitMs=resizeTimer.Elapsed.TotalMilliseconds,includesPhysicalScanout=false});
             await Task.Delay(100); Check(video.Visual!.Size.X==video.Bounds.Width,"resize matches composition bounds");
+            var rehostTimer=Stopwatch.StartNew();
             scene.Children.Remove(video); host++; video.Clear(); retained!.Leases--; retained=null;
-            scene.Children.Insert(0,video); await Task.Delay(50); await Accept(New()); Capture("reattach");
+            scene.Children.Insert(0,video); await compositor.RequestCommitAsync(); await Accept(New());
+            Log("rehostCost",new {freshAcceptanceMs=rehostTimer.Elapsed.TotalMilliseconds}); Capture("reattach");
             epoch++; await Accept(New()); Capture("replacement");
             // Deliberate producer-device replacement; not physical TDR/compositor loss.
             video.Clear(); retained!.Leases--; retained=null; await Retire();
+            var deviceTimer=Stopwatch.StartNew();
             gpu.Dispose(); gpu=new Gpu(interop.DeviceLuid); epoch++; host++;
-            await Accept(New()); Capture("producer-device-recreated");
+            await Accept(New()); Log("producerRecreationCost",new {freshAcceptanceMs=deviceTimer.Elapsed.TotalMilliseconds}); Capture("producer-device-recreated");
             await VisualChecks("recreated");
             for(int cycle=0;cycle<8;cycle++) { epoch++; await Accept(New()); }
             await Cadence(1920,1080); await Cadence(3840,2160);

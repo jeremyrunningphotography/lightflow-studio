@@ -1,3 +1,4 @@
+using Lightflow.Domain;
 using System.Globalization;
 using System.Windows.Data;
 

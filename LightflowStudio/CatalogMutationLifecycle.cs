@@ -1,3 +1,5 @@
+using Lightflow.Application;
+
 namespace LightflowStudio;
 
 internal interface ICatalogMutationParticipant
@@ -6,7 +8,7 @@ internal interface ICatalogMutationParticipant
 }
 
 /// <summary>Counts complete logical operations, not connections or transactions. Reads remain independent.</summary>
-internal sealed class CatalogMutationLifecycle : IDisposable
+internal sealed class CatalogMutationLifecycle : IDisposable, IClassificationMutationAdmission
 {
     private readonly object _sync = new();
     private readonly AsyncLocal<Admission?> _current = new();

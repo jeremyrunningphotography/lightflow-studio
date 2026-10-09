@@ -55,6 +55,19 @@
         "type": "Transitive",
         "resolved": "4.5.3",
         "contentHash": "3oDzvc/zzetpTKWMShs1AADwZjQ/36HnsufHRPcOjyRAAMLDlu2iD33MBI2opxnezcVUtXyqDXXjoFMOU9c7SA=="
+      },
+      "lightflow.actions": {
+        "type": "Project"
+      },
+      "lightflow.application": {
+        "type": "Project",
+        "dependencies": {
+          "Lightflow.Actions": "[1.0.0, )",
+          "Lightflow.Domain": "[1.0.0, )"
+        }
+      },
+      "lightflow.domain": {
+        "type": "Project"
       }
     }
   }

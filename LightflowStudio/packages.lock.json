@@ -209,6 +209,16 @@
       },
       "lightflow.actions": {
         "type": "Project"
+      },
+      "lightflow.application": {
+        "type": "Project",
+        "dependencies": {
+          "Lightflow.Actions": "[1.0.0, )",
+          "Lightflow.Domain": "[1.0.0, )"
+        }
+      },
+      "lightflow.domain": {
+        "type": "Project"
       }
     }
   }

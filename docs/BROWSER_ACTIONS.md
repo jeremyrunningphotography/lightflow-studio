@@ -43,6 +43,8 @@ Resolution completion rechecks target and projection before entering Player; rep
 
 ## Classification authority and correctness
 
+R1 ([#383](https://github.com/jeremyrunningphotography/lightflow-studio/issues/383)) moves classification values to Lightflow.Domain and command policy/store contracts/execution to Lightflow.Application (net8.0). The Windows port delegates its captured mutation loop and argument mapping to AssetClassificationService; its completion projection keeps the existing scope checks/publication inside one outer Catalog lifecycle admission. SQL/session serialization and lifecycle implementation remain in Windows. See [boundary and validation](validation/shared-classification-r1.md); Jeremy accepted architecture, automated validation and packaged hands-on behavior at `63fb05f`; PR #385 merged normally as `589beb3`. This is the first completed production extraction, while Mac application support remains outside R1.
+
 CatalogAssetClassificationStore remains the only durable classification store. UpdateAsync serializes fresh-value
 read/mutate/save/readback operations through a gate owned by the Catalog session (shared across store instances),
 inside the existing Catalog mutation lifecycle. A Browser batch retains one outer lifecycle admission across all of its captured Assets; unchanged values do not generate redundant durable writes. The lifecycle counts and drains operations; it was not a writer

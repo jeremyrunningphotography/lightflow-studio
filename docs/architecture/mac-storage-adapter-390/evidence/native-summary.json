@@ -1,0 +1,1213 @@
+{
+  "agent": "LF-MAC-DEV-006",
+  "evidence": "Native production adapter plus separately labeled controlled facts; absolute host/mount identities retained only in raw local manifests.",
+  "summary": [
+    {
+      "source": "work/native-final-05/results.json",
+      "rawSha256": "abbd99c7ce1fe79b73490f239ebfc907f6237da6aad1fa11294f44ec996bad69",
+      "originalFixtureHash": "809C11D05B0DE4E834F9748B212CA5D19FBA819B4C28A6ACE40C4AA2D23026BB",
+      "finalFixtureHash": "809C11D05B0DE4E834F9748B212CA5D19FBA819B4C28A6ACE40C4AA2D23026BB",
+      "failures": [],
+      "checks": [
+        {
+          "name": "APFS directory",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "APFS directory: request preserved",
+          "passed": true
+        },
+        {
+          "name": "APFS directory: expected reason",
+          "passed": true
+        },
+        {
+          "name": "APFS catalog-like file",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "APFS catalog-like file: request preserved",
+          "passed": true
+        },
+        {
+          "name": "APFS catalog-like file: expected reason",
+          "passed": true
+        },
+        {
+          "name": "missing creation leaf",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "missing creation leaf: request preserved",
+          "passed": true
+        },
+        {
+          "name": "missing creation leaf: expected reason",
+          "passed": true
+        },
+        {
+          "name": "assessment never creates intended leaf",
+          "passed": true
+        },
+        {
+          "name": "missing parent",
+          "evidence": "native",
+          "locality": "Unknown",
+          "status": "Failed",
+          "alias": "Unknown",
+          "containment": "Unknown",
+          "capabilities": null,
+          "decision": "Rejected",
+          "reason": "AssessmentFailed"
+        },
+        {
+          "name": "missing parent: request preserved",
+          "passed": true
+        },
+        {
+          "name": "missing parent: expected reason",
+          "passed": true
+        },
+        {
+          "name": "missing open is not first run",
+          "evidence": "native",
+          "locality": "Unknown",
+          "status": "Failed",
+          "alias": "Unknown",
+          "containment": "Unknown",
+          "capabilities": null,
+          "decision": "Rejected",
+          "reason": "AssessmentFailed"
+        },
+        {
+          "name": "missing open is not first run: request preserved",
+          "passed": true
+        },
+        {
+          "name": "missing open is not first run: expected reason",
+          "passed": true
+        },
+        {
+          "name": "fresh native revalidation",
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "unchanged native identity revalidates",
+          "passed": true
+        },
+        {
+          "name": "new assessment identity",
+          "passed": true
+        },
+        {
+          "name": "same mount anchor",
+          "passed": true
+        },
+        {
+          "name": "reused snapshot refused",
+          "passed": true
+        },
+        {
+          "name": "new operation refused borrowed snapshot",
+          "passed": true
+        },
+        {
+          "name": "expiry refused",
+          "passed": true
+        },
+        {
+          "name": "native cancellation prevents admission",
+          "passed": true
+        },
+        {
+          "name": "read-only permissions",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Unsupported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "ReadOnly"
+        },
+        {
+          "name": "read-only permissions: request preserved",
+          "passed": true
+        },
+        {
+          "name": "read-only permissions: expected reason",
+          "passed": true
+        },
+        {
+          "name": "permission denied does not mean first run",
+          "evidence": "native",
+          "locality": "Unknown",
+          "status": "Failed",
+          "alias": "Unknown",
+          "containment": "Unknown",
+          "capabilities": null,
+          "decision": "Rejected",
+          "reason": "AssessmentFailed"
+        },
+        {
+          "name": "permission denied does not mean first run: request preserved",
+          "passed": true
+        },
+        {
+          "name": "permission denied does not mean first run: expected reason",
+          "passed": true
+        },
+        {
+          "name": "local symlink",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "UnresolvedAliases"
+        },
+        {
+          "name": "local symlink: request preserved",
+          "passed": true
+        },
+        {
+          "name": "local symlink: expected reason",
+          "passed": true
+        },
+        {
+          "name": "replaced symlink continuation rejected",
+          "passed": true
+        },
+        {
+          "name": "replaced symlink recorded new target",
+          "passed": true
+        },
+        {
+          "name": "symlink chain",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "UnresolvedAliases"
+        },
+        {
+          "name": "symlink chain: request preserved",
+          "passed": true
+        },
+        {
+          "name": "symlink chain: expected reason",
+          "passed": true
+        },
+        {
+          "name": "broken symlink",
+          "evidence": "native",
+          "locality": "Unknown",
+          "status": "Failed",
+          "alias": "Unknown",
+          "containment": "Unknown",
+          "capabilities": null,
+          "decision": "Rejected",
+          "reason": "AssessmentFailed"
+        },
+        {
+          "name": "broken symlink: request preserved",
+          "passed": true
+        },
+        {
+          "name": "broken symlink: expected reason",
+          "passed": true
+        },
+        {
+          "name": "protected cache containment",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "AmbiguousContainment"
+        },
+        {
+          "name": "protected cache containment: request preserved",
+          "passed": true
+        },
+        {
+          "name": "protected cache containment: expected reason",
+          "passed": true
+        },
+        {
+          "name": "NFC exact request",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "UnresolvedAliases"
+        },
+        {
+          "name": "NFC exact request: request preserved",
+          "passed": true
+        },
+        {
+          "name": "NFD exact request",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "UnresolvedAliases"
+        },
+        {
+          "name": "NFD exact request: request preserved",
+          "passed": true
+        },
+        {
+          "name": "Unicode request spelling retained",
+          "passed": true
+        },
+        {
+          "name": "case original request",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "case original request: request preserved",
+          "passed": true
+        },
+        {
+          "name": "case alternate request",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "UnresolvedAliases"
+        },
+        {
+          "name": "case alternate request: request preserved",
+          "passed": true
+        },
+        {
+          "name": "catalog-like bytes unchanged",
+          "passed": true
+        },
+        {
+          "name": "changed mount",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "VolumeChanged"
+        },
+        {
+          "name": "changed mount",
+          "passed": true
+        },
+        {
+          "name": "changed capability",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "ReadOnly"
+        },
+        {
+          "name": "changed capability",
+          "passed": true
+        },
+        {
+          "name": "unknown filesystem qualification",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "MissingCapabilities"
+        },
+        {
+          "name": "unknown filesystem qualification",
+          "passed": true
+        },
+        {
+          "name": "unknown locality",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "UnknownLocality"
+        },
+        {
+          "name": "unknown locality",
+          "passed": true
+        },
+        {
+          "name": "unavailable mount",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "LocationUnavailable"
+        },
+        {
+          "name": "unavailable mount",
+          "passed": true
+        },
+        {
+          "name": "provider failure",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "AssessmentFailed"
+        },
+        {
+          "name": "provider failure",
+          "passed": true
+        },
+        {
+          "name": "network active Catalog",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "NetworkActiveCatalog"
+        },
+        {
+          "name": "network active Catalog",
+          "passed": true
+        },
+        {
+          "name": "MediaSource",
+          "evidence": "controlled facts; native network UNQUALIFIED",
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "MediaSource",
+          "passed": true
+        },
+        {
+          "name": "ClosedCatalogBackupTransfer",
+          "evidence": "controlled facts; native network UNQUALIFIED",
+          "decision": "RequiresVerifiedStaging",
+          "reason": "VerifiedStagingRequired"
+        },
+        {
+          "name": "ClosedCatalogBackupTransfer",
+          "passed": true
+        },
+        {
+          "name": "optional read-only native location probe",
+          "evidence": "native",
+          "locality": "Network",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Unknown",
+            "DurableWrites": "Unknown",
+            "FileLocking": "Unsupported",
+            "CompanionFiles": "Unknown"
+          },
+          "decision": "Rejected",
+          "reason": "NetworkActiveCatalog"
+        },
+        {
+          "name": "optional read-only native location probe: request preserved",
+          "passed": true
+        },
+        {
+          "name": "native network ActiveCatalog",
+          "passed": true
+        },
+        {
+          "name": "optional read-only native location probe",
+          "evidence": "native",
+          "locality": "Network",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Unknown",
+            "DurableWrites": "Unknown",
+            "FileLocking": "Unsupported",
+            "CompanionFiles": "Unknown"
+          },
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "optional read-only native location probe: request preserved",
+          "passed": true
+        },
+        {
+          "name": "native network MediaSource",
+          "passed": true
+        },
+        {
+          "name": "optional read-only native location probe",
+          "evidence": "native",
+          "locality": "Network",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Unknown",
+            "DurableWrites": "Unknown",
+            "FileLocking": "Unsupported",
+            "CompanionFiles": "Unknown"
+          },
+          "decision": "RequiresVerifiedStaging",
+          "reason": "VerifiedStagingRequired"
+        },
+        {
+          "name": "optional read-only native location probe: request preserved",
+          "passed": true
+        },
+        {
+          "name": "native network ClosedCatalogBackupTransfer",
+          "passed": true
+        },
+        {
+          "name": "local-looking symlink to supplied mount",
+          "evidence": "native",
+          "locality": "Network",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Unknown",
+            "DurableWrites": "Unknown",
+            "FileLocking": "Unsupported",
+            "CompanionFiles": "Unknown"
+          },
+          "decision": "Rejected",
+          "reason": "NetworkActiveCatalog"
+        },
+        {
+          "name": "local-looking symlink to supplied mount: request preserved",
+          "passed": true
+        },
+        {
+          "name": "disposed provider fails closed",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "source": "work/native-image-04/results.json",
+      "rawSha256": "50bdef25e647c6b4cc91212bb0564a8cd5e4babd184eddde1882aa024d59d5e9",
+      "originalFixtureHash": "809C11D05B0DE4E834F9748B212CA5D19FBA819B4C28A6ACE40C4AA2D23026BB",
+      "finalFixtureHash": "809C11D05B0DE4E834F9748B212CA5D19FBA819B4C28A6ACE40C4AA2D23026BB",
+      "failures": [],
+      "checks": [
+        {
+          "name": "APFS directory",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "APFS directory: request preserved",
+          "passed": true
+        },
+        {
+          "name": "APFS directory: expected reason",
+          "passed": true
+        },
+        {
+          "name": "APFS catalog-like file",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "APFS catalog-like file: request preserved",
+          "passed": true
+        },
+        {
+          "name": "APFS catalog-like file: expected reason",
+          "passed": true
+        },
+        {
+          "name": "missing creation leaf",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "missing creation leaf: request preserved",
+          "passed": true
+        },
+        {
+          "name": "missing creation leaf: expected reason",
+          "passed": true
+        },
+        {
+          "name": "assessment never creates intended leaf",
+          "passed": true
+        },
+        {
+          "name": "missing parent",
+          "evidence": "native",
+          "locality": "Unknown",
+          "status": "Failed",
+          "alias": "Unknown",
+          "containment": "Unknown",
+          "capabilities": null,
+          "decision": "Rejected",
+          "reason": "AssessmentFailed"
+        },
+        {
+          "name": "missing parent: request preserved",
+          "passed": true
+        },
+        {
+          "name": "missing parent: expected reason",
+          "passed": true
+        },
+        {
+          "name": "missing open is not first run",
+          "evidence": "native",
+          "locality": "Unknown",
+          "status": "Failed",
+          "alias": "Unknown",
+          "containment": "Unknown",
+          "capabilities": null,
+          "decision": "Rejected",
+          "reason": "AssessmentFailed"
+        },
+        {
+          "name": "missing open is not first run: request preserved",
+          "passed": true
+        },
+        {
+          "name": "missing open is not first run: expected reason",
+          "passed": true
+        },
+        {
+          "name": "fresh native revalidation",
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "unchanged native identity revalidates",
+          "passed": true
+        },
+        {
+          "name": "new assessment identity",
+          "passed": true
+        },
+        {
+          "name": "same mount anchor",
+          "passed": true
+        },
+        {
+          "name": "reused snapshot refused",
+          "passed": true
+        },
+        {
+          "name": "new operation refused borrowed snapshot",
+          "passed": true
+        },
+        {
+          "name": "expiry refused",
+          "passed": true
+        },
+        {
+          "name": "native cancellation prevents admission",
+          "passed": true
+        },
+        {
+          "name": "read-only permissions",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Unsupported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "ReadOnly"
+        },
+        {
+          "name": "read-only permissions: request preserved",
+          "passed": true
+        },
+        {
+          "name": "read-only permissions: expected reason",
+          "passed": true
+        },
+        {
+          "name": "local symlink",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "UnresolvedAliases"
+        },
+        {
+          "name": "local symlink: request preserved",
+          "passed": true
+        },
+        {
+          "name": "local symlink: expected reason",
+          "passed": true
+        },
+        {
+          "name": "replaced symlink continuation rejected",
+          "passed": true
+        },
+        {
+          "name": "replaced symlink recorded new target",
+          "passed": true
+        },
+        {
+          "name": "symlink chain",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "UnresolvedAliases"
+        },
+        {
+          "name": "symlink chain: request preserved",
+          "passed": true
+        },
+        {
+          "name": "symlink chain: expected reason",
+          "passed": true
+        },
+        {
+          "name": "broken symlink",
+          "evidence": "native",
+          "locality": "Unknown",
+          "status": "Failed",
+          "alias": "Unknown",
+          "containment": "Unknown",
+          "capabilities": null,
+          "decision": "Rejected",
+          "reason": "AssessmentFailed"
+        },
+        {
+          "name": "broken symlink: request preserved",
+          "passed": true
+        },
+        {
+          "name": "broken symlink: expected reason",
+          "passed": true
+        },
+        {
+          "name": "protected cache containment",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "AmbiguousContainment"
+        },
+        {
+          "name": "protected cache containment: request preserved",
+          "passed": true
+        },
+        {
+          "name": "protected cache containment: expected reason",
+          "passed": true
+        },
+        {
+          "name": "NFC exact request",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "UnresolvedAliases"
+        },
+        {
+          "name": "NFC exact request: request preserved",
+          "passed": true
+        },
+        {
+          "name": "NFD exact request",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "UnresolvedAliases"
+        },
+        {
+          "name": "NFD exact request: request preserved",
+          "passed": true
+        },
+        {
+          "name": "Unicode request spelling retained",
+          "passed": true
+        },
+        {
+          "name": "case original request",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "case original request: request preserved",
+          "passed": true
+        },
+        {
+          "name": "case alternate request",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Supported",
+            "DurableWrites": "Supported",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Supported"
+          },
+          "decision": "Rejected",
+          "reason": "UnresolvedAliases"
+        },
+        {
+          "name": "case alternate request: request preserved",
+          "passed": true
+        },
+        {
+          "name": "catalog-like bytes unchanged",
+          "passed": true
+        },
+        {
+          "name": "changed mount",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "VolumeChanged"
+        },
+        {
+          "name": "changed mount",
+          "passed": true
+        },
+        {
+          "name": "changed capability",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "ReadOnly"
+        },
+        {
+          "name": "changed capability",
+          "passed": true
+        },
+        {
+          "name": "unknown filesystem qualification",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "MissingCapabilities"
+        },
+        {
+          "name": "unknown filesystem qualification",
+          "passed": true
+        },
+        {
+          "name": "unknown locality",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "UnknownLocality"
+        },
+        {
+          "name": "unknown locality",
+          "passed": true
+        },
+        {
+          "name": "unavailable mount",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "LocationUnavailable"
+        },
+        {
+          "name": "unavailable mount",
+          "passed": true
+        },
+        {
+          "name": "provider failure",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "AssessmentFailed"
+        },
+        {
+          "name": "provider failure",
+          "passed": true
+        },
+        {
+          "name": "network active Catalog",
+          "evidence": "controlled shared facts; native scenario UNQUALIFIED",
+          "decision": "Rejected",
+          "reason": "NetworkActiveCatalog"
+        },
+        {
+          "name": "network active Catalog",
+          "passed": true
+        },
+        {
+          "name": "MediaSource",
+          "evidence": "controlled facts; native network UNQUALIFIED",
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "MediaSource",
+          "passed": true
+        },
+        {
+          "name": "ClosedCatalogBackupTransfer",
+          "evidence": "controlled facts; native network UNQUALIFIED",
+          "decision": "RequiresVerifiedStaging",
+          "reason": "VerifiedStagingRequired"
+        },
+        {
+          "name": "ClosedCatalogBackupTransfer",
+          "passed": true
+        },
+        {
+          "name": "optional read-only native location probe",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Unknown",
+            "DurableWrites": "Unknown",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Unknown"
+          },
+          "decision": "Rejected",
+          "reason": "MissingCapabilities"
+        },
+        {
+          "name": "optional read-only native location probe: request preserved",
+          "passed": true
+        },
+        {
+          "name": "optional read-only native location probe",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Unknown",
+            "DurableWrites": "Unknown",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Unknown"
+          },
+          "decision": "Eligible",
+          "reason": "Eligible"
+        },
+        {
+          "name": "optional read-only native location probe: request preserved",
+          "passed": true
+        },
+        {
+          "name": "optional read-only native location probe",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Resolved",
+          "containment": "Resolved",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Unknown",
+            "DurableWrites": "Unknown",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Unknown"
+          },
+          "decision": "RequiresVerifiedStaging",
+          "reason": "VerifiedStagingRequired"
+        },
+        {
+          "name": "optional read-only native location probe: request preserved",
+          "passed": true
+        },
+        {
+          "name": "local-looking symlink to supplied mount",
+          "evidence": "native",
+          "locality": "Local",
+          "status": "Complete",
+          "alias": "Ambiguous",
+          "containment": "Ambiguous",
+          "capabilities": {
+            "Read": "Supported",
+            "Write": "Supported",
+            "QualifiedCatalogFileSystem": "Unknown",
+            "DurableWrites": "Unknown",
+            "FileLocking": "Supported",
+            "CompanionFiles": "Unknown"
+          },
+          "decision": "Rejected",
+          "reason": "UnresolvedAliases"
+        },
+        {
+          "name": "local-looking symlink to supplied mount: request preserved",
+          "passed": true
+        },
+        {
+          "name": "disposed provider fails closed",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "source": "work/evidence/mount-anchor.json",
+      "rawSha256": "f9b479379dcf16aaeefc1000b385956d7cb483f196d895a5c76efa30c4596f40",
+      "anchorBlocksOrdinaryUnmount": true,
+      "anchorsBefore": 1,
+      "anchorsAfterDispose": 0,
+      "ordinaryDetachAfterDisposeExitCode": 0
+    },
+    {
+      "source": "work/lf006-images-08d42e9ff13e4b8eb9db1da9bbb85289/results.json",
+      "rawSha256": "8d8a2af2887d1287a6e56bc43d757665bf6830e4b73bc4f14d455807755ed896",
+      "imageChecks": [
+        {
+          "name": "case-sensitive",
+          "passed": true,
+          "hashes": {
+            "Case.bin": "1ce112fc6f463962f5022aaa74bfc26f62d30cd305288618c88b54da5c8bf796",
+            "case.bin": "9c3c65f99e2f1e5d5089695e09c8cf5e6dfd075a0d4731fb3228b946ada893ac",
+            "caf\u00e9.bin": "beee28d675a11d04d96a4c4a10a95964b5c0e0a684fc0d0d8d173c02b566b30b"
+          },
+          "limitation": "Disk-image evidence; physical external storage and forced removal remain UNQUALIFIED."
+        },
+        {
+          "name": "apfs",
+          "passed": true,
+          "hashes": {
+            "Case.bin": "1ce112fc6f463962f5022aaa74bfc26f62d30cd305288618c88b54da5c8bf796",
+            "caf\u00e9.bin": "beee28d675a11d04d96a4c4a10a95964b5c0e0a684fc0d0d8d173c02b566b30b"
+          },
+          "limitation": "Disk-image evidence; physical external storage and forced removal remain UNQUALIFIED."
+        }
+      ],
+      "nativeCommandFailures": []
+    }
+  ]
+}

@@ -676,8 +676,9 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             }
             Locations = sourceLocations;
             Settings = sourceSettings;
-            await TryReactivateCatalogAsync(activate: false).ConfigureAwait(false);
-            return new(StorageChangeStatus.Failed, $"The Catalog was not moved. {exception.Message}");
+            var reactivation = await TryReactivateCatalogAsync(activate: false).ConfigureAwait(false);
+            return new(StorageChangeStatus.Failed, $"The Catalog was not moved. {exception.Message}" +
+                (reactivation.Succeeded ? "" : $" Source reopen failed: {reactivation.Diagnostic}"));
         }
     }
 

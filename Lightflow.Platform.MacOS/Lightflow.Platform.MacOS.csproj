@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Lightflow.Application/Lightflow.Application.csproj" />
+    <None Include="native/libLightflowStorage.dylib" CopyToOutputDirectory="PreserveNewest" Link="libLightflowStorage.dylib" />
+  </ItemGroup>
+  <Target Name="BuildMacStorageNative" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <Exec Command="xcrun clang -dynamiclib -fobjc-arc -Wall -Wextra -Werror -framework Foundation &quot;$(MSBuildProjectDirectory)/native/storage.m&quot; -o &quot;$(MSBuildProjectDirectory)/native/libLightflowStorage.dylib&quot;" />
+  </Target>
+</Project>

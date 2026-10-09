@@ -94,7 +94,10 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
             return Snapshot(StorageAssessmentStatus.Complete, identity, locality, StorageAvailability.Available,
                 StorageResolutionConfidence.Resolved, containment,
                 new(read, write, qualified, semantics, semantics, semantics),
-                qualified == StorageCapability.Supported ? null : $"Filesystem '{observed.Name}' is not qualified by the accepted Windows NTFS evidence.");
+                qualified == StorageCapability.Supported || locality == StorageLocality.Network || request.Role != StorageRole.ActiveCatalog ? null
+                    : qualified == StorageCapability.Unknown
+                        ? $"Required filesystem capabilities could not be verified for '{observed.Name}'. Check access or choose a supported local NTFS location."
+                        : $"Active Catalogs require a supported local NTFS filesystem. The resolved filesystem is '{observed.Name}'.");
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception error) when (error is Win32Exception or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)

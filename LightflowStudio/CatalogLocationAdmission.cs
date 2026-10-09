@@ -10,11 +10,13 @@ internal sealed class CatalogLocationAdmission : IDisposable
     private readonly IStorageLocationAssessor _assessor;
     private readonly WindowsStorageLocationAssessor? _owned;
     private readonly StorageAssessmentRequest _request;
+    private readonly LightflowStorageLocations _locations;
     private StorageLocationAssessment? _previous;
 
     internal CatalogLocationAdmission(LightflowStorageLocations locations, StorageOperation operation,
         IStorageLocationAssessor? assessor = null)
     {
+        _locations = locations;
         _request = new(Guid.NewGuid(), 0, StorageRole.ActiveCatalog, operation, locations.CatalogDirectory);
         _assessor = assessor ?? (_owned = new WindowsStorageLocationAssessor(
             [locations.PreviewsDirectory, locations.TemporaryDirectory]));
@@ -23,6 +25,7 @@ internal sealed class CatalogLocationAdmission : IDisposable
     internal async Task ValidateAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (_locations.IsIsolated) ApplicationDataProfile.GuardAccess(_locations.CatalogDatabasePath);
         var current = await _assessor.AssessAsync(_request, cancellationToken).ConfigureAwait(false);
         var result = _previous is null
             ? StorageLocationPolicy.Evaluate(_request, current, DateTimeOffset.UtcNow, cancellationToken)
@@ -38,6 +41,18 @@ internal sealed class CatalogLocationAdmission : IDisposable
         }
         _previous = current;
         cancellationToken.ThrowIfCancellationRequested();
+    }
+    internal LightflowStorageLocations LocationsForUse()
+    {
+        if (_previous?.Identity is not { } identity) throw new InvalidOperationException("Assess the Catalog location before use.");
+        if (_owned is null) return _locations; // Controllable port fixtures are not native path bindings.
+        // Operation-only canonical routing; never persist this in place of configured locations.
+        return _locations with
+        {
+            CatalogDirectory = identity.CanonicalLocation,
+            CatalogDatabasePath = Path.Combine(identity.CanonicalLocation, LightflowStorageLocations.CatalogFileName),
+            CatalogBackupsDirectory = Path.Combine(identity.CanonicalLocation, "Backups")
+        };
     }
     public void Dispose() => _owned?.Dispose();
 }

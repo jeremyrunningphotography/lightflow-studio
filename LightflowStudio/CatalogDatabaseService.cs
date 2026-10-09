@@ -35,6 +35,7 @@ internal sealed class CatalogDatabaseService
     // Supplied only by the production lifecycle composition. SQLite still owns creation,
     // inspection and migration; this callback revalidates native location binding at use.
     internal Action<CancellationToken>? ValidateStorageAccess { get; init; }
+    internal string? ResolvedDatabasePath { get; init; }
 
     public int CurrentSchemaVersion => _migrations.Count == 0 ? 0 : _migrations[^1].Version;
 
@@ -48,7 +49,7 @@ internal sealed class CatalogDatabaseService
     {
         using var timing = StartupDiagnostics.Stage("Catalog open", "Checking Catalog…");
         cancellationToken.ThrowIfCancellationRequested();
-        var databasePath = Path.GetFullPath(_storageLocations.CatalogDatabasePath);
+        var databasePath = Path.GetFullPath(ResolvedDatabasePath ?? _storageLocations.CatalogDatabasePath);
         var catalogDirectory = Path.GetDirectoryName(databasePath)!;
 
         try
@@ -100,7 +101,7 @@ internal sealed class CatalogDatabaseService
     {
         using var timing = StartupDiagnostics.Stage("Catalog open", "Checking Catalog…");
         cancellationToken.ThrowIfCancellationRequested();
-        var databasePath = Path.GetFullPath(_storageLocations.CatalogDatabasePath);
+        var databasePath = Path.GetFullPath(ResolvedDatabasePath ?? _storageLocations.CatalogDatabasePath);
         var catalogDirectory = Path.GetDirectoryName(databasePath)!;
 
         if (!Directory.Exists(catalogDirectory))
@@ -333,7 +334,7 @@ internal sealed class CatalogDatabaseService
         ValidateMigrationHistory(connection, version);
         var identity = ReadCatalogIdentity(connection);
         return new(successStatus,
-            new CatalogDatabaseSession(connections.DatabasePath, version, identity, policy, connections),
+            new CatalogDatabaseSession(Path.GetFullPath(_storageLocations.CatalogDatabasePath), version, identity, policy, connections),
             SchemaVersion: version);
     }
 

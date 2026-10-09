@@ -15,6 +15,10 @@ public sealed class WindowsCatalogAdmissionTests : IAsyncLifetime
     {
         var start = await LightflowStorageCoordinator.StartAsync(_root);
         Assert.True(start.IsReady, start.Diagnostic);
+        Assert.Equal(start.Coordinator!.Locations.CatalogDatabasePath, start.Coordinator.CatalogSession.DatabasePath);
+        Assert.StartsWith(@"\\?\Volume{", start.Coordinator.CatalogSession.ResolvedDatabasePath, StringComparison.OrdinalIgnoreCase);
+        using (var connection = start.Coordinator.CatalogSession.OpenConnection())
+            Assert.True(connection.DataSource.StartsWith(@"\\?\Volume{", StringComparison.OrdinalIgnoreCase), connection.DataSource);
         var id = start.Coordinator!.CatalogSession.Identity.CatalogId;
         await start.Coordinator.DisposeAsync();
         var reopen = await LightflowStorageCoordinator.StartAsync(_root);
@@ -100,6 +104,29 @@ public sealed class WindowsCatalogAdmissionTests : IAsyncLifetime
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             LightflowStorageCoordinator.StartAsync(_root, assessor: assessor, cancellationToken: cancellation.Token));
         Assert.False(File.Exists(LightflowStorageLocations.Create(_root).CatalogDatabasePath));
+    }
+
+    [Fact]
+    public async Task FailedSQLiteBoundaryRevalidation_DoesNotMigrateOlderCatalog()
+    {
+        var locations = LightflowStorageLocations.Create(_root);
+        var old = await new CatalogDatabaseService(locations, null, CatalogMigrations.All.Take(1).ToArray()).CreateNewAsync();
+        Assert.True(old.IsSuccess);
+        var id = old.Session!.Identity.CatalogId;
+        await old.Session.DisposeAsync();
+        var bytes = SHA256.HashData(await File.ReadAllBytesAsync(locations.CatalogDatabasePath));
+        var configuration = new Configuration(new() { CatalogDirectory = locations.CatalogDirectory, CatalogId = id });
+        var result = await LightflowStorageCoordinator.StartAsync(_root, configuration: configuration,
+            assessor: new Facts("changed", changeAt: 4));
+        Assert.False(result.IsReady);
+        Assert.False(result.Coordinator!.CatalogAvailable);
+        Assert.Equal(0, configuration.Saves);
+        await result.Coordinator.DisposeAsync();
+        Assert.Equal(bytes, SHA256.HashData(await File.ReadAllBytesAsync(locations.CatalogDatabasePath)));
+        using var connection = new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+            { DataSource = locations.CatalogDatabasePath, Mode = Microsoft.Data.Sqlite.SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+        connection.Open(); using var command = connection.CreateCommand(); command.CommandText = "PRAGMA user_version;";
+        Assert.Equal(1L, command.ExecuteScalar());
     }
 
     [Theory]
@@ -190,7 +217,7 @@ public sealed class WindowsCatalogAdmissionTests : IAsyncLifetime
         public bool TryLoad(out AppSettings loaded, out string? diagnostic) { loaded = settings; diagnostic = null; return true; }
         public void Save(AppSettings saved) { settings = saved; Saves++; }
     }
-    internal sealed class Facts(string scenario, Action? assessed = null) : IStorageLocationAssessor
+    internal sealed class Facts(string scenario, Action? assessed = null, int changeAt = 2) : IStorageLocationAssessor
     {
         private int _calls;
         internal string Scenario { get; set; } = scenario;
@@ -202,7 +229,7 @@ public sealed class WindowsCatalogAdmissionTests : IAsyncLifetime
             var supported = StorageCapability.Supported;
             return Task.FromResult(new StorageLocationAssessment(request, Guid.NewGuid(), now, now.AddMinutes(1), StorageLocationPolicy.Version,
                 StorageAssessmentStatus.Complete,
-                new(request.RequestedLocation, "target", scenario == "changed" && _calls > 1 ? "new-mount" : "mount", "NTFS-instance"),
+                new(request.RequestedLocation, "target", scenario == "changed" && _calls >= changeAt ? "new-mount" : "mount", "NTFS-instance"),
                 scenario is "unc" or "mapped" or "network-alias" ? StorageLocality.Network : scenario == "unknown-locality" ? StorageLocality.Unknown : StorageLocality.Local,
                 scenario == "unavailable" ? StorageAvailability.Unavailable : StorageAvailability.Available,
                 StorageAvailability.Available, scenario == "ambiguous" ? StorageResolutionConfidence.Ambiguous : StorageResolutionConfidence.Resolved,

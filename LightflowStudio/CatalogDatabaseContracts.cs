@@ -75,6 +75,7 @@ internal sealed class CatalogDatabaseSession : IAsyncDisposable
     }
 
     public string DatabasePath { get; }
+    internal string ResolvedDatabasePath => _connections.DatabasePath;
     public int SchemaVersion { get; }
     public CatalogIdentity Identity { get; }
     public CatalogRuntimePolicy RuntimePolicy { get; }

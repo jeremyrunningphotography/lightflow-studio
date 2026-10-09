@@ -47,6 +47,8 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
     public Task<CatalogIntegrityResult> CheckIntegrityAsync(string databasePath, CancellationToken cancellationToken = default) =>
         Task.Run(() => Inspect(databasePath, full: true, cancellationToken), cancellationToken);
 
+    internal SqliteCatalogRecoveryService ForLocations(ILightflowStorageLocations locations) => new(locations, _utcNow);
+
     public async Task<CatalogMigrationBackupResult> PrepareForMigrationAsync(string catalogDatabasePath,
         int currentSchemaVersion, int targetSchemaVersion, CancellationToken cancellationToken)
     {

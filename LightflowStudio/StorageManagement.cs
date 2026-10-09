@@ -243,16 +243,20 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                     new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator,
                         recovery, availablePreviews, diagnostic, assessor: assessor), exception.Message);
             }
+            var boundLocations = admission.LocationsForUse();
             startupCompletion = new StartupSessionCompletion(locations.ApplicationDataDirectory);
-            catalogStartup = StartupStoreEvidence.Begin(locations.CatalogDatabasePath, "Catalog", settings.CatalogDirectory is null, startupCompletion);
+            catalogStartup = StartupStoreEvidence.Begin(locations.CatalogDatabasePath, "Catalog", settings.CatalogDirectory is null, startupCompletion,
+                boundLocations.CatalogDatabasePath);
             previewStartup = StartupStoreEvidence.Begin(locations.PreviewsDatabasePath, "Previews", settings.PreviewsDirectory is null, startupCompletion);
             var cleanPair = catalogStartup?.KnownClean == true && previewStartup?.KnownClean == true;
             catalogStartup?.RequireCompletePeer(cleanPair); previewStartup?.RequireCompletePeer(cleanPair);
             StartupDiagnostics.Note($"Catalog startup decision: {(catalogStartup?.KnownClean == true ? "fast candidate" : "deep")} reason={catalogStartup?.Reason ?? StartupValidationReason.UnexpectedShutdown}");
             StartupDiagnostics.Note($"Previews startup decision: {(previewStartup?.KnownClean == true ? "fast candidate" : "deep")} reason={previewStartup?.Reason ?? StartupValidationReason.UnexpectedShutdown}");
-            var database = new CatalogDatabaseService(locations, recovery)
+            var boundRecovery = recovery is SqliteCatalogRecoveryService nativeRecovery ? nativeRecovery.ForLocations(boundLocations) : recovery;
+            var database = new CatalogDatabaseService(locations, boundRecovery)
             { CleanStartup = catalogStartup?.KnownClean == true, ValidationReason = catalogStartup?.Reason ?? StartupValidationReason.UnexpectedShutdown,
-                ValidateStorageAccess = token => admission.ValidateAsync(token).GetAwaiter().GetResult() };
+                ValidateStorageAccess = token => admission.ValidateAsync(token).GetAwaiter().GetResult(),
+                ResolvedDatabasePath = boundLocations.CatalogDatabasePath };
             CatalogOpenResult opened;
             await admission.ValidateAsync(cancellationToken).ConfigureAwait(false);
             if (create)
@@ -380,7 +384,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             // to publish a new Catalog observation after this snapshot boundary reopens.
             if (_catalogSession is null) return new(false, Diagnostic: "The Catalog is unavailable.");
             var result = await new SqliteCatalogRecoveryService(Locations).CreateUserBackupAsync(
-                Locations.CatalogDatabasePath, destination, _catalogSession.Identity.CatalogId,
+                _catalogSession.ResolvedDatabasePath, destination, _catalogSession.Identity.CatalogId,
                 _catalogSession.SchemaVersion, progress, cancellationToken).ConfigureAwait(false);
             if (result.Succeeded && keepQuiescent) { _exitQuiescence = quiet; keep = true; }
             return result;
@@ -418,6 +422,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             using var admission = new CatalogLocationAdmission(Locations, StorageOperation.RestoreActivation, _assessor);
             try { await admission.ValidateAsync(cancellationToken).ConfigureAwait(false); }
             catch (CatalogLocationAdmissionException exception) { return new(false, exception.Message); }
+            var boundLocations = admission.LocationsForUse();
             var expectedId = Settings.CatalogId;
             var candidate = await _recovery.CheckIntegrityAsync(backupPath, cancellationToken).ConfigureAwait(false);
             if (!candidate.IsValid) return new(false, $"The selected backup is invalid. {candidate.Diagnostic}");
@@ -436,7 +441,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             try
             {
                 installation = _recovery is SqliteCatalogRecoveryService nativeRecovery
-                    ? await nativeRecovery.BeginRestoreValidatedAsync(backupPath, hadActiveCatalog,
+                    ? await nativeRecovery.ForLocations(boundLocations).BeginRestoreValidatedAsync(backupPath, hadActiveCatalog,
                         token => admission.ValidateAsync(token).GetAwaiter().GetResult(), cancellationToken).ConfigureAwait(false)
                     : await _recovery.BeginRestoreAsync(backupPath, hadActiveCatalog, cancellationToken).ConfigureAwait(false);
             }
@@ -454,8 +459,11 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             try
             {
                 await admission.ValidateAsync(CancellationToken.None).ConfigureAwait(false);
-                var opened = await new CatalogDatabaseService(Locations, _recovery) { ValidationReason = StartupValidationReason.Restore,
-                    ValidateStorageAccess = token => admission.ValidateAsync(token).GetAwaiter().GetResult() }
+                var migrationRecovery = _recovery is SqliteCatalogRecoveryService migrationNative
+                    ? migrationNative.ForLocations(boundLocations) : _recovery;
+                var opened = await new CatalogDatabaseService(Locations, migrationRecovery) { ValidationReason = StartupValidationReason.Restore,
+                    ValidateStorageAccess = token => admission.ValidateAsync(token).GetAwaiter().GetResult(),
+                    ResolvedDatabasePath = boundLocations.CatalogDatabasePath }
                     .OpenExistingAsync(CancellationToken.None).ConfigureAwait(false);
                 if (!opened.IsSuccess)
                     throw new InvalidDataException(opened.Diagnostic ?? "The restored Catalog could not be opened.");
@@ -504,8 +512,12 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             await admission.ValidateAsync(CancellationToken.None).ConfigureAwait(false);
         }
         catch (CatalogLocationAdmissionException exception) { return new(false, exception.Message); }
-        var opened = await new CatalogDatabaseService(Locations, _recovery)
-            { ValidateStorageAccess = token => admission.ValidateAsync(token).GetAwaiter().GetResult() }
+        var boundLocations = admission.LocationsForUse();
+        var migrationRecovery = _recovery is SqliteCatalogRecoveryService migrationNative
+            ? migrationNative.ForLocations(boundLocations) : _recovery;
+        var opened = await new CatalogDatabaseService(Locations, migrationRecovery)
+            { ValidateStorageAccess = token => admission.ValidateAsync(token).GetAwaiter().GetResult(),
+                ResolvedDatabasePath = boundLocations.CatalogDatabasePath }
             .OpenExistingAsync(CancellationToken.None).ConfigureAwait(false);
         if (!opened.IsSuccess) return new(false, opened.Diagnostic ?? "The Catalog could not be reopened.");
         try
@@ -549,6 +561,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
     {
         using var sourceAdmission = new CatalogLocationAdmission(Locations, StorageOperation.Open, _assessor);
         LightflowStorageLocations destination;
+        LightflowStorageLocations boundDestination;
         CatalogLocationAdmission? destinationAdmission = null;
         try
         {
@@ -558,13 +571,15 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             destinationAdmission = new CatalogLocationAdmission(destination, StorageOperation.Relocate, _assessor);
             await destinationAdmission.ValidateAsync(cancellationToken).ConfigureAwait(false);
             await destinationAdmission.ValidateAsync(cancellationToken).ConfigureAwait(false);
-            if (File.Exists(destination.CatalogDatabasePath) || Directory.Exists(destination.CatalogDatabasePath))
+            boundDestination = destinationAdmission.LocationsForUse();
+            if (File.Exists(boundDestination.CatalogDatabasePath) || Directory.Exists(boundDestination.CatalogDatabasePath))
             {
                 destinationAdmission.Dispose();
                 return new(StorageChangeStatus.ConflictingCatalog, "A Catalog already exists at the selected location.");
             }
-            ProbeWritable(destination.CatalogDirectory);
-            if (Directory.EnumerateFileSystemEntries(destination.CatalogDirectory).Any())
+            ProbeWritable(boundDestination.CatalogDirectory);
+            await destinationAdmission.ValidateAsync(cancellationToken).ConfigureAwait(false);
+            if (Directory.EnumerateFileSystemEntries(boundDestination.CatalogDirectory).Any())
             {
                 destinationAdmission.Dispose();
                 return new(StorageChangeStatus.ConflictingCatalog,
@@ -588,22 +603,23 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
         _catalogStartup?.Dispose(); _catalogStartup = null;
         await _catalogSession!.DisposeAsync().ConfigureAwait(false);
         _catalogSession = null;
-        var staged = destination.CatalogDatabasePath + $".{Guid.NewGuid():N}.moving";
+        var staged = boundDestination.CatalogDatabasePath + $".{Guid.NewGuid():N}.moving";
         var destinationOwned = false;
         var configurationSwitched = false;
         CatalogDatabaseSession? destinationSession = null;
         try
         {
-            Directory.CreateDirectory(destination.CatalogDirectory);
+            Directory.CreateDirectory(boundDestination.CatalogDirectory);
             await admission!.ValidateAsync(cancellationToken).ConfigureAwait(false);
             await sourceAdmission.ValidateAsync(cancellationToken).ConfigureAwait(false);
-            _transfer.Backup(sourceLocations.CatalogDatabasePath, staged);
+            _transfer.Backup(sourceAdmission.LocationsForUse().CatalogDatabasePath, staged);
             await admission.ValidateAsync(cancellationToken).ConfigureAwait(false);
-            File.Move(staged, destination.CatalogDatabasePath);
+            File.Move(staged, boundDestination.CatalogDatabasePath);
             destinationOwned = true;
             await admission.ValidateAsync(cancellationToken).ConfigureAwait(false);
             var opened = await new CatalogDatabaseService(destination)
-                { ValidateStorageAccess = token => admission.ValidateAsync(token).GetAwaiter().GetResult() }
+                { ValidateStorageAccess = token => admission.ValidateAsync(token).GetAwaiter().GetResult(),
+                    ResolvedDatabasePath = boundDestination.CatalogDatabasePath }
                 .OpenExistingAsync(cancellationToken).ConfigureAwait(false);
             destinationSession = opened.Session;
             if (!opened.IsSuccess || opened.Session!.Identity.CatalogId != expected.CatalogId ||
@@ -656,7 +672,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             if (cleanupSafe)
             {
                 try { File.Delete(staged); } catch { }
-                if (destinationOwned) DeleteCatalogFiles(destination.CatalogDatabasePath);
+                if (destinationOwned) DeleteCatalogFiles(boundDestination.CatalogDatabasePath);
             }
             Locations = sourceLocations;
             Settings = sourceSettings;
@@ -975,6 +991,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                 Report("Waiting for Preview operations");
                 using var previewLease = await _previewOperations.EnterMaintenanceAsync().ConfigureAwait(false);
                 var healthy = _cleanShutdownAllowed && _catalogSession is not null && Previews is not null;
+                var resolvedCatalogPath = _catalogSession?.ResolvedDatabasePath;
                 Report("Closing Catalog");
                 if (_catalogSession is not null) await _catalogSession.DisposeAsync().ConfigureAwait(false);
                 _catalogSession = null;
@@ -986,7 +1003,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                     // Failure to attest is conservative: shutdown may finish, next launch validates.
                     try
                     {
-                        _catalogStartup?.Complete(Locations.CatalogDatabasePath);
+                        _catalogStartup?.Complete(resolvedCatalogPath!);
                         _previewStartup?.Complete(Locations.PreviewsDatabasePath);
                         if (_catalogStartup?.Completed == true && _previewStartup?.Completed == true)
                         {

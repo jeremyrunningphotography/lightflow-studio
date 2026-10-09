@@ -1,0 +1,870 @@
+{
+  "agent": "LF-WIN-RES-007",
+  "checks": [
+    {
+      "name": "incoming Mac hashes 24/24",
+      "passed": true
+    },
+    {
+      "name": "shared policy ActiveCatalog",
+      "passed": true
+    },
+    {
+      "name": "shared policy MediaSource",
+      "passed": true
+    },
+    {
+      "name": "shared policy ClosedCatalogBackupTransfer",
+      "passed": true
+    },
+    {
+      "name": "Windows copy equals incoming",
+      "passed": true
+    },
+    {
+      "name": "incoming integrity",
+      "passed": true
+    },
+    {
+      "name": "32 stable assets",
+      "passed": true
+    },
+    {
+      "name": "all incoming logical state matches Mac manifest",
+      "passed": true
+    },
+    {
+      "name": "WAL",
+      "passed": true
+    },
+    {
+      "name": "synchronous FULL",
+      "passed": true
+    },
+    {
+      "name": "exactly one authored row",
+      "passed": true
+    },
+    {
+      "name": "cross-process SQLITE_BUSY",
+      "passed": true
+    },
+    {
+      "name": "nonempty WAL",
+      "passed": true
+    },
+    {
+      "name": "nonempty SHM",
+      "passed": true
+    },
+    {
+      "name": "checkpoint 0/0/0",
+      "passed": true
+    },
+    {
+      "name": "reopen integrity",
+      "passed": true
+    },
+    {
+      "name": "Catalog Root IDs stable",
+      "passed": true
+    },
+    {
+      "name": "Asset IDs stable",
+      "passed": true
+    },
+    {
+      "name": "exactly one defined authored field delta",
+      "passed": true
+    },
+    {
+      "name": "SQLite backup logical equality",
+      "passed": true
+    },
+    {
+      "name": "restore state equality",
+      "passed": true
+    },
+    {
+      "name": "closed copy hash",
+      "passed": true
+    },
+    {
+      "name": "truncated staging rejected",
+      "passed": true
+    },
+    {
+      "name": "hash mismatch rejected",
+      "passed": true
+    },
+    {
+      "name": "prior good copy and source retained",
+      "passed": true
+    },
+    {
+      "name": "closed external to local hash",
+      "passed": true
+    },
+    {
+      "name": "closed local to external hash",
+      "passed": true
+    },
+    {
+      "name": "Windows nonreplacing rename observed",
+      "passed": true
+    },
+    {
+      "name": "incoming originals unchanged 24/24",
+      "passed": true
+    },
+    {
+      "name": "allocated under 256 MiB",
+      "passed": true
+    }
+  ],
+  "timings_ms": {
+    "verified_incoming_copy": 5.5598,
+    "commit": 2.2059,
+    "backup": 11.5867,
+    "close": 2.9848,
+    "closed_copy": 4.2765,
+    "FlushFileBuffers_acknowledgement": 9.1697
+  },
+  "details": {
+    "native": {
+      "filesystem": "exFAT",
+      "flags": "0x00020206",
+      "clusterBytes": 1048576,
+      "freeBytes": 2286829961216,
+      "deviceNumber": 3,
+      "localDriveType": 3
+    },
+    "policy": [
+      {
+        "role": "ActiveCatalog",
+        "Decision": "Rejected",
+        "Reason": "MissingCapabilities",
+        "Diagnostic": "Required filesystem capability facts are missing. Obtain a complete assessment."
+      },
+      {
+        "role": "MediaSource",
+        "Decision": "Eligible",
+        "Reason": "Eligible",
+        "Diagnostic": "Location is eligible for the requested role; retain its existing operation and ownership safeguards."
+      },
+      {
+        "role": "ClosedCatalogBackupTransfer",
+        "Decision": "RequiresVerifiedStaging",
+        "Reason": "VerifiedStagingRequired",
+        "Diagnostic": "Use a locally finalized closed Catalog artifact, verified byte transfer and verified local copyback before restore activation. Location eligibility does not authorize live database transport."
+      }
+    ],
+    "baseline": {
+      "Integrity": "ok",
+      "Identity": [
+        [
+          "d5a5cf99-1a76-4347-9fe6-d0e8c9d5c086",
+          "3f01e9f4-8fe6-4fdb-9188-825da780085b"
+        ]
+      ],
+      "Authored": [
+        [
+          "015db1c9-1b7f-41d9-8d07-8e3a73fbee9c",
+          "5",
+          "synthetic keyword 11",
+          "synthetic collection",
+          "Mac physical authored delta",
+          "110",
+          "10:20"
+        ],
+        [
+          "107b4d75-b8d3-44f2-934d-6f36a036b913",
+          "2",
+          "synthetic keyword 26",
+          "synthetic collection",
+          "authored note",
+          "260",
+          "10:20"
+        ],
+        [
+          "1b814973-c3f9-4df5-97bd-cc7a38c314c3",
+          "1",
+          "synthetic keyword 25",
+          "synthetic collection",
+          "authored note",
+          "250",
+          "10:20"
+        ],
+        [
+          "1b90a9db-a40d-4ee2-a57a-67d44d2dd163",
+          "1",
+          "synthetic keyword 19",
+          "synthetic collection",
+          "authored note",
+          "190",
+          "10:20"
+        ],
+        [
+          "1e5351e3-97c5-4be6-a3c8-37171eb4a629",
+          "0",
+          "synthetic keyword 24",
+          "synthetic collection",
+          "authored note",
+          "240",
+          "10:20"
+        ],
+        [
+          "423c044e-44e2-43fb-ad3f-6a91a895129d",
+          "2",
+          "synthetic keyword 2",
+          "synthetic collection",
+          "authored note",
+          "20",
+          "10:20"
+        ],
+        [
+          "48b77f39-fbf2-4073-b00a-232b763b1b3a",
+          "0",
+          "synthetic keyword 0",
+          "synthetic collection",
+          "authored note",
+          "0",
+          "10:20"
+        ],
+        [
+          "512f6e7c-26ea-4189-9ac1-4cf5b18ba0f5",
+          "5",
+          "synthetic keyword 17",
+          "synthetic collection",
+          "authored note",
+          "170",
+          "10:20"
+        ],
+        [
+          "55f9fb7e-146b-45a2-843d-a98076b01da0",
+          "5",
+          "synthetic keyword 5",
+          "synthetic collection",
+          "authored note",
+          "50",
+          "10:20"
+        ],
+        [
+          "622fd6a8-5eda-47df-add3-d1525d054378",
+          "4",
+          "synthetic keyword 22",
+          "synthetic collection",
+          "authored note",
+          "220",
+          "10:20"
+        ],
+        [
+          "768e2e7b-9ff4-41d1-ab83-d23e4a941eec",
+          "1",
+          "synthetic keyword 31",
+          "synthetic collection",
+          "authored note",
+          "310",
+          "10:20"
+        ],
+        [
+          "8d366ff2-a1f3-448f-abc9-aa595f16309b",
+          "1",
+          "synthetic keyword 1",
+          "synthetic collection",
+          "authored note",
+          "10",
+          "10:20"
+        ],
+        [
+          "8f637bd4-62c2-42eb-8033-01deacbf83a1",
+          "3",
+          "synthetic keyword 3",
+          "synthetic collection",
+          "authored note",
+          "30",
+          "10:20"
+        ],
+        [
+          "97755b2c-1304-446d-8dd4-ffc0adadb39e",
+          "4",
+          "synthetic keyword 10",
+          "synthetic collection",
+          "authored note",
+          "100",
+          "10:20"
+        ],
+        [
+          "9823a0c9-1e6d-4c04-a48e-7b8b41fb302b",
+          "4",
+          "synthetic keyword 16",
+          "synthetic collection",
+          "authored note",
+          "160",
+          "10:20"
+        ],
+        [
+          "9c7fd68d-1ef8-44b4-99a4-be6171394abd",
+          "2",
+          "synthetic keyword 8",
+          "synthetic collection",
+          "authored note",
+          "80",
+          "10:20"
+        ],
+        [
+          "a0d6f06f-8331-40c6-bc88-b3242d8e5517",
+          "3",
+          "synthetic keyword 9",
+          "synthetic collection",
+          "authored note",
+          "90",
+          "10:20"
+        ],
+        [
+          "a22490c1-f8b7-47e7-8245-9297a99b9bb7",
+          "3",
+          "synthetic keyword 15",
+          "synthetic collection",
+          "authored note",
+          "150",
+          "10:20"
+        ],
+        [
+          "aa5204fc-ebd3-4f04-b8dd-57775232a0fe",
+          "0",
+          "synthetic keyword 6",
+          "synthetic collection",
+          "authored note",
+          "60",
+          "10:20"
+        ],
+        [
+          "b3f6648c-a9d9-423b-9c0a-edc3f90dce25",
+          "0",
+          "synthetic keyword 12",
+          "synthetic collection",
+          "authored note",
+          "120",
+          "10:20"
+        ],
+        [
+          "b5edeb80-7c9d-44d3-9062-187f1d210398",
+          "5",
+          "synthetic keyword 23",
+          "synthetic collection",
+          "authored note",
+          "230",
+          "10:20"
+        ],
+        [
+          "b8d086ab-dd0f-460f-8003-175756179b9a",
+          "5",
+          "synthetic keyword 29",
+          "synthetic collection",
+          "authored note",
+          "290",
+          "10:20"
+        ],
+        [
+          "c3440c6c-bf92-4a74-8732-2f6c89463198",
+          "4",
+          "synthetic keyword 4",
+          "synthetic collection",
+          "authored note",
+          "40",
+          "10:20"
+        ],
+        [
+          "c86ce7d9-6172-4fa6-be91-b690b4bf8f2f",
+          "0",
+          "synthetic keyword 30",
+          "synthetic collection",
+          "authored note",
+          "300",
+          "10:20"
+        ],
+        [
+          "cc6baf1a-0196-4aa6-88a0-4c634181f920",
+          "4",
+          "synthetic keyword 28",
+          "synthetic collection",
+          "authored note",
+          "280",
+          "10:20"
+        ],
+        [
+          "d35b54e2-7f5c-4150-9dd0-20170277af58",
+          "0",
+          "synthetic keyword 18",
+          "synthetic collection",
+          "authored note",
+          "180",
+          "10:20"
+        ],
+        [
+          "d63d91fb-c001-40ed-a56a-07fc35651bce",
+          "1",
+          "synthetic keyword 13",
+          "synthetic collection",
+          "authored note",
+          "130",
+          "10:20"
+        ],
+        [
+          "dec2baf7-a7fa-4bdb-b5e1-cff21bcbd996",
+          "3",
+          "synthetic keyword 21",
+          "synthetic collection",
+          "authored note",
+          "210",
+          "10:20"
+        ],
+        [
+          "e58bc5b4-90b5-40a6-9e28-421264d93776",
+          "2",
+          "synthetic keyword 20",
+          "synthetic collection",
+          "authored note",
+          "200",
+          "10:20"
+        ],
+        [
+          "e75024c5-5d14-4d88-a8d5-6b8163af7dde",
+          "3",
+          "synthetic keyword 27",
+          "synthetic collection",
+          "authored note",
+          "270",
+          "10:20"
+        ],
+        [
+          "fb19f778-fb85-4201-8de7-37d30a96738c",
+          "2",
+          "synthetic keyword 14",
+          "synthetic collection",
+          "authored note",
+          "140",
+          "10:20"
+        ],
+        [
+          "fe565ff3-7ca8-4717-86ca-7229434b1cce",
+          "1",
+          "synthetic keyword 7",
+          "synthetic collection",
+          "authored note",
+          "70",
+          "10:20"
+        ]
+      ]
+    },
+    "provider": {
+      "MicrosoftDataSqlite": "8.0.29.0",
+      "bundle": "SQLitePCLRaw.bundle_e_sqlite3 2.1.13",
+      "SQLite": "3.53.3",
+      "Source": "2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62",
+      "Schema": "Mac synthetic identity/authored fixture; not Lightflow production schema"
+    },
+    "delta": {
+      "assetId": "015db1c9-1b7f-41d9-8d07-8e3a73fbee9c",
+      "field": "note",
+      "before": "Mac physical authored delta",
+      "after": "Windows physical authored delta LF-WIN-RES-007"
+    },
+    "writer_contention": {
+      "ExitCode": 0,
+      "stdout": "{\"SqliteErrorCode\":5,\"SqliteExtendedErrorCode\":5,\"Message\":\"SQLite Error 5: \\u0027database is locked\\u0027.\"}\r\n",
+      "stderr": ""
+    },
+    "active_sidecars": {
+      "wal": 4152,
+      "shm": 32768
+    },
+    "checkpoint": [
+      0,
+      0,
+      0
+    ],
+    "expected_final_state": {
+      "Integrity": "ok",
+      "Identity": [
+        [
+          "d5a5cf99-1a76-4347-9fe6-d0e8c9d5c086",
+          "3f01e9f4-8fe6-4fdb-9188-825da780085b"
+        ]
+      ],
+      "Authored": [
+        [
+          "015db1c9-1b7f-41d9-8d07-8e3a73fbee9c",
+          "5",
+          "synthetic keyword 11",
+          "synthetic collection",
+          "Windows physical authored delta LF-WIN-RES-007",
+          "110",
+          "10:20"
+        ],
+        [
+          "107b4d75-b8d3-44f2-934d-6f36a036b913",
+          "2",
+          "synthetic keyword 26",
+          "synthetic collection",
+          "authored note",
+          "260",
+          "10:20"
+        ],
+        [
+          "1b814973-c3f9-4df5-97bd-cc7a38c314c3",
+          "1",
+          "synthetic keyword 25",
+          "synthetic collection",
+          "authored note",
+          "250",
+          "10:20"
+        ],
+        [
+          "1b90a9db-a40d-4ee2-a57a-67d44d2dd163",
+          "1",
+          "synthetic keyword 19",
+          "synthetic collection",
+          "authored note",
+          "190",
+          "10:20"
+        ],
+        [
+          "1e5351e3-97c5-4be6-a3c8-37171eb4a629",
+          "0",
+          "synthetic keyword 24",
+          "synthetic collection",
+          "authored note",
+          "240",
+          "10:20"
+        ],
+        [
+          "423c044e-44e2-43fb-ad3f-6a91a895129d",
+          "2",
+          "synthetic keyword 2",
+          "synthetic collection",
+          "authored note",
+          "20",
+          "10:20"
+        ],
+        [
+          "48b77f39-fbf2-4073-b00a-232b763b1b3a",
+          "0",
+          "synthetic keyword 0",
+          "synthetic collection",
+          "authored note",
+          "0",
+          "10:20"
+        ],
+        [
+          "512f6e7c-26ea-4189-9ac1-4cf5b18ba0f5",
+          "5",
+          "synthetic keyword 17",
+          "synthetic collection",
+          "authored note",
+          "170",
+          "10:20"
+        ],
+        [
+          "55f9fb7e-146b-45a2-843d-a98076b01da0",
+          "5",
+          "synthetic keyword 5",
+          "synthetic collection",
+          "authored note",
+          "50",
+          "10:20"
+        ],
+        [
+          "622fd6a8-5eda-47df-add3-d1525d054378",
+          "4",
+          "synthetic keyword 22",
+          "synthetic collection",
+          "authored note",
+          "220",
+          "10:20"
+        ],
+        [
+          "768e2e7b-9ff4-41d1-ab83-d23e4a941eec",
+          "1",
+          "synthetic keyword 31",
+          "synthetic collection",
+          "authored note",
+          "310",
+          "10:20"
+        ],
+        [
+          "8d366ff2-a1f3-448f-abc9-aa595f16309b",
+          "1",
+          "synthetic keyword 1",
+          "synthetic collection",
+          "authored note",
+          "10",
+          "10:20"
+        ],
+        [
+          "8f637bd4-62c2-42eb-8033-01deacbf83a1",
+          "3",
+          "synthetic keyword 3",
+          "synthetic collection",
+          "authored note",
+          "30",
+          "10:20"
+        ],
+        [
+          "97755b2c-1304-446d-8dd4-ffc0adadb39e",
+          "4",
+          "synthetic keyword 10",
+          "synthetic collection",
+          "authored note",
+          "100",
+          "10:20"
+        ],
+        [
+          "9823a0c9-1e6d-4c04-a48e-7b8b41fb302b",
+          "4",
+          "synthetic keyword 16",
+          "synthetic collection",
+          "authored note",
+          "160",
+          "10:20"
+        ],
+        [
+          "9c7fd68d-1ef8-44b4-99a4-be6171394abd",
+          "2",
+          "synthetic keyword 8",
+          "synthetic collection",
+          "authored note",
+          "80",
+          "10:20"
+        ],
+        [
+          "a0d6f06f-8331-40c6-bc88-b3242d8e5517",
+          "3",
+          "synthetic keyword 9",
+          "synthetic collection",
+          "authored note",
+          "90",
+          "10:20"
+        ],
+        [
+          "a22490c1-f8b7-47e7-8245-9297a99b9bb7",
+          "3",
+          "synthetic keyword 15",
+          "synthetic collection",
+          "authored note",
+          "150",
+          "10:20"
+        ],
+        [
+          "aa5204fc-ebd3-4f04-b8dd-57775232a0fe",
+          "0",
+          "synthetic keyword 6",
+          "synthetic collection",
+          "authored note",
+          "60",
+          "10:20"
+        ],
+        [
+          "b3f6648c-a9d9-423b-9c0a-edc3f90dce25",
+          "0",
+          "synthetic keyword 12",
+          "synthetic collection",
+          "authored note",
+          "120",
+          "10:20"
+        ],
+        [
+          "b5edeb80-7c9d-44d3-9062-187f1d210398",
+          "5",
+          "synthetic keyword 23",
+          "synthetic collection",
+          "authored note",
+          "230",
+          "10:20"
+        ],
+        [
+          "b8d086ab-dd0f-460f-8003-175756179b9a",
+          "5",
+          "synthetic keyword 29",
+          "synthetic collection",
+          "authored note",
+          "290",
+          "10:20"
+        ],
+        [
+          "c3440c6c-bf92-4a74-8732-2f6c89463198",
+          "4",
+          "synthetic keyword 4",
+          "synthetic collection",
+          "authored note",
+          "40",
+          "10:20"
+        ],
+        [
+          "c86ce7d9-6172-4fa6-be91-b690b4bf8f2f",
+          "0",
+          "synthetic keyword 30",
+          "synthetic collection",
+          "authored note",
+          "300",
+          "10:20"
+        ],
+        [
+          "cc6baf1a-0196-4aa6-88a0-4c634181f920",
+          "4",
+          "synthetic keyword 28",
+          "synthetic collection",
+          "authored note",
+          "280",
+          "10:20"
+        ],
+        [
+          "d35b54e2-7f5c-4150-9dd0-20170277af58",
+          "0",
+          "synthetic keyword 18",
+          "synthetic collection",
+          "authored note",
+          "180",
+          "10:20"
+        ],
+        [
+          "d63d91fb-c001-40ed-a56a-07fc35651bce",
+          "1",
+          "synthetic keyword 13",
+          "synthetic collection",
+          "authored note",
+          "130",
+          "10:20"
+        ],
+        [
+          "dec2baf7-a7fa-4bdb-b5e1-cff21bcbd996",
+          "3",
+          "synthetic keyword 21",
+          "synthetic collection",
+          "authored note",
+          "210",
+          "10:20"
+        ],
+        [
+          "e58bc5b4-90b5-40a6-9e28-421264d93776",
+          "2",
+          "synthetic keyword 20",
+          "synthetic collection",
+          "authored note",
+          "200",
+          "10:20"
+        ],
+        [
+          "e75024c5-5d14-4d88-a8d5-6b8163af7dde",
+          "3",
+          "synthetic keyword 27",
+          "synthetic collection",
+          "authored note",
+          "270",
+          "10:20"
+        ],
+        [
+          "fb19f778-fb85-4201-8de7-37d30a96738c",
+          "2",
+          "synthetic keyword 14",
+          "synthetic collection",
+          "authored note",
+          "140",
+          "10:20"
+        ],
+        [
+          "fe565ff3-7ca8-4717-86ca-7229434b1cce",
+          "1",
+          "synthetic keyword 7",
+          "synthetic collection",
+          "authored note",
+          "70",
+          "10:20"
+        ]
+      ]
+    },
+    "closed_files": [
+      {
+        "name": "windows-authored.db",
+        "bytes": 16384,
+        "sha256": "a1e7a33dba9dde85b0d60c4f6baf3b5d90ee4f615a586d421c5c4adb2e634e30"
+      },
+      {
+        "name": "backup.db",
+        "bytes": 16384,
+        "sha256": "98d608943dd5d22bb76939afdacf1b20507ce698a9abc9a47e1fb216c15b3b30"
+      },
+      {
+        "name": "windows-authored.db-wal",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "windows-authored.db-shm",
+        "bytes": 32768,
+        "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+      },
+      {
+        "name": "restored.db",
+        "bytes": 16384,
+        "sha256": "98d608943dd5d22bb76939afdacf1b20507ce698a9abc9a47e1fb216c15b3b30"
+      },
+      {
+        "name": "restored.db-wal",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "restored.db-shm",
+        "bytes": 32768,
+        "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+      },
+      {
+        "name": "closed-windows.db",
+        "bytes": 16384,
+        "sha256": "a1e7a33dba9dde85b0d60c4f6baf3b5d90ee4f615a586d421c5c4adb2e634e30"
+      },
+      {
+        "name": "truncated.partial",
+        "bytes": 1024,
+        "sha256": "c2e9dee4c903ae45eb414519c3cac49883dc5e4432e7697f3b0f050fb651d2a4"
+      },
+      {
+        "name": "mismatch.partial",
+        "bytes": 45,
+        "sha256": "364b72741859c0dfbcfa5e4a5cd8de31cc659de37b1ed60cdeb08a793c9ac19f"
+      },
+      {
+        "name": "local-return.db",
+        "bytes": 16384,
+        "sha256": "a1e7a33dba9dde85b0d60c4f6baf3b5d90ee4f615a586d421c5c4adb2e634e30"
+      },
+      {
+        "name": "rename-control.final",
+        "bytes": 24,
+        "sha256": "1aeb54b63956570b31016821f89c283df1a77a5db12625ab88f392724bc11a55"
+      },
+      {
+        "name": "flush-canary.bin",
+        "bytes": 37,
+        "sha256": "c1354359de1eea80b65328d3c999438783b9121036d72719d0dacc89d982a30e"
+      },
+      {
+        "name": "expected-state.json",
+        "bytes": 13941,
+        "sha256": "e811a545b501a5eeb32f66fcd27856a4b75d072a4df133780a93feb250fe64f2"
+      }
+    ],
+    "post_close_sidecars": {
+      "wal": 0,
+      "shm": 32768
+    },
+    "footprint": {
+      "logical_bytes": 340050,
+      "allocated_bytes_including_directories": 38797312
+    },
+    "native_rechecks": 24,
+    "classification": "CONDITIONAL; return-to-Mac pending; fixture-only, not production admission"
+  }
+}

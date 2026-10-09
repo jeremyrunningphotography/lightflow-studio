@@ -1,0 +1,192 @@
+[
+  {
+    "relative": "._LightflowCatalog.db",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "._LightflowCatalog.db-shm",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "._LightflowCatalog.db-wal",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "._OWNERSHIP.json",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "._backup.db",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "._closed-copy.db",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "._closed-copy.partial",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "._flush-canary.bin",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "._interrupted-copy.partial",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "._manifest.json",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "._mismatch-copy.partial",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "._restored.db",
+    "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+    "bytes": 4096
+  },
+  {
+    "relative": "LightflowCatalog.db",
+    "sha256": "d9a9010a5733d8342c57cece8a75896ade106265b3c205d250e7f35f88352008",
+    "bytes": 16384
+  },
+  {
+    "relative": "LightflowCatalog.db-shm",
+    "sha256": "68e60156b76ea0065f07a59ff26165ddbb17755dc13c9acacd14e15a62a98faf",
+    "bytes": 32768
+  },
+  {
+    "relative": "LightflowCatalog.db-wal",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "relative": "OWNERSHIP.json",
+    "sha256": "b069140e81b55f4c84a573b8b2185e6e5e54a2d7aefbbbf46cf1434041e76485",
+    "bytes": 180
+  },
+  {
+    "relative": "backup.db",
+    "sha256": "6d48cbad6e4df68229790c0adf37d57e1b8f9b9018e7a811e3f9b8b8bbfb26e0",
+    "bytes": 16384
+  },
+  {
+    "relative": "closed-copy.db",
+    "sha256": "d9a9010a5733d8342c57cece8a75896ade106265b3c205d250e7f35f88352008",
+    "bytes": 16384
+  },
+  {
+    "relative": "closed-copy.partial",
+    "sha256": "d9a9010a5733d8342c57cece8a75896ade106265b3c205d250e7f35f88352008",
+    "bytes": 16384
+  },
+  {
+    "relative": "flush-canary.bin",
+    "sha256": "74003531ffb9992ac21486b3a99e19b79be2f82e8f8acd2b1631a0abe1e40365",
+    "bytes": 37
+  },
+  {
+    "relative": "interrupted-copy.partial",
+    "sha256": "c2e9dee4c903ae45eb414519c3cac49883dc5e4432e7697f3b0f050fb651d2a4",
+    "bytes": 1024
+  },
+  {
+    "relative": "manifest.json",
+    "sha256": "6aa6f84e1177ea5fe4650f441347b83f4ce651c693db704cbb0e2e30e935f441",
+    "bytes": 12400
+  },
+  {
+    "relative": "mismatch-copy.partial",
+    "sha256": "22b7fae1c713f3c19b2461aa9d3315d043a8815ddd6816fd672eb793f89afef2",
+    "bytes": 42
+  },
+  {
+    "relative": "restored.db",
+    "sha256": "6d48cbad6e4df68229790c0adf37d57e1b8f9b9018e7a811e3f9b8b8bbfb26e0",
+    "bytes": 16384
+  },
+  {
+    "relative": "LF-WIN-RES-007/windows-authored.db",
+    "sha256": "a1e7a33dba9dde85b0d60c4f6baf3b5d90ee4f615a586d421c5c4adb2e634e30",
+    "bytes": 16384
+  },
+  {
+    "relative": "LF-WIN-RES-007/backup.db",
+    "sha256": "98d608943dd5d22bb76939afdacf1b20507ce698a9abc9a47e1fb216c15b3b30",
+    "bytes": 16384
+  },
+  {
+    "relative": "LF-WIN-RES-007/windows-authored.db-wal",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "relative": "LF-WIN-RES-007/windows-authored.db-shm",
+    "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+    "bytes": 32768
+  },
+  {
+    "relative": "LF-WIN-RES-007/restored.db",
+    "sha256": "98d608943dd5d22bb76939afdacf1b20507ce698a9abc9a47e1fb216c15b3b30",
+    "bytes": 16384
+  },
+  {
+    "relative": "LF-WIN-RES-007/restored.db-wal",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "relative": "LF-WIN-RES-007/restored.db-shm",
+    "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+    "bytes": 32768
+  },
+  {
+    "relative": "LF-WIN-RES-007/closed-windows.db",
+    "sha256": "a1e7a33dba9dde85b0d60c4f6baf3b5d90ee4f615a586d421c5c4adb2e634e30",
+    "bytes": 16384
+  },
+  {
+    "relative": "LF-WIN-RES-007/truncated.partial",
+    "sha256": "c2e9dee4c903ae45eb414519c3cac49883dc5e4432e7697f3b0f050fb651d2a4",
+    "bytes": 1024
+  },
+  {
+    "relative": "LF-WIN-RES-007/mismatch.partial",
+    "sha256": "364b72741859c0dfbcfa5e4a5cd8de31cc659de37b1ed60cdeb08a793c9ac19f",
+    "bytes": 45
+  },
+  {
+    "relative": "LF-WIN-RES-007/local-return.db",
+    "sha256": "a1e7a33dba9dde85b0d60c4f6baf3b5d90ee4f615a586d421c5c4adb2e634e30",
+    "bytes": 16384
+  },
+  {
+    "relative": "LF-WIN-RES-007/rename-control.final",
+    "sha256": "1aeb54b63956570b31016821f89c283df1a77a5db12625ab88f392724bc11a55",
+    "bytes": 24
+  },
+  {
+    "relative": "LF-WIN-RES-007/flush-canary.bin",
+    "sha256": "c1354359de1eea80b65328d3c999438783b9121036d72719d0dacc89d982a30e",
+    "bytes": 37
+  },
+  {
+    "relative": "LF-WIN-RES-007/expected-state.json",
+    "sha256": "e811a545b501a5eeb32f66fcd27856a4b75d072a4df133780a93feb250fe64f2",
+    "bytes": 13941
+  }
+]

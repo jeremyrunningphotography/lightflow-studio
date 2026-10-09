@@ -372,7 +372,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         await using var storage = startup.Coordinator!;
         await storage.Collections.CreateSetAsync("Original state");
         var original = await storage.BackupCatalogAsync();
-        Assert.True(original.Succeeded);
+        Assert.True(original.Succeeded, original.Diagnostic);
         var newerFolder = Path.Combine(_root, "New backup folder");
         await storage.SaveBackupDestinationAsync(newerFolder, CancellationToken.None);
         await storage.Collections.CreateSetAsync("Later edit");

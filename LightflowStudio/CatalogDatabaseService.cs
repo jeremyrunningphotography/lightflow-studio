@@ -32,6 +32,9 @@ internal sealed class CatalogDatabaseService
 
     internal bool CleanStartup { get; init; }
     internal StartupValidationReason ValidationReason { get; init; } = StartupValidationReason.ExplicitValidation;
+    // Supplied only by the production lifecycle composition. SQLite still owns creation,
+    // inspection and migration; this callback revalidates native location binding at use.
+    internal Action<CancellationToken>? ValidateStorageAccess { get; init; }
 
     public int CurrentSchemaVersion => _migrations.Count == 0 ? 0 : _migrations[^1].Version;
 
@@ -50,17 +53,20 @@ internal sealed class CatalogDatabaseService
 
         try
         {
+            ValidateStorageAccess?.Invoke(cancellationToken);
             Directory.CreateDirectory(catalogDirectory);
+            ValidateStorageAccess?.Invoke(cancellationToken);
             using (new FileStream(databasePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
             {
                 // Atomic ownership claim. SQLite initializes the deliberately empty file below.
             }
         }
-        catch (IOException exception) when (File.Exists(databasePath))
+        catch (IOException exception) when (exception is not CatalogLocationAdmissionException && File.Exists(databasePath))
         {
             return Failure(CatalogOpenStatus.AlreadyExists, exception, databasePath);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is not CatalogLocationAdmissionException &&
+            exception is (IOException or UnauthorizedAccessException))
         {
             return Failure(CatalogOpenStatus.StorageUnavailable, exception, databasePath);
         }
@@ -76,6 +82,11 @@ internal sealed class CatalogDatabaseService
             connections.ClearPool();
             DeleteFailedNewCatalog(databasePath);
             return new(exception.Status, Diagnostic: exception.Message, SchemaVersion: exception.SchemaVersion);
+        }
+        catch (CatalogLocationAdmissionException)
+        {
+            connections.ClearPool();
+            throw; // Identity changed: do not clean through the revoked path spelling.
         }
         catch (Exception exception) when (IsCatalogAccessException(exception))
         {
@@ -117,6 +128,7 @@ internal sealed class CatalogDatabaseService
 
         try
         {
+            ValidateStorageAccess?.Invoke(cancellationToken);
             int inspectedVersion;
             try { inspectedVersion = InspectExistingCatalog(databasePath); }
             catch (Exception error) when (CleanStartup && error is SqliteException or CatalogOpenException or InvalidDataException)
@@ -232,6 +244,7 @@ internal sealed class CatalogDatabaseService
             throw new CatalogOpenException(CatalogOpenStatus.UnsupportedFutureSchema,
                 $"Catalog schema {startingVersion} requires a newer Lightflow version.", startingVersion);
         if (startingVersion == CurrentSchemaVersion) return;
+        ValidateStorageAccess?.Invoke(cancellationToken);
 
         if (!isNewCatalog)
         {
@@ -262,6 +275,7 @@ internal sealed class CatalogDatabaseService
         {
             using var migrationTiming = StartupDiagnostics.Stage($"Catalog migration {migration.Version}", "Upgrading Catalog…");
             cancellationToken.ThrowIfCancellationRequested();
+            ValidateStorageAccess?.Invoke(cancellationToken);
             try
             {
                 using var connection = connections.OpenConnection();

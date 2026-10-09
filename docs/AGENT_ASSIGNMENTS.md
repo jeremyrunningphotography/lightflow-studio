@@ -10,9 +10,9 @@ This lightweight registry records identity and number allocation. GitHub remains
 | --- | --- | --- | --- | --- |
 | 000 | LF-ANY-DOC-000 | Agent Naming Convention | [PR #382](https://github.com/jeremyrunningphotography/lightflow-studio/pull/382) | In Progress; Done upon merge and reconciliation |
 | 001 | LF-WIN-DEV-001 | Shared Classification Extraction | [Issue #383](https://github.com/jeremyrunningphotography/lightflow-studio/issues/383), [PR #385](https://github.com/jeremyrunningphotography/lightflow-studio/pull/385) | Done; owner accepted and merged 2026-10-08 |
-| 002 | LF-WIN-RES-002 | Windows Avalonia Presentation Proof | Not yet linked | Planned |
+| 002 | LF-WIN-RES-002 | Windows Avalonia Presentation Proof | [WQ #384](https://github.com/jeremyrunningphotography/lightflow-studio/issues/384), [PR #386](https://github.com/jeremyrunningphotography/lightflow-studio/pull/386) | Done upon merge; owner accepted CONDITIONAL technical PASS |
 
-000 transitions to Done after successful merge and reconciliation. 001 completed the owner-accepted bounded R1 shared classification extraction (#383 / #385); completion does not authorize later migration. 002 is the proposed early Windows GPU/Avalonia presentation qualification. Reservations alone do not authorize execution.
+000 transitions to Done after successful merge and reconciliation. 001 completed the owner-accepted bounded R1 shared classification extraction (#383 / #385); completion does not authorize later migration. 002 is owner-accepted bounded WQ (#384 / #386), completed upon merge; acceptance does not authorize production Player integration, WPF retirement, or release qualification. Reservations alone do not authorize execution.
 
 **Next available number: 003.** It is not allocated by this assignment.
 

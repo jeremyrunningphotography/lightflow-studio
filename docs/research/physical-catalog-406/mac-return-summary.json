@@ -1,0 +1,1647 @@
+{
+  "agent": "LF-MAC-RES-007",
+  "classification": "CONDITIONAL overall; PASS read-only synthetic fixture return",
+  "utc": "2026-10-09T20:30:16.428203+00:00",
+  "source_head": "8de9295b71b916168c6249667166a40d100d4cce",
+  "owner_reconnected_after_safe_removal": true,
+  "native_identity": {
+    "model": "Extreme Pro 55AF",
+    "physical_external": true,
+    "transport": "USB",
+    "filesystem": "exfat",
+    "disk_bytes": 4000753467904,
+    "partition_bytes": 4000751370752,
+    "original_private_volume_and_partition_ids_match": true,
+    "aliases_checked_objects": 40
+  },
+  "verifier": {
+    "agent": "LF-MAC-RES-007",
+    "assignment": 7,
+    "sqlite": "3.51.0",
+    "scope": "immutable synthetic fixture return, not product Catalog integration",
+    "checks": [
+      {
+        "name": "output canonical and outside physical task root",
+        "passed": true
+      },
+      {
+        "name": "root no symlink / canonical",
+        "passed": true
+      },
+      {
+        "name": "root is existing directory",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._backup.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._backup.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._backup.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._backup.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._manifest.json",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._manifest.json",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._manifest.json",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._manifest.json",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf ._restored.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path ._restored.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file ._restored.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash ._restored.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "before no linked path OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "before length/hash OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf backup.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path backup.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file backup.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash backup.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before no linked path closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before length/hash closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before no linked path flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before length/hash flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before no linked path interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before length/hash interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf manifest.json",
+        "passed": true
+      },
+      {
+        "name": "before no linked path manifest.json",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file manifest.json",
+        "passed": true
+      },
+      {
+        "name": "before length/hash manifest.json",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before no linked path mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before length/hash mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf restored.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path restored.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file restored.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash restored.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/windows-authored.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/windows-authored.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/windows-authored.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/windows-authored.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/windows-authored.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/backup.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/backup.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/backup.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/backup.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/backup.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/windows-authored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/windows-authored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/windows-authored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/windows-authored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/windows-authored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/windows-authored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/windows-authored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/windows-authored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/windows-authored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/windows-authored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/restored.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/restored.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/restored.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/restored.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/restored.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/restored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/restored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/restored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/restored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/restored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/restored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/restored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/restored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/restored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/restored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/closed-windows.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/closed-windows.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/closed-windows.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/closed-windows.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/closed-windows.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/truncated.partial",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/truncated.partial",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/truncated.partial",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/truncated.partial",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/truncated.partial",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/mismatch.partial",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/mismatch.partial",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/mismatch.partial",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/mismatch.partial",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/mismatch.partial",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/local-return.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/local-return.db",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/local-return.db",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/local-return.db",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/local-return.db",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/rename-control.final",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/rename-control.final",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/rename-control.final",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/rename-control.final",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/rename-control.final",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "before safe relative leaf LF-WIN-RES-007/expected-state.json",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/expected-state.json",
+        "passed": true
+      },
+      {
+        "name": "before no linked path LF-WIN-RES-007/expected-state.json",
+        "passed": true
+      },
+      {
+        "name": "before regular same-volume file LF-WIN-RES-007/expected-state.json",
+        "passed": true
+      },
+      {
+        "name": "before length/hash LF-WIN-RES-007/expected-state.json",
+        "passed": true
+      },
+      {
+        "name": "historical ownership matches existing run",
+        "passed": true
+      },
+      {
+        "name": "original Mac logical state",
+        "passed": true
+      },
+      {
+        "name": "closed-windows.db every row/identity/integrity",
+        "passed": true
+      },
+      {
+        "name": "windows-authored.db every row/identity/integrity",
+        "passed": true
+      },
+      {
+        "name": "backup.db every row/identity/integrity",
+        "passed": true
+      },
+      {
+        "name": "restored.db every row/identity/integrity",
+        "passed": true
+      },
+      {
+        "name": "local-return.db every row/identity/integrity",
+        "passed": true
+      },
+      {
+        "name": "physical authored manifest",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._backup.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._backup.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._backup.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._backup.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._manifest.json",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._manifest.json",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._manifest.json",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._manifest.json",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf ._restored.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path ._restored.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file ._restored.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash ._restored.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LightflowCatalog.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LightflowCatalog.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LightflowCatalog.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "after no linked path OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "after length/hash OWNERSHIP.json",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf backup.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path backup.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file backup.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash backup.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash closed-copy.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after no linked path closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after length/hash closed-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after no linked path flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after length/hash flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after no linked path interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after length/hash interrupted-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf manifest.json",
+        "passed": true
+      },
+      {
+        "name": "after no linked path manifest.json",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file manifest.json",
+        "passed": true
+      },
+      {
+        "name": "after length/hash manifest.json",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after no linked path mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after length/hash mismatch-copy.partial",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf restored.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path restored.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file restored.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash restored.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/windows-authored.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/windows-authored.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/windows-authored.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/windows-authored.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/windows-authored.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/backup.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/backup.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/backup.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/backup.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/backup.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/windows-authored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/windows-authored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/windows-authored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/windows-authored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/windows-authored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/windows-authored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/windows-authored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/windows-authored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/windows-authored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/windows-authored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/restored.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/restored.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/restored.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/restored.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/restored.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/restored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/restored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/restored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/restored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/restored.db-wal",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/restored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/restored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/restored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/restored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/restored.db-shm",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/closed-windows.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/closed-windows.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/closed-windows.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/closed-windows.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/closed-windows.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/truncated.partial",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/truncated.partial",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/truncated.partial",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/truncated.partial",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/truncated.partial",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/mismatch.partial",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/mismatch.partial",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/mismatch.partial",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/mismatch.partial",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/mismatch.partial",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/local-return.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/local-return.db",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/local-return.db",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/local-return.db",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/local-return.db",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/rename-control.final",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/rename-control.final",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/rename-control.final",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/rename-control.final",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/rename-control.final",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/flush-canary.bin",
+        "passed": true
+      },
+      {
+        "name": "after safe relative leaf LF-WIN-RES-007/expected-state.json",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/expected-state.json",
+        "passed": true
+      },
+      {
+        "name": "after no linked path LF-WIN-RES-007/expected-state.json",
+        "passed": true
+      },
+      {
+        "name": "after regular same-volume file LF-WIN-RES-007/expected-state.json",
+        "passed": true
+      },
+      {
+        "name": "after length/hash LF-WIN-RES-007/expected-state.json",
+        "passed": true
+      }
+    ],
+    "classification": "CONDITIONAL fixture return; native identity and anchor audit recorded separately"
+  },
+  "final_audit": {
+    "agent": "LF-MAC-RES-007",
+    "utc": "2026-10-09T20:29:35.755600+00:00",
+    "file_count": 38,
+    "original_mac_files": 24,
+    "windows_files": 14,
+    "all_final_hashes_match": true,
+    "unexpected_task_files": [],
+    "logical_bytes": 340050,
+    "allocated_bytes_including_directories": 38797312,
+    "lsof_exit": 1,
+    "lsof_stdout": "",
+    "lsof_stderr": "",
+    "verification_process_exited": true,
+    "no_physical_writes_requested": true,
+    "no_eject_requested": true
+  },
+  "cleanup": {
+    "native_baseline": 0,
+    "native_after": 0,
+    "disposed_status": "Failed",
+    "cleanup_passed": true,
+    "post_assessor_lsof_exit": 1,
+    "post_assessor_hashes_match": true
+  },
+  "policy": [
+    {
+      "role": "ActiveCatalog",
+      "decision": "Rejected",
+      "reason": "MissingCapabilities"
+    },
+    {
+      "role": "MediaSource",
+      "decision": "Eligible",
+      "reason": "Eligible"
+    },
+    {
+      "role": "ClosedCatalogBackupTransfer",
+      "decision": "RequiresVerifiedStaging",
+      "reason": "VerifiedStagingRequired"
+    }
+  ],
+  "diagnostic_corrections": [
+    "Initial model assertion compared long USB label against diskutil MediaName. Exact retained MediaName and capacity match; no identity discrepancy.",
+    "Sandboxed assessor observed Write Unsupported and ReadOnly refusal; native metadata-only rerun outside sandbox observed writable mount, ActiveCatalog rejected MissingCapabilities. Both private observations retained."
+  ],
+  "commands": [
+    "python3 -B docs/research/physical-catalog-406/verify_mac_return.py --root <verified-existing-task-root> --output <internal-task-workspace>/work/evidence/mac-return.json"
+  ],
+  "fixture_hashes": [
+    {
+      "relative": "._LightflowCatalog.db",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "._LightflowCatalog.db-shm",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "._LightflowCatalog.db-wal",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "._OWNERSHIP.json",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "._backup.db",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "._closed-copy.db",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "._closed-copy.partial",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "._flush-canary.bin",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "._interrupted-copy.partial",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "._manifest.json",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "._mismatch-copy.partial",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "._restored.db",
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e",
+      "bytes": 4096
+    },
+    {
+      "relative": "LightflowCatalog.db",
+      "sha256": "d9a9010a5733d8342c57cece8a75896ade106265b3c205d250e7f35f88352008",
+      "bytes": 16384
+    },
+    {
+      "relative": "LightflowCatalog.db-shm",
+      "sha256": "68e60156b76ea0065f07a59ff26165ddbb17755dc13c9acacd14e15a62a98faf",
+      "bytes": 32768
+    },
+    {
+      "relative": "LightflowCatalog.db-wal",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "relative": "OWNERSHIP.json",
+      "sha256": "b069140e81b55f4c84a573b8b2185e6e5e54a2d7aefbbbf46cf1434041e76485",
+      "bytes": 180
+    },
+    {
+      "relative": "backup.db",
+      "sha256": "6d48cbad6e4df68229790c0adf37d57e1b8f9b9018e7a811e3f9b8b8bbfb26e0",
+      "bytes": 16384
+    },
+    {
+      "relative": "closed-copy.db",
+      "sha256": "d9a9010a5733d8342c57cece8a75896ade106265b3c205d250e7f35f88352008",
+      "bytes": 16384
+    },
+    {
+      "relative": "closed-copy.partial",
+      "sha256": "d9a9010a5733d8342c57cece8a75896ade106265b3c205d250e7f35f88352008",
+      "bytes": 16384
+    },
+    {
+      "relative": "flush-canary.bin",
+      "sha256": "74003531ffb9992ac21486b3a99e19b79be2f82e8f8acd2b1631a0abe1e40365",
+      "bytes": 37
+    },
+    {
+      "relative": "interrupted-copy.partial",
+      "sha256": "c2e9dee4c903ae45eb414519c3cac49883dc5e4432e7697f3b0f050fb651d2a4",
+      "bytes": 1024
+    },
+    {
+      "relative": "manifest.json",
+      "sha256": "6aa6f84e1177ea5fe4650f441347b83f4ce651c693db704cbb0e2e30e935f441",
+      "bytes": 12400
+    },
+    {
+      "relative": "mismatch-copy.partial",
+      "sha256": "22b7fae1c713f3c19b2461aa9d3315d043a8815ddd6816fd672eb793f89afef2",
+      "bytes": 42
+    },
+    {
+      "relative": "restored.db",
+      "sha256": "6d48cbad6e4df68229790c0adf37d57e1b8f9b9018e7a811e3f9b8b8bbfb26e0",
+      "bytes": 16384
+    },
+    {
+      "relative": "LF-WIN-RES-007/windows-authored.db",
+      "sha256": "a1e7a33dba9dde85b0d60c4f6baf3b5d90ee4f615a586d421c5c4adb2e634e30",
+      "bytes": 16384
+    },
+    {
+      "relative": "LF-WIN-RES-007/backup.db",
+      "sha256": "98d608943dd5d22bb76939afdacf1b20507ce698a9abc9a47e1fb216c15b3b30",
+      "bytes": 16384
+    },
+    {
+      "relative": "LF-WIN-RES-007/windows-authored.db-wal",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "relative": "LF-WIN-RES-007/windows-authored.db-shm",
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+      "bytes": 32768
+    },
+    {
+      "relative": "LF-WIN-RES-007/restored.db",
+      "sha256": "98d608943dd5d22bb76939afdacf1b20507ce698a9abc9a47e1fb216c15b3b30",
+      "bytes": 16384
+    },
+    {
+      "relative": "LF-WIN-RES-007/restored.db-wal",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "relative": "LF-WIN-RES-007/restored.db-shm",
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+      "bytes": 32768
+    },
+    {
+      "relative": "LF-WIN-RES-007/closed-windows.db",
+      "sha256": "a1e7a33dba9dde85b0d60c4f6baf3b5d90ee4f615a586d421c5c4adb2e634e30",
+      "bytes": 16384
+    },
+    {
+      "relative": "LF-WIN-RES-007/truncated.partial",
+      "sha256": "c2e9dee4c903ae45eb414519c3cac49883dc5e4432e7697f3b0f050fb651d2a4",
+      "bytes": 1024
+    },
+    {
+      "relative": "LF-WIN-RES-007/mismatch.partial",
+      "sha256": "364b72741859c0dfbcfa5e4a5cd8de31cc659de37b1ed60cdeb08a793c9ac19f",
+      "bytes": 45
+    },
+    {
+      "relative": "LF-WIN-RES-007/local-return.db",
+      "sha256": "a1e7a33dba9dde85b0d60c4f6baf3b5d90ee4f615a586d421c5c4adb2e634e30",
+      "bytes": 16384
+    },
+    {
+      "relative": "LF-WIN-RES-007/rename-control.final",
+      "sha256": "1aeb54b63956570b31016821f89c283df1a77a5db12625ab88f392724bc11a55",
+      "bytes": 24
+    },
+    {
+      "relative": "LF-WIN-RES-007/flush-canary.bin",
+      "sha256": "c1354359de1eea80b65328d3c999438783b9121036d72719d0dacc89d982a30e",
+      "bytes": 37
+    },
+    {
+      "relative": "LF-WIN-RES-007/expected-state.json",
+      "sha256": "e811a545b501a5eeb32f66fcd27856a4b75d072a4df133780a93feb250fe64f2",
+      "bytes": 13941
+    }
+  ],
+  "limitations": [
+    "synthetic schema only",
+    "Mac system SQLite 3.51.0 differs from Windows pinned native SQLite 3.53.3",
+    "no production Catalog lifecycle or Settings integration",
+    "Mac exclusive rename errno45 still limits atomic publication",
+    "no hardware power-loss durability qualification",
+    "owner files not inspected; confinement is not a whole-drive audit"
+  ]
+}

@@ -1,0 +1,361 @@
+{
+  "agent": "LF-BOTH-RES-007",
+  "classification": "CONDITIONAL",
+  "evidence": "physical ExFAT; synthetic Python/system SQLite, not production provider/schema",
+  "task_directory": "LF-BOTH-RES-007-Qualification-<private run UUID>",
+  "sqlite": "3.51.0",
+  "checks": [
+    {
+      "name": "no counted native anchors before physical writes",
+      "passed": true
+    },
+    {
+      "name": "prior volume and partition identity match",
+      "passed": true
+    },
+    {
+      "name": "physical SanDisk external USB ExFAT",
+      "passed": true
+    },
+    {
+      "name": "resume existing exclusive ownership matches",
+      "passed": true
+    },
+    {
+      "name": "physical WAL enabled",
+      "passed": true
+    },
+    {
+      "name": "physical synchronous FULL",
+      "passed": true
+    },
+    {
+      "name": "resumed closed fixture integrity",
+      "passed": true
+    },
+    {
+      "name": "physical WAL SHM companion files",
+      "passed": true
+    },
+    {
+      "name": "cross-process physical SQLite writer excluded",
+      "passed": true
+    },
+    {
+      "name": "physical checkpoint successful",
+      "passed": true
+    },
+    {
+      "name": "closed physical WAL checkpointed",
+      "passed": true
+    },
+    {
+      "name": "physical integrity and identities",
+      "passed": true
+    },
+    {
+      "name": "all authored fields and IDs preserved",
+      "passed": true
+    },
+    {
+      "name": "SQLite-aware backup preserves every fixture row",
+      "passed": true
+    },
+    {
+      "name": "restored fixture integrity and state",
+      "passed": true
+    },
+    {
+      "name": "closed staging hash verified",
+      "passed": true
+    },
+    {
+      "name": "published copy hash verified",
+      "passed": true
+    },
+    {
+      "name": "published closed copy state",
+      "passed": true
+    },
+    {
+      "name": "truncated staging rejected",
+      "passed": true
+    },
+    {
+      "name": "mismatched staging rejected",
+      "passed": true
+    },
+    {
+      "name": "rollback retains source and prior good destination",
+      "passed": true
+    },
+    {
+      "name": "failed staging never activated",
+      "passed": true
+    },
+    {
+      "name": "native descriptor count remains zero",
+      "passed": true
+    },
+    {
+      "name": "bounded physical footprint",
+      "passed": true
+    },
+    {
+      "name": "manifest retained",
+      "passed": true
+    },
+    {
+      "name": "final hashes stable",
+      "passed": true
+    }
+  ],
+  "pragmas": {
+    "journal_mode": "wal",
+    "synchronous": 2,
+    "fullfsync": 0,
+    "checkpoint_fullfsync": 1,
+    "busy_timeout": 250,
+    "temp_store": 2
+  },
+  "checkpoint": [
+    0,
+    0,
+    0
+  ],
+  "sidecars_after_close": {
+    "-wal": 0,
+    "-shm": 32768
+  },
+  "timings_ms": {
+    "create_including_guards": 1553.554375,
+    "backup": 294.5195419999998,
+    "checkpoint": 2.248250000000951,
+    "close": 0.6889999999994956,
+    "reopen_integrity_including_guards": 269.05129200000033,
+    "closed_copy_verify_publish_including_guards": 1548.7865410000002
+  },
+  "initial_commit_ms": 2.0393750000007316,
+  "flush": {
+    "fsync": "returned success",
+    "fsync_ms": 0.24687500000197815,
+    "F_FULLFSYNC": "returned success",
+    "F_FULLFSYNC_ms": 0.5182500000024959
+  },
+  "exclusive_rename": {
+    "exclusive_rename_error": "[Errno 45] Operation not supported",
+    "errno": 45,
+    "fallback": "new O_EXCL closed copy; no atomic publication claim"
+  },
+  "audit": {
+    "task_directory": "LF-BOTH-RES-007-Qualification-<private run UUID>",
+    "volume_reverified": true,
+    "files": [
+      {
+        "name": "._LightflowCatalog.db",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "._LightflowCatalog.db-shm",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "._LightflowCatalog.db-wal",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "._OWNERSHIP.json",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "._backup.db",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "._closed-copy.db",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "._closed-copy.partial",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "._flush-canary.bin",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "._interrupted-copy.partial",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "._manifest.json",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "._mismatch-copy.partial",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "._restored.db",
+        "bytes": 4096,
+        "allocated": 1048576,
+        "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+      },
+      {
+        "name": "LightflowCatalog.db",
+        "bytes": 16384,
+        "allocated": 1048576,
+        "sha256": "d9a9010a5733d8342c57cece8a75896ade106265b3c205d250e7f35f88352008"
+      },
+      {
+        "name": "LightflowCatalog.db-shm",
+        "bytes": 32768,
+        "allocated": 1048576,
+        "sha256": "68e60156b76ea0065f07a59ff26165ddbb17755dc13c9acacd14e15a62a98faf"
+      },
+      {
+        "name": "LightflowCatalog.db-wal",
+        "bytes": 0,
+        "allocated": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "OWNERSHIP.json",
+        "bytes": 180,
+        "allocated": 1048576,
+        "sha256": "b069140e81b55f4c84a573b8b2185e6e5e54a2d7aefbbbf46cf1434041e76485"
+      },
+      {
+        "name": "backup.db",
+        "bytes": 16384,
+        "allocated": 1048576,
+        "sha256": "6d48cbad6e4df68229790c0adf37d57e1b8f9b9018e7a811e3f9b8b8bbfb26e0"
+      },
+      {
+        "name": "closed-copy.db",
+        "bytes": 16384,
+        "allocated": 1048576,
+        "sha256": "d9a9010a5733d8342c57cece8a75896ade106265b3c205d250e7f35f88352008"
+      },
+      {
+        "name": "closed-copy.partial",
+        "bytes": 16384,
+        "allocated": 1048576,
+        "sha256": "d9a9010a5733d8342c57cece8a75896ade106265b3c205d250e7f35f88352008"
+      },
+      {
+        "name": "flush-canary.bin",
+        "bytes": 37,
+        "allocated": 1048576,
+        "sha256": "74003531ffb9992ac21486b3a99e19b79be2f82e8f8acd2b1631a0abe1e40365"
+      },
+      {
+        "name": "interrupted-copy.partial",
+        "bytes": 1024,
+        "allocated": 1048576,
+        "sha256": "c2e9dee4c903ae45eb414519c3cac49883dc5e4432e7697f3b0f050fb651d2a4"
+      },
+      {
+        "name": "manifest.json",
+        "bytes": 12400,
+        "allocated": 1048576,
+        "sha256": "6aa6f84e1177ea5fe4650f441347b83f4ce651c693db704cbb0e2e30e935f441"
+      },
+      {
+        "name": "mismatch-copy.partial",
+        "bytes": 42,
+        "allocated": 1048576,
+        "sha256": "22b7fae1c713f3c19b2461aa9d3315d043a8815ddd6816fd672eb793f89afef2"
+      },
+      {
+        "name": "restored.db",
+        "bytes": 16384,
+        "allocated": 1048576,
+        "sha256": "6d48cbad6e4df68229790c0adf37d57e1b8f9b9018e7a811e3f9b8b8bbfb26e0"
+      }
+    ],
+    "logical_bytes": 177523,
+    "allocated_bytes_including_root": 25165824,
+    "lsof_exit": 1,
+    "lsof_stdout": "",
+    "lsof_stderr": ""
+  },
+  "cleanup": {
+    "native_descriptors_after": 0,
+    "task_directory_handles_after": 0,
+    "post_policy_cleanup": true
+  },
+  "post_policy": [
+    {
+      "role": "ActiveCatalog",
+      "decision": "Rejected",
+      "reason": "MissingCapabilities",
+      "capabilities": {
+        "Read": "Supported",
+        "Write": "Supported",
+        "QualifiedCatalogFileSystem": "Unknown",
+        "DurableWrites": "Unknown",
+        "FileLocking": "Supported",
+        "CompanionFiles": "Unknown"
+      }
+    },
+    {
+      "role": "MediaSource",
+      "decision": "Eligible",
+      "reason": "Eligible",
+      "capabilities": {
+        "Read": "Supported",
+        "Write": "Supported",
+        "QualifiedCatalogFileSystem": "Unknown",
+        "DurableWrites": "Unknown",
+        "FileLocking": "Supported",
+        "CompanionFiles": "Unknown"
+      }
+    },
+    {
+      "role": "ClosedCatalogBackupTransfer",
+      "decision": "RequiresVerifiedStaging",
+      "reason": "VerifiedStagingRequired",
+      "capabilities": {
+        "Read": "Supported",
+        "Write": "Supported",
+        "QualifiedCatalogFileSystem": "Unknown",
+        "DurableWrites": "Unknown",
+        "FileLocking": "Supported",
+        "CompanionFiles": "Unknown"
+      }
+    }
+  ],
+  "failed_evidence": [
+    "Initial Python3.9 error-code constant handling failed after observed database lock; same-root corrected resume retained original synthetic identities.",
+    "Exclusive rename errno45 Operation not supported; retained staging and verified new O_EXCL destination, no atomic publication claim.",
+    "Final audit diskutil arbitrary-directory operand rejected; corrected read-only query to verified volume root."
+  ],
+  "limits": [
+    "No Windows execution, physical eject/handoff, removal/power-loss test or production provider/schema.",
+    "API flush acknowledgements do not prove physical controller durability.",
+    "Product ExFAT admission remains rejected/unknown."
+  ]
+}

@@ -1,0 +1,244 @@
+{
+  "agent": "LF-BOTH-RES-007",
+  "date": "2026-10-09",
+  "source": "c30601870d1c9736f6c6229e84b51546bf8f118e",
+  "classification": "CONDITIONAL",
+  "physical": {
+    "VolumeName": "JRPhoto4T",
+    "FilesystemType": "exfat",
+    "VolumeSize": 4000734773248,
+    "FreeSpace": 2286854078464,
+    "Internal": false,
+    "WritableMedia": true,
+    "WritableVolume": true,
+    "BusProtocol": "USB",
+    "VolumeAllocationBlockSize": 1048576
+  },
+  "device": {
+    "model": "Extreme Pro 55AF",
+    "partitionScheme": "GUID_partition_scheme",
+    "physical": "Physical",
+    "vendor": "SanDisk",
+    "linkSpeed": "10 Gb/s"
+  },
+  "nativeFlags": {
+    "readOnly": false,
+    "validCapabilityBits": [
+      16777215,
+      2097151,
+      0,
+      0
+    ],
+    "filesystem": "exfat",
+    "local": true,
+    "capabilitiesAvailable": true,
+    "capabilityBits": [
+      4206114,
+      1051584,
+      0,
+      0
+    ],
+    "NSURLVolumeIsEncryptedKey": false,
+    "flags": 270537240,
+    "NSURLVolumeIsLocalKey": true,
+    "NSURLVolumeIsInternalKey": false
+  },
+  "nativeAssessment": [
+    {
+      "role": "ActiveCatalog",
+      "operation": "Open",
+      "status": "Complete",
+      "locality": "Local",
+      "alias": "Resolved",
+      "containment": "Resolved",
+      "capabilities": {
+        "Read": "Supported",
+        "Write": "Supported",
+        "QualifiedCatalogFileSystem": "Unknown",
+        "DurableWrites": "Unknown",
+        "FileLocking": "Supported",
+        "CompanionFiles": "Unknown"
+      },
+      "decision": "Rejected",
+      "reason": "MissingCapabilities",
+      "diagnostic": "Native metadata snapshot; linked/cloud/unknown containment fails closed. APFS qualification is bounded by G2, not a power-loss guarantee. Fresh actual-use guards remain required."
+    },
+    {
+      "role": "MediaSource",
+      "operation": "Read",
+      "status": "Complete",
+      "locality": "Local",
+      "alias": "Resolved",
+      "containment": "Resolved",
+      "capabilities": {
+        "Read": "Supported",
+        "Write": "Supported",
+        "QualifiedCatalogFileSystem": "Unknown",
+        "DurableWrites": "Unknown",
+        "FileLocking": "Supported",
+        "CompanionFiles": "Unknown"
+      },
+      "decision": "Eligible",
+      "reason": "Eligible",
+      "diagnostic": "Native metadata snapshot; linked/cloud/unknown containment fails closed. APFS qualification is bounded by G2, not a power-loss guarantee. Fresh actual-use guards remain required."
+    },
+    {
+      "role": "ClosedCatalogBackupTransfer",
+      "operation": "Read",
+      "status": "Complete",
+      "locality": "Local",
+      "alias": "Resolved",
+      "containment": "Resolved",
+      "capabilities": {
+        "Read": "Supported",
+        "Write": "Supported",
+        "QualifiedCatalogFileSystem": "Unknown",
+        "DurableWrites": "Unknown",
+        "FileLocking": "Supported",
+        "CompanionFiles": "Unknown"
+      },
+      "decision": "RequiresVerifiedStaging",
+      "reason": "VerifiedStagingRequired",
+      "diagnostic": "Native metadata snapshot; linked/cloud/unknown containment fails closed. APFS qualification is bounded by G2, not a power-loss guarantee. Fresh actual-use guards remain required."
+    }
+  ],
+  "cleanup": {
+    "baseline": 0,
+    "after": 0,
+    "disposedStatus": "Failed",
+    "cleanupPassed": true
+  },
+  "internalFixture": {
+    "evidence": "synthetic Python/system SQLite on internal APFS disk image; not production provider or physical qualification",
+    "sqlite": "3.51.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "native mount anchor held during probe",
+        "passed": true
+      },
+      {
+        "name": "native anchors disposed before ordinary detach",
+        "passed": true
+      },
+      {
+        "name": "APFS image local filesystem",
+        "passed": true
+      },
+      {
+        "name": "WAL enabled",
+        "passed": true
+      },
+      {
+        "name": "synchronous FULL",
+        "passed": true
+      },
+      {
+        "name": "WAL and SHM sidecars present",
+        "passed": true
+      },
+      {
+        "name": "second process writer rejected while transaction held",
+        "passed": true
+      },
+      {
+        "name": "checkpoint completed",
+        "passed": true
+      },
+      {
+        "name": "closed checkpoint leaves no uncheckpointed WAL",
+        "passed": true
+      },
+      {
+        "name": "reopen identity and authored state",
+        "passed": true
+      },
+      {
+        "name": "SQLite backup state matches",
+        "passed": true
+      },
+      {
+        "name": "restore logical equality",
+        "passed": true
+      },
+      {
+        "name": "closed copy hash equality",
+        "passed": true
+      },
+      {
+        "name": "closed copy logical equality",
+        "passed": true
+      },
+      {
+        "name": "interrupted copy rejected before publication",
+        "passed": true
+      },
+      {
+        "name": "failed verification retains prior destination and source",
+        "passed": true
+      },
+      {
+        "name": "rollback removes only task staging",
+        "passed": true
+      },
+      {
+        "name": "read-only URI rejects authoring",
+        "passed": true
+      },
+      {
+        "name": "native mount anchor held during probe",
+        "passed": true
+      },
+      {
+        "name": "native anchors disposed before ordinary detach",
+        "passed": true
+      },
+      {
+        "name": "read-only remount metadata rejects writes",
+        "passed": true
+      },
+      {
+        "name": "remount receives different binding",
+        "passed": true
+      },
+      {
+        "name": "readonly image rejects authoring",
+        "passed": true
+      },
+      {
+        "name": "read-only remount preserved hashes and state",
+        "passed": true
+      }
+    ],
+    "pragmas": {
+      "journal_mode": "wal",
+      "synchronous": 2,
+      "fullfsync": 0,
+      "checkpoint_fullfsync": 1,
+      "busy_timeout": 200
+    },
+    "timings_ms": {
+      "create_commit": 7.303124999999966,
+      "checkpoint_close": 13.617999999999908,
+      "closed_copy": 0.1474999999999671
+    },
+    "hashes": {
+      "mount/LightflowCatalog.db": "b5236015f506ea8408fbfa14157d09df984bd195782bf22e74dc5405f750af01",
+      "mount/backup.db": "57368e323d1e917f9cdc456aa580e271775a3481df08877c48e5d4d319dfa351",
+      "closed-copy.db": "b5236015f506ea8408fbfa14157d09df984bd195782bf22e74dc5405f750af01",
+      "restored.db": "57368e323d1e917f9cdc456aa580e271775a3481df08877c48e5d4d319dfa351"
+    },
+    "ordinary_detach": true,
+    "final_native_descriptors": 0,
+    "sidecars_after_close": {
+      "-wal": 0,
+      "-shm": 32768
+    }
+  },
+  "limitations": [
+    "No physical writes, eject/remount, SQLite workload, Windows execution or hardware durability tested.",
+    "Python/system SQLite 3.51.0, not production Microsoft.Data.Sqlite/e_sqlite3; timing for 32 rows not performance qualification.",
+    "Interrupted-copy/hash mismatch/rollback are deterministic synthetic controls, not physical disconnect or production transfer.",
+    "Mount epochs differ across newly created contexts as well as remounts; observed change does not independently prove reuse detection."
+  ]
+}

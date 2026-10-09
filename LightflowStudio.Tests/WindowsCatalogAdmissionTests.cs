@@ -64,16 +64,16 @@ public sealed class WindowsCatalogAdmissionTests : IAsyncLifetime
         var saves = configuration.Saves;
         try
         {
-        Directory.Move(alias, Path.Combine(_root, "old-alias"));
-        await Junction(replacement);
-        var restore = await coordinator.RestoreCatalogAsync(Path.Combine(_root, "unused-backup.db"));
-        Assert.False(restore.Succeeded); Assert.Contains("different location", restore.Diagnostic);
-        var relocate = await coordinator.RelocateCatalogAsync(Path.Combine(_root, "destination"));
-        Assert.False(relocate.Succeeded); Assert.Contains("different location", relocate.Diagnostic);
-        Assert.Equal(id, coordinator.CatalogSession.Identity.CatalogId);
-        Assert.Equal(saves, configuration.Saves);
-        await coordinator.Collections.CreateSetAsync("Still bound to original");
-        Assert.False(File.Exists(Path.Combine(replacement, LightflowStorageLocations.CatalogFileName)));
+            Directory.Move(alias, Path.Combine(_root, "old-alias"));
+            await Junction(replacement);
+            var restore = await coordinator.RestoreCatalogAsync(Path.Combine(_root, "unused-backup.db"));
+            Assert.False(restore.Succeeded); Assert.Contains("different location", restore.Diagnostic);
+            var relocate = await coordinator.RelocateCatalogAsync(Path.Combine(_root, "destination"));
+            Assert.False(relocate.Succeeded); Assert.Contains("different location", relocate.Diagnostic);
+            Assert.Equal(id, coordinator.CatalogSession.Identity.CatalogId);
+            Assert.Equal(saves, configuration.Saves);
+            await coordinator.Collections.CreateSetAsync("Still bound to original");
+            Assert.False(File.Exists(Path.Combine(replacement, LightflowStorageLocations.CatalogFileName)));
         }
         finally
         {

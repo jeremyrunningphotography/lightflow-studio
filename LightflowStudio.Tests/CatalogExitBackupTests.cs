@@ -26,8 +26,9 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
     public async Task RealExitSnapshotWaitsForWholeOperationAndContainsItsFinalTransactions()
     {
         var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+        Assert.True(startup.IsReady, startup.Diagnostic);
         await using var storage = startup.Coordinator!;
-        Assert.True(startup.IsReady);
+        Assert.True(startup.IsReady, startup.Diagnostic);
         Assert.Empty(storage.CatalogBackups); // No routine startup copy.
         var first = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -64,6 +65,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
     public async Task FailedBackupAndCancelledDrainRestoreNormalMutationAdmission()
     {
         var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+        Assert.True(startup.IsReady, startup.Diagnostic);
         await using var storage = startup.Coordinator!;
         var file = Path.Combine(_root, "not-a-folder");
         await File.WriteAllTextAsync(file, "owned fixture");
@@ -258,6 +260,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         {
             TestWpfApplication.EnsureLoaded();
             var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+            Assert.True(startup.IsReady, startup.Diagnostic);
             await using var storage = startup.Coordinator!;
             var dialog = new CatalogBackupDialog(storage, _ => { });
             var file = Path.Combine(_root, "not-a-directory");
@@ -281,6 +284,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         {
             TestWpfApplication.EnsureLoaded();
             var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+            Assert.True(startup.IsReady, startup.Diagnostic);
             await using var storage = startup.Coordinator!;
             var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var admitted = storage.Mutations.RunAsync(() => finish.Task);
@@ -312,6 +316,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         {
             TestWpfApplication.EnsureLoaded();
             var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+            Assert.True(startup.IsReady, startup.Diagnostic);
             await using var storage = startup.Coordinator!;
             var dialog = new CatalogBackupDialog(storage, _ => { });
             var content = (System.Windows.FrameworkElement)dialog.Content;
@@ -347,6 +352,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         {
             TestWpfApplication.EnsureLoaded();
             var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+            Assert.True(startup.IsReady, startup.Diagnostic);
             await using var storage = startup.Coordinator!;
             var original = storage.BackupDirectory;
             var edited = Path.Combine(_root, "Edited destination");
@@ -369,6 +375,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
     public async Task RestoreFromPreviousFolderKeepsDestinationAndBacksUpCurrentState()
     {
         var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+        Assert.True(startup.IsReady, startup.Diagnostic);
         await using var storage = startup.Coordinator!;
         await storage.Collections.CreateSetAsync("Original state");
         var original = await storage.BackupCatalogAsync();
@@ -430,6 +437,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
     public async Task QueuedFileJobDoesNotBlockBackupAndRunningJobDrainsThroughPublication()
     {
         var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+        Assert.True(startup.IsReady, startup.Diagnostic);
         await using var storage = startup.Coordinator!;
         var queue = new JobsAdmission(1, paused: true);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -445,7 +453,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         jobs.Enqueue(new(Guid.NewGuid(), FileOperationKind.Recycle, [new(null, Path.Combine(_root, "fixture.mov"))],
             null, DateTimeOffset.UtcNow, 0, false, FileOperationExecution.Job));
         var pausedBackup = await storage.BackupCatalogAsync().WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.True(pausedBackup.Succeeded);
+        Assert.True(pausedBackup.Succeeded, pausedBackup.Diagnostic);
         Assert.False(entered.Task.IsCompleted);
         queue.IsPaused = false;
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -453,7 +461,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         Assert.False(draining.IsCompleted);
         finish.SetResult();
         var completed = await draining.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.True(completed.Succeeded);
+        Assert.True(completed.Succeeded, completed.Diagnostic);
         using var copy = new SqliteConnection($"Data Source={completed.Backup!.Path};Mode=ReadOnly;Pooling=False");
         copy.Open();
         using var query = copy.CreateCommand();

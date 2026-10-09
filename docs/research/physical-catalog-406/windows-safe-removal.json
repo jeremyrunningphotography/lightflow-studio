@@ -1,0 +1,13 @@
+{
+  "agent": "LF-WIN-RES-007",
+  "api": "CM_Request_Device_EjectW",
+  "utc": "2026-10-09T20:16:31.670674Z",
+  "configret": 0,
+  "veto_type": 0,
+  "veto_name": "",
+  "target": "verified removable UAS parent of SanDisk disk",
+  "task_process_count": 0,
+  "forced": false,
+  "success": true,
+  "drive_letter_absent": true
+}

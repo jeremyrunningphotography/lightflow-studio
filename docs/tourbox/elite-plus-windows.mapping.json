@@ -1,0 +1,475 @@
+{
+  "Version": 1,
+  "Model": "TourBox Elite Plus",
+  "Platform": "Windows",
+  "Status": "Proposed; owner Console export and physical acceptance pending",
+  "Baseline": "a827470ab0338790c5697d9fcfaebe9231a70670",
+  "Mappings": [
+    {
+      "Control": "Knob",
+      "Operation": "Counterclockwise",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Left",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "player.previous-frame",
+        "browser.navigate-left"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Knob",
+      "Operation": "Clockwise",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Right",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "player.next-frame",
+        "browser.navigate-right"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Dial",
+      "Operation": "Counterclockwise",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Left",
+        "Modifiers": "Control"
+      },
+      "Commands": [
+        "player.previous-media"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Dial",
+      "Operation": "Clockwise",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Right",
+        "Modifiers": "Control"
+      },
+      "Commands": [
+        "player.next-media"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Scroll",
+      "Operation": "Down",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Down",
+        "Modifiers": "Control"
+      },
+      "Commands": [
+        "asset.flag-previous"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Scroll",
+      "Operation": "Up",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Up",
+        "Modifiers": "Control"
+      },
+      "Commands": [
+        "asset.flag-next"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Knob",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Space",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "player.play-pause"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Dial",
+      "Operation": "Press",
+      "Kind": "Local",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Escape",
+        "Modifiers": "None"
+      },
+      "Commands": [],
+      "Binding": "Local"
+    },
+    {
+      "Control": "Scroll",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "S",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "subclip.create"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Tall",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "I",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "player.set-in"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Short",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "O",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "player.set-out"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Top",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "M",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "marker.add"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Tour",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Enter",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "browser.open"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "D-pad Up",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "5",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "asset.rating-5"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "D-pad Right",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "4",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "asset.rating-4"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "D-pad Down",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "3",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "asset.rating-3"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "D-pad Left",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "0",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "asset.rating-0"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "C1",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "1",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "asset.rating-1"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Side + D-pad Down",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "2",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "asset.rating-2"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "C2",
+      "Operation": "Press / hold / release",
+      "Kind": "Hold",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "C",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "player.color-bypass"
+      ],
+      "Binding": "Default",
+      "Gate": "PhysicalHoldProbe"
+    },
+    {
+      "Control": "Side + Knob",
+      "Operation": "Counterclockwise",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Left",
+        "Modifiers": "Control, Shift"
+      },
+      "Commands": [
+        "viewer.zoom-previous",
+        "browser.thumbnails-previous"
+      ],
+      "Binding": "Additional"
+    },
+    {
+      "Control": "Side + Knob",
+      "Operation": "Clockwise",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Right",
+        "Modifiers": "Control, Shift"
+      },
+      "Commands": [
+        "viewer.zoom-next",
+        "browser.thumbnails-next"
+      ],
+      "Binding": "Additional"
+    },
+    {
+      "Control": "Side + Scroll",
+      "Operation": "Down",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Down",
+        "Modifiers": "Control, Shift"
+      },
+      "Commands": [
+        "player.volume-previous"
+      ],
+      "Binding": "Additional"
+    },
+    {
+      "Control": "Side + Scroll",
+      "Operation": "Up",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Up",
+        "Modifiers": "Control, Shift"
+      },
+      "Commands": [
+        "player.volume-next"
+      ],
+      "Binding": "Additional"
+    },
+    {
+      "Control": "Side + Dial",
+      "Operation": "Counterclockwise",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Left",
+        "Modifiers": "Alt"
+      },
+      "Commands": [
+        "marker.previous"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Side + Dial",
+      "Operation": "Clockwise",
+      "Kind": "Relative",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "Right",
+        "Modifiers": "Alt"
+      },
+      "Commands": [
+        "marker.next"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Side + Knob",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "F6",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "viewer.zoom-fit"
+      ],
+      "Binding": "Additional"
+    },
+    {
+      "Control": "Side + Scroll",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "M",
+        "Modifiers": "Control, Shift"
+      },
+      "Commands": [
+        "player.toggle-mute"
+      ],
+      "Binding": "Additional"
+    },
+    {
+      "Control": "Side + Tall",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "F11",
+        "Modifiers": "None"
+      },
+      "Commands": [
+        "player.toggle-fullscreen"
+      ],
+      "Binding": "Additional"
+    },
+    {
+      "Control": "Side + Short",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "L",
+        "Modifiers": "Control, Shift"
+      },
+      "Commands": [
+        "player.toggle-loop"
+      ],
+      "Binding": "Additional"
+    },
+    {
+      "Control": "Side + Top",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "I",
+        "Modifiers": "Control"
+      },
+      "Commands": [
+        "review.toggle-right-panel"
+      ],
+      "Binding": "Default"
+    },
+    {
+      "Control": "Side + C1",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "B",
+        "Modifiers": "Control, Shift"
+      },
+      "Commands": [
+        "player.toggle-filmstrip"
+      ],
+      "Binding": "Additional"
+    },
+    {
+      "Control": "Side + Tour",
+      "Operation": "Press",
+      "Kind": "Invoke",
+      "ConsoleMode": "Standard",
+      "Gesture": {
+        "Key": "E",
+        "Modifiers": "Control, Shift"
+      },
+      "Commands": [
+        "export.browservideos",
+        "export.playervideo"
+      ],
+      "Binding": "Additional"
+    }
+  ]
+}

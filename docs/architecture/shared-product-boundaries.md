@@ -64,6 +64,7 @@ Paths identify existing production owners, not completed extractions.
 | [Color processor](../../LightflowStudio/LightflowColorPostProcessor.cs), [DerivedFrameColor](../../LightflowStudio/DerivedFrameColor.cs) | Shared Color intent; D3D/Metal renderer adapters | GPU resources/shaders are Windows-specific |
 | [Catalog lifecycle](../../LightflowStudio/CatalogDatabaseService.cs), [roots](../../LightflowStudio/MediaRoots.cs), [recovery](../../LightflowStudio/CatalogRecovery.cs) | Later extraction; retain transactions and identities | OS path/capability guards require accepted G2 follow-through |
 | [ApplicationInstance](../../LightflowStudio/ApplicationInstance.cs) | Shared ownership intent; per-OS IPC/activation adapter | Windows mutex/pipe implementation |
+| [Shared storage contracts](shared-storage-contracts-388.md), Domain facts and Application `StorageLocationPolicy` | R2-A neutral role suitability and revalidation, pending owner acceptance | Adapter consumption/enforcement remains #389/#390; current Windows startup/lifecycle unchanged |
 
 ## Shared application, state and UI
 

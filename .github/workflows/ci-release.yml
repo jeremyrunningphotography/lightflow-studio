@@ -11,6 +11,29 @@ permissions:
   contents: read
 
 jobs:
+  mac-storage:
+    name: macOS storage adapter
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+      - name: Test native storage adapter
+        run: dotnet test Lightflow.Platform.MacOS.Tests/Lightflow.Platform.MacOS.Tests.csproj -c Release --disable-build-servers -p:RestoreLockedMode=true --logger "trx;LogFileName=mac-storage.trx"
+      - name: Exercise production adapter through standalone host
+        run: dotnet run --project tools/MacStorageHost/MacStorageHost.csproj -c Release -p:RestoreLockedMode=true -- --data-root "$RUNNER_TEMP/lf006-storage-fixtures"
+      - name: Preserve native results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: mac-storage-evidence
+          path: |
+            Lightflow.Platform.MacOS.Tests/TestResults/*.trx
+            ${{ runner.temp }}/lf006-storage-fixtures/results.json
+          if-no-files-found: error
+          retention-days: 14
+
   neutral:
     name: Neutral classification (${{ matrix.os }})
     strategy:

@@ -14,6 +14,7 @@ This lightweight registry records identity and number allocation. GitHub remains
 | 003 | LF-ANY-DOC-003 | Migration Roadmap Preparation | [Epic #366](https://github.com/jeremyrunningphotography/lightflow-studio/issues/366), [Catalog Epic #289](https://github.com/jeremyrunningphotography/lightflow-studio/issues/289), [PR #399](https://github.com/jeremyrunningphotography/lightflow-studio/pull/399) | Done; owner accepted roadmap and registry reconciliation; merged 2026-10-09 |
 | 004 | LF-WIN-DEV-004 | Shared Storage Contracts | [Issue #388](https://github.com/jeremyrunningphotography/lightflow-studio/issues/388), [PR #401](https://github.com/jeremyrunningphotography/lightflow-studio/pull/401) | Done; owner accepted architecture, validation and technical delivery; merged 2026-10-09 |
 | 005 | LF-WIN-DEV-005 | Windows Catalog Admission | [Issue #389](https://github.com/jeremyrunningphotography/lightflow-studio/issues/389), [Draft PR #403](https://github.com/jeremyrunningphotography/lightflow-studio/pull/403) | Implemented; validation and owner architecture/packaged acceptance pending |
+| 006 | LF-MAC-DEV-006 | macOS Storage Adapter | [Issue #390](https://github.com/jeremyrunningphotography/lightflow-studio/issues/390), [PR #404](https://github.com/jeremyrunningphotography/lightflow-studio/pull/404) | Done; owner accepted architecture, native validation within documented limits, shared-contract compliance and technical delivery; merged 2026-10-09 |
 
 000 completed the accepted naming publication (#382). 001 completed the owner-accepted bounded R1 shared classification extraction (#383 / #385); completion does not authorize later migration. 002 completed owner-accepted bounded WQ (#384 / #386); acceptance does not authorize production Player integration, WPF retirement, or release qualification. 003 completed owner-accepted roadmap/issue/Project preparation and registry reconciliation (#399, normal merge `ae6abe898e053bbf82df8846a4d73335d3b64282`); it does not authorize or start R2–R7 implementation or allocate implementation agents. Reservations alone do not authorize execution.
 
@@ -21,7 +22,9 @@ This lightweight registry records identity and number allocation. GitHub remains
 
 005 is authorized by Jeremy's 2026-10-09 kickoff after accepted #388 / #401. Workspace: `C:\Git\Agents\LF-WIN-DEV-005-CatalogAdmission`. Draft review, architecture and packaged owner acceptance remain required. Assignment 006 belongs to the separately authorized Mac assignment and is not reserved here.
 
-**Next available number: 007 after both owner-authorized reservations (005 and 006).** This assignment records only 005; 006's owner maintains its own reservation.
+006 completed owner-accepted bounded R2-C #390 / #404 at accepted head `3e8e55518ee82e07722ceb7d7fa4f04b675d7829`, normal merge `e2618f17d317de519892cc239671143a3b0949da`. Architecture, native technical validation within documented limits, shared-contract compliance, required CI and owner technical acceptance PASS. Additional hands-on testing was waived for this slice with no Mac UI/workflow. Physical external-drive durability/locking, Finder aliases, surprise removal, power loss, full Mac integration and physical cross-platform handoff remain unqualified; R2 is incomplete. Independent task evidence is retained at `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-006-StorageAdapter`.
+
+**Next available number: 007.** Assignments 005 and 006 were explicitly allocated by the owner kickoff on 2026-10-09. Reservation does not authorize any other assignment.
 
 ## Number allocation and maintenance
 

@@ -14,7 +14,8 @@ namespace LightflowStudio;
 /// admission, and each boundary probes both the retained binding and a fresh requested-path handle.
 /// Dispose after the operation; the operation epoch is deliberately not a persistent volume ID.
 /// </summary>
-internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protectedDirectories = null)
+internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protectedDirectories = null,
+    IReadOnlyDictionary<string, StorageRole>? protectedRoles = null)
     : IStorageLocationAssessor, IDisposable
 {
     private readonly Dictionary<string, Binding> _bindings = new(StringComparer.OrdinalIgnoreCase);
@@ -23,6 +24,9 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
     private readonly Guid _epoch = Guid.NewGuid();
     private readonly string[] _protectedDirectories = protectedDirectories?.ToArray() ?? [];
     private bool _disposed;
+    private SafeFileHandle? _mainGuard;
+    private FileInformation? _qualifiedMain;
+    private string? _guardIdentity;
 
     public Task<StorageLocationAssessment> AssessAsync(StorageAssessmentRequest request,
         CancellationToken cancellationToken = default) => Task.Run(() => Assess(request, cancellationToken), cancellationToken);
@@ -35,11 +39,17 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
         var phase = "ValidateRequestedPath";
         string? resolved = null;
         var accessDiagnostics = new List<string>();
+        var containmentDiagnostics = new List<string>();
+        var assessmentId = Guid.NewGuid();
+        var order = 0;
+        var nativeProbe = "not-started";
         StorageLocationAssessment Snapshot(StorageAssessmentStatus status, ResolvedStorageIdentity? identity,
             StorageLocality locality, StorageAvailability available, StorageResolutionConfidence aliases,
             StorageResolutionConfidence containment, StorageCapabilityFacts? capabilities, string? diagnostic = null) =>
-            new(request, Guid.NewGuid(), now, now.AddSeconds(30), StorageLocationPolicy.Version, status,
+            new(request, assessmentId, now, now.AddSeconds(30), StorageLocationPolicy.Version, status,
                 identity, locality, available, available, aliases, containment, capabilities, diagnostic);
+        void Predicate(string kind, string target, string facts) => containmentDiagnostics.Add(
+            $"predicate={kind}; phase={phase}; order={order}; observedAt={DateTimeOffset.UtcNow:O}; probe=GetFileInformationByHandle/File.GetAttributes; target=[{TargetContext(target)}]; {facts}");
         try
         {
             var path = ValidatePath(request.RequestedLocation);
@@ -60,36 +70,63 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
             var containment = StorageResolutionConfidence.Resolved;
             foreach (var boundary in _protectedDirectories)
             {
+                order++;
                 phase = "ResolveProtectedBoundary";
                 cancellationToken.ThrowIfCancellationRequested();
                 var other = Resolve(ValidatePath(boundary), cancellationToken);
                 var otherObserved = Observe(other.Handle);
                 if (LightflowStorageLocations.PathsOverlap(canonical, Join(otherObserved.Canonical, other.Suffix)))
+                {
                     containment = StorageResolutionConfidence.Ambiguous;
+                    Predicate("ProtectedRootOverlap", canonical, $"probe=ResolvedPathsOverlap; protectedRole={(protectedRoles is not null && protectedRoles.TryGetValue(boundary, out var role) ? role.ToString() : "unspecified")}; protected=[{TargetContext(boundary)}]; protectedResolved=[{TargetContext(Join(otherObserved.Canonical, other.Suffix))}]; protectedIdentity=[{TargetContext(otherObserved.FileId)}]");
+                }
             }
             // Catalog leaves/sidecars must not independently escape the directory through links.
             if (request.Role == StorageRole.ActiveCatalog && Directory.Exists(path))
                 foreach (var leaf in new[] { "LightflowCatalog.db", "LightflowCatalog.db-wal", "LightflowCatalog.db-shm", "LightflowCatalog.db-journal" })
                 {
+                    order++;
                     phase = "InspectCatalogLeaf";
                     var file = Path.Combine(path, leaf);
                     try
                     {
+                        nativeProbe = "File.GetAttributes";
                         var attributes = File.GetAttributes(file);
                         if ((attributes & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
                             containment = StorageResolutionConfidence.Ambiguous;
+                        var attributeFacts = $"leaf={leaf}; attributes=0x{(uint)attributes:X}; probe=File.GetAttributes";
+                        if ((attributes & FileAttributes.Directory) != 0) Predicate("LeafDirectory", file, attributeFacts);
+                        if ((attributes & FileAttributes.ReparsePoint) != 0) Predicate("LeafReparse", file, attributeFacts);
+                        nativeProbe = "CreateFileW/MetadataNoFollow";
                         using var handle = Open(file, 0, reparse: true);
+                        nativeProbe = "GetFileInformationByHandle";
                         var information = Information(handle);
-                        if (information.Links != 1) containment = StorageResolutionConfidence.Ambiguous;
+                        var facts = $"leaf={leaf}; attributes=0x{(uint)attributes:X}; handleAttributes=0x{information.Attributes:X}; links={information.Links}; identity=[{TargetContext(FileIdentity(information))}]";
+                        if ((attributes & FileAttributes.Directory) != 0) Predicate("LeafDirectory", file, facts);
+                        if ((attributes & FileAttributes.ReparsePoint) != 0) Predicate("LeafReparse", file, facts);
+                        if (information.Links != 1)
+                        {
+                            containment = StorageResolutionConfidence.Ambiguous;
+                            Predicate("LeafLinkCount", file, facts);
+                        }
                         if (leaf == "LightflowCatalog.db")
                         {
+                            if (_mainGuard is not null && (FileIdentity(information) != _guardIdentity ||
+                                FileIdentity(Information(_mainGuard)) != _guardIdentity))
+                                throw new IOException("The guarded main Catalog object changed. Refuse activation.");
+                            if (_mainGuard is not null)
+                                StartupDiagnostics.Note($"Catalog main guard: freshMatch=verified; identity=[{TargetContext(_guardIdentity)}]; operationId={request.OperationId:N}; generation={request.Generation}; assessmentId={assessmentId:N}; order={order}");
+                            _qualifiedMain = information;
                             read = Access(file, 0x80000000, accessDiagnostics);
                             if (write == StorageCapability.Supported) write = Access(file, 0x40000000, accessDiagnostics);
                         }
                     }
-                    catch (Win32Exception error) when (error.NativeErrorCode is 2 or 3) { }
-                    catch (FileNotFoundException) { }
-                    catch (DirectoryNotFoundException) { }
+                    catch (Win32Exception error) when (error.NativeErrorCode is 2 or 3)
+                    { if (leaf == "LightflowCatalog.db" && _mainGuard is not null) throw new IOException("The guarded main Catalog became unavailable.", error); }
+                    catch (FileNotFoundException)
+                    { if (leaf == "LightflowCatalog.db" && _mainGuard is not null) throw new IOException("The guarded main Catalog became unavailable."); }
+                    catch (DirectoryNotFoundException)
+                    { if (leaf == "LightflowCatalog.db" && _mainGuard is not null) throw new IOException("The guarded main Catalog became unavailable."); }
                 }
             // Accepted G2 Windows evidence is local NTFS. Transport (Fixed/Removable) is not
             // qualification. These are OS filesystem semantics, not hardware power-loss claims.
@@ -105,7 +142,8 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
             return Snapshot(StorageAssessmentStatus.Complete, identity, locality, StorageAvailability.Available,
                 StorageResolutionConfidence.Resolved, containment,
                 new(read, write, qualified, semantics, semantics, semantics),
-                accessDiagnostics.Count > 0 ? DescribeFailure(request, "CapabilityAccessProbe", resolved, string.Join("; ", accessDiagnostics))
+                containmentDiagnostics.Count > 0 ? DescribeFailure(request, phase, resolved, $"assessmentId={assessmentId:N}; " + string.Join("; ", containmentDiagnostics.Concat(accessDiagnostics)))
+                    : accessDiagnostics.Count > 0 ? DescribeFailure(request, "CapabilityAccessProbe", resolved, string.Join("; ", accessDiagnostics))
                     : qualified == StorageCapability.Supported || locality == StorageLocality.Network || request.Role != StorageRole.ActiveCatalog ? null
                     : qualified == StorageCapability.Unknown
                         ? $"Required filesystem capabilities could not be verified for '{observed.Name}'. Check access or choose a supported local NTFS location."
@@ -122,10 +160,37 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
                 unavailable ? StorageAvailability.Unavailable : StorageAvailability.Available,
                 StorageResolutionConfidence.Unknown, StorageResolutionConfidence.Unknown, null,
                 DescribeFailure(request, phase, resolved,
-                    $"{error.Message}; exception={error.GetType().Name}; win32={(nativeError?.NativeErrorCode.ToString() ?? "not-native")}" +
+                    $"assessmentId={assessmentId:N}; order={order}; lastProbe={nativeProbe}; {string.Join("; ", containmentDiagnostics)}; {error.Message}; exception={error.GetType().Name}; win32={(nativeError?.NativeErrorCode.ToString() ?? (error is UnauthorizedAccessException ? "5" : "not-native"))}" +
                     (nativeError is not null && nativeError != error ? $"; causedBy={nativeError.Message}" : "")));
         }
     }
+
+    internal void GuardMainDatabase(string databasePath)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_mainGuard is not null) return;
+        if (_qualifiedMain is not { } qualified) throw new IOException("Fully qualify the main Catalog before acquiring its identity guard.");
+        var guard = Open(databasePath, 0x80000000, reparse: true); // share READ|WRITE, excludes DELETE; never a sidecar pin.
+        try
+        {
+            var current = Information(guard);
+            if ((current.Attributes & (0x400 | 0x10)) != 0 || current.Links != 1 || FileIdentity(current) != FileIdentity(qualified))
+                throw new IOException("The main Catalog changed while acquiring its identity guard.");
+            _guardIdentity = FileIdentity(current);
+            _mainGuard = guard;
+            StartupDiagnostics.Note($"Catalog main guard: acquired; identity=[{TargetContext(_guardIdentity)}]; target=[{TargetContext(databasePath)}]; share=ReadWrite; deleteRename=excluded");
+        }
+        catch { guard.Dispose(); throw; }
+    }
+
+    internal void ReleaseMainDatabaseGuard()
+    {
+        _mainGuard?.Dispose();
+        _mainGuard = null; _guardIdentity = null; _qualifiedMain = null;
+    }
+
+    private static string FileIdentity(FileInformation information) =>
+        $"{information.Volume:X8}:{information.IndexHigh:X8}{information.IndexLow:X8}";
 
     // Correlation tokens retain requested/resolved distinction without publishing user paths.
     internal static string TargetContext(string? path) => path is null ? "not-observed"
@@ -302,6 +367,7 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
     {
         if (_disposed) return;
         _disposed = true;
+        ReleaseMainDatabaseGuard();
         foreach (var pin in _pins) pin.Dispose();
         _pins.Clear(); _bindings.Clear(); _createdTargets.Clear();
     }

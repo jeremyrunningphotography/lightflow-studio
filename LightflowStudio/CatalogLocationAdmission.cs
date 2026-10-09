@@ -20,7 +20,8 @@ internal sealed class CatalogLocationAdmission : IDisposable
         _locations = locations;
         _request = new(Guid.NewGuid(), 0, StorageRole.ActiveCatalog, operation, locations.CatalogDirectory);
         _assessor = assessor ?? (_owned = new WindowsStorageLocationAssessor(
-            [locations.PreviewsDirectory, locations.TemporaryDirectory]));
+            [locations.PreviewsDirectory, locations.TemporaryDirectory], new Dictionary<string, StorageRole>
+            { [locations.PreviewsDirectory] = StorageRole.RebuildablePreview, [locations.TemporaryDirectory] = StorageRole.TemporaryProfile }));
     }
 
     internal async Task ValidateAsync(CancellationToken cancellationToken, string phase = "CoordinatorPreflight_BeforeDatabaseServiceUse")
@@ -57,6 +58,33 @@ internal sealed class CatalogLocationAdmission : IDisposable
             CatalogDatabasePath = Path.Combine(identity.CanonicalLocation, LightflowStorageLocations.CatalogFileName),
             CatalogBackupsDirectory = Path.Combine(identity.CanonicalLocation, "Backups")
         };
+    }
+
+    internal void ValidateClosedDatabaseBoundary(CancellationToken token, CatalogStorageBoundary boundary)
+    {
+        ValidateAsync(token, boundary.ToString()).GetAwaiter().GetResult();
+        if (boundary == CatalogStorageBoundary.FailedCreationCleanup_SQLiteClosed)
+        {
+            _owned?.ReleaseMainDatabaseGuard();
+            return;
+        }
+        if (boundary is CatalogStorageBoundary.AfterAtomicCreation_BeforeInitialSQLiteUse or CatalogStorageBoundary.BeforeInspection_BeforeInitialSQLiteUse)
+        {
+            try { _owned?.GuardMainDatabase(LocationsForUse().CatalogDatabasePath); }
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException)
+            {
+                throw new CatalogLocationAdmissionException($"The main Catalog identity guard could not be established. {error.Message}", StorageLocationReason.AssessmentFailed);
+            }
+        }
+    }
+
+    // Only after the existing owner has disposed the pending writer/SQL scopes. Fresh full
+    // validation still precedes intentional replacement/cleanup; never release on revocation
+    // as permission to delete through that spelling.
+    internal async Task ReleaseForClosedReplacementAsync(CancellationToken token)
+    {
+        await ValidateAsync(token, "ClosedReplacement_BeforeGuardRelease").ConfigureAwait(false);
+        _owned?.ReleaseMainDatabaseGuard();
     }
     internal void RequireActiveSessionBinding(CatalogDatabaseSession? session)
     {

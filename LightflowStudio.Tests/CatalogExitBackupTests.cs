@@ -31,7 +31,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         Assert.True(startup.IsReady, startup.Diagnostic);
         Assert.Empty(storage.CatalogBackups); // No routine startup copy.
         var first = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var finish = new ControlledMutationSignal();
         var accepted = storage.Mutations.RunAsync(async () =>
         {
             await storage.Collections.CreateSetAsync("First transaction");
@@ -69,14 +69,17 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         await using var storage = startup.Coordinator!;
         var file = Path.Combine(_root, "not-a-folder");
         await File.WriteAllTextAsync(file, "owned fixture");
-        Assert.False((await storage.BackupForExitAsync(file, true)).Succeeded);
+        var rejectedDestination = await storage.BackupForExitAsync(file, true);
+        Assert.False(rejectedDestination.Succeeded, rejectedDestination.Diagnostic);
+        Assert.Contains("stage=DestinationAssessment", rejectedDestination.Diagnostic);
         await storage.Collections.CreateSetAsync("After failure");
-        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var finish = new ControlledMutationSignal();
         var mutation = storage.Mutations.RunAsync(() => finish.Task);
         using var cancel = new CancellationTokenSource();
         var backup = storage.BackupForExitAsync(storage.BackupDirectory, true, cancellationToken: cancel.Token);
         cancel.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => backup);
+        var cancellation = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => backup);
+        Assert.Equal("WriterDrain", cancellation.Data["CatalogBackupStage"]);
         await storage.Collections.CreateSetAsync("After cancellation");
         finish.SetResult();
         await mutation;
@@ -169,6 +172,20 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
     { public void Report(string value) => action(value); }
 
     [Fact]
+    public async Task BackupIdentityRefusalReportsSourceReadinessBeforeSnapshot()
+    {
+        var created = await new CatalogDatabaseService(Locations).CreateNewAsync();
+        Assert.True(created.IsSuccess, created.Diagnostic);
+        await using var session = created.Session!;
+        var result = await new SqliteCatalogRecoveryService(Locations).CreateUserBackupAsync(
+            session.DatabasePath, CatalogBackupDestination.Default(Locations), Guid.NewGuid(), session.SchemaVersion);
+        Assert.False(result.Succeeded, result.Diagnostic);
+        Assert.Contains("stage=SourceDatabaseReadiness", result.Diagnostic);
+        Assert.Contains("operationId=", result.Diagnostic);
+        Assert.Empty(Directory.GetFiles(CatalogBackupDestination.Default(Locations)));
+    }
+
+    [Fact]
     public async Task BackgroundReconciliationAcceptedBeforeQuiescenceFinishesAllCatalogPublication()
     {
         var created = await new CatalogDatabaseService(Locations).CreateNewAsync();
@@ -180,7 +197,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         var roots = new MediaRootService(() => session, new MachineIdentityProvider(Locations.MachineIdentityPath), new MediaRootFileSystem());
         var root = (await roots.CreateAsync("Owned media", media)).Root!;
         var assets = new MediaAssetService(new CatalogMediaAssetRepository(() => session), roots, new SampledSourceFingerprintService());
-        var folders = new PausedEnumeration(new MediaFolderEnumerator(roots, MediaTypeRegistry.CreateDefault(), new MediaFolderFileSystem()));
+        using var folders = new PausedEnumeration(new MediaFolderEnumerator(roots, MediaTypeRegistry.CreateDefault(), new MediaFolderFileSystem()));
         var reconciliation = new CatalogReconciliationService(folders, assets);
         var background = reconciliation.ReconcileAsync(new(root.RootId));
         await folders.Entered.Task;
@@ -200,10 +217,11 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         Assert.Equal(2L, command.ExecuteScalar());
     }
 
-    private sealed class PausedEnumeration(IMediaFolderEnumerator inner) : IMediaFolderEnumerator
+    private sealed class PausedEnumeration(IMediaFolderEnumerator inner) : IMediaFolderEnumerator, IDisposable
     {
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Continue { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void Dispose() => Continue.TrySetResult();
         public async Task<MediaFolderEnumerationResult> EnumerateAsync(MediaFolderEnumerationRequest request, CancellationToken cancellationToken = default)
         {
             Entered.SetResult();
@@ -249,6 +267,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         var result = await new SqliteCatalogRecoveryService(Locations).CreateUserBackupAsync(session.DatabasePath,
             destination, session.Identity.CatalogId, session.SchemaVersion, progress);
         Assert.False(result.Succeeded);
+        Assert.Contains("stage=Verification", result.Diagnostic);
         Assert.Empty(Directory.GetFiles(destination));
         Assert.True((await new SqliteCatalogRecoveryService(Locations).CheckIntegrityAsync(session.DatabasePath)).IsValid);
     }
@@ -267,7 +286,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
             File.WriteAllText(file, "owned");
             ((System.Windows.Controls.TextBox)dialog.FindName("Destination")).Text = file;
             Click(dialog, "BackupButton");
-            await Until(() => ((System.Windows.Controls.Button)dialog.FindName("SkipButton")).Content?.ToString() == "Exit Without Backup");
+            await Until(() => ((System.Windows.Controls.Button)dialog.FindName("SkipButton")).Content?.ToString() == "Exit Without Backup", dialog);
             Assert.False(dialog.ExitApproved);
             Assert.True(storage.Settings.BackupCatalogOnClose);
             await storage.Collections.CreateSetAsync("Still writable after failure");
@@ -286,19 +305,19 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
             var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
             Assert.True(startup.IsReady, startup.Diagnostic);
             await using var storage = startup.Coordinator!;
-            var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var finish = new ControlledMutationSignal();
             var admitted = storage.Mutations.RunAsync(() => finish.Task);
             var dialog = new CatalogBackupDialog(storage, _ => { });
             Click(dialog, "BackupButton");
             Click(dialog, "CancelBackupButton");
-            await Until(() => ((System.Windows.Controls.TextBlock)dialog.FindName("StatusText")).Text.StartsWith("Backup cancelled"));
+            await Until(() => ((System.Windows.Controls.TextBlock)dialog.FindName("StatusText")).Text.StartsWith("Backup cancelled"), dialog);
             Assert.False(dialog.ExitApproved);
             Assert.False(admitted.IsCompleted);
             await storage.Collections.CreateSetAsync("After cancellation");
             finish.SetResult();
             await admitted;
             Click(dialog, "BackupButton");
-            await Until(() => dialog.ExitApproved);
+            await Until(() => dialog.ExitApproved, dialog);
             var later = storage.Collections.CreateSetAsync("New work cannot race successful exit");
             Assert.False(later.IsCompleted);
             storage.CompletePreparedExit();
@@ -363,7 +382,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
 
             var dialog = new CatalogBackupDialog(storage, _ => { }, exit: false, destination: edited);
             Click(dialog, "BackupButton");
-            await Until(() => dialog.ExitApproved);
+            await Until(() => dialog.ExitApproved, dialog);
             Assert.Equal(edited, storage.BackupDirectory);
             Assert.Single(Directory.GetFiles(edited, "*.db"));
             Assert.True(storage.Settings.BackupCatalogOnClose);
@@ -383,7 +402,8 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         var newerFolder = Path.Combine(_root, "New backup folder");
         await storage.SaveBackupDestinationAsync(newerFolder, CancellationToken.None);
         await storage.Collections.CreateSetAsync("Later edit");
-        Assert.True((await storage.BackupCatalogAsync()).Succeeded);
+        var newerBackup = await storage.BackupCatalogAsync();
+        Assert.True(newerBackup.Succeeded, newerBackup.Diagnostic);
         Assert.DoesNotContain(storage.CatalogBackups, x => x.Path == original.Backup!.Path);
         var restored = await storage.RestoreCatalogAsync(original.Backup!.Path);
         Assert.True(restored.Succeeded, restored.Diagnostic);
@@ -441,7 +461,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         await using var storage = startup.Coordinator!;
         var queue = new JobsAdmission(1, paused: true);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var finish = new ControlledMutationSignal();
         var jobs = new FileOperationJobs(new FileOperationExecutor(new NoOpFiles(), storage.MediaAssets, storage.BrowserLocations),
             new FileOperationHistoryStore(Path.Combine(_root, "jobs.json")), async _ =>
             {
@@ -478,14 +498,44 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         public void PermanentlyDelete(string path) { }
     }
 
+    // Declared after the session/coordinator so release precedes async storage disposal,
+    // including when an assertion or dialog wait throws. Do not await in cleanup and
+    // replace the original failure with a second exception.
+    private sealed class ControlledMutationSignal : IDisposable
+    {
+        private readonly TaskCompletionSource _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Task => _signal.Task;
+        public void SetResult() => _signal.TrySetResult();
+        public void Dispose() => _signal.TrySetResult();
+    }
+
+    [Fact]
+    public async Task ControlledMutationCleanupPreservesEarlierAssertionFailure()
+    {
+        async Task FailBeforeRelease()
+        {
+            var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+            Assert.True(startup.IsReady, startup.Diagnostic);
+            await using var storage = startup.Coordinator!;
+            using var finish = new ControlledMutationSignal();
+            var admitted = storage.Mutations.RunAsync(() => finish.Task);
+            Assert.False(admitted.IsCompleted);
+            Assert.True(false, "Controlled assertion before signal release");
+        }
+        var error = await Assert.ThrowsAsync<Xunit.Sdk.TrueException>(
+            () => FailBeforeRelease().WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Contains("Controlled assertion before signal release", error.Message);
+    }
+
     private static void Click(CatalogBackupDialog dialog, string name) =>
         ((System.Windows.Controls.Button)dialog.FindName(name)).RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-    private static async Task Until(Func<bool> condition)
+    private static async Task Until(Func<bool> condition, CatalogBackupDialog? dialog = null)
     {
         var deadline = DateTime.UtcNow.AddSeconds(15);
         while (!condition())
         {
-            if (DateTime.UtcNow > deadline) throw new TimeoutException("Backup dialog did not reach its terminal state.");
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("Backup dialog did not reach its terminal state. " +
+                (dialog is null ? "" : $"status={((System.Windows.Controls.TextBlock)dialog.FindName("StatusText")).Text}; exitApproved={dialog.ExitApproved}"));
             await Task.Delay(10);
         }
     }

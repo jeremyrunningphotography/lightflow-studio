@@ -11,6 +11,36 @@ public sealed class WindowsCatalogAdmissionTests : IAsyncLifetime
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"lightflow-admission-{Guid.NewGuid():N}");
 
     [Fact]
+    public async Task NativeFailureRetainsProbeCodeAndSanitizedTargetContext()
+    {
+        var path = @"\\?\Volume{00000000-0000-0000-0000-000000000000}\catalog";
+        var request = new StorageAssessmentRequest(Guid.NewGuid(), 7, StorageRole.ActiveCatalog, StorageOperation.Open, path);
+        using var assessor = new WindowsStorageLocationAssessor();
+        var result = await assessor.AssessAsync(request);
+        Assert.NotEqual(StorageLocationDecision.Eligible, StorageLocationPolicy.Evaluate(request, result, DateTimeOffset.UtcNow).Decision);
+        Assert.Contains("probe=CreateFileW", result.ProviderDiagnostic);
+        Assert.Contains("win32=", result.ProviderDiagnostic);
+        Assert.Contains("phase=ResolveAndPinRequestedTarget", result.ProviderDiagnostic);
+        Assert.Contains($"operationId={request.OperationId:N}; generation=7", result.ProviderDiagnostic);
+        Assert.Contains("requested=[sha256:", result.ProviderDiagnostic);
+        Assert.Contains("resolved=[not-observed]", result.ProviderDiagnostic);
+        Assert.DoesNotContain(path, result.ProviderDiagnostic);
+    }
+
+    [Fact]
+    public async Task StartupDiagnosticsDistinguishBeforeAndAfterSQLiteUse()
+    {
+        var notes = new List<string>();
+        using var diagnostics = new StartupDiagnostics(message => { lock (notes) notes.Add(message); });
+        var result = await LightflowStorageCoordinator.StartAsync(_root);
+        Assert.True(result.IsReady, result.Diagnostic);
+        await result.Coordinator!.DisposeAsync();
+        Assert.Contains(notes, message => message.Contains("phase=BeforeDirectoryCreation_BeforeInitialSQLiteUse"));
+        Assert.Contains(notes, message => message.Contains("phase=AfterCatalogOpen_AfterInitialSQLiteUse"));
+        Assert.Contains(notes, message => message.Contains("boundary=Revalidation") && message.Contains("operationId="));
+    }
+
+    [Fact]
     public async Task NativeConcurrentCreateAndReopen_PreservesIndependentBindings()
     {
         await Task.WhenAll(Enumerable.Range(0, 8).Select(async worker =>

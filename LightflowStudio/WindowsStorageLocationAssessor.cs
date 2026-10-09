@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Security.Cryptography;
 using Lightflow.Application;
 using Lightflow.Domain;
 using Microsoft.Win32.SafeHandles;
@@ -31,6 +32,9 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
         ObjectDisposedException.ThrowIf(_disposed, this);
         cancellationToken.ThrowIfCancellationRequested();
         var now = DateTimeOffset.UtcNow;
+        var phase = "ValidateRequestedPath";
+        string? resolved = null;
+        var accessDiagnostics = new List<string>();
         StorageLocationAssessment Snapshot(StorageAssessmentStatus status, ResolvedStorageIdentity? identity,
             StorageLocality locality, StorageAvailability available, StorageResolutionConfidence aliases,
             StorageResolutionConfidence containment, StorageCapabilityFacts? capabilities, string? diagnostic = null) =>
@@ -39,19 +43,24 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
         try
         {
             var path = ValidatePath(request.RequestedLocation);
+            phase = "ResolveAndPinRequestedTarget";
             var binding = Resolve(path, cancellationToken);
+            phase = "ObserveResolvedTarget";
             var observed = Observe(binding.Handle);
             var canonical = Join(observed.Canonical, binding.Suffix);
+            resolved = canonical;
             var locality = observed.Locality;
             var identity = new ResolvedStorageIdentity(canonical,
                 $"{observed.FileId}|{binding.Suffix}", $"{_epoch:N}|{observed.Volume}", observed.FileSystem);
             var accessPath = Directory.Exists(path) ? path : binding.Parent;
-            var read = Access(accessPath, 1); // FILE_LIST_DIRECTORY; does not create files.
+            phase = "ProbeTargetAccess";
+            var read = Access(accessPath, 1, accessDiagnostics); // FILE_LIST_DIRECTORY; does not create files.
             var write = (observed.Flags & 0x80000) != 0 ? StorageCapability.Unsupported
-                : Access(accessPath, 2 | 4); // FILE_ADD_FILE / FILE_ADD_SUBDIRECTORY.
+                : Access(accessPath, 2 | 4, accessDiagnostics); // FILE_ADD_FILE / FILE_ADD_SUBDIRECTORY.
             var containment = StorageResolutionConfidence.Resolved;
             foreach (var boundary in _protectedDirectories)
             {
+                phase = "ResolveProtectedBoundary";
                 cancellationToken.ThrowIfCancellationRequested();
                 var other = Resolve(ValidatePath(boundary), cancellationToken);
                 var otherObserved = Observe(other.Handle);
@@ -62,6 +71,7 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
             if (request.Role == StorageRole.ActiveCatalog && Directory.Exists(path))
                 foreach (var leaf in new[] { "LightflowCatalog.db", "LightflowCatalog.db-wal", "LightflowCatalog.db-shm", "LightflowCatalog.db-journal" })
                 {
+                    phase = "InspectCatalogLeaf";
                     var file = Path.Combine(path, leaf);
                     try
                     {
@@ -73,8 +83,8 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
                         if (information.Links != 1) containment = StorageResolutionConfidence.Ambiguous;
                         if (leaf == "LightflowCatalog.db")
                         {
-                            read = Access(file, 0x80000000);
-                            if (write == StorageCapability.Supported) write = Access(file, 0x40000000);
+                            read = Access(file, 0x80000000, accessDiagnostics);
+                            if (write == StorageCapability.Supported) write = Access(file, 0x40000000, accessDiagnostics);
                         }
                     }
                     catch (Win32Exception error) when (error.NativeErrorCode is 2 or 3) { }
@@ -85,6 +95,7 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
             // qualification. These are OS filesystem semantics, not hardware power-loss claims.
             // Require the native disk/file identity and the NTFS capability profile observed
             // by G2, including persistent ACLs and Unicode names. A name alone is insufficient.
+            phase = "ObserveFileSystemQualification";
             var qualified = locality != StorageLocality.Local || observed.Name != "NTFS"
                 ? StorageCapability.Unsupported
                 : GetFileType(binding.Handle) == 1 && (observed.Flags & 0xC) == 0xC
@@ -94,7 +105,8 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
             return Snapshot(StorageAssessmentStatus.Complete, identity, locality, StorageAvailability.Available,
                 StorageResolutionConfidence.Resolved, containment,
                 new(read, write, qualified, semantics, semantics, semantics),
-                qualified == StorageCapability.Supported || locality == StorageLocality.Network || request.Role != StorageRole.ActiveCatalog ? null
+                accessDiagnostics.Count > 0 ? DescribeFailure(request, "CapabilityAccessProbe", resolved, string.Join("; ", accessDiagnostics))
+                    : qualified == StorageCapability.Supported || locality == StorageLocality.Network || request.Role != StorageRole.ActiveCatalog ? null
                     : qualified == StorageCapability.Unknown
                         ? $"Required filesystem capabilities could not be verified for '{observed.Name}'. Check access or choose a supported local NTFS location."
                         : $"Active Catalogs require a supported local NTFS filesystem. The resolved filesystem is '{observed.Name}'.");
@@ -102,15 +114,27 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
         catch (OperationCanceledException) { throw; }
         catch (Exception error) when (error is Win32Exception or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
+            var nativeError = error as Win32Exception ?? error.InnerException as Win32Exception;
             // Unreachable paths are never evidence of an absent/first-run Catalog.
             var unavailable = error is Win32Exception native && native.NativeErrorCode is 2 or 3 or 15 or 21 or 53 or 67 or 1117 or 1167;
             return Snapshot(StorageAssessmentStatus.Complete, null,
                 unavailable ? StorageLocality.Unavailable : StorageLocality.Unknown,
                 unavailable ? StorageAvailability.Unavailable : StorageAvailability.Available,
                 StorageResolutionConfidence.Unknown, StorageResolutionConfidence.Unknown, null,
-                $"Windows could not resolve the configured location: {error.Message}");
+                DescribeFailure(request, phase, resolved,
+                    $"{error.Message}; exception={error.GetType().Name}; win32={(nativeError?.NativeErrorCode.ToString() ?? "not-native")}" +
+                    (nativeError is not null && nativeError != error ? $"; causedBy={nativeError.Message}" : "")));
         }
     }
+
+    // Correlation tokens retain requested/resolved distinction without publishing user paths.
+    internal static string TargetContext(string? path) => path is null ? "not-observed"
+        : $"sha256:{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(path)))[..16]};length={path.Length}";
+    private static string DescribeFailure(StorageAssessmentRequest request, string phase, string? resolved, string detail) =>
+        $"Windows assessment: phase={phase}; operation={request.Operation}; operationId={request.OperationId:N}; generation={request.Generation}; " +
+        $"requested=[{TargetContext(request.RequestedLocation)}]; resolved=[{TargetContext(resolved)}]; {detail}";
+    private static Win32Exception NativeFailure(string api, int code, string? target = null) =>
+        new(code, $"probe={api}; win32={code}; target=[{TargetContext(target)}]; {new Win32Exception(code).Message}");
 
     private Binding Resolve(string path, CancellationToken cancellationToken)
     {
@@ -191,7 +215,7 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
             if ((Information(pin).Attributes & 0x400) != 0)
             {
                 if (!GetFileInformationByHandleEx(pin, 9, out var tag, 8))
-                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                    throw NativeFailure("GetFileInformationByHandleEx(FileAttributeTagInfo)", Marshal.GetLastWin32Error(), ancestor);
                 if (tag.Tag is not (0xA0000003 or 0xA000000C))
                     throw new NotSupportedException($"Reparse tag {tag.Tag:X8} cannot be resolved with qualified Catalog semantics.");
                 // Pin the link object against write-based reparse retargeting, separately from
@@ -221,20 +245,20 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
         var handle = CreateFileW(path, access, shareWrite ? 3u : 1u, IntPtr.Zero, 3, 0x02000000u | (reparse ? 0x00200000u : 0), IntPtr.Zero);
         if (!handle.IsInvalid) return handle;
         var error = Marshal.GetLastWin32Error(); handle.Dispose();
-        throw new Win32Exception(error, $"Cannot open '{path}' for filesystem assessment: {new Win32Exception(error).Message}");
+        throw NativeFailure($"CreateFileW(access=0x{access:X},reparse={reparse},shareWrite={shareWrite})", error, path);
     }
-    private static StorageCapability Access(string path, uint access)
+    private static StorageCapability Access(string path, uint access, List<string> diagnostics)
     {
         try { using var handle = Open(path, access); return StorageCapability.Supported; }
-        catch (Win32Exception error) when (error.NativeErrorCode is 5 or 19) { return StorageCapability.Unsupported; }
-        catch (Win32Exception) { return StorageCapability.Unknown; }
+        catch (Win32Exception error) when (error.NativeErrorCode is 5 or 19) { diagnostics.Add(error.Message); return StorageCapability.Unsupported; }
+        catch (Win32Exception error) { diagnostics.Add(error.Message); return StorageCapability.Unknown; }
     }
     private static FileInformation Information(SafeFileHandle handle)
     {
         if (!GetFileInformationByHandle(handle, out var information))
         {
             var error = Marshal.GetLastWin32Error();
-            throw new Win32Exception(error, $"Cannot read the retained file identity: {new Win32Exception(error).Message}");
+            throw NativeFailure("GetFileInformationByHandle", error);
         }
         return information;
     }
@@ -255,7 +279,7 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
         {
             path.Clear();
             var length = GetFinalPathNameByHandleW(handle, path, (uint)path.Capacity, 0);
-            if (length == 0 || length >= path.Capacity) throw new Win32Exception(Marshal.GetLastWin32Error());
+            if (length == 0 || length >= path.Capacity) throw NativeFailure("GetFinalPathNameByHandleW(DOS)", Marshal.GetLastWin32Error());
             var resolved = path.ToString();
             var resolvedRoot = Path.GetPathRoot(resolved);
             locality = resolved.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase) ||
@@ -267,7 +291,7 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
         if (!filesystemKnown && locality != StorageLocality.Network)
         {
             var error = Marshal.GetLastWin32Error();
-            throw new Win32Exception(error, $"Cannot inspect the resolved volume '{path}': {new Win32Exception(error).Message}");
+            throw NativeFailure("GetVolumeInformationByHandleW", error, path.ToString());
         }
         var information = Information(handle);
         var name = filesystem.ToString();

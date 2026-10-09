@@ -34,7 +34,7 @@ internal sealed class CatalogDatabaseService
     internal StartupValidationReason ValidationReason { get; init; } = StartupValidationReason.ExplicitValidation;
     // Supplied only by the production lifecycle composition. SQLite still owns creation,
     // inspection and migration; this callback revalidates native location binding at use.
-    internal Action<CancellationToken>? ValidateStorageAccess { get; init; }
+    internal Action<CancellationToken, string>? ValidateStorageAccess { get; init; }
     internal string? ResolvedDatabasePath { get; init; }
 
     public int CurrentSchemaVersion => _migrations.Count == 0 ? 0 : _migrations[^1].Version;
@@ -54,9 +54,9 @@ internal sealed class CatalogDatabaseService
 
         try
         {
-            ValidateStorageAccess?.Invoke(cancellationToken);
+            ValidateStorageAccess?.Invoke(cancellationToken, "BeforeDirectoryCreation_BeforeInitialSQLiteUse");
             Directory.CreateDirectory(catalogDirectory);
-            ValidateStorageAccess?.Invoke(cancellationToken);
+            ValidateStorageAccess?.Invoke(cancellationToken, "AfterDirectoryCreation_BeforeInitialSQLiteUse");
             using (new FileStream(databasePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
             {
                 // Atomic ownership claim. SQLite initializes the deliberately empty file below.
@@ -129,7 +129,7 @@ internal sealed class CatalogDatabaseService
 
         try
         {
-            ValidateStorageAccess?.Invoke(cancellationToken);
+            ValidateStorageAccess?.Invoke(cancellationToken, "BeforeInspection_BeforeInitialSQLiteUse");
             int inspectedVersion;
             try { inspectedVersion = InspectExistingCatalog(databasePath); }
             catch (Exception error) when (CleanStartup && error is SqliteException or CatalogOpenException or InvalidDataException)
@@ -245,7 +245,7 @@ internal sealed class CatalogDatabaseService
             throw new CatalogOpenException(CatalogOpenStatus.UnsupportedFutureSchema,
                 $"Catalog schema {startingVersion} requires a newer Lightflow version.", startingVersion);
         if (startingVersion == CurrentSchemaVersion) return;
-        ValidateStorageAccess?.Invoke(cancellationToken);
+        ValidateStorageAccess?.Invoke(cancellationToken, isNewCatalog ? "MigrationBoundary_BeforeInitialSQLiteUse" : "MigrationBoundary_AfterInitialSQLiteUse");
 
         if (!isNewCatalog)
         {
@@ -276,7 +276,7 @@ internal sealed class CatalogDatabaseService
         {
             using var migrationTiming = StartupDiagnostics.Stage($"Catalog migration {migration.Version}", "Upgrading Catalog…");
             cancellationToken.ThrowIfCancellationRequested();
-            ValidateStorageAccess?.Invoke(cancellationToken);
+            ValidateStorageAccess?.Invoke(cancellationToken, isNewCatalog && migration == _migrations[0] ? "MigrationStep_BeforeInitialSQLiteUse" : "MigrationStep_AfterInitialSQLiteUse");
             try
             {
                 using var connection = connections.OpenConnection();

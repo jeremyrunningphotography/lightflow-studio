@@ -12,6 +12,7 @@ internal sealed class CatalogLocationAdmission : IDisposable
     private readonly StorageAssessmentRequest _request;
     private readonly LightflowStorageLocations _locations;
     private StorageLocationAssessment? _previous;
+    private int _probe;
 
     internal CatalogLocationAdmission(LightflowStorageLocations locations, StorageOperation operation,
         IStorageLocationAssessor? assessor = null)
@@ -22,11 +23,14 @@ internal sealed class CatalogLocationAdmission : IDisposable
             [locations.PreviewsDirectory, locations.TemporaryDirectory]));
     }
 
-    internal async Task ValidateAsync(CancellationToken cancellationToken)
+    internal async Task ValidateAsync(CancellationToken cancellationToken, string phase = "CoordinatorPreflight_BeforeDatabaseServiceUse")
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (_locations.IsIsolated) ApplicationDataProfile.GuardAccess(_locations.CatalogDatabasePath);
         var current = await _assessor.AssessAsync(_request, cancellationToken).ConfigureAwait(false);
+        var context = $"Catalog admission: phase={phase}; boundary={(_previous is null ? "InitialAssessment" : "Revalidation")}; probe={++_probe}; " +
+            $"operation={_request.Operation}; operationId={_request.OperationId:N}; generation={_request.Generation}; assessmentId={current.AssessmentId:N}";
+        StartupDiagnostics.Note(context);
         var result = _previous is null
             ? StorageLocationPolicy.Evaluate(_request, current, DateTimeOffset.UtcNow, cancellationToken)
             : StorageLocationPolicy.Revalidate(_request, _previous, current, DateTimeOffset.UtcNow, cancellationToken);
@@ -36,7 +40,7 @@ internal sealed class CatalogLocationAdmission : IDisposable
             var diagnostic = result.Reason == StorageLocationReason.NetworkActiveCatalog
                 ? "Lightflow Catalogs must be stored on a supported local drive. Network locations are supported for media and Catalog backups, but not for an active Catalog."
                 : result.Diagnostic;
-            throw new CatalogLocationAdmissionException($"{diagnostic}\n\nConfigured Catalog: {_request.RequestedLocation}" +
+            throw new CatalogLocationAdmissionException($"{diagnostic}\n\nConfigured Catalog: {_request.RequestedLocation}\n{context}" +
                 (current.ProviderDiagnostic is null ? "" : $"\n{current.ProviderDiagnostic}"), result.Reason);
         }
         _previous = current;

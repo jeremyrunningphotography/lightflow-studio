@@ -11,6 +11,79 @@ public sealed class WindowsCatalogAdmissionTests : IAsyncLifetime
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"lightflow-admission-{Guid.NewGuid():N}");
 
     [Fact]
+    public async Task NativeConcurrentCreateAndReopen_PreservesIndependentBindings()
+    {
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(async worker =>
+        {
+            for (var iteration = 0; iteration < 8; iteration++)
+            {
+                var root = Path.Combine(_root, $"worker-{worker}-{iteration}");
+                var first = await LightflowStorageCoordinator.StartAsync(root);
+                Assert.True(first.IsReady, first.Diagnostic);
+                var id = first.Coordinator!.CatalogSession.Identity.CatalogId;
+                await first.Coordinator.DisposeAsync();
+                var reopened = await LightflowStorageCoordinator.StartAsync(root);
+                Assert.True(reopened.IsReady, reopened.Diagnostic);
+                Assert.Equal(id, reopened.Coordinator!.CatalogSession.Identity.CatalogId);
+                await reopened.Coordinator.DisposeAsync();
+            }
+        }));
+    }
+
+    [Fact]
+    public async Task NativeAliasChangedAfterActivation_RefusesRestoreAndRelocationBeforeClosingWriter()
+    {
+        var target = Path.Combine(_root, "original");
+        var replacement = Path.Combine(_root, "replacement");
+        var alias = Path.Combine(_root, "alias");
+        Directory.CreateDirectory(target); Directory.CreateDirectory(replacement);
+        var locations = LightflowStorageLocations.Create(_root) with
+        {
+            CatalogDirectory = target,
+            CatalogDatabasePath = Path.Combine(target, LightflowStorageLocations.CatalogFileName),
+            CatalogBackupsDirectory = Path.Combine(target, "Backups")
+        };
+        var seeded = await new CatalogDatabaseService(locations).CreateNewAsync();
+        Assert.True(seeded.IsSuccess, seeded.Diagnostic);
+        var id = seeded.Session!.Identity.CatalogId;
+        await seeded.Session.DisposeAsync();
+        async Task Junction(string destination)
+        {
+            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe")
+            {
+                Arguments = $"/c mklink /J \"{alias}\" \"{destination}\"", UseShellExecute = false,
+                CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true
+            })!;
+            await process.WaitForExitAsync(); Assert.Equal(0, process.ExitCode);
+        }
+        await Junction(target);
+        var configuration = new Configuration(new() { CatalogDirectory = alias, CatalogId = id });
+        var startup = await LightflowStorageCoordinator.StartAsync(_root, configuration: configuration);
+        Assert.True(startup.IsReady, startup.Diagnostic);
+        var coordinator = startup.Coordinator!;
+        var saves = configuration.Saves;
+        try
+        {
+        Directory.Move(alias, Path.Combine(_root, "old-alias"));
+        await Junction(replacement);
+        var restore = await coordinator.RestoreCatalogAsync(Path.Combine(_root, "unused-backup.db"));
+        Assert.False(restore.Succeeded); Assert.Contains("different location", restore.Diagnostic);
+        var relocate = await coordinator.RelocateCatalogAsync(Path.Combine(_root, "destination"));
+        Assert.False(relocate.Succeeded); Assert.Contains("different location", relocate.Diagnostic);
+        Assert.Equal(id, coordinator.CatalogSession.Identity.CatalogId);
+        Assert.Equal(saves, configuration.Saves);
+        await coordinator.Collections.CreateSetAsync("Still bound to original");
+        Assert.False(File.Exists(Path.Combine(replacement, LightflowStorageLocations.CatalogFileName)));
+        }
+        finally
+        {
+            await coordinator.DisposeAsync();
+            Directory.Delete(alias);
+            Directory.Delete(Path.Combine(_root, "old-alias"));
+        }
+    }
+
+    [Fact]
     public async Task NativeLocal_CreateAndReopenRemainSupported()
     {
         var start = await LightflowStorageCoordinator.StartAsync(_root);

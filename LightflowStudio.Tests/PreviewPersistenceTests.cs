@@ -192,7 +192,9 @@ public sealed class PreviewPersistenceTests : IAsyncLifetime
     [Fact]
     public async Task DeletingEntirePreviewStore_DoesNotAffectCatalogData()
     {
-        var coordinator = (await LightflowStorageCoordinator.StartAsync(_root)).Coordinator!;
+        var startup = await LightflowStorageCoordinator.StartAsync(_root);
+        Assert.True(startup.IsReady, startup.Diagnostic);
+        var coordinator = startup.Coordinator!;
         var catalogId = coordinator.CatalogSession.Identity.CatalogId;
         await using (var previewStore = new PreviewStoreService(coordinator.Locations))
             await previewStore.ObserveSourceAsync(Guid.NewGuid(), Source());

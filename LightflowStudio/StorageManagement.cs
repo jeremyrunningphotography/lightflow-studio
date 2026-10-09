@@ -420,7 +420,11 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             await DisposeMediaMonitoringAsync().ConfigureAwait(false);
             await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
             using var admission = new CatalogLocationAdmission(Locations, StorageOperation.RestoreActivation, _assessor);
-            try { await admission.ValidateAsync(cancellationToken).ConfigureAwait(false); }
+            try
+            {
+                await admission.ValidateAsync(cancellationToken).ConfigureAwait(false);
+                admission.RequireActiveSessionBinding(_catalogSession);
+            }
             catch (CatalogLocationAdmissionException exception) { return new(false, exception.Message); }
             var boundLocations = admission.LocationsForUse();
             var expectedId = Settings.CatalogId;
@@ -587,6 +591,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             }
             await sourceAdmission.ValidateAsync(cancellationToken).ConfigureAwait(false);
             await sourceAdmission.ValidateAsync(cancellationToken).ConfigureAwait(false);
+            sourceAdmission.RequireActiveSessionBinding(_catalogSession);
         }
         catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException or OperationCanceledException)
         {

@@ -54,6 +54,14 @@ internal sealed class CatalogLocationAdmission : IDisposable
             CatalogBackupsDirectory = Path.Combine(identity.CanonicalLocation, "Backups")
         };
     }
+    internal void RequireActiveSessionBinding(CatalogDatabaseSession? session)
+    {
+        if (_owned is not null && session is not null && !string.Equals(
+            LocationsForUse().CatalogDatabasePath, session.ResolvedDatabasePath, StringComparison.OrdinalIgnoreCase))
+            throw new CatalogLocationAdmissionException(
+                "The configured Catalog now resolves to a different location from the active Catalog. Restart Lightflow before changing storage.",
+                StorageLocationReason.LocationChanged);
+    }
     public void Dispose() => _owned?.Dispose();
 }
 

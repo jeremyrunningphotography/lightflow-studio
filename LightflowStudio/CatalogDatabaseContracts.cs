@@ -1,5 +1,19 @@
 namespace LightflowStudio;
 
+internal enum CatalogStorageBoundary
+{
+    BeforeDirectoryCreation_BeforeInitialSQLiteUse,
+    AfterDirectoryCreation_BeforeInitialSQLiteUse,
+    AfterAtomicCreation_BeforeInitialSQLiteUse,
+    BeforeInspection_BeforeInitialSQLiteUse,
+    MigrationBoundary_BeforeInitialSQLiteUse,
+    MigrationBoundary_AfterInitialSQLiteUse,
+    MigrationStep_BeforeInitialSQLiteUse,
+    MigrationStep_AfterInitialSQLiteUse,
+    AfterCatalogValidation_SQLiteClosed,
+    FailedCreationCleanup_SQLiteClosed
+}
+
 internal enum CatalogOpenStatus
 {
     Ready,
@@ -75,6 +89,7 @@ internal sealed class CatalogDatabaseSession : IAsyncDisposable
     }
 
     public string DatabasePath { get; }
+    internal string ResolvedDatabasePath => _connections.DatabasePath;
     public int SchemaVersion { get; }
     public CatalogIdentity Identity { get; }
     public CatalogRuntimePolicy RuntimePolicy { get; }
@@ -83,8 +98,12 @@ internal sealed class CatalogDatabaseSession : IAsyncDisposable
     internal Microsoft.Data.Sqlite.SqliteConnection OpenConnection()
     {
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        _connections.Publish();
         return _connections.OpenConnection();
     }
+
+    internal void CloseBeforeActivation() => _connections.CloseUnpublishedPool(CatalogStorageBoundary.AfterCatalogValidation_SQLiteClosed);
+    internal void MarkPublished() => _connections.Publish();
 
     public ValueTask DisposeAsync()
     {

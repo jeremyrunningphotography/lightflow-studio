@@ -153,6 +153,7 @@ public sealed class StorageManagementTests : IAsyncLifetime
 
         Assert.False(result.Succeeded);
         Assert.Equal(source, coordinator.Locations.CatalogDirectory);
+        Assert.True(coordinator.CatalogAvailable, result.Diagnostic);
         Assert.Equal(identity, coordinator.CatalogSession.Identity.CatalogId);
         Assert.Equal(source, AppSettingsStore.Load(coordinator.Locations.SettingsPath).CatalogDirectory ?? source);
         await coordinator.DisposeAsync();

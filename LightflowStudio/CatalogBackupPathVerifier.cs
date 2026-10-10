@@ -88,7 +88,11 @@ internal static class CatalogBackupPathVerifier
             var restored = await storage.RestoreCatalogAsync(first.Path).ConfigureAwait(false);
             Require(restored.Succeeded, restored.Diagnostic);
             if (stagingLength == 297)
-                Require(stagingPaths.Single(path => path.EndsWith(".restoring")).Length == 262, "Restore staging no longer exercises the measured boundary");
+            {
+                var restoreStaging = stagingPaths.Single(path => path.EndsWith(".restoring"));
+                Require(restoreStaging.Length == storage.CatalogSession.ResolvedDatabasePath.Length + 1 + 32 + ".restoring".Length &&
+                    restoreStaging.Length >= 262, "Restore staging no longer exercises the measured boundary through its resolved volume path");
+            }
             Require((await storage.Collections.ListSetsAsync().ConfigureAwait(false)).Count == 1, "Restored authored state");
             Require((await recovery.CheckIntegrityAsync(locations.CatalogDatabasePath).ConfigureAwait(false)).IsValid, "Live integrity after restore");
             Require(recovery.ListBackups().Any(x => x.Kind == CatalogBackupKind.Recovery), "Missing current-state protection");

@@ -19,6 +19,7 @@ internal sealed class StartupStoreEvidence : IDisposable
     private const int Format = 1;
     private readonly FileStream _journal;
     private readonly string _database;
+    private readonly string _configuredDatabase;
     private readonly string _store;
     private bool _completed;
     internal bool Completed => _completed;
@@ -31,9 +32,10 @@ internal sealed class StartupStoreEvidence : IDisposable
     }
     internal static string JournalPath(string database) => database + ".startup-state";
 
-    private StartupStoreEvidence(string database, string store, FileStream journal, StartupSessionCompletion? session)
+    private StartupStoreEvidence(string database, string store, FileStream journal, StartupSessionCompletion? session, string? resolvedDatabase)
     {
-        _database = Path.GetFullPath(database); _store = store; _journal = journal; _session = session;
+        _configuredDatabase = Path.GetFullPath(database);
+        _database = Path.GetFullPath(resolvedDatabase ?? database); _store = store; _journal = journal; _session = session;
         Reason = session?.PriorReason == StartupValidationReason.UnexpectedShutdown
             ? StartupValidationReason.UnexpectedShutdown : StartupValidationReason.UncertainState;
         try
@@ -46,7 +48,7 @@ internal sealed class StartupStoreEvidence : IDisposable
                 {
                     var certificate = JsonSerializer.Deserialize<Certificate>(envelope.Payload);
                     if (certificate is { Version: Format, State: "Clean" } && certificate.Store == store &&
-                        certificate.Database == _database && session?.Previous is not null && certificate.Session == session.Previous)
+                        certificate.Database == _configuredDatabase && session?.Previous is not null && certificate.Session == session.Previous)
                     {
                         Reason = StartupValidationReason.DatabaseAnomaly;
                         KnownClean = certificate.Fingerprint == Fingerprint(_database) && NoRecoveryFiles(_database);
@@ -57,17 +59,19 @@ internal sealed class StartupStoreEvidence : IDisposable
         }
         catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException or ArgumentException)
         { /* Unreadable/untrusted evidence never grants the fast path. */ }
-        Write(new(Format, "Dirty", _store, _database, null, session?.Current)); // Flush must succeed before caller can open SQLite.
+        Write(new(Format, "Dirty", _store, _configuredDatabase, null, session?.Current)); // Flush must succeed before caller can open SQLite.
     }
 
-    internal static StartupStoreEvidence? Begin(string database, string store, bool createDirectory, StartupSessionCompletion? session = null)
+    internal static StartupStoreEvidence? Begin(string database, string store, bool createDirectory, StartupSessionCompletion? session = null,
+        string? resolvedDatabase = null)
     {
-        var directory = Path.GetDirectoryName(Path.GetFullPath(database))!;
+        var accessDatabase = resolvedDatabase ?? database;
+        var directory = Path.GetDirectoryName(Path.GetFullPath(accessDatabase))!;
         if (createDirectory) Directory.CreateDirectory(directory);
         if (!Directory.Exists(directory)) return null;
-        var journal = new FileStream(JournalPath(database), FileMode.OpenOrCreate, FileAccess.ReadWrite,
+        var journal = new FileStream(JournalPath(accessDatabase), FileMode.OpenOrCreate, FileAccess.ReadWrite,
             FileShare.Delete, 4096, FileOptions.WriteThrough);
-        try { return new(database, store, journal, session); }
+        try { return new(database, store, journal, session, resolvedDatabase); }
         catch { journal.Dispose(); throw; }
     }
 
@@ -93,7 +97,7 @@ internal sealed class StartupStoreEvidence : IDisposable
         // afterward, under a read-only handle that excludes new writers until publication ends.
         using var database = new FileStream(_database, FileMode.Open, FileAccess.Read, FileShare.Read);
         var fingerprint = Fingerprint(database);
-        Write(new(Format, "Clean", _store, _database, fingerprint, _session?.Current));
+        Write(new(Format, "Clean", _store, _configuredDatabase, fingerprint, _session?.Current));
         _completed = true;
     }
 

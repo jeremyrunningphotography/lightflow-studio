@@ -47,6 +47,8 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
     public Task<CatalogIntegrityResult> CheckIntegrityAsync(string databasePath, CancellationToken cancellationToken = default) =>
         Task.Run(() => Inspect(databasePath, full: true, cancellationToken), cancellationToken);
 
+    internal SqliteCatalogRecoveryService ForLocations(ILightflowStorageLocations locations) => new(locations, _utcNow);
+
     public async Task<CatalogMigrationBackupResult> PrepareForMigrationAsync(string catalogDatabasePath,
         int currentSchemaVersion, int targetSchemaVersion, CancellationToken cancellationToken)
     {
@@ -110,9 +112,13 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
     }
 
     public Task<CatalogRestoreInstallation> BeginRestoreAsync(string backupPath, bool requireCurrentProtection = false,
-        CancellationToken cancellationToken = default) => Task.Run(() =>
+        CancellationToken cancellationToken = default) => BeginRestoreValidatedAsync(backupPath, requireCurrentProtection, null, cancellationToken);
+
+    internal Task<CatalogRestoreInstallation> BeginRestoreValidatedAsync(string backupPath, bool requireCurrentProtection,
+        Action<CancellationToken>? validateStorageAccess, CancellationToken cancellationToken) => Task.Run(() =>
     {
         cancellationToken.ThrowIfCancellationRequested();
+        validateStorageAccess?.Invoke(cancellationToken);
         var candidate = Inspect(backupPath, full: true, cancellationToken);
         if (!candidate.IsValid) return new CatalogRestoreInstallation(false, Diagnostic: $"The selected backup is not valid. {candidate.Diagnostic}");
         Directory.CreateDirectory(_locations.CatalogDirectory);
@@ -123,6 +129,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         var replacementInstalled = false;
         try
         {
+            validateStorageAccess?.Invoke(cancellationToken);
             BackupDatabase(backupPath, staged);
             var stagedCheck = Inspect(staged, full: true, cancellationToken);
             if (!stagedCheck.IsValid || stagedCheck.CatalogId != candidate.CatalogId || stagedCheck.SchemaVersion != candidate.SchemaVersion)
@@ -141,6 +148,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
             // Cancellation is safe until installation starts. Once files move, finish validation
             // or rollback without cancellation, so the current Catalog cannot be stranded.
             cancellationToken.ThrowIfCancellationRequested();
+            validateStorageAccess?.Invoke(cancellationToken);
             if (File.Exists(live)) { File.Move(live, displaced); movedCurrent = true; }
             MoveCompanion(live + "-wal", displaced + "-wal");
             MoveCompanion(live + "-shm", displaced + "-shm");
@@ -149,12 +157,13 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
             var restored = Inspect(live, full: true, CancellationToken.None);
             if (!restored.IsValid) throw new InvalidDataException(restored.Diagnostic);
             return new CatalogRestoreInstallation(true,
-                new RestoreTransaction(live, movedCurrent ? displaced : null, _utcNow));
+                new RestoreTransaction(live, movedCurrent ? displaced : null, _utcNow, validateStorageAccess));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException or InvalidDataException)
         {
             try
             {
+                validateStorageAccess?.Invoke(CancellationToken.None);
                 if (replacementInstalled) DeleteCatalogFiles(live);
                 if (movedCurrent) File.Move(displaced, live);
                 MoveCompanion(displaced + "-wal", live + "-wal");
@@ -163,11 +172,16 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
             catch (Exception rollback) { return new(false, Diagnostic: $"Restore failed: {ex.Message} The previous Catalog is preserved at {displaced}, but automatic rollback also failed: {rollback.Message}"); }
             return new(false, Diagnostic: $"Restore failed and the previous Catalog was restored: {ex.Message}");
         }
-        finally { DeleteCatalogFiles(staged); }
+        finally
+        {
+            // Cleanup has the same identity requirement as installation/rollback.
+            try { validateStorageAccess?.Invoke(CancellationToken.None); DeleteCatalogFiles(staged); }
+            catch (CatalogLocationAdmissionException) { }
+        }
     }, cancellationToken);
 
     private sealed class RestoreTransaction(string livePath, string? displacedPath,
-        Func<DateTimeOffset> utcNow) : ICatalogRestoreTransaction
+        Func<DateTimeOffset> utcNow, Action<CancellationToken>? validateStorageAccess = null) : ICatalogRestoreTransaction
     {
         private int _completed;
         public string? DisplacedCatalogPath { get; } = displacedPath;
@@ -175,6 +189,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         public Task<CatalogRestoreResult> CommitAsync(CancellationToken cancellationToken = default) => Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
+            validateStorageAccess?.Invoke(cancellationToken);
             if (Interlocked.Exchange(ref _completed, 1) != 0)
                 return new CatalogRestoreResult(false, "The restore transaction is already complete.");
             if (DisplacedCatalogPath is not null) DeleteCatalogFiles(DisplacedCatalogPath);
@@ -189,6 +204,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
             var failedReplacement = livePath + $".{utcNow():yyyyMMddTHHmmssZ}.failed-restore";
             try
             {
+                validateStorageAccess?.Invoke(cancellationToken);
                 if (File.Exists(livePath)) File.Move(livePath, failedReplacement);
                 MoveCompanion(livePath + "-wal", failedReplacement + "-wal");
                 MoveCompanion(livePath + "-shm", failedReplacement + "-shm");

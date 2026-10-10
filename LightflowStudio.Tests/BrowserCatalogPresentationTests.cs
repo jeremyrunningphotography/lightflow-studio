@@ -24,7 +24,9 @@ public sealed class BrowserCatalogPresentationTests : IAsyncLifetime
     {
         Directory.CreateDirectory(Path.Combine(Media, "known"));
         Directory.CreateDirectory(Path.Combine(Media, "other"));
-        _storage = (await LightflowStorageCoordinator.StartAsync(Path.Combine(_directory, "app"))).Coordinator!;
+        var startup = await LightflowStorageCoordinator.StartAsync(Path.Combine(_directory, "app"));
+        _storage = startup.Coordinator!;
+        Assert.True(startup.IsReady, startup.Diagnostic);
         await _storage.MediaMonitoring!.DisposeAsync();
         _root = (await _storage.MediaRoots.CreateAsync("Test", Media)).Root!;
     }

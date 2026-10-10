@@ -32,6 +32,10 @@ internal sealed class CatalogDatabaseService
 
     internal bool CleanStartup { get; init; }
     internal StartupValidationReason ValidationReason { get; init; } = StartupValidationReason.ExplicitValidation;
+    // Supplied only by the production lifecycle composition. SQLite still owns creation,
+    // inspection and migration; this callback revalidates native location binding at use.
+    internal Action<CancellationToken, CatalogStorageBoundary>? ValidateStorageAccess { get; init; }
+    internal string? ResolvedDatabasePath { get; init; }
 
     public int CurrentSchemaVersion => _migrations.Count == 0 ? 0 : _migrations[^1].Version;
 
@@ -45,22 +49,25 @@ internal sealed class CatalogDatabaseService
     {
         using var timing = StartupDiagnostics.Stage("Catalog open", "Checking Catalog…");
         cancellationToken.ThrowIfCancellationRequested();
-        var databasePath = Path.GetFullPath(_storageLocations.CatalogDatabasePath);
+        var databasePath = Path.GetFullPath(ResolvedDatabasePath ?? _storageLocations.CatalogDatabasePath);
         var catalogDirectory = Path.GetDirectoryName(databasePath)!;
 
         try
         {
+            ValidateStorageAccess?.Invoke(cancellationToken, CatalogStorageBoundary.BeforeDirectoryCreation_BeforeInitialSQLiteUse);
             Directory.CreateDirectory(catalogDirectory);
+            ValidateStorageAccess?.Invoke(cancellationToken, CatalogStorageBoundary.AfterDirectoryCreation_BeforeInitialSQLiteUse);
             using (new FileStream(databasePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
             {
                 // Atomic ownership claim. SQLite initializes the deliberately empty file below.
             }
         }
-        catch (IOException exception) when (File.Exists(databasePath))
+        catch (IOException exception) when (exception is not CatalogLocationAdmissionException && File.Exists(databasePath))
         {
             return Failure(CatalogOpenStatus.AlreadyExists, exception, databasePath);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is not CatalogLocationAdmissionException &&
+            exception is (IOException or UnauthorizedAccessException))
         {
             return Failure(CatalogOpenStatus.StorageUnavailable, exception, databasePath);
         }
@@ -68,18 +75,31 @@ internal sealed class CatalogDatabaseService
         var connections = new CatalogSqliteConnectionFactory(databasePath);
         try
         {
+            ValidateStorageAccess?.Invoke(cancellationToken, CatalogStorageBoundary.AfterAtomicCreation_BeforeInitialSQLiteUse);
             RunMigrations(connections, 0, isNewCatalog: true, cancellationToken);
             return BuildSuccessResult(connections, CatalogOpenStatus.Created);
         }
         catch (CatalogOpenException exception)
         {
             connections.ClearPool();
+            ValidateStorageAccess?.Invoke(CancellationToken.None, CatalogStorageBoundary.FailedCreationCleanup_SQLiteClosed);
             DeleteFailedNewCatalog(databasePath);
             return new(exception.Status, Diagnostic: exception.Message, SchemaVersion: exception.SchemaVersion);
+        }
+        catch (CatalogLocationAdmissionException)
+        {
+            connections.ClearPool();
+            throw; // Identity changed: do not clean through the revoked path spelling.
+        }
+        catch (OperationCanceledException)
+        {
+            connections.ClearPool();
+            throw; // Preserve recoverable partial creation; never publish or delete on cancellation.
         }
         catch (Exception exception) when (IsCatalogAccessException(exception))
         {
             connections.ClearPool();
+            ValidateStorageAccess?.Invoke(CancellationToken.None, CatalogStorageBoundary.FailedCreationCleanup_SQLiteClosed);
             DeleteFailedNewCatalog(databasePath);
             return Failure(ClassifySqliteFailure(exception), exception, databasePath);
         }
@@ -89,7 +109,7 @@ internal sealed class CatalogDatabaseService
     {
         using var timing = StartupDiagnostics.Stage("Catalog open", "Checking Catalog…");
         cancellationToken.ThrowIfCancellationRequested();
-        var databasePath = Path.GetFullPath(_storageLocations.CatalogDatabasePath);
+        var databasePath = Path.GetFullPath(ResolvedDatabasePath ?? _storageLocations.CatalogDatabasePath);
         var catalogDirectory = Path.GetDirectoryName(databasePath)!;
 
         if (!Directory.Exists(catalogDirectory))
@@ -117,6 +137,7 @@ internal sealed class CatalogDatabaseService
 
         try
         {
+            ValidateStorageAccess?.Invoke(cancellationToken, CatalogStorageBoundary.BeforeInspection_BeforeInitialSQLiteUse);
             int inspectedVersion;
             try { inspectedVersion = InspectExistingCatalog(databasePath); }
             catch (Exception error) when (CleanStartup && error is SqliteException or CatalogOpenException or InvalidDataException)
@@ -232,6 +253,9 @@ internal sealed class CatalogDatabaseService
             throw new CatalogOpenException(CatalogOpenStatus.UnsupportedFutureSchema,
                 $"Catalog schema {startingVersion} requires a newer Lightflow version.", startingVersion);
         if (startingVersion == CurrentSchemaVersion) return;
+        var boundary = isNewCatalog ? CatalogStorageBoundary.MigrationBoundary_BeforeInitialSQLiteUse : CatalogStorageBoundary.MigrationBoundary_AfterInitialSQLiteUse;
+        connections.CloseUnpublishedPool(boundary);
+        ValidateStorageAccess?.Invoke(cancellationToken, boundary);
 
         if (!isNewCatalog)
         {
@@ -262,6 +286,9 @@ internal sealed class CatalogDatabaseService
         {
             using var migrationTiming = StartupDiagnostics.Stage($"Catalog migration {migration.Version}", "Upgrading Catalog…");
             cancellationToken.ThrowIfCancellationRequested();
+            boundary = isNewCatalog && migration == _migrations[0] ? CatalogStorageBoundary.MigrationStep_BeforeInitialSQLiteUse : CatalogStorageBoundary.MigrationStep_AfterInitialSQLiteUse;
+            connections.CloseUnpublishedPool(boundary);
+            ValidateStorageAccess?.Invoke(cancellationToken, boundary);
             try
             {
                 using var connection = connections.OpenConnection();
@@ -305,22 +332,27 @@ internal sealed class CatalogDatabaseService
         CatalogSqliteConnectionFactory connections,
         CatalogOpenStatus successStatus, bool checkIntegrity = true)
     {
-        using var connection = connections.OpenConnection();
-        var policy = CatalogSqliteConnectionFactory.ApplyRuntimePolicy(connection);
-        if (checkIntegrity)
+        CatalogOpenResult result;
+        using (var connection = connections.OpenConnection())
         {
-            using var deep = StartupDiagnostics.Validation("Catalog", StartupValidationReason.Migration);
-            EnsureIntegrity(connection, quick: true);
+            var policy = CatalogSqliteConnectionFactory.ApplyRuntimePolicy(connection);
+            if (checkIntegrity)
+            {
+                using var deep = StartupDiagnostics.Validation("Catalog", StartupValidationReason.Migration);
+                EnsureIntegrity(connection, quick: true);
+            }
+            var version = ReadSchemaVersion(connection);
+            if (version != CurrentSchemaVersion)
+                throw new CatalogOpenException(CatalogOpenStatus.MigrationFailed,
+                    $"Catalog schema {version} did not reach expected schema {CurrentSchemaVersion}.", version);
+            ValidateMigrationHistory(connection, version);
+            var identity = ReadCatalogIdentity(connection);
+            result = new(successStatus,
+                new CatalogDatabaseSession(Path.GetFullPath(_storageLocations.CatalogDatabasePath), version, identity, policy, connections),
+                SchemaVersion: version);
         }
-        var version = ReadSchemaVersion(connection);
-        if (version != CurrentSchemaVersion)
-            throw new CatalogOpenException(CatalogOpenStatus.MigrationFailed,
-                $"Catalog schema {version} did not reach expected schema {CurrentSchemaVersion}.", version);
-        ValidateMigrationHistory(connection, version);
-        var identity = ReadCatalogIdentity(connection);
-        return new(successStatus,
-            new CatalogDatabaseSession(connections.DatabasePath, version, identity, policy, connections),
-            SchemaVersion: version);
+        connections.CloseUnpublishedPool(CatalogStorageBoundary.AfterCatalogValidation_SQLiteClosed);
+        return result;
     }
 
     private static CatalogIdentity ReadCatalogIdentity(CatalogSqliteConnectionFactory connections)

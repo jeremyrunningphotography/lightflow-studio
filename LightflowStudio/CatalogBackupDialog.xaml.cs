@@ -96,8 +96,9 @@ public partial class CatalogBackupDialog : Window
                 SkipButton.Content = "Exit Without Backup";
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException error)
         {
+            _log($"Catalog backup cancelled: stage={error.Data["CatalogBackupStage"] ?? "DestinationSelection"}; operationId={error.Data["CatalogBackupOperationId"] ?? "not-started"}");
             StatusText.Text = "Backup cancelled. You can retry, change the location, skip this backup, or keep using Lightflow.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException)

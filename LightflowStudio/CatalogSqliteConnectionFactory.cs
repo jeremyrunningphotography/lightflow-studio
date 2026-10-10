@@ -9,6 +9,8 @@ internal sealed class CatalogSqliteConnectionFactory
     internal const int FullSynchronousLevel = 2;
 
     private readonly string _connectionString;
+    private int _checkedOut;
+    private int _published;
 
     public CatalogSqliteConnectionFactory(string databasePath)
     {
@@ -33,6 +35,15 @@ internal sealed class CatalogSqliteConnectionFactory
         try
         {
             connection.Open();
+            Interlocked.Increment(ref _checkedOut);
+            var counted = 1;
+            connection.StateChange += (_, args) =>
+            {
+                if (args.CurrentState == System.Data.ConnectionState.Closed && Interlocked.Exchange(ref counted, 0) != 0)
+                    Interlocked.Decrement(ref _checkedOut);
+                else if (args.CurrentState == System.Data.ConnectionState.Open && Interlocked.Exchange(ref counted, 1) == 0)
+                    Interlocked.Increment(ref _checkedOut);
+            };
             ApplyRuntimePolicy(connection);
             return connection;
         }
@@ -72,6 +83,25 @@ internal sealed class CatalogSqliteConnectionFactory
     {
         using var connection = new SqliteConnection(_connectionString);
         SqliteConnection.ClearPool(connection);
+    }
+
+    internal void Publish() => Interlocked.Exchange(ref _published, 1);
+
+    // Only the unpublished service/activation owner may establish this boundary. ClearPool
+    // cannot close checked-out SQL scopes; their using scopes must have returned first.
+    internal void CloseUnpublishedPool(CatalogStorageBoundary boundary)
+    {
+        if (Volatile.Read(ref _published) != 0 || Volatile.Read(ref _checkedOut) != 0)
+            throw new CatalogLocationAdmissionException("A closed Catalog boundary requires an unpublished factory with no checked-out SQL scopes.",
+                Lightflow.Application.StorageLocationReason.AssessmentFailed);
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        try { ClearPool(); }
+        catch (Exception error)
+        {
+            throw new CatalogLocationAdmissionException($"The unpublished Catalog pool could not be closed: {error.GetType().Name}.",
+                Lightflow.Application.StorageLocationReason.AssessmentFailed);
+        }
+        StartupDiagnostics.Note($"Catalog closed boundary: phase={boundary}; factory=[{WindowsStorageLocationAssessor.TargetContext(DatabasePath)}]; checkedOut=0; poolClear=completed; elapsedMs={started.Elapsed.TotalMilliseconds:F3}");
     }
 
     private static void ExecuteNonQuery(SqliteConnection connection, string sql)

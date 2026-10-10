@@ -57,10 +57,19 @@ internal sealed partial class SqliteCatalogRecoveryService
     // from deleting user-requested copies. The file itself is an ordinary recoverable Catalog.
     internal Task<CatalogBackupResult> CreateUserBackupAsync(string databasePath, string destination,
         Guid expectedCatalogId, int expectedSchema, IProgress<string>? progress = null,
-        CancellationToken cancellationToken = default) => Task.Run<CatalogBackupResult>(() =>
+        CancellationToken cancellationToken = default, Guid? diagnosticOperationId = null) => Task.Run<CatalogBackupResult>(() =>
     {
         string? staging = null;
         string? metadataStaging = null;
+        var operationId = diagnosticOperationId ?? Guid.NewGuid();
+        var stage = "DestinationAssessment";
+        string Diagnostic(string detail)
+        {
+            if (!string.IsNullOrEmpty(databasePath)) detail = detail.Replace(databasePath, "[source]", StringComparison.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(destination)) detail = detail.Replace(destination, "[destination]", StringComparison.OrdinalIgnoreCase);
+            return $"Catalog backup: stage={stage}; operationId={operationId:N}; " +
+                $"source=[{WindowsStorageLocationAssessor.TargetContext(databasePath)}]; destination=[{WindowsStorageLocationAssessor.TargetContext(destination)}]; {detail}";
+        }
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -71,9 +80,10 @@ internal sealed partial class SqliteCatalogRecoveryService
             using (var probe = new FileStream(Path.Combine(directory, $".lightflow-probe-{Guid.NewGuid():N}"),
                 FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose))
             { probe.WriteByte(1); probe.Flush(true); }
+            stage = "SourceDatabaseReadiness";
             var identity = Inspect(databasePath, false, cancellationToken, "Backup source identity", verifyPages: false);
             if (!identity.IsValid || identity.CatalogId != expectedCatalogId || identity.SchemaVersion != expectedSchema)
-                return new(false, Diagnostic: identity.Diagnostic ?? "The active Catalog identity or schema changed.");
+                return new(false, Diagnostic: Diagnostic(identity.Diagnostic ?? "The active Catalog identity or schema changed."));
             var now = _utcNow().ToUniversalTime();
             var basename = $"LightflowCatalog-User-v{expectedSchema}-{now:yyyyMMddTHHmmssZ}";
             var final = Path.Combine(directory, basename + ".db");
@@ -82,12 +92,15 @@ internal sealed partial class SqliteCatalogRecoveryService
             staging = final + $".{Guid.NewGuid():N}.incomplete";
             metadataStaging = staging + ".metadata.json";
             progress?.Report("Copying the Catalog…");
+            stage = "SQLiteSnapshot";
             BackupDatabase(databasePath, staging);
             cancellationToken.ThrowIfCancellationRequested();
             progress?.Report("Validating the backup…");
+            stage = "Verification";
             var validation = Inspect(staging, true, cancellationToken, "User backup full check");
             if (!validation.IsValid || validation.CatalogId != expectedCatalogId || validation.SchemaVersion != expectedSchema)
-                return new(false, Diagnostic: validation.Diagnostic ?? "The backup identity or schema did not match the Catalog.");
+                return new(false, Diagnostic: Diagnostic(validation.Diagnostic ?? "The backup identity or schema did not match the Catalog."));
+            stage = "Finalization";
             File.WriteAllText(metadataStaging, JsonSerializer.Serialize(new
             {
                 Kind = CatalogBackupKind.UserRequested, CatalogId = expectedCatalogId,
@@ -103,7 +116,14 @@ internal sealed partial class SqliteCatalogRecoveryService
             return new(true, new(final, expectedSchema, now, CatalogBackupKind.UserRequested));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException or ArgumentException or NotSupportedException)
-        { return new(false, Diagnostic: $"Catalog backup failed: {ex.Message}"); }
+        { return new(false, Diagnostic: Diagnostic($"{ex.GetType().Name}: {ex.Message}")); }
+        catch (OperationCanceledException error)
+        {
+            error.Data["CatalogBackupStage"] = stage;
+            error.Data["CatalogBackupOperationId"] = operationId;
+            StartupDiagnostics.Note(Diagnostic("Cancelled"));
+            throw;
+        }
         finally
         {
             if (staging is not null) DeleteCatalogFiles(staging);

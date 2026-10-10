@@ -91,6 +91,31 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Prepare sanitized failure logs
+        if: failure()
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:GITHUB_WORKSPACE 'artifacts/ci-failure-logs'
+          New-Item -ItemType Directory -Force -Path $destination | Out-Null
+          Get-ChildItem artifacts/validation -Filter output.log -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+            $text = Get-Content -LiteralPath $_.FullName -Raw
+            foreach ($root in @($env:GITHUB_WORKSPACE, $env:USERPROFILE, $env:TEMP)) {
+              if ($root) { $text = $text.Replace($root, '[CI-owned-root]') }
+            }
+            Set-Content -LiteralPath (Join-Path $destination ($_.Directory.Name + '.log')) -Value $text
+          }
+      - name: Preserve failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-test-failure-diagnostics
+          path: |
+            **/TestResults/**/*.dmp
+            **/TestResults/**/Sequence*.xml
+            artifacts/ci-failure-logs/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   package:
     name: Windows installer and portable package
     needs: test

@@ -189,6 +189,73 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
         _mainGuard = null; _guardIdentity = null; _qualifiedMain = null;
     }
 
+    internal static void RequireSingleRegularFile(SafeFileHandle handle)
+    {
+        var information = Information(handle);
+        if ((information.Attributes & (0x400 | 0x10)) != 0 || information.Links != 1)
+            throw new IOException("Closed transfer requires a regular, non-reparse file with one native link.");
+    }
+    internal static SafeFileHandle OpenRecoveryReadGuard(string path, bool closed)
+    {
+        var handle = Open(path, 0x80000000, reparse: true, shareWrite: !closed);
+        try { RequireSingleRegularFile(handle); return handle; }
+        catch { handle.Dispose(); throw; }
+    }
+
+    internal sealed class TransferDirectoryLease : IDisposable
+    {
+        private readonly SafeFileHandle _handle;
+        private readonly string _identity;
+        internal TransferDirectoryLease(string directory, bool allowPublication = true)
+        {
+            // Retain DELETE authority on this handle while denying competing DELETE opens.
+            _handle = Open(directory, (allowPublication ? 0x10000u : 0u) | 0x80000000u, reparse: true);
+            var info = Information(_handle);
+            if ((info.Attributes & 0x400) != 0 || (info.Attributes & 0x10) == 0)
+            { _handle.Dispose(); throw new IOException("Transfer staging is not a regular native directory."); }
+            _identity = FileIdentity(info);
+        }
+        internal void Revalidate(string directory)
+        {
+            using var current = Open(directory, 0, reparse: true);
+            if (FileIdentity(Information(current)) != _identity || FileIdentity(Information(_handle)) != _identity)
+                throw new IOException("Operation-owned staging directory binding was revoked.");
+        }
+        internal void PublishNoReplace(string destination)
+        {
+            var name = Encoding.Unicode.GetBytes(NativePath(Path.GetFullPath(destination)));
+            var nameOffset = IntPtr.Size == 8 ? 20 : 12;
+            var rootOffset = IntPtr.Size == 8 ? 8 : 4;
+            var lengthOffset = IntPtr.Size == 8 ? 16 : 8;
+            // FileNameLength excludes the terminator; FileName itself is a terminated WCHAR string.
+            var bufferSize = nameOffset + name.Length + sizeof(char);
+            var buffer = Marshal.AllocHGlobal(bufferSize);
+            try
+            {
+                Marshal.Copy(new byte[bufferSize], 0, buffer, bufferSize);
+                Marshal.WriteIntPtr(buffer, rootOffset, IntPtr.Zero);
+                Marshal.WriteInt32(buffer, lengthOffset, name.Length);
+                Marshal.Copy(name, 0, IntPtr.Add(buffer, nameOffset), name.Length);
+                // FileRenameInfo; ReplaceIfExists=false. No path-based stage rename after dropping its binding.
+                if (!SetTransferFileInformationByHandle(_handle, 3, buffer, (uint)bufferSize))
+                {
+                    var code = Marshal.GetLastWin32Error();
+                    throw new Win32Exception(code, $"Native no-replace directory publication failed (Win32 {code}: {new Win32Exception(code).Message}).");
+                }
+            }
+            finally { Marshal.FreeHGlobal(buffer); }
+        }
+        public void Dispose() => _handle.Dispose();
+        internal string Identity => _identity;
+    }
+    internal static void RequireDirectoryIdentity(string directory, string expected)
+    {
+        using var current = Open(directory, 0, reparse: true);
+        if (FileIdentity(Information(current)) != expected) throw new IOException("Published Catalog directory identity changed.");
+    }
+    [DllImport("kernel32.dll", EntryPoint = "SetFileInformationByHandle", SetLastError = true)]
+    private static extern bool SetTransferFileInformationByHandle(SafeFileHandle file, int informationClass, IntPtr information, uint size);
+
     // Native media facts only: the shared path validator owns refusal. No policy or identity writes.
     internal static StorageResolutionConfidence ObserveMediaContainment(string path)
     {
@@ -322,11 +389,15 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
     }
     private static SafeFileHandle Open(string path, uint access, bool reparse = false, bool shareWrite = true)
     {
-        var handle = CreateFileW(path, access, shareWrite ? 3u : 1u, IntPtr.Zero, 3, 0x02000000u | (reparse ? 0x00200000u : 0), IntPtr.Zero);
+        var handle = CreateFileW(NativePath(path), access, shareWrite ? 3u : 1u, IntPtr.Zero, 3, 0x02000000u | (reparse ? 0x00200000u : 0), IntPtr.Zero);
         if (!handle.IsInvalid) return handle;
         var error = Marshal.GetLastWin32Error(); handle.Dispose();
         throw NativeFailure($"CreateFileW(access=0x{access:X},reparse={reparse},shareWrite={shareWrite})", error, path);
     }
+    // The packaged executable is not longPathAware. Preserve the requested spelling in facts,
+    // but qualify native calls explicitly rather than inheriting the test host's manifest.
+    internal static string NativePath(string path) => path.StartsWith(@"\\?\", StringComparison.Ordinal) || path.Length < 248 ? path
+        : path.StartsWith(@"\\", StringComparison.Ordinal) ? @"\\?\UNC\" + path[2..] : @"\\?\" + path;
     private static StorageCapability Access(string path, uint access, List<string> diagnostics)
     {
         try { using var handle = Open(path, access); return StorageCapability.Supported; }

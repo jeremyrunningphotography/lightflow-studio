@@ -365,6 +365,7 @@ public sealed class BrowserRecursiveRootCatalogTests : IDisposable
 
         Assert.NotNull(schema);
         Assert.DoesNotContain("PhysicalPath", schema);
+        connection.Close();
         await session.DisposeAsync();
     }
 

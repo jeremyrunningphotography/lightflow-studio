@@ -1,5 +1,7 @@
 # Closed Catalog transfer and minimum R2 integration — #392
 
+Implementation status (LF-WIN-DEV-011, 2026-10-10): Jeremy accepted this architecture through merged PR #413 and separately authorized bounded #392 implementation. The [implementation report](closed-catalog-transfer-392-implementation.md) records the shared protocol, Windows consumers, exact LUT ownership decision, executed evidence and remaining Mac/network/physical gates. Historical proposal wording below is preserved. #412 UI remains separate; implementation requires Draft PR and explicit acceptance before merge.
+
 LF-ANY-RES-010, 2026-10-09. **Proposed architecture; owner review and separate implementation authorization required.** Research baseline: freshly fetched `origin/main` `0d7405af8402615b0f03a2df48df82c0fd8ca316`. Independent full clone: `C:\Git\Agents\LF-ANY-RES-010-CatalogTransfer`. No production code, native Mac experiment, schema/provider/durability change or support expansion is delivered by this document.
 
 ## Recommendation and evidence boundary

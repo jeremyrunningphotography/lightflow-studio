@@ -105,10 +105,9 @@ internal sealed class CatalogDatabaseSession : IAsyncDisposable
     internal void CloseBeforeActivation() => _connections.CloseUnpublishedPool(CatalogStorageBoundary.AfterCatalogValidation_SQLiteClosed);
     internal void MarkPublished() => _connections.Publish();
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) == 0)
-            _connections.ClearPool();
-        return ValueTask.CompletedTask;
+        Interlocked.Exchange(ref _disposed, 1);
+        await _connections.CloseAndDrainAsync().ConfigureAwait(false);
     }
 }

@@ -39,7 +39,7 @@ public sealed class CatalogBackupPathTests : IDisposable
         {
             if (!message.StartsWith("Validating")) return;
             if (cancel) cancellation.Cancel();
-            else File.WriteAllText(Directory.GetFiles(destination, "*.incomplete").Single(), "corrupt staged copy");
+            else File.WriteAllText(Path.Combine(Directory.GetDirectories(destination, "*.incomplete").Single(path => !path.Equals(Path.GetDirectoryName(first.Backup.Path), StringComparison.OrdinalIgnoreCase)), "catalog.snapshot"), "corrupt staged copy");
         });
         if (cancel)
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => storage.BackupForExitAsync(destination, true, progress, cancellation.Token));
@@ -47,10 +47,10 @@ public sealed class CatalogBackupPathTests : IDisposable
         {
             var failed = await storage.BackupForExitAsync(destination, true, progress);
             Assert.False(failed.Succeeded);
-            Assert.Contains("integrity", failed.Diagnostic);
+            Assert.Contains("did not verify", failed.Diagnostic);
         }
         Assert.Equal(prior, await File.ReadAllBytesAsync(first.Backup.Path));
-        Assert.Equal(2, Directory.GetFiles(destination).Length); // Prior DB and supplementary metadata only.
+        Assert.Single(SqliteCatalogRecoveryService.ListUserBackups(locations, destination));
         await storage.Collections.CreateSetAsync("Admission reopened");
         Assert.Equal(2, (await storage.Collections.ListSetsAsync()).Count);
         Assert.True((await new SqliteCatalogRecoveryService(locations).CheckIntegrityAsync(locations.CatalogDatabasePath)).IsValid);

@@ -42,15 +42,17 @@ internal static class CatalogBackupPathVerifier
             }
         });
         var schema = new CatalogDatabaseService(LightflowStorageLocations.CreateAtRoot(parent)).CurrentSchemaVersion;
-        var filename = $"LightflowCatalog-User-v{schema}-20260925T120000Z.db";
-        var stagingNameLength = filename.Length + 1 + 32 + ".incomplete".Length;
+        var payloadSuffix = $"LightflowCatalog-User-v{schema}-20260925T120000Z-{new string('0', 32)}.incomplete\\catalog.snapshot";
+        var stagingNameLength = payloadSuffix.Length;
         // Keep the live Catalog within its existing supported range. The 400 case independently
         // deepens the configurable backup destination, without changing ordinary storage policy.
-        var rootLength = Math.Min(216, stagingLength - stagingNameLength - "\\Catalog Backups\\".Length);
-        var root = PadPath(Path.Combine(parent, "case-" + stagingLength), rootLength);
+        var rootPrefix = Path.Combine(parent, "case-" + stagingLength);
+        var actualPayloadLength = Math.Max(stagingLength, rootPrefix.Length + stagingNameLength + "\\Catalog Backups\\".Length);
+        var rootLength = Math.Max(rootPrefix.Length, Math.Min(216, actualPayloadLength - stagingNameLength - "\\Catalog Backups\\".Length));
+        var root = PadPath(rootPrefix, rootLength);
         if (Directory.Exists(root)) throw new IOException("Packaged verification requires fresh case directories: " + root);
         var locations = LightflowStorageLocations.CreateAtRoot(root) with { IsIsolated = true };
-        var destination = PadPath(Path.Combine(root, "Catalog Backups"), stagingLength - stagingNameLength - 1);
+        var destination = PadPath(Path.Combine(root, "Catalog Backups"), actualPayloadLength - stagingNameLength - 1);
         var recovery = new SqliteCatalogRecoveryService(locations);
         CatalogBackup first;
         var startup = await LightflowStorageCoordinator.StartAsync(profile: locations).ConfigureAwait(false);
@@ -63,9 +65,10 @@ internal static class CatalogBackupPathVerifier
             var result = await storage.BackupForExitAsync(destination, true).ConfigureAwait(false);
             Require(result.Succeeded, result.Diagnostic);
             first = result.Backup!;
-            Require(stagingPaths.Single().Length == stagingLength, "Unexpected generated staging length");
+            Require(first.Path.Length == actualPayloadLength, "Unexpected generated transport payload length");
+            Require(stagingPaths.Single().StartsWith(Path.Combine(root, "Catalog Transfers"), StringComparison.OrdinalIgnoreCase), "SQLite snapshot escaped local transfer staging");
             Require((await recovery.CheckIntegrityAsync(first.Path).ConfigureAwait(false)).IsValid, "First backup integrity");
-            log(new { stagingLength, root, catalog = locations.CatalogDatabasePath, catalogLength = locations.CatalogDatabasePath.Length,
+            log(new { requestedPayloadLength = stagingLength, actualPayloadLength, root, catalog = locations.CatalogDatabasePath, catalogLength = locations.CatalogDatabasePath.Length,
                 destination, final = first.Path, finalLength = first.Path.Length, firstBackupMs = watch.ElapsedMilliseconds });
             storage.CompletePreparedExit();
         }
@@ -87,7 +90,7 @@ internal static class CatalogBackupPathVerifier
             Require((await storage.Collections.ListSetsAsync().ConfigureAwait(false)).Count == 2, "Corrupt restore changed live state");
             var restored = await storage.RestoreCatalogAsync(first.Path).ConfigureAwait(false);
             Require(restored.Succeeded, restored.Diagnostic);
-            if (stagingLength == 297)
+            if (rootLength == 216)
             {
                 var restoreStaging = stagingPaths.Single(path => path.EndsWith(".restoring"));
                 Require(restoreStaging.Length == storage.CatalogSession.ResolvedDatabasePath.Length + 1 + 32 + ".restoring".Length &&

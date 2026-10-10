@@ -32,8 +32,11 @@ public sealed class NativePathIdentityTests
             Assert.True((File.GetAttributes(alias) & FileAttributes.ReparsePoint) != 0);
             Assert.Equal(PathIdentityStatus.UnsafeContainment,
                 PortablePathIdentityValidator.ValidateContainment(StorageResolutionConfidence.Ambiguous).Status);
-            using var assessor = new MacStorageLocationAssessor([]);
             var request = new StorageAssessmentRequest(Guid.NewGuid(), 0, StorageRole.MediaSource, StorageOperation.Read, root);
+            using (var unconfigured = new MacStorageLocationAssessor([]))
+                Assert.False(PortablePathIdentityValidator.ValidateNativeMapping(request,
+                    await unconfigured.AssessAsync(request), DateTimeOffset.UtcNow).IsSafe);
+            using var assessor = new MacStorageLocationAssessor([outside]);
             var first = await assessor.AssessAsync(request);
             var second = await assessor.AssessAsync(request);
             Assert.True(PortablePathIdentityValidator.ValidateNativeMapping(request, first, DateTimeOffset.UtcNow).IsSafe, first.ProviderDiagnostic);

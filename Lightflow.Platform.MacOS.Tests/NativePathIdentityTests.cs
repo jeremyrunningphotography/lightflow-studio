@@ -5,7 +5,7 @@ using Xunit;
 namespace Lightflow.Platform.MacOS.Tests;
 
 [CollectionDefinition("Native path identity isolation", DisableParallelization = true)]
-public sealed class NativePathIdentityCollection;
+public sealed class NativePathIdentityCollection { }
 
 [Collection("Native path identity isolation")]
 public sealed class NativePathIdentityTests

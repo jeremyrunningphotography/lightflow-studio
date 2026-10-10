@@ -1,3 +1,4 @@
+using Lightflow.Application;
 using System.IO;
 
 namespace LightflowStudio;
@@ -294,8 +295,10 @@ internal sealed class MediaFolderEnumerator(
                 }
                 var fullPath = Path.GetFullPath(source.FullPath);
                 if (excludedPath?.Invoke(fullPath) == true) continue;
-                var relative = MediaPathSemantics.NormalizeRelativePath(
-                    Path.GetRelativePath(root.PhysicalPath, fullPath));
+                var rawRelative = Path.GetRelativePath(root.PhysicalPath, fullPath).Replace(Path.DirectorySeparatorChar, '/');
+                var pathCheck = PortablePathIdentityValidator.ValidateRelativePath(rawRelative, cancellationToken);
+                if (!pathCheck.IsSafe) throw new InvalidDataException(pathCheck.Diagnostic);
+                var relative = rawRelative;
                 var contained = MediaPathSemantics.ResolveContained(root.PhysicalPath, relative);
                 if (!string.Equals(fullPath, contained, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("The filesystem returned an entry outside the Media Root.");
@@ -307,7 +310,7 @@ internal sealed class MediaFolderEnumerator(
             }
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception exception) when (exception is ArgumentException or IOException)
+        catch (Exception exception) when (exception is ArgumentException or IOException or InvalidDataException)
         {
             return Result(MediaFolderEnumerationStatus.Failed, relativeFolder,
                 $"The folder returned an invalid entry: {exception.Message}");

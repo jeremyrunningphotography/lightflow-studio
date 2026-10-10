@@ -130,6 +130,8 @@ internal static class AppSettingsStore
         try
         {
             File.WriteAllText(temporaryPath, JsonSerializer.Serialize(AppSettings.Normalize(settings, isolated), new JsonSerializerOptions { WriteIndented = true }));
+            using (var durable = new System.IO.FileStream(temporaryPath, System.IO.FileMode.Open,
+                System.IO.FileAccess.ReadWrite, System.IO.FileShare.None)) durable.Flush(true);
             if (File.Exists(path)) File.Replace(temporaryPath, path, null);
             else File.Move(temporaryPath, path);
         }

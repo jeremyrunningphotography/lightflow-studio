@@ -47,87 +47,16 @@ internal sealed partial class SqliteCatalogRecoveryService
                         !DateTimeOffset.TryParseExact(match.Groups[2].Value, "yyyyMMdd'T'HHmmss'Z'",
                             System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var created)) return null;
                     return new CatalogBackup(path, schema, created, CatalogBackupKind.UserRequested);
-                }).Where(backup => backup is not null).Cast<CatalogBackup>().OrderByDescending(backup => backup.CreatedUtc).ToArray();
+                }).Where(backup => backup is not null).Cast<CatalogBackup>()
+                .Concat(ListTransportBackups(locations, directory)).OrderByDescending(backup => backup.CreatedUtc).ToArray();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         { return []; } // Unavailable destinations never fall back to a different profile/directory.
     }
 
-    // A separate filename family prevents old automatic retention (even in older app versions)
-    // from deleting user-requested copies. The file itself is an ordinary recoverable Catalog.
     internal Task<CatalogBackupResult> CreateUserBackupAsync(string databasePath, string destination,
         Guid expectedCatalogId, int expectedSchema, IProgress<string>? progress = null,
-        CancellationToken cancellationToken = default, Guid? diagnosticOperationId = null) => Task.Run<CatalogBackupResult>(() =>
-    {
-        string? staging = null;
-        string? metadataStaging = null;
-        var operationId = diagnosticOperationId ?? Guid.NewGuid();
-        var stage = "DestinationAssessment";
-        string Diagnostic(string detail)
-        {
-            if (!string.IsNullOrEmpty(databasePath)) detail = detail.Replace(databasePath, "[source]", StringComparison.OrdinalIgnoreCase);
-            if (!string.IsNullOrEmpty(destination)) detail = detail.Replace(destination, "[destination]", StringComparison.OrdinalIgnoreCase);
-            return $"Catalog backup: stage={stage}; operationId={operationId:N}; " +
-                $"source=[{WindowsStorageLocationAssessor.TargetContext(databasePath)}]; destination=[{WindowsStorageLocationAssessor.TargetContext(destination)}]; {detail}";
-        }
-        try
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var directory = CatalogBackupDestination.Validate((LightflowStorageLocations)_locations, destination);
-            progress?.Report("Checking the backup destination…");
-            Directory.CreateDirectory(directory);
-            // Creation/write failures are real errors; never switch to another destination.
-            using (var probe = new FileStream(Path.Combine(directory, $".lightflow-probe-{Guid.NewGuid():N}"),
-                FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose))
-            { probe.WriteByte(1); probe.Flush(true); }
-            stage = "SourceDatabaseReadiness";
-            var identity = Inspect(databasePath, false, cancellationToken, "Backup source identity", verifyPages: false);
-            if (!identity.IsValid || identity.CatalogId != expectedCatalogId || identity.SchemaVersion != expectedSchema)
-                return new(false, Diagnostic: Diagnostic(identity.Diagnostic ?? "The active Catalog identity or schema changed."));
-            var now = _utcNow().ToUniversalTime();
-            var basename = $"LightflowCatalog-User-v{expectedSchema}-{now:yyyyMMddTHHmmssZ}";
-            var final = Path.Combine(directory, basename + ".db");
-            for (var sequence = 1; File.Exists(final) || File.Exists(final + ".metadata.json"); sequence++)
-                final = Path.Combine(directory, $"{basename}_{sequence:D8}.db");
-            staging = final + $".{Guid.NewGuid():N}.incomplete";
-            metadataStaging = staging + ".metadata.json";
-            progress?.Report("Copying the Catalog…");
-            stage = "SQLiteSnapshot";
-            BackupDatabase(databasePath, staging);
-            cancellationToken.ThrowIfCancellationRequested();
-            progress?.Report("Validating the backup…");
-            stage = "Verification";
-            var validation = Inspect(staging, true, cancellationToken, "User backup full check");
-            if (!validation.IsValid || validation.CatalogId != expectedCatalogId || validation.SchemaVersion != expectedSchema)
-                return new(false, Diagnostic: Diagnostic(validation.Diagnostic ?? "The backup identity or schema did not match the Catalog."));
-            stage = "Finalization";
-            File.WriteAllText(metadataStaging, JsonSerializer.Serialize(new
-            {
-                Kind = CatalogBackupKind.UserRequested, CatalogId = expectedCatalogId,
-                SchemaVersion = expectedSchema, CreatedUtc = now
-            }));
-            using (var durable = new FileStream(staging, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) durable.Flush(true);
-            cancellationToken.ThrowIfCancellationRequested();
-            File.Move(staging, final); // Same-directory atomic publication, only after successful validation.
-            // Metadata is supplementary: database identity/schema are self-contained.
-            try { File.Move(metadataStaging, final + ".metadata.json"); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            { return new(true, new(final, expectedSchema, now, CatalogBackupKind.UserRequested), $"Backup validated; supplementary metadata could not be saved: {ex.Message}"); }
-            return new(true, new(final, expectedSchema, now, CatalogBackupKind.UserRequested));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException or ArgumentException or NotSupportedException)
-        { return new(false, Diagnostic: Diagnostic($"{ex.GetType().Name}: {ex.Message}")); }
-        catch (OperationCanceledException error)
-        {
-            error.Data["CatalogBackupStage"] = stage;
-            error.Data["CatalogBackupOperationId"] = operationId;
-            StartupDiagnostics.Note(Diagnostic("Cancelled"));
-            throw;
-        }
-        finally
-        {
-            if (staging is not null) DeleteCatalogFiles(staging);
-            if (metadataStaging is not null) try { File.Delete(metadataStaging); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-        }
-    }, cancellationToken);
+        CancellationToken cancellationToken = default, Guid? diagnosticOperationId = null) =>
+        CreateTransportBackupAsync(databasePath, destination, expectedCatalogId, expectedSchema, progress,
+            cancellationToken, diagnosticOperationId);
 }

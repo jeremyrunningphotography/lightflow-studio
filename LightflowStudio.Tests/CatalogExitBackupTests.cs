@@ -123,7 +123,9 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         var second = await recovery.CreateUserBackupAsync(session.DatabasePath, destination, session.Identity.CatalogId, session.SchemaVersion);
         Assert.True(first.Succeeded, first.Diagnostic);
         Assert.True(second.Succeeded, second.Diagnostic);
-        Assert.EndsWith("20260922T235959Z_00000001.db", second.Backup!.Path);
+        Assert.NotEqual(first.Backup!.Path, second.Backup!.Path);
+        Assert.Equal("catalog.snapshot", Path.GetFileName(second.Backup.Path));
+        Assert.Equal(2, SqliteCatalogRecoveryService.ListUserBackups(Locations, destination).Count);
         Assert.True((await recovery.CheckIntegrityAsync(first.Backup!.Path)).IsValid);
         // Deliberately put a user copy in the managed recovery folder to prove old retention can't recognize it.
         Directory.CreateDirectory(Locations.CatalogBackupsDirectory);
@@ -249,7 +251,8 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         var result = await new SqliteCatalogRecoveryService(Locations).CreateUserBackupAsync(
             session.DatabasePath, destination, session.Identity.CatalogId, session.SchemaVersion, progress);
         Assert.False(result.Succeeded);
-        Assert.False(Directory.Exists(destination));
+        Assert.True(Directory.Exists(destination)); // A retained native parent lease refuses replacement.
+        Assert.Empty(SqliteCatalogRecoveryService.ListUserBackups(Locations, destination));
         Assert.True((await new SqliteCatalogRecoveryService(Locations).CheckIntegrityAsync(session.DatabasePath)).IsValid);
     }
 
@@ -262,7 +265,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         var progress = new InlineProgress(message =>
         {
             if (message.StartsWith("Validating"))
-                File.WriteAllBytes(Assert.Single(Directory.GetFiles(destination, "*.incomplete")), [1, 2, 3]);
+                File.WriteAllBytes(Path.Combine(Assert.Single(Directory.GetDirectories(destination, "*.incomplete")), "catalog.snapshot"), [1, 2, 3]);
         });
         var result = await new SqliteCatalogRecoveryService(Locations).CreateUserBackupAsync(session.DatabasePath,
             destination, session.Identity.CatalogId, session.SchemaVersion, progress);
@@ -322,8 +325,8 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
             Assert.False(later.IsCompleted);
             storage.CompletePreparedExit();
             await Assert.ThrowsAsync<ObjectDisposedException>(() => later);
-            var files = Directory.GetFiles(storage.BackupDirectory);
-            Assert.Single(files, path => path.EndsWith(".db"));
+            var files = Directory.GetFiles(storage.BackupDirectory, "*", SearchOption.AllDirectories);
+            Assert.Single(SqliteCatalogRecoveryService.ListUserBackups(Locations, storage.BackupDirectory));
             Assert.DoesNotContain(files, path => path.Contains("previews", StringComparison.OrdinalIgnoreCase));
         });
     }
@@ -384,7 +387,7 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
             Click(dialog, "BackupButton");
             await Until(() => dialog.ExitApproved, dialog);
             Assert.Equal(edited, storage.BackupDirectory);
-            Assert.Single(Directory.GetFiles(edited, "*.db"));
+            Assert.Single(SqliteCatalogRecoveryService.ListUserBackups(Locations, edited));
             Assert.True(storage.Settings.BackupCatalogOnClose);
             await storage.Collections.CreateSetAsync("Manual backup leaves Catalog writable");
         });

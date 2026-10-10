@@ -115,6 +115,8 @@ internal sealed class CatalogDatabaseService
         if (!Directory.Exists(catalogDirectory))
             return new(CatalogOpenStatus.StorageUnavailable,
                 Diagnostic: $"The configured Catalog directory is unavailable: {catalogDirectory}");
+        if (File.Exists(Path.Combine(catalogDirectory, "pending.json")) && !File.Exists(Path.Combine(catalogDirectory, "ready.json")))
+            return new(CatalogOpenStatus.StorageUnavailable, Diagnostic: "This Catalog is an incomplete transfer artifact. Retain it for recovery; it cannot be activated.");
         try
         {
             if ((File.GetAttributes(databasePath) & FileAttributes.Directory) != 0)

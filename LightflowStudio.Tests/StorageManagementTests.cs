@@ -108,7 +108,7 @@ public sealed class StorageManagementTests : IAsyncLifetime
 
         var result = await coordinator.RelocateCatalogAsync(destination);
 
-        Assert.True(result.Succeeded);
+        Assert.True(result.Succeeded, result.Diagnostic);
         Assert.True(File.Exists(source));
         Assert.Equal(identity, coordinator.CatalogSession.Identity.CatalogId);
         Assert.Equal(Path.Combine(destination, LightflowStorageLocations.CatalogFileName), coordinator.CatalogSession.DatabasePath);
@@ -132,7 +132,9 @@ public sealed class StorageManagementTests : IAsyncLifetime
             command.ExecuteNonQuery();
         }
 
-        Assert.True((await coordinator.RelocateCatalogAsync(Path.Combine(_root, "wal-relocated"))).Succeeded);
+        writer.Close(); // Transfer closes admitted owners; a foreign writer cannot remain active across a move.
+        var moved = await coordinator.RelocateCatalogAsync(Path.Combine(_root, "wal-relocated"));
+        Assert.True(moved.Succeeded, moved.Diagnostic);
         using var destination = new SqliteConnection($"Data Source={coordinator.Locations.CatalogDatabasePath};Mode=ReadOnly;Pooling=False");
         destination.Open();
         using var read = destination.CreateCommand();
@@ -178,7 +180,7 @@ public sealed class StorageManagementTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ConfigurationWriteFailure_ReopensSourceAndRemovesUnswitchedDestination()
+    public async Task ConfigurationWriteFailure_ReopensSourceAndRetainsVerifiedUnswitchedDestination()
     {
         var defaults = LightflowStorageLocations.Create(_root);
         var configuration = new ControllableConfigurationStore(defaults.SettingsPath);
@@ -194,7 +196,8 @@ public sealed class StorageManagementTests : IAsyncLifetime
         Assert.Equal(source, coordinator.Locations.CatalogDirectory);
         Assert.Equal(identity, coordinator.CatalogSession.Identity.CatalogId);
         Assert.Null(AppSettingsStore.Load(defaults.SettingsPath).CatalogDirectory);
-        Assert.False(File.Exists(Path.Combine(destination, LightflowStorageLocations.CatalogFileName)));
+        Assert.True(File.Exists(Path.Combine(destination, LightflowStorageLocations.CatalogFileName)));
+        Assert.True(File.Exists(Path.Combine(destination, "ready.json")));
         await coordinator.DisposeAsync();
     }
 
@@ -216,14 +219,15 @@ public sealed class StorageManagementTests : IAsyncLifetime
             opened.Session.DisposeAsync().AsTask().GetAwaiter().GetResult();
         };
 
-        Assert.True((await coordinator.RelocateCatalogAsync(Path.Combine(_root, "validated-before-switch"))).Succeeded);
+        var moved = await coordinator.RelocateCatalogAsync(Path.Combine(_root, "validated-before-switch"));
+        Assert.True(moved.Succeeded, moved.Diagnostic);
         Assert.NotNull(configuration.LastSaved!.CatalogDirectory);
         Assert.Equal(expectedIdentity, coordinator.CatalogSession.Identity.CatalogId);
         await coordinator.DisposeAsync();
     }
 
     [Fact]
-    public async Task PostSwitchActivationFailure_RestoresSourceConfigurationAndSession()
+    public async Task ActivationFailure_RestoresSourceConfigurationAndRetainsPublishedCandidate()
     {
         var defaults = LightflowStorageLocations.Create(_root);
         var configuration = new ControllableConfigurationStore(defaults.SettingsPath);
@@ -239,7 +243,8 @@ public sealed class StorageManagementTests : IAsyncLifetime
         Assert.Equal(source, coordinator.Locations.CatalogDirectory);
         Assert.Equal(identity, coordinator.CatalogSession.Identity.CatalogId);
         Assert.Null(AppSettingsStore.Load(defaults.SettingsPath).CatalogDirectory);
-        Assert.False(File.Exists(Path.Combine(destination, LightflowStorageLocations.CatalogFileName)));
+        Assert.True(File.Exists(Path.Combine(destination, LightflowStorageLocations.CatalogFileName)));
+        Assert.True(File.Exists(Path.Combine(destination, "ready.json")));
         await coordinator.DisposeAsync();
     }
 
@@ -522,7 +527,7 @@ public sealed class StorageManagementTests : IAsyncLifetime
 
         var result = await coordinator.RelocateCatalogAsync(path);
 
-        Assert.Equal(StorageChangeStatus.InvalidDestination, result.Status);
+        Assert.False(result.Succeeded);
         Assert.Equal(original, coordinator.Locations.CatalogDirectory);
         await coordinator.DisposeAsync();
     }

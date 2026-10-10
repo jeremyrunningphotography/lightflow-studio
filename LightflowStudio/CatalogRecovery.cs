@@ -44,8 +44,13 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
     }
 
-    public Task<CatalogIntegrityResult> CheckIntegrityAsync(string databasePath, CancellationToken cancellationToken = default) =>
-        Task.Run(() => Inspect(databasePath, full: true, cancellationToken), cancellationToken);
+    public async Task<CatalogIntegrityResult> CheckIntegrityAsync(string databasePath, CancellationToken cancellationToken = default)
+    {
+        try { databasePath = await PrepareRecoveryInputAsync(databasePath, cancellationToken).ConfigureAwait(false); }
+        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException)
+        { return new(false, $"Closed backup transport verification failed: {e.Message}"); }
+        return await Task.Run(() => Inspect(databasePath, full: true, cancellationToken), cancellationToken).ConfigureAwait(false);
+    }
 
     internal SqliteCatalogRecoveryService ForLocations(ILightflowStorageLocations locations) => new(locations, _utcNow);
 
@@ -114,8 +119,13 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
     public Task<CatalogRestoreInstallation> BeginRestoreAsync(string backupPath, bool requireCurrentProtection = false,
         CancellationToken cancellationToken = default) => BeginRestoreValidatedAsync(backupPath, requireCurrentProtection, null, cancellationToken);
 
-    internal Task<CatalogRestoreInstallation> BeginRestoreValidatedAsync(string backupPath, bool requireCurrentProtection,
-        Action<CancellationToken>? validateStorageAccess, CancellationToken cancellationToken) => Task.Run(() =>
+    internal async Task<CatalogRestoreInstallation> BeginRestoreValidatedAsync(string backupPath, bool requireCurrentProtection,
+        Action<CancellationToken>? validateStorageAccess, CancellationToken cancellationToken)
+    {
+        try { backupPath = await PrepareRecoveryInputAsync(backupPath, cancellationToken).ConfigureAwait(false); }
+        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException)
+        { return new(false, Diagnostic: $"Backup local recovery preparation failed: {e.Message}"); }
+        return await Task.Run(() =>
     {
         cancellationToken.ThrowIfCancellationRequested();
         validateStorageAccess?.Invoke(cancellationToken);
@@ -178,7 +188,8 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
             try { validateStorageAccess?.Invoke(CancellationToken.None); DeleteCatalogFiles(staged); }
             catch (CatalogLocationAdmissionException) { }
         }
-    }, cancellationToken);
+    }, cancellationToken).ConfigureAwait(false);
+    }
 
     private sealed class RestoreTransaction(string livePath, string? displacedPath,
         Func<DateTimeOffset> utcNow, Action<CancellationToken>? validateStorageAccess = null) : ICatalogRestoreTransaction

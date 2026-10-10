@@ -11,6 +11,10 @@ internal sealed class CatalogSqliteConnectionFactory
     private readonly string _connectionString;
     private int _checkedOut;
     private int _published;
+    private readonly object _lifetime = new();
+    private bool _closing;
+    private readonly TaskCompletionSource _drained = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private Task? _closeTask;
 
     public CatalogSqliteConnectionFactory(string databasePath)
     {
@@ -31,27 +35,62 @@ internal sealed class CatalogSqliteConnectionFactory
 
     public SqliteConnection OpenConnection()
     {
+        lock (_lifetime)
+        {
+            ObjectDisposedException.ThrowIf(_closing, this);
+            _checkedOut++;
+        }
         var connection = new SqliteConnection(_connectionString);
+        var counted = 1;
+        void Release()
+        {
+            if (Interlocked.Exchange(ref counted, 0) == 0) return;
+            lock (_lifetime) { if (--_checkedOut == 0 && _closing) _drained.TrySetResult(); }
+        }
+        connection.StateChange += (_, args) =>
+        {
+            if (args.CurrentState == System.Data.ConnectionState.Closed) Release();
+            else if (args.CurrentState == System.Data.ConnectionState.Open && Volatile.Read(ref counted) == 0)
+            {
+                lock (_lifetime)
+                {
+                    if (_closing)
+                    {
+                        connection.Close();
+                        throw new ObjectDisposedException(nameof(CatalogSqliteConnectionFactory));
+                    }
+                    if (Interlocked.Exchange(ref counted, 1) == 0) _checkedOut++;
+                }
+            }
+        };
         try
         {
             connection.Open();
-            Interlocked.Increment(ref _checkedOut);
-            var counted = 1;
-            connection.StateChange += (_, args) =>
-            {
-                if (args.CurrentState == System.Data.ConnectionState.Closed && Interlocked.Exchange(ref counted, 0) != 0)
-                    Interlocked.Decrement(ref _checkedOut);
-                else if (args.CurrentState == System.Data.ConnectionState.Open && Interlocked.Exchange(ref counted, 1) == 0)
-                    Interlocked.Increment(ref _checkedOut);
-            };
             ApplyRuntimePolicy(connection);
             return connection;
         }
         catch
         {
-            connection.Dispose();
+            try { connection.Dispose(); }
+            finally { Release(); }
             throw;
         }
+    }
+
+    internal Task CloseAndDrainAsync()
+    {
+        lock (_lifetime)
+        {
+            if (_closeTask is not null) return _closeTask;
+            _closing = true;
+            if (_checkedOut == 0) _drained.TrySetResult();
+            return _closeTask = FinishCloseAsync(_drained.Task);
+        }
+    }
+    private async Task FinishCloseAsync(Task drained)
+    {
+        await drained.ConfigureAwait(false);
+        ClearPool();
     }
 
     internal static CatalogRuntimePolicy ApplyRuntimePolicy(SqliteConnection connection)

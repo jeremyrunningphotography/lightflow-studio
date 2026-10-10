@@ -4253,8 +4253,9 @@ public partial class MainWindow : Window
         }
         var destination = PickFolder("Choose the new Catalog folder", _storage.Locations.CatalogDirectory);
         if (destination is null) return;
+        destination = System.IO.Path.Combine(destination, "Lightflow Catalog");
         if (!ConfirmationDialog.Confirm(this, "Move Catalog", "Move the Catalog to this folder?",
-            "Lightflow will copy and validate the Catalog before switching. The original is retained as a recovery source.",
+            "Lightflow will create the Catalog folder shown below, copy and validate the complete Catalog, then switch. The original is retained as a recovery source.",
             destination, "Move Catalog")) return;
         SettingsMessage.Text = "Moving and validating the Catalog…";
         var result = await _storage.RelocateCatalogAsync(destination);

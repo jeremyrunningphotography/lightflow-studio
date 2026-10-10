@@ -57,6 +57,10 @@ internal sealed class CatalogSqliteConnectionFactory
                     if (_closing)
                     {
                         connection.Close();
+                        // Open already checked out a native handle before StateChange. Return it,
+                        // then retire only this rejected connection's pool so stale reopen cannot
+                        // recreate a mount/file holder after the session's one-time drain.
+                        SqliteConnection.ClearPool(connection);
                         throw new ObjectDisposedException(nameof(CatalogSqliteConnectionFactory));
                     }
                     if (Interlocked.Exchange(ref counted, 1) == 0) _checkedOut++;

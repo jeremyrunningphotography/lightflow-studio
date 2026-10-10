@@ -186,6 +186,7 @@ public sealed class PreviewPersistenceTests : IAsyncLifetime
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT count(*) FROM sqlite_master WHERE name='PreviewRecords';";
         Assert.Equal(0L, command.ExecuteScalar());
+        connection.Close(); // Return the read scope before asking the lifecycle to drain it.
         await coordinator.DisposeAsync();
     }
 
@@ -207,6 +208,7 @@ public sealed class PreviewPersistenceTests : IAsyncLifetime
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT CatalogId FROM CatalogInfo WHERE SingletonId=1;";
         Assert.Equal(catalogId.ToString("D"), command.ExecuteScalar());
+        connection.Close();
         await coordinator.DisposeAsync();
     }
 

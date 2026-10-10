@@ -68,14 +68,17 @@ public sealed class ClosedCatalogTransferIntegrationTests : IAsyncLifetime
     {
         await using var storage = (await LightflowStorageCoordinator.StartAsync(profile: Locations)).Coordinator!;
         var prior = storage.CatalogSession;
-        var read = prior.OpenConnection();
+        using var read = prior.OpenConnection();
         var move = storage.RelocateCatalogAsync(Path.Combine(_root, "read-drain"));
         await Task.Delay(100);
         Assert.False(move.IsCompleted);
-        read.Dispose();
+        read.Close();
         var result = await move.WaitAsync(TimeSpan.FromSeconds(15));
         Assert.True(result.Succeeded, result.Diagnostic);
         Assert.Throws<ObjectDisposedException>(() => prior.OpenConnection());
+        Assert.Throws<ObjectDisposedException>(() => read.Open());
+        Assert.Equal(System.Data.ConnectionState.Closed, read.State);
+        read.Dispose();
         await storage.Collections.CreateSetAsync("New session");
     }
     [Fact]

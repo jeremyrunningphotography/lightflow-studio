@@ -2,6 +2,7 @@ using System.IO;
 using System.Buffers.Binary;
 using System.Text.Json;
 using Lightflow.Application;
+using Lightflow.Domain;
 
 namespace LightflowStudio;
 
@@ -11,6 +12,9 @@ internal sealed class ClosedCatalogTransferJournal : IClosedCatalogTransferJourn
     private readonly string _path;
     private readonly FileStream _file;
     private readonly WindowsStorageLocationAssessor.TransferDirectoryLease _directoryLease;
+    private readonly WindowsStorageLocationAssessor _profileAssessor;
+    private readonly StorageAssessmentRequest _profileRequest;
+    private StorageLocationAssessment _profileEvidence;
     private readonly List<ClosedCatalogJournalRecord> _records = [];
     internal static string DirectoryPath(LightflowStorageLocations locations)
     {
@@ -24,21 +28,27 @@ internal sealed class ClosedCatalogTransferJournal : IClosedCatalogTransferJourn
     {
         var directory = DirectoryPath(locations);
         RequireUnlinked(directory);
-        Directory.CreateDirectory(directory);
         _path = Path.Combine(directory, $"{operationId:N}.journal");
-        _directoryLease = new(directory, false);
+        _profileAssessor = new([locations.CatalogDirectory, locations.PreviewsDirectory, locations.TemporaryDirectory]);
+        _profileRequest = new(operationId, 0, StorageRole.ActiveCatalog, StorageOperation.Open, directory);
         try
         {
+            // Reuse qualified-local durable facts for profile evidence, never admit a SQL writer here.
+            _profileEvidence = AssessProfile(null);
+            Directory.CreateDirectory(directory);
+            _profileEvidence = AssessProfile(_profileEvidence);
+            _directoryLease = new(directory, false);
             _file = new FileStream(_path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
             WindowsStorageLocationAssessor.RequireSingleRegularFile(_file.SafeFileHandle);
             _file.Flush(true);
         }
-        catch { _file?.Dispose(); _directoryLease.Dispose(); throw; }
+        catch { _file?.Dispose(); _directoryLease?.Dispose(); _profileAssessor.Dispose(); throw; }
     }
     public Task AppendAsync(ClosedCatalogJournalRecord record, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         RequireUnlinked(_path);
+        _profileEvidence = AssessProfile(_profileEvidence);
         var candidate = _records.Append(record).ToArray();
         ClosedCatalogJournalFormat.Validate(candidate);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(record);
@@ -60,6 +70,15 @@ internal sealed class ClosedCatalogTransferJournal : IClosedCatalogTransferJourn
             throw new IOException("Transfer journal readback did not verify.");
         _records.Add(record);
         return Task.CompletedTask;
+    }
+    private StorageLocationAssessment AssessProfile(StorageLocationAssessment? previous)
+    {
+        var current = _profileAssessor.AssessAsync(_profileRequest).GetAwaiter().GetResult();
+        var result = previous is null ? StorageLocationPolicy.Evaluate(_profileRequest, current, DateTimeOffset.UtcNow)
+            : StorageLocationPolicy.Revalidate(_profileRequest, previous, current, DateTimeOffset.UtcNow);
+        if (result.Decision != StorageLocationDecision.Eligible)
+            throw new IOException($"Transfer journal requires qualified local durable profile storage. {result.Diagnostic}");
+        return current;
     }
     internal static IReadOnlyList<ClosedCatalogJournalRecord> Read(string path)
     {
@@ -132,7 +151,7 @@ internal sealed class ClosedCatalogTransferJournal : IClosedCatalogTransferJourn
     }
     public ValueTask DisposeAsync()
     {
-        _file.Dispose(); _directoryLease.Dispose();
+        _file.Dispose(); _directoryLease.Dispose(); _profileAssessor.Dispose();
         return ValueTask.CompletedTask;
     }
 }

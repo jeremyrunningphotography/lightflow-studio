@@ -195,6 +195,12 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
         if ((information.Attributes & (0x400 | 0x10)) != 0 || information.Links != 1)
             throw new IOException("Closed transfer requires a regular, non-reparse file with one native link.");
     }
+    internal static SafeFileHandle OpenRecoveryReadGuard(string path, bool closed)
+    {
+        var handle = Open(path, 0x80000000, reparse: true, shareWrite: !closed);
+        try { RequireSingleRegularFile(handle); return handle; }
+        catch { handle.Dispose(); throw; }
+    }
 
     internal sealed class TransferDirectoryLease : IDisposable
     {

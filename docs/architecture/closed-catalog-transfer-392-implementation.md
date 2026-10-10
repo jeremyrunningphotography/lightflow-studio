@@ -69,10 +69,11 @@ Future #412 consumes the shared modes/results through the existing coordinator. 
 
 ## Validation and reproduction
 
-Focused validation evidence is retained under artifacts\validation and project TestResults. The initial neutral protocol suite passed 27/27; the refused-native-facts cases extend it. Native publication defects found by the new tests were corrected. Earlier failed runs and compiler-memory interruption remain retained. Full Release/CI/package results will be added after their execution; readiness is not claimed yet.
+Validation evidence is retained under artifacts\validation and project TestResults. The neutral project passed 136/136 and companion checks passed 90/90. Full Windows Release validation at commit 24325393c15718738bf5556a09c83e35160e500b passed 2,808 tests with 2 existing environment-dependent skips (lf011-full-release-verified.trx). After the final journal-profile qualification and held recovery-input binding changes, the affected native/recovery/backup suites passed 89/89 (lf011-final-bindings.trx). Final-head CI and freshly committed packaging are tracked on Draft PR #417; acceptance remains pending. Earlier failures and diagnostics are retained.
 
-Representative DARKMATTER task-owned synthetic local snapshot of 17,260,544 bytes initially measured 138.514 ms snapshot, 38.3275 ms copy (429.48 MiB/s), 23.9908 ms SHA readback, 19.2825 ms for three flushed/readback journal records, 6.3865 ms journal scan, 11.3748 ms cancellation before copy and 26.1001 ms ordinary shutdown. Directory rename after disposal proved the transfer journal native lease released. This run exposed a test's duplicate DisposeAsync call, subsequently repaired; final measurement evidence supersedes these preliminary timings. These are representative observations, not release budgets, network performance or hardware certification.
+The journal profile is admitted through the existing local durable-storage policy, with native ancestor bindings held through journal disposal. Recovery holds qualified local parent and regular-file bindings throughout existing SQLite inspection and snapshot copy, then revalidates them. This closes the interval between local preparation and SQLite use without introducing a new SQLite owner.
 
+Representative DARKMATTER synthetic local fixture: 17,260,544 bytes; snapshot 139.1752 ms, copy 39.9047 ms (412.506 MiB/s), SHA verification 23.3471 ms, three flushed/readback journal records 23.7046 ms, journal scan 6.1752 ms, cancellation before copy 12.3072 ms, ordinary shutdown 27.6389 ms. Native journal lease release was verified. These observations are not release budgets, network performance or hardware certification.
 From the task clone:
 
     dotnet test .\Lightflow.Application.Tests\Lightflow.Application.Tests.csproj -c Release --disable-build-servers
@@ -81,3 +82,4 @@ From the task clone:
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1 -Mode PullRequest -SkipInstaller
 
 Native WPF tests and packaging run through the required private-desktop boundary. Every application smoke/acceptance launch supplies an absolute task-owned --data-root. The final handoff will name exact PR commit, refreshed packaged executable, isolated acceptance root, startup command, dependency/smoke outcomes and remaining gates.
+

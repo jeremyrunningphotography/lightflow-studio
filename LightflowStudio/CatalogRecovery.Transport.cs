@@ -186,6 +186,36 @@ internal sealed partial class SqliteCatalogRecoveryService
     }
     internal static bool IsTransportPayload(string path) => Path.GetFileName(path) == "catalog.snapshot" ||
         File.Exists(Path.Combine(Path.GetDirectoryName(path)!, "pending.json"));
+    private async Task<RecoveryReadLease> AcquireRecoveryReadLeaseAsync(string path, bool closed, CancellationToken token)
+    {
+        path = await PrepareRecoveryInputAsync(path, token).ConfigureAwait(false);
+        var assessor = new WindowsStorageLocationAssessor();
+        try
+        {
+            var request = new Lightflow.Domain.StorageAssessmentRequest(Guid.NewGuid(), 0, Lightflow.Domain.StorageRole.ActiveCatalog,
+                Lightflow.Domain.StorageOperation.Open, Path.GetDirectoryName(Path.GetFullPath(path))!);
+            var evidence = await assessor.AssessAsync(request, token).ConfigureAwait(false);
+            if (StorageLocationPolicy.Evaluate(request, evidence, DateTimeOffset.UtcNow, token).Decision != StorageLocationDecision.Eligible)
+                throw new IOException("SQLite recovery input requires a fresh qualified local binding.");
+            var resolvedPath = Path.Combine(evidence.Identity!.CanonicalLocation, Path.GetFileName(path));
+            var file = WindowsStorageLocationAssessor.OpenRecoveryReadGuard(resolvedPath, closed);
+            return new(assessor, request, evidence, file, resolvedPath);
+        }
+        catch { assessor.Dispose(); throw; }
+    }
+    private sealed class RecoveryReadLease(WindowsStorageLocationAssessor assessor, Lightflow.Domain.StorageAssessmentRequest request,
+        Lightflow.Domain.StorageLocationAssessment evidence, Microsoft.Win32.SafeHandles.SafeFileHandle file, string path) : IDisposable
+    {
+        internal string Path => path;
+        internal void Revalidate(CancellationToken token)
+        {
+            var current = assessor.AssessAsync(request, token).GetAwaiter().GetResult();
+            if (StorageLocationPolicy.Revalidate(request, evidence, current, DateTimeOffset.UtcNow, token).Decision != StorageLocationDecision.Eligible)
+                throw new IOException("SQLite recovery input native binding changed.");
+            WindowsStorageLocationAssessor.RequireSingleRegularFile(file);
+        }
+        public void Dispose() { file.Dispose(); assessor.Dispose(); }
+    }
     private sealed class TransferProgress(Action<ClosedCatalogTransferState> report) : IProgress<ClosedCatalogTransferState>
     { public void Report(ClosedCatalogTransferState state) => report(state); }
 }

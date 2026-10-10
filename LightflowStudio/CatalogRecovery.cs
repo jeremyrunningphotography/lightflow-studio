@@ -46,10 +46,15 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
 
     public async Task<CatalogIntegrityResult> CheckIntegrityAsync(string databasePath, CancellationToken cancellationToken = default)
     {
-        try { databasePath = await PrepareRecoveryInputAsync(databasePath, cancellationToken).ConfigureAwait(false); }
-        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException)
+        try
+        {
+            using var input = await AcquireRecoveryReadLeaseAsync(databasePath, closed: false, cancellationToken).ConfigureAwait(false);
+            var result = await Task.Run(() => Inspect(input.Path, full: true, cancellationToken), cancellationToken).ConfigureAwait(false);
+            input.Revalidate(cancellationToken);
+            return result;
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or System.ComponentModel.Win32Exception)
         { return new(false, $"Closed backup transport verification failed: {e.Message}"); }
-        return await Task.Run(() => Inspect(databasePath, full: true, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     internal SqliteCatalogRecoveryService ForLocations(ILightflowStorageLocations locations) => new(locations, _utcNow);
@@ -122,12 +127,16 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
     internal async Task<CatalogRestoreInstallation> BeginRestoreValidatedAsync(string backupPath, bool requireCurrentProtection,
         Action<CancellationToken>? validateStorageAccess, CancellationToken cancellationToken)
     {
-        try { backupPath = await PrepareRecoveryInputAsync(backupPath, cancellationToken).ConfigureAwait(false); }
-        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException)
+        RecoveryReadLease input;
+        try { input = await AcquireRecoveryReadLeaseAsync(backupPath, closed: true, cancellationToken).ConfigureAwait(false); }
+        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or System.ComponentModel.Win32Exception)
         { return new(false, Diagnostic: $"Backup local recovery preparation failed: {e.Message}"); }
+        using var inputLifetime = input;
+        backupPath = input.Path;
         return await Task.Run(() =>
     {
         cancellationToken.ThrowIfCancellationRequested();
+        input.Revalidate(cancellationToken);
         validateStorageAccess?.Invoke(cancellationToken);
         var candidate = Inspect(backupPath, full: true, cancellationToken);
         if (!candidate.IsValid) return new CatalogRestoreInstallation(false, Diagnostic: $"The selected backup is not valid. {candidate.Diagnostic}");
@@ -141,6 +150,7 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
         {
             validateStorageAccess?.Invoke(cancellationToken);
             BackupDatabase(backupPath, staged);
+            input.Revalidate(cancellationToken);
             var stagedCheck = Inspect(staged, full: true, cancellationToken);
             if (!stagedCheck.IsValid || stagedCheck.CatalogId != candidate.CatalogId || stagedCheck.SchemaVersion != candidate.SchemaVersion)
                 throw new InvalidDataException(stagedCheck.Diagnostic ?? "The restore copy did not preserve Catalog identity and schema.");

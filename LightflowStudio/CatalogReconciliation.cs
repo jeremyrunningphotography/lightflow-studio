@@ -1,3 +1,4 @@
+using Lightflow.Application;
 using System.IO;
 
 namespace LightflowStudio;
@@ -73,6 +74,9 @@ internal sealed class CatalogReconciliationService(
         if (!enumeration.Succeeded)
             return Result(Map(enumeration.Status), request, folder, enumeration.Diagnostic);
         folder = enumeration.RelativeFolder;
+        if (enumeration.SkippedLinkedEntries > 0)
+            return Result(CatalogReconciliationStatus.InvalidRequest, request, folder,
+                "Filesystem links were skipped. Catalog refresh was refused before mutation or missing-state inference; review the linked paths.");
 
         var supported = enumeration.Entries
             .Where(entry => !entry.IsDirectory && entry.MediaType.IsKnown)
@@ -95,6 +99,13 @@ internal sealed class CatalogReconciliationService(
                 $"Catalog assets could not be read: {exception.Message}");
         }
 
+        var identityCheck = PortablePathIdentityValidator.ValidateReconciliation(
+            existing.Select(asset => new PathIdentityCandidate(asset.RootId, asset.AssetId, asset.RelativePath, asset.RelativePathKey)).ToArray(),
+            enumeration.Entries.Select(entry => new PathIdentityCandidate(entry.RootId, Guid.Empty, entry.RelativePath)).ToArray(),
+            cancellationToken);
+        if (!identityCheck.IsSafe)
+            return Result(identityCheck.Status == PathIdentityStatus.Cancelled ? CatalogReconciliationStatus.Canceled :
+                CatalogReconciliationStatus.InvalidRequest, request, folder, identityCheck.Diagnostic);
         var byPath = existing.ToDictionary(asset => asset.RelativePathKey, StringComparer.Ordinal);
         var seen = enumeration.Entries
             .Where(entry => !entry.IsDirectory)

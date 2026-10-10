@@ -284,7 +284,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                     new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator, recovery,
                         unavailableCatalogPreviews, unavailableCatalogPreviewDiagnostic, catalogStartup, previewStartup, startupCompletion, assessor), opened.Diagnostic);
             }
-            if (settings.CatalogId is Guid expected && opened.Session!.Identity.CatalogId != expected)
+            if (settings.CatalogId is Guid expected && !PortablePathIdentityValidator.ValidateCatalogIdentity(expected, opened.Session!.Identity.CatalogId).IsSafe)
             {
                 await opened.Session.DisposeAsync().ConfigureAwait(false);
                 var (mismatchedCatalogPreviews, mismatchedCatalogPreviewDiagnostic) =
@@ -447,7 +447,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
             var expectedId = Settings.CatalogId;
             var candidate = await _recovery.CheckIntegrityAsync(backupPath, cancellationToken).ConfigureAwait(false);
             if (!candidate.IsValid) return new(false, $"The selected backup is invalid. {candidate.Diagnostic}");
-            if (expectedId is Guid expectedCandidate && candidate.CatalogId != expectedCandidate)
+            if (expectedId is Guid expectedCandidate && !PortablePathIdentityValidator.ValidateCatalogIdentity(expectedCandidate, candidate.CatalogId ?? Guid.Empty).IsSafe)
                 return new(false, "The selected backup belongs to a different Lightflow Catalog.");
             try { await admission.ValidateAsync(cancellationToken).ConfigureAwait(false); }
             catch (CatalogLocationAdmissionException exception) { return new(false, exception.Message); }
@@ -491,7 +491,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                 replacementSession = opened.Session;
                 replacementSession!.CloseBeforeActivation();
                 await admission.ValidateAsync(CancellationToken.None, "RestoreActivation_AfterInitialSQLiteUse").ConfigureAwait(false);
-                if (expectedId is Guid expected && replacementSession!.Identity.CatalogId != expected)
+                if (expectedId is Guid expected && !PortablePathIdentityValidator.ValidateCatalogIdentity(expected, replacementSession!.Identity.CatalogId).IsSafe)
                     throw new InvalidDataException("The restored backup belongs to a different Lightflow Catalog.");
                 replacementSession = _activator.Activate(replacementSession!);
                 var committed = await installation.Transaction!.CommitAsync(CancellationToken.None).ConfigureAwait(false);
@@ -653,7 +653,7 @@ internal sealed class LightflowStorageCoordinator : IAsyncDisposable
                     ResolvedDatabasePath = boundDestination.CatalogDatabasePath }
                 .OpenExistingAsync(cancellationToken).ConfigureAwait(false);
             destinationSession = opened.Session;
-            if (!opened.IsSuccess || opened.Session!.Identity.CatalogId != expected.CatalogId ||
+            if (!opened.IsSuccess || !PortablePathIdentityValidator.ValidateCatalogIdentity(expected.CatalogId, opened.Session!.Identity.CatalogId).IsSafe ||
                 opened.Session.SchemaVersion != expectedSchema)
             {
                 throw new InvalidDataException(opened.Diagnostic ?? "The relocated Catalog failed identity or schema validation.");

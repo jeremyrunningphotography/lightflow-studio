@@ -189,6 +189,21 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
         _mainGuard = null; _guardIdentity = null; _qualifiedMain = null;
     }
 
+    // Native media facts only: the shared path validator owns refusal. No policy or identity writes.
+    internal static StorageResolutionConfidence ObserveMediaContainment(string path)
+    {
+        try
+        {
+            using var handle = Open(path, 0, reparse: true);
+            var facts = Information(handle);
+            if ((facts.Attributes & 0x400) != 0 || ((facts.Attributes & 0x10) == 0 && facts.Links > 1))
+                return StorageResolutionConfidence.Ambiguous;
+            return facts.Links == 0 ? StorageResolutionConfidence.Unknown : StorageResolutionConfidence.Resolved;
+        }
+        catch (Exception error) when (error is Win32Exception or IOException or UnauthorizedAccessException)
+        { return StorageResolutionConfidence.Unknown; }
+    }
+
     private static string FileIdentity(FileInformation information) =>
         $"{information.Volume:X8}:{information.IndexHigh:X8}{information.IndexLow:X8}";
 

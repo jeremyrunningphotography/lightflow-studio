@@ -19,10 +19,20 @@ internal sealed class MediaPathIdentityAdmission : IDisposable
     public MediaPathIdentityAdmission(string root) => _request = new(Guid.NewGuid(), 0,
         StorageRole.MediaSource, StorageOperation.Read, root);
 
-    public async Task ValidateAsync(CancellationToken token)
+    public async Task ValidateAsync(CancellationToken token, string? catalogDirectory = null)
     {
         var current = await _assessor.AssessAsync(_request, token).ConfigureAwait(false);
         Require(PortablePathIdentityValidator.ValidateNativeMapping(_request, current, DateTimeOffset.UtcNow, _previous, token));
+        if (catalogDirectory is not null)
+        {
+            var protectedRequest = new StorageAssessmentRequest(_request.OperationId, 0, StorageRole.MediaSource, StorageOperation.Read, catalogDirectory);
+            var protectedFacts = await _assessor.AssessAsync(protectedRequest, token).ConfigureAwait(false);
+            Require(PortablePathIdentityValidator.ValidateNativeMapping(protectedRequest, protectedFacts, DateTimeOffset.UtcNow, token: token));
+            // A Browser volume anchor may contain Catalog storage, but may not resolve inside it.
+            Require(PortablePathIdentityValidator.ValidateContainment(
+                MediaPathSemantics.Contains(protectedFacts.Identity!.CanonicalLocation, current.Identity!.CanonicalLocation)
+                    ? StorageResolutionConfidence.Ambiguous : StorageResolutionConfidence.Resolved, token));
+        }
         _previous = current;
     }
 

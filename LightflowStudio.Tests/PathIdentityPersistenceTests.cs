@@ -168,6 +168,20 @@ public sealed class PathIdentityPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task NativeAliasIntoActiveCatalogCannotBecomeMediaRoot()
+    {
+        var alias = Path.Combine(_workspace, "catalog-alias");
+        var catalog = Path.GetDirectoryName(_storage.CatalogSession.ResolvedDatabasePath)!;
+        using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe")
+        { Arguments = $"/c mklink /J \"{alias}\" \"{catalog}\"", UseShellExecute = false, CreateNoWindow = true });
+        await process!.WaitForExitAsync(); Assert.Equal(0, process.ExitCode);
+        var before = Snapshot();
+        Assert.False((await _storage.MediaRoots.CreateAsync("Catalog alias", alias)).Succeeded);
+        Assert.Equal(before, Snapshot());
+        Directory.Delete(alias);
+    }
+
+    [Fact]
     public async Task NativeLinkedChildRefusalDoesNotMarkAuthoredAssetMissing()
     {
         var child = Directory.CreateDirectory(Path.Combine(_source, "child")).FullName;

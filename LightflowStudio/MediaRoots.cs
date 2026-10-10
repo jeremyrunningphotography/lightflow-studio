@@ -218,7 +218,7 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
         try { path = await ProbeAsync(physicalPath, cancellationToken).ConfigureAwait(false); }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException) { return new(false, Diagnostic: ex.Message); }
         using var pathAdmission = new MediaPathIdentityAdmission(path);
-        try { await pathAdmission.ValidateAsync(cancellationToken).ConfigureAwait(false); }
+        try { await pathAdmission.ValidateAsync(cancellationToken, Path.GetDirectoryName(RequireSession().ResolvedDatabasePath)).ConfigureAwait(false); }
         catch (IOException exception) { return new(false, Diagnostic: exception.Message); }
         return await RunChangeAsync(() =>
         {
@@ -228,7 +228,7 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
                 return new(true, Read(connection, anchor, machineId));
             var nativeConflict = FindNativeConflict(connection, pathAdmission, machineId, null, allowManagedOverlap, cancellationToken);
             if (nativeConflict is not null) return new(false, Diagnostic: nativeConflict);
-            try { pathAdmission.ValidateAsync(cancellationToken).GetAwaiter().GetResult(); }
+            try { pathAdmission.ValidateAsync(cancellationToken, Path.GetDirectoryName(RequireSession().ResolvedDatabasePath)).GetAwaiter().GetResult(); }
             catch (IOException exception) { return new(false, Diagnostic: exception.Message); }
             using var transaction = connection.BeginTransaction();
             if (FindExactMapping(connection, transaction, path, machineId) is { } existing)
@@ -290,7 +290,7 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
         using var pathAdmission = new MediaPathIdentityAdmission(path);
         try
         {
-            await pathAdmission.ValidateAsync(cancellationToken).ConfigureAwait(false);
+            await pathAdmission.ValidateAsync(cancellationToken, Path.GetDirectoryName(RequireSession().ResolvedDatabasePath)).ConfigureAwait(false);
             await Task.Run(() => MediaPathIdentityAdmission.ValidatePaths(path, mappingCandidates, cancellationToken), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return new(false, Diagnostic: exception.Message); }
@@ -300,7 +300,7 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
             using var connection = RequireSession().OpenConnection();
             var nativeConflict = FindNativeConflict(connection, pathAdmission, machineId, rootId, false, cancellationToken);
             if (nativeConflict is not null) return new(false, Diagnostic: nativeConflict);
-            try { pathAdmission.ValidateAsync(cancellationToken).GetAwaiter().GetResult(); }
+            try { pathAdmission.ValidateAsync(cancellationToken, Path.GetDirectoryName(RequireSession().ResolvedDatabasePath)).GetAwaiter().GetResult(); }
             catch (IOException exception) { return new(false, Diagnostic: exception.Message); }
             using var transaction = connection.BeginTransaction();
             var currentCandidates = ReadCandidates(connection, transaction, rootId);
@@ -339,9 +339,9 @@ internal sealed class MediaRootService(Func<CatalogDatabaseSession?> session, IM
         try
         {
             using var admission = new MediaPathIdentityAdmission(root.PhysicalPath!);
-            admission.ValidateAsync(cancellationToken).GetAwaiter().GetResult();
+            admission.ValidateAsync(cancellationToken, Path.GetDirectoryName(RequireSession().ResolvedDatabasePath)).GetAwaiter().GetResult();
             MediaPathIdentityAdmission.ValidatePaths(root.PhysicalPath!, [new(rootId, Guid.Empty, normalized)], cancellationToken);
-            admission.ValidateAsync(cancellationToken).GetAwaiter().GetResult();
+            admission.ValidateAsync(cancellationToken, Path.GetDirectoryName(RequireSession().ResolvedDatabasePath)).GetAwaiter().GetResult();
         }
         catch (IOException exception)
         {

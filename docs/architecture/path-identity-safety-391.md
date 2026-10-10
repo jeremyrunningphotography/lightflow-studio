@@ -61,7 +61,7 @@ Refusal is not a Catalog repair, migration or grant of writer ownership.
 `WindowsStorageLocationAssessor`, using MediaSource/Read, so network media remains eligible.
 Fresh assessment/revalidation occurs within one operation; disposal releases its native root
 and ancestor pins. Current resolved target, mount/volume, filesystem, availability and capabilities
-must agree. Unknown facts fail closed. Existing same-machine mappings are assessed by that
+must agree. Unknown facts fail closed. Native root containment also refuses a media root resolving inside the active Catalog directory, including a junction alias; an ancestor Browser volume anchor remains allowed. Existing same-machine mappings are assessed by that
 same provider before SQL mapping writes; natural Browser anchors retain their overlap exception.
 Unavailable existing mappings may conservatively prevent new mapping admission until their
 native identity can be observed; their historical mappings are preserved.

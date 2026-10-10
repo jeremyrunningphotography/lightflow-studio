@@ -1,3 +1,4 @@
+using Lightflow.Application;
 using System.Buffers.Binary;
 using System.IO;
 using System.Security.Cryptography;
@@ -226,6 +227,8 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
     {
         using var connection = RequireSession().OpenConnection();
         using var transaction = connection.BeginTransaction();
+        var pathCheck = ValidateWritePaths(connection, transaction, asset.RootId, asset.AssetId, asset.RelativePath);
+        if (!pathCheck.IsSafe) return pathCheck.Status == PathIdentityStatus.AmbiguousMapping ? MediaAssetOperationStatus.AlreadyExists : MediaAssetOperationStatus.Failed;
         try
         {
             using var command = connection.CreateCommand();
@@ -311,9 +314,13 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         DateTimeOffset observedUtc, CancellationToken cancellationToken = default) {
         return RequireSession().Mutations.RunAsync<MediaAssetOperationStatus>(() => { return RunAsync(() =>
     {
+        var portableCheck = PortablePathIdentityValidator.ValidateRelativePath(relativePath.Replace('\\', '/'), cancellationToken);
+        if (!portableCheck.IsSafe) return MediaAssetOperationStatus.Failed;
         var normalized = MediaPathSemantics.NormalizeRelativePath(relativePath);
         using var connection = RequireSession().OpenConnection();
-        using var command = connection.CreateCommand();
+        using var transaction = connection.BeginTransaction();
+        if (!ValidateWritePaths(connection, transaction, rootId, assetId, normalized).IsSafe) return MediaAssetOperationStatus.Failed;
+        using var command = connection.CreateCommand(); command.Transaction = transaction;
         command.CommandText = """
             UPDATE MediaAssets SET RootId=$root, RelativePath=$path, RelativePathKey=$key,
                 SourceStatus='available', UpdatedUtc=$now, LastSeenUtc=$now WHERE AssetId=$asset;
@@ -323,7 +330,7 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         command.Parameters.AddWithValue("$key", MediaPathSemantics.RelativePathKey(normalized));
         command.Parameters.AddWithValue("$now", Timestamp(observedUtc));
         command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
-        try { return command.ExecuteNonQuery() == 1 ? MediaAssetOperationStatus.Succeeded : MediaAssetOperationStatus.NotFound; }
+        try { var changed = command.ExecuteNonQuery(); transaction.Commit(); return changed == 1 ? MediaAssetOperationStatus.Succeeded : MediaAssetOperationStatus.NotFound; }
         catch (SqliteException exception) when (exception.SqliteExtendedErrorCode == 2067)
         { return MediaAssetOperationStatus.AlreadyExists; }
     }, cancellationToken); }, cancellationToken);
@@ -336,6 +343,19 @@ internal sealed class CatalogMediaAssetRepository(Func<CatalogDatabaseSession?> 
         using var reader = command.ExecuteReader();
         if (!reader.Read()) return null;
         return Read(reader);
+    }
+
+    private static PathIdentityResult ValidateWritePaths(SqliteConnection connection, SqliteTransaction transaction,
+        Guid rootId, Guid assetId, string relativePath)
+    {
+        using var command = connection.CreateCommand(); command.Transaction = transaction;
+        command.CommandText = "SELECT AssetId,RelativePath,RelativePathKey FROM MediaAssets WHERE RootId=$root AND AssetId<>$asset;";
+        command.Parameters.AddWithValue("$root", rootId.ToString("D"));
+        command.Parameters.AddWithValue("$asset", assetId.ToString("D"));
+        using var reader = command.ExecuteReader();
+        var candidates = new List<PathIdentityCandidate> { new(rootId, assetId, relativePath) };
+        while (reader.Read()) candidates.Add(new(rootId, Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2)));
+        return PortablePathIdentityValidator.ValidateCandidates(candidates);
     }
 
     private static MediaAsset Read(SqliteDataReader reader)
@@ -417,12 +437,16 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
         var key = MediaPathSemantics.RelativePathKey(normalized);
         if (await repository.FindAsync(rootId, key, cancellationToken).ConfigureAwait(false) is not null)
             return new(MediaAssetOperationStatus.AlreadyExists, Diagnostic: "An asset already exists at that logical location.");
+        var portableCheck = PortablePathIdentityValidator.ValidateRelativePath(relativePath.Replace('\\', '/'), cancellationToken);
+        if (!portableCheck.IsSafe) return new(MediaAssetOperationStatus.Failed, Diagnostic: portableCheck.Diagnostic);
         MediaPathResolution resolved;
         try { resolved = await roots.ResolveAsync(rootId, normalized, cancellationToken).ConfigureAwait(false); }
         catch (KeyNotFoundException)
         {
             return new(MediaAssetOperationStatus.RootNotFound, Diagnostic: "The Media Root does not exist.");
         }
+        if (resolved.IdentityStatus != PathIdentityStatus.Safe)
+            return new(MediaAssetOperationStatus.Failed, Diagnostic: resolved.Diagnostic);
         if (resolved.RootAvailability != MediaRootAvailability.Online)
             return new(MediaAssetOperationStatus.RootUnavailable, Diagnostic: resolved.Diagnostic);
         if (!resolved.Exists || resolved.PhysicalPath is null)
@@ -476,6 +500,8 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
         var asset = await repository.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
         if (asset is null) return new(MediaAssetOperationStatus.NotFound, Diagnostic: "The asset no longer exists.");
         var resolved = await roots.ResolveAsync(asset.RootId, asset.RelativePath, cancellationToken).ConfigureAwait(false);
+        if (resolved.IdentityStatus != PathIdentityStatus.Safe)
+            return new(MediaAssetOperationStatus.Failed, Diagnostic: resolved.Diagnostic);
         if (resolved.RootAvailability != MediaRootAvailability.Online)
             return new(MediaAssetOperationStatus.RootUnavailable,
                 new(asset, resolved.RootAvailability, null, false, resolved.Diagnostic), resolved.Diagnostic);
@@ -515,11 +541,18 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
         CancellationToken cancellationToken = default)
     {
         return await Mutations.RunAsync<MediaAssetOperationResult>(async () => {
+        var portableCheck = PortablePathIdentityValidator.ValidateRelativePath(relativePath.Replace('\\', '/'), cancellationToken);
+        if (!portableCheck.IsSafe) return new(MediaAssetOperationStatus.Failed, Diagnostic: portableCheck.Diagnostic);
         var normalized = MediaPathSemantics.NormalizeRelativePath(relativePath);
         var existing = await repository.FindAsync(rootId, MediaPathSemantics.RelativePathKey(normalized), cancellationToken)
             .ConfigureAwait(false);
         if (existing is not null && existing.AssetId != assetId)
             return new(MediaAssetOperationStatus.AlreadyExists, Diagnostic: "Another asset already owns the destination location.");
+        var resolution = await roots.ResolveAsync(rootId, normalized, cancellationToken).ConfigureAwait(false);
+        if (resolution.IdentityStatus != PathIdentityStatus.Safe)
+            return new(MediaAssetOperationStatus.Failed, Diagnostic: resolution.Diagnostic);
+        if (resolution.RootAvailability != MediaRootAvailability.Online)
+            return new(MediaAssetOperationStatus.RootUnavailable, Diagnostic: resolution.Diagnostic);
         var status = await repository.RelocateAsync(assetId, rootId, normalized, DateTimeOffset.UtcNow, cancellationToken)
             .ConfigureAwait(false);
         if (status != MediaAssetOperationStatus.Succeeded) return new(status, Diagnostic: "The Catalog location could not be updated.");

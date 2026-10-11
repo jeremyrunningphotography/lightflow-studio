@@ -258,7 +258,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         }
         catch (Exception exception) when (exception is ArgumentException or NotSupportedException or IOException or UnauthorizedAccessException)
         {
-            return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: exception.Message);
+            return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: exception.Message, RecoveryReason: CatalogRecoveryReason.LocationRefused);
         }
 
         recovery ??= new SqliteCatalogRecoveryService(locations);

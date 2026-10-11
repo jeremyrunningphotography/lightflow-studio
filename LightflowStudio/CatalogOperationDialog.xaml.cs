@@ -10,6 +10,10 @@ public partial class CatalogOperationDialog : Window
     private readonly Func<CancellationToken, IProgress<ClosedCatalogTransferState>, Task<string>> _operation;
     private bool _running = true;
     private bool _cancellable = true;
+    private string? _moveDirectory;
+    private Func<bool>? _verifyMoveOwnership;
+    private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal Task Completion => _completion.Task;
     internal bool CompletedSuccessfully { get; private set; }
     internal bool CloseOnSuccess { get; init; }
     internal CatalogOperationDialog(string title, string detail,
@@ -42,19 +46,63 @@ public partial class CatalogOperationDialog : Window
                         _ => "Finishing the Catalog operation safely…"
                     };
                 });
-                StatusText.Text = await _operation(_cancellation.Token, progress);
+                var diagnostic = await _operation(_cancellation.Token, progress);
+                if (_moveDirectory is not null)
+                {
+                    if (_verifyMoveOwnership?.Invoke() != true)
+                        throw new System.IO.IOException("The moved Catalog could not be confirmed ready. Close this dialog to review recovery.");
+                    Title = "Catalog moved successfully";
+                    Heading.Visibility = Detail.Visibility = StatusText.Visibility = Visibility.Collapsed;
+                    Heading.Text = Detail.Text = StatusText.Text = "";
+                    SuccessLocation.Text = _moveDirectory;
+                    MoveSuccessPanel.Visibility = Visibility.Visible;
+                    CloseButton.Content = "Continue";
+                    CloseButton.Style = (Style)FindResource("PrimaryButton");
+                }
+                else StatusText.Text = diagnostic;
                 CompletedSuccessfully = true;
             }
             catch (OperationCanceledException) { StatusText.Text = "Cancelled safely. Previous Catalog configuration was retained."; }
-            catch (Exception exception) { StatusText.Text = exception.Message; }
+            catch (Exception exception)
+            {
+                if (_moveDirectory is not null || exception.Message.Contains("--data-root", StringComparison.Ordinal))
+                {
+                    var collision = exception is MoveFailureException { Status: StorageChangeStatus.ConflictingCatalog };
+                    StatusText.Text = collision ? "The resulting Catalog folder already exists. Choose another name or parent folder."
+                        : "Lightflow Studio couldn't complete this Catalog action. Review the troubleshooting details before trying again.";
+                    FailureDiagnostic.Text = exception.Message;
+                    FailureDetails.Visibility = collision ? Visibility.Collapsed : Visibility.Visible;
+                }
+                else StatusText.Text = exception.Message;
+                StatusText.Foreground = (System.Windows.Media.Brush)FindResource("RedBrush");
+                if (_moveDirectory is not null) Heading.Text = "Catalog move needs attention";
+            }
             finally
             {
                 _running = false; Progress.Visibility = CancelButton.Visibility = Visibility.Collapsed;
                 CloseButton.Visibility = Visibility.Visible; _cancellation.Dispose();
+                _completion.TrySetResult();
                 if (CompletedSuccessfully && CloseOnSuccess)
                     _ = Dispatcher.BeginInvoke(new Action(() => { if (IsVisible) Close(); }));
             }
         };
+    }
+    internal static CatalogOperationDialog ForMove(LightflowStorageCoordinator storage, string destination) =>
+        new("Move Catalog", destination, async (token, progress) =>
+        {
+            var result = await storage.RelocateCatalogAsync(destination, token, progress);
+            if (!result.Succeeded) throw new MoveFailureException(result.Status, result.Diagnostic);
+            return result.Diagnostic ?? "";
+        })
+        {
+            _moveDirectory = destination,
+            _verifyMoveOwnership = () => storage.VerifyWorkspaceReadiness() &&
+                string.Equals(storage.Locations.CatalogDirectory, destination, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(storage.Settings.CatalogDirectory, destination, StringComparison.OrdinalIgnoreCase)
+        };
+    private sealed class MoveFailureException(StorageChangeStatus status, string? diagnostic) : System.IO.IOException(diagnostic)
+    {
+        internal StorageChangeStatus Status { get; } = status;
     }
     protected override void OnClosing(CancelEventArgs e)
     {

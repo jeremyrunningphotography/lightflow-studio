@@ -19,7 +19,7 @@
     <TextBlock x:Name="FinalLocation" Margin="0,6,0,12" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
    </StackPanel>
    <TextBlock x:Name="LocationHint" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"/>
-   <TextBlock x:Name="ErrorText" Margin="0,8,0,0" TextWrapping="Wrap"/>
+   <TextBlock x:Name="ErrorText" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource RedBrush}"/>
    <StackPanel Margin="0,16,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
     <Button IsCancel="True" Content="Cancel"/>
     <Button x:Name="ActionButton" IsDefault="True" Style="{StaticResource PrimaryButton}" Click="Accept_Click"/>

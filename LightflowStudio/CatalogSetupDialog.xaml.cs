@@ -21,14 +21,17 @@ public partial class CatalogSetupDialog : Window
     internal void RefreshPresentation()
     {
         var state = _gate.Current;
-        var presentation = CatalogRecoveryPresentation.Create(state.Status, state.RecoveryReason, state.Diagnostic);
+        var reason = CatalogRecoveryPresentation.ResolveReason(state.Status, state.RecoveryReason);
+        var presentation = CatalogRecoveryPresentation.Create(state.Status, reason, state.Diagnostic);
         GateHeading.Text = presentation.Heading; GateDescription.Text = presentation.Description;
-        var missing = state.RecoveryReason == CatalogRecoveryReason.LocationUnavailable;
+        var missing = reason == CatalogRecoveryReason.LocationUnavailable;
         GateHeading.Foreground = (System.Windows.Media.Brush)FindResource(missing ? "RedBrush" : "TextBrush");
         GateLocationLabel.Text = missing ? "Expected Lightflow Catalog Location" : "Lightflow Catalog Location";
         NewLocation.Text = _gate.DisplayCatalogDirectory;
+        AllowedWorkspacePanel.Visibility = reason == CatalogRecoveryReason.OutsideWorkspace ? Visibility.Visible : Visibility.Collapsed;
+        AllowedWorkspace.Text = _profile.ApplicationDataDirectory;
         GateAssurance.Visibility = presentation.NoReplacementCreated && state.RecoveryReason != CatalogRecoveryReason.PendingRecovery ? Visibility.Visible : Visibility.Collapsed;
-        GateDiagnostic.Text = $"Failure category: {state.RecoveryReason}\nExpected path: {_gate.DisplayCatalogDirectory}\n{presentation.Diagnostic}".TrimEnd();
+        GateDiagnostic.Text = $"Failure category: {reason}\nExpected path: {_gate.DisplayCatalogDirectory}\n{presentation.Diagnostic}".TrimEnd();
         GateDetails.IsExpanded = false;
         GateDetails.Visibility = presentation.Diagnostic.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         GateRetryButton.Visibility = _gate.CanRetry ? Visibility.Visible : Visibility.Collapsed;

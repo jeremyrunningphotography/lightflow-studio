@@ -4263,18 +4263,12 @@ public partial class MainWindow : Window
         }
         var destination = CatalogDestinationDialog.Choose(this, Path.GetDirectoryName(_storage.Locations.CatalogDirectory)!, move: true);
         if (destination is null) return;
-        StorageChangeResult? result = null;
-        var operation = new CatalogOperationDialog("Move Catalog", destination,
-            async (token, progress) =>
-            {
-                result = await _storage.RelocateCatalogAsync(destination, token, progress);
-                if (!result.Succeeded) throw new IOException(result.Diagnostic);
-                return result.Diagnostic + " New edits at the destination do not update the retained source.";
-            }) { Owner = this };
+        var operation = CatalogOperationDialog.ForMove(_storage, destination);
+        operation.Owner = this;
         operation.ShowDialog();
         SettingsCatalogDirectory.Text = _storage.Locations.CatalogDirectory;
         _settings = _storage.Settings;
-        SettingsMessage.Text = result?.Diagnostic ?? "Catalog move was cancelled.";
+        SettingsMessage.Text = operation.CompletedSuccessfully ? "Catalog moved successfully." : operation.StatusText.Text;
     }
 
     private async void ChangePreviewsLocation_Click(object sender, RoutedEventArgs e)

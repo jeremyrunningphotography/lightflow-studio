@@ -11,6 +11,10 @@
    <TextBlock x:Name="GateDescription" Margin="0,8,0,12" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" LineHeight="19"/>
    <TextBlock x:Name="GateLocationLabel" Style="{StaticResource FieldLabel}" Text="Lightflow Catalog Location"/>
    <TextBlock x:Name="NewLocation" Margin="0,4,0,10" TextWrapping="Wrap"/>
+   <StackPanel x:Name="AllowedWorkspacePanel" Visibility="Collapsed" Margin="0,0,0,10">
+    <TextBlock Text="Choose a Catalog folder inside this workspace" Style="{StaticResource FieldLabel}"/>
+    <TextBlock x:Name="AllowedWorkspace" Margin="0,4,0,0" TextWrapping="Wrap"/>
+   </StackPanel>
    <TextBlock x:Name="GateAssurance" Margin="0,0,0,8" Text="Open an existing Lightflow Catalog or create a new one to continue." TextWrapping="Wrap" Visibility="Collapsed"/>
    <TextBlock x:Name="GateProgress" Margin="0,0,0,8" Foreground="{StaticResource MutedTextBrush}" Visibility="Collapsed" Text="Opening Catalog…"/>
    <Expander x:Name="GateDetails" Header="Troubleshooting details" Style="{StaticResource SettingsExpanderStyle}" IsExpanded="False" Visibility="Collapsed" Margin="0,0,0,12">

@@ -60,6 +60,8 @@ public sealed class CatalogSettingsPresentationTests
                         Directory.CreateDirectory(exact);
                         Assert.False(dialog.TryAccept()); Assert.Null(dialog.SelectedDirectory);
                         Assert.Contains("already exists", dialog.ErrorText.Text);
+                        Assert.Same(dialog.FindResource("RedBrush"), dialog.ErrorText.Foreground);
+                        Assert.Same(dialog.FindResource("MutedTextBrush"), dialog.LocationHint.Foreground);
                         Assert.Empty(Directory.EnumerateFileSystemEntries(exact));
                         dialog.UpdateLayout(); Capture(dialog, Path.Combine(root, "move-child-collision.png"));
                         dialog.ChildName.Text = "Other Catalog";

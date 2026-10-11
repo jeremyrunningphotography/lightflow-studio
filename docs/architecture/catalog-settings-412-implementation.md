@@ -1,3 +1,36 @@
+# Final Catalog recovery diagnostics and Move completion — owner feedback
+
+LF-WIN-DEV-012 continues on the existing branch and Draft PR #422. Issue #412's hands-on feedback and the additional **Owner wording refinement — Move success only (2026-10-11)** are authoritative. The refinement was recorded before implementation. Technical and owner acceptance remain withheld; no merge or release.
+
+## Create diagnosis and containment
+
+The original diagnostic was reproduced before production edits: an outside-profile Catalog destination returned InvalidConfiguration / RecoveryReason.None / `Isolated storage locations must remain beneath --data-root.` A distinct contained destination succeeded through the same existing creation lifecycle. The original diagnostic test, JSON and Release log are retained (`lf012-final-corrections-original-diagnostic.trx`, artifacts/lf012-final-recovery-diagnostic/0541847a9234490981c658c8a93da77b/original-containment-refusal.json and artifacts/lf012-orientation/CatalogRecoveryIsolation-original.cs.txt).
+
+The proven cause of that message is lexical containment refusing a storage path outside the active isolated profile; the presentation defect was an early startup result without a failure reason and the gate displaying that raw None value. The owner-selected failing path was not persisted/logged, so the exact selection is not claimed known. The originally supplied B-create/New Catalog destination was contained and correctly prepared. Owner-run profiles are preserved, including the subsequently modified B-create/Catalog_old configuration; they are not reset or reused for the new handoff.
+
+Explicit creation now checks the same existing profile boundary before enumerating the selected destination, reports OutsideWorkspace, and still calls RequireContained for safe contained paths. Root and sibling-prefix refusal tests preserve configuration and prevent external/default Catalog creation. Native suitability, alias/link, reservation, lease-before-SQLite, identity, validation, activation and configuration owners remain authoritative. No permissive fallback or containment relaxation. ConfigurationInvalid and a factual generic OperationFailed fallback ensure failed presentations do not print Failure category: None.
+
+The outside-workspace gate gives an actionable plain explanation and separates the allowed workspace path from the selected Catalog path. Troubleshooting keeps category, expected path, allowed boundary and actual refusal fact without a duplicate requested path. Developer flags stay out of normal user-facing explanations; original technical details remain subordinate. Safe distinct recovery creation still succeeds and preserves the prior path/configuration until the established creation transaction commits.
+
+## Move presentation
+
+Destination collision text uses the existing RedBrush, with muted helper text remaining distinct. Parent selection, editable Lightflow Catalog child, prominent final path and no-replace collision behavior are unchanged.
+
+The existing CatalogOperationDialog now presents a clean Move completion state: SuccessBrush check icon, `Catalog moved successfully`, `You can continue using Lightflow Studio.`, `New Catalog location`, one wrapped destination path and primary `Continue`. Raw status/detail strings are cleared and hidden; no previous path, retained-source/stale/synchronization/recovery explanation or transaction stages appear in success. The retained-source and unsynchronized-copy explanation appears in the pre-move destination confirmation only. Settings success status is concise as well.
+
+ForMove delegates to the existing relocation owner. It requires a successful verified engine result and then rechecks live workspace ownership/readiness and matching active/configured destination before exposing success. No transfer mode, writer lifecycle or transaction is added. Failure/cancellation/RecoveryRequired never show success. Failures retain distinct error presentation and collapsed technical details; known collisions keep the actionable collision text. Internal containment flags are not displayed as the normal failure message.
+
+## Focused and rendered evidence
+
+Final focused Release/private desktop passed **109 tests / zero failures / zero skips**, 33s (`lf012-final-corrections-ready-focus.trx`), with zero owned processes. Tests hold real destination activation and configuration commit to prove no early success, verify the destination lease while held, preserve same identity/authored collection/source, and qualify failed activation, failed commit, cancellation, unresolved rollback, outside-root/sibling-prefix containment, safe recovery creation, actual invalid-configuration category, red collision and internal-flag separation. Existing independent Windows process ownership, relocation, selection, stale-session and rollback assertions remain unchanged.
+
+The first new UI run retained 31 passes/two fixture failures: the activation injector incorrectly assumed an ordinary-startup call count, so it missed the Move boundary. It is now explicitly armed after startup; no assertions or production predicates changed. The next expanded run retained 105 passes/one fixture failure: a pre-write configuration fault safely rolled back, rather than the intended unresolved rollback. The fixture now writes then fails and refuses restoration, matching the existing RecoveryRequired regression. Both failure logs are retained. Corrected runs passed 107, then 108; final message separation qualification passed 109. No full validation was run during UI iteration.
+
+Actual WPF missing gate/expanded details, Create recovery, contained/outside recovery, red destination collision, successful Move, failures/RecoveryRequired and healthy Settings are rendered on the required private desktop and inspected. Paths wrap without clipping, the success view has one path and one primary action, and existing dark-theme resources/layout remain. Final-head full/CI/installer/package results and executable provenance are recorded in the current #412/#422 handoff.
+
+Original unsafe writer evidence and all earlier failed runs remain preserved. Earlier unconfirmed native-frame, desktop-access and historical journal-inspection causes are not claimed fixed by these presentation corrections. SQLite/schema/provider/durability, filesystem support, LUT identities, authored state, mappings, journals, atomic publication, source retention and accepted recovery ownership remain unchanged. #412 stays Open/Review, #422 Draft/unmerged, parent #271 and #393 incomplete, with existing Area/Priority/dependencies and assignment history intact.
+
+## Historical parent-folder and earlier revisions
 # Catalog Move parent selection and recovery presentation — owner decision
 
 LF-WIN-DEV-012 continues in the existing independent clone, branch `codex/412-catalog-settings-startup` and Draft PR #422. Issue #412's **Owner decision — retain atomic Move publication; select parent folder (2026-10-11)** supersedes the earlier exact-folder Move requirement and resolves the recorded publication blocker without extending #392. Owner technical and functional acceptance remain pending.

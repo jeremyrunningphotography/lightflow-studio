@@ -49,10 +49,20 @@ internal sealed partial class LightflowStorageCoordinator
     {
         configuration ??= new AppSettingsStorageConfigurationStore(profile.SettingsPath, profile.IsIsolated);
         if (!configuration.TryLoad(out var previous, out var diagnostic))
-            return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: diagnostic);
+            return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: diagnostic, RecoveryReason: CatalogRecoveryReason.ConfigurationInvalid);
         var pending = ClosedCatalogTransferJournal.InspectPending(profile);
         if (pending is not null) return new(StorageStartupStatus.CatalogUnavailable, Diagnostic: pending, RecoveryReason: CatalogRecoveryReason.PendingRecovery);
         directory = Path.GetFullPath(directory);
+        if (profile.IsIsolated && !MediaPathSemantics.Contains(profile.ApplicationDataDirectory, directory))
+            return new(StorageStartupStatus.CatalogUnavailable,
+                Diagnostic: $"Allowed workspace: {profile.ApplicationDataDirectory}\nProfile containment refused the selected folder.",
+                RecoveryReason: CatalogRecoveryReason.OutsideWorkspace);
+        try
+        {
+            if (profile.IsIsolated) ApplicationDataProfile.RequireContained(profile.ApplicationDataDirectory, directory);
+        }
+        catch (Exception refusal) when (refusal is ArgumentException or IOException or UnauthorizedAccessException)
+        { return new(StorageStartupStatus.CatalogUnavailable, Diagnostic: refusal.Message, RecoveryReason: CatalogRecoveryReason.LocationRefused); }
         if (!CanCreateAt(directory, profile, previous))
             return new(StorageStartupStatus.CatalogUnavailable, Diagnostic: "Choose a new, unused Catalog folder outside the previous Catalog and reserved storage locations.", RecoveryReason: CatalogRecoveryReason.LocationRefused);
         var intended = previous with { CatalogDirectory = directory, CatalogId = null, CatalogBackupDirectory = null };
@@ -82,6 +92,7 @@ internal sealed partial class LightflowStorageCoordinator
         catch (Exception rollback) when (rollback is IOException or UnauthorizedAccessException)
         { return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: diagnostic + " " + rollback.Message, RecoveryReason: CatalogRecoveryReason.PendingRecovery); }
         return new(candidate?.Status ?? StorageStartupStatus.CatalogUnreadable, Diagnostic: diagnostic,
-            RecoveryReason: candidate?.RecoveryReason ?? CatalogRecoveryReason.ValidationFailed);
+            RecoveryReason: CatalogRecoveryPresentation.ResolveReason(candidate?.Status ?? StorageStartupStatus.CatalogUnreadable,
+                candidate?.RecoveryReason ?? CatalogRecoveryReason.ValidationFailed));
     }
 }

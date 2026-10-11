@@ -14,7 +14,7 @@ public partial class CatalogDestinationDialog : Window
         Title = Heading.Text = move ? "Move Catalog" : "Create New Catalog";
         ActionButton.Content = Title;
         Description.Text = move
-            ? "Choose where to store your Catalog. Lightflow will copy and validate it before switching. The original is retained as a recovery source."
+            ? "Choose where to store your Catalog. Lightflow will copy and validate it before switching. The previous Catalog is retained for recovery; new edits won't update that copy."
             : fromRecovery ? "Create a new Catalog to continue."
             : "Create a new Catalog at the location below.";
         LocationLabel.Text = move ? "Destination parent folder" : "Lightflow Catalog Location";

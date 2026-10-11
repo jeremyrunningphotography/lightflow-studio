@@ -57,6 +57,7 @@ public sealed class CatalogWriterOwnershipTests(ITestOutputHelper output)
         }, isolated: true);
         var secondStartup = await LightflowStorageCoordinator.StartAsync(profile: outer);
         Assert.False(secondStartup.IsReady);
+        Assert.Equal(CatalogRecoveryReason.CompetingOwner, secondStartup.RecoveryReason);
         await using var second = secondStartup.Coordinator!;
         Assert.False(second.CatalogAvailable);
         Assert.Contains("ownership", secondStartup.Diagnostic!, StringComparison.OrdinalIgnoreCase);

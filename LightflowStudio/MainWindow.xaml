@@ -1601,7 +1601,12 @@
     </TabItem.Resources>
     <Grid Margin="14,12,14,14" MaxWidth="1040" HorizontalAlignment="Stretch" AutomationProperties.Name="Settings preferences">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <StackPanel Margin="0,0,0,16"><Button Style="{StaticResource SettingsQuietButtonStyle}" HorizontalAlignment="Left" Margin="0,0,0,8" Content="← Back to Browser" AutomationProperties.Name="Back to Browser" Click="UtilityBackToBrowser_Click"/><TextBlock Style="{StaticResource PageTitle}" Text="Settings"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Personalize Lightflow and manage application storage."/></StackPanel>
+     <StackPanel Margin="0,0,0,16"><Button Style="{StaticResource SettingsQuietButtonStyle}" HorizontalAlignment="Left" Margin="0,0,0,8" Content="← Back to Browser" AutomationProperties.Name="Back to Browser" Click="UtilityBackToBrowser_Click"/><TextBlock Style="{StaticResource PageTitle}" Text="Settings"/><TextBlock Style="{StaticResource PageSubtitle}" Margin="0,5,0,0" Text="Personalize Lightflow and manage application storage."/>
+      <Border x:Name="SettingsRecoveryBanner" Style="{StaticResource SettingsInsetPanelStyle}" BorderBrush="{StaticResource WarningBrush}" Margin="0,12,0,0" Visibility="Collapsed">
+       <StackPanel><TextBlock Style="{StaticResource SectionTitle}" Foreground="{StaticResource WarningBrush}" Text="Browser could not open your Catalog"/>
+        <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Margin="0,4,0,0" Text="Settings is open so you can reconnect your Catalog or open an existing one. Your library is unavailable until a Catalog opens."/></StackPanel>
+      </Border>
+     </StackPanel>
      <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="210"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Grid.Column="0" Style="{StaticResource Card}" Padding="8" VerticalAlignment="Stretch">
        <StackPanel>
@@ -1686,18 +1691,26 @@
           <Border Style="{StaticResource SettingsSectionStyle}" Margin="0,0,0,16" VerticalAlignment="Top">
            <StackPanel>
             <DockPanel>
-             <Button VerticalAlignment="Center" DockPanel.Dock="Right" Content="Move Catalog…" AutomationProperties.Name="Move Catalog" Click="ChangeCatalogLocation_Click"/>
+             <Button x:Name="MoveCatalogButton" VerticalAlignment="Center" DockPanel.Dock="Right" Content="Move Catalog…" AutomationProperties.Name="Move Catalog" Click="ChangeCatalogLocation_Click"/>
              <StackPanel>
               <TextBlock Style="{StaticResource SectionTitle}" Text="Catalog"/>
               <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Margin="0,4,16,0" Text="Important Lightflow library data. Move it to supported local storage, or open an existing Catalog. The retained source becomes stale after new edits; the copies are not synchronized."/>
              </StackPanel>
             </DockPanel>
-            <TextBox x:Name="SettingsCatalogDirectory" Style="{StaticResource SettingsPathTextBoxStyle}" Margin="0,8,0,0" IsReadOnly="True" AutomationProperties.Name="Catalog location"/>
-            <TextBlock x:Name="CatalogRecoveryMessage" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Visibility="Collapsed"/>
+            <StackPanel x:Name="CatalogRecoveryPanel" Margin="0,12,0,0" Visibility="Collapsed">
+             <TextBlock x:Name="CatalogRecoveryHeading" Style="{StaticResource SectionTitle}" Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap"/>
+             <TextBlock x:Name="CatalogRecoveryMessage" Style="{StaticResource SettingsDescriptionStyle}" Margin="0,4,0,0"/>
+             <TextBlock x:Name="CatalogRecoveryAssurance" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextBrush}"/>
+            </StackPanel>
+            <TextBlock Style="{StaticResource FieldLabel}" Margin="0,12,0,0" Text="CONFIGURED CATALOG LOCATION"/>
+            <TextBox x:Name="SettingsCatalogDirectory" Style="{StaticResource SettingsPathTextBoxStyle}" Margin="0,4,0,0" IsReadOnly="True" AutomationProperties.Name="Catalog location"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-             <Button x:Name="RetryCatalogButton" Content="Retry / Reconnect" Click="RetryCatalog_Click" Visibility="Collapsed"/>
+             <Button x:Name="RetryCatalogButton" Style="{StaticResource SettingsPrimaryButtonStyle}" Content="Retry / Reconnect" Click="RetryCatalog_Click" Visibility="Collapsed"/>
              <Button Content="Open Existing Catalog…" AutomationProperties.Name="Open Existing Catalog" Click="OpenExistingCatalog_Click"/>
             </StackPanel>
+            <Expander x:Name="CatalogRecoveryDetails" Margin="0,12,0,0" Header="Troubleshooting details" Visibility="Collapsed" IsExpanded="False">
+             <Border Style="{StaticResource SettingsInsetPanelStyle}"><TextBlock x:Name="CatalogRecoveryDiagnostics" FontSize="11" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/></Border>
+            </Expander>
            </StackPanel>
           </Border>
           <Border Style="{StaticResource SettingsSectionStyle}" Margin="0,0,0,16" VerticalAlignment="Top">

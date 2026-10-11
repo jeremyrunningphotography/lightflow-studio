@@ -243,7 +243,7 @@ public partial class App : System.Windows.Application
                 ActivityLog.TryAppend("[App] Lightflow Studio exiting.");
             };
             using var presentationTiming = StartupDiagnostics.Stage("Workspace construction and presentation", "Restoring workspace…");
-            var mainWindow = new MainWindow(Storage, storage.Status, storage.Diagnostic)
+            var mainWindow = new MainWindow(Storage, storage.Status, storage.Diagnostic, storage.RecoveryReason)
             {
                 ShowActivated = false,
                 ShowInTaskbar = false

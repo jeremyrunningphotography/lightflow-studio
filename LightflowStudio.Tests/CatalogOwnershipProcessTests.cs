@@ -38,6 +38,7 @@ public sealed class CatalogOwnershipProcessTests
         var profile = ApplicationDataProfile.Resolve(["--data-root", inner]);
         var restart = await LightflowStorageCoordinator.StartAsync(profile: profile, allowFirstCreation: false);
         Assert.False(restart.IsReady);
+        Assert.Equal(CatalogRecoveryReason.PendingRecovery, restart.RecoveryReason);
         Assert.Contains("interrupted Catalog transfer", restart.Diagnostic!, StringComparison.OrdinalIgnoreCase);
         await using (var unavailable = restart.Coordinator!)
         {

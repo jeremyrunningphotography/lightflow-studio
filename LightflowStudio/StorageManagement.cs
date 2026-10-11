@@ -6,7 +6,8 @@ using Microsoft.Data.Sqlite;
 namespace LightflowStudio;
 
 internal enum StorageStartupStatus { Ready, CatalogUnavailable, CatalogMissing, CatalogUnreadable, CatalogCorrupt, CatalogIdentityMismatch, InvalidConfiguration, FirstRunChoiceRequired }
-internal sealed record StorageStartupResult(StorageStartupStatus Status, LightflowStorageCoordinator? Coordinator = null, string? Diagnostic = null)
+internal sealed record StorageStartupResult(StorageStartupStatus Status, LightflowStorageCoordinator? Coordinator = null, string? Diagnostic = null,
+    CatalogRecoveryReason RecoveryReason = CatalogRecoveryReason.None)
 {
     public bool IsReady => Status == StorageStartupStatus.Ready;
 }
@@ -234,7 +235,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             var (availablePreviews, diagnostic) = await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
             return new(StorageStartupStatus.CatalogUnavailable,
                 new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator,
-                    recovery, availablePreviews, diagnostic, assessor: assessor), transferRecovery);
+                    recovery, availablePreviews, diagnostic, assessor: assessor), transferRecovery, CatalogRecoveryReason.PendingRecovery);
         }
         if (!allowFirstCreation && settings.CatalogId is null && settings.CatalogDirectory is null && !File.Exists(locations.CatalogDatabasePath))
         {
@@ -256,6 +257,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         IPreviewStoreService? pendingPreviews = null;
         LightflowStorageCoordinator? pendingCoordinator = null;
         var create = !File.Exists(locations.CatalogDatabasePath) && settings.CatalogId is null && settings.CatalogDirectory is null;
+        var presentationReason = CatalogRecoveryReason.LocationUnavailable;
         using var admission = new CatalogLocationAdmission(locations, create ? StorageOperation.Create : StorageOperation.Open, assessor);
         try
         {
@@ -269,7 +271,8 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                 var (availablePreviews, diagnostic) = await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
                 return new(StorageStartupStatus.CatalogUnavailable,
                     new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator,
-                        recovery, availablePreviews, diagnostic, assessor: assessor), exception.Message);
+                        recovery, availablePreviews, diagnostic, assessor: assessor), exception.Message,
+                    exception.Reason == StorageLocationReason.LocationUnavailable ? CatalogRecoveryReason.LocationUnavailable : CatalogRecoveryReason.LocationRefused);
             }
             var boundLocations = admission.LocationsForUse();
             startupCompletion = new StartupSessionCompletion(locations.ApplicationDataDirectory);
@@ -280,6 +283,8 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             }
             catch (IOException exception)
             {
+                presentationReason = exception.InnerException is System.ComponentModel.Win32Exception { NativeErrorCode: 32 }
+                    ? CatalogRecoveryReason.CompetingOwner : CatalogRecoveryReason.OwnershipUnavailable;
                 throw new CatalogLocationAdmissionException("Catalog ownership could not be acquired. Close another Lightflow instance using this Catalog, reconnect its drive, then retry. " + exception.Message,
                     StorageLocationReason.AssessmentFailed);
             }
@@ -287,6 +292,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             try { transferredIdentity = create ? null : VerifySelectedTransfer(boundLocations.CatalogDirectory, catalogStartup.HadValidatedCatalog); }
             catch (Exception refusal) when (refusal is IOException or InvalidDataException or System.Text.Json.JsonException)
             {
+                presentationReason = CatalogRecoveryReason.ValidationFailed;
                 throw new CatalogLocationAdmissionException("Catalog transfer verification refused opening. Existing data and evidence are retained. " + refusal.Message,
                     StorageLocationReason.AssessmentFailed);
             }
@@ -388,7 +394,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             var (availablePreviews, diagnostic) = await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
             return new(StorageStartupStatus.CatalogUnavailable,
                 new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator,
-                    recovery, availablePreviews, diagnostic, assessor: assessor), exception.Message);
+                    recovery, availablePreviews, diagnostic, assessor: assessor), exception.Message, presentationReason);
         }
         catch
         {

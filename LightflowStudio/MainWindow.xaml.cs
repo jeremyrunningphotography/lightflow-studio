@@ -167,11 +167,12 @@ public partial class MainWindow : Window
     private long _browserVisualIdentityAuditGeneration = -1;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
-        string? storageDiagnostic)
+        string? storageDiagnostic, CatalogRecoveryReason recoveryReason = CatalogRecoveryReason.None)
     {
         _storage = storage;
         _storageStartupStatus = storageStartupStatus;
         _storageDiagnostic = storageDiagnostic;
+        _catalogRecoveryReason = recoveryReason;
         _browserNavigation = new BrowserNavigationSession(storage.MediaRoots, storage.BrowserLocations,
             storage.MediaDiscovery, storage.MediaFolders, storage.BrowserRecursiveRoots, storage.RecursiveMediaDiscovery,
             storage.MediaAssets, storage.MediaTypes);
@@ -331,9 +332,7 @@ public partial class MainWindow : Window
                 // Settings usage is requested explicitly; startup must not census the Preview store.
                 if (_storageStartupStatus != StorageStartupStatus.Ready)
                 {
-                    SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
-                    CatalogRecoveryMessage.Text = _storageDiagnostic + "\nReconnect the configured storage and retry, or explicitly open an existing Catalog. No replacement Catalog was created.";
-                    CatalogRecoveryMessage.Visibility = RetryCatalogButton.Visibility = Visibility.Visible;
+                    ApplyCatalogRecoveryPresentation(_storageStartupStatus, _catalogRecoveryReason, _storageDiagnostic);
                     MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Settings);
                     SettingsCategoryList.SelectedIndex = 2;
                 }

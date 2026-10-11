@@ -195,6 +195,26 @@ internal sealed class WindowsStorageLocationAssessor(IEnumerable<string>? protec
         if ((information.Attributes & (0x400 | 0x10)) != 0 || information.Links != 1)
             throw new IOException("Closed transfer requires a regular, non-reparse file with one native link.");
     }
+    internal static FileStream OpenOwnershipJournal(string path)
+    {
+        var handle = CreateFileW(NativePath(path), 0xC0000000, 0, IntPtr.Zero, 4,
+            0x80000000u | 0x00200000u, IntPtr.Zero); // OPEN_ALWAYS, WRITE_THROUGH, OPEN_REPARSE_POINT; no sharing.
+        if (handle.IsInvalid)
+        {
+            var error = Marshal.GetLastWin32Error(); handle.Dispose();
+            throw new IOException("Catalog ownership journal could not be exclusively acquired.", new Win32Exception(error));
+        }
+        try { RequireSingleRegularFile(handle); return new FileStream(handle, FileAccess.ReadWrite, 4096, false); }
+        catch { handle.Dispose(); throw; }
+    }
+    internal static void RequireBoundOwnershipJournal(SafeFileHandle owned, string path)
+    {
+        RequireSingleRegularFile(owned);
+        using var current = Open(path, 0, reparse: true);
+        RequireSingleRegularFile(current);
+        if (FileIdentity(Information(current)) != FileIdentity(Information(owned)))
+            throw new IOException("The Catalog ownership journal path no longer names its owned native object.");
+    }
     internal static SafeFileHandle OpenRecoveryReadGuard(string path, bool closed)
     {
         var handle = Open(path, 0x80000000, reparse: true, shareWrite: !closed);

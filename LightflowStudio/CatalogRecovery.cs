@@ -58,6 +58,14 @@ internal sealed partial class SqliteCatalogRecoveryService : ICatalogRecoverySer
     }
 
     internal SqliteCatalogRecoveryService ForLocations(ILightflowStorageLocations locations) => new(locations, _utcNow);
+    // Active-local selection already holds native admission and the existing startup lease.
+    // Historical transfer metadata must not route a mutable Catalog through backup copyback.
+    internal CatalogIntegrityResult InspectOwnedCatalog(string databasePath, CancellationToken token)
+    {
+        if (!string.Equals(Path.GetFullPath(databasePath), Path.GetFullPath(_locations.CatalogDatabasePath), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Owned Catalog validation requires its admitted standard database.");
+        return Inspect(databasePath, full: true, token);
+    }
 
     public async Task<CatalogMigrationBackupResult> PrepareForMigrationAsync(string catalogDatabasePath,
         int currentSchemaVersion, int targetSchemaVersion, CancellationToken cancellationToken)

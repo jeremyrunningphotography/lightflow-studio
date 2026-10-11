@@ -1,6 +1,6 @@
 # Catalog Settings/startup orientation: writer-ownership decision gate
 
-LF-WIN-DEV-012, 2026-10-10. **BLOCK pending owner architecture decision.** This is orientation evidence, not production implementation or owner acceptance of #412.
+LF-WIN-DEV-012, 2026-10-10. **Historical BLOCK pending owner architecture decision.** This is preserved orientation evidence, not owner acceptance of #412. Jeremy subsequently authorized the bounded correction; see [current implementation](../../architecture/catalog-settings-412-implementation.md). The original diagnostic and finding below are unchanged.
 
 Workspace: `C:\Git\Agents\LF-WIN-DEV-012-CatalogSettings`. Branch: `codex/412-catalog-settings-startup`. Independently fetched main: `9e9f3509f63f821fcaa91367eaa7cb8797935613`, including accepted #392 merge `a0a04da07dde9c8c7609f61ab3e21656c8c8b4dd`. Canonical checkout and other agents' workspaces were not changed. Jeremy explicitly authorized the bounded #412 implementation in the attached kickoff; its stop conditions require a gate when single-writer ownership cannot be demonstrated or current source materially conflicts with accepted architecture.
 

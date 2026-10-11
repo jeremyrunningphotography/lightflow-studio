@@ -7,7 +7,8 @@ namespace LightflowStudio;
 
 internal sealed partial class LightflowStorageCoordinator
 {
-    public async Task<StorageChangeResult> RelocateCatalogAsync(string destinationDirectory, CancellationToken cancellationToken = default)
+    public async Task<StorageChangeResult> RelocateCatalogAsync(string destinationDirectory, CancellationToken cancellationToken = default,
+        IProgress<ClosedCatalogTransferState>? progress = null)
     {
         LightflowStorageLocations destination;
         try
@@ -23,6 +24,7 @@ internal sealed partial class LightflowStorageCoordinator
         await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         CatalogMutationLifecycle.Quiescence? quiet = null;
         CatalogDatabaseSession? provisional = null;
+        StartupStoreEvidence? destinationOwnership = null;
         var sourceLocations = Locations;
         var sourceSettings = Settings;
         var sourceClosed = false;
@@ -32,6 +34,7 @@ internal sealed partial class LightflowStorageCoordinator
         try
         {
             if (_catalogSession is null) return new(StorageChangeStatus.Failed, "The current Catalog is unavailable.");
+            RequireCatalogOwnership(_catalogSession.ResolvedDatabasePath);
             var identity = _catalogSession.Identity.CatalogId;
             var schema = _catalogSession.SchemaVersion;
             var changed = sourceSettings with { CatalogDirectory = destination.CatalogDirectory, CatalogId = identity };
@@ -50,7 +53,6 @@ internal sealed partial class LightflowStorageCoordinator
                     consumersStopped = true;
                     await DisposeMediaMonitoringAsync().ConfigureAwait(false);
                     await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
-                    _catalogStartup?.Dispose(); _catalogStartup = null;
                     var current = _catalogSession!;
                     _catalogSession = null;
                     sourceClosed = true;
@@ -61,6 +63,10 @@ internal sealed partial class LightflowStorageCoordinator
                 {
                     await destinationAdmission.ValidateAsync(token).ConfigureAwait(false);
                     var bound = destinationAdmission.LocationsForUse();
+                    destinationOwnership = StartupStoreEvidence.Begin(destination.CatalogDatabasePath, "Catalog", false,
+                        _startupCompletion, bound.CatalogDatabasePath)
+                        ?? throw new IOException("The destination Catalog ownership lease could not be established.");
+                    destinationOwnership.RequireOwnership(bound.CatalogDatabasePath);
                     var opened = await new CatalogDatabaseService(destination)
                     {
                         ValidateStorageAccess = (t, phase) => destinationAdmission.ValidateClosedDatabaseBoundary(t, phase),
@@ -71,8 +77,14 @@ internal sealed partial class LightflowStorageCoordinator
                         throw new InvalidDataException(opened.Diagnostic ?? "The transferred Catalog did not preserve identity/schema.");
                     provisional.CloseBeforeActivation();
                     await destinationAdmission.ValidateAsync(token, "TransferActivation_SQLiteClosed").ConfigureAwait(false);
-                    provisional = _activator.Activate(provisional);
-                    if (provisional is null || provisional.Identity.CatalogId != identity || provisional.SchemaVersion != schema)
+                    destinationOwnership.MarkValidated();
+                    var activated = _activator.Activate(provisional);
+                    if (!ReferenceEquals(activated, provisional))
+                    {
+                        if (activated is not null) await activated.DisposeAsync().ConfigureAwait(false);
+                        throw new InvalidDataException("Existing Catalog activation did not retain its owned session.");
+                    }
+                    if (provisional.Identity.CatalogId != identity || provisional.SchemaVersion != schema)
                         throw new InvalidDataException("Existing Catalog activation did not return the intended session.");
                     return new ClosedCatalogTransferReceipt($"Existing lifecycle activated Catalog {identity:D}, schema {schema}; authoring remains closed");
                 },
@@ -89,8 +101,12 @@ internal sealed partial class LightflowStorageCoordinator
                 {
                     Settings = changed; Locations = destination;
                     _recovery = new SqliteCatalogRecoveryService(destination);
+                    var sourceOwnership = _catalogStartup;
+                    _catalogStartup = destinationOwnership;
+                    destinationOwnership = null;
                     _catalogSession = provisional;
                     _catalogSession!.MarkPublished(); provisional = null;
+                    sourceOwnership!.Dispose();
                     quiet!.Dispose(); quiet = null;
                     resumed = true;
                     return Task.CompletedTask;
@@ -98,6 +114,7 @@ internal sealed partial class LightflowStorageCoordinator
                 async rollbackToken =>
                 {
                     if (provisional is not null) { await provisional.DisposeAsync().ConfigureAwait(false); provisional = null; }
+                    destinationOwnership?.Dispose(); destinationOwnership = null;
                     if (configurationAttempted)
                     {
                         if (!_configuration.TryLoad(out var persisted, out _) || persisted.CatalogId != sourceSettings.CatalogId ||
@@ -116,12 +133,16 @@ internal sealed partial class LightflowStorageCoordinator
                     return true;
                 });
             var result = await new ClosedCatalogTransferOrchestrator().ExecuteAsync(request, operation,
-                journal, token: cancellationToken).ConfigureAwait(false);
+                journal, progress, cancellationToken).ConfigureAwait(false);
             if (result.State == ClosedCatalogTransferState.RecoveryRequired)
             {
                 PreventCleanShutdown();
+                resumed = false;
+                RecoveryDiagnostic = result.Diagnostic ?? "Catalog ownership recovery is required. Authoring is blocked.";
                 if (_catalogSession is not null) { await _catalogSession.DisposeAsync().ConfigureAwait(false); _catalogSession = null; }
+                _catalogStartup?.Dispose(); _catalogStartup = null;
                 quiet?.CompleteShutdown(); quiet = null;
+                _shutdownAdmissionClosed = true;
             }
             return result.Succeeded ? new(StorageChangeStatus.Succeeded,
                 $"Catalog moved to {destination.CatalogDirectory}. The source at {sourceLocations.CatalogDirectory} is retained as a pre-move recovery copy.")
@@ -134,6 +155,7 @@ internal sealed partial class LightflowStorageCoordinator
             try
             {
             if (provisional is not null) await provisional.DisposeAsync().ConfigureAwait(false);
+            destinationOwnership?.Dispose();
             if (resumed || !sourceClosed)
             {
                 quiet?.Dispose();

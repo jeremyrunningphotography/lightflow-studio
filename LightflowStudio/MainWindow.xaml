@@ -1686,13 +1686,18 @@
           <Border Style="{StaticResource SettingsSectionStyle}" Margin="0,0,0,16" VerticalAlignment="Top">
            <StackPanel>
             <DockPanel>
-             <Button VerticalAlignment="Center" DockPanel.Dock="Right" Content="Change…" AutomationProperties.Name="Change Catalog location" Click="ChangeCatalogLocation_Click"/>
+             <Button VerticalAlignment="Center" DockPanel.Dock="Right" Content="Move Catalog…" AutomationProperties.Name="Move Catalog" Click="ChangeCatalogLocation_Click"/>
              <StackPanel>
               <TextBlock Style="{StaticResource SectionTitle}" Text="Catalog"/>
-              <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Margin="0,4,16,0" Text="Important Lightflow library data. Changing this location performs a protected migration and keeps the original Catalog. The live Catalog must remain on a local drive."/>
+              <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Margin="0,4,16,0" Text="Important Lightflow library data. Move it to supported local storage, or open an existing Catalog. The retained source becomes stale after new edits; the copies are not synchronized."/>
              </StackPanel>
             </DockPanel>
             <TextBox x:Name="SettingsCatalogDirectory" Style="{StaticResource SettingsPathTextBoxStyle}" Margin="0,8,0,0" IsReadOnly="True" AutomationProperties.Name="Catalog location"/>
+            <TextBlock x:Name="CatalogRecoveryMessage" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Visibility="Collapsed"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+             <Button x:Name="RetryCatalogButton" Content="Retry / Reconnect" Click="RetryCatalog_Click" Visibility="Collapsed"/>
+             <Button Content="Open Existing Catalog…" AutomationProperties.Name="Open Existing Catalog" Click="OpenExistingCatalog_Click"/>
+            </StackPanel>
            </StackPanel>
           </Border>
           <Border Style="{StaticResource SettingsSectionStyle}" Margin="0,0,0,16" VerticalAlignment="Top">

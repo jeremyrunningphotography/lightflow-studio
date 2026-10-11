@@ -96,7 +96,7 @@ internal sealed partial class SqliteCatalogRecoveryService
         using var file = WindowsClosedCatalogTransferOperation.OpenClosedRead(path);
         return new(relative, role, file.Length, Convert.ToHexString(SHA256.HashData(file)), disposition);
     }
-    private static IReadOnlyList<ClosedCatalogExternalDependency> ReadExternalLutDependencies(string snapshot)
+    internal static IReadOnlyList<ClosedCatalogExternalDependency> ReadExternalLutDependencies(string snapshot)
     {
         using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
             { DataSource = RecoverySqlitePath(snapshot), Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());

@@ -330,7 +330,13 @@ public partial class MainWindow : Window
                 RefreshLuts();
                 // Settings usage is requested explicitly; startup must not census the Preview store.
                 if (_storageStartupStatus != StorageStartupStatus.Ready)
+                {
                     SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
+                    CatalogRecoveryMessage.Text = _storageDiagnostic + "\nReconnect the configured storage and retry, or explicitly open an existing Catalog. No replacement Catalog was created.";
+                    CatalogRecoveryMessage.Visibility = RetryCatalogButton.Visibility = Visibility.Visible;
+                    MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Settings);
+                    SettingsCategoryList.SelectedIndex = 2;
+                }
                 else if (!_storage.PreviewAvailable)
                     SettingsMessage.Text = _storage.PreviewDiagnostic;
                 else if (_storage.RecoveryDiagnostic is not null)
@@ -4244,7 +4250,7 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() == true) SettingsFfmpegPath.Text = dialog.FileName;
     }
 
-    private async void ChangeCatalogLocation_Click(object sender, RoutedEventArgs e)
+    private void ChangeCatalogLocation_Click(object sender, RoutedEventArgs e)
     {
         if (!_storage.CatalogAvailable)
         {
@@ -4257,13 +4263,18 @@ public partial class MainWindow : Window
         if (!ConfirmationDialog.Confirm(this, "Move Catalog", "Move the Catalog to this folder?",
             "Lightflow will create the Catalog folder shown below, copy and validate the complete Catalog, then switch. The original is retained as a recovery source.",
             destination, "Move Catalog")) return;
-        SettingsMessage.Text = "Moving and validating the Catalog…";
-        var result = await _storage.RelocateCatalogAsync(destination);
+        StorageChangeResult? result = null;
+        var operation = new CatalogOperationDialog("Move Catalog", destination,
+            async (token, progress) =>
+            {
+                result = await _storage.RelocateCatalogAsync(destination, token, progress);
+                if (!result.Succeeded) throw new IOException(result.Diagnostic);
+                return result.Diagnostic + " New edits at the destination do not update the retained source.";
+            }) { Owner = this };
+        operation.ShowDialog();
         SettingsCatalogDirectory.Text = _storage.Locations.CatalogDirectory;
-        SettingsMessage.Text = result.Succeeded
-            ? result.Diagnostic ?? "Catalog moved successfully. The original Catalog was retained."
-            : result.Diagnostic;
-        if (!result.Succeeded) NoticeDialog.Show(this, "Catalog was not moved", "Catalog was not moved", result.Diagnostic ?? "Try again.");
+        _settings = _storage.Settings;
+        SettingsMessage.Text = result?.Diagnostic ?? "Catalog move was cancelled.";
     }
 
     private async void ChangePreviewsLocation_Click(object sender, RoutedEventArgs e)

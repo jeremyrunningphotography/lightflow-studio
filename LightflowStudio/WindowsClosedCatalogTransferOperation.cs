@@ -211,7 +211,7 @@ internal sealed class WindowsClosedCatalogTransferOperation : IClosedCatalogTran
         try { WindowsStorageLocationAssessor.RequireSingleRegularFile(file.SafeFileHandle); return file; }
         catch { file.Dispose(); throw; }
     }
-    internal static IEnumerable<string> EnumerateRegularFiles(string directory)
+    internal static IEnumerable<string> EnumerateRegularFiles(string directory, string? ownedJournal = null)
     {
         ClosedCatalogTransferJournal.RequireUnlinked(directory);
         foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
@@ -220,7 +220,8 @@ internal sealed class WindowsClosedCatalogTransferOperation : IClosedCatalogTran
             if ((attributes & FileAttributes.ReparsePoint) != 0) throw new IOException("A transfer artifact is a link or junction.");
             if ((attributes & FileAttributes.Directory) != 0)
                 foreach (var file in EnumerateRegularFiles(entry)) yield return file;
-            else { using var guard = OpenClosedRead(entry); yield return entry; }
+            else if (!string.Equals(entry, ownedJournal, StringComparison.OrdinalIgnoreCase))
+            { using var guard = OpenClosedRead(entry); yield return entry; }
         }
     }
     internal static string Child(string directory, string relative)

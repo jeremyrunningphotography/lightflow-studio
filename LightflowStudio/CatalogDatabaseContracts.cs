@@ -94,10 +94,12 @@ internal sealed class CatalogDatabaseSession : IAsyncDisposable
     public CatalogIdentity Identity { get; }
     public CatalogRuntimePolicy RuntimePolicy { get; }
     internal CatalogMutationLifecycle Mutations { get; set; } = new();
+    internal Action<string>? RequireOwnership { get; set; }
 
     internal Microsoft.Data.Sqlite.SqliteConnection OpenConnection()
     {
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        RequireOwnership?.Invoke(ResolvedDatabasePath);
         _connections.Publish();
         return _connections.OpenConnection();
     }

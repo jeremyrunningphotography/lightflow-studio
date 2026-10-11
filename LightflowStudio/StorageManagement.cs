@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 
 namespace LightflowStudio;
 
-internal enum StorageStartupStatus { Ready, CatalogUnavailable, CatalogMissing, CatalogUnreadable, CatalogCorrupt, CatalogIdentityMismatch, InvalidConfiguration }
+internal enum StorageStartupStatus { Ready, CatalogUnavailable, CatalogMissing, CatalogUnreadable, CatalogCorrupt, CatalogIdentityMismatch, InvalidConfiguration, FirstRunChoiceRequired }
 internal sealed record StorageStartupResult(StorageStartupStatus Status, LightflowStorageCoordinator? Coordinator = null, string? Diagnostic = null)
 {
     public bool IsReady => Status == StorageStartupStatus.Ready;
@@ -78,7 +78,21 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
     private CatalogDatabaseSession? _catalogSession
     {
         get => _session;
-        set { _session = value; if (value is not null) value.Mutations = Mutations; }
+        set
+        {
+            if (value is not null)
+            {
+                RequireCatalogOwnership(value.ResolvedDatabasePath);
+                value.Mutations = Mutations;
+                value.RequireOwnership = RequireCatalogOwnership;
+            }
+            _session = value;
+        }
+    }
+    private void RequireCatalogOwnership(string database)
+    {
+        if (_catalogStartup is null) throw new IOException("Catalog ownership is unavailable. Authoring is blocked.");
+        _catalogStartup.RequireOwnership(database);
     }
 
     private LightflowStorageCoordinator(IStorageConfigurationStore configuration, AppSettings settings,
@@ -88,6 +102,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         IStorageLocationAssessor? assessor = null)
     {
         _catalogStartup = catalogStartup; _previewStartup = previewStartup; _startupCompletion = startupCompletion;
+        if (session is not null) _catalogStartup!.MarkValidated();
         _configuration = configuration;
         Settings = settings;
         Locations = locations;
@@ -173,11 +188,12 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         .Concat(SqliteCatalogRecoveryService.ListUserBackups(Locations, BackupDirectory))
         .OrderByDescending(backup => backup.CreatedUtc).ToArray();
 
-    public static async Task<StorageStartupResult> StartAsync(string? localApplicationData = null,
+    private static async Task<StorageStartupResult> StartCoreAsync(string? localApplicationData = null,
         CancellationToken cancellationToken = default, ICatalogRelocationTransfer? transfer = null,
         IStorageConfigurationStore? configuration = null, ICatalogSessionActivator? activator = null,
         ICatalogRecoveryService? recovery = null, LightflowStorageLocations? profile = null,
-        InitializedDataProfile? initializedProfile = null, IStorageLocationAssessor? assessor = null)
+        InitializedDataProfile? initializedProfile = null, IStorageLocationAssessor? assessor = null,
+        bool allowFirstCreation = true, AppSettings? selectedSettings = null)
     {
         using var timing = StartupDiagnostics.Stage("Storage initialization", "Opening storage…");
         transfer ??= new SqliteCatalogRelocationTransfer();
@@ -190,6 +206,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         configuration ??= new AppSettingsStorageConfigurationStore(defaults.SettingsPath, defaults.IsIsolated);
         if (!configuration.TryLoad(out var settings, out var settingsDiagnostic))
             return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: settingsDiagnostic);
+        settings = selectedSettings ?? settings;
         if (defaults.IsIsolated && !File.Exists(defaults.SettingsPath))
             settings = settings with { LutFolder = null, CameraLutFolder = "", CreativeLutFolder = "",
                 ScreengrabDirectory = Path.Combine(defaults.ApplicationDataDirectory, "Screengrabs") };
@@ -218,6 +235,14 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             return new(StorageStartupStatus.CatalogUnavailable,
                 new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator,
                     recovery, availablePreviews, diagnostic, assessor: assessor), transferRecovery);
+        }
+        if (!allowFirstCreation && settings.CatalogId is null && settings.CatalogDirectory is null && !File.Exists(locations.CatalogDatabasePath))
+        {
+            var (availablePreviews, diagnostic) = await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
+            return new(StorageStartupStatus.FirstRunChoiceRequired,
+                new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator,
+                    recovery, availablePreviews, diagnostic, assessor: assessor),
+                "Create a new Catalog or open an existing Catalog. No Catalog has been created.");
         }
         var needsBackupConfiguration = settings.CatalogBackupDirectory is null;
         if (settings.CatalogBackupDirectory is null)
@@ -248,8 +273,23 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             }
             var boundLocations = admission.LocationsForUse();
             startupCompletion = new StartupSessionCompletion(locations.ApplicationDataDirectory);
-            catalogStartup = StartupStoreEvidence.Begin(locations.CatalogDatabasePath, "Catalog", settings.CatalogDirectory is null, startupCompletion,
-                boundLocations.CatalogDatabasePath);
+            try
+            {
+                catalogStartup = StartupStoreEvidence.Begin(locations.CatalogDatabasePath, "Catalog", settings.CatalogDirectory is null, startupCompletion,
+                    boundLocations.CatalogDatabasePath) ?? throw new IOException("The Catalog directory is unavailable.");
+            }
+            catch (IOException exception)
+            {
+                throw new CatalogLocationAdmissionException("Catalog ownership could not be acquired. Close another Lightflow instance using this Catalog, reconnect its drive, then retry. " + exception.Message,
+                    StorageLocationReason.AssessmentFailed);
+            }
+            Guid? transferredIdentity;
+            try { transferredIdentity = create ? null : VerifySelectedTransfer(boundLocations.CatalogDirectory, catalogStartup.HadValidatedCatalog); }
+            catch (Exception refusal) when (refusal is IOException or InvalidDataException or System.Text.Json.JsonException)
+            {
+                throw new CatalogLocationAdmissionException("Catalog transfer verification refused opening. Existing data and evidence are retained. " + refusal.Message,
+                    StorageLocationReason.AssessmentFailed);
+            }
             previewStartup = StartupStoreEvidence.Begin(locations.PreviewsDatabasePath, "Previews", settings.PreviewsDirectory is null, startupCompletion);
             var cleanPair = catalogStartup?.KnownClean == true && previewStartup?.KnownClean == true;
             catalogStartup?.RequireCompletePeer(cleanPair); previewStartup?.RequireCompletePeer(cleanPair);
@@ -258,6 +298,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             var boundRecovery = recovery is SqliteCatalogRecoveryService nativeRecovery ? nativeRecovery.ForLocations(boundLocations) : recovery;
             var database = new CatalogDatabaseService(locations, boundRecovery)
             { CleanStartup = catalogStartup?.KnownClean == true, ValidationReason = catalogStartup?.Reason ?? StartupValidationReason.UnexpectedShutdown,
+                ExpectedCatalogId = selectedSettings?.CatalogId ?? transferredIdentity,
                 ValidateStorageAccess = (token, phase) => admission.ValidateClosedDatabaseBoundary(token, phase),
                 ResolvedDatabasePath = boundLocations.CatalogDatabasePath };
             CatalogOpenResult opened;
@@ -297,7 +338,25 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                     "The configured Catalog does not match the Catalog previously associated with this Lightflow installation.");
             }
 
-            if (settings.CatalogId is null)
+            if (selectedSettings is not null)
+            {
+                catalogStartup!.RequireOwnership(opened.Session!.ResolvedDatabasePath);
+                var originalSession = opened.Session;
+                var activated = activator.Activate(originalSession);
+                if (!ReferenceEquals(activated, originalSession))
+                {
+                    if (activated is not null) await activated.DisposeAsync().ConfigureAwait(false);
+                    throw new IOException("Catalog activation did not retain the selected session owner.");
+                }
+                var ownedRecovery = new SqliteCatalogRecoveryService(boundLocations);
+                var full = await Task.Run(() => ownedRecovery.InspectOwnedCatalog(boundLocations.CatalogDatabasePath, cancellationToken), cancellationToken).ConfigureAwait(false);
+                if (!full.IsValid) throw new InvalidDataException(full.Diagnostic);
+                SqliteCatalogRecoveryService.ReadExternalLutDependencies(boundLocations.CatalogDatabasePath);
+                configuration.Save(settings);
+                if (!configuration.TryLoad(out var persisted, out var diagnostic) || persisted.CatalogId != settings.CatalogId || persisted.CatalogDirectory != settings.CatalogDirectory)
+                    throw new IOException(diagnostic ?? "Selected Catalog configuration commit could not be verified.");
+            }
+            else if (settings.CatalogId is null)
             {
                 settings = settings with { CatalogId = opened.Session!.Identity.CatalogId };
                 try { configuration.Save(settings); }
@@ -307,7 +366,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                     throw;
                 }
             }
-            if (needsBackupConfiguration)
+            if (needsBackupConfiguration && selectedSettings is null)
             {
                 try { configuration.Save(settings); }
                 catch { await opened.Session!.DisposeAsync().ConfigureAwait(false); throw; }
@@ -453,6 +512,9 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             catch (CatalogLocationAdmissionException exception) { return new(false, exception.Message); }
             var boundLocations = admission.LocationsForUse();
             var expectedId = Settings.CatalogId;
+            try { EnsureCatalogRecoveryOwnership(boundLocations.CatalogDatabasePath); }
+            catch (Exception refusal) when (refusal is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+            { return new(false, "Catalog recovery ownership could not be acquired. Close another writer, reconnect the configured storage, and retry. " + refusal.Message); }
             var candidate = await _recovery.CheckIntegrityAsync(backupPath, cancellationToken).ConfigureAwait(false);
             if (!candidate.IsValid) return new(false, $"The selected backup is invalid. {candidate.Diagnostic}");
             if (expectedId is Guid expectedCandidate && !PortablePathIdentityValidator.ValidateCatalogIdentity(expectedCandidate, candidate.CatalogId ?? Guid.Empty).IsSafe)
@@ -474,13 +536,14 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                         token => admission.ValidateAsync(token).GetAwaiter().GetResult(), cancellationToken).ConfigureAwait(false)
                     : await _recovery.BeginRestoreAsync(backupPath, hadActiveCatalog, cancellationToken).ConfigureAwait(false);
             }
-            catch (CatalogLocationAdmissionException exception) { return new(false, exception.Message); }
+            catch (CatalogLocationAdmissionException exception)
+            { return await BlockCatalogRecoveryAsync(exception.Message).ConfigureAwait(false); }
             if (!installation.Succeeded)
             {
                 var reactivation = await TryReactivateCatalogAsync().ConfigureAwait(false);
                 var diagnostic = installation.Diagnostic ?? "The Catalog could not be restored.";
-                if (hadActiveCatalog && !reactivation.Succeeded)
-                    diagnostic += $" The previous Catalog could not be reactivated: {reactivation.Diagnostic}";
+                if (!reactivation.Succeeded)
+                    return await BlockCatalogRecoveryAsync(diagnostic + $" The previous Catalog could not be reactivated: {reactivation.Diagnostic}").ConfigureAwait(false);
                 return new(false, diagnostic);
             }
 
@@ -501,9 +564,15 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                 await admission.ValidateAsync(CancellationToken.None, "RestoreActivation_AfterInitialSQLiteUse").ConfigureAwait(false);
                 if (expectedId is Guid expected && !PortablePathIdentityValidator.ValidateCatalogIdentity(expected, replacementSession!.Identity.CatalogId).IsSafe)
                     throw new InvalidDataException("The restored backup belongs to a different Lightflow Catalog.");
-                replacementSession = _activator.Activate(replacementSession!);
+                var activated = _activator.Activate(replacementSession!);
+                if (!ReferenceEquals(activated, replacementSession))
+                {
+                    if (activated is not null) await activated.DisposeAsync().ConfigureAwait(false);
+                    throw new IOException("Restore activation did not retain its owned Catalog session.");
+                }
                 var committed = await installation.Transaction!.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 if (!committed.Succeeded) throw new IOException(committed.Diagnostic);
+                _catalogStartup!.MarkValidated();
                 _catalogSession = replacementSession;
                 replacementSession!.MarkPublished();
                 replacementSession = null;
@@ -516,14 +585,14 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                 try { await admission.ReleaseForClosedReplacementAsync(CancellationToken.None).ConfigureAwait(false); }
                 catch (CatalogLocationAdmissionException refusal)
                 {
-                    return new(false, $"Restore activation was refused. Preserved replacement and displaced Catalog artifacts; no rollback through revoked storage. {refusal.Message}");
+                    return await BlockCatalogRecoveryAsync($"Restore activation was refused. Preserved replacement and displaced Catalog artifacts; no rollback through revoked storage. {refusal.Message}").ConfigureAwait(false);
                 }
                 var rollback = await installation.Transaction!.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
                 if (!rollback.Succeeded)
-                    return new(false, $"The restored Catalog could not be activated: {exception.Message} {rollback.Diagnostic}");
+                    return await BlockCatalogRecoveryAsync($"The restored Catalog could not be activated: {exception.Message} {rollback.Diagnostic}").ConfigureAwait(false);
                 var reactivation = await TryReactivateCatalogAsync().ConfigureAwait(false);
                 if (!reactivation.Succeeded)
-                    return new(false, $"The restored Catalog could not be activated: {exception.Message} {rollback.Diagnostic} The previous Catalog could not be reactivated: {reactivation.Diagnostic}");
+                    return await BlockCatalogRecoveryAsync($"The restored Catalog could not be activated: {exception.Message} {rollback.Diagnostic} The previous Catalog could not be reactivated: {reactivation.Diagnostic}").ConfigureAwait(false);
                 return new(false, $"The restored Catalog could not be activated, so the previous Catalog was restored and reactivated. {exception.Message}");
             }
         }
@@ -549,18 +618,28 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         }
         catch (CatalogLocationAdmissionException exception) { return new(false, exception.Message); }
         var boundLocations = admission.LocationsForUse();
+        RequireCatalogOwnership(boundLocations.CatalogDatabasePath);
         var migrationRecovery = _recovery is SqliteCatalogRecoveryService migrationNative
             ? migrationNative.ForLocations(boundLocations) : _recovery;
         var opened = await new CatalogDatabaseService(Locations, migrationRecovery)
-            { ValidateStorageAccess = (token, phase) => admission.ValidateClosedDatabaseBoundary(token, phase),
+            { ExpectedCatalogId = Settings.CatalogId, ValidateStorageAccess = (token, phase) => admission.ValidateClosedDatabaseBoundary(token, phase),
                 ResolvedDatabasePath = boundLocations.CatalogDatabasePath }
             .OpenExistingAsync(CancellationToken.None).ConfigureAwait(false);
         if (!opened.IsSuccess) return new(false, opened.Diagnostic ?? "The Catalog could not be reopened.");
         try
         {
+            if (Settings.CatalogId is Guid expected && opened.Session!.Identity.CatalogId != expected)
+                throw new InvalidDataException("The previous Catalog identity changed. Ownership rollback cannot be proven.");
             opened.Session!.CloseBeforeActivation();
             await admission.ValidateAsync(CancellationToken.None, "Reactivation_AfterInitialSQLiteUse").ConfigureAwait(false);
-            _catalogSession = activate ? _activator.Activate(opened.Session!) : opened.Session!;
+            var activated = activate ? _activator.Activate(opened.Session!) : opened.Session!;
+            if (!ReferenceEquals(activated, opened.Session))
+            {
+                if (activated is not null) await activated.DisposeAsync().ConfigureAwait(false);
+                throw new IOException("Catalog reactivation did not retain its owned source session.");
+            }
+            _catalogStartup!.MarkValidated();
+            _catalogSession = opened.Session;
             _catalogSession.MarkPublished();
             return new(true);
         }
@@ -569,6 +648,33 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             await opened.Session!.DisposeAsync().ConfigureAwait(false);
             return new(false, exception.Message);
         }
+    }
+
+    private void EnsureCatalogRecoveryOwnership(string resolvedDatabase)
+    {
+        if (_catalogStartup is not null) { RequireCatalogOwnership(resolvedDatabase); return; }
+        StartupSessionCompletion? completion = null;
+        StartupStoreEvidence? lease = null;
+        try
+        {
+            completion = _startupCompletion is null ? new StartupSessionCompletion(Locations.ApplicationDataDirectory) : null;
+            lease = StartupStoreEvidence.Begin(Locations.CatalogDatabasePath, "Catalog", false,
+                _startupCompletion ?? completion, resolvedDatabase) ?? throw new IOException("The configured Catalog directory is unavailable.");
+            lease.RequireOwnership(resolvedDatabase);
+            _catalogStartup = lease; lease = null;
+            _startupCompletion ??= completion; completion = null;
+        }
+        finally { lease?.Dispose(); completion?.Dispose(); }
+    }
+
+    private async Task<CatalogRestoreResult> BlockCatalogRecoveryAsync(string diagnostic)
+    {
+        PreventCleanShutdown();
+        RecoveryDiagnostic = "Recovery required. All Catalog authoring is blocked; artifacts are retained. " + diagnostic;
+        if (_catalogSession is not null) { await _catalogSession.DisposeAsync().ConfigureAwait(false); _catalogSession = null; }
+        _catalogStartup?.Dispose(); _catalogStartup = null;
+        Mutations.Dispose(); _shutdownAdmissionClosed = true;
+        return new(false, RecoveryDiagnostic);
     }
 
     public async Task<StorageChangeResult> RelocatePreviewsAsync(string destinationDirectory,

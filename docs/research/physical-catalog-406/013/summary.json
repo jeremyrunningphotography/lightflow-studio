@@ -1,0 +1,1020 @@
+{
+  "agent": "LF-MAC-RES-013",
+  "baseline_main": "9e9f3509f63f821fcaa91367eaa7cb8797935613",
+  "recommendation": "CONDITIONAL bounded research; REVISE Mac-produced transport; BLOCK active ExFAT support",
+  "device": {
+    "volume": "JRPhoto4T",
+    "model": "SanDisk Extreme Pro 55AF",
+    "physical": true,
+    "bus": "USB",
+    "filesystem": "ExFAT",
+    "disk_bytes": 4000753467904,
+    "partition_bytes": 4000751370752,
+    "usable_bytes": 4000734773248,
+    "allocation_unit": 1048576,
+    "private_identity_match": true,
+    "writable": true,
+    "link_speed": "10 Gb/s"
+  },
+  "runtime": {
+    "macOS": "26.6.2",
+    "build": "25G83",
+    "architecture": "arm64",
+    "python": "3.9.6",
+    "sqlite": "3.51.0",
+    "dotnet_sdk": "8.0.425",
+    "dotnet_runtime": "8.0.31",
+    "clang": "21.0.0"
+  },
+  "safety": {
+    "Agent007_initial_checks": 343,
+    "Agent007_final_checks": 343,
+    "Agent007_file_hashes_unchanged": 38,
+    "initial_native_objects": 40,
+    "one_exclusive_new_root": true,
+    "budget": 268435456,
+    "no_owner_files_inspected": true,
+    "no_eject": true,
+    "no_further_physical_writes_after_protocol_refusal": true
+  },
+  "native": [
+    {
+      "operation": "openat O_EXCL existing file",
+      "return": -1,
+      "errno": 17,
+      "error": "File exists",
+      "ms": 150.29733300000015
+    },
+    {
+      "operation": "mkdirat existing directory",
+      "return": -1,
+      "errno": 17,
+      "error": "File exists",
+      "ms": 153.707834
+    },
+    {
+      "operation": "renameat same-volume absent target",
+      "return": 0,
+      "errno": 0,
+      "ms": 2.870167000000201
+    },
+    {
+      "operation": "renameatx_np RENAME_EXCL no-replace-file",
+      "return": -1,
+      "errno": 45,
+      "error": "Operation not supported",
+      "ms": 161.75133300000022
+    },
+    {
+      "operation": "renameatx_np RENAME_EXCL no-replace-directory",
+      "return": -1,
+      "errno": 45,
+      "error": "Operation not supported",
+      "ms": 159.88883399999975
+    },
+    {
+      "operation": "renamex_np RENAME_EXCL no-replace-file",
+      "return": -1,
+      "errno": 45,
+      "error": "Operation not supported",
+      "ms": 156.85491699999997
+    },
+    {
+      "operation": "renamex_np RENAME_EXCL no-replace-directory",
+      "return": -1,
+      "errno": 45,
+      "error": "Operation not supported",
+      "ms": 171.08150000000012
+    },
+    {
+      "operation": "renameat replacement owned existing target",
+      "return": 0,
+      "errno": 0,
+      "ms": 1.7474579999996465
+    },
+    {
+      "operation": "renameatx_np RENAME_SWAP",
+      "return": -1,
+      "errno": 45,
+      "error": "Operation not supported",
+      "ms": 172.43820799999997
+    },
+    {
+      "operation": "file fsync",
+      "return": 0,
+      "errno": 0,
+      "ms": 0.1927919999999972
+    },
+    {
+      "operation": "file F_FULLFSYNC=51",
+      "return": 0,
+      "errno": 0,
+      "ms": 0.5074589999995993
+    },
+    {
+      "operation": "directory fsync",
+      "return": 0,
+      "errno": 0,
+      "ms": 0.18124999999979963
+    },
+    {
+      "operation": "directory F_FULLFSYNC=51",
+      "return": 0,
+      "errno": 0,
+      "ms": 0.36308299999987526
+    },
+    {
+      "operation": "symlinkat within owned root",
+      "return": 0,
+      "errno": 0,
+      "ms": 2.1393750000004985
+    },
+    {
+      "operation": "linkat within owned root",
+      "return": -1,
+      "errno": 45,
+      "error": "Operation not supported",
+      "ms": 53.93545800000066
+    },
+    {
+      "operation": "O_EXCL prior-good-container payload collision",
+      "return": -1,
+      "errno": 17,
+      "error": "File exists",
+      "ms": 164.17849999999845
+    }
+  ],
+  "native_caps": {
+    "interface_bits": 1051584,
+    "valid_interface_bits": 2097151,
+    "advisory_lock_supported": true,
+    "rename_excl_supported": false,
+    "rename_swap_supported": false
+  },
+  "physical_checks": [
+    {
+      "name": "proposed root absent and direct child",
+      "passed": true
+    },
+    {
+      "name": "O_EXCL collision refuses",
+      "passed": true
+    },
+    {
+      "name": "mkdir collision refuses",
+      "passed": true
+    },
+    {
+      "name": "rename readback",
+      "passed": true
+    },
+    {
+      "name": "unsupported no-replace preserves staging",
+      "passed": true
+    },
+    {
+      "name": "old descriptor retains prior bytes",
+      "passed": true
+    },
+    {
+      "name": "replacement changed object identity",
+      "passed": true
+    },
+    {
+      "name": "revoked identity cleanup refused; evidence retained",
+      "passed": true
+    },
+    {
+      "name": "WAL FULL",
+      "passed": true
+    },
+    {
+      "name": "synchronous FULL=2",
+      "passed": true
+    },
+    {
+      "name": "reader snapshot excludes concurrent committed writer",
+      "passed": true
+    },
+    {
+      "name": "reader-held checkpoint reports busy",
+      "passed": true
+    },
+    {
+      "name": "checkpoint after reader release",
+      "passed": true
+    },
+    {
+      "name": "specific synthetic child at controlled transaction boundary",
+      "passed": true
+    },
+    {
+      "name": "owned uncommitted process terminated and reaped",
+      "passed": true
+    },
+    {
+      "name": "restart integrity",
+      "passed": true
+    },
+    {
+      "name": "committed state survives and uncommitted state absent",
+      "passed": true
+    },
+    {
+      "name": "source CatalogId preserved",
+      "passed": true
+    },
+    {
+      "name": "recovery checkpoint",
+      "passed": true
+    },
+    {
+      "name": "backup integrity and committed state",
+      "passed": true
+    },
+    {
+      "name": "closed restored state",
+      "passed": true
+    },
+    {
+      "name": "interrupted transfer child has closed handles",
+      "passed": true
+    },
+    {
+      "name": "destination collision refuses and preserves prior good bytes",
+      "passed": true
+    },
+    {
+      "name": "managed backup preserved through failures",
+      "passed": true
+    },
+    {
+      "name": "cancelled staging retained without readiness",
+      "passed": true
+    },
+    {
+      "name": "physical artifacts not active Catalog filename",
+      "passed": true
+    }
+  ],
+  "reader_held_checkpoint": [
+    1,
+    1,
+    0
+  ],
+  "sqlite_readonly_audit": [
+    {
+      "artifact": "lifecycle.db",
+      "integrity": "ok",
+      "CatalogId_RootId_all_16_AssetIds_preserved": true,
+      "all_authored_rows_preserved": true,
+      "only_expected_identity_note_changed": true,
+      "sha256": "852bbddfe67ffc268a2e85cfe8a43e26c5d0008e12a20ba47c65949c1191ff9b"
+    },
+    {
+      "artifact": "managed-backup.db",
+      "integrity": "ok",
+      "CatalogId_RootId_all_16_AssetIds_preserved": true,
+      "all_authored_rows_preserved": true,
+      "only_expected_identity_note_changed": true,
+      "sha256": "862e7172f175f26894f7cf4a50e75262026dc4484806e187d05a89c2252be719"
+    },
+    {
+      "artifact": "restored-closed.db",
+      "integrity": "ok",
+      "CatalogId_RootId_all_16_AssetIds_preserved": true,
+      "all_authored_rows_preserved": true,
+      "only_expected_identity_note_changed": true,
+      "sha256": "862e7172f175f26894f7cf4a50e75262026dc4484806e187d05a89c2252be719"
+    }
+  ],
+  "companions": {
+    "lifecycle.db-wal": 0,
+    "lifecycle.db-shm": 32768
+  },
+  "physical_protocol": {
+    "Containers": [
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-dd46c616b60b4e8199c805407f348895.incomplete",
+        "Verified": false,
+        "Error": "InvalidDataException: Artifact set differs"
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-8949724f1a6d4bc79bc1db2baeec8d27.incomplete",
+        "Verified": false,
+        "Error": "InvalidDataException: Artifact set differs"
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-14a56d834d1f48e2a9b786a5af2bc4b8.incomplete",
+        "Verified": false,
+        "Error": "JsonException: Expected end of string, but instead reached end of data. Path: $ | LineNumber: 0 | BytePositionInLine: 20."
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-616a676374b74823b54b842c7b3f9334.incomplete",
+        "Verified": false,
+        "Error": "FileNotFoundException: required metadata absent"
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-eb5d744210d5482686ad533270bbd0af.incomplete",
+        "Verified": false,
+        "Error": "InvalidDataException: Artifact set differs"
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-b9c5dd1fd39c4b539e69bd0fa114c7d9.incomplete",
+        "Verified": false,
+        "Error": "FileNotFoundException: required metadata absent"
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-d539cef59fe14a21b74868e0c3e74fed.incomplete",
+        "Verified": false,
+        "Error": "FileNotFoundException: required metadata absent"
+      }
+    ],
+    "Journals": [
+      {
+        "Journal": "interrupted.journal",
+        "RequiresRecovery": true,
+        "Error": null
+      },
+      {
+        "Journal": "._interrupted.journal",
+        "RequiresRecovery": true,
+        "Error": "InvalidDataException: Length"
+      },
+      {
+        "Journal": "torn.journal",
+        "RequiresRecovery": true,
+        "Error": "EndOfStreamException: Unable to read beyond the end of the stream."
+      },
+      {
+        "Journal": "._torn.journal",
+        "RequiresRecovery": true,
+        "Error": "InvalidDataException: Length"
+      }
+    ],
+    "Scope": "Shared format validation and mirrored bounded Windows framing, not native Windows consumption or production Catalog validation"
+  },
+  "internal_expected_byte_projection": {
+    "Containers": [
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-d539cef59fe14a21b74868e0c3e74fed.incomplete",
+        "Verified": false,
+        "Error": "FileNotFoundException: required metadata absent"
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-dd46c616b60b4e8199c805407f348895.incomplete",
+        "Verified": true,
+        "Error": null
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-8949724f1a6d4bc79bc1db2baeec8d27.incomplete",
+        "Verified": false,
+        "Error": "InvalidDataException: Payload mismatch"
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-14a56d834d1f48e2a9b786a5af2bc4b8.incomplete",
+        "Verified": false,
+        "Error": "JsonException: Expected end of string, but instead reached end of data. Path: $ | LineNumber: 0 | BytePositionInLine: 20."
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-eb5d744210d5482686ad533270bbd0af.incomplete",
+        "Verified": false,
+        "Error": "InvalidDataException: Payload mismatch"
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-616a676374b74823b54b842c7b3f9334.incomplete",
+        "Verified": false,
+        "Error": "FileNotFoundException: required metadata absent"
+      },
+      {
+        "Container": "LightflowCatalog-User-v1-20261010T230000Z-b9c5dd1fd39c4b539e69bd0fa114c7d9.incomplete",
+        "Verified": false,
+        "Error": "FileNotFoundException: required metadata absent"
+      }
+    ],
+    "Journals": [
+      {
+        "Journal": "torn.journal",
+        "RequiresRecovery": true,
+        "Error": "EndOfStreamException: Unable to read beyond the end of the stream."
+      },
+      {
+        "Journal": "interrupted.journal",
+        "RequiresRecovery": true,
+        "Error": null
+      }
+    ],
+    "Scope": "Shared format validation and mirrored bounded Windows framing, not native Windows consumption or production Catalog validation"
+  },
+  "local_APFS_publication": {
+    "results": [
+      {
+        "source": "stage",
+        "target": "published",
+        "flags": 4,
+        "return": 0,
+        "errno": 0
+      },
+      {
+        "source": "collision-stage",
+        "target": "published",
+        "flags": 4,
+        "return": -1,
+        "errno": 17
+      },
+      {
+        "source": "file-stage",
+        "target": "file-published",
+        "flags": 4,
+        "return": 0,
+        "errno": 0
+      },
+      {
+        "source": "file-existing",
+        "target": "file-published",
+        "flags": 4,
+        "return": -1,
+        "errno": 17
+      }
+    ],
+    "namespace_identity_preserved": true,
+    "collision_bytes_preserved": true,
+    "directory_fsync": 0,
+    "directory_fullfsync": 0,
+    "hardware_durability": "UNQUALIFIED"
+  },
+  "footprint": {
+    "objects": 99,
+    "allocated": 102760448,
+    "logical_regular": 415345,
+    "sidecars": 49
+  },
+  "links": [
+    {
+      "relative": "test-symlink",
+      "target": "exclusive.bin"
+    }
+  ],
+  "files": [
+    {
+      "relative": "._FINAL-MANIFEST.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._LightflowCatalog-User-v1-20261010T230000Z-14a56d834d1f48e2a9b786a5af2bc4b8.incomplete",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._LightflowCatalog-User-v1-20261010T230000Z-616a676374b74823b54b842c7b3f9334.incomplete",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._LightflowCatalog-User-v1-20261010T230000Z-8949724f1a6d4bc79bc1db2baeec8d27.incomplete",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._LightflowCatalog-User-v1-20261010T230000Z-b9c5dd1fd39c4b539e69bd0fa114c7d9.incomplete",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._LightflowCatalog-User-v1-20261010T230000Z-d539cef59fe14a21b74868e0c3e74fed.incomplete",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._LightflowCatalog-User-v1-20261010T230000Z-dd46c616b60b4e8199c805407f348895.incomplete",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._LightflowCatalog-User-v1-20261010T230000Z-eb5d744210d5482686ad533270bbd0af.incomplete",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._OWNERSHIP.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._exclusive-directory",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._exclusive.bin",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._interrupted.journal",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._lifecycle.db",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._lifecycle.db-shm",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._lifecycle.db-wal",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._managed-backup.db",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._managed-backup.db-shm",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._no-replace-directory",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._no-replace-file",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._renamed",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._replacement-old",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._restored-closed.db",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._swap-first",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._swap-second",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._test-symlink",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "._torn.journal",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "FINAL-MANIFEST.json",
+      "bytes": 25933,
+      "allocated": 1048576,
+      "sha256": "a77edc5e551e3e1c40944311bd9d0a9243a5c7d7fa9e31feee41f0c6aa858743"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-14a56d834d1f48e2a9b786a5af2bc4b8.incomplete/._catalog.snapshot",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-14a56d834d1f48e2a9b786a5af2bc4b8.incomplete/._manifest.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-14a56d834d1f48e2a9b786a5af2bc4b8.incomplete/._pending.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-14a56d834d1f48e2a9b786a5af2bc4b8.incomplete/._ready.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-14a56d834d1f48e2a9b786a5af2bc4b8.incomplete/catalog.snapshot",
+      "bytes": 16384,
+      "allocated": 1048576,
+      "sha256": "78de0a494a6574181b9f60e930c10de5a8916c7ee726cfd89798fad1d2eb2ba6"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-14a56d834d1f48e2a9b786a5af2bc4b8.incomplete/manifest.json",
+      "bytes": 20,
+      "allocated": 1048576,
+      "sha256": "39d517c3640a79b10be28b3ada153d8c4d87a52fdb11fc49653355557b6abbec"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-14a56d834d1f48e2a9b786a5af2bc4b8.incomplete/pending.json",
+      "bytes": 174,
+      "allocated": 1048576,
+      "sha256": "7d4e59cc163df27e0aa9303ee81bc8ce4fe5142e7a16ebb8ae67aaad91ac3df7"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-14a56d834d1f48e2a9b786a5af2bc4b8.incomplete/ready.json",
+      "bytes": 234,
+      "allocated": 1048576,
+      "sha256": "e18dae819b73c2b484519b560fade307433ffaf8c00ec58e6c1be8b5db7a43f4"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-616a676374b74823b54b842c7b3f9334.incomplete/._catalog.snapshot",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-616a676374b74823b54b842c7b3f9334.incomplete/._manifest.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-616a676374b74823b54b842c7b3f9334.incomplete/._pending.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-616a676374b74823b54b842c7b3f9334.incomplete/catalog.snapshot",
+      "bytes": 16384,
+      "allocated": 1048576,
+      "sha256": "78de0a494a6574181b9f60e930c10de5a8916c7ee726cfd89798fad1d2eb2ba6"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-616a676374b74823b54b842c7b3f9334.incomplete/manifest.json",
+      "bytes": 573,
+      "allocated": 1048576,
+      "sha256": "2a2033fb94ed1c014ae7336de7694ffa0830bcbbeee8aa03e9c0f8d142b8ed68"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-616a676374b74823b54b842c7b3f9334.incomplete/pending.json",
+      "bytes": 174,
+      "allocated": 1048576,
+      "sha256": "5127eff602c2d699326cc00335ab6d5abb2bb484d878595a164924ebbf8e5eb4"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-8949724f1a6d4bc79bc1db2baeec8d27.incomplete/._catalog.snapshot",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-8949724f1a6d4bc79bc1db2baeec8d27.incomplete/._manifest.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-8949724f1a6d4bc79bc1db2baeec8d27.incomplete/._pending.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-8949724f1a6d4bc79bc1db2baeec8d27.incomplete/._ready.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-8949724f1a6d4bc79bc1db2baeec8d27.incomplete/catalog.snapshot",
+      "bytes": 1024,
+      "allocated": 1048576,
+      "sha256": "f855cc33269715500ad2c1d6862ffa50ec58cb8f6a91291b13e104d7ecb7be44"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-8949724f1a6d4bc79bc1db2baeec8d27.incomplete/manifest.json",
+      "bytes": 573,
+      "allocated": 1048576,
+      "sha256": "ae7ad86f846d73aa55dc146c19a5acb394b7dd0e9f5298364fb1671f4a115b2c"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-8949724f1a6d4bc79bc1db2baeec8d27.incomplete/pending.json",
+      "bytes": 174,
+      "allocated": 1048576,
+      "sha256": "bd11ff50ab7ebb329658df2369d4b97dc9e99879615fbace8d518aac0557f683"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-8949724f1a6d4bc79bc1db2baeec8d27.incomplete/ready.json",
+      "bytes": 234,
+      "allocated": 1048576,
+      "sha256": "0a070a03beef694876b8935fdfaf6d15a54c7f41d749f44df3608ee02f5b616c"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-b9c5dd1fd39c4b539e69bd0fa114c7d9.incomplete/._catalog.snapshot",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-b9c5dd1fd39c4b539e69bd0fa114c7d9.incomplete/._pending.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-b9c5dd1fd39c4b539e69bd0fa114c7d9.incomplete/catalog.snapshot",
+      "bytes": 1024,
+      "allocated": 1048576,
+      "sha256": "f855cc33269715500ad2c1d6862ffa50ec58cb8f6a91291b13e104d7ecb7be44"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-b9c5dd1fd39c4b539e69bd0fa114c7d9.incomplete/pending.json",
+      "bytes": 174,
+      "allocated": 1048576,
+      "sha256": "ec0d983070a6864b3ef839e75db35179c691bbf1713bac33aea61bb7e88ddfd1"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-d539cef59fe14a21b74868e0c3e74fed.incomplete/._catalog.snapshot",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-d539cef59fe14a21b74868e0c3e74fed.incomplete/._pending.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-d539cef59fe14a21b74868e0c3e74fed.incomplete/catalog.snapshot",
+      "bytes": 1024,
+      "allocated": 1048576,
+      "sha256": "f855cc33269715500ad2c1d6862ffa50ec58cb8f6a91291b13e104d7ecb7be44"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-d539cef59fe14a21b74868e0c3e74fed.incomplete/pending.json",
+      "bytes": 174,
+      "allocated": 1048576,
+      "sha256": "086180ce7afc7f883e1884e72ecaa8ba64596426ccc6748080357ebfe6c5a171"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-dd46c616b60b4e8199c805407f348895.incomplete/._catalog.snapshot",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-dd46c616b60b4e8199c805407f348895.incomplete/._manifest.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-dd46c616b60b4e8199c805407f348895.incomplete/._pending.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-dd46c616b60b4e8199c805407f348895.incomplete/._ready.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-dd46c616b60b4e8199c805407f348895.incomplete/catalog.snapshot",
+      "bytes": 16384,
+      "allocated": 1048576,
+      "sha256": "78de0a494a6574181b9f60e930c10de5a8916c7ee726cfd89798fad1d2eb2ba6"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-dd46c616b60b4e8199c805407f348895.incomplete/manifest.json",
+      "bytes": 573,
+      "allocated": 1048576,
+      "sha256": "9674c9881d67df16d543981f28552db2825456ba655c6215d268e2de6984ef8f"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-dd46c616b60b4e8199c805407f348895.incomplete/pending.json",
+      "bytes": 174,
+      "allocated": 1048576,
+      "sha256": "b846d74bd6ffeca95f3a5dd0bd7376db7c5a6306ac8f0c2fa79df8362ce04014"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-dd46c616b60b4e8199c805407f348895.incomplete/ready.json",
+      "bytes": 234,
+      "allocated": 1048576,
+      "sha256": "8b4ea8bd438ef161b7a8e8b90f983cc968e1a650245f181b53b277c52c40c9e4"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-eb5d744210d5482686ad533270bbd0af.incomplete/._catalog.snapshot",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-eb5d744210d5482686ad533270bbd0af.incomplete/._manifest.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-eb5d744210d5482686ad533270bbd0af.incomplete/._pending.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-eb5d744210d5482686ad533270bbd0af.incomplete/._ready.json",
+      "bytes": 4096,
+      "allocated": 1048576,
+      "sha256": "9a269e55b8513ac8761d17a32b1099dd1db1c18a05d4ec792a29838b7b28957e"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-eb5d744210d5482686ad533270bbd0af.incomplete/catalog.snapshot",
+      "bytes": 16384,
+      "allocated": 1048576,
+      "sha256": "325b6ba11e3a040527ce7059bbd2c2300b09c41afbbce62a156b784a282ca1e0"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-eb5d744210d5482686ad533270bbd0af.incomplete/manifest.json",
+      "bytes": 573,
+      "allocated": 1048576,
+      "sha256": "bf97e9d30ed8f1c28dc7c4eeedd39eafd849802c4f1a82fcb7df69df9500f4a0"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-eb5d744210d5482686ad533270bbd0af.incomplete/pending.json",
+      "bytes": 174,
+      "allocated": 1048576,
+      "sha256": "0050f15d285b551886ab72b72cf2d6ee22755e5229b2bc9ae7c02e5fcd7fa7cb"
+    },
+    {
+      "relative": "LightflowCatalog-User-v1-20261010T230000Z-eb5d744210d5482686ad533270bbd0af.incomplete/ready.json",
+      "bytes": 234,
+      "allocated": 1048576,
+      "sha256": "3f9dc64a5588394017381058900f87180388c9fa494ab71354a182c651f19484"
+    },
+    {
+      "relative": "OWNERSHIP.json",
+      "bytes": 148,
+      "allocated": 1048576,
+      "sha256": "7d0eeb4c59305171e7700729dfae58305e2c62a2b44cb018e597fa1704c37a7e"
+    },
+    {
+      "relative": "exclusive.bin",
+      "bytes": 15,
+      "allocated": 1048576,
+      "sha256": "ac806b82c01f5d2f7fc2c1813d3c0946f92dba879a8a86a8c20092c53f91129f"
+    },
+    {
+      "relative": "interrupted.journal",
+      "bytes": 361,
+      "allocated": 1048576,
+      "sha256": "974528980fe709405e009954e706c898ccd9e7665661ba20fc7c28543bd611e2"
+    },
+    {
+      "relative": "lifecycle.db",
+      "bytes": 16384,
+      "allocated": 1048576,
+      "sha256": "852bbddfe67ffc268a2e85cfe8a43e26c5d0008e12a20ba47c65949c1191ff9b"
+    },
+    {
+      "relative": "lifecycle.db-shm",
+      "bytes": 32768,
+      "allocated": 1048576,
+      "sha256": "85d49a5a8cdfeebd7043a1076771a88258dadea4162258c2cd7c598d6ce7526a"
+    },
+    {
+      "relative": "lifecycle.db-wal",
+      "bytes": 0,
+      "allocated": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "relative": "managed-backup.db",
+      "bytes": 16384,
+      "allocated": 1048576,
+      "sha256": "862e7172f175f26894f7cf4a50e75262026dc4484806e187d05a89c2252be719"
+    },
+    {
+      "relative": "managed-backup.db-shm",
+      "bytes": 32768,
+      "allocated": 1048576,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "relative": "no-replace-file",
+      "bytes": 17,
+      "allocated": 1048576,
+      "sha256": "984b6b20c1550613e0863c8b1e3507c6e9479ca8b08f7dd1dcd57b24f30748fc"
+    },
+    {
+      "relative": "renamed",
+      "bytes": 18,
+      "allocated": 1048576,
+      "sha256": "bebc65b421eedb942e4f4b5bffef042a7fd47461d5bc31b7edbe919e6120e7a0"
+    },
+    {
+      "relative": "replacement-old",
+      "bytes": 20,
+      "allocated": 1048576,
+      "sha256": "f14e022340b9f70e7a74d79c7f7aa77d09054591294cec9d5571e074f171ce0b"
+    },
+    {
+      "relative": "restored-closed.db",
+      "bytes": 16384,
+      "allocated": 1048576,
+      "sha256": "862e7172f175f26894f7cf4a50e75262026dc4484806e187d05a89c2252be719"
+    },
+    {
+      "relative": "swap-first",
+      "bytes": 5,
+      "allocated": 1048576,
+      "sha256": "a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e"
+    },
+    {
+      "relative": "swap-second",
+      "bytes": 6,
+      "allocated": 1048576,
+      "sha256": "16367aacb67a4a017c8da8ab95682ccb390863780f7114dda0a0e0c55644c7c4"
+    },
+    {
+      "relative": "torn.journal",
+      "bytes": 356,
+      "allocated": 1048576,
+      "sha256": "0618d21a476061cde90867efeb2e91b4c3dcb0de65efe5387541dc8129d2666a"
+    }
+  ],
+  "cleanup": {
+    "root_holders_empty": true,
+    "agent007_holders_empty": true,
+    "native_anchors": [
+      0,
+      1,
+      0
+    ]
+  },
+  "validation": {
+    "neutral": {
+      "passed": 136,
+      "failed": 0,
+      "skipped": 0
+    },
+    "native": {
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0
+    },
+    "native_host_checks": 52,
+    "format_probe_build_warnings": 0,
+    "format_probe_build_errors": 0
+  },
+  "unsupported_claims": [
+    "No production schema/provider/Mac-host integration",
+    "No successful physical accepted-format publication",
+    "No Windows native consumption of new fixtures",
+    "No hardware interruption/power-loss durability",
+    "No qualified common cross-platform active filesystem",
+    "No support-policy change"
+  ]
+}

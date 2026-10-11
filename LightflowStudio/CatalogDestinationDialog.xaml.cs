@@ -7,37 +7,65 @@ namespace LightflowStudio;
 public partial class CatalogDestinationDialog : Window
 {
     private readonly bool _move;
-    internal CatalogDestinationDialog(string proposal, bool move)
+    internal CatalogDestinationDialog(string proposal, bool move, bool fromRecovery = false)
     {
         InitializeComponent();
         _move = move;
         Title = Heading.Text = move ? "Move Catalog" : "Create New Catalog";
         ActionButton.Content = Title;
         Description.Text = move
-            ? "Move the current Catalog to the exact location below. Lightflow will copy and validate it before switching. The original is retained as a recovery source."
-            : "Create an independent Catalog at the exact location below. Your previous Catalog and its files will be preserved.";
+            ? "Choose where to store your Catalog. Lightflow will copy and validate it before switching. The original is retained as a recovery source."
+            : fromRecovery ? "Create a new Catalog to continue."
+            : "Create a new Catalog at the location below.";
+        LocationLabel.Text = move ? "Destination parent folder" : "Lightflow Catalog Location";
+        MoveChildFields.Visibility = move ? Visibility.Visible : Visibility.Collapsed;
+        ChildName.Text = "Lightflow Catalog";
         Destination.Text = proposal;
         LocationHint.Text = move
-            ? "Enter a new directory within an existing folder. The location above is the exact resulting Catalog directory; no child folder will be added."
-            : "Select a safely empty folder or enter a new folder path. The location above is the exact resulting Catalog directory; no child folder will be added.";
+            ? "Choose a parent folder and a new Catalog folder name. The resulting folder must not already exist."
+            : "Choose an empty folder or enter a new folder location for your Catalog.";
+        UpdateFinalLocation();
         SourceInitialized += (_, _) => WindowAppearance.EnableDarkTitleBar(this);
     }
     internal string? SelectedDirectory { get; private set; }
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
-        var picker = new OpenFolderDialog { Title = "Select the exact resulting Catalog directory" };
+        var picker = new OpenFolderDialog { Title = _move ? "Choose the destination parent folder" : "Choose the new Catalog folder" };
         if (Directory.Exists(Destination.Text)) picker.InitialDirectory = Destination.Text;
-        if (picker.ShowDialog(this) == true) Destination.Text = picker.FolderName;
+        if (picker.ShowDialog(this) == true) SelectFolder(picker.FolderName);
+    }
+    internal void SelectFolder(string folder) => Destination.Text = folder;
+    private void Location_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e) => UpdateFinalLocation();
+    private string ResultingPath()
+    {
+        var parent = Destination.Text.Trim();
+        if (!Path.IsPathFullyQualified(parent)) throw new ArgumentException("Enter a complete folder path or use Browse.");
+        if (!_move) return Path.GetFullPath(parent);
+        var name = ChildName.Text.Trim();
+        if (string.IsNullOrEmpty(name) || name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.EndsWith('.') || name.EndsWith(' '))
+            throw new ArgumentException("Enter a single new Catalog folder name.");
+        return Path.GetFullPath(Path.Combine(parent, name));
+    }
+    private void UpdateFinalLocation()
+    {
+        if (FinalLocation is null || ChildName is null || Destination is null) return;
+        try { FinalLocation.Text = ResultingPath(); }
+        catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException)
+        { FinalLocation.Text = "Choose a parent folder and enter a new Catalog folder name."; }
+        SelectedDirectory = null;
+        if (ErrorText is not null) ErrorText.Text = "";
     }
     internal bool TryAccept()
     {
         try
         {
-            var path = Destination.Text.Trim();
-            if (!Path.IsPathFullyQualified(path)) throw new ArgumentException("Enter a complete directory path or use Browse.");
-            SelectedDirectory = Path.GetFullPath(path);
-            if (_move && (!Directory.Exists(Path.GetDirectoryName(SelectedDirectory)) || Directory.Exists(SelectedDirectory) || File.Exists(SelectedDirectory)))
-                throw new ArgumentException("Move Catalog needs a new directory within an existing folder. Enter the exact new directory path.");
+            SelectedDirectory = null;
+            var path = ResultingPath();
+            if (_move && !Directory.Exists(Path.GetDirectoryName(path)))
+                throw new ArgumentException("Choose an existing destination parent folder.");
+            if (_move && (Directory.Exists(path) || File.Exists(path)))
+                throw new ArgumentException("The resulting Catalog folder already exists. Choose another name or parent folder.");
+            SelectedDirectory = path;
             return true;
         }
         catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException)
@@ -45,9 +73,9 @@ public partial class CatalogDestinationDialog : Window
     }
     private void Accept_Click(object sender, RoutedEventArgs e)
     { if (TryAccept()) DialogResult = true; }
-    internal static string? Choose(Window owner, string proposal, bool move)
+    internal static string? Choose(Window owner, string proposal, bool move, bool fromRecovery = false)
     {
-        var dialog = new CatalogDestinationDialog(proposal, move) { Owner = owner };
+        var dialog = new CatalogDestinationDialog(proposal, move, fromRecovery) { Owner = owner };
         return dialog.ShowDialog() == true ? dialog.SelectedDirectory : null;
     }
 }

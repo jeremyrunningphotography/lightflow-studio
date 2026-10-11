@@ -121,6 +121,9 @@ public sealed class CatalogStartupGateTests
         await using var gate = new CatalogStartupGate(start, profile);
         Assert.False(gate.CanEnterWorkspace); Assert.True(gate.CanRetry);
         Assert.Equal(CatalogRecoveryReason.LocationUnavailable, start.RecoveryReason);
+        Assert.DoesNotContain("The Catalog folder is unavailable. The Catalog directory is unavailable.", start.Diagnostic);
+        Assert.DoesNotContain("exclusively", start.Diagnostic);
+        Assert.DoesNotContain("Another Lightflow", start.Diagnostic);
         Assert.Equal("Catalog unavailable", CatalogRecoveryPresentation.Create(start.Status, start.RecoveryReason, start.Diagnostic).Heading);
         await gate.RetryAsync(); Assert.False(gate.CanEnterWorkspace);
         Assert.False(File.Exists(Path.Combine(active, LightflowStorageLocations.CatalogFileName)));

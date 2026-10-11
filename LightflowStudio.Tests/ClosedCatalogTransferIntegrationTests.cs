@@ -21,6 +21,66 @@ public sealed class ClosedCatalogTransferIntegrationTests : IAsyncLifetime
     public Task DisposeAsync() { if (Directory.Exists(_root)) Directory.Delete(_root, true); return Task.CompletedTask; }
 
     [Fact]
+    public async Task MoveIntoAbsentChildOfEmptyParentRetainsAtomicPublicationAndReopensAuthoredCatalog()
+    {
+        var parent = Directory.CreateDirectory(Path.Combine(_root, "Selected empty parent")).FullName;
+        var destination = Path.Combine(parent, "Lightflow Catalog");
+        Guid id; byte[] backupHash; string backupName;
+        await using (var storage = (await LightflowStorageCoordinator.StartAsync(profile: Locations)).Coordinator!)
+        {
+            storage.SaveSettings(storage.Settings with { BackupCatalogOnClose = false });
+            id = storage.CatalogSession.Identity.CatalogId;
+            await storage.Collections.CreateCollectionAsync("Parent selection authored collection");
+            var backup = await new SqliteCatalogRecoveryService(Locations).CreateBackupAsync(storage.CatalogSession.DatabasePath, CatalogBackupKind.Recovery);
+            Assert.True(backup.Succeeded, backup.Diagnostic);
+            backupName = Path.GetFileName(backup.Backup!.Path);
+            backupHash = SHA256.HashData(await File.ReadAllBytesAsync(backup.Backup.Path));
+            Assert.Empty(Directory.EnumerateFileSystemEntries(parent));
+            var move = await storage.RelocateCatalogAsync(destination);
+            Assert.True(move.Succeeded, move.Diagnostic);
+            Assert.Equal(destination, storage.Locations.CatalogDirectory);
+            Assert.Equal(destination, Assert.Single(Directory.EnumerateDirectories(parent)));
+            Assert.False(Directory.Exists(Path.Combine(destination, "Catalog")));
+            Assert.False(Directory.Exists(Path.Combine(destination, "Lightflow Catalog")));
+            var manifest = ClosedCatalogManifestFormat.Deserialize(await File.ReadAllBytesAsync(Path.Combine(destination, "manifest.json")));
+            Assert.Equal(ClosedCatalogPublicationMode.AtomicDirectory, manifest.PublicationMode);
+            Assert.Equal(id, manifest.CatalogId);
+            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(storage.CatalogSession.DatabasePath, "Catalog", false));
+            Assert.Equal(backupHash, SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(destination, "Backups", backupName))));
+            Assert.True(File.Exists(Locations.CatalogDatabasePath));
+        }
+        var reopened = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+        Assert.True(reopened.IsReady, reopened.Diagnostic);
+        await using var ready = reopened.Coordinator!;
+        Assert.Equal(destination, ready.Locations.CatalogDirectory);
+        Assert.Equal(id, ready.CatalogSession.Identity.CatalogId);
+        Assert.Equal("Parent selection authored collection", Assert.Single(await ready.Collections.ListCollectionsAsync()).Name);
+        Assert.Equal(backupHash, SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(destination, "Backups", backupName))));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExistingFinalChildRefusesWithoutChangingSourceOrDestination(bool foreignFile)
+    {
+        await using var storage = (await LightflowStorageCoordinator.StartAsync(profile: Locations)).Coordinator!;
+        var source = storage.Locations.CatalogDirectory;
+        var id = storage.CatalogSession.Identity.CatalogId;
+        await storage.Collections.CreateCollectionAsync("Retained on collision");
+        var destination = Directory.CreateDirectory(Path.Combine(_root, "Parent", "Lightflow Catalog")).FullName;
+        var foreign = Path.Combine(destination, "foreign.txt");
+        if (foreignFile) await File.WriteAllTextAsync(foreign, "preserve these bytes");
+        var result = await storage.RelocateCatalogAsync(destination);
+        Assert.False(result.Succeeded); Assert.True(storage.VerifyWorkspaceReadiness());
+        Assert.Equal(source, storage.Locations.CatalogDirectory);
+        Assert.Equal(id, storage.CatalogSession.Identity.CatalogId);
+        Assert.Equal("Retained on collision", Assert.Single(await storage.Collections.ListCollectionsAsync()).Name);
+        Assert.False(File.Exists(Path.Combine(destination, LightflowStorageLocations.CatalogFileName)));
+        if (foreignFile) Assert.Equal("preserve these bytes", await File.ReadAllTextAsync(foreign));
+        else Assert.Empty(Directory.EnumerateFileSystemEntries(destination));
+    }
+
+    [Fact]
     public async Task NativeMovePreservesDatabaseManagedBackupsAndExternalLutReferences()
     {
         await using var storage = (await LightflowStorageCoordinator.StartAsync(profile: Locations)).Coordinator!;

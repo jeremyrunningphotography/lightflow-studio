@@ -68,7 +68,7 @@ internal sealed partial class LightflowStorageCoordinator
             if (SamePath(selected.CatalogDirectory, Locations.CatalogDirectory) && CatalogAvailable)
                 return new(true, CatalogSession.Identity.CatalogId, selected.CatalogDirectory, "This Catalog is already open.");
             if (!Directory.Exists(selected.CatalogDirectory) || !File.Exists(selected.CatalogDatabasePath))
-                return new(false, Diagnostic: "Select the existing Catalog directory itself, rather than its parent. The selection has not been created or replaced.", RecoveryReason: CatalogRecoveryReason.CatalogDirectoryRequired);
+                return new(false, Diagnostic: "Select the existing Catalog folder itself, rather than its parent. The selection has not been created or replaced.", RecoveryReason: CatalogRecoveryReason.CatalogDirectoryRequired);
             using var admission = new CatalogLocationAdmission(selected, StorageOperation.Open, _assessor);
             await admission.ValidateAsync(token).ConfigureAwait(false);
             var bound = admission.LocationsForUse();

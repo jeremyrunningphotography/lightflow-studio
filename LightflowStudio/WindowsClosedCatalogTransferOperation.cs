@@ -62,7 +62,7 @@ internal sealed class WindowsClosedCatalogTransferOperation : IClosedCatalogTran
         ClosedCatalogTransferJournal.RequireUnlinked(_destination);
         var moving = request.Mode == ClosedCatalogTransferMode.MoveAndActivate;
         if (moving && (Directory.Exists(_destination) || File.Exists(_destination)))
-            throw new IOException("Move Catalog requires a new destination directory within an existing folder. Enter the exact new directory path; no child folder will be added.");
+            throw new IOException("The resulting Catalog folder already exists. Choose another name or parent folder.");
         _sourceEvidence = await Assess(_sourceAssessor, _sourceDirectory, _sourceRole, null, token).ConfigureAwait(false);
         _destinationEvidence = await Assess(_destinationAssessor, _destination,
             moving || request.Mode == ClosedCatalogTransferMode.LocalCopyback ? StorageRole.ActiveCatalog : StorageRole.ClosedCatalogBackupTransfer, null, token).ConfigureAwait(false);

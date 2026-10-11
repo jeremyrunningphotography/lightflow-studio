@@ -26,7 +26,7 @@ public sealed class CatalogSettingsPresentationTests
         });
     }
     [Fact]
-    public async Task ExactDestinationDialogRendersAndAcceptsSelectedPathWithoutAppendingChild()
+    public async Task CreateExactFolderAndMoveParentShowTheirDistinctFinalPaths()
     {
         await StaDispatcher.RunAsync(() =>
         {
@@ -34,17 +34,115 @@ public sealed class CatalogSettingsPresentationTests
             var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "artifacts", "lf012-startup-gate-presentation"));
             foreach (var move in new[] { false, true })
             {
-                var exact = Path.Combine(root, "chosen", "Catalog");
+                var exact = Path.Combine(root, Guid.NewGuid().ToString("N"), "Catalog");
                 Directory.CreateDirectory(Path.GetDirectoryName(exact)!);
-                var dialog = new CatalogDestinationDialog(exact, move) { ShowActivated = false, ShowInTaskbar = false };
+                var dialog = new CatalogDestinationDialog(move ? Path.GetDirectoryName(exact)! : exact, move) { ShowActivated = false, ShowInTaskbar = false };
                 try
                 {
                     dialog.Show(); dialog.UpdateLayout();
-                    Assert.Equal(exact, dialog.Destination.Text);
+                    if (move)
+                    {
+                        Assert.Equal("Lightflow Catalog", dialog.ChildName.Text);
+                        dialog.SelectFolder(Path.GetDirectoryName(exact)!);
+                        Assert.Equal(Path.Combine(Path.GetDirectoryName(exact)!, "Lightflow Catalog"), dialog.FinalLocation.Text);
+                        dialog.ChildName.Text = "Catalog";
+                        Assert.Equal(exact, dialog.FinalLocation.Text);
+                        Assert.Equal("Destination parent folder", dialog.LocationLabel.Text);
+                    }
+                    else Assert.Equal(exact, dialog.Destination.Text);
                     Assert.True(dialog.TryAccept()); Assert.Equal(exact, dialog.SelectedDirectory);
                     Assert.False(Directory.Exists(exact));
                     Assert.Equal(move ? "Move Catalog" : "Create New Catalog", dialog.ActionButton.Content);
+                    dialog.UpdateLayout();
                     Capture(dialog, Path.Combine(root, move ? "exact-move.png" : "exact-create.png"));
+                    if (move)
+                    {
+                        Directory.CreateDirectory(exact);
+                        Assert.False(dialog.TryAccept()); Assert.Null(dialog.SelectedDirectory);
+                        Assert.Contains("already exists", dialog.ErrorText.Text);
+                        Assert.Empty(Directory.EnumerateFileSystemEntries(exact));
+                        dialog.UpdateLayout(); Capture(dialog, Path.Combine(root, "move-child-collision.png"));
+                        dialog.ChildName.Text = "Other Catalog";
+                        Assert.True(dialog.TryAccept());
+                        Assert.Equal(dialog.FinalLocation.Text, dialog.SelectedDirectory);
+                        Assert.False(Directory.Exists(dialog.SelectedDirectory));
+                        dialog.UpdateLayout(); Capture(dialog, Path.Combine(root, "move-renamed-child.png"));
+                        var file = Path.Combine(Path.GetDirectoryName(exact)!, "File child");
+                        File.WriteAllText(file, "Retained foreign bytes");
+                        dialog.ChildName.Text = "File child";
+                        Assert.False(dialog.TryAccept()); Assert.Null(dialog.SelectedDirectory);
+                        Assert.Equal("Retained foreign bytes", File.ReadAllText(file));
+                        dialog.ChildName.Text = "../escape";
+                        Assert.False(dialog.TryAccept()); Assert.Null(dialog.SelectedDirectory);
+                    }
+                }
+                finally { dialog.Close(); }
+            }
+            return Task.CompletedTask;
+        });
+    }
+    [Fact]
+    public async Task ActualMissingGateRefreshesFailureReasonAndTroubleshootingAfterSelectionAndRetry()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "artifacts", "lf012-startup-gate-presentation"));
+            var profile = ApplicationDataProfile.Resolve(["--data-root", Path.Combine(root, Guid.NewGuid().ToString("N"))]);
+            ApplicationDataProfile.Initialize(profile);
+            var missing = Path.Combine(profile.ApplicationDataDirectory, "Missing previous Catalog");
+            AppSettingsStore.Save(profile.SettingsPath, new() { CatalogDirectory = missing, CatalogId = Guid.NewGuid() }, isolated: true);
+            var start = await LightflowStorageCoordinator.StartAsync(profile: profile);
+            await using var gate = new CatalogStartupGate(start, profile);
+            var dialog = new CatalogSetupDialog(gate, profile) { ShowActivated = false, ShowInTaskbar = false };
+            try
+            {
+                dialog.Show(); dialog.GateDetails.IsExpanded = true; dialog.UpdateLayout();
+                Assert.Equal("Catalog unavailable", dialog.GateHeading.Text);
+                Assert.Contains("Failure category: LocationUnavailable", dialog.GateDiagnostic.Text);
+                Assert.DoesNotContain("exclusively", dialog.GateDiagnostic.Text);
+                Assert.DoesNotContain("Another Lightflow", dialog.GateDiagnostic.Text);
+                Capture(dialog, Path.Combine(root, "actual-missing-troubleshooting.png"));
+                var emptySelection = Directory.CreateDirectory(Path.Combine(profile.ApplicationDataDirectory, "Selected empty folder")).FullName;
+                await gate.OpenAsync(emptySelection);
+                dialog.RefreshPresentation();
+                Assert.Equal(CatalogRecoveryReason.CatalogDirectoryRequired, gate.Current.RecoveryReason);
+                Assert.Equal("Select an existing Catalog", dialog.GateHeading.Text);
+                Assert.Same(dialog.FindResource("TextBrush"), dialog.GateHeading.Foreground);
+                Assert.Equal("Lightflow Catalog Location", dialog.GateLocationLabel.Text);
+                Assert.Contains("Failure category: CatalogDirectoryRequired", dialog.GateDiagnostic.Text);
+                Assert.False(dialog.GateDetails.IsExpanded);
+                await gate.RetryAsync(); dialog.RefreshPresentation();
+                Assert.Equal("Catalog unavailable", dialog.GateHeading.Text);
+                Assert.Same(dialog.FindResource("RedBrush"), dialog.GateHeading.Foreground);
+                Assert.Equal(missing, dialog.NewLocation.Text);
+                Assert.Equal("Expected Lightflow Catalog Location", dialog.GateLocationLabel.Text);
+                Assert.DoesNotContain("CatalogDirectoryRequired", dialog.GateDiagnostic.Text);
+                Assert.False(File.Exists(Path.Combine(missing, LightflowStorageLocations.CatalogFileName)));
+                Assert.False(File.Exists(profile.CatalogDatabasePath));
+            }
+            finally { dialog.Close(); }
+        });
+    }
+    [Fact]
+    public async Task CreateCopyMatchesRecoveryContextWithoutClaimingPriorFilesAccessible()
+    {
+        await StaDispatcher.RunAsync(() =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "artifacts", "lf012-startup-gate-presentation"));
+            foreach (var recovery in new[] { false, true })
+            {
+                var dialog = new CatalogDestinationDialog(Path.Combine(root, "New Catalog"), false, recovery) { ShowActivated = false, ShowInTaskbar = false };
+                try
+                {
+                    dialog.Show(); dialog.UpdateLayout();
+                    Assert.Equal(recovery ? "Create a new Catalog to continue." : "Create a new Catalog at the location below.", dialog.Description.Text);
+                    Assert.DoesNotContain("preserved", dialog.Description.Text);
+                    Assert.DoesNotContain("independent", dialog.Description.Text);
+                    Assert.Equal("Choose an empty folder or enter a new folder location for your Catalog.", dialog.LocationHint.Text);
+                    Assert.Equal(Visibility.Collapsed, dialog.MoveChildFields.Visibility);
+                    Capture(dialog, Path.Combine(root, recovery ? "create-recovery.png" : "create-context-healthy.png"));
                 }
                 finally { dialog.Close(); }
             }
@@ -103,11 +201,21 @@ public sealed class CatalogSettingsPresentationTests
                     Assert.Equal(Visibility.Visible, dialog.GateRetryButton.Visibility);
                     Assert.False(dialog.GateDetails.IsExpanded);
                     Assert.Contains("Retained technical", dialog.GateDiagnostic.Text);
+                    Assert.Contains("Failure category: " + reason, dialog.GateDiagnostic.Text);
+                    Assert.Contains("Expected path: " + gate.DisplayCatalogDirectory, dialog.GateDiagnostic.Text);
+                    Assert.Equal(reason == CatalogRecoveryReason.LocationUnavailable ? "Expected Lightflow Catalog Location" : "Lightflow Catalog Location", dialog.GateLocationLabel.Text);
+                    if (reason == CatalogRecoveryReason.LocationUnavailable)
+                    {
+                        Assert.Same(dialog.FindResource("RedBrush"), dialog.GateHeading.Foreground);
+                        Assert.Equal("Open an existing Lightflow Catalog or create a new one to continue.", dialog.GateAssurance.Text);
+                    }
                     Assert.DoesNotContain("ownership", dialog.GateHeading.Text, StringComparison.OrdinalIgnoreCase);
                     Assert.DoesNotContain("Browser", dialog.GateDescription.Text);
                     if (status == StorageStartupStatus.CatalogCorrupt)
                         Assert.Equal("This Catalog is damaged and could not be opened. Your Catalog files have been preserved.", dialog.GateDescription.Text);
                     Capture(dialog, Path.Combine(root, "recovery-" + reason + (status == StorageStartupStatus.CatalogCorrupt ? "-corrupt" : "") + ".png"));
+                    if (reason == CatalogRecoveryReason.LocationUnavailable)
+                    { dialog.GateDetails.IsExpanded = true; dialog.UpdateLayout(); Capture(dialog, Path.Combine(root, "missing-troubleshooting.png")); }
                 }
                 finally { dialog.Close(); }
             }

@@ -7,11 +7,17 @@
   <StackPanel>
    <TextBlock x:Name="Heading" Style="{StaticResource PageTitle}"/>
    <TextBlock x:Name="Description" Margin="0,10,0,16" TextWrapping="Wrap"/>
-   <TextBlock Text="Lightflow Catalog Location" Style="{StaticResource FieldLabel}"/>
+   <TextBlock x:Name="LocationLabel" Text="Lightflow Catalog Location" Style="{StaticResource FieldLabel}"/>
    <Grid Margin="0,6,0,8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-    <TextBox x:Name="Destination" VerticalContentAlignment="Center" TextWrapping="Wrap" MinHeight="54"/>
+    <TextBox x:Name="Destination" VerticalContentAlignment="Center" TextWrapping="Wrap" MinHeight="54" TextChanged="Location_Changed"/>
     <Button Grid.Column="1" Content="Browse…" Click="Browse_Click" Margin="8,0,0,0"/>
    </Grid>
+   <StackPanel x:Name="MoveChildFields" Visibility="Collapsed">
+    <TextBlock Text="New Catalog folder name" Style="{StaticResource FieldLabel}"/>
+    <TextBox x:Name="ChildName" Margin="0,6,0,12" TextChanged="Location_Changed"/>
+    <TextBlock Text="Resulting Lightflow Catalog Location" Style="{StaticResource FieldLabel}"/>
+    <TextBlock x:Name="FinalLocation" Margin="0,6,0,12" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
+   </StackPanel>
    <TextBlock x:Name="LocationHint" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"/>
    <TextBlock x:Name="ErrorText" Margin="0,8,0,0" TextWrapping="Wrap"/>
    <StackPanel Margin="0,16,0,0" Orientation="Horizontal" HorizontalAlignment="Right">

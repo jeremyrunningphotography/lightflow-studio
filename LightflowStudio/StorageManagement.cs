@@ -334,7 +334,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                 throw new CatalogLocationAdmissionException((presentationReason == CatalogRecoveryReason.CompetingOwner
                     ? "Another Lightflow Studio session is using this Catalog. "
                     : presentationReason is CatalogRecoveryReason.LocationUnavailable or CatalogRecoveryReason.InitialLocationUnavailable
-                        ? "The Catalog folder is unavailable. " : "The Catalog could not be opened exclusively. ") + exception.Message,
+                        ? "" : "The Catalog could not be opened exclusively. ") + exception.Message,
                     StorageLocationReason.AssessmentFailed);
             }
             Guid? transferredIdentity;

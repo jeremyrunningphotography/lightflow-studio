@@ -8,7 +8,7 @@ public partial class MainWindow
     private void OpenExistingCatalog_Click(object sender, RoutedEventArgs e)
     {
         if (!CanRestartForCatalog()) return;
-        var directory = PickFolder("Select the existing Catalog directory", _storage.Locations.CatalogDirectory);
+        var directory = PickFolder("Select the existing Catalog folder", _storage.Locations.CatalogDirectory);
         if (directory is null) return;
         CatalogSelectionResult? selected = null;
         var operation = new CatalogOperationDialog("Validate existing Catalog", directory, async (token, _) =>

@@ -23,9 +23,12 @@ public partial class CatalogSetupDialog : Window
         var state = _gate.Current;
         var presentation = CatalogRecoveryPresentation.Create(state.Status, state.RecoveryReason, state.Diagnostic);
         GateHeading.Text = presentation.Heading; GateDescription.Text = presentation.Description;
+        var missing = state.RecoveryReason == CatalogRecoveryReason.LocationUnavailable;
+        GateHeading.Foreground = (System.Windows.Media.Brush)FindResource(missing ? "RedBrush" : "TextBrush");
+        GateLocationLabel.Text = missing ? "Expected Lightflow Catalog Location" : "Lightflow Catalog Location";
         NewLocation.Text = _gate.DisplayCatalogDirectory;
-        GateAssurance.Visibility = presentation.NoReplacementCreated ? Visibility.Visible : Visibility.Collapsed;
-        GateDiagnostic.Text = presentation.Diagnostic;
+        GateAssurance.Visibility = presentation.NoReplacementCreated && state.RecoveryReason != CatalogRecoveryReason.PendingRecovery ? Visibility.Visible : Visibility.Collapsed;
+        GateDiagnostic.Text = $"Failure category: {state.RecoveryReason}\nExpected path: {_gate.DisplayCatalogDirectory}\n{presentation.Diagnostic}".TrimEnd();
         GateDetails.IsExpanded = false;
         GateDetails.Visibility = presentation.Diagnostic.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         GateRetryButton.Visibility = _gate.CanRetry ? Visibility.Visible : Visibility.Collapsed;
@@ -45,13 +48,13 @@ public partial class CatalogSetupDialog : Window
     private async void Create_Click(object sender, RoutedEventArgs e)
     {
         var proposal = _gate.ProposedNewDirectory;
-        var directory = CatalogDestinationDialog.Choose(this, proposal, move: false);
+        var directory = CatalogDestinationDialog.Choose(this, proposal, move: false, fromRecovery: _gate.Current.Status != StorageStartupStatus.FirstRunChoiceRequired);
         if (directory is null) return;
         await RunAsync(token => _gate.CreateAsync(directory, token));
     }
     private async void Open_Click(object sender, RoutedEventArgs e)
     {
-        var picker = new OpenFolderDialog { Title = "Select the existing Catalog directory" };
+        var picker = new OpenFolderDialog { Title = "Select the existing Catalog folder" };
         if (picker.ShowDialog(this) != true) return;
         await RunAsync(token => _gate.OpenAsync(picker.FolderName, token));
     }

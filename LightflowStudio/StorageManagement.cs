@@ -323,7 +323,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             try
             {
                 catalogStartup = StartupStoreEvidence.Begin(locations.CatalogDatabasePath, "Catalog", create, startupCompletion,
-                    boundLocations.CatalogDatabasePath) ?? throw new DirectoryNotFoundException("The Catalog directory is unavailable.");
+                    boundLocations.CatalogDatabasePath) ?? throw new DirectoryNotFoundException("The Catalog folder is unavailable.");
             }
             catch (IOException exception)
             {

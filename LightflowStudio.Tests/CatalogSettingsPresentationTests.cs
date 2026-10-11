@@ -82,6 +82,39 @@ public sealed class CatalogSettingsPresentationTests
         });
     }
     [Fact]
+    public async Task FinalChildAppearingAfterDialogAcceptanceRefusesWithoutChangingEitherCatalog()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "artifacts", "lf012-parent-move-late-collision", Guid.NewGuid().ToString("N")));
+            var profile = ApplicationDataProfile.Resolve(["--data-root", root]);
+            var startup = await LightflowStorageCoordinator.StartAsync(profile: profile);
+            Assert.True(startup.IsReady, startup.Diagnostic);
+            await using var storage = startup.Coordinator!;
+            await storage.Collections.CreateCollectionAsync("Retained after late collision");
+            var id = storage.CatalogSession.Identity.CatalogId;
+            var parent = Directory.CreateDirectory(Path.Combine(root, "Selected parent")).FullName;
+            var dialog = new CatalogDestinationDialog(parent, true);
+            Assert.True(dialog.TryAccept());
+            var final = dialog.SelectedDirectory!;
+            Assert.Equal(final, dialog.FinalLocation.Text);
+            Directory.CreateDirectory(final);
+            var foreign = Path.Combine(final, "foreign.txt");
+            await File.WriteAllTextAsync(foreign, "Retained foreign bytes");
+            var move = await storage.RelocateCatalogAsync(final);
+            Assert.False(move.Succeeded);
+            Assert.Equal("The resulting Catalog folder already exists. Choose another name or parent folder.", move.Diagnostic);
+            Assert.True(storage.VerifyWorkspaceReadiness());
+            Assert.Equal(profile.CatalogDirectory, storage.Locations.CatalogDirectory);
+            Assert.Equal(id, storage.CatalogSession.Identity.CatalogId);
+            Assert.Equal("Retained after late collision", Assert.Single(await storage.Collections.ListCollectionsAsync()).Name);
+            Assert.Equal("Retained foreign bytes", await File.ReadAllTextAsync(foreign));
+            Assert.False(File.Exists(Path.Combine(final, LightflowStorageLocations.CatalogFileName)));
+        });
+    }
+
+    [Fact]
     public async Task ActualMissingGateRefreshesFailureReasonAndTroubleshootingAfterSelectionAndRetry()
     {
         await StaDispatcher.RunAsync(async () =>

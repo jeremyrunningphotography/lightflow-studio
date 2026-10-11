@@ -17,7 +17,7 @@ internal sealed partial class LightflowStorageCoordinator
             if (SamePath(Locations.CatalogDirectory, destination.CatalogDirectory))
                 return new(StorageChangeStatus.EquivalentLocation, "That is already the active Catalog location.");
             if (Directory.Exists(destination.CatalogDirectory) || File.Exists(destination.CatalogDirectory))
-                return new(StorageChangeStatus.ConflictingCatalog, "Choose an unused Catalog directory; existing folders and Catalogs are retained.");
+                return new(StorageChangeStatus.ConflictingCatalog, "The resulting Catalog folder already exists. Choose another name or parent folder.");
         }
         catch (Exception e) when (e is IOException or ArgumentException or UnauthorizedAccessException or NotSupportedException)
         { return new(StorageChangeStatus.InvalidDestination, e.Message); }

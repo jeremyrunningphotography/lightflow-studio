@@ -52,7 +52,7 @@ public partial class CatalogOperationDialog : Window
                 _running = false; Progress.Visibility = CancelButton.Visibility = Visibility.Collapsed;
                 CloseButton.Visibility = Visibility.Visible; _cancellation.Dispose();
                 if (CompletedSuccessfully && CloseOnSuccess)
-                    Dispatcher.BeginInvoke(new Action(() => { if (IsVisible) Close(); }));
+                    _ = Dispatcher.BeginInvoke(new Action(() => { if (IsVisible) Close(); }));
             }
         };
     }

@@ -3,10 +3,11 @@ using System.Text.Json;
 using LightflowStudio;
 using Lightflow.Application;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace LightflowStudio.Tests;
 
-public sealed class CatalogOwnershipProcessTests
+public sealed class CatalogOwnershipProcessTests(ITestOutputHelper output)
 {
     [Theory]
     [InlineData(ClosedCatalogTransferState.Activating)]
@@ -37,6 +38,22 @@ public sealed class CatalogOwnershipProcessTests
         finally { if (!child.HasExited) { child.Kill(entireProcessTree: true); await child.WaitForExitAsync(); } }
         var profile = ApplicationDataProfile.Resolve(["--data-root", inner]);
         var restart = await LightflowStorageCoordinator.StartAsync(profile: profile, allowFirstCreation: false);
+        output.WriteLine("Interrupted boundary: {0}; child pid: {1}; restart status: {2}; reason: {3}",
+            boundary, paused.ProcessId, restart.Status, restart.RecoveryReason);
+        output.WriteLine("Full restart diagnostic: {0}", restart.Diagnostic);
+        if (restart.Diagnostic?.Contains("interrupted Catalog transfer", StringComparison.OrdinalIgnoreCase) != true)
+        {
+            // Collect evidence only after refusal. Never retry startup or change its result.
+            try
+            {
+                var journal = Directory.GetFiles(ClosedCatalogTransferJournal.DirectoryPath(profile), "*.journal").Single();
+                output.WriteLine("Retained journal: {0}; bytes: {1}", journal, new FileInfo(journal).Length);
+                var observed = ClosedCatalogTransferJournal.Read(journal);
+                output.WriteLine("Diagnostic read only: {0} records; final state {1}; intent {2}",
+                    observed.Count, observed.LastOrDefault()?.State, observed.LastOrDefault()?.IsIntent);
+            }
+            catch (Exception diagnosticError) { output.WriteLine("Diagnostic journal read: {0}", diagnosticError); }
+        }
         Assert.False(restart.IsReady);
         Assert.Equal(CatalogRecoveryReason.PendingRecovery, restart.RecoveryReason);
         Assert.Contains("interrupted Catalog transfer", restart.Diagnostic!, StringComparison.OrdinalIgnoreCase);

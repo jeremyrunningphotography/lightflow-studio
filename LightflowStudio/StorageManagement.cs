@@ -461,6 +461,10 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             // to publish a new Catalog observation after this snapshot boundary reopens.
             if (_catalogSession is null) return new(false, Diagnostic:
                 $"Catalog backup: stage=CatalogStartupAdmission; operationId={operationId:N}; The Catalog is unavailable.");
+            // Keep an owned SQLite scope checked out through native source revalidation.
+            // Pool retirement must not close the last connection and delete WAL sidecars
+            // between the assessor's attributes and native identity observations.
+            using var sourceScope = _catalogSession.OpenConnection();
             var result = await new SqliteCatalogRecoveryService(Locations).CreateUserBackupAsync(
                 _catalogSession.ResolvedDatabasePath, destination, _catalogSession.Identity.CatalogId,
                 _catalogSession.SchemaVersion, progress, cancellationToken, diagnosticOperationId: operationId).ConfigureAwait(false);
@@ -491,6 +495,8 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
 
     public async Task<CatalogRestoreResult> RestoreCatalogAsync(string backupPath, CancellationToken cancellationToken = default)
     {
+        var transferRecovery = ClosedCatalogTransferJournal.InspectPending(Locations);
+        if (transferRecovery is not null) return new(false, transferRecovery);
         if (_recovery is SqliteCatalogRecoveryService transportRecovery)
         {
             try { backupPath = await transportRecovery.PrepareRecoveryInputAsync(backupPath, cancellationToken).ConfigureAwait(false); }

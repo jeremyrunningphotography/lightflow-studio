@@ -43,6 +43,9 @@ public sealed class CatalogOwnershipProcessTests
         {
             Assert.False(unavailable.CatalogAvailable);
             await Assert.ThrowsAsync<InvalidOperationException>(() => unavailable.Collections.CreateCollectionAsync("Blocked callback"));
+            var refusedRestore = await unavailable.RestoreCatalogAsync(Path.Combine(inner, "unselected-backup.db"));
+            Assert.False(refusedRestore.Succeeded);
+            Assert.Contains("interrupted Catalog transfer", refusedRestore.Diagnostic!, StringComparison.OrdinalIgnoreCase);
         }
         foreach (var database in new[] { profile.CatalogDatabasePath, Path.Combine(destination, LightflowStorageLocations.CatalogFileName) })
         {

@@ -55,3 +55,7 @@ Acceptance startup command (fresh task-owned root):
 ```
 
 #412 stays Open / Review at Draft PR handoff, #393 stays incomplete, and parent/dependencies/Area/Priority remain unchanged. No merge or release is authorized.
+
+Final validation follow-up: the retained local `lf012-final-head-full-release.trx` had 2,835 passes, one cleanup timing failure, and two existing skips. The cleanup test now completes fresh Catalog fixture startup before its unchanged five-second assertion/disposal deadline and logs both intervals (focused: 429.2 ms setup, 29.1 ms cleanup). No cleanup assertion was removed. `lf012-cleanup-transfer-guard.trx` passed all 65 tests.
+
+Pending transfer journals now veto manual restore before backup preparation or SQLite replacement, matching startup's existing veto; both real-process interruption cases assert this refusal. CI run 38109570472 retained two native sidecar admission failures (Win32 access denied) during measured-path backup. Parallel fixtures call global SQLite pool retirement. Backup now keeps an existing session's lease-validated SQLite connection checked out through native revalidation, preventing retirement of its last source connection during that interval; a regression explicitly retires pools while checking WAL retention and second-writer refusal. No SQLite policy or native admission predicate changes. Final focused/full/CI/package results remain pending.

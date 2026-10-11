@@ -1,9 +1,10 @@
 using Microsoft.Data.Sqlite;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace LightflowStudio.Tests;
 
-public sealed class CatalogExitBackupTests : IAsyncLifetime
+public sealed class CatalogExitBackupTests(ITestOutputHelper output) : IAsyncLifetime
 {
     private readonly string _root = CreateOwnedRoot();
     private LightflowStorageLocations Locations => LightflowStorageLocations.CreateAtRoot(_root) with { IsIsolated = true };
@@ -20,6 +21,28 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
         SqliteConnection.ClearAllPools();
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
         return Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task BackupRetainsOwnedSqliteScopeThroughPoolRetirement()
+    {
+        var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+        Assert.True(startup.IsReady, startup.Diagnostic);
+        await using var storage = startup.Coordinator!;
+        await storage.Collections.CreateSetAsync("Retained through pool retirement");
+        var observed = false;
+        var progress = new InlineProgress(message =>
+        {
+            if (!message.StartsWith("Copying the closed")) return;
+            SqliteConnection.ClearAllPools();
+            Assert.True(File.Exists(Locations.CatalogDatabasePath + "-wal"));
+            Assert.ThrowsAny<IOException>(() => StartupStoreEvidence.Begin(Locations.CatalogDatabasePath, "Catalog", false));
+            observed = true;
+        });
+        var result = await storage.BackupForExitAsync(storage.BackupDirectory, false, progress);
+        Assert.True(observed);
+        Assert.True(result.Succeeded, result.Diagnostic);
+        Assert.Single(await storage.Collections.ListSetsAsync());
     }
 
     [Fact]
@@ -515,18 +538,24 @@ public sealed class CatalogExitBackupTests : IAsyncLifetime
     [Fact]
     public async Task ControlledMutationCleanupPreservesEarlierAssertionFailure()
     {
+        // This bounds failure cleanup, not fresh schema creation under full-suite load.
+        // Complete fixture setup before starting the unchanged five-second cleanup deadline.
+        var setup = System.Diagnostics.Stopwatch.StartNew();
+        var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
+        Assert.True(startup.IsReady, startup.Diagnostic);
+        output.WriteLine("Catalog fixture startup: " + setup.Elapsed.TotalMilliseconds.ToString("F1") + " ms");
         async Task FailBeforeRelease()
         {
-            var startup = await LightflowStorageCoordinator.StartAsync(profile: Locations);
-            Assert.True(startup.IsReady, startup.Diagnostic);
             await using var storage = startup.Coordinator!;
             using var finish = new ControlledMutationSignal();
             var admitted = storage.Mutations.RunAsync(() => finish.Task);
             Assert.False(admitted.IsCompleted);
             Assert.True(false, "Controlled assertion before signal release");
         }
+        var cleanup = System.Diagnostics.Stopwatch.StartNew();
         var error = await Assert.ThrowsAsync<Xunit.Sdk.TrueException>(
             () => FailBeforeRelease().WaitAsync(TimeSpan.FromSeconds(5)));
+        output.WriteLine("Controlled assertion and cleanup: " + cleanup.Elapsed.TotalMilliseconds.ToString("F1") + " ms");
         Assert.Contains("Controlled assertion before signal release", error.Message);
     }
 

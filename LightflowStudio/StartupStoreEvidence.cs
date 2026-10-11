@@ -22,6 +22,7 @@ internal sealed class StartupStoreEvidence : IDisposable
     private readonly string _configuredDatabase;
     private readonly string _store;
     private bool _completed;
+    private bool _currentValidated;
     internal bool Completed => _completed;
     private readonly StartupSessionCompletion? _session;
     internal bool KnownClean { get; private set; }
@@ -35,7 +36,9 @@ internal sealed class StartupStoreEvidence : IDisposable
     internal void MarkValidated()
     {
         RequireOwnership(_database);
+        if (_currentValidated) return;
         Write(new(Format, "Validated", _store, _configuredDatabase, null, _session?.Current));
+        _currentValidated = true;
     }
     internal void RequireOwnership(string database)
     {
@@ -78,6 +81,7 @@ internal sealed class StartupStoreEvidence : IDisposable
         // An interrupted reopen must not turn authored bytes back into a closed snapshot.
         Write(new(Format, HadValidatedCatalog ? "Validated" : "Dirty", _store, _configuredDatabase, null,
             session?.Current ?? (HadValidatedCatalog ? Guid.NewGuid().ToString("N") : null)));
+        _currentValidated = HadValidatedCatalog;
     }
 
     internal static StartupStoreEvidence? Begin(string database, string store, bool createDirectory, StartupSessionCompletion? session = null,
@@ -106,6 +110,7 @@ internal sealed class StartupStoreEvidence : IDisposable
     internal void Complete(string currentDatabase)
     {
         if (_completed || !string.Equals(_database, Path.GetFullPath(currentDatabase), StringComparison.OrdinalIgnoreCase)) return;
+        if (_store == "Catalog") RequireOwnership(_database);
         using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
             { DataSource = _database, Mode = SqliteOpenMode.ReadWrite, Pooling = false }.ToString()))
         {

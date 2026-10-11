@@ -34,6 +34,10 @@ Expanded recovery/Preview/startup/selection/native qualification: `lf012-recover
 
 Final recovery terminal qualification: `lf012-recovery-terminal-final.trx`, **45 passed / 0 failed / 1 existing symlink skip**. Original raw diagnostic logs are preserved as [unsafe post-move baseline](../research/catalog-settings-412/post-move-unsafe-baseline.log) and [ordinary-startup control](../research/catalog-settings-412/ordinary-startup-control.log). The baseline's passing diagnostic demonstrates the unsafe original behavior; the corrected regressions require refusal.
 
+`lf012-integrity-diagnostic.trx`: **47 passed / 0 failed / 0 skipped**, including all measured backup/restore path boundaries, the unchanged cleanup deadline, ownership/process/selection/recovery and startup validation. Validation receipt writes are idempotent within an already validated lease, and clean-completion SQLite work also verifies Catalog ownership. The post-restore verifier retains its full integrity assertion and now includes the actual refusal diagnostic.
+
+The second local full run (`lf012-full-release-qualified.trx`) had 2,834 passes, two failures (measured-path live integrity and the controlled cleanup deadline), and two existing skips. Those failures did not reproduce in the focused diagnostic; the same committed head `8c1217c29921266db89e0468273256353e353074` passed the Windows CI suite, both neutral jobs and Mac adapter job in [38108771864](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/38108771864). The underlying transient causes are not claimed fixed. These results remain retained; final-head full/package validation is recorded separately in the PR handoff, without weakened assertions or writer-conflict retries.
+
 Rendered first-run and unavailable Settings surfaces were visually inspected at `artifacts\lf012-presentation\first-run.png` and `recovery-settings.png`; they reuse shared Lightflow resources, typography, explicit actions and dark dialog patterns. Owner packaged visual/functional acceptance remains pending.
 
 ## Limits and acceptance

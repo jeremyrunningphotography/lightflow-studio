@@ -47,7 +47,8 @@ internal sealed partial class LightflowStorageCoordinator
                 throw new IOException("Previous Catalog configuration could not be verified.");
         }
         catch (Exception rollback) when (rollback is IOException or UnauthorizedAccessException)
-        { return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: "Recovery required: Catalog selection and configuration rollback could not be proven. All Catalog artifacts are retained. " + diagnostic + " " + rollback.Message); }
+        { return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: "Recovery required: Catalog selection and configuration rollback could not be proven. All Catalog artifacts are retained. " + diagnostic + " " + rollback.Message,
+            RecoveryReason: CatalogRecoveryReason.PendingRecovery); }
         if (!resumePreviousCatalogOnFailure)
             return new(selected?.Status ?? StorageStartupStatus.CatalogUnreadable, Diagnostic: diagnostic,
                 RecoveryReason: selected?.RecoveryReason ?? CatalogRecoveryReason.ValidationFailed);

@@ -238,8 +238,15 @@ public sealed class CatalogSelectionTests
         if (rollbackFails)
         {
             Assert.Equal(StorageStartupStatus.InvalidConfiguration, selected.Status);
+            Assert.Equal(CatalogRecoveryReason.PendingRecovery, selected.RecoveryReason);
             Assert.Null(selected.Coordinator);
             Assert.Contains("Recovery required", selected.Diagnostic!);
+            await using var gate = new CatalogStartupGate(selected, Profile);
+            await gate.OpenAsync(candidateProfile.CatalogDirectory);
+            await gate.CreateAsync(Path.Combine(_root, "cannot-bypass-rollback"));
+            Assert.False(gate.CanEnterWorkspace);
+            Assert.Equal(CatalogRecoveryReason.PendingRecovery, gate.Current.RecoveryReason);
+            Assert.False(Directory.Exists(Path.Combine(_root, "cannot-bypass-rollback")));
         }
         else
         {

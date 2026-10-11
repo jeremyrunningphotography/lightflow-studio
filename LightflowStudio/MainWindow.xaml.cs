@@ -225,8 +225,8 @@ public partial class MainWindow : Window
         });
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
-        StartCatalogReadinessObservation();
         InitializeBrowserQuickFilterButtons();
+        StartCatalogReadinessObservation();
         SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
         OrientedPreviewImage.SetStore(this, _storage.VideoRotations);

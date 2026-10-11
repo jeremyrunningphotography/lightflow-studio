@@ -94,9 +94,12 @@ public sealed class CatalogStartupGateTests
         { id = storage.CatalogSession.Identity.CatalogId; await storage.Collections.CreateCollectionAsync("Incoming authored data"); }
         var start = await LightflowStorageCoordinator.StartAsync(profile: profile, allowFirstCreation: false);
         await using var gate = new CatalogStartupGate(start, profile);
-        await gate.OpenAsync(Path.Combine(profile.ApplicationDataDirectory, "missing"));
+        var missing = Path.Combine(profile.ApplicationDataDirectory, "missing");
+        await gate.OpenAsync(missing);
         Assert.False(gate.CanEnterWorkspace); Assert.False(File.Exists(profile.CatalogDatabasePath));
+        Assert.Equal(missing, gate.DisplayCatalogDirectory);
         await gate.OpenAsync(candidate.CatalogDirectory); Assert.True(gate.CanEnterWorkspace, gate.Current.Diagnostic);
+        Assert.Equal(candidate.CatalogDirectory, gate.DisplayCatalogDirectory);
         await using var ready = gate.TakeReady().Coordinator!;
         Assert.Equal(id, ready.CatalogSession.Identity.CatalogId); Assert.Single(await ready.Collections.ListCollectionsAsync());
         Assert.False(File.Exists(profile.CatalogDatabasePath));

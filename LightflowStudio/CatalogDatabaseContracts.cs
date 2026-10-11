@@ -95,13 +95,16 @@ internal sealed class CatalogDatabaseSession : IAsyncDisposable
     public CatalogRuntimePolicy RuntimePolicy { get; }
     internal CatalogMutationLifecycle Mutations { get; set; } = new();
     internal Action<string>? RequireOwnership { get; set; }
+    internal Action<string>? ReadinessFailed { get; set; }
 
     internal Microsoft.Data.Sqlite.SqliteConnection OpenConnection()
     {
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
         RequireOwnership?.Invoke(ResolvedDatabasePath);
         _connections.Publish();
-        return _connections.OpenConnection();
+        try { return _connections.OpenConnection(); }
+        catch (Microsoft.Data.Sqlite.SqliteException error) when (error.SqliteErrorCode is 10 or 11 or 14 or 26)
+        { ReadinessFailed?.Invoke(error.Message); throw; }
     }
 
     internal void CloseBeforeActivation() => _connections.CloseUnpublishedPool(CatalogStorageBoundary.AfterCatalogValidation_SQLiteClosed);

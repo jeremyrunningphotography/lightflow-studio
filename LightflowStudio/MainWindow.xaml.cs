@@ -169,10 +169,11 @@ public partial class MainWindow : Window
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
         string? storageDiagnostic, CatalogRecoveryReason recoveryReason = CatalogRecoveryReason.None)
     {
+        if (storageStartupStatus != StorageStartupStatus.Ready || !storage.VerifyWorkspaceReadiness())
+            throw new InvalidOperationException("A ready Catalog is required before constructing the workspace.");
         _storage = storage;
         _storageStartupStatus = storageStartupStatus;
         _storageDiagnostic = storageDiagnostic;
-        _catalogRecoveryReason = recoveryReason;
         _browserNavigation = new BrowserNavigationSession(storage.MediaRoots, storage.BrowserLocations,
             storage.MediaDiscovery, storage.MediaFolders, storage.BrowserRecursiveRoots, storage.RecursiveMediaDiscovery,
             storage.MediaAssets, storage.MediaTypes);
@@ -224,6 +225,7 @@ public partial class MainWindow : Window
         });
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
+        StartCatalogReadinessObservation();
         InitializeBrowserQuickFilterButtons();
         SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
@@ -287,6 +289,7 @@ public partial class MainWindow : Window
         _jobsWorkspaceSmokeTest = Environment.GetCommandLineArgs().Contains("--jobs-workspace-smoke-test", StringComparer.OrdinalIgnoreCase);
         Loaded += async (_, _) =>
         {
+            if (!EnsureCatalogWorkspace()) return;
             Task? presentation = null;
             try
             {
@@ -330,13 +333,7 @@ public partial class MainWindow : Window
                 _ = InitializeLutsAsync();
                 RefreshLuts();
                 // Settings usage is requested explicitly; startup must not census the Preview store.
-                if (_storageStartupStatus != StorageStartupStatus.Ready)
-                {
-                    ApplyCatalogRecoveryPresentation(_storageStartupStatus, _catalogRecoveryReason, _storageDiagnostic);
-                    MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Settings);
-                    SettingsCategoryList.SelectedIndex = 2;
-                }
-                else if (!_storage.PreviewAvailable)
+                if (!_storage.PreviewAvailable)
                     SettingsMessage.Text = _storage.PreviewDiagnostic;
                 else if (_storage.RecoveryDiagnostic is not null)
                     SettingsMessage.Text = _storage.RecoveryDiagnostic;
@@ -344,6 +341,10 @@ public partial class MainWindow : Window
             }
             catch (Exception exception)
             {
+                if (!_storage.VerifyWorkspaceReadiness())
+                {
+                    QueueCatalogRecovery(); _startupCompletion.TrySetResult(false); return;
+                }
                 _activityLogFile.TryAppend($"[App] Main window initialization failed: {exception}");
                 BrowserEmptyTitle.Text = "Storage locations could not be loaded";
                 BrowserEmptyMessage.Text = $"Lightflow remains available. Details were written to {_activityLogFile.Path}.";
@@ -2620,6 +2621,7 @@ public partial class MainWindow : Window
     /// <summary>Ctrl+F focuses the Browser search box, but only while the Browser workspace is showing an open, filterable location.</summary>
     private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (!EnsureCatalogWorkspace()) { e.Handled = true; return; }
         if (TryCaptureShortcut(e)) return;
         if (TryHandleShellShortcut(e)) { e.Handled = true; return; }
         // Resolve active local interaction per key before semantic/legacy Player dispatch.
@@ -3389,6 +3391,7 @@ public partial class MainWindow : Window
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!ReferenceEquals(e.Source, MainTabs)) return;
+        if (IsLoaded && !EnsureCatalogWorkspace()) return;
         if (MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Settings)) CancelShortcutCapture();
         if (IsLoaded && MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
         SyncBrowserStatusBarVisibility();
@@ -3427,8 +3430,10 @@ public partial class MainWindow : Window
     private void OpenAbout_Click(object sender, RoutedEventArgs e) =>
         MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.About);
 
-    private void UtilityBackToBrowser_Click(object sender, RoutedEventArgs e) =>
-        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home);
+    private void UtilityBackToBrowser_Click(object sender, RoutedEventArgs e)
+    {
+        if (EnsureCatalogWorkspace()) MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home);
+    }
 
     private void CompatibilityReviewBack_Click(object sender, RoutedEventArgs e) =>
         MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs);
@@ -6782,6 +6787,7 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
+        if (_catalogRecoveryRestarting) return; // Consumer teardown still runs in Closed; no writes through revoked storage.
         if (_catalogCloseDialogActive) { e.Cancel = true; return; }
         _playerViewerHost?.ExitFullscreen();
         if (!TryLeaveInspectorContext()) { e.Cancel = true; return; }

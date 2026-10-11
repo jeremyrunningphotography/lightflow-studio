@@ -1,3 +1,33 @@
+# Catalog startup gate and Settings implementation (#412)
+
+LF-WIN-DEV-012 continues in `C:\Git\Agents\LF-WIN-DEV-012-CatalogSettings`, branch `codex/412-catalog-settings-startup`, Draft PR #422. The owner-approved startup-gate section of [#412](https://github.com/jeremyrunningphotography/lightflow-studio/issues/412) supersedes the earlier Settings-based startup recovery UI. Renewed technical and packaged owner acceptance are required before merge.
+
+## Current behavior
+
+No Catalog, no workspace. One existing Lightflow-styled Catalog setup dialog handles first-run and every Catalog opening refusal. App does not construct the normal shell until storage is Ready and the authoritative ownership lease is live. First run offers Create New Catalog, Open Existing Catalog and Exit; remembered Catalog failures additionally offer Retry. Closing the gate closes admission, waits for any active operation to release its resources, and exits. Failed attempts remain in the gate. The splash closes before the gate appears.
+
+Approved headings distinguish missing location, actual competing native owner, unsupported storage, invalid Catalog, established corruption, pending recovery and other failures. The path is separate from the explanation; original diagnostics remain in collapsed Troubleshooting details. Established refusal states confirm no replacement Catalog was created. A failed selection displays the selected path; Retry displays the remembered path. Ordinary Settings has Lightflow Catalog Location, Move Catalog and Open Existing, without startup recovery controls.
+
+Retry reopens only the remembered path/identity with creation disabled. Open Existing runs the existing native admission, lease-before-SQLite, schema/integrity/identity validation and explicit identity confirmation, then activation and configuration readback; a failed selection cannot silently reopen the prior Catalog. Healthy Settings keeps the accepted controlled restart and consumer teardown.
+
+Explicit Create New delegates to the existing coordinator and creation lifecycle, generates a fresh identity, and requires native admission, lease, activation, validation and configuration commit before Ready. It proposes the default only when safe; otherwise an unused Lightflow Catalog child is proposed. Occupied locations, prior configured locations (including missing paths), reserved storage and native aliased overlap are refused. The sole empty Catalog/Backups boundary created by profile initialization is permitted only without files or any other children. Existing transfer journals veto Create and Open in that profile. Failed creation retains its recoverable artifacts, restores and verifies prior configuration where possible, and never implicitly activates prior storage; uncertain rollback remains blocked.
+
+Active readiness reuses StartupStoreEvidence. Loss of ownership or Catalog availability revokes authoring through the existing mutation/session admission, rejects Back to Browser and keyboard navigation, closes existing consumers, and uses the existing guarded restart to return to the gate. Startup callback completion rechecks readiness before revealing the workspace. No second Catalog writer/lifecycle or SQLite/schema/provider/durability/support-policy change is introduced. CatalogId, RootId, AssetId, authored data, mappings, LUT identities, transfer journals and retained copies retain their existing owners.
+
+## Current qualification and handoff
+
+Focused startup-gate, rendered WPF, selection, relocation, independent-process ownership, recovery, startup and shutdown qualification passes. Earlier UI/fixture failures are retained. First-run, all recovery messages (including established corruption), navigation rejection and healthy Settings are rendered on the required private desktop and visually inspected. Original unsafe writer evidence remains unchanged in [OWNERSHIP_GATE](../research/catalog-settings-412/OWNERSHIP_GATE.md) and its raw logs; corrected regressions must refuse the second writer.
+
+Final implementation-head full Release, exact-head CI, installer/portable qualification and refreshed local package provenance are recorded in Draft PR #422 and the issue handoff. Historical results below do not establish current-head acceptance. Required package refresh uses `Build-Release.ps1 -Mode PullRequest -SkipInstaller`; owner commands must name that fresh executable and exact task-owned isolated roots. No owner storage or media is used.
+
+Windows local NTFS qualification only. Active network and ExFAT Catalogs remain unsupported. Process interruption is not physical removal/power-loss qualification. Pending transfer journals deliberately block automatic resolution; artifacts remain retained for review. Mac production/UI and physical round trip remain separate #393/#406 gates. #412 remains Open/Review and PR #422 Draft/unmerged. Parent #271, Catalog Area, unset Priority and existing dependencies are unchanged; #393 remains incomplete. No merge, release, new issue or agent allocation is authorized.
+
+---
+
+# Historical implementation and qualification checkpoints
+
+The following retained record describes earlier heads and superseded presentation. The current startup-gate behavior above is authoritative.
+
 # Catalog Settings and startup implementation (#412)
 
 LF-WIN-DEV-012; task clone `C:\Git\Agents\LF-WIN-DEV-012-CatalogSettings`, branch `codex/412-catalog-settings-startup`. Jeremy authorized the bounded ownership correction on [#412](https://github.com/jeremyrunningphotography/lightflow-studio/issues/412#issuecomment-6104684233). The [original failing diagnostic](../research/catalog-settings-412/OWNERSHIP_GATE.md) remains historical evidence. This implementation requires renewed technical and owner packaged functional/visual acceptance before merge.

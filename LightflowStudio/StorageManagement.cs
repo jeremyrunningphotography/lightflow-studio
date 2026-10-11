@@ -86,14 +86,47 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                 RequireCatalogOwnership(value.ResolvedDatabasePath);
                 value.Mutations = Mutations;
                 value.RequireOwnership = RequireCatalogOwnership;
+                value.ReadinessFailed = LoseWorkspaceReadiness;
             }
             _session = value;
         }
     }
     private void RequireCatalogOwnership(string database)
     {
-        if (_catalogStartup is null) throw new IOException("Catalog ownership is unavailable. Authoring is blocked.");
-        _catalogStartup.RequireOwnership(database);
+        if (_workspaceReadinessLost) throw new IOException("Catalog readiness is unavailable. Authoring is blocked.");
+        try
+        {
+            if (_catalogStartup is null) throw new IOException("Catalog ownership is unavailable. Authoring is blocked.");
+            _catalogStartup.RequireOwnership(database);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ObjectDisposedException or System.ComponentModel.Win32Exception)
+        { LoseWorkspaceReadiness(error.Message); throw; }
+    }
+
+    private volatile bool _workspaceReadinessLost;
+    internal event Action? WorkspaceReadinessLost;
+    internal bool CatalogTransitionInProgress => _mutationGate.CurrentCount == 0;
+    internal bool VerifyWorkspaceReadiness()
+    {
+        if (!CatalogAvailable) return false;
+        try
+        {
+            RequireCatalogOwnership(_catalogSession!.ResolvedDatabasePath);
+            if (!File.Exists(_catalogSession.ResolvedDatabasePath))
+                throw new IOException("The active Catalog is unavailable. Its configured location has been retained.");
+            return true;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ObjectDisposedException or System.ComponentModel.Win32Exception)
+        { LoseWorkspaceReadiness(error.Message); return false; }
+    }
+    private void LoseWorkspaceReadiness(string diagnostic)
+    {
+        if (_workspaceReadinessLost) return;
+        _workspaceReadinessLost = true;
+        PreventCleanShutdown(); RecoveryDiagnostic = diagnostic;
+        Mutations.Dispose();
+        _shutdownAdmissionClosed = true;
+        WorkspaceReadinessLost?.Invoke();
     }
 
     private LightflowStorageCoordinator(IStorageConfigurationStore configuration, AppSettings settings,
@@ -151,7 +184,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
     public AppSettings Settings { get; private set; }
     public LightflowStorageLocations Locations { get; private set; }
     public CatalogDatabaseSession CatalogSession => _catalogSession ?? throw new InvalidOperationException("The Catalog is not open.");
-    public bool CatalogAvailable => _catalogSession is not null;
+    public bool CatalogAvailable => _catalogSession is not null && !_workspaceReadinessLost;
     public bool PreviewAvailable { get; private set; }
     public string? PreviewDiagnostic { get; private set; }
     public string? RecoveryDiagnostic { get; private set; }
@@ -194,7 +227,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         IStorageConfigurationStore? configuration = null, ICatalogSessionActivator? activator = null,
         ICatalogRecoveryService? recovery = null, LightflowStorageLocations? profile = null,
         InitializedDataProfile? initializedProfile = null, IStorageLocationAssessor? assessor = null,
-        bool allowFirstCreation = true, AppSettings? selectedSettings = null)
+        bool allowFirstCreation = true, AppSettings? selectedSettings = null, bool explicitCreation = false, string? reservedCatalogDirectory = null)
     {
         using var timing = StartupDiagnostics.Stage("Storage initialization", "Opening storage…");
         transfer ??= new SqliteCatalogRelocationTransfer();
@@ -256,9 +289,9 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         CatalogDatabaseSession? pendingSession = null;
         IPreviewStoreService? pendingPreviews = null;
         LightflowStorageCoordinator? pendingCoordinator = null;
-        var create = !File.Exists(locations.CatalogDatabasePath) && settings.CatalogId is null && settings.CatalogDirectory is null;
+        var create = explicitCreation || !File.Exists(locations.CatalogDatabasePath) && settings.CatalogId is null && settings.CatalogDirectory is null;
         var presentationReason = CatalogRecoveryReason.LocationUnavailable;
-        using var admission = new CatalogLocationAdmission(locations, create ? StorageOperation.Create : StorageOperation.Open, assessor);
+        using var admission = new CatalogLocationAdmission(locations, create ? StorageOperation.Create : StorageOperation.Open, assessor, reservedCatalogDirectory);
         try
         {
             try
@@ -272,13 +305,15 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                 return new(StorageStartupStatus.CatalogUnavailable,
                     new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator,
                         recovery, availablePreviews, diagnostic, assessor: assessor), exception.Message,
-                    exception.Reason == StorageLocationReason.LocationUnavailable ? CatalogRecoveryReason.LocationUnavailable : CatalogRecoveryReason.LocationRefused);
+                    exception.Reason == StorageLocationReason.LocationUnavailable ? CatalogRecoveryReason.LocationUnavailable
+                        : exception.Reason is StorageLocationReason.NetworkActiveCatalog or StorageLocationReason.UnsupportedCatalogFileSystem or StorageLocationReason.UnsupportedCatalogCapabilities
+                            ? CatalogRecoveryReason.UnsupportedStorage : CatalogRecoveryReason.LocationRefused);
             }
             var boundLocations = admission.LocationsForUse();
             startupCompletion = new StartupSessionCompletion(locations.ApplicationDataDirectory);
             try
             {
-                catalogStartup = StartupStoreEvidence.Begin(locations.CatalogDatabasePath, "Catalog", settings.CatalogDirectory is null, startupCompletion,
+                catalogStartup = StartupStoreEvidence.Begin(locations.CatalogDatabasePath, "Catalog", create, startupCompletion,
                     boundLocations.CatalogDatabasePath) ?? throw new IOException("The Catalog directory is unavailable.");
             }
             catch (IOException exception)
@@ -346,6 +381,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
 
             if (selectedSettings is not null)
             {
+                if (explicitCreation) settings = settings with { CatalogId = opened.Session!.Identity.CatalogId };
                 catalogStartup!.RequireOwnership(opened.Session!.ResolvedDatabasePath);
                 var originalSession = opened.Session;
                 var activated = activator.Activate(originalSession);

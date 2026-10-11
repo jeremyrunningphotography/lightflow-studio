@@ -5,7 +5,8 @@ using Lightflow.Domain;
 
 namespace LightflowStudio;
 
-internal sealed record CatalogSelectionResult(bool Succeeded, Guid? CatalogId = null, string? Directory = null, string? Diagnostic = null);
+internal sealed record CatalogSelectionResult(bool Succeeded, Guid? CatalogId = null, string? Directory = null, string? Diagnostic = null,
+    CatalogRecoveryReason RecoveryReason = CatalogRecoveryReason.None);
 
 internal sealed partial class LightflowStorageCoordinator
 {
@@ -14,7 +15,7 @@ internal sealed partial class LightflowStorageCoordinator
         IStorageConfigurationStore? configuration = null, ICatalogSessionActivator? activator = null,
         ICatalogRecoveryService? recovery = null, LightflowStorageLocations? profile = null,
         InitializedDataProfile? initializedProfile = null, IStorageLocationAssessor? assessor = null,
-        bool allowFirstCreation = true, string? existingCatalogDirectory = null, Guid? selectedCatalogId = null)
+        bool allowFirstCreation = true, string? existingCatalogDirectory = null, Guid? selectedCatalogId = null, bool resumePreviousCatalogOnFailure = true)
     {
         if (existingCatalogDirectory is null)
             return await StartCoreAsync(localApplicationData, cancellationToken, transfer, configuration, activator,
@@ -25,7 +26,7 @@ internal sealed partial class LightflowStorageCoordinator
         if (selectedCatalogId is null || selectedCatalogId == Guid.Empty)
             return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: "Explicit Catalog selection requires the preflight Catalog identity.");
         var intended = previous with { CatalogDirectory = Path.GetFullPath(existingCatalogDirectory), CatalogId = selectedCatalogId };
-        StorageStartupResult selected;
+        StorageStartupResult? selected = null;
         try
         {
             selected = await StartCoreAsync(localApplicationData, cancellationToken, transfer, configuration, activator,
@@ -47,6 +48,9 @@ internal sealed partial class LightflowStorageCoordinator
         }
         catch (Exception rollback) when (rollback is IOException or UnauthorizedAccessException)
         { return new(StorageStartupStatus.InvalidConfiguration, Diagnostic: "Recovery required: Catalog selection and configuration rollback could not be proven. All Catalog artifacts are retained. " + diagnostic + " " + rollback.Message); }
+        if (!resumePreviousCatalogOnFailure)
+            return new(selected?.Status ?? StorageStartupStatus.CatalogUnreadable, Diagnostic: diagnostic,
+                RecoveryReason: selected?.RecoveryReason ?? CatalogRecoveryReason.ValidationFailed);
         var prior = await StartCoreAsync(localApplicationData, cancellationToken, transfer, configuration, activator,
             recovery, defaults, initializedProfile, assessor, false).ConfigureAwait(false);
         if (prior.Coordinator is not null) prior.Coordinator.RecoveryDiagnostic = "The selected Catalog was not opened. Previous configuration was retained. " + diagnostic;
@@ -63,7 +67,7 @@ internal sealed partial class LightflowStorageCoordinator
             if (SamePath(selected.CatalogDirectory, Locations.CatalogDirectory) && CatalogAvailable)
                 return new(true, CatalogSession.Identity.CatalogId, selected.CatalogDirectory, "This Catalog is already open.");
             if (!Directory.Exists(selected.CatalogDirectory) || !File.Exists(selected.CatalogDatabasePath))
-                return new(false, Diagnostic: "Choose an existing Catalog folder containing LightflowCatalog.db. The selection has not been created or replaced.");
+                return new(false, Diagnostic: "Choose an existing Catalog folder containing LightflowCatalog.db. The selection has not been created or replaced.", RecoveryReason: CatalogRecoveryReason.ValidationFailed);
             using var admission = new CatalogLocationAdmission(selected, StorageOperation.Open, _assessor);
             await admission.ValidateAsync(token).ConfigureAwait(false);
             var bound = admission.LocationsForUse();
@@ -79,7 +83,7 @@ internal sealed partial class LightflowStorageCoordinator
                 ResolvedDatabasePath = bound.CatalogDatabasePath,
                 ValidateStorageAccess = (t, phase) => admission.ValidateClosedDatabaseBoundary(t, phase)
             }.OpenExistingAsync(token).ConfigureAwait(false);
-            if (!opened.IsSuccess) return new(false, Diagnostic: opened.Diagnostic);
+            if (!opened.IsSuccess) return new(false, Diagnostic: opened.Diagnostic, RecoveryReason: CatalogRecoveryReason.ValidationFailed);
             await using var session = opened.Session!;
             if (transferredIdentity is Guid expected && session.Identity.CatalogId != expected)
                 return new(false, Diagnostic: "Catalog identity does not match its retained transfer receipt. No identity has been rewritten.");
@@ -92,8 +96,12 @@ internal sealed partial class LightflowStorageCoordinator
             return new(true, session.Identity.CatalogId, selected.CatalogDirectory);
         }
         catch (OperationCanceledException) { throw; }
+        catch (CatalogLocationAdmissionException error)
+        { return new(false, Diagnostic: error.Message, RecoveryReason: error.Reason is StorageLocationReason.UnsupportedCatalogFileSystem or StorageLocationReason.UnsupportedCatalogCapabilities or StorageLocationReason.NetworkActiveCatalog
+            ? CatalogRecoveryReason.UnsupportedStorage : CatalogRecoveryReason.LocationRefused); }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or NotSupportedException or JsonException or Microsoft.Data.Sqlite.SqliteException)
-        { return new(false, Diagnostic: "This Catalog could not be selected. Close any other writer and check the selected local storage. " + error.Message); }
+        { return new(false, Diagnostic: error.Message, RecoveryReason: error.InnerException is System.ComponentModel.Win32Exception { NativeErrorCode: 32 }
+            ? CatalogRecoveryReason.CompetingOwner : CatalogRecoveryReason.ValidationFailed); }
     }
 
     internal static Guid? VerifySelectedTransfer(string directory, bool previouslyValidated)

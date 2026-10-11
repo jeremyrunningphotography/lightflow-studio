@@ -191,33 +191,27 @@ public partial class App : System.Windows.Application
             var identityIndex = Array.IndexOf(e.Args, "--selected-catalog-id");
             string? selectedDirectory = selectionIndex >= 0 && selectionIndex + 1 < e.Args.Length ? e.Args[selectionIndex + 1] : null;
             Guid? selectedId = identityIndex >= 0 && identityIndex + 1 < e.Args.Length && Guid.TryParse(e.Args[identityIndex + 1], out var parsedId) ? parsedId : null;
-            if ((selectionIndex >= 0 || identityIndex >= 0) &&
-                (string.IsNullOrWhiteSpace(selectedDirectory) || selectedDirectory.StartsWith("--", StringComparison.Ordinal) || selectedId is null || selectedId == Guid.Empty))
+            var malformedSelection = (selectionIndex >= 0 || identityIndex >= 0) &&
+                (string.IsNullOrWhiteSpace(selectedDirectory) || selectedDirectory.StartsWith("--", StringComparison.Ordinal) || selectedId is null || selectedId == Guid.Empty);
+            var storage = malformedSelection
+                ? new StorageStartupResult(StorageStartupStatus.CatalogUnreadable,
+                    Diagnostic: "Catalog selection requires a verified folder and identity. The previous configuration and Catalog have been retained.",
+                    RecoveryReason: CatalogRecoveryReason.ValidationFailed)
+                : await LightflowStorageCoordinator.StartAsync(initializedProfile: initialized,
+                allowFirstCreation: e.Args.Contains("--startup-smoke-test"), existingCatalogDirectory: selectedDirectory, selectedCatalogId: selectedId,
+                resumePreviousCatalogOnFailure: false);
+            while (!storage.IsReady || storage.Coordinator?.VerifyWorkspaceReadiness() != true)
             {
+                if (storage.IsReady)
+                    storage = storage with { Status = StorageStartupStatus.CatalogUnavailable,
+                        Diagnostic = storage.Coordinator?.RecoveryDiagnostic,
+                        RecoveryReason = CatalogRecoveryReason.OwnershipUnavailable };
                 CloseStartupSplash();
-                new NoticeDialog("Catalog selection", "Catalog selection could not be verified",
-                    "Choose an existing Catalog again. Its folder and identity are required; the previous configuration and Catalog have been retained.").ShowDialog();
-                Shutdown(1); return;
-            }
-            var storage = await LightflowStorageCoordinator.StartAsync(initializedProfile: initialized,
-                allowFirstCreation: e.Args.Contains("--startup-smoke-test"), existingCatalogDirectory: selectedDirectory, selectedCatalogId: selectedId);
-            if (storage.Status == StorageStartupStatus.FirstRunChoiceRequired)
-            {
-                CloseStartupSplash();
-                var setup = new CatalogSetupDialog(storage.Coordinator!);
+                await using var gate = new CatalogStartupGate(storage, initialized.Locations, initialized);
+                var setup = new CatalogSetupDialog(gate, initialized.Locations);
                 var accepted = setup.ShowDialog() == true;
-                await storage.Coordinator!.DisposeAsync();
-                if (!accepted) { Shutdown(0); return; }
-                storage = await LightflowStorageCoordinator.StartAsync(initializedProfile: initialized,
-                    allowFirstCreation: setup.CreateNew, existingCatalogDirectory: setup.Selection?.Directory, selectedCatalogId: setup.Selection?.CatalogId);
-            }
-            if (storage.Coordinator is null)
-            {
-                CloseStartupSplash();
-                new NoticeDialog("Catalog recovery required", "Catalog could not be opened",
-                    storage.Diagnostic ?? "Lightflow storage configuration could not be loaded. Existing data is retained.").ShowDialog();
-                Shutdown(1);
-                return;
+                if (!accepted) { await gate.DisposeAsync(); Shutdown(0); return; }
+                storage = gate.TakeReady();
             }
             Storage = storage.Coordinator;
 
@@ -253,6 +247,7 @@ public partial class App : System.Windows.Application
             ShutdownMode = ShutdownMode.OnMainWindowClose;
             mainWindow.Show();
             await mainWindow.PresentationReady;
+            if (!Storage.VerifyWorkspaceReadiness()) { mainWindow.EnsureCatalogWorkspace(); return; }
             mainWindow.ShowInTaskbar = true;
             await mainWindow.RevealStartupPresentationAsync();
             mainWindow.Activate();

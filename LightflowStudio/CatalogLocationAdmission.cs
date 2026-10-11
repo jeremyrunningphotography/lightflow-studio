@@ -15,12 +15,12 @@ internal sealed class CatalogLocationAdmission : IDisposable
     private int _probe;
 
     internal CatalogLocationAdmission(LightflowStorageLocations locations, StorageOperation operation,
-        IStorageLocationAssessor? assessor = null)
+        IStorageLocationAssessor? assessor = null, string? reservedCatalogDirectory = null)
     {
         _locations = locations;
         _request = new(Guid.NewGuid(), 0, StorageRole.ActiveCatalog, operation, locations.CatalogDirectory);
         _assessor = assessor ?? (_owned = new WindowsStorageLocationAssessor(
-            [locations.PreviewsDirectory, locations.TemporaryDirectory], new Dictionary<string, StorageRole>
+            new[] { locations.PreviewsDirectory, locations.TemporaryDirectory }.Concat(reservedCatalogDirectory is null ? [] : new[] { reservedCatalogDirectory }), new Dictionary<string, StorageRole>
             { [locations.PreviewsDirectory] = StorageRole.RebuildablePreview, [locations.TemporaryDirectory] = StorageRole.TemporaryProfile }));
     }
 

@@ -278,6 +278,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                     recovery, availablePreviews, diagnostic, assessor: assessor),
                 "Create a new Catalog or open an existing Catalog. No Catalog has been created.");
         }
+        var priorCatalogReservation = settings.CatalogBackupDirectory is not null;
         var needsBackupConfiguration = settings.CatalogBackupDirectory is null;
         if (settings.CatalogBackupDirectory is null)
         {
@@ -290,6 +291,14 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         IPreviewStoreService? pendingPreviews = null;
         LightflowStorageCoordinator? pendingCoordinator = null;
         var create = explicitCreation || !File.Exists(locations.CatalogDatabasePath) && settings.CatalogId is null && settings.CatalogDirectory is null;
+        if (create && !explicitCreation && (priorCatalogReservation || !CanCreateAt(locations.CatalogDirectory, defaults, settings)))
+        {
+            var (availablePreviews, diagnostic) = await OpenPreviewsAsync(settings, locations, cancellationToken).ConfigureAwait(false);
+            return new(StorageStartupStatus.CatalogUnavailable,
+                new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator,
+                    recovery, availablePreviews, diagnostic, assessor: assessor),
+                "The default Catalog location contains existing or reserved files. Choose a safely empty or new Catalog directory.", CatalogRecoveryReason.LocationRefused);
+        }
         var presentationReason = CatalogRecoveryReason.LocationUnavailable;
         using var admission = new CatalogLocationAdmission(locations, create ? StorageOperation.Create : StorageOperation.Open, assessor, reservedCatalogDirectory);
         try
@@ -305,7 +314,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                 return new(StorageStartupStatus.CatalogUnavailable,
                     new LightflowStorageCoordinator(configuration, settings, locations, null, transfer, activator,
                         recovery, availablePreviews, diagnostic, assessor: assessor), exception.Message,
-                    exception.Reason == StorageLocationReason.LocationUnavailable ? CatalogRecoveryReason.LocationUnavailable
+                    exception.Reason == StorageLocationReason.LocationUnavailable ? (create ? CatalogRecoveryReason.InitialLocationUnavailable : CatalogRecoveryReason.LocationUnavailable)
                         : exception.Reason is StorageLocationReason.NetworkActiveCatalog or StorageLocationReason.UnsupportedCatalogFileSystem or StorageLocationReason.UnsupportedCatalogCapabilities
                             ? CatalogRecoveryReason.UnsupportedStorage : CatalogRecoveryReason.LocationRefused);
             }
@@ -314,13 +323,18 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
             try
             {
                 catalogStartup = StartupStoreEvidence.Begin(locations.CatalogDatabasePath, "Catalog", create, startupCompletion,
-                    boundLocations.CatalogDatabasePath) ?? throw new IOException("The Catalog directory is unavailable.");
+                    boundLocations.CatalogDatabasePath) ?? throw new DirectoryNotFoundException("The Catalog directory is unavailable.");
             }
             catch (IOException exception)
             {
-                presentationReason = exception.InnerException is System.ComponentModel.Win32Exception { NativeErrorCode: 32 }
-                    ? CatalogRecoveryReason.CompetingOwner : CatalogRecoveryReason.OwnershipUnavailable;
-                throw new CatalogLocationAdmissionException("Catalog ownership could not be acquired. Close another Lightflow instance using this Catalog, reconnect its drive, then retry. " + exception.Message,
+                presentationReason = exception is DirectoryNotFoundException
+                    ? (create ? CatalogRecoveryReason.InitialLocationUnavailable : CatalogRecoveryReason.LocationUnavailable)
+                    : exception.InnerException is System.ComponentModel.Win32Exception { NativeErrorCode: 32 }
+                        ? CatalogRecoveryReason.CompetingOwner : CatalogRecoveryReason.OwnershipUnavailable;
+                throw new CatalogLocationAdmissionException((presentationReason == CatalogRecoveryReason.CompetingOwner
+                    ? "Another Lightflow Studio session is using this Catalog. "
+                    : presentationReason is CatalogRecoveryReason.LocationUnavailable or CatalogRecoveryReason.InitialLocationUnavailable
+                        ? "The Catalog folder is unavailable. " : "The Catalog could not be opened exclusively. ") + exception.Message,
                     StorageLocationReason.AssessmentFailed);
             }
             Guid? transferredIdentity;

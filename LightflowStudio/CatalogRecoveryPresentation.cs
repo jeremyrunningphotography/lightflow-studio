@@ -1,6 +1,6 @@
 namespace LightflowStudio;
 
-internal enum CatalogRecoveryReason { None, LocationUnavailable, CompetingOwner, PendingRecovery, ValidationFailed, OwnershipUnavailable, LocationRefused, UnsupportedStorage }
+internal enum CatalogRecoveryReason { None, LocationUnavailable, CompetingOwner, PendingRecovery, ValidationFailed, OwnershipUnavailable, LocationRefused, UnsupportedStorage, CatalogDirectoryRequired, InitialLocationUnavailable }
 
 internal sealed record CatalogRecoveryPresentation(string Heading, string Description, string Diagnostic, bool ShowRecovery,
     bool NoReplacementCreated)
@@ -9,7 +9,7 @@ internal sealed record CatalogRecoveryPresentation(string Heading, string Descri
     {
         if (status == StorageStartupStatus.Ready) return new("", "", "", false, false);
         if (status == StorageStartupStatus.FirstRunChoiceRequired)
-            return new("Welcome to Lightflow Studio", "Create a new Catalog or open an existing one to get started.", "", false, false);
+            return new("Catalog setup required", "Choose a supported location for a new Catalog or open an existing Catalog.", "", false, false);
         if (reason == CatalogRecoveryReason.None)
             reason = status is StorageStartupStatus.CatalogMissing or StorageStartupStatus.CatalogUnavailable
                 ? CatalogRecoveryReason.LocationUnavailable
@@ -18,7 +18,10 @@ internal sealed record CatalogRecoveryPresentation(string Heading, string Descri
         {
             CatalogRecoveryReason.CompetingOwner => ("Catalog already in use", "This Catalog is open in another Lightflow Studio session. Close it there, then try again."),
             CatalogRecoveryReason.PendingRecovery => ("Catalog needs attention", "Lightflow Studio couldn't finish a previous Catalog operation. Your Catalog files have been preserved."),
-            CatalogRecoveryReason.UnsupportedStorage => ("Catalog location not supported", "Lightflow Studio can't open a Catalog from this type of storage. Choose a supported location."),
+            CatalogRecoveryReason.UnsupportedStorage => ("Catalog location not supported", "Active Catalogs require supported local storage. Choose a supported local location. Network storage can still be used for media and verified closed backups."),
+            CatalogRecoveryReason.LocationRefused => ("Catalog location unavailable for this action", "Choose a supported, safely empty or new Catalog directory outside existing Catalog and recovery locations. Existing files have been preserved."),
+            CatalogRecoveryReason.CatalogDirectoryRequired => ("Select an existing Catalog", "The selected folder isn't a Catalog. Select the Catalog directory itself. If you chose its parent folder, open that folder and select the Catalog."),
+            CatalogRecoveryReason.InitialLocationUnavailable => ("Catalog location unavailable", "Lightflow Studio couldn't create your first Catalog at the default location. Reconnect the drive or choose another supported location."),
             CatalogRecoveryReason.ValidationFailed => ("Couldn't open Catalog", status == StorageStartupStatus.CatalogCorrupt
                 ? "This Catalog is damaged and could not be opened. Your Catalog files have been preserved."
                 : "The selected location doesn't contain a valid Lightflow Studio Catalog."),

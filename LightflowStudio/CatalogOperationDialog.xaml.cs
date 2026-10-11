@@ -11,6 +11,7 @@ public partial class CatalogOperationDialog : Window
     private bool _running = true;
     private bool _cancellable = true;
     internal bool CompletedSuccessfully { get; private set; }
+    internal bool CloseOnSuccess { get; init; }
     internal CatalogOperationDialog(string title, string detail,
         Func<CancellationToken, IProgress<ClosedCatalogTransferState>, Task<string>> operation)
     {
@@ -50,6 +51,8 @@ public partial class CatalogOperationDialog : Window
             {
                 _running = false; Progress.Visibility = CancelButton.Visibility = Visibility.Collapsed;
                 CloseButton.Visibility = Visibility.Visible; _cancellation.Dispose();
+                if (CompletedSuccessfully && CloseOnSuccess)
+                    Dispatcher.BeginInvoke(new Action(() => { if (IsVisible) Close(); }));
             }
         };
     }

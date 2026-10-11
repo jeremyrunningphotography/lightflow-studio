@@ -45,23 +45,15 @@ public partial class CatalogSetupDialog : Window
     private async void Create_Click(object sender, RoutedEventArgs e)
     {
         var proposal = _gate.ProposedNewDirectory;
-        var picker = new OpenFolderDialog { Title = "Choose a location for your new Catalog", InitialDirectory = Path.GetDirectoryName(proposal) ?? _profile.ApplicationDataDirectory };
-        if (picker.ShowDialog(this) != true) return;
-        var directory = string.Equals(picker.FolderName, Path.GetDirectoryName(proposal), StringComparison.OrdinalIgnoreCase)
-            ? proposal : Path.Combine(picker.FolderName, "Lightflow Catalog");
-        if (string.IsNullOrEmpty(directory)) return;
-        if (!ConfirmationDialog.Confirm(this, "Create New Catalog", "Create a new Catalog here?",
-            "Lightflow Studio will create a new independent Catalog. Your previous Catalog and its files will be preserved. The new folder must be unused.", directory, "Create New Catalog")) return;
+        var directory = CatalogDestinationDialog.Choose(this, proposal, move: false);
+        if (directory is null) return;
         await RunAsync(token => _gate.CreateAsync(directory, token));
     }
     private async void Open_Click(object sender, RoutedEventArgs e)
     {
-        var picker = new OpenFolderDialog { Title = "Open Existing Catalog" };
+        var picker = new OpenFolderDialog { Title = "Select the existing Catalog directory" };
         if (picker.ShowDialog(this) != true) return;
-        await RunAsync(token => _gate.OpenAsync(picker.FolderName, token, selected =>
-            ConfirmationDialog.Confirm(this, "Open Existing Catalog", "Open this Catalog?",
-                "Lightflow Studio will preserve its identity and authored data. Media Roots and LUT folders may need configuration on this machine.",
-                selected.Directory + "\nCatalog " + selected.CatalogId, "Open Catalog")));
+        await RunAsync(token => _gate.OpenAsync(picker.FolderName, token));
     }
     internal async Task RunAsync(Func<CancellationToken, Task> operation)
     {

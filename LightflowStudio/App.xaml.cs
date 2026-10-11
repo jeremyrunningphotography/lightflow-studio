@@ -198,7 +198,7 @@ public partial class App : System.Windows.Application
                     Diagnostic: "Catalog selection requires a verified folder and identity. The previous configuration and Catalog have been retained.",
                     RecoveryReason: CatalogRecoveryReason.ValidationFailed)
                 : await LightflowStorageCoordinator.StartAsync(initializedProfile: initialized,
-                allowFirstCreation: e.Args.Contains("--startup-smoke-test"), existingCatalogDirectory: selectedDirectory, selectedCatalogId: selectedId,
+                allowFirstCreation: true, existingCatalogDirectory: selectedDirectory, selectedCatalogId: selectedId,
                 resumePreviousCatalogOnFailure: false);
             while (!storage.IsReady || storage.Coordinator?.VerifyWorkspaceReadiness() != true)
             {

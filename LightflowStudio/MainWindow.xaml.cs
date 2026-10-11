@@ -4261,12 +4261,8 @@ public partial class MainWindow : Window
             NoticeDialog.Show(this, "Catalog unavailable", "Catalog unavailable", "The configured Catalog is not currently available. Lightflow will not replace or redirect it. Restore access to the configured location before relocating it.");
             return;
         }
-        var destination = PickFolder("Choose the new Catalog folder", _storage.Locations.CatalogDirectory);
+        var destination = CatalogDestinationDialog.Choose(this, _storage.Locations.CatalogDirectory + "-moved", move: true);
         if (destination is null) return;
-        destination = System.IO.Path.Combine(destination, "Lightflow Catalog");
-        if (!ConfirmationDialog.Confirm(this, "Move Catalog", "Move the Catalog to this folder?",
-            "Lightflow will create the Catalog folder shown below, copy and validate the complete Catalog, then switch. The original is retained as a recovery source.",
-            destination, "Move Catalog")) return;
         StorageChangeResult? result = null;
         var operation = new CatalogOperationDialog("Move Catalog", destination,
             async (token, progress) =>

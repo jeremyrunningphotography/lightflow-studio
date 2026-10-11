@@ -10,6 +10,48 @@ namespace LightflowStudio.Tests;
 public sealed class CatalogSettingsPresentationTests
 {
     [Fact]
+    public async Task SuccessfulExistingCatalogValidationClosesWithoutAnotherUserConfirmation()
+    {
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var dialog = new CatalogOperationDialog("Validate existing Catalog", "Explicitly selected Catalog directory",
+                (_, _) => Task.FromResult("The selected Catalog is valid."))
+                { CloseOnSuccess = true, ShowActivated = false, ShowInTaskbar = false };
+            dialog.Closed += (_, _) => closed.TrySetResult();
+            dialog.Show();
+            await closed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(dialog.CompletedSuccessfully);
+        });
+    }
+    [Fact]
+    public async Task ExactDestinationDialogRendersAndAcceptsSelectedPathWithoutAppendingChild()
+    {
+        await StaDispatcher.RunAsync(() =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "artifacts", "lf012-startup-gate-presentation"));
+            foreach (var move in new[] { false, true })
+            {
+                var exact = Path.Combine(root, "chosen", "Catalog");
+                Directory.CreateDirectory(Path.GetDirectoryName(exact)!);
+                var dialog = new CatalogDestinationDialog(exact, move) { ShowActivated = false, ShowInTaskbar = false };
+                try
+                {
+                    dialog.Show(); dialog.UpdateLayout();
+                    Assert.Equal(exact, dialog.Destination.Text);
+                    Assert.True(dialog.TryAccept()); Assert.Equal(exact, dialog.SelectedDirectory);
+                    Assert.False(Directory.Exists(exact));
+                    Assert.Equal(move ? "Move Catalog" : "Create New Catalog", dialog.ActionButton.Content);
+                    Capture(dialog, Path.Combine(root, move ? "exact-move.png" : "exact-create.png"));
+                }
+                finally { dialog.Close(); }
+            }
+            return Task.CompletedTask;
+        });
+    }
+    [Fact]
     public async Task UnifiedGateAndHealthySettings_RenderWithoutWorkspaceBypass()
     {
         await StaDispatcher.RunAsync(async () =>
@@ -27,13 +69,13 @@ public sealed class CatalogSettingsPresentationTests
                 try
                 {
                     dialog.Show(); dialog.UpdateLayout();
-                    Assert.Equal("Welcome to Lightflow Studio", dialog.GateHeading.Text);
+                    Assert.Equal("Catalog setup required", dialog.GateHeading.Text);
                     Assert.Equal(Visibility.Collapsed, dialog.GateRetryButton.Visibility);
                     Assert.Equal("Exit", dialog.GateExitButton.Content);
                     Assert.Equal("Create New Catalog…", dialog.GateCreateButton.Content);
                     Assert.Equal("Open Existing Catalog…", dialog.GateOpenButton.Content);
                     Assert.False(File.Exists(profile.CatalogDatabasePath));
-                    Capture(dialog, Path.Combine(root, "first-run.png"));
+                    Capture(dialog, Path.Combine(root, "creation-disabled-setup.png"));
                 }
                 finally { dialog.Close(); }
                 Assert.False(gate.CanEnterWorkspace);
@@ -43,6 +85,9 @@ public sealed class CatalogSettingsPresentationTests
                 (StorageStartupStatus.CatalogUnavailable, CatalogRecoveryReason.CompetingOwner),
                 (StorageStartupStatus.CatalogUnavailable, CatalogRecoveryReason.PendingRecovery),
                 (StorageStartupStatus.CatalogUnavailable, CatalogRecoveryReason.UnsupportedStorage),
+                (StorageStartupStatus.CatalogUnavailable, CatalogRecoveryReason.LocationRefused),
+                (StorageStartupStatus.CatalogUnavailable, CatalogRecoveryReason.InitialLocationUnavailable),
+                (StorageStartupStatus.CatalogUnreadable, CatalogRecoveryReason.CatalogDirectoryRequired),
                 (StorageStartupStatus.CatalogUnreadable, CatalogRecoveryReason.ValidationFailed),
                 (StorageStartupStatus.CatalogCorrupt, CatalogRecoveryReason.ValidationFailed),
                 (StorageStartupStatus.CatalogUnavailable, CatalogRecoveryReason.OwnershipUnavailable) })

@@ -6,13 +6,88 @@ namespace LightflowStudio.Tests;
 
 public sealed class CatalogStartupGateTests
 {
+    [Fact]
+    public async Task PreviousBackupReservationDoesNotQualifyAsFreshFirstLaunch()
+    {
+        var profile = Profile(); ApplicationDataProfile.Initialize(profile);
+        AppSettingsStore.Save(profile.SettingsPath, new() { CatalogBackupDirectory = profile.CatalogBackupsDirectory }, isolated: true);
+        var startup = await LightflowStorageCoordinator.StartAsync(profile: profile);
+        Assert.False(startup.IsReady); Assert.Equal(CatalogRecoveryReason.LocationRefused, startup.RecoveryReason);
+        Assert.False(File.Exists(profile.CatalogDatabasePath));
+        if (startup.Coordinator is not null) await startup.Coordinator.DisposeAsync();
+    }
+    [Fact]
+    public async Task AutomaticFreshStartupCreatesDefaultAndSecondLaunchReopensSameAuthoredCatalog()
+    {
+        var profile = Profile(); Guid id;
+        var first = await LightflowStorageCoordinator.StartAsync(profile: profile);
+        Assert.True(first.IsReady, first.Diagnostic);
+        await using (var storage = first.Coordinator!)
+        {
+            Assert.Equal(profile.CatalogDirectory, storage.Locations.CatalogDirectory);
+            id = storage.CatalogSession.Identity.CatalogId;
+            await storage.Collections.CreateCollectionAsync("Automatic first launch");
+            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(profile.CatalogDatabasePath, "Catalog", false));
+        }
+        var second = await LightflowStorageCoordinator.StartAsync(profile: profile);
+        Assert.True(second.IsReady, second.Diagnostic);
+        await using var reopened = second.Coordinator!;
+        Assert.Equal(id, reopened.CatalogSession.Identity.CatalogId);
+        Assert.Single(await reopened.Collections.ListCollectionsAsync());
+        Assert.False(Directory.Exists(Path.Combine(profile.CatalogDirectory, "Catalog")));
+    }
+    [Theory]
+    [InlineData("foreign.txt")]
+    [InlineData("LightflowCatalog.db.startup-state")]
+    public async Task AutomaticStartupRefusesOccupiedOrRecoveryReservedDefault(string name)
+    {
+        var profile = Profile(); ApplicationDataProfile.Initialize(profile);
+        var evidence = Path.Combine(profile.CatalogDirectory, name);
+        await File.WriteAllTextAsync(evidence, "Preserved evidence");
+        var start = await LightflowStorageCoordinator.StartAsync(profile: profile);
+        Assert.False(start.IsReady);
+        Assert.Equal(CatalogRecoveryReason.LocationRefused, start.RecoveryReason);
+        Assert.False(File.Exists(profile.CatalogDatabasePath));
+        Assert.Equal("Preserved evidence", await File.ReadAllTextAsync(evidence));
+        await using var gate = new CatalogStartupGate(start, profile);
+        await gate.RetryAsync();
+        Assert.False(gate.CanEnterWorkspace);
+        Assert.Equal(CatalogRecoveryReason.LocationRefused, gate.Current.RecoveryReason);
+        Assert.False(File.Exists(profile.CatalogDatabasePath));
+    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExplicitCreationAndMoveUseExactlySelectedEmptyOrNewDirectory(bool existingEmpty)
+    {
+        var profile = Profile(); ApplicationDataProfile.Initialize(profile);
+        var exact = Path.Combine(profile.ApplicationDataDirectory, "chosen", "Catalog");
+        if (existingEmpty) Directory.CreateDirectory(exact);
+        var created = await LightflowStorageCoordinator.CreateCatalogAsync(exact, profile);
+        Assert.True(created.IsReady, created.Diagnostic);
+        await using var storage = created.Coordinator!;
+        var id = storage.CatalogSession.Identity.CatalogId;
+        await storage.Collections.CreateCollectionAsync("Exact destination");
+        Assert.Equal(exact, storage.Locations.CatalogDirectory);
+        Assert.True(File.Exists(Path.Combine(exact, LightflowStorageLocations.CatalogFileName)));
+        Assert.False(Directory.Exists(Path.Combine(exact, "Lightflow Catalog")));
+        var moved = Path.Combine(profile.ApplicationDataDirectory, "moved", "Catalog");
+        Directory.CreateDirectory(Path.GetDirectoryName(moved)!);
+        var result = await storage.RelocateCatalogAsync(moved);
+        Assert.True(result.Succeeded, result.Diagnostic);
+        Assert.Equal(moved, storage.Locations.CatalogDirectory);
+        Assert.Equal(id, storage.CatalogSession.Identity.CatalogId);
+        Assert.Single(await storage.Collections.ListCollectionsAsync());
+        Assert.False(Directory.Exists(Path.Combine(moved, "Catalog")));
+        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(storage.CatalogSession.DatabasePath, "Catalog", false));
+    }
     private static LightflowStorageLocations Profile()
     {
         var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "artifacts", "lf012-startup-gate-tests", Guid.NewGuid().ToString("N")));
         return ApplicationDataProfile.Resolve(["--data-root", root]);
     }
     [Fact]
-    public async Task FirstRunCreationRequiresExplicitChoiceAndVerifiedCommit()
+    public async Task CreationDisabledPreflightRequiresExplicitChoiceAndVerifiedCommit()
     {
         var profile = Profile();
         var start = await LightflowStorageCoordinator.StartAsync(profile: profile, allowFirstCreation: false);
@@ -42,9 +117,11 @@ public sealed class CatalogStartupGateTests
         }
         var offline = active + "-offline";
         Directory.Move(active, offline);
-        var start = await LightflowStorageCoordinator.StartAsync(profile: profile, allowFirstCreation: false);
+        var start = await LightflowStorageCoordinator.StartAsync(profile: profile);
         await using var gate = new CatalogStartupGate(start, profile);
         Assert.False(gate.CanEnterWorkspace); Assert.True(gate.CanRetry);
+        Assert.Equal(CatalogRecoveryReason.LocationUnavailable, start.RecoveryReason);
+        Assert.Equal("Catalog unavailable", CatalogRecoveryPresentation.Create(start.Status, start.RecoveryReason, start.Diagnostic).Heading);
         await gate.RetryAsync(); Assert.False(gate.CanEnterWorkspace);
         Assert.False(File.Exists(Path.Combine(active, LightflowStorageLocations.CatalogFileName)));
         Directory.Move(offline, active);

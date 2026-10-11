@@ -9,6 +9,7 @@ internal sealed class CatalogStartupGate : IAsyncDisposable
     private readonly InitializedDataProfile? _initialized;
     private bool _closed;
     private bool _busy;
+    private readonly bool _retryInitialCreation;
     internal StorageStartupResult Current { get; private set; }
     internal string LastCatalogDirectory { get; }
     internal string DisplayCatalogDirectory { get; private set; }
@@ -24,6 +25,8 @@ internal sealed class CatalogStartupGate : IAsyncDisposable
         {
             LastCatalogDirectory = settings.CatalogDirectory ?? profile.CatalogDirectory;
             CanRetry = current.Status != StorageStartupStatus.FirstRunChoiceRequired;
+            _retryInitialCreation = settings.CatalogId is null && settings.CatalogDirectory is null &&
+                !File.Exists(profile.CatalogDatabasePath) && current.RecoveryReason is CatalogRecoveryReason.InitialLocationUnavailable or CatalogRecoveryReason.LocationRefused or CatalogRecoveryReason.UnsupportedStorage;
             try { ProposedNewDirectory = LightflowStorageCoordinator.ProposeNewCatalogDirectory(profile, settings); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
             { ProposedNewDirectory = ""; }
@@ -35,7 +38,7 @@ internal sealed class CatalogStartupGate : IAsyncDisposable
     internal Task RetryAsync(CancellationToken token = default)
     {
         DisplayCatalogDirectory = LastCatalogDirectory;
-        return AttemptAsync(() => LightflowStorageCoordinator.StartAsync(profile: _profile, initializedProfile: _initialized, allowFirstCreation: false, cancellationToken: token));
+        return AttemptAsync(() => LightflowStorageCoordinator.StartAsync(profile: _profile, initializedProfile: _initialized, allowFirstCreation: _retryInitialCreation, cancellationToken: token));
     }
 
     internal Task CreateAsync(string directory, CancellationToken token = default)
@@ -45,7 +48,7 @@ internal sealed class CatalogStartupGate : IAsyncDisposable
         return AttemptAsync(() => LightflowStorageCoordinator.CreateCatalogAsync(directory, _profile, _initialized, token: token));
     }
 
-    internal async Task OpenAsync(string directory, CancellationToken token = default, Func<CatalogSelectionResult, bool>? confirm = null)
+    internal async Task OpenAsync(string directory, CancellationToken token = default)
     {
         if (_closed || _busy) return;
         if (Current.RecoveryReason == CatalogRecoveryReason.PendingRecovery) return;
@@ -65,7 +68,6 @@ internal sealed class CatalogStartupGate : IAsyncDisposable
         if (_closed) return;
         if (!selection.Succeeded)
         { SetFailure(StorageStartupStatus.CatalogUnreadable, selection.Diagnostic, selection.RecoveryReason); return; }
-        if (confirm is not null && !confirm(selection)) return;
         await AttemptAsync(() => LightflowStorageCoordinator.StartAsync(profile: _profile, initializedProfile: _initialized,
             allowFirstCreation: false, existingCatalogDirectory: selection.Directory, selectedCatalogId: selection.CatalogId,
             resumePreviousCatalogOnFailure: false, cancellationToken: token));

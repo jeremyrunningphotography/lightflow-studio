@@ -8,7 +8,7 @@ public partial class MainWindow
     private void OpenExistingCatalog_Click(object sender, RoutedEventArgs e)
     {
         if (!CanRestartForCatalog()) return;
-        var directory = PickFolder("Choose an existing Catalog folder containing LightflowCatalog.db", _storage.Locations.CatalogDirectory);
+        var directory = PickFolder("Select the existing Catalog directory", _storage.Locations.CatalogDirectory);
         if (directory is null) return;
         CatalogSelectionResult? selected = null;
         var operation = new CatalogOperationDialog("Validate existing Catalog", directory, async (token, _) =>
@@ -16,14 +16,11 @@ public partial class MainWindow
             selected = await _storage.InspectCatalogSelectionAsync(directory, token);
             if (!selected.Succeeded) throw new IOException(selected.Diagnostic);
             return selected.Diagnostic ?? "The Catalog is valid. Its identity and authored data will be preserved.";
-        }) { Owner = this };
+        }) { Owner = this, CloseOnSuccess = true };
         operation.ShowDialog();
         if (!operation.CompletedSuccessfully || selected?.Succeeded != true) return;
         if (_storage.CatalogAvailable && string.Equals(selected.Directory, _storage.Locations.CatalogDirectory, StringComparison.OrdinalIgnoreCase))
         { SettingsMessage.Text = "That Catalog is already open."; return; }
-        if (!ConfirmationDialog.Confirm(this, "Open Existing Catalog", "Restart and open this Catalog?",
-            "Lightflow will close this workspace and validate the selected Catalog again at startup. Configuration changes only after ownership and activation succeed. Media Roots and LUT folders may need configuration on this machine.",
-            selected.Directory + "\nCatalog " + selected.CatalogId, "Restart and Open Catalog")) return;
         RestartForCatalog(selected.Directory, selected.CatalogId);
     }
     private void RetryCatalog_Click(object sender, RoutedEventArgs e)

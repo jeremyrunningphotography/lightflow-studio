@@ -1,55 +1,56 @@
 using System.IO;
-using System.Runtime.InteropServices;
+using Lightflow.Application;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
-using Microsoft.Win32.SafeHandles;
 
 namespace LightflowStudio;
 
-internal enum StartupValidationReason { CleanShutdown, UncertainState, UnexpectedShutdown, Migration, Restore, DatabaseAnomaly, ExplicitValidation }
+public enum StartupValidationReason { CleanShutdown, UncertainState, UnexpectedShutdown, Migration, Restore, DatabaseAnomaly, ExplicitValidation }
 
 // One exclusive lease beside each database. A certificate is consumed and durably overwritten
 // BEFORE any SQLite open. Clean publication is allowed only after the owning lifecycle drains.
 // A torn/missing record cannot fall back to an older certificate. This attests lifecycle completion,
 // not immunity to latent hardware corruption. No scan, database schema or media enumeration here.
-internal sealed class StartupStoreEvidence : IDisposable
+public sealed class StartupStoreEvidence : IDisposable
 {
     private const int Format = 1;
     private readonly FileStream _journal;
+    private readonly ICatalogEvidenceEffects _effects;
     private readonly string _database;
     private readonly string _configuredDatabase;
     private readonly string _store;
     private bool _completed;
     private bool _currentValidated;
-    internal bool Completed => _completed;
+    public bool Completed => _completed;
     private readonly StartupSessionCompletion? _session;
-    internal bool KnownClean { get; private set; }
-    internal StartupValidationReason Reason { get; private set; }
-    internal bool HadValidatedCatalog { get; private set; }
-    internal void RequireCompletePeer(bool complete)
+    public bool KnownClean { get; private set; }
+    public StartupValidationReason Reason { get; private set; }
+    public bool HadValidatedCatalog { get; private set; }
+    public void RequireCompletePeer(bool complete)
     {
         if (KnownClean && !complete) { KnownClean = false; Reason = StartupValidationReason.DatabaseAnomaly; }
     }
-    internal static string JournalPath(string database) => database + ".startup-state";
-    internal void MarkValidated()
+    public static string JournalPath(string database) => database + ".startup-state";
+    public void MarkValidated()
     {
         RequireOwnership(_database);
         if (_currentValidated) return;
         Write(new(Format, "Validated", _store, _configuredDatabase, null, _session?.Current));
         _currentValidated = true;
     }
-    internal void RequireOwnership(string database)
+    public void RequireOwnership(string database)
     {
         if (_journal.SafeFileHandle.IsClosed || _journal.SafeFileHandle.IsInvalid ||
-            !string.Equals(_database, Path.GetFullPath(database), StringComparison.OrdinalIgnoreCase))
+            !_effects.SameDatabase(_database, database))
             throw new IOException("The active Catalog does not have its ownership lease. Authoring is blocked.");
-        WindowsStorageLocationAssessor.RequireBoundOwnershipJournal(_journal.SafeFileHandle, JournalPath(_database));
+        _effects.RequireBoundOwnershipJournal(_journal, JournalPath(_database));
     }
 
-    private StartupStoreEvidence(string database, string store, FileStream journal, StartupSessionCompletion? session, string? resolvedDatabase)
+    private StartupStoreEvidence(ICatalogEvidenceEffects effects, string database, string store, FileStream journal, StartupSessionCompletion? session, string? resolvedDatabase)
     {
+        _effects = effects;
         _configuredDatabase = Path.GetFullPath(database);
         _database = Path.GetFullPath(resolvedDatabase ?? database); _store = store; _journal = journal; _session = session;
         Reason = session?.PriorReason == StartupValidationReason.UnexpectedShutdown
@@ -84,7 +85,7 @@ internal sealed class StartupStoreEvidence : IDisposable
         _currentValidated = HadValidatedCatalog;
     }
 
-    internal static StartupStoreEvidence? Begin(string database, string store, bool createDirectory, StartupSessionCompletion? session = null,
+    public static StartupStoreEvidence? Begin(ICatalogEvidenceEffects effects, string database, string store, bool createDirectory, StartupSessionCompletion? session = null,
         string? resolvedDatabase = null)
     {
         var accessDatabase = resolvedDatabase ?? database;
@@ -93,23 +94,23 @@ internal sealed class StartupStoreEvidence : IDisposable
         if (!Directory.Exists(directory)) return null;
         // Only Catalog authoring needs the immutable native ownership namespace.
         // Preview storage remains disposable through its existing delete-sharing contract.
-        if (store == "Catalog") ClosedCatalogTransferJournal.RequireUnlinked(JournalPath(accessDatabase));
-        var journal = store == "Catalog" ? WindowsStorageLocationAssessor.OpenOwnershipJournal(JournalPath(accessDatabase))
+        if (store == "Catalog") effects.RequireUnlinked(JournalPath(accessDatabase));
+        var journal = store == "Catalog" ? effects.OpenOwnershipJournal(JournalPath(accessDatabase))
             : new FileStream(JournalPath(accessDatabase), FileMode.OpenOrCreate, FileAccess.ReadWrite,
                 FileShare.Delete, 4096, FileOptions.WriteThrough);
         try
         {
-            if (store == "Catalog") WindowsStorageLocationAssessor.RequireSingleRegularFile(journal.SafeFileHandle);
-            return new(database, store, journal, session, resolvedDatabase);
+            if (store == "Catalog") effects.RequireSingleRegularFile(journal);
+            return new(effects, database, store, journal, session, resolvedDatabase);
         }
         catch { journal.Dispose(); throw; }
     }
 
     // All providers/connections must already be closed and admission must remain closed.
     // A busy checkpoint, flush failure or changed location leaves Dirty, never a false Clean.
-    internal void Complete(string currentDatabase)
+    public void Complete(string currentDatabase)
     {
-        if (_completed || !string.Equals(_database, Path.GetFullPath(currentDatabase), StringComparison.OrdinalIgnoreCase)) return;
+        if (_completed || !_effects.SameDatabase(_database, currentDatabase)) return;
         if (_store == "Catalog") RequireOwnership(_database);
         using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
             { DataSource = _database, Mode = SqliteOpenMode.ReadWrite, Pooling = false }.ToString()))
@@ -127,7 +128,7 @@ internal sealed class StartupStoreEvidence : IDisposable
         // Windows finalizes last-write metadata when the last write handle closes. Capture only
         // afterward, under a read-only handle that excludes new writers until publication ends.
         using var database = new FileStream(_database, FileMode.Open, FileAccess.Read, FileShare.Read);
-        var fingerprint = Fingerprint(database);
+        var fingerprint = _effects.Fingerprint(database);
         Write(new(Format, "Clean", _store, _configuredDatabase, fingerprint, _session?.Current));
         _completed = true;
     }
@@ -144,33 +145,18 @@ internal sealed class StartupStoreEvidence : IDisposable
     private static bool NoRecoveryFiles(string path) =>
         new[] { path + "-wal", path + "-journal" }.All(p => !File.Exists(p) || new FileInfo(p).Length == 0);
     private static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
-    private static string Fingerprint(string path)
+    private string Fingerprint(string path)
     {
         using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        return Fingerprint(file);
-    }
-    private static string Fingerprint(FileStream file)
-    {
-        if (!GetFileInformationByHandle(file.SafeFileHandle, out var identity))
-            throw new IOException("Cannot establish database file identity.");
-        var header = new byte[100]; file.Position = 0; file.ReadExactly(header);
-        return $"{identity.Volume}:{identity.IndexHigh}:{identity.IndexLow}:{identity.WriteHigh}:{identity.WriteLow}:{file.Length}:{Hash(header)}";
+        return _effects.Fingerprint(file);
     }
     public void Dispose() => _journal.Dispose(); // Disposal without Complete intentionally leaves Dirty.
     private sealed record Certificate(int Version, string State, string Store, string Database, string? Fingerprint, string? Session);
     private sealed record Envelope(string Payload, string Checksum);
-    [StructLayout(LayoutKind.Sequential)]
-    private struct FileIdentity
-    {
-        public uint Attributes, CreationLow, CreationHigh, AccessLow, AccessHigh, WriteLow, WriteHigh,
-            Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
-    }
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetFileInformationByHandle(SafeFileHandle file, out FileIdentity information);
+
 }
 
-internal sealed record StartupValidationProgress(string Primary, string Supporting)
+public sealed record StartupValidationProgress(string Primary, string Supporting)
 {
     internal static StartupValidationProgress For(string store, StartupValidationReason reason) => store == "Catalog"
         ? new(reason switch
@@ -188,17 +174,17 @@ internal sealed record StartupValidationProgress(string Primary, string Supporti
 }
 // Final cross-store commit record. Per-store certificates are not trusted unless both completed
 // in the same session and this record was durably published last. Consume it first on next launch.
-internal sealed class StartupSessionCompletion : IDisposable
+public sealed class StartupSessionCompletion : IDisposable
 {
     private readonly FileStream _file;
-    internal string? Previous { get; }
-    internal StartupValidationReason PriorReason { get; private set; } = StartupValidationReason.UncertainState;
-    internal string Current { get; } = Guid.NewGuid().ToString("N");
-    internal static string PathFor(string root) => Path.Combine(root, "startup-session.state");
-    internal StartupSessionCompletion(string root)
+    public string? Previous { get; }
+    public StartupValidationReason PriorReason { get; private set; } = StartupValidationReason.UncertainState;
+    public string Current { get; } = Guid.NewGuid().ToString("N");
+    public static string PathFor(string root) => Path.Combine(root, "startup-session.state");
+    public StartupSessionCompletion(ICatalogEvidenceEffects effects, string root)
     {
         Directory.CreateDirectory(root);
-        _file = new FileStream(PathFor(root), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.WriteThrough);
+        _file = effects.OpenProfileSession(PathFor(root));
         try
         {
             if (_file.Length == 32)
@@ -217,7 +203,7 @@ internal sealed class StartupSessionCompletion : IDisposable
         }
         catch { _file.Dispose(); throw; }
     }
-    internal void Complete() => Write(Current);
+    public void Complete() => Write(Current);
     private void Write(string value)
     {
         _file.Position = 0; _file.Write(Encoding.ASCII.GetBytes(value)); _file.SetLength(value.Length); _file.Flush(true);

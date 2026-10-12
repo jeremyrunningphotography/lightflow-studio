@@ -1,20 +1,6 @@
 namespace LightflowStudio;
 
-internal enum CatalogStorageBoundary
-{
-    BeforeDirectoryCreation_BeforeInitialSQLiteUse,
-    AfterDirectoryCreation_BeforeInitialSQLiteUse,
-    AfterAtomicCreation_BeforeInitialSQLiteUse,
-    BeforeInspection_BeforeInitialSQLiteUse,
-    MigrationBoundary_BeforeInitialSQLiteUse,
-    MigrationBoundary_AfterInitialSQLiteUse,
-    MigrationStep_BeforeInitialSQLiteUse,
-    MigrationStep_AfterInitialSQLiteUse,
-    AfterCatalogValidation_SQLiteClosed,
-    FailedCreationCleanup_SQLiteClosed
-}
-
-internal enum CatalogOpenStatus
+public enum CatalogOpenStatus
 {
     Ready,
     Created,
@@ -30,19 +16,13 @@ internal enum CatalogOpenStatus
     MigrationFailed
 }
 
-internal sealed record CatalogRuntimePolicy(
+public sealed record CatalogRuntimePolicy(
     bool ForeignKeysEnabled,
     string JournalMode,
     int SynchronousLevel,
     int BusyTimeoutMilliseconds);
 
-internal sealed record CatalogIdentity(
-    Guid CatalogId,
-    string ApplicationIdentity,
-    DateTimeOffset CreatedUtc,
-    DateTimeOffset UpdatedUtc);
-
-internal sealed record CatalogOpenResult(
+public sealed record CatalogOpenResult(
     CatalogOpenStatus Status,
     CatalogDatabaseSession? Session = null,
     string? Diagnostic = null,
@@ -54,7 +34,7 @@ internal sealed record CatalogOpenResult(
 /// <summary>
 /// Provider-neutral seam for #83's required SQLite-aware pre-migration backup.
 /// </summary>
-internal interface ICatalogMigrationBackup
+public interface ICatalogMigrationBackup
 {
     Task<CatalogMigrationBackupResult> PrepareForMigrationAsync(
         string catalogDatabasePath,
@@ -63,13 +43,13 @@ internal interface ICatalogMigrationBackup
         CancellationToken cancellationToken);
 }
 
-internal sealed record CatalogMigrationBackupResult(bool Succeeded, string? Diagnostic = null)
+public sealed record CatalogMigrationBackupResult(bool Succeeded, string? Diagnostic = null)
 {
     public static CatalogMigrationBackupResult Success() => new(true);
     public static CatalogMigrationBackupResult Failure(string diagnostic) => new(false, diagnostic);
 }
 
-internal sealed class CatalogDatabaseSession : IAsyncDisposable
+public sealed class CatalogDatabaseSession : IAsyncDisposable
 {
     private readonly CatalogSqliteConnectionFactory _connections;
     private int _disposed;

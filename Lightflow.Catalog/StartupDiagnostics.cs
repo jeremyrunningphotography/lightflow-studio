@@ -40,6 +40,9 @@ internal sealed class StartupDiagnostics : IDisposable
         return Stage($"{store} deep validation reason={reason}");
     }
 
+    internal static string TargetContext(string? path) => path is null ? "not-observed"
+        : $"sha256:{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(path)))[..16]};length={path.Length}";
+
     public static void Note(string message) => Current.Value?.Write(message);
 
     private void Write(string message)

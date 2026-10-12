@@ -3,8 +3,8 @@ using Microsoft.Data.Sqlite;
 namespace LightflowStudio;
 
 // Authored Catalog values. Never populated from or folded into derived/source metadata.
-internal enum AssetDescriptionField { Title, Description, Notes, CreatorOverride, CreditOverride }
-internal sealed record AssetDescription(Guid AssetId, string? Title = null, string? Description = null,
+public enum AssetDescriptionField { Title, Description, Notes, CreatorOverride, CreditOverride }
+public sealed record AssetDescription(Guid AssetId, string? Title = null, string? Description = null,
     string? Notes = null, string? CreatorOverride = null, string? CreditOverride = null, long Revision = 0)
 {
     public string? Get(AssetDescriptionField field) => field switch
@@ -19,7 +19,7 @@ internal sealed record AssetDescription(Guid AssetId, string? Title = null, stri
 }
 
 // Omitted fields are untouched; a present null is an explicit Clear.
-internal sealed record AssetDescriptionPatch(IReadOnlyDictionary<AssetDescriptionField, string?> Values)
+public sealed record AssetDescriptionPatch(IReadOnlyDictionary<AssetDescriptionField, string?> Values)
 {
     public void Validate()
     {
@@ -35,10 +35,10 @@ internal sealed record AssetDescriptionPatch(IReadOnlyDictionary<AssetDescriptio
     }
 }
 
-internal sealed class AssetDescriptionConflictException() : InvalidOperationException(
+public sealed class AssetDescriptionConflictException() : InvalidOperationException(
     "The selected Catalog data changed or an asset is no longer available. Reload values before applying again.");
 
-internal interface IAssetDescriptionStore
+public interface IAssetDescriptionStore
 {
     Task<IReadOnlyDictionary<Guid, AssetDescription>> GetAsync(IReadOnlyCollection<Guid> assetIds,
         CancellationToken cancellationToken = default);
@@ -46,7 +46,7 @@ internal interface IAssetDescriptionStore
         CancellationToken cancellationToken = default);
 }
 
-internal sealed class CatalogAssetDescriptionStore(Func<CatalogDatabaseSession?> session) : IAssetDescriptionStore
+public sealed class CatalogAssetDescriptionStore(Func<CatalogDatabaseSession?> session) : IAssetDescriptionStore
 {
     public Task<IReadOnlyDictionary<Guid, AssetDescription>> GetAsync(IReadOnlyCollection<Guid> assetIds,
         CancellationToken cancellationToken = default)

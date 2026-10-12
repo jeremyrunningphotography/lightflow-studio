@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 
 namespace LightflowStudio;
 
-internal sealed class CatalogDatabaseService
+public sealed class CatalogDatabaseService
 {
     internal const string ApplicationIdentity = "LightflowStudio.Catalog";
     internal const int SqliteApplicationId = 0x4C465343; // LFSC
@@ -30,13 +30,13 @@ internal sealed class CatalogDatabaseService
         _migrations = ValidateMigrations(migrations);
     }
 
-    internal bool CleanStartup { get; init; }
-    internal StartupValidationReason ValidationReason { get; init; } = StartupValidationReason.ExplicitValidation;
+    public bool CleanStartup { get; init; }
+    public StartupValidationReason ValidationReason { get; init; } = StartupValidationReason.ExplicitValidation;
     // Supplied only by the production lifecycle composition. SQLite still owns creation,
     // inspection and migration; this callback revalidates native location binding at use.
-    internal Action<CancellationToken, CatalogStorageBoundary>? ValidateStorageAccess { get; init; }
-    internal string? ResolvedDatabasePath { get; init; }
-    internal Guid? ExpectedCatalogId { get; init; }
+    public Action<CancellationToken, CatalogStorageBoundary>? ValidateStorageAccess { get; init; }
+    public string? ResolvedDatabasePath { get; init; }
+    public Guid? ExpectedCatalogId { get; init; }
 
     public int CurrentSchemaVersion => _migrations.Count == 0 ? 0 : _migrations[^1].Version;
 

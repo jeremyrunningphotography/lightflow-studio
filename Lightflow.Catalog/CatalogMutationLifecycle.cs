@@ -2,13 +2,13 @@ using Lightflow.Application;
 
 namespace LightflowStudio;
 
-internal interface ICatalogMutationParticipant
+public interface ICatalogMutationParticipant
 {
     CatalogMutationLifecycle Mutations { get; }
 }
 
 /// <summary>Counts complete logical operations, not connections or transactions. Reads remain independent.</summary>
-internal sealed class CatalogMutationLifecycle : IDisposable, IClassificationMutationAdmission
+public sealed class CatalogMutationLifecycle : IDisposable, IClassificationMutationAdmission
 {
     private readonly object _sync = new();
     private readonly AsyncLocal<Admission?> _current = new();
@@ -160,7 +160,7 @@ internal sealed class CatalogMutationLifecycle : IDisposable, IClassificationMut
         }
     }
 
-    internal sealed class Quiescence(CatalogMutationLifecycle owner, long generation) : IDisposable
+    public sealed class Quiescence(CatalogMutationLifecycle owner, long generation) : IDisposable
     {
         private int _finished;
         public void CompleteShutdown()

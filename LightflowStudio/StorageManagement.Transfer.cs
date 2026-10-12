@@ -51,8 +51,7 @@ internal sealed partial class LightflowStorageCoordinator
                     sourceAdmission.RequireActiveSessionBinding(_catalogSession);
                     quiet = await Mutations.QuiesceAsync(token).ConfigureAwait(false);
                     consumersStopped = true;
-                    await DisposeMediaMonitoringAsync().ConfigureAwait(false);
-                    await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
+                    await _lifecycle.StopConsumersAsync().ConfigureAwait(false);
                     var current = _catalogSession!;
                     _catalogSession = null;
                     sourceClosed = true;
@@ -63,7 +62,7 @@ internal sealed partial class LightflowStorageCoordinator
                 {
                     await destinationAdmission.ValidateAsync(token).ConfigureAwait(false);
                     var bound = destinationAdmission.LocationsForUse();
-                    destinationOwnership = StartupStoreEvidence.Begin(destination.CatalogDatabasePath, "Catalog", false,
+                    destinationOwnership = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, destination.CatalogDatabasePath, "Catalog", false,
                         _startupCompletion, bound.CatalogDatabasePath)
                         ?? throw new IOException("The destination Catalog ownership lease could not be established.");
                     destinationOwnership.RequireOwnership(bound.CatalogDatabasePath);
@@ -161,8 +160,7 @@ internal sealed partial class LightflowStorageCoordinator
                 quiet?.Dispose();
                 if (consumersStopped)
                 {
-                    DerivedWork = CreateDerivedWorkScheduler();
-                    await RecreateMediaMonitoringAsync().ConfigureAwait(false);
+                    await _lifecycle.RestartConsumersAsync().ConfigureAwait(false);
                 }
             }
             }

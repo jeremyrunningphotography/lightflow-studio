@@ -28,8 +28,7 @@ public sealed class StorageManagementTests : IAsyncLifetime
         var catalogId = coordinator.CatalogSession.Identity.CatalogId;
         // Hold the actual serialization gate to model an in-progress durable mutation without
         // relying on disk speed or making disposal skip that operation.
-        var gate = (SemaphoreSlim)typeof(LightflowStorageCoordinator).GetField("_mutationGate",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(coordinator)!;
+        var gate = coordinator.Lifecycle.TransitionGate;
         await gate.WaitAsync();
         Task? shutdown = null;
         try

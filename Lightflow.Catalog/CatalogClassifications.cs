@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 
 namespace LightflowStudio;
 
-internal sealed class CatalogAssetClassificationStore(Func<CatalogDatabaseSession?> session,
+public sealed class CatalogAssetClassificationStore(Func<CatalogDatabaseSession?> session,
     Func<DateTimeOffset>? utcNow = null) : IAssetClassificationStore
 {
     private const int QueryBatchSize = 400;

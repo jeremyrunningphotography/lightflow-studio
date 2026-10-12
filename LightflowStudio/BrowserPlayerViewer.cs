@@ -63,17 +63,6 @@ internal static class ReviewRangePlaybackPolicy
 /// the saved opposite boundary, the requested boundary wins and the opposite boundary is cleared. Returning
 /// one complete <see cref="MediaRange"/> lets the Catalog persist the replacement atomically.
 /// </summary>
-internal static class ReviewRangeBoundaryPolicy
-{
-    public static MediaRange SetIn(TimeSpan sourceDuration, MediaRange? current, TimeSpan requestedIn) =>
-        new(sourceDuration, requestedIn,
-            current?.Out is { } savedOut && requestedIn < savedOut ? savedOut : null);
-
-    public static MediaRange SetOut(TimeSpan sourceDuration, MediaRange? current, TimeSpan requestedOut) =>
-        new(sourceDuration,
-            current?.In is { } savedIn && requestedOut > savedIn ? savedIn : null, requestedOut);
-}
-
 internal sealed record PlayerRangeTimelinePresentation(
     bool HasSelectedSpan,
     bool HasProportions,

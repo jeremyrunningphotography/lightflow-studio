@@ -72,8 +72,8 @@ internal sealed partial class LightflowStorageCoordinator
             using var admission = new CatalogLocationAdmission(selected, StorageOperation.Open, _assessor);
             await admission.ValidateAsync(token).ConfigureAwait(false);
             var bound = admission.LocationsForUse();
-            using var preflightCompletion = _startupCompletion is null ? new StartupSessionCompletion(Locations.ApplicationDataDirectory) : null;
-            using var ownership = StartupStoreEvidence.Begin(selected.CatalogDatabasePath, "Catalog", false,
+            using var preflightCompletion = _startupCompletion is null ? new StartupSessionCompletion(WindowsCatalogEvidenceEffects.Instance, Locations.ApplicationDataDirectory) : null;
+            using var ownership = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, selected.CatalogDatabasePath, "Catalog", false,
                 _startupCompletion ?? preflightCompletion, bound.CatalogDatabasePath) ?? throw new IOException("Catalog ownership could not be established.");
             ownership.RequireOwnership(bound.CatalogDatabasePath);
             var transferredIdentity = VerifySelectedTransfer(bound.CatalogDirectory, ownership.HadValidatedCatalog);

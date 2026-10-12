@@ -144,7 +144,7 @@ internal sealed class CatalogSqliteConnectionFactory
             throw new CatalogLocationAdmissionException($"The unpublished Catalog pool could not be closed: {error.GetType().Name}.",
                 Lightflow.Application.StorageLocationReason.AssessmentFailed);
         }
-        StartupDiagnostics.Note($"Catalog closed boundary: phase={boundary}; factory=[{WindowsStorageLocationAssessor.TargetContext(DatabasePath)}]; checkedOut=0; poolClear=completed; elapsedMs={started.Elapsed.TotalMilliseconds:F3}");
+        StartupDiagnostics.Note($"Catalog closed boundary: phase={boundary}; factory=[{StartupDiagnostics.TargetContext(DatabasePath)}]; checkedOut=0; poolClear=completed; elapsedMs={started.Elapsed.TotalMilliseconds:F3}");
     }
 
     private static void ExecuteNonQuery(SqliteConnection connection, string sql)

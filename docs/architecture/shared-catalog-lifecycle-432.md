@@ -1,5 +1,7 @@
 # Shared Catalog lifecycle extraction — architecture decision gate
 
+**Current continuation:** Jeremy approved the narrow host-consumer effects port and conservative unpaired completion on 2026-10-12 in #432/#425. The original decision gate below is historical. Implementation is in progress; see [the implementation checkpoint](catalog-lifecycle-432-implementation.md). This approval is not implementation acceptance.
+
 Assignment: LF-WIN-DEV-019. Issue: #432; downstream #425; migration parent #366; Catalog coordination #289; R2 #393.
 
 Status: dependency inventory and proposed boundary, not an implementation or acceptance report. Owner review is required for the host-consumer boundary below before production changes. No code has moved. No schema, provider, durability, storage policy or accepted ADR has changed.

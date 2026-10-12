@@ -33,11 +33,6 @@ internal sealed class AppSettingsStorageConfigurationStore(string path, bool iso
     public void Save(AppSettings settings) => AppSettingsStore.Save(path, settings, isolated);
 }
 
-internal interface ICatalogRelocationTransfer
-{
-    void Backup(string sourceDatabasePath, string destinationDatabasePath);
-}
-
 internal sealed class SqliteCatalogRelocationTransfer : ICatalogRelocationTransfer
 {
     public void Backup(string sourceDatabasePath, string destinationDatabasePath)
@@ -58,76 +53,30 @@ internal sealed class CatalogSessionActivator : ICatalogSessionActivator
 
 internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
 {
-    private StartupSessionCompletion? _startupCompletion;
-    private StartupStoreEvidence? _catalogStartup;
+    private readonly CatalogLifecycle _lifecycle;
+    internal CatalogLifecycle Lifecycle => _lifecycle;
+    private StartupSessionCompletion? _startupCompletion { get => _lifecycle.ProfileCompletion; set => _lifecycle.ProfileCompletion = value; }
+    private StartupStoreEvidence? _catalogStartup { get => _lifecycle.CatalogEvidence; set => _lifecycle.CatalogEvidence = value; }
     private StartupStoreEvidence? _previewStartup;
-    private bool _shutdownAdmissionClosed;
-    private bool _cleanShutdownAllowed = true;
-    internal void PreventCleanShutdown() => _cleanShutdownAllowed = false;
+    private bool _shutdownAdmissionClosed { get => _lifecycle.AdmissionClosed; set => _lifecycle.AdmissionClosed = value; }
+    internal void PreventCleanShutdown() => _lifecycle.PreventCleanShutdown();
     private readonly IStorageConfigurationStore _configuration;
     private readonly ICatalogRelocationTransfer _transfer;
     private readonly ICatalogSessionActivator _activator;
     private readonly IStorageLocationAssessor? _assessor;
     private ICatalogRecoveryService _recovery;
-    private readonly SemaphoreSlim _mutationGate = new(1, 1);
+    private SemaphoreSlim _mutationGate => _lifecycle.TransitionGate;
     private readonly CancellationTokenSource _readShutdown = new();
     private readonly PreviewOperationCoordinator _previewOperations = new();
     private readonly SemaphoreSlim _thumbnailRegenerationGate = new(2, 2);
     private readonly AssetPreviewGenerationGate _assetPreviewGenerationGate = new();
-    internal CatalogMutationLifecycle Mutations { get; } = new();
-    private CatalogDatabaseSession? _session;
-    private CatalogDatabaseSession? _catalogSession
-    {
-        get => _session;
-        set
-        {
-            if (value is not null)
-            {
-                RequireCatalogOwnership(value.ResolvedDatabasePath);
-                value.Mutations = Mutations;
-                value.RequireOwnership = RequireCatalogOwnership;
-                value.ReadinessFailed = LoseWorkspaceReadiness;
-            }
-            _session = value;
-        }
-    }
-    private void RequireCatalogOwnership(string database)
-    {
-        if (_workspaceReadinessLost) throw new IOException("Catalog readiness is unavailable. Authoring is blocked.");
-        try
-        {
-            if (_catalogStartup is null) throw new IOException("Catalog ownership is unavailable. Authoring is blocked.");
-            _catalogStartup.RequireOwnership(database);
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ObjectDisposedException or System.ComponentModel.Win32Exception)
-        { LoseWorkspaceReadiness(error.Message); throw; }
-    }
-
-    private volatile bool _workspaceReadinessLost;
-    internal event Action? WorkspaceReadinessLost;
-    internal bool CatalogTransitionInProgress => _mutationGate.CurrentCount == 0;
-    internal bool VerifyWorkspaceReadiness()
-    {
-        if (!CatalogAvailable) return false;
-        try
-        {
-            RequireCatalogOwnership(_catalogSession!.ResolvedDatabasePath);
-            if (!File.Exists(_catalogSession.ResolvedDatabasePath))
-                throw new IOException("The active Catalog is unavailable. Its configured location has been retained.");
-            return true;
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ObjectDisposedException or System.ComponentModel.Win32Exception)
-        { LoseWorkspaceReadiness(error.Message); return false; }
-    }
-    private void LoseWorkspaceReadiness(string diagnostic)
-    {
-        if (_workspaceReadinessLost) return;
-        _workspaceReadinessLost = true;
-        PreventCleanShutdown(); RecoveryDiagnostic = diagnostic;
-        Mutations.Dispose();
-        _shutdownAdmissionClosed = true;
-        WorkspaceReadinessLost?.Invoke();
-    }
+    internal CatalogMutationLifecycle Mutations => _lifecycle.Mutations;
+    private CatalogDatabaseSession? _catalogSession { get => _lifecycle.Session; set => _lifecycle.Session = value; }
+    private void RequireCatalogOwnership(string database) => _lifecycle.RequireCatalogOwnership(database);
+    internal event Action? WorkspaceReadinessLost { add => _lifecycle.WorkspaceReadinessLost += value; remove => _lifecycle.WorkspaceReadinessLost -= value; }
+    internal bool CatalogTransitionInProgress => _lifecycle.CatalogTransitionInProgress;
+    internal bool VerifyWorkspaceReadiness() => _lifecycle.VerifyWorkspaceReadiness();
+    private void LoseWorkspaceReadiness(string diagnostic) => _lifecycle.LoseWorkspaceReadiness(diagnostic);
 
     private LightflowStorageCoordinator(IStorageConfigurationStore configuration, AppSettings settings,
         LightflowStorageLocations locations, CatalogDatabaseSession? session, ICatalogRelocationTransfer transfer,
@@ -135,6 +84,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         string? previewDiagnostic, StartupStoreEvidence? catalogStartup = null, StartupStoreEvidence? previewStartup = null, StartupSessionCompletion? startupCompletion = null,
         IStorageLocationAssessor? assessor = null)
     {
+        _lifecycle = new CatalogLifecycle(new WindowsCatalogHostConsumers(this));
         _catalogStartup = catalogStartup; _previewStartup = previewStartup; _startupCompletion = startupCompletion;
         if (session is not null) _catalogStartup!.MarkValidated();
         _configuration = configuration;
@@ -184,10 +134,10 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
     public AppSettings Settings { get; private set; }
     public LightflowStorageLocations Locations { get; private set; }
     public CatalogDatabaseSession CatalogSession => _catalogSession ?? throw new InvalidOperationException("The Catalog is not open.");
-    public bool CatalogAvailable => _catalogSession is not null && !_workspaceReadinessLost;
+    public bool CatalogAvailable => _lifecycle.CatalogAvailable;
     public bool PreviewAvailable { get; private set; }
     public string? PreviewDiagnostic { get; private set; }
-    public string? RecoveryDiagnostic { get; private set; }
+    public string? RecoveryDiagnostic { get => _lifecycle.RecoveryDiagnostic; private set => _lifecycle.SetRecoveryDiagnostic(value); }
     public IMediaRootService MediaRoots { get; }
     public IBrowserStorageProvider BrowserStorage { get; }
     public IBrowserLocationResolver BrowserLocations { get; }
@@ -319,10 +269,10 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                             ? CatalogRecoveryReason.UnsupportedStorage : CatalogRecoveryReason.LocationRefused);
             }
             var boundLocations = admission.LocationsForUse();
-            startupCompletion = new StartupSessionCompletion(locations.ApplicationDataDirectory);
+            startupCompletion = new StartupSessionCompletion(WindowsCatalogEvidenceEffects.Instance, locations.ApplicationDataDirectory);
             try
             {
-                catalogStartup = StartupStoreEvidence.Begin(locations.CatalogDatabasePath, "Catalog", create, startupCompletion,
+                catalogStartup = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, locations.CatalogDatabasePath, "Catalog", create, startupCompletion,
                     boundLocations.CatalogDatabasePath) ?? throw new DirectoryNotFoundException("The Catalog folder is unavailable.");
             }
             catch (IOException exception)
@@ -345,34 +295,14 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
                 throw new CatalogLocationAdmissionException("Catalog transfer verification refused opening. Existing data and evidence are retained. " + refusal.Message,
                     StorageLocationReason.AssessmentFailed);
             }
-            previewStartup = StartupStoreEvidence.Begin(locations.PreviewsDatabasePath, "Previews", settings.PreviewsDirectory is null, startupCompletion);
-            var cleanPair = catalogStartup?.KnownClean == true && previewStartup?.KnownClean == true;
-            catalogStartup?.RequireCompletePeer(cleanPair); previewStartup?.RequireCompletePeer(cleanPair);
+            previewStartup = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, locations.PreviewsDatabasePath, "Previews", settings.PreviewsDirectory is null, startupCompletion);
+            CatalogLifecycle.RequireCompletePeers(catalogStartup, previewStartup);
             StartupDiagnostics.Note($"Catalog startup decision: {(catalogStartup?.KnownClean == true ? "fast candidate" : "deep")} reason={catalogStartup?.Reason ?? StartupValidationReason.UnexpectedShutdown}");
             StartupDiagnostics.Note($"Previews startup decision: {(previewStartup?.KnownClean == true ? "fast candidate" : "deep")} reason={previewStartup?.Reason ?? StartupValidationReason.UnexpectedShutdown}");
             var boundRecovery = recovery is SqliteCatalogRecoveryService nativeRecovery ? nativeRecovery.ForLocations(boundLocations) : recovery;
-            var database = new CatalogDatabaseService(locations, boundRecovery)
-            { CleanStartup = catalogStartup?.KnownClean == true, ValidationReason = catalogStartup?.Reason ?? StartupValidationReason.UnexpectedShutdown,
-                ExpectedCatalogId = selectedSettings?.CatalogId ?? transferredIdentity,
-                ValidateStorageAccess = (token, phase) => admission.ValidateClosedDatabaseBoundary(token, phase),
-                ResolvedDatabasePath = boundLocations.CatalogDatabasePath };
-            CatalogOpenResult opened;
-            await admission.ValidateAsync(cancellationToken).ConfigureAwait(false);
-            if (create)
-            {
-                opened = await database.CreateNewAsync(cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                opened = await database.OpenExistingAsync(cancellationToken).ConfigureAwait(false);
-            }
-
+            var opened = await CatalogLifecycle.OpenAdmittedAsync(locations, admission, catalogStartup!, previewStartup,
+                create, selectedSettings?.CatalogId ?? transferredIdentity, boundRecovery, cancellationToken).ConfigureAwait(false);
             pendingSession = opened.Session;
-            if (opened.IsSuccess)
-            {
-                opened.Session!.CloseBeforeActivation();
-                await admission.ValidateAsync(cancellationToken, "AfterCatalogOpen_AfterInitialSQLiteUse").ConfigureAwait(false);
-            }
             if (!opened.IsSuccess)
             {
                 StartupDiagnostics.Note($"Catalog readiness: {opened.Status}; transition=existing recovery surface");
@@ -491,7 +421,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
     }
 
     internal string BackupDirectory => Settings.CatalogBackupDirectory ?? CatalogBackupDestination.Default(Locations);
-    private CatalogMutationLifecycle.Quiescence? _exitQuiescence;
+    private CatalogMutationLifecycle.Quiescence? _exitQuiescence { get => _lifecycle.ExitQuiescence; set => _lifecycle.ExitQuiescence = value; }
 
     internal async Task<CatalogBackupResult> BackupForExitAsync(string destination, bool keepQuiescent,
         IProgress<string>? progress = null, CancellationToken cancellationToken = default)
@@ -530,12 +460,8 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         finally { if (!keep) quiet.Dispose(); }
     }
 
-    internal void CancelPreparedExit() { _exitQuiescence?.Dispose(); _exitQuiescence = null; }
-    internal void CompletePreparedExit()
-    {
-        if (_exitQuiescence is not null) { _exitQuiescence.CompleteShutdown(); _shutdownAdmissionClosed = true; }
-        _exitQuiescence = null;
-    }
+    internal void CancelPreparedExit() => _lifecycle.CancelPreparedExit();
+    internal void CompletePreparedExit() => _lifecycle.CompletePreparedExit();
 
     internal async Task SaveBackupDestinationAsync(string destination, CancellationToken token)
     {
@@ -563,8 +489,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await DisposeMediaMonitoringAsync().ConfigureAwait(false);
-            await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
+            await _lifecycle.StopConsumersAsync().ConfigureAwait(false);
             using var admission = new CatalogLocationAdmission(Locations, StorageOperation.RestoreActivation, _assessor);
             try
             {
@@ -662,8 +587,7 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         {
             try
             {
-                DerivedWork = CreateDerivedWorkScheduler();
-                await RecreateMediaMonitoringAsync().ConfigureAwait(false);
+                await _lifecycle.RestartConsumersAsync().ConfigureAwait(false);
             }
             finally { _mutationGate.Release(); }
         }
@@ -719,8 +643,8 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         StartupStoreEvidence? lease = null;
         try
         {
-            completion = _startupCompletion is null ? new StartupSessionCompletion(Locations.ApplicationDataDirectory) : null;
-            lease = StartupStoreEvidence.Begin(Locations.CatalogDatabasePath, "Catalog", false,
+            completion = _startupCompletion is null ? new StartupSessionCompletion(WindowsCatalogEvidenceEffects.Instance, Locations.ApplicationDataDirectory) : null;
+            lease = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Locations.CatalogDatabasePath, "Catalog", false,
                 _startupCompletion ?? completion, resolvedDatabase) ?? throw new IOException("The configured Catalog directory is unavailable.");
             lease.RequireOwnership(resolvedDatabase);
             _catalogStartup = lease; lease = null;
@@ -1016,79 +940,8 @@ internal sealed partial class LightflowStorageCoordinator : IAsyncDisposable
         _ => StorageStartupStatus.CatalogUnreadable
     };
 
-    public ValueTask DisposeAsync() => DisposeAsync(null);
-
-    internal async ValueTask DisposeAsync(Action<string>? diagnostic)
-    {
-        var timer = System.Diagnostics.Stopwatch.StartNew();
-        void Report(string stage) => diagnostic?.Invoke($"[Storage shutdown pid={Environment.ProcessId} elapsed={timer.Elapsed.TotalMilliseconds:F1}ms] {stage}");
-        try
-        {
-            Report("Canceling read-only usage measurement");
-            _readShutdown.Cancel();
-            Report("Disposing LUT cache");
-            if (LutCache is IDisposable disposableLutCache) disposableLutCache.Dispose();
-            Report("Stopping media monitoring");
-            await DisposeMediaMonitoringAsync().ConfigureAwait(false);
-            Report("Stopping derived work");
-            await DisposeDerivedWorkSchedulerAsync().ConfigureAwait(false);
-            Report("Draining Catalog mutations");
-            if (!_shutdownAdmissionClosed)
-            {
-                if (_exitQuiescence is not null) CompletePreparedExit();
-                else
-                {
-                    var quiet = await Mutations.QuiesceAsync().ConfigureAwait(false);
-                    quiet.CompleteShutdown(); _shutdownAdmissionClosed = true;
-                }
-            }
-            Report("Waiting for storage operations");
-            await _mutationGate.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                Report("Waiting for Preview operations");
-                using var previewLease = await _previewOperations.EnterMaintenanceAsync().ConfigureAwait(false);
-                var healthy = _cleanShutdownAllowed && _catalogSession is not null && Previews is not null;
-                var resolvedCatalogPath = _catalogSession?.ResolvedDatabasePath;
-                Report("Closing Catalog");
-                if (_catalogSession is not null) await _catalogSession.DisposeAsync().ConfigureAwait(false);
-                _catalogSession = null;
-                Report("Closing Previews");
-                if (Previews is not null) await Previews.DisposeAsync().ConfigureAwait(false);
-                Previews = null;
-                if (healthy)
-                {
-                    // Failure to attest is conservative: shutdown may finish, next launch validates.
-                    try
-                    {
-                        _catalogStartup?.Complete(resolvedCatalogPath!);
-                        _previewStartup?.Complete(Locations.PreviewsDatabasePath);
-                        if (_catalogStartup?.Completed == true && _previewStartup?.Completed == true)
-                        {
-                            _startupCompletion?.Complete();
-                            Report("Durable clean storage completion recorded");
-                        }
-                    }
-                    catch (Exception error) when (error is IOException or UnauthorizedAccessException or SqliteException)
-                    { Report($"Clean completion unavailable; next startup validates: {error.GetType().Name}: {error.Message}"); }
-                }
-                Report("Completed");
-            }
-            finally
-            {
-                _mutationGate.Release();
-                _mutationGate.Dispose();
-                _readShutdown.Dispose();
-                Mutations.Dispose();
-            }
-        }
-        finally
-        {
-            _catalogStartup?.Dispose(); _catalogStartup = null;
-            _previewStartup?.Dispose(); _previewStartup = null;
-            _startupCompletion?.Dispose(); _startupCompletion = null;
-        }
-    }
+    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
+    internal ValueTask DisposeAsync(Action<string>? diagnostic) => _lifecycle.DisposeAsync(diagnostic);
 
     private async Task DisposeMediaMonitoringAsync()
     {

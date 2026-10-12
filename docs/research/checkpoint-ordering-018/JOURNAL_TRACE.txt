@@ -1,0 +1,32 @@
+2026-10-12T14:18:11.7708879+00:00 pid=61220 directory native lease acquisition begin path=[fixture]\interrupted\Catalog Transfers 
+2026-10-12T14:18:11.7719489+00:00 pid=61220 directory native lease acquired path=[fixture]\interrupted\Catalog Transfers 
+2026-10-12T14:18:11.7721365+00:00 pid=61220 journal open begin ReadWrite ShareRead path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal 
+2026-10-12T14:18:11.7727516+00:00 pid=61220 journal open acquired path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal handle=0x744
+2026-10-12T14:18:12.4396916+00:00 pid=86984 journal read attempt Read ShareRead path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal 
+2026-10-12T14:18:12.4411916+00:00 pid=86984 journal read handle acquired path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal handle=0x870
+2026-10-12T14:18:12.4422711+00:00 pid=86984 journal read handle disposing path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal 
+2026-10-12T14:18:12.4424609+00:00 pid=86984 journal read closed or refused path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal 
+2026-10-12T14:18:12.4667492+00:00 pid=86984 journal read attempt Read ShareRead path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal 
+2026-10-12T14:18:12.4679082+00:00 pid=86984 journal read handle acquired path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal handle=0x880
+2026-10-12T14:18:12.4696312+00:00 pid=86984 journal read handle disposing path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal 
+2026-10-12T14:18:12.4698776+00:00 pid=86984 journal read closed or refused path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal 
+2026-10-12T14:18:12.4792975+00:00 pid=86984 journal read attempt Read ShareRead path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal 
+2026-10-12T14:18:12.4804799+00:00 pid=86984 journal read handle acquired path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal handle=0x880
+2026-10-12T14:18:12.4814117+00:00 pid=86984 journal read handle disposing path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal 
+2026-10-12T14:18:12.4815891+00:00 pid=86984 journal read closed or refused path=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal 
+2026-10-12T14:18:10.2199301+00:00 pid=30420 directory native lease acquisition begin path=[fixture]\interrupted\Catalog Transfers 
+2026-10-12T14:18:10.2206938+00:00 pid=30420 directory native lease acquired path=[fixture]\interrupted\Catalog Transfers 
+2026-10-12T14:18:10.2208817+00:00 pid=30420 journal open begin ReadWrite ShareRead path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal 
+2026-10-12T14:18:10.2215352+00:00 pid=30420 journal open acquired path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal handle=0x7A8
+2026-10-12T14:18:10.8886250+00:00 pid=86984 journal read attempt Read ShareRead path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal 
+2026-10-12T14:18:10.8913630+00:00 pid=86984 journal read handle acquired path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal handle=0x6E4
+2026-10-12T14:18:10.9407094+00:00 pid=86984 journal read handle disposing path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal 
+2026-10-12T14:18:10.9409978+00:00 pid=86984 journal read closed or refused path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal 
+2026-10-12T14:18:11.1149123+00:00 pid=86984 journal read attempt Read ShareRead path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal 
+2026-10-12T14:18:11.1162282+00:00 pid=86984 journal read handle acquired path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal handle=0x5D8
+2026-10-12T14:18:11.1172850+00:00 pid=86984 journal read handle disposing path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal 
+2026-10-12T14:18:11.1174800+00:00 pid=86984 journal read closed or refused path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal 
+2026-10-12T14:18:11.1337567+00:00 pid=86984 journal read attempt Read ShareRead path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal 
+2026-10-12T14:18:11.1350196+00:00 pid=86984 journal read handle acquired path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal handle=0x788
+2026-10-12T14:18:11.1358929+00:00 pid=86984 journal read handle disposing path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal 
+2026-10-12T14:18:11.1360699+00:00 pid=86984 journal read closed or refused path=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal 

@@ -26,33 +26,41 @@ public sealed class CatalogOwnershipProcessTests(ITestOutputHelper output)
             "--ownership-move", destination, "--ownership-pause-state", boundary.ToString(),
             "--ownership-paused", Path.Combine(inner, "paused.json") }) info.ArgumentList.Add(arg);
         using var child = Process.Start(info)!;
+        output.WriteLine("{0:O} parent pid={1} start={2:O}; child pid={3} start={4:O}",
+            DateTimeOffset.UtcNow, Environment.ProcessId, Process.GetCurrentProcess().StartTime.ToUniversalTime(), child.Id, child.StartTime.ToUniversalTime());
         CatalogOwnershipVerifier.Report paused;
         try
         {
             paused = await Report(inner, "paused", child);
             Assert.Equal(boundary.ToString(), paused.Diagnostic);
             Assert.NotEqual(Environment.ProcessId, paused.ProcessId);
+            var journalPath = Directory.GetFiles(Path.Combine(inner, "Catalog Transfers"), "*.journal").Single();
+            JournalLockDiagnostics.Record(output, "paused child before termination", journalPath, root);
             // Terminate only this explicitly test-owned synthetic child, simulating power loss.
+            output.WriteLine("{0:O} kill requested child={1}", DateTimeOffset.UtcNow, child.Id);
             child.Kill(entireProcessTree: true); await child.WaitForExitAsync();
+            output.WriteLine("{0:O} wait complete child={1} exit={2:O} code={3}", DateTimeOffset.UtcNow, child.Id, child.ExitTime.ToUniversalTime(), child.ExitCode);
         }
         finally { if (!child.HasExited) { child.Kill(entireProcessTree: true); await child.WaitForExitAsync(); } }
         var profile = ApplicationDataProfile.Resolve(["--data-root", inner]);
+        output.WriteLine("{0:O} first startup journal read boundary", DateTimeOffset.UtcNow);
         var restart = await LightflowStorageCoordinator.StartAsync(profile: profile, allowFirstCreation: false);
+        JournalLockDiagnostics.Record(output, "after first startup read", Directory.GetFiles(ClosedCatalogTransferJournal.DirectoryPath(profile), "*.journal").Single(), root);
         output.WriteLine("Interrupted boundary: {0}; child pid: {1}; restart status: {2}; reason: {3}",
             boundary, paused.ProcessId, restart.Status, restart.RecoveryReason);
-        output.WriteLine("Full restart diagnostic: {0}", restart.Diagnostic);
+        output.WriteLine("Full restart diagnostic: {0}", restart.Diagnostic?.Replace(root, "[fixture]"));
         if (restart.Diagnostic?.Contains("interrupted Catalog transfer", StringComparison.OrdinalIgnoreCase) != true)
         {
             // Collect evidence only after refusal. Never retry startup or change its result.
             try
             {
                 var journal = Directory.GetFiles(ClosedCatalogTransferJournal.DirectoryPath(profile), "*.journal").Single();
-                output.WriteLine("Retained journal: {0}; bytes: {1}", journal, new FileInfo(journal).Length);
+                output.WriteLine("Retained journal: {0}; bytes: {1}", journal.Replace(root, "[fixture]"), new FileInfo(journal).Length);
                 var observed = ClosedCatalogTransferJournal.Read(journal);
                 output.WriteLine("Diagnostic read only: {0} records; final state {1}; intent {2}",
                     observed.Count, observed.LastOrDefault()?.State, observed.LastOrDefault()?.IsIntent);
             }
-            catch (Exception diagnosticError) { output.WriteLine("Diagnostic journal read: {0}", diagnosticError); }
+            catch (Exception diagnosticError) { output.WriteLine("Diagnostic journal read: HRESULT=0x{0:X8}; native={1}; {2}", diagnosticError.HResult, diagnosticError.HResult & 0xffff, diagnosticError.ToString().Replace(root, "[fixture]")); }
         }
         Assert.False(restart.IsReady);
         Assert.Equal(CatalogRecoveryReason.PendingRecovery, restart.RecoveryReason);

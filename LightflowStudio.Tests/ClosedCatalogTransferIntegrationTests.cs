@@ -45,7 +45,7 @@ public sealed class ClosedCatalogTransferIntegrationTests : IAsyncLifetime
             var manifest = ClosedCatalogManifestFormat.Deserialize(await File.ReadAllBytesAsync(Path.Combine(destination, "manifest.json")));
             Assert.Equal(ClosedCatalogPublicationMode.AtomicDirectory, manifest.PublicationMode);
             Assert.Equal(id, manifest.CatalogId);
-            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(storage.CatalogSession.DatabasePath, "Catalog", false));
+            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, storage.CatalogSession.DatabasePath, "Catalog", false));
             Assert.Equal(backupHash, SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(destination, "Backups", backupName))));
             Assert.True(File.Exists(Locations.CatalogDatabasePath));
         }

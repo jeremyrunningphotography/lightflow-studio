@@ -45,7 +45,7 @@ public sealed class CatalogLeaseTransitionTests
         Assert.True(restored.Succeeded, restored.Diagnostic);
         Assert.Equal(id, unavailable.CatalogSession.Identity.CatalogId);
         Assert.Single(await unavailable.Collections.ListCollectionsAsync());
-        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(unavailable.CatalogSession.DatabasePath, "Catalog", false));
+        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, unavailable.CatalogSession.DatabasePath, "Catalog", false));
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class CatalogLeaseTransitionTests
         foreach (var database in new[] { source, Path.Combine(destination, LightflowStorageLocations.CatalogFileName) })
         {
             Assert.True(File.Exists(database));
-            using var released = StartupStoreEvidence.Begin(database, "Catalog", false);
+            using var released = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, database, "Catalog", false);
             Assert.NotNull(released);
         }
         Assert.NotNull(ClosedCatalogTransferJournal.InspectPending(profile));
@@ -98,13 +98,13 @@ public sealed class CatalogLeaseTransitionTests
         Assert.Equal(id, owner.CatalogSession.Identity.CatalogId);
         Assert.NotNull(await owner.Collections.GetCollectionAsync(collection.CollectionId));
         await owner.Collections.CreateCollectionAsync("Authoring after proven rollback");
-        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(source, "Catalog", false));
+        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, source, "Catalog", false));
         Assert.Throws<IOException>(() => File.Delete(StartupStoreEvidence.JournalPath(source)));
         Assert.True(AppSettingsStore.TryLoadForStartup(profile.SettingsPath, out var saved, out _, isolated: true));
         Assert.Equal(id, saved.CatalogId);
         if (fault != "destination")
         {
-            using var released = StartupStoreEvidence.Begin(Path.Combine(destination, LightflowStorageLocations.CatalogFileName), "Catalog", false);
+            using var released = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Path.Combine(destination, LightflowStorageLocations.CatalogFileName), "Catalog", false);
             Assert.NotNull(released);
         }
     }
@@ -118,16 +118,16 @@ public sealed class CatalogLeaseTransitionTests
         var stale = owner.CatalogSession;
         Assert.True((await owner.RelocateCatalogAsync(Path.Combine(root, "moved"))).Succeeded);
         Assert.Throws<ObjectDisposedException>(() => stale.OpenConnection());
-        using var released = StartupStoreEvidence.Begin(stale.DatabasePath, "Catalog", false);
+        using var released = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, stale.DatabasePath, "Catalog", false);
         Assert.NotNull(released);
-        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(owner.CatalogSession.DatabasePath, "Catalog", false));
+        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, owner.CatalogSession.DatabasePath, "Catalog", false));
     }
 
     private sealed class FaultingActivator(bool fail) : ICatalogSessionActivator
     {
         public CatalogDatabaseSession Activate(CatalogDatabaseSession session)
         {
-            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(session.DatabasePath, "Catalog", false));
+            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, session.DatabasePath, "Catalog", false));
             if (fail) throw new IOException("Injected activation failure");
             return session;
         }
@@ -158,7 +158,7 @@ public sealed class CatalogLeaseTransitionTests
             var result = await _native.AssessAsync(request, cancellationToken);
             var database = Path.Combine(destination, LightflowStorageLocations.CatalogFileName);
             if (contend && request.RequestedLocation == destination && File.Exists(database) && _contender is null)
-                _contender = StartupStoreEvidence.Begin(database, "Catalog", false);
+                _contender = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, database, "Catalog", false);
             return result;
         }
         public void Dispose() { _contender?.Dispose(); _native.Dispose(); }

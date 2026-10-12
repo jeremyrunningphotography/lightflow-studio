@@ -39,7 +39,7 @@ public sealed class CatalogMoveCompletionPresentationTests
                 await pause.Entered.Task.WaitAsync(TimeSpan.FromSeconds(15));
                 Assert.False(dialog.CompletedSuccessfully);
                 Assert.Equal(Visibility.Collapsed, dialog.MoveSuccessPanel.Visibility);
-                Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(Path.Combine(destination, LightflowStorageLocations.CatalogFileName), "Catalog", false));
+                Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Path.Combine(destination, LightflowStorageLocations.CatalogFileName), "Catalog", false));
                 pause.Release.Set();
                 await dialog.Completion.WaitAsync(TimeSpan.FromSeconds(15));
                 dialog.UpdateLayout();

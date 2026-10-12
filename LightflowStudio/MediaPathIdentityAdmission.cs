@@ -4,13 +4,8 @@ using Lightflow.Domain;
 
 namespace LightflowStudio;
 
-internal sealed class MediaPathIdentityException(PathIdentityResult result) : IOException($"{result.Status}: {result.Diagnostic}")
-{
-    public PathIdentityStatus Status { get; } = result.Status;
-}
-
 /// <summary>Windows compatibility adapter. Read-only, operation-owned native facts; no durable identities or writer gate.</summary>
-internal sealed class MediaPathIdentityAdmission : IDisposable
+internal sealed class MediaPathIdentityAdmission : IMediaRootPathAdmission
 {
     private readonly WindowsStorageLocationAssessor _assessor = new();
     private readonly StorageAssessmentRequest _request;

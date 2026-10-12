@@ -217,6 +217,14 @@
           "Lightflow.Domain": "[1.0.0, )"
         }
       },
+      "lightflow.catalog": {
+        "type": "Project",
+        "dependencies": {
+          "Lightflow.Application": "[1.0.0, )",
+          "Microsoft.Data.Sqlite": "[8.0.29, 8.0.29]",
+          "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.13, 2.1.13]"
+        }
+      },
       "lightflow.domain": {
         "type": "Project"
       }

@@ -18,7 +18,7 @@ public sealed class CatalogWriterOwnershipTests(ITestOutputHelper output)
         var database = Path.Combine(root, LightflowStorageLocations.CatalogFileName);
         Assert.True(CreateHardLinkW(StartupStoreEvidence.JournalPath(database), retained, IntPtr.Zero),
             "Task-owned native hard-link creation failed: " + Marshal.GetLastWin32Error());
-        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(database, "Catalog", false));
+        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, database, "Catalog", false));
         Assert.Equal(bytes, File.ReadAllBytes(retained));
         Assert.False(File.Exists(database));
     }

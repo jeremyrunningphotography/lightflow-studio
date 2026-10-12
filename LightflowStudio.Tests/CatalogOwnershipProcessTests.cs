@@ -76,7 +76,7 @@ public sealed class CatalogOwnershipProcessTests(ITestOutputHelper output)
         foreach (var database in new[] { profile.CatalogDatabasePath, Path.Combine(destination, LightflowStorageLocations.CatalogFileName) })
         {
             Assert.True(File.Exists(database));
-            using var released = StartupStoreEvidence.Begin(database, "Catalog", false);
+            using var released = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, database, "Catalog", false);
             Assert.NotNull(released); // Native process death released both ownership handles.
         }
         var records = ClosedCatalogTransferJournal.Read(Directory.GetFiles(ClosedCatalogTransferJournal.DirectoryPath(profile), "*.journal").Single());
@@ -92,7 +92,7 @@ public sealed class CatalogOwnershipProcessTests(ITestOutputHelper output)
         Assert.Equal(destination, owner.Locations.CatalogDirectory);
         Assert.Single(await owner.Collections.ListCollectionsAsync());
         Assert.False(File.Exists(receiving.CatalogDatabasePath)); // No blank replacement.
-        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(owner.CatalogSession.DatabasePath, "Catalog", false));
+        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, owner.CatalogSession.DatabasePath, "Catalog", false));
     }
     [Theory]
     [InlineData(false, false)]

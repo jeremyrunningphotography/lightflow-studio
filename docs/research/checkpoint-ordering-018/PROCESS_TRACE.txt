@@ -1,0 +1,28 @@
+LightflowStudio.Tests.CatalogOwnershipProcessTests.InterruptedIndependentMove_RestartBlocksUnresolvedOwner_RetainsRecoverableCatalog(boundary: ActivatedPendingConfiguration)
+2026-10-12T14:18:11.2933239+00:00 parent pid=86984 start=2026-10-12T14:18:08.7386941Z; child pid=61220 start=2026-10-12T14:18:11.2900799Z
+2026-10-12T14:18:12.0882005+00:00 pid=86984 paused child before termination journal=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal
+RestartManager census error=0 count=1
+RestartManager holder pid=61220 startFileTime=134362882912900799 app=Lightflow Studio
+RestartManager session close error=0
+2026-10-12T14:18:12.3850791+00:00 kill requested child=61220
+2026-10-12T14:18:12.4257431+00:00 wait complete child=61220 exit=2026-10-12T14:18:12.4080957Z code=-1
+2026-10-12T14:18:12.4258888+00:00 first startup journal read boundary
+2026-10-12T14:18:12.4509580+00:00 pid=86984 after first startup read journal=[fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal
+RestartManager census error=0 count=0
+RestartManager session close error=0
+Interrupted boundary: ActivatedPendingConfiguration; child pid: 61220; restart status: CatalogUnavailable; reason: PendingRecovery
+Full restart diagnostic: An interrupted Catalog transfer requires recovery before this Catalog can be opened. Operation 59c83bf333cc4d2c8dec236924903df9; journal [fixture]\interrupted\Catalog Transfers\59c83bf333cc4d2c8dec236924903df9.journal. ClosedCatalogBackupTransfer: fresh assessment=RequiresVerifiedStaging, recorded native identity matches=False; ActiveCatalog: fresh assessment=Eligible, recorded native identity matches=False. Remembered paths do not authorize automatic activation or cleanup. Source and destination evidence are retained. Reconnect the selected storage and review the transfer journal; Lightflow has not selected or created another Catalog.
+LightflowStudio.Tests.CatalogOwnershipProcessTests.InterruptedIndependentMove_RestartBlocksUnresolvedOwner_RetainsRecoverableCatalog(boundary: Activating)
+2026-10-12T14:18:09.4756052+00:00 parent pid=86984 start=2026-10-12T14:18:08.7386941Z; child pid=30420 start=2026-10-12T14:18:09.4683775Z
+2026-10-12T14:18:10.5012411+00:00 pid=86984 paused child before termination journal=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal
+RestartManager census error=0 count=1
+RestartManager holder pid=30420 startFileTime=134362882894683775 app=Lightflow Studio
+RestartManager session close error=0
+2026-10-12T14:18:10.8097734+00:00 kill requested child=30420
+2026-10-12T14:18:10.8521936+00:00 wait complete child=30420 exit=2026-10-12T14:18:10.8519598Z code=-1
+2026-10-12T14:18:10.8559392+00:00 first startup journal read boundary
+2026-10-12T14:18:11.0946457+00:00 pid=86984 after first startup read journal=[fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal
+RestartManager census error=0 count=0
+RestartManager session close error=0
+Interrupted boundary: Activating; child pid: 30420; restart status: CatalogUnavailable; reason: PendingRecovery
+Full restart diagnostic: An interrupted Catalog transfer requires recovery before this Catalog can be opened. Operation 8bda9b1a5c474bb889928ab6fdcd6037; journal [fixture]\interrupted\Catalog Transfers\8bda9b1a5c474bb889928ab6fdcd6037.journal. ClosedCatalogBackupTransfer: fresh assessment=RequiresVerifiedStaging, recorded native identity matches=False; ActiveCatalog: fresh assessment=Eligible, recorded native identity matches=False. Remembered paths do not authorize automatic activation or cleanup. Source and destination evidence are retained. Reconnect the selected storage and review the transfer journal; Lightflow has not selected or created another Catalog.

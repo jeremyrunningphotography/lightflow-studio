@@ -300,7 +300,7 @@ public sealed class CatalogSettingsPresentationTests
             {
                 window.Show(); Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)));
                 window.MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Settings);
-                var lease = (StartupStoreEvidence)typeof(LightflowStorageCoordinator).GetField("_catalogStartup", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(storage)!;
+                var lease = storage.Lifecycle.CatalogEvidence!;
                 lease.Dispose();
                 typeof(MainWindow).GetMethod("UtilityBackToBrowser_Click", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
                     .Invoke(window, [window, new RoutedEventArgs()]);

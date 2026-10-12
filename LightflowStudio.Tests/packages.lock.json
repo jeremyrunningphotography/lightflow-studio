@@ -319,6 +319,14 @@
           "Lightflow.Domain": "[1.0.0, )"
         }
       },
+      "lightflow.catalog": {
+        "type": "Project",
+        "dependencies": {
+          "Lightflow.Application": "[1.0.0, )",
+          "Microsoft.Data.Sqlite": "[8.0.29, 8.0.29]",
+          "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.13, 2.1.13]"
+        }
+      },
       "lightflow.domain": {
         "type": "Project"
       },
@@ -329,6 +337,7 @@
           "FlyleafLib": "[3.11.8-lightflow.1, 3.11.8-lightflow.1]",
           "Lightflow.Actions": "[1.0.0, )",
           "Lightflow.Application": "[1.0.0, )",
+          "Lightflow.Catalog": "[1.0.0, )",
           "Microsoft.Data.Sqlite": "[8.0.29, 8.0.29]",
           "NAudio.WinMM": "[2.3.0, )",
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.13, 2.1.13]"

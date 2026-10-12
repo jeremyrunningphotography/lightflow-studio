@@ -1,7 +1,5 @@
 namespace LightflowStudio;
 
-internal enum CatalogRecoveryReason { None, LocationUnavailable, CompetingOwner, PendingRecovery, ValidationFailed, OwnershipUnavailable, LocationRefused, UnsupportedStorage, CatalogDirectoryRequired, InitialLocationUnavailable, OutsideWorkspace, ConfigurationInvalid, OperationFailed }
-
 internal sealed record CatalogRecoveryPresentation(string Heading, string Description, string Diagnostic, bool ShowRecovery,
     bool NoReplacementCreated)
 {

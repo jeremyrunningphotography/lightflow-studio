@@ -47,12 +47,16 @@ jobs:
           dotnet-version: 8.0.x
       - name: Test shared classification and storage contracts without Windows targeting packs
         run: dotnet test Lightflow.Application.Tests/Lightflow.Application.Tests.csproj -c Release --disable-build-servers -p:RestoreLockedMode=true --logger "trx;LogFileName=neutral.trx"
+      - name: Test shared production Catalog without Windows targeting packs
+        run: dotnet test Lightflow.Catalog.Tests/Lightflow.Catalog.Tests.csproj -c Release --disable-build-servers -p:RestoreLockedMode=true --logger "trx;LogFileName=neutral-catalog.trx"
       - name: Preserve neutral results
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: neutral-classification-${{ matrix.os }}
-          path: Lightflow.Application.Tests/TestResults/*.trx
+          path: |
+            Lightflow.Application.Tests/TestResults/*.trx
+            Lightflow.Catalog.Tests/TestResults/*.trx
           if-no-files-found: error
           retention-days: 14
 

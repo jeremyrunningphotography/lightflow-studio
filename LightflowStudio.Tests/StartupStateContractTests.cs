@@ -90,9 +90,9 @@ public sealed class StartupStateContractTests : IDisposable
     public async Task PartialCrossStorePublicationCannotAuthorizeFastStartup()
     {
         await SeedAsync();
-        using (var session = new StartupSessionCompletion(_root))
-        using (var catalog = StartupStoreEvidence.Begin(Locations.CatalogDatabasePath, "Catalog", false, session))
-        using (var previews = StartupStoreEvidence.Begin(Locations.PreviewsDatabasePath, "Previews", false, session))
+        using (var session = new StartupSessionCompletion(WindowsCatalogEvidenceEffects.Instance, _root))
+        using (var catalog = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Locations.CatalogDatabasePath, "Catalog", false, session))
+        using (var previews = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Locations.PreviewsDatabasePath, "Previews", false, session))
         {
             Assert.True(catalog!.KnownClean); Assert.True(previews!.KnownClean);
             catalog.Complete(Locations.CatalogDatabasePath);
@@ -224,9 +224,9 @@ public sealed class StartupStateContractTests : IDisposable
     public async Task StoreLeaseExcludesConcurrentProfileAndChangedFileInvalidatesEvidence()
     {
         await SeedAsync();
-        using (var session = new StartupSessionCompletion(_root))
-        using (var store = StartupStoreEvidence.Begin(Locations.CatalogDatabasePath, "Catalog", false, session))
-            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(Locations.CatalogDatabasePath, "Catalog", false, session));
+        using (var session = new StartupSessionCompletion(WindowsCatalogEvidenceEffects.Instance, _root))
+        using (var store = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Locations.CatalogDatabasePath, "Catalog", false, session))
+            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Locations.CatalogDatabasePath, "Catalog", false, session));
         // A copied/restored file never inherits a trusted physical identity.
         var copy = Locations.CatalogDatabasePath + ".replacement";
         File.Copy(Locations.CatalogDatabasePath, copy); File.Move(copy, Locations.CatalogDatabasePath, true);
@@ -260,9 +260,9 @@ public sealed class StartupStateContractTests : IDisposable
     public async Task FailedCheckpointOrWriteCannotPublishCleanCompletion()
     {
         await SeedAsync();
-        using (var session = new StartupSessionCompletion(_root))
-        using (var catalog = StartupStoreEvidence.Begin(Locations.CatalogDatabasePath, "Catalog", false, session))
-        using (var previews = StartupStoreEvidence.Begin(Locations.PreviewsDatabasePath, "Previews", false, session))
+        using (var session = new StartupSessionCompletion(WindowsCatalogEvidenceEffects.Instance, _root))
+        using (var catalog = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Locations.CatalogDatabasePath, "Catalog", false, session))
+        using (var previews = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Locations.PreviewsDatabasePath, "Previews", false, session))
         using (var locked = new FileStream(Locations.CatalogDatabasePath, FileMode.Open, FileAccess.Read, FileShare.Read))
         {
             var error = Record.Exception(() => catalog!.Complete(Locations.CatalogDatabasePath));
@@ -275,12 +275,12 @@ public sealed class StartupStateContractTests : IDisposable
     [Fact]
     public void FirstAdoptionDoesNotClaimAnInterruptedShutdown()
     {
-        using (var session = new StartupSessionCompletion(_root))
+        using (var session = new StartupSessionCompletion(WindowsCatalogEvidenceEffects.Instance, _root))
         {
             Assert.Equal(StartupValidationReason.UncertainState, session.PriorReason);
             Assert.Equal("Verifying Catalog before opening…", StartupValidationProgress.For("Catalog", session.PriorReason).Primary);
         }
-        using var interrupted = new StartupSessionCompletion(_root);
+        using var interrupted = new StartupSessionCompletion(WindowsCatalogEvidenceEffects.Instance, _root);
         Assert.Equal(StartupValidationReason.UnexpectedShutdown, interrupted.PriorReason);
         Assert.Contains("after an interrupted shutdown", StartupValidationProgress.For("Catalog", interrupted.PriorReason).Primary);
     }

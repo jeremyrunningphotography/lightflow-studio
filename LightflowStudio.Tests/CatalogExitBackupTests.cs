@@ -36,7 +36,7 @@ public sealed class CatalogExitBackupTests(ITestOutputHelper output) : IAsyncLif
             if (!message.StartsWith("Copying the closed")) return;
             SqliteConnection.ClearAllPools();
             Assert.True(File.Exists(Locations.CatalogDatabasePath + "-wal"));
-            Assert.ThrowsAny<IOException>(() => StartupStoreEvidence.Begin(Locations.CatalogDatabasePath, "Catalog", false));
+            Assert.ThrowsAny<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Locations.CatalogDatabasePath, "Catalog", false));
             observed = true;
         });
         var result = await storage.BackupForExitAsync(storage.BackupDirectory, false, progress);

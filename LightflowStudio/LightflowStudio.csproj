@@ -16,6 +16,7 @@
     <ApplicationIcon>Assets\Branding\LightflowStudio.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Lightflow.Catalog\Lightflow.Catalog.csproj" />
     <ProjectReference Include="..\Lightflow.Actions\Lightflow.Actions.csproj" />
     <ProjectReference Include="..\Lightflow.Application\Lightflow.Application.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

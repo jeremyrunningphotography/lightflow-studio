@@ -6,7 +6,7 @@ namespace LightflowStudio;
 /// <summary>Version 3 uses one row per Field: alternatives OR within a field, MatchMode between fields.
 /// FileOrPath is an ordinary field. SearchText is accepted only as development-era input; writes normalize it.
 /// Sort is presentation. There is no recursive Boolean expression tree.</summary>
-internal sealed record BrowserQueryIntent
+internal sealed record BrowserQueryIntent : ICatalogSavedQuery
 {
     public int Version { get; init; } = 3;
     public BrowserMatchMode MatchMode { get; init; }

@@ -33,6 +33,6 @@ public sealed class CatalogRecoveryIsolationTests
         Assert.Equal(safe, storage.Locations.CatalogDirectory);
         Assert.NotEqual(priorId, storage.CatalogSession.Identity.CatalogId);
         Assert.False(File.Exists(Path.Combine(missing, LightflowStorageLocations.CatalogFileName)));
-        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(storage.CatalogSession.DatabasePath, "Catalog", false));
+        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, storage.CatalogSession.DatabasePath, "Catalog", false));
     }
 }

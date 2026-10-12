@@ -6,7 +6,7 @@ Workspace: `C:\Git\Agents\LF-WIN-DEV-018-CheckpointOrdering`; branch `codex/431-
 
 ## Administration
 
-#431 is standalone, with no native parent or dependency relationships. Project #4 membership was added; Area uses existing `Export & Jobs`; Priority remains unset. Status was `Next` during orientation, then `In Progress` when implementation began, and is to be `Review` at Draft handoff. No affected Epic or Definition of Done advances. Assignment 018 was absent from fetched main/remote branches; owner allocations 015/016/017 and pending 012 closeout are preserved. The task registry reserves 018 and points to this owner gate.
+#431 is standalone, with no native parent or dependency relationships. Project #4 membership was added; Area uses existing `Export & Jobs`; Priority remains unset. Status was `Next` during orientation, then `In Progress` when implementation began, and is `Review` at blocked Draft PR #433 handoff. No affected Epic or Definition of Done advances. Assignment 018 was absent from fetched main/remote branches; owner allocations 015/016/017 and pending 012 closeout are preserved. The task registry reserves 018 and points to this owner gate.
 
 ## Jobs correction and deterministic proof
 

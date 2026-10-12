@@ -10,6 +10,52 @@ public sealed class JobRuntimeTests : IDisposable
     public JobRuntimeTests() => Directory.CreateDirectory(_root);
 
     [Fact]
+    public async Task DelayedApplicationPublisherCannotOverwriteDurableTerminalCheckpoint()
+    {
+        var store = new JobRuntimeStore<EncodingJobOptions, int>(Path.Combine(_root, "ordered-jobs.json"));
+        var recorder = new CheckpointRecorder(store);
+        await using var service = new ApplicationJobsRuntime<EncodingJobOptions, int>(recorder.Save);
+        var gate = new ControlledExecutor();
+        var runtime = service.Queue(Plan(1), 1, gate.ExecuteAsync);
+        _ = await gate.Started.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+        using var delayed = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var publisherThread = 0;
+        service.BeforeCheckpointPublication = () =>
+        {
+            if (Environment.CurrentManagedThreadId != Volatile.Read(ref publisherThread)) return;
+            delayed.Set();
+            Assert.True(release.Wait(TimeSpan.FromSeconds(10)), "Delayed publisher was not released.");
+        };
+        var publisher = Task.Run(() =>
+        {
+            Volatile.Write(ref publisherThread, Environment.CurrentManagedThreadId);
+            gate.Report(0, 25);
+        });
+        try
+        {
+            Assert.True(delayed.Wait(TimeSpan.FromSeconds(10)), "Publisher did not reach the controlled boundary.");
+            gate.Release(0);
+            Assert.Equal(JobState.Completed, (await runtime.Completion.WaitAsync(TimeSpan.FromSeconds(10))).State);
+            var before = Assert.IsType<RecoveredJob<EncodingJobOptions, int>>(store.Load((_, _) => []));
+            Assert.NotNull(before.Checkpoint.Runtime.CompletedAt);
+            release.Set();
+            await publisher.WaitAsync(TimeSpan.FromSeconds(10));
+            var after = Assert.IsType<RecoveredJob<EncodingJobOptions, int>>(store.Load((_, _) => []));
+            Assert.Equal(JobState.Completed, after.Checkpoint.Runtime.State);
+            Assert.NotNull(after.Checkpoint.Runtime.CompletedAt);
+            Assert.Equal(before.Checkpoint.Runtime.CompletedAt, after.Checkpoint.Runtime.CompletedAt);
+            Assert.All(after.Checkpoint.Runtime.Items, item => Assert.Equal(JobState.Completed, item.State));
+        }
+        finally
+        {
+            release.Set();
+            service.BeforeCheckpointPublication = null;
+            await publisher.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+    }
+
+    [Fact]
     public async Task ParallelApplicationJobsCanPublishAggregateSnapshotsWithoutLockInversion()
     {
         await using var jobs = new ApplicationJobsRuntime<EncodingJobOptions, int>();

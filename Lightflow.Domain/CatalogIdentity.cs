@@ -5,4 +5,3 @@ public sealed record CatalogIdentity(
     string ApplicationIdentity,
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc);
-

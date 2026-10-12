@@ -76,4 +76,3 @@ public static class SubclipDefaultName
 }
 
 public sealed class SubclipConcurrencyException(string message) : InvalidOperationException(message);
-

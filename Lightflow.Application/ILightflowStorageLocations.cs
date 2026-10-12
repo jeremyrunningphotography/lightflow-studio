@@ -22,4 +22,3 @@ public interface ILightflowStorageLocations
     string ActivityLogPath { get; }
     string MachineIdentityPath { get; }
 }
-

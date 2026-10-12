@@ -10,4 +10,3 @@ public static class ReviewRangeBoundaryPolicy
         new(sourceDuration,
             current?.In is { } savedIn && requestedOut > savedIn ? savedIn : null, requestedOut);
 }
-

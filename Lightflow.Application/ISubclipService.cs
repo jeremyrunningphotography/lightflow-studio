@@ -10,4 +10,3 @@ public interface ISubclipService
     Task<IReadOnlyList<Subclip>> ReorderAsync(Guid assetId, IReadOnlyList<SubclipOrder> order,
         CancellationToken cancellationToken = default);
 }
-

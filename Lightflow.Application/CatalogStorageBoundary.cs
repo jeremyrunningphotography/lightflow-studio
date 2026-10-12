@@ -13,4 +13,3 @@ public enum CatalogStorageBoundary
     AfterCatalogValidation_SQLiteClosed,
     FailedCreationCleanup_SQLiteClosed
 }
-

@@ -27,4 +27,3 @@ public static class CatalogBackupDestinationPolicy
         return path;
     }
 }
-

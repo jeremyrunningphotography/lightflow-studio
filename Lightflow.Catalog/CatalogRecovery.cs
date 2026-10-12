@@ -368,5 +368,3 @@ public partial class CatalogRecoveryService : ICatalogRecoveryService
     [GeneratedRegex(@"^LightflowCatalog-v(\d+)-(\d{8}T\d{6}Z)(?:_\d{8})?\.db$", RegexOptions.IgnoreCase)]
     private static partial Regex BackupName();
 }
-
-

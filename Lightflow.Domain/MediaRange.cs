@@ -29,4 +29,3 @@ public sealed record MediaRange(TimeSpan SourceDuration, TimeSpan? In = null, Ti
         return issues;
     }
 }
-

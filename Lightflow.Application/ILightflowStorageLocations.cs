@@ -2,6 +2,7 @@ namespace LightflowStudio;
 
 public interface ILightflowStorageLocations
 {
+    bool IsIsolated => false;
     string ApplicationDataDirectory { get; }
     string SettingsPath { get; }
     string StatePath { get; }

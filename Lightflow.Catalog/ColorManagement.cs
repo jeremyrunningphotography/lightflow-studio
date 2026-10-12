@@ -6,17 +6,17 @@ using Microsoft.Data.Sqlite;
 
 namespace LightflowStudio;
 
-internal enum LutDimension { ThreeDimensional }
-internal enum LutResourceAvailability { Available, Missing }
-internal sealed record LutValidationResult(bool IsValid, LutDimension? Dimension = null, int? Size = null, string? Diagnostic = null);
-internal sealed record ManagedLutResource(Guid LutId, string DisplayName, string OriginalFileName,
+public enum LutDimension { ThreeDimensional }
+public enum LutResourceAvailability { Available, Missing }
+public sealed record LutValidationResult(bool IsValid, LutDimension? Dimension = null, int? Size = null, string? Diagnostic = null);
+public sealed record ManagedLutResource(Guid LutId, string DisplayName, string OriginalFileName,
     string ContentSha256, LutDimension Dimension, int Size, LutResourceAvailability Availability,
     string? FilePath = null, string? Diagnostic = null);
-internal sealed record LutFolderProblem(string FileName, string Diagnostic);
-internal sealed record LutLibrarySnapshot(string Folder, IReadOnlyList<ManagedLutResource> Resources,
+public sealed record LutFolderProblem(string FileName, string Diagnostic);
+public sealed record LutLibrarySnapshot(string Folder, IReadOnlyList<ManagedLutResource> Resources,
     IReadOnlyList<LutFolderProblem> Problems);
 
-internal sealed record CubeLutData(int Size, float[] Samples)
+public sealed record CubeLutData(int Size, float[] Samples)
 {
     public System.Numerics.Vector3 DomainMin { get; init; } = System.Numerics.Vector3.Zero;
     public System.Numerics.Vector3 DomainMax { get; init; } = System.Numerics.Vector3.One;
@@ -55,12 +55,12 @@ internal sealed record CubeLutData(int Size, float[] Samples)
     }
 }
 
-internal sealed record PlayerColorPipeline(CubeLutData? Camera, CubeLutData? Creative)
+public sealed record PlayerColorPipeline(CubeLutData? Camera, CubeLutData? Creative)
 {
     public bool HasColor => Camera is not null || Creative is not null;
 }
 
-internal static class CubeLutValidator
+public static class CubeLutValidator
 {
     public const int MaximumBytes = 16 * 1024 * 1024;
 
@@ -125,10 +125,10 @@ internal static class CubeLutValidator
     private static LutValidationResult Invalid(string diagnostic) => new(false, Diagnostic: diagnostic);
 }
 
-internal sealed record FolderLutCandidate(string FilePath, string DisplayName, string FileName,
+public sealed record FolderLutCandidate(string FilePath, string DisplayName, string FileName,
     string ContentSha256, int Size);
 
-internal static class FolderLutScanner
+public static class FolderLutScanner
 {
     private const int MaxEntries = 100_000;
 
@@ -205,7 +205,7 @@ internal static class FolderLutScanner
                     problems.Add(new(Path.GetFileName(path), validation.Diagnostic!));
                     continue;
                 }
-                candidates.Add(new(path, LutCatalog.MakeDisplayName(path), Path.GetFileName(path),
+                candidates.Add(new(path, LutDisplayNames.MakeDisplayName(path), Path.GetFileName(path),
                     Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant(), validation.Size!.Value));
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -217,14 +217,14 @@ internal static class FolderLutScanner
     }
 }
 
-internal interface ILutLibrary
+public interface ILutLibrary
 {
     Task<LutLibrarySnapshot> RefreshAsync(string folder, CancellationToken cancellationToken = default);
     Task<LutLibrarySnapshot> RefreshAsync(string folder, bool includeSubfolders,
         CancellationToken cancellationToken = default) => RefreshAsync(folder, cancellationToken);
 }
 
-internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> session,
+public sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> session,
     Func<DateTimeOffset>? utcNow = null) : ILutLibrary
 {
     private readonly Func<DateTimeOffset> _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
@@ -326,9 +326,9 @@ internal sealed class CatalogFolderLutLibrary(Func<CatalogDatabaseSession?> sess
     private static string FormatUtc(DateTimeOffset value) => value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
 }
 
-internal enum ColorLutStage { Camera, Creative }
+public enum ColorLutStage { Camera, Creative }
 
-internal interface ILutLibraryCache
+public interface ILutLibraryCache
 {
     Task InitializeAsync(string cameraFolder, string creativeFolder, CancellationToken cancellationToken = default);
     Task InitializeAsync(string cameraFolder, bool cameraIncludeSubfolders,
@@ -347,7 +347,7 @@ internal interface ILutLibraryCache
 
 /// <summary>One authoritative runtime view of both configured LUT roots. Only startup and Settings-root
 /// changes invoke the scanner; Player, Catalog Color availability, and Encoding are in-memory consumers.</summary>
-internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner, Func<string, CubeLutData>? runtimeLoader = null)
+public sealed class ApplicationLutLibraryCache(ILutLibrary scanner, Func<string, CubeLutData>? runtimeLoader = null)
     : ILutLibraryCache, IDisposable
 {
     private const int MaximumRuntimeEntries = 16;
@@ -534,9 +534,9 @@ internal sealed class ApplicationLutLibraryCache(ILutLibrary scanner, Func<strin
     }
 }
 
-internal sealed record ColorLutReference(Guid LutId, string DisplayName, string ContentSha256,
+public sealed record ColorLutReference(Guid LutId, string DisplayName, string ContentSha256,
     LutResourceAvailability Availability, string? Diagnostic = null);
-internal sealed record AssetColorIntent(Guid AssetId, ColorLutReference? Camera, ColorLutReference? Creative,
+public sealed record AssetColorIntent(Guid AssetId, ColorLutReference? Camera, ColorLutReference? Creative,
     string ColorIdentity, bool LegacyColorEnabled = false)
 {
     public IReadOnlyList<ColorLutReference> OrderedPipeline => new[] { Camera, Creative }.OfType<ColorLutReference>().ToArray();
@@ -544,9 +544,9 @@ internal sealed record AssetColorIntent(Guid AssetId, ColorLutReference? Camera,
     public bool IsActive => HasColor;
     public bool ColorEnabled => IsActive;
 }
-internal sealed record ColorAssignmentChange(Guid AssetId, Guid? CameraLutId, Guid? CreativeLutId);
+public sealed record ColorAssignmentChange(Guid AssetId, Guid? CameraLutId, Guid? CreativeLutId);
 
-internal interface IAssetColorStore
+public interface IAssetColorStore
 {
     Task<AssetColorIntent> GetAsync(Guid assetId, CancellationToken cancellationToken = default);
     Task<IReadOnlyDictionary<Guid, AssetColorIntent>> GetAsync(IReadOnlyCollection<Guid> assetIds,
@@ -556,7 +556,7 @@ internal interface IAssetColorStore
     Task SetAsync(IReadOnlyCollection<ColorAssignmentChange> changes, CancellationToken cancellationToken = default);
 }
 
-internal sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> session, ILutLibraryCache lutCache,
+public sealed class CatalogAssetColorStore(Func<CatalogDatabaseSession?> session, ILutLibraryCache lutCache,
     Func<DateTimeOffset>? utcNow = null) : IAssetColorStore
 {
     private readonly Func<DateTimeOffset> _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);

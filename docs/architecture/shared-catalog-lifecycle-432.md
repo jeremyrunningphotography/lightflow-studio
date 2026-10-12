@@ -1,3 +1,5 @@
+> Historical architecture proposal. Jeremy approved Decisions A/B in #432/#425 on 2026-10-12; see the [implementation completion](catalog-lifecycle-432-completion.md).
+
 # Shared Catalog lifecycle extraction — architecture decision gate
 
 **Current continuation:** Jeremy approved the narrow host-consumer effects port and conservative unpaired completion on 2026-10-12 in #432/#425. The original decision gate below is historical. Implementation is in progress; see [the implementation checkpoint](catalog-lifecycle-432-implementation.md). This approval is not implementation acceptance.

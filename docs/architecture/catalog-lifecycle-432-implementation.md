@@ -1,3 +1,5 @@
+> Historical checkpoint, superseded by [completion report](catalog-lifecycle-432-completion.md).
+
 # Catalog lifecycle extraction implementation checkpoint
 
 LF-WIN-DEV-019 / #432 / Draft PR #435. Owner architecture approval is recorded in the updated #432/#425 bodies dated 2026-10-12 and supersedes the historical gate at `65e917a77392873936c2fbe645df9382186a9503`.

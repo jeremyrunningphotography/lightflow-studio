@@ -24,7 +24,7 @@ internal enum MediaPlaybackErrorKind
     OperationFailed
 }
 
-internal sealed record MediaPresentationTimestamp(TimeSpan Position, bool IsDecodedPresentationTimestamp = true);
+
 
 internal sealed record MediaPlaybackError(MediaPlaybackErrorKind Kind, string Message, string? Diagnostic = null);
 

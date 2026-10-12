@@ -1,0 +1,47 @@
+using LightflowStudio;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace LightflowStudio.Tests;
+
+// Temporary orientation probe: a passing result confirms the unsafe baseline, not acceptance.
+public sealed class CatalogWriterOwnershipProbeTests(ITestOutputHelper output)
+{
+    [Fact]
+    public async Task DistinctProfileOwners_CanBothAuthorTheSameCatalog_BaselineProbe()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+            "..", "..", "..", "..", "artifacts", "lf012-writer-probe", Guid.NewGuid().ToString("N")));
+        var outer = ApplicationDataProfile.Resolve(["--data-root", root]);
+        var inner = ApplicationDataProfile.Resolve(["--data-root", Path.Combine(root, "second-profile")]);
+        using var firstInstance = new WindowsApplicationInstanceCoordinator(ApplicationDataProfile.InstanceIdentity(outer));
+        using var secondInstance = new WindowsApplicationInstanceCoordinator(ApplicationDataProfile.InstanceIdentity(inner));
+        Assert.Equal(ApplicationInstanceStatus.Primary, firstInstance.StartOrSignal(ApplicationLaunchRequest.Current([])).Status);
+        Assert.Equal(ApplicationInstanceStatus.Primary, secondInstance.StartOrSignal(ApplicationLaunchRequest.Current([])).Status);
+        var firstStartup = await LightflowStorageCoordinator.StartAsync(profile: inner);
+        Assert.True(firstStartup.IsReady, firstStartup.Diagnostic);
+        await using var first = firstStartup.Coordinator!;
+        var move = await first.RelocateCatalogAsync(Path.Combine(inner.ApplicationDataDirectory, "moved-catalog"));
+        Assert.True(move.Succeeded, move.Diagnostic);
+        ApplicationDataProfile.Initialize(outer);
+        AppSettingsStore.Save(outer.SettingsPath, new AppSettings
+        {
+            CatalogDirectory = first.Locations.CatalogDirectory,
+            CatalogId = first.CatalogSession.Identity.CatalogId,
+            CameraLutFolder = "", CreativeLutFolder = ""
+        }, isolated: true);
+        var secondStartup = await LightflowStorageCoordinator.StartAsync(profile: outer);
+        Assert.True(secondStartup.IsReady, secondStartup.Diagnostic);
+        await using var second = secondStartup.Coordinator!;
+        Assert.Equal(first.CatalogSession.Identity.CatalogId, second.CatalogSession.Identity.CatalogId);
+        Assert.Equal(first.CatalogSession.ResolvedDatabasePath, second.CatalogSession.ResolvedDatabasePath);
+        var a = await first.Collections.CreateCollectionAsync("LF012 first active owner");
+        var b = await second.Collections.CreateCollectionAsync("LF012 second active owner");
+        Assert.NotNull(await first.Collections.GetCollectionAsync(b.CollectionId));
+        Assert.NotNull(await second.Collections.GetCollectionAsync(a.CollectionId));
+        output.WriteLine("SAFETY GATE CONFIRMED: two independent application identities are Primary; both Catalog sessions stay active and commit authored Collections to the same native Catalog.");
+        output.WriteLine("Synthetic task-owned root: " + root);
+        output.WriteLine("CatalogId: " + first.CatalogSession.Identity.CatalogId);
+        first.PreventCleanShutdown(); second.PreventCleanShutdown();
+    }
+}

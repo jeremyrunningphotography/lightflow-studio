@@ -18,6 +18,22 @@ public partial class App : System.Windows.Application
     private IApplicationInstanceCoordinator? _applicationInstance;
     private StartupSplash? _startupSplash;
     private bool _presentingStartup;
+    private string[]? _catalogRestartArguments;
+    internal void PrepareCatalogRestart(string? directory = null, Guid? catalogId = null)
+    {
+        var arguments = new List<string>();
+        if (LightflowStorageLocations.Current.IsIsolated)
+        {
+            arguments.Add("--data-root"); arguments.Add(LightflowStorageLocations.Current.ApplicationDataDirectory);
+        }
+        if (directory is not null)
+        {
+            arguments.Add("--open-catalog"); arguments.Add(directory);
+            arguments.Add("--selected-catalog-id"); arguments.Add(catalogId!.Value.ToString("D"));
+        }
+        _catalogRestartArguments = arguments.ToArray();
+    }
+    internal void CancelCatalogRestart() => _catalogRestartArguments = null;
     internal static ActivityLogFile ActivityLog { get; private set; } = null!;
     internal LightflowStorageCoordinator? Storage { get; private set; }
     internal static MediaPlaybackCoordinator Playback { get; } = new(() =>
@@ -44,6 +60,14 @@ public partial class App : System.Windows.Application
             Trace.WriteLine(exception);
             BootstrapDiagnostics.TryWrite("Lightflow data-root startup failed: " + exception);
             Shutdown(2);
+            return;
+        }
+        if (e.Args.Contains(CatalogOwnershipVerifier.Switch, StringComparer.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            base.OnStartup(e);
+            try { Shutdown(await CatalogOwnershipVerifier.RunAsync(e.Args) ? 0 : 1); }
+            catch (Exception exception) { Trace.WriteLine(exception); Shutdown(1); }
             return;
         }
         if (e.Args.Contains("--verify-preview-regeneration", StringComparer.Ordinal))
@@ -163,14 +187,31 @@ public partial class App : System.Windows.Application
             if (initialized.Locations.IsIsolated)
                 StartupDiagnostics.Note($"Isolated profile validation: completed invocations={initialized.ValidationInvocations} inspectedPaths={initialized.InspectedPaths} descendantEnumerations=0 duration={initialized.ElapsedMilliseconds:F1}ms");
             base.OnStartup(e);
-            var storage = await LightflowStorageCoordinator.StartAsync(initializedProfile: initialized);
-            if (storage.Coordinator is null)
+            var selectionIndex = Array.IndexOf(e.Args, "--open-catalog");
+            var identityIndex = Array.IndexOf(e.Args, "--selected-catalog-id");
+            string? selectedDirectory = selectionIndex >= 0 && selectionIndex + 1 < e.Args.Length ? e.Args[selectionIndex + 1] : null;
+            Guid? selectedId = identityIndex >= 0 && identityIndex + 1 < e.Args.Length && Guid.TryParse(e.Args[identityIndex + 1], out var parsedId) ? parsedId : null;
+            var malformedSelection = (selectionIndex >= 0 || identityIndex >= 0) &&
+                (string.IsNullOrWhiteSpace(selectedDirectory) || selectedDirectory.StartsWith("--", StringComparison.Ordinal) || selectedId is null || selectedId == Guid.Empty);
+            var storage = malformedSelection
+                ? new StorageStartupResult(StorageStartupStatus.CatalogUnreadable,
+                    Diagnostic: "Catalog selection requires a verified folder and identity. The previous configuration and Catalog have been retained.",
+                    RecoveryReason: CatalogRecoveryReason.ValidationFailed)
+                : await LightflowStorageCoordinator.StartAsync(initializedProfile: initialized,
+                allowFirstCreation: true, existingCatalogDirectory: selectedDirectory, selectedCatalogId: selectedId,
+                resumePreviousCatalogOnFailure: false);
+            while (!storage.IsReady || storage.Coordinator?.VerifyWorkspaceReadiness() != true)
             {
+                if (storage.IsReady)
+                    storage = storage with { Status = StorageStartupStatus.CatalogUnavailable,
+                        Diagnostic = storage.Coordinator?.RecoveryDiagnostic,
+                        RecoveryReason = CatalogRecoveryReason.OwnershipUnavailable };
                 CloseStartupSplash();
-                System.Windows.MessageBox.Show(storage.Diagnostic ?? "Lightflow storage configuration could not be loaded.",
-                    "Storage configuration", MessageBoxButton.OK, MessageBoxImage.Error);
-                Shutdown(1);
-                return;
+                await using var gate = new CatalogStartupGate(storage, initialized.Locations, initialized);
+                var setup = new CatalogSetupDialog(gate, initialized.Locations);
+                var accepted = setup.ShowDialog() == true;
+                if (!accepted) { await gate.DisposeAsync(); Shutdown(0); return; }
+                storage = gate.TakeReady();
             }
             Storage = storage.Coordinator;
 
@@ -196,7 +237,7 @@ public partial class App : System.Windows.Application
                 ActivityLog.TryAppend("[App] Lightflow Studio exiting.");
             };
             using var presentationTiming = StartupDiagnostics.Stage("Workspace construction and presentation", "Restoring workspace…");
-            var mainWindow = new MainWindow(Storage, storage.Status, storage.Diagnostic)
+            var mainWindow = new MainWindow(Storage, storage.Status, storage.Diagnostic, storage.RecoveryReason)
             {
                 ShowActivated = false,
                 ShowInTaskbar = false
@@ -206,12 +247,15 @@ public partial class App : System.Windows.Application
             ShutdownMode = ShutdownMode.OnMainWindowClose;
             mainWindow.Show();
             await mainWindow.PresentationReady;
+            if (!Storage.VerifyWorkspaceReadiness()) { mainWindow.EnsureCatalogWorkspace(); return; }
             mainWindow.ShowInTaskbar = true;
             await mainWindow.RevealStartupPresentationAsync();
             mainWindow.Activate();
             StartupDiagnostics.Note($"Browser usable: processAge={(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds:F1}ms");
             CloseStartupSplash();
             ActivityLog.TryAppend("[App startup] Workspace presentation ready; main window revealed and splash closed.");
+            if (storage.IsReady && Storage.RecoveryDiagnostic is not null)
+                NoticeDialog.Show(mainWindow, "Catalog selection", "The selected Catalog was not opened", Storage.RecoveryDiagnostic);
             var reportSwitch = Array.IndexOf(e.Args, "--startup-presentation-report");
             if (e.Args.Contains("--startup-smoke-test") && reportSwitch >= 0 && reportSwitch + 1 < e.Args.Length)
             {
@@ -248,6 +292,14 @@ public partial class App : System.Windows.Application
             // Keep ownership until every normal Exit handler has finished disposing shared application state.
             _applicationInstance?.Dispose();
             _applicationInstance = null;
+            if (e.ApplicationExitCode == 0 && _catalogRestartArguments is { } arguments)
+            {
+                var launch = new ProcessStartInfo(System.IO.Path.Combine(AppContext.BaseDirectory, "LightflowStudio.exe"))
+                    { UseShellExecute = false };
+                foreach (var argument in arguments) launch.ArgumentList.Add(argument);
+                try { Process.Start(launch); }
+                catch (Exception error) { BootstrapDiagnostics.TryWrite("Catalog restart failed; configuration remains recoverable: " + error); }
+            }
         }
     }
 

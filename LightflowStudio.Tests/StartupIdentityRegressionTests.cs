@@ -72,7 +72,9 @@ public sealed class StartupIdentityRegressionTests
             Assert.DoesNotContain("Thread.Sleep", source);
             Assert.DoesNotContain("DispatcherTimer", source);
         }
-        Assert.True(app.IndexOf("_startupSplash.Show()") < app.IndexOf("await LightflowStorageCoordinator.StartAsync(initializedProfile: initialized)"));
+        var splashStart = app.IndexOf("_startupSplash.Show()", StringComparison.Ordinal);
+        var storageStart = app.IndexOf("await LightflowStorageCoordinator.StartAsync(initializedProfile: initialized", StringComparison.Ordinal);
+        Assert.True(splashStart >= 0 && storageStart >= 0 && splashStart < storageStart);
         Assert.Contains("await mainWindow.RevealStartupPresentationAsync()", app);
         Assert.True(app.IndexOf("await mainWindow.PresentationReady") < app.IndexOf("await mainWindow.RevealStartupPresentationAsync()"));
         Assert.True(app.IndexOf("await mainWindow.RevealStartupPresentationAsync()") < app.IndexOf("mainWindow.Activate()"));

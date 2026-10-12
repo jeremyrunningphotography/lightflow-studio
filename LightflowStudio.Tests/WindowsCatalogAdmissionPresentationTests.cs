@@ -10,7 +10,7 @@ namespace LightflowStudio.Tests;
 public sealed class WindowsCatalogAdmissionPresentationTests
 {
     [Fact]
-    public async Task SyntheticNetworkRefusal_UsesExistingSettingsPresentationAndKeepsWorkspaceUsable()
+    public async Task SyntheticNetworkRefusal_UsesStartupGateAndRefusesWorkspaceConstruction()
     {
         await StaDispatcher.RunAsync(async () =>
         {
@@ -22,8 +22,10 @@ public sealed class WindowsCatalogAdmissionPresentationTests
             var profile = LightflowStorageLocations.CreateAtRoot(root) with { IsIsolated = true };
             var start = await LightflowStorageCoordinator.StartAsync(profile: profile,
                 assessor: new WindowsCatalogAdmissionTests.Facts("network-alias"), configuration: new PresentationConfiguration());
-            await using var storage = start.Coordinator!;
-            var window = new MainWindow(storage, start.Status, start.Diagnostic)
+            var storage = start.Coordinator!; // The gate exclusively owns and disposes this coordinator.
+            Assert.Throws<InvalidOperationException>(() => new MainWindow(storage, start.Status, start.Diagnostic));
+            await using var gate = new CatalogStartupGate(start, profile);
+            var window = new CatalogSetupDialog(gate, profile)
             {
                 Width = 1440, Height = 960, Left = -32000, Top = -32000,
                 ShowActivated = false, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual
@@ -31,11 +33,11 @@ public sealed class WindowsCatalogAdmissionPresentationTests
             try
             {
                 window.Show();
-                Assert.True(await window.StartupCompletion.WaitAsync(TimeSpan.FromSeconds(30)));
-                window.MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Settings);
                 window.UpdateLayout();
-                Assert.Contains("Lightflow Catalogs must be stored on a supported local drive", window.SettingsMessage.Text);
-                Assert.Contains("Network locations are supported for media and Catalog backups", window.SettingsMessage.Text);
+                Assert.Equal("Catalog location not supported", window.GateHeading.Text);
+                Assert.Contains("Lightflow Catalogs must be stored on a supported local drive", window.GateDiagnostic.Text);
+                Assert.Contains("Network locations are supported for media and Catalog backups", window.GateDiagnostic.Text);
+                Assert.False(gate.CanEnterWorkspace);
                 Assert.False(storage.CatalogAvailable);
                 Assert.True(storage.PreviewAvailable);
                 Assert.False(File.Exists(profile.CatalogDatabasePath));

@@ -167,8 +167,10 @@ public partial class MainWindow : Window
     private long _browserVisualIdentityAuditGeneration = -1;
 
     internal MainWindow(LightflowStorageCoordinator storage, StorageStartupStatus storageStartupStatus,
-        string? storageDiagnostic)
+        string? storageDiagnostic, CatalogRecoveryReason recoveryReason = CatalogRecoveryReason.None)
     {
+        if (storageStartupStatus != StorageStartupStatus.Ready || !storage.VerifyWorkspaceReadiness())
+            throw new InvalidOperationException("A ready Catalog is required before constructing the workspace.");
         _storage = storage;
         _storageStartupStatus = storageStartupStatus;
         _storageDiagnostic = storageDiagnostic;
@@ -224,6 +226,7 @@ public partial class MainWindow : Window
         _workspaceState = new WorkspaceStateService(storage.Locations.WorkspaceStatePath);
         InitializeComponent();
         InitializeBrowserQuickFilterButtons();
+        StartCatalogReadinessObservation();
         SyncBrowserStatusBarVisibility();
         ApplyRestoredWorkspaceLayout();
         OrientedPreviewImage.SetStore(this, _storage.VideoRotations);
@@ -286,6 +289,7 @@ public partial class MainWindow : Window
         _jobsWorkspaceSmokeTest = Environment.GetCommandLineArgs().Contains("--jobs-workspace-smoke-test", StringComparer.OrdinalIgnoreCase);
         Loaded += async (_, _) =>
         {
+            if (!EnsureCatalogWorkspace()) return;
             Task? presentation = null;
             try
             {
@@ -329,9 +333,7 @@ public partial class MainWindow : Window
                 _ = InitializeLutsAsync();
                 RefreshLuts();
                 // Settings usage is requested explicitly; startup must not census the Preview store.
-                if (_storageStartupStatus != StorageStartupStatus.Ready)
-                    SettingsMessage.Text = $"Catalog unavailable: {_storageDiagnostic}";
-                else if (!_storage.PreviewAvailable)
+                if (!_storage.PreviewAvailable)
                     SettingsMessage.Text = _storage.PreviewDiagnostic;
                 else if (_storage.RecoveryDiagnostic is not null)
                     SettingsMessage.Text = _storage.RecoveryDiagnostic;
@@ -339,6 +341,10 @@ public partial class MainWindow : Window
             }
             catch (Exception exception)
             {
+                if (!_storage.VerifyWorkspaceReadiness())
+                {
+                    QueueCatalogRecovery(); _startupCompletion.TrySetResult(false); return;
+                }
                 _activityLogFile.TryAppend($"[App] Main window initialization failed: {exception}");
                 BrowserEmptyTitle.Text = "Storage locations could not be loaded";
                 BrowserEmptyMessage.Text = $"Lightflow remains available. Details were written to {_activityLogFile.Path}.";
@@ -2615,6 +2621,7 @@ public partial class MainWindow : Window
     /// <summary>Ctrl+F focuses the Browser search box, but only while the Browser workspace is showing an open, filterable location.</summary>
     private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (!EnsureCatalogWorkspace()) { e.Handled = true; return; }
         if (TryCaptureShortcut(e)) return;
         if (TryHandleShellShortcut(e)) { e.Handled = true; return; }
         // Resolve active local interaction per key before semantic/legacy Player dispatch.
@@ -3384,6 +3391,7 @@ public partial class MainWindow : Window
     private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!ReferenceEquals(e.Source, MainTabs)) return;
+        if (IsLoaded && !EnsureCatalogWorkspace()) return;
         if (MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Settings)) CancelShortcutCapture();
         if (IsLoaded && MainTabs.SelectedIndex == ShellDestinationSelection.Index(ShellDestination.Jobs)) RefreshJobsWorkspace();
         SyncBrowserStatusBarVisibility();
@@ -3422,8 +3430,10 @@ public partial class MainWindow : Window
     private void OpenAbout_Click(object sender, RoutedEventArgs e) =>
         MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.About);
 
-    private void UtilityBackToBrowser_Click(object sender, RoutedEventArgs e) =>
-        MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home);
+    private void UtilityBackToBrowser_Click(object sender, RoutedEventArgs e)
+    {
+        if (EnsureCatalogWorkspace()) MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home);
+    }
 
     private void CompatibilityReviewBack_Click(object sender, RoutedEventArgs e) =>
         MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs);
@@ -4244,26 +4254,21 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() == true) SettingsFfmpegPath.Text = dialog.FileName;
     }
 
-    private async void ChangeCatalogLocation_Click(object sender, RoutedEventArgs e)
+    private void ChangeCatalogLocation_Click(object sender, RoutedEventArgs e)
     {
         if (!_storage.CatalogAvailable)
         {
             NoticeDialog.Show(this, "Catalog unavailable", "Catalog unavailable", "The configured Catalog is not currently available. Lightflow will not replace or redirect it. Restore access to the configured location before relocating it.");
             return;
         }
-        var destination = PickFolder("Choose the new Catalog folder", _storage.Locations.CatalogDirectory);
+        var destination = CatalogDestinationDialog.Choose(this, Path.GetDirectoryName(_storage.Locations.CatalogDirectory)!, move: true);
         if (destination is null) return;
-        destination = System.IO.Path.Combine(destination, "Lightflow Catalog");
-        if (!ConfirmationDialog.Confirm(this, "Move Catalog", "Move the Catalog to this folder?",
-            "Lightflow will create the Catalog folder shown below, copy and validate the complete Catalog, then switch. The original is retained as a recovery source.",
-            destination, "Move Catalog")) return;
-        SettingsMessage.Text = "Moving and validating the Catalog…";
-        var result = await _storage.RelocateCatalogAsync(destination);
+        var operation = CatalogOperationDialog.ForMove(_storage, destination);
+        operation.Owner = this;
+        operation.ShowDialog();
         SettingsCatalogDirectory.Text = _storage.Locations.CatalogDirectory;
-        SettingsMessage.Text = result.Succeeded
-            ? result.Diagnostic ?? "Catalog moved successfully. The original Catalog was retained."
-            : result.Diagnostic;
-        if (!result.Succeeded) NoticeDialog.Show(this, "Catalog was not moved", "Catalog was not moved", result.Diagnostic ?? "Try again.");
+        _settings = _storage.Settings;
+        SettingsMessage.Text = operation.CompletedSuccessfully ? "Catalog moved successfully." : operation.StatusText.Text;
     }
 
     private async void ChangePreviewsLocation_Click(object sender, RoutedEventArgs e)
@@ -6772,6 +6777,7 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
+        if (_catalogRecoveryRestarting) return; // Consumer teardown still runs in Closed; no writes through revoked storage.
         if (_catalogCloseDialogActive) { e.Cancel = true; return; }
         _playerViewerHost?.ExitFullscreen();
         if (!TryLeaveInspectorContext()) { e.Cancel = true; return; }

@@ -36,6 +36,7 @@ internal sealed class CatalogDatabaseService
     // inspection and migration; this callback revalidates native location binding at use.
     internal Action<CancellationToken, CatalogStorageBoundary>? ValidateStorageAccess { get; init; }
     internal string? ResolvedDatabasePath { get; init; }
+    internal Guid? ExpectedCatalogId { get; init; }
 
     public int CurrentSchemaVersion => _migrations.Count == 0 ? 0 : _migrations[^1].Version;
 
@@ -218,7 +219,10 @@ internal sealed class CatalogDatabaseService
             try
             {
                 ValidateMigrationHistory(connection, schemaVersion);
-                ReadCatalogIdentity(connection);
+                var identity = ReadCatalogIdentity(connection);
+                if (ExpectedCatalogId is Guid expected && identity.CatalogId != expected)
+                    throw new CatalogOpenException(CatalogOpenStatus.NotLightflowCatalog,
+                        "The explicitly selected Catalog identity changed after preflight. Its identity has not been rewritten.");
             }
             catch (CatalogOpenException)
             {

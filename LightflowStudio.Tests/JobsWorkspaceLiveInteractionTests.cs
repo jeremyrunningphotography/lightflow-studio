@@ -151,59 +151,63 @@ public sealed class JobsWorkspaceLiveInteractionTests
     });
 
     [Fact]
-    public Task ExportOutputLinkAndContextRerunWorkWithNoLutFolder() => RunAsync(0, async window =>
+    public async Task ExportOutputLinkAndContextRerunWorkWithNoLutFolder()
     {
         var root = Path.Combine(Path.GetTempPath(), "jobs-rerun-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         try
         {
-            var source = Path.Combine(root, "original.mp4");
-            var output = Path.Combine(root, "output with spaces.mp4");
-            File.WriteAllBytes(source, new byte[100]);
-            File.WriteAllText(output, "completed output");
-            var history = (IJobHistoryStore)typeof(MainWindow).GetField("_jobHistory",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(window)!;
-            history.Add(HistoryRecord(source, output));
-            RaiseClick(window.RefreshHistoryButton);
-            RaiseClick(window.JobsStatusButton);
-            await RealizeJobsWorkspaceAsync(window);
-            window.HistoryList.SelectedIndex = 0;
-            await RealizeJobsWorkspaceAsync(window);
-            Assert.Equal(Visibility.Visible, window.JobsClearButton.Visibility);
-            Assert.All(new[] { window.JobsPauseButton, window.JobsResumeButton, window.JobsRetryButton,
-                window.JobsCancelButton, window.HistoryRerunButton }, button => Assert.Equal(Visibility.Collapsed, button.Visibility));
-            System.Diagnostics.ProcessStartInfo? request = null;
-            window.OpenJobOutputFolder = value => request = value;
-            var path = Descendants(window.HistoryDetails).OfType<TextBlock>()
-                .SelectMany(block => block.Inlines.OfType<System.Windows.Documents.Hyperlink>()).Single();
-            path.RaiseEvent(new RoutedEventArgs(System.Windows.Documents.Hyperlink.ClickEvent));
-            Assert.NotNull(request);
-            Assert.Equal("explorer.exe", request.FileName);
-            Assert.Equal($"/select,\"{output}\"", request.Arguments);
-            Assert.True(request.UseShellExecute);
-            Assert.Null(JobOutputLocation.RevealRequest(Path.Combine(root, "missing.mp4")));
-            var row = Assert.IsType<ListBoxItem>(window.HistoryList.ItemContainerGenerator.ContainerFromIndex(0));
-            window.JobRow_ContextMenuOpening(row, null!);
-            row.ContextMenu.Items.Cast<MenuItem>().Single(item => Equals(item.Header, "Review & Rerun…"))
-                .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-            Assert.Equal(ShellDestinationSelection.Index(ShellDestination.CompatibilityExportReview), window.MainTabs.SelectedIndex);
-            Assert.Equal(LutCatalog.NoLut, window.LutSelection.SelectedItem);
-            Assert.True(window.IsVisible);
-            Assert.Equal("completed output", File.ReadAllText(output));
-        }
-        finally { Directory.Delete(root, true); }
-
-        static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
-        {
-            for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); index++)
+            await RunAsync(0, async window =>
             {
-                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, index);
-                yield return child;
-                foreach (var value in Descendants(child)) yield return value;
-            }
+                var source = Path.Combine(root, "original.mp4");
+                var output = Path.Combine(root, "output with spaces.mp4");
+                File.WriteAllBytes(source, new byte[100]);
+                File.WriteAllText(output, "completed output");
+                var history = (IJobHistoryStore)typeof(MainWindow).GetField("_jobHistory",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(window)!;
+                history.Add(HistoryRecord(source, output));
+                RaiseClick(window.RefreshHistoryButton);
+                RaiseClick(window.JobsStatusButton);
+                await RealizeJobsWorkspaceAsync(window);
+                window.HistoryList.SelectedIndex = 0;
+                await RealizeJobsWorkspaceAsync(window);
+                Assert.Equal(Visibility.Visible, window.JobsClearButton.Visibility);
+                Assert.All(new[] { window.JobsPauseButton, window.JobsResumeButton, window.JobsRetryButton,
+                    window.JobsCancelButton, window.HistoryRerunButton }, button => Assert.Equal(Visibility.Collapsed, button.Visibility));
+                System.Diagnostics.ProcessStartInfo? request = null;
+                window.OpenJobOutputFolder = value => request = value;
+                var path = Descendants(window.HistoryDetails).OfType<TextBlock>()
+                    .SelectMany(block => block.Inlines.OfType<System.Windows.Documents.Hyperlink>()).Single();
+                path.RaiseEvent(new RoutedEventArgs(System.Windows.Documents.Hyperlink.ClickEvent));
+                Assert.NotNull(request);
+                Assert.Equal("explorer.exe", request.FileName);
+                Assert.Equal($"/select,\"{output}\"", request.Arguments);
+                Assert.True(request.UseShellExecute);
+                Assert.Null(JobOutputLocation.RevealRequest(Path.Combine(root, "missing.mp4")));
+                var row = Assert.IsType<ListBoxItem>(window.HistoryList.ItemContainerGenerator.ContainerFromIndex(0));
+                window.JobRow_ContextMenuOpening(row, null!);
+                row.ContextMenu.Items.Cast<MenuItem>().Single(item => Equals(item.Header, "Review & Rerun…"))
+                    .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                Assert.Equal(ShellDestinationSelection.Index(ShellDestination.CompatibilityExportReview), window.MainTabs.SelectedIndex);
+                Assert.Equal(LutCatalog.NoLut, window.LutSelection.SelectedItem);
+                Assert.True(window.IsVisible);
+                Assert.Equal("completed output", File.ReadAllText(output));
+                static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
+                {
+                    for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); index++)
+                    {
+                        var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, index);
+                        yield return child;
+                        foreach (var value in Descendants(child)) yield return value;
+                    }
+                }
+            });
         }
-    });
+        // RunAsync closes the review window and disposes native/storage consumers first.
+        // Deleting while that window is still active races its source reader.
+        finally { Directory.Delete(root, true); }
+    }
 
     [Fact]
     public Task StartupCompletion_WaitsForHistoryAfterEarlyItemsSourceBinding() => StaDispatcher.RunAsync(async () =>

@@ -64,7 +64,7 @@ internal sealed partial class SqliteCatalogRecoveryService
             { /* Incomplete or revoked containers never enter completed backup discovery. */ }
         return result;
     }
-    internal static ClosedCatalogManifest VerifyTransport(string directory)
+    internal static ClosedCatalogManifest VerifyTransport(string directory, bool allowCatalogOwnershipEvidence = false)
     {
         using var binding = new WindowsStorageLocationAssessor();
         var request = new Lightflow.Domain.StorageAssessmentRequest(Guid.NewGuid(), 0,
@@ -79,8 +79,13 @@ internal sealed partial class SqliteCatalogRecoveryService
         ClosedCatalogManifestFormat.ValidateReadiness(manifest, ready);
         WindowsClosedCatalogTransferOperation.VerifyMetadata(directory, manifest, ready);
         WindowsClosedCatalogTransferOperation.ValidateDirectorySet(directory, manifest);
-        var files = WindowsClosedCatalogTransferOperation.EnumerateRegularFiles(directory)
+        // The caller already holds and validates this exclusive native ownership handle.
+        // Do not reopen its journal as payload; all manifest artifacts still use closed reads.
+        var ownedJournal = allowCatalogOwnershipEvidence && manifest.PublicationMode == ClosedCatalogPublicationMode.AtomicDirectory
+            ? StartupStoreEvidence.JournalPath(Path.Combine(directory, LightflowStorageLocations.CatalogFileName)) : null;
+        var files = WindowsClosedCatalogTransferOperation.EnumerateRegularFiles(directory, ownedJournal)
             .Select(p => Path.GetRelativePath(directory, p).Replace('\\', '/')).Where(p => p is not ("pending.json" or "manifest.json" or "ready.json"))
+            .Where(p => !(allowCatalogOwnershipEvidence && manifest.PublicationMode == ClosedCatalogPublicationMode.AtomicDirectory && p == "LightflowCatalog.db.startup-state"))
             .Order(StringComparer.Ordinal);
         if (!files.SequenceEqual(manifest.Artifacts.Select(a => a.RelativeName).Order(StringComparer.Ordinal)))
             throw new InvalidDataException("Missing or unexpected backup artifacts.");

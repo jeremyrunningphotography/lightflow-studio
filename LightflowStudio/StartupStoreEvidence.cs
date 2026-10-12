@@ -22,15 +22,31 @@ internal sealed class StartupStoreEvidence : IDisposable
     private readonly string _configuredDatabase;
     private readonly string _store;
     private bool _completed;
+    private bool _currentValidated;
     internal bool Completed => _completed;
     private readonly StartupSessionCompletion? _session;
     internal bool KnownClean { get; private set; }
     internal StartupValidationReason Reason { get; private set; }
+    internal bool HadValidatedCatalog { get; private set; }
     internal void RequireCompletePeer(bool complete)
     {
         if (KnownClean && !complete) { KnownClean = false; Reason = StartupValidationReason.DatabaseAnomaly; }
     }
     internal static string JournalPath(string database) => database + ".startup-state";
+    internal void MarkValidated()
+    {
+        RequireOwnership(_database);
+        if (_currentValidated) return;
+        Write(new(Format, "Validated", _store, _configuredDatabase, null, _session?.Current));
+        _currentValidated = true;
+    }
+    internal void RequireOwnership(string database)
+    {
+        if (_journal.SafeFileHandle.IsClosed || _journal.SafeFileHandle.IsInvalid ||
+            !string.Equals(_database, Path.GetFullPath(database), StringComparison.OrdinalIgnoreCase))
+            throw new IOException("The active Catalog does not have its ownership lease. Authoring is blocked.");
+        WindowsStorageLocationAssessor.RequireBoundOwnershipJournal(_journal.SafeFileHandle, JournalPath(_database));
+    }
 
     private StartupStoreEvidence(string database, string store, FileStream journal, StartupSessionCompletion? session, string? resolvedDatabase)
     {
@@ -47,6 +63,8 @@ internal sealed class StartupStoreEvidence : IDisposable
                 if (envelope is not null && envelope.Checksum == Hash(Encoding.UTF8.GetBytes(envelope.Payload)))
                 {
                     var certificate = JsonSerializer.Deserialize<Certificate>(envelope.Payload);
+                    HadValidatedCatalog = certificate is { Version: Format, Store: "Catalog", State: "Clean" or "Validated" } &&
+                        Guid.TryParseExact(certificate.Session, "N", out _) && Path.IsPathFullyQualified(certificate.Database);
                     if (certificate is { Version: Format, State: "Clean" } && certificate.Store == store &&
                         certificate.Database == _configuredDatabase && session?.Previous is not null && certificate.Session == session.Previous)
                     {
@@ -59,7 +77,11 @@ internal sealed class StartupStoreEvidence : IDisposable
         }
         catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException or ArgumentException)
         { /* Unreadable/untrusted evidence never grants the fast path. */ }
-        Write(new(Format, "Dirty", _store, _configuredDatabase, null, session?.Current)); // Flush must succeed before caller can open SQLite.
+        // Invalidate Clean while retaining a prior successful mutable-Catalog validation.
+        // An interrupted reopen must not turn authored bytes back into a closed snapshot.
+        Write(new(Format, HadValidatedCatalog ? "Validated" : "Dirty", _store, _configuredDatabase, null,
+            session?.Current ?? (HadValidatedCatalog ? Guid.NewGuid().ToString("N") : null)));
+        _currentValidated = HadValidatedCatalog;
     }
 
     internal static StartupStoreEvidence? Begin(string database, string store, bool createDirectory, StartupSessionCompletion? session = null,
@@ -69,9 +91,17 @@ internal sealed class StartupStoreEvidence : IDisposable
         var directory = Path.GetDirectoryName(Path.GetFullPath(accessDatabase))!;
         if (createDirectory) Directory.CreateDirectory(directory);
         if (!Directory.Exists(directory)) return null;
-        var journal = new FileStream(JournalPath(accessDatabase), FileMode.OpenOrCreate, FileAccess.ReadWrite,
-            FileShare.Delete, 4096, FileOptions.WriteThrough);
-        try { return new(database, store, journal, session, resolvedDatabase); }
+        // Only Catalog authoring needs the immutable native ownership namespace.
+        // Preview storage remains disposable through its existing delete-sharing contract.
+        if (store == "Catalog") ClosedCatalogTransferJournal.RequireUnlinked(JournalPath(accessDatabase));
+        var journal = store == "Catalog" ? WindowsStorageLocationAssessor.OpenOwnershipJournal(JournalPath(accessDatabase))
+            : new FileStream(JournalPath(accessDatabase), FileMode.OpenOrCreate, FileAccess.ReadWrite,
+                FileShare.Delete, 4096, FileOptions.WriteThrough);
+        try
+        {
+            if (store == "Catalog") WindowsStorageLocationAssessor.RequireSingleRegularFile(journal.SafeFileHandle);
+            return new(database, store, journal, session, resolvedDatabase);
+        }
         catch { journal.Dispose(); throw; }
     }
 
@@ -80,6 +110,7 @@ internal sealed class StartupStoreEvidence : IDisposable
     internal void Complete(string currentDatabase)
     {
         if (_completed || !string.Equals(_database, Path.GetFullPath(currentDatabase), StringComparison.OrdinalIgnoreCase)) return;
+        if (_store == "Catalog") RequireOwnership(_database);
         using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
             { DataSource = _database, Mode = SqliteOpenMode.ReadWrite, Pooling = false }.ToString()))
         {

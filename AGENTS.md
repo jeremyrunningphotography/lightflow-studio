@@ -51,6 +51,14 @@
 - If the executable or packaged FFmpeg files are locked, inspect for a hidden leftover `LightflowStudio.exe`; obtain approval before terminating a user-started process, then rebuild.
 - Include the refreshed local executable path in the final PR handoff so it is immediately clear which binary Jeremy should test.
 
+## Historical documentation maintenance
+
+- At meaningful completed milestones, assess whether [the Chronicle](docs/history/CHRONICLE.md) warrants an entry: major features/releases, consequential architecture or product-direction decisions, abandoned approaches with lasting implications, important AI development-process changes, and major qualification or safety outcomes. Routine commits/PRs, bug fixes, minor UI changes, CI reruns and registry administration normally do not warrant entries unless they embody a significant historical decision.
+- The completing agent identifies candidates in its final report with a concise factual summary and supporting issue/PR/commit references. Do not automatically rewrite [the Development History](docs/history/DEVELOPMENT_HISTORY.md) during unrelated production work; historical updates may be batched into a dedicated follow-up.
+- Chronicle updates are selective, dated and evidence-backed; preserve provenance and distinguish reported behavior from verified delivery. Preserve accepted historical cutoffs/snapshots; corrections must explicitly identify the earlier claim and supporting evidence rather than silently rewriting it.
+- Revise the longer History periodically when accumulated Chronicle entries warrant a meaningful narrative revision, deriving it from the Chronicle and source evidence rather than requiring an update for every milestone. See [maintenance guidance](docs/history/DEVELOPMENT_HISTORY.md#maintaining-the-record).
+- Historical writing is nonblocking: it adds no production merge or release gate, and a missing Chronicle entry does not invalidate otherwise accepted production work. Both historical documents remain explicitly AI-authored; do not impersonate Jeremy or invent personal motivations. Do not publish private transcripts or sensitive source material without explicit owner review.
+
 ## Agent assignment naming
 
 - Future assignments use `LF-[PLATFORM]-[ACTIVITY]-[NUMBER]`; `LF` identifies Lightflow Studio.

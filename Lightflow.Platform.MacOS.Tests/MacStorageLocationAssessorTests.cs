@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 
 namespace Lightflow.Platform.MacOS.Tests;
 
+[Collection("Native storage descriptor ownership")]
 public sealed class MacStorageLocationAssessorTests
 {
     private static StorageAssessmentRequest Request(string path) => new(Guid.NewGuid(), 17,

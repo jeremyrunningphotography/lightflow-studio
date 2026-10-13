@@ -6,9 +6,10 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Lightflow.Application/Lightflow.Application.csproj" />
-    <None Include="native/libLightflowStorage.dylib" CopyToOutputDirectory="PreserveNewest" Link="libLightflowStorage.dylib" />
+    <ProjectReference Include="../Lightflow.Catalog/Lightflow.Catalog.csproj" />
+    <None Include="native/libLightflowStorage.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="libLightflowStorage.dylib" />
   </ItemGroup>
   <Target Name="BuildMacStorageNative" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
-    <Exec Command="xcrun clang -dynamiclib -fobjc-arc -Wall -Wextra -Werror -framework Foundation &quot;$(MSBuildProjectDirectory)/native/storage.m&quot; -o &quot;$(MSBuildProjectDirectory)/native/libLightflowStorage.dylib&quot;" />
+    <Exec Command="xcrun clang -dynamiclib -fobjc-arc -Wall -Wextra -Werror -install_name @rpath/libLightflowStorage.dylib -framework Foundation &quot;$(MSBuildProjectDirectory)/native/storage.m&quot; &quot;$(MSBuildProjectDirectory)/native/catalog.c&quot; -o &quot;$(MSBuildProjectDirectory)/native/libLightflowStorage.dylib&quot;" />
   </Target>
 </Project>

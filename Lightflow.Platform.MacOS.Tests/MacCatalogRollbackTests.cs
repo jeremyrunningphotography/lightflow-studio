@@ -27,7 +27,8 @@ public sealed class MacCatalogRollbackTests
             var backup=await owner.Recovery.CreateBackupAsync(owner.Locations.CatalogDatabasePath,CatalogBackupKind.UserRequested);Assert.True(backup.Succeeded,backup.Diagnostic);
             var inputs=Path.Combine(root,"Restore Inputs");Directory.CreateDirectory(inputs);
             var selected=Path.Combine(inputs,"selected.db");File.Copy(backup.Backup!.Path,selected);
-            Assert.Equal(File.ReadAllBytes(backup.Backup.Path),File.ReadAllBytes(selected));
+            var selectedBytes=File.ReadAllBytes(selected);
+            Assert.Equal(File.ReadAllBytes(backup.Backup.Path),selectedBytes);
             await store.CreateCollectionAsync("Current state retained after activation fault");
             var before=await store.ListCollectionsAsync();var id=owner.CatalogSession.Identity.CatalogId;
             effects.FailNextActivation=true;
@@ -35,6 +36,7 @@ public sealed class MacCatalogRollbackTests
             Assert.False(result.Succeeded);Assert.Contains("previous Catalog was restored and reactivated",result.Diagnostic);
             Assert.True(owner.CatalogAvailable);Assert.Equal(id,owner.CatalogSession.Identity.CatalogId);
             Assert.Equal(before,await store.ListCollectionsAsync());Assert.True(File.Exists(selected));
+            Assert.Equal(selectedBytes,File.ReadAllBytes(selected));
         }
         finally{if(owner is not null)await owner.DisposeAsync();Directory.Delete(root,true);}
     }

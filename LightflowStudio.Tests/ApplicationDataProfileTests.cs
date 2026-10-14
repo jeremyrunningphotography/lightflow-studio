@@ -1,9 +1,10 @@
 using LightflowStudio;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace LightflowStudio.Tests;
 
-public sealed class ApplicationDataProfileTests : IDisposable
+public sealed class ApplicationDataProfileTests(ITestOutputHelper output) : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "lightflow-profile-" + Guid.NewGuid().ToString("N"));
     private LightflowStorageLocations Profile(string name = "isolated") =>
@@ -165,6 +166,12 @@ public sealed class ApplicationDataProfileTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_root)) Directory.Delete(_root, true);
+        try { if (Directory.Exists(_root)) Directory.Delete(_root, true); }
+        catch (IOException)
+        {
+            foreach (var path in Directory.EnumerateFiles(_root, "*.db", SearchOption.AllDirectories))
+                JournalLockDiagnostics.Record(output, "profile cleanup failure", path, _root);
+            throw;
+        }
     }
 }

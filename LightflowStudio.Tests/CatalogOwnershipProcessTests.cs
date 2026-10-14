@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using System.Text.Json;
 using LightflowStudio;
 using Lightflow.Application;
@@ -26,6 +28,7 @@ public sealed class CatalogOwnershipProcessTests(ITestOutputHelper output)
             "--ownership-move", destination, "--ownership-pause-state", boundary.ToString(),
             "--ownership-paused", Path.Combine(inner, "paused.json") }) info.ArgumentList.Add(arg);
         using var child = Process.Start(info)!;
+        var processHandle = child.SafeHandle;
         output.WriteLine("{0:O} parent pid={1} start={2:O}; child pid={3} start={4:O}",
             DateTimeOffset.UtcNow, Environment.ProcessId, Process.GetCurrentProcess().StartTime.ToUniversalTime(), child.Id, child.StartTime.ToUniversalTime());
         CatalogOwnershipVerifier.Report paused;
@@ -39,9 +42,19 @@ public sealed class CatalogOwnershipProcessTests(ITestOutputHelper output)
             // Terminate only this explicitly test-owned synthetic child, simulating power loss.
             output.WriteLine("{0:O} kill requested child={1}", DateTimeOffset.UtcNow, child.Id);
             child.Kill(entireProcessTree: true); await child.WaitForExitAsync();
+            output.WriteLine("Native termination signal after managed wait: {0}", WaitForSingleObject(processHandle, 0));
+            // HasExited/WaitForExitAsync can observe the termination exit code before
+            // Windows signals the process and finishes closing its file handles.
+            // Wait on the retained process object, never poll/retry the journal.
+            Assert.Equal(0u, await Task.Run(() => WaitForSingleObject(processHandle, 10_000)));
+            Assert.Equal(0u, WaitForSingleObject(processHandle, 0));
             output.WriteLine("{0:O} wait complete child={1} exit={2:O} code={3}", DateTimeOffset.UtcNow, child.Id, child.ExitTime.ToUniversalTime(), child.ExitCode);
         }
-        finally { if (!child.HasExited) { child.Kill(entireProcessTree: true); await child.WaitForExitAsync(); } }
+        finally
+        {
+            if (!child.HasExited) child.Kill(entireProcessTree: true);
+            Assert.Equal(0u, await Task.Run(() => WaitForSingleObject(processHandle, 10_000)));
+        }
         var profile = ApplicationDataProfile.Resolve(["--data-root", inner]);
         output.WriteLine("{0:O} first startup journal read boundary", DateTimeOffset.UtcNow);
         var restart = await LightflowStorageCoordinator.StartAsync(profile: profile, allowFirstCreation: false);
@@ -94,6 +107,8 @@ public sealed class CatalogOwnershipProcessTests(ITestOutputHelper output)
         Assert.False(File.Exists(receiving.CatalogDatabasePath)); // No blank replacement.
         Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, owner.CatalogSession.DatabasePath, "Catalog", false));
     }
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint WaitForSingleObject(SafeProcessHandle process, uint milliseconds);
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]

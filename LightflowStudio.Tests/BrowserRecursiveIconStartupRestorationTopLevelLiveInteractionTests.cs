@@ -72,8 +72,16 @@ public sealed class BrowserRecursiveIconStartupRestorationTopLevelLiveInteractio
                 var window = NewOffscreenWindow(relaunchedStorage, relaunch);
                 try
                 {
+                    // The constructor displays the saved path before Loaded restores the tree.
+                    // This is the old predicate's deterministic false-positive condition.
+                    Assert.Equal(_restoredLeaf, window.BrowserCurrentPath.Text);
+                    Assert.False(window.BrowserNavigationPending);
+                    Assert.False(window.PresentationReady.IsCompleted);
+                    Assert.Empty(window.BrowserFolderTree.Items);
+                    trace.Add("before Show: saved-path predicate satisfied, presentation not ready, tree empty");
                     window.Show();
-                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
+                    await WaitUntilAsync(() => window.PresentationReady.IsCompletedSuccessfully &&
+                        !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _restoredLeaf, StringComparison.OrdinalIgnoreCase),
                         "startup restoration to settle on the saved leaf");
                     await SettleAsync(window);
@@ -120,6 +128,14 @@ public sealed class BrowserRecursiveIconStartupRestorationTopLevelLiveInteractio
 
     private void AssertAllRecursiveAndFilled(MainWindow window, string when)
     {
+        foreach (var path in new[] { _mediaRoot, _folderA, _folderB, _restoredLeaf })
+        {
+            var model = window.BrowserFolderTree.Items.OfType<BrowserTreeNode>().SelectMany(Flatten)
+                .SingleOrDefault(node => string.Equals(node.AbsolutePath, path, StringComparison.OrdinalIgnoreCase));
+            Assert.True(model is not null, $"Logical folder model missing: {path} ({when})");
+            Assert.True(model!.IsRecursiveScope, $"Logical recursive scope missing: {path} ({when})");
+            Assert.True(model.IsFilledFolderIcon, $"Logical filled icon missing: {path} ({when})");
+        }
         var rootContainer = FindContainer(window.BrowserFolderTree,
             node => string.Equals(node.AbsolutePath, _mediaRoot, StringComparison.OrdinalIgnoreCase));
         var aContainer = FindContainer(window.BrowserFolderTree,

@@ -111,7 +111,7 @@ public sealed class CatalogSelectionTests
             Assert.NotNull(await owner.Collections.GetCollectionAsync(candidateCollection.CollectionId));
             Assert.Null(await owner.Collections.GetCollectionAsync(sourceCollection.CollectionId));
             Assert.Throws<ObjectDisposedException>(() => stale.OpenConnection());
-            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(owner.CatalogSession.DatabasePath, "Catalog", false));
+            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, owner.CatalogSession.DatabasePath, "Catalog", false));
         }
         var returned = await LightflowStorageCoordinator.StartAsync(profile: Profile,
             existingCatalogDirectory: sourcePath, selectedCatalogId: sourceId);
@@ -254,9 +254,9 @@ public sealed class CatalogSelectionTests
             await using var proven = selected.Coordinator!;
             Assert.Equal(priorId, proven.CatalogSession.Identity.CatalogId);
             Assert.Single(await proven.Collections.ListCollectionsAsync());
-            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(proven.CatalogSession.DatabasePath, "Catalog", false));
+            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, proven.CatalogSession.DatabasePath, "Catalog", false));
         }
-        using var released = StartupStoreEvidence.Begin(candidateProfile.CatalogDatabasePath, "Catalog", false);
+        using var released = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, candidateProfile.CatalogDatabasePath, "Catalog", false);
         Assert.NotNull(released);
         Assert.True(File.Exists(Profile.CatalogDatabasePath)); Assert.True(File.Exists(candidateProfile.CatalogDatabasePath));
     }
@@ -279,7 +279,7 @@ public sealed class CatalogSelectionTests
         {
             Assert.True(AppSettingsStore.TryLoadForStartup(profile.SettingsPath, out var settings, out _, isolated: true));
             Assert.Equal(prior, settings.CatalogId);
-            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(session.DatabasePath, "Catalog", false));
+            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, session.DatabasePath, "Catalog", false));
             Called = true;
             return session;
         }

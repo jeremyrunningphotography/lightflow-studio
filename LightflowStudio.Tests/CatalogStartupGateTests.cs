@@ -27,7 +27,7 @@ public sealed class CatalogStartupGateTests
             Assert.Equal(profile.CatalogDirectory, storage.Locations.CatalogDirectory);
             id = storage.CatalogSession.Identity.CatalogId;
             await storage.Collections.CreateCollectionAsync("Automatic first launch");
-            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(profile.CatalogDatabasePath, "Catalog", false));
+            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, profile.CatalogDatabasePath, "Catalog", false));
         }
         var second = await LightflowStorageCoordinator.StartAsync(profile: profile);
         Assert.True(second.IsReady, second.Diagnostic);
@@ -79,7 +79,7 @@ public sealed class CatalogStartupGateTests
         Assert.Equal(id, storage.CatalogSession.Identity.CatalogId);
         Assert.Single(await storage.Collections.ListCollectionsAsync());
         Assert.False(Directory.Exists(Path.Combine(moved, "Catalog")));
-        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(storage.CatalogSession.DatabasePath, "Catalog", false));
+        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, storage.CatalogSession.DatabasePath, "Catalog", false));
     }
     private static LightflowStorageLocations Profile()
     {
@@ -103,7 +103,7 @@ public sealed class CatalogStartupGateTests
         Assert.True(storage.VerifyWorkspaceReadiness());
         Assert.True(AppSettingsStore.TryLoadForStartup(profile.SettingsPath, out var settings, out _, isolated: true));
         Assert.Equal(storage.CatalogSession.Identity.CatalogId, settings.CatalogId);
-        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(storage.CatalogSession.DatabasePath, "Catalog", false));
+        Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, storage.CatalogSession.DatabasePath, "Catalog", false));
     }
     [Fact]
     public async Task MissingPriorCatalogRetryThenReconnectPreservesAuthoredState()
@@ -213,14 +213,14 @@ public sealed class CatalogStartupGateTests
         await gate.RetryAsync(); await gate.CreateAsync(Path.Combine(profile.ApplicationDataDirectory, "late"));
         Assert.False(gate.CanEnterWorkspace); Assert.Throws<InvalidOperationException>(() => gate.TakeReady());
         Assert.False(Directory.Exists(Path.Combine(profile.ApplicationDataDirectory, "late")));
-        using var released = StartupStoreEvidence.Begin(profile.CatalogDatabasePath, "Catalog", false); Assert.NotNull(released);
+        using var released = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, profile.CatalogDatabasePath, "Catalog", false); Assert.NotNull(released);
     }
     [Fact]
     public async Task LostLeaseInvalidatesReadinessAndBlocksAuthoringBeforeAnyNewConnection()
     {
         var profile = Profile(); var ready = await LightflowStorageCoordinator.StartAsync(profile: profile);
         await using var storage = ready.Coordinator!;
-        var lease = (StartupStoreEvidence)typeof(LightflowStorageCoordinator).GetField("_catalogStartup", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(storage)!;
+        var lease = storage.Lifecycle.CatalogEvidence!;
         lease.Dispose();
         Assert.False(storage.VerifyWorkspaceReadiness()); Assert.False(storage.CatalogAvailable);
         await Assert.ThrowsAnyAsync<Exception>(() => storage.Collections.CreateCollectionAsync("Must refuse"));
@@ -235,12 +235,12 @@ public sealed class CatalogStartupGateTests
         Assert.True(File.Exists(Path.Combine(path, LightflowStorageLocations.CatalogFileName)));
         Assert.True(AppSettingsStore.TryLoadForStartup(profile.SettingsPath, out var settings, out _, isolated: true));
         Assert.Null(settings.CatalogId); Assert.Null(settings.CatalogDirectory);
-        using var released = StartupStoreEvidence.Begin(Path.Combine(path, LightflowStorageLocations.CatalogFileName), "Catalog", false); Assert.NotNull(released);
+        using var released = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Path.Combine(path, LightflowStorageLocations.CatalogFileName), "Catalog", false); Assert.NotNull(released);
     }
     private sealed class RejectActivation : ICatalogSessionActivator
     {
         public CatalogDatabaseSession Activate(CatalogDatabaseSession session)
-        { Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(session.DatabasePath, "Catalog", false)); throw new IOException("Injected creation activation failure"); }
+        { Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, session.DatabasePath, "Catalog", false)); throw new IOException("Injected creation activation failure"); }
     }
 
     [Fact]
@@ -285,7 +285,7 @@ public sealed class CatalogStartupGateTests
             Assert.Null(settings.CatalogId); Assert.Null(settings.CatalogDirectory);
         }
         Assert.True(File.Exists(Path.Combine(path, LightflowStorageLocations.CatalogFileName)));
-        using var lease = StartupStoreEvidence.Begin(Path.Combine(path, LightflowStorageLocations.CatalogFileName), "Catalog", false);
+        using var lease = StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, Path.Combine(path, LightflowStorageLocations.CatalogFileName), "Catalog", false);
         Assert.NotNull(lease);
     }
     private sealed class CreationConfigurationFault(LightflowStorageLocations profile, string candidate, bool rollbackFails) : IStorageConfigurationStore

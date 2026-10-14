@@ -2,37 +2,14 @@ using System.IO;
 
 namespace LightflowStudio;
 
-internal interface ILightflowStorageLocations
-{
-    string ApplicationDataDirectory { get; }
-    string SettingsPath { get; }
-    string StatePath { get; }
-    string WorkspaceStatePath { get; }
-    string JobHistoryPath { get; }
-    string FileOperationHistoryPath { get; }
-    string TrimHistoryPath { get; }
-    string OutputIdentityDirectory { get; }
-    string CatalogDirectory { get; }
-    string CatalogDatabasePath { get; }
-    string CatalogBackupsDirectory { get; }
-    string PreviewsDirectory { get; }
-    string PreviewsDatabasePath { get; }
-    string ThumbnailCacheDirectory { get; }
-    string StandardPreviewCacheDirectory { get; }
-    string TemporaryDirectory { get; }
-    string LogsDirectory { get; }
-    string ActivityLogPath { get; }
-    string MachineIdentityPath { get; }
-}
-
 internal sealed record LightflowStorageLocationOptions(
     string? CatalogDirectory = null,
     string? PreviewsDirectory = null);
 
 internal sealed record LightflowStorageLocations : ILightflowStorageLocations
 {
-    public const string CatalogFileName = "LightflowCatalog.db";
-    public const string PreviewsFileName = "previews.db";
+    public const string CatalogFileName = CatalogLayout.CatalogFileName;
+    public const string PreviewsFileName = CatalogLayout.PreviewsFileName;
     private static readonly Lazy<LightflowStorageLocations> ProcessLocations = new(() =>
         ApplicationDataProfile.Resolve(Environment.GetCommandLineArgs().Skip(1).ToArray()));
     public static LightflowStorageLocations Current => ProcessLocations.Value;

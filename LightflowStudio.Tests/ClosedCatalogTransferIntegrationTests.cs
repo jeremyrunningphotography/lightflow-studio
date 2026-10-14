@@ -45,7 +45,7 @@ public sealed class ClosedCatalogTransferIntegrationTests : IAsyncLifetime
             var manifest = ClosedCatalogManifestFormat.Deserialize(await File.ReadAllBytesAsync(Path.Combine(destination, "manifest.json")));
             Assert.Equal(ClosedCatalogPublicationMode.AtomicDirectory, manifest.PublicationMode);
             Assert.Equal(id, manifest.CatalogId);
-            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(storage.CatalogSession.DatabasePath, "Catalog", false));
+            Assert.Throws<IOException>(() => StartupStoreEvidence.Begin(WindowsCatalogEvidenceEffects.Instance, storage.CatalogSession.DatabasePath, "Catalog", false));
             Assert.Equal(backupHash, SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(destination, "Backups", backupName))));
             Assert.True(File.Exists(Locations.CatalogDatabasePath));
         }
@@ -184,6 +184,42 @@ public sealed class ClosedCatalogTransferIntegrationTests : IAsyncLifetime
         await using var unavailable = reopened.Coordinator!;
         Assert.Equal(StorageStartupStatus.CatalogUnavailable, reopened.Status); Assert.False(unavailable.CatalogAvailable);
         Assert.True(File.Exists(Locations.CatalogDatabasePath)); Assert.Equal(id, unavailable.Settings.CatalogId);
+    }
+    [Fact]
+    public async Task LiveJournalWriterRefusesUnverifiedRecovery_ReleasedJournalStillRefusesInterruptedTransfer()
+    {
+        Guid id;
+        await using (var storage = (await LightflowStorageCoordinator.StartAsync(profile: Locations)).Coordinator!)
+            id = storage.CatalogSession.Identity.CatalogId;
+        var request = new ClosedCatalogTransferRequest(Guid.NewGuid(), 0,
+            ClosedCatalogTransferMode.MoveAndActivate, id, 12, CatalogDatabaseService.SqliteApplicationId);
+        var path = Path.Combine(ClosedCatalogTransferJournal.DirectoryPath(Locations), $"{request.OperationId:N}.journal");
+        byte[] prior;
+        await using (var journal = new ClosedCatalogTransferJournal(Locations, request.OperationId))
+        {
+            await journal.AppendAsync(new(1, request, 0, ClosedCatalogTransferState.Preflight, true, "", null, null), CancellationToken.None);
+            // Read sharing permits retaining bytes while the actual closed-evidence reader
+            // must refuse coexistence with this deliberately live writer.
+            using (var reader = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var bytes = new MemoryStream()) { reader.CopyTo(bytes); prior = bytes.ToArray(); }
+            var locked = await LightflowStorageCoordinator.StartAsync(profile: Locations, allowFirstCreation: false);
+            await using var unavailable = locked.Coordinator!;
+            Assert.Equal(StorageStartupStatus.CatalogUnavailable, locked.Status);
+            Assert.Equal(CatalogRecoveryReason.PendingRecovery, locked.RecoveryReason);
+            Assert.Contains("could not be verified", locked.Diagnostic);
+            Assert.False(unavailable.CatalogAvailable);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => unavailable.Collections.CreateCollectionAsync("Blocked"));
+            Assert.False((await unavailable.RestoreCatalogAsync("unselected-backup.db")).Succeeded);
+        }
+        Assert.Equal(prior, await File.ReadAllBytesAsync(path));
+        var released = await LightflowStorageCoordinator.StartAsync(profile: Locations, allowFirstCreation: false);
+        await using var stillUnavailable = released.Coordinator!;
+        Assert.Equal(StorageStartupStatus.CatalogUnavailable, released.Status);
+        Assert.Equal(CatalogRecoveryReason.PendingRecovery, released.RecoveryReason);
+        Assert.Contains("interrupted Catalog transfer", released.Diagnostic);
+        Assert.False(stillUnavailable.CatalogAvailable);
+        Assert.Equal(id, stillUnavailable.Settings.CatalogId);
+        Assert.Equal(prior, await File.ReadAllBytesAsync(path));
     }
     [Fact]
     public async Task CorruptOrUnreadyBackupIsUnlistedAndPriorBackupSurvives()

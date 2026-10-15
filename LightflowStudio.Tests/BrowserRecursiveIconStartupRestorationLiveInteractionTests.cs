@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace LightflowStudio.Tests;
 
@@ -15,7 +16,7 @@ namespace LightflowStudio.Tests;
 /// green.
 /// </summary>
 [Collection("STA dispatcher tests")]
-public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests : IAsyncLifetime
+public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests(ITestOutputHelper output) : IAsyncLifetime
 {
     private readonly string _appDataRoot = Path.Combine(Path.GetTempPath(), $"lightflow-restore-icon-app-{Guid.NewGuid():N}");
     private readonly string _mediaRoot = Path.Combine(Path.GetTempPath(), $"lightflow-restore-icon-media-{Guid.NewGuid():N}");
@@ -77,8 +78,14 @@ public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests :
                 var window = NewOffscreenWindow(relaunchedStorage, relaunch);
                 try
                 {
+                    Assert.Equal(_restoredLeaf, window.BrowserCurrentPath.Text);
+                    Assert.False(window.BrowserNavigationPending);
+                    Assert.False(window.PresentationReady.IsCompleted);
+                    Assert.Empty(window.BrowserFolderTree.Items);
+                    trace.Add("before Show: saved-path predicate satisfied, presentation not ready, tree empty");
                     window.Show();
-                    await WaitUntilAsync(() => !window.BrowserNavigationPending &&
+                    await WaitUntilAsync(() => window.PresentationReady.IsCompletedSuccessfully &&
+                        !window.BrowserNavigationPending &&
                         string.Equals(window.BrowserCurrentPath.Text, _restoredLeaf, StringComparison.OrdinalIgnoreCase),
                         "startup restoration to settle on the saved leaf");
                     await SettleAsync(window);
@@ -173,12 +180,20 @@ public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests :
         }
         finally
         {
-            foreach (var line in trace) Console.WriteLine(line);
+            foreach (var line in trace) output.WriteLine(line);
         }
     }
 
     private void AssertAllRecursiveAndFilled(MainWindow window, string when)
     {
+        foreach (var path in new[] { _recursiveRootFolder, _folderA, _folderB, _restoredLeaf })
+        {
+            var model = window.BrowserFolderTree.Items.OfType<BrowserTreeNode>().SelectMany(Flatten)
+                .SingleOrDefault(node => string.Equals(node.AbsolutePath, path, StringComparison.OrdinalIgnoreCase));
+            Assert.True(model is not null, $"Logical folder model missing: {path} ({when})");
+            Assert.True(model!.IsRecursiveScope, $"Logical recursive scope missing: {path} ({when})");
+            Assert.True(model.IsFilledFolderIcon, $"Logical filled icon missing: {path} ({when})");
+        }
         var rootContainer = FindContainer(window.BrowserFolderTree,
             node => string.Equals(node.AbsolutePath, _recursiveRootFolder, StringComparison.OrdinalIgnoreCase));
         var aContainer = FindContainer(window.BrowserFolderTree,
@@ -211,11 +226,23 @@ public sealed class BrowserRecursiveIconStartupRestorationLiveInteractionTests :
         {
             var container = FindContainer(window.BrowserFolderTree,
                 node => string.Equals(node.AbsolutePath, entry.Path, StringComparison.OrdinalIgnoreCase));
-            if (container is null) return $"{entry.Name}=<not materialized>";
+            if (container is null)
+            {
+                var model = window.BrowserFolderTree.Items.OfType<BrowserTreeNode>().SelectMany(Flatten)
+                    .FirstOrDefault(node => string.Equals(node.AbsolutePath, entry.Path, StringComparison.OrdinalIgnoreCase));
+                return $"{entry.Name}=<not materialized>; model={(model is null ? "absent" : $"Root={model.RootId}, Expanded={model.IsExpanded}, Rec={model.IsRecursiveScope}")}";
+            }
             var node = (BrowserTreeNode)container.DataContext;
             return $"{entry.Name}(Root={node.RootId}, Rel={node.RelativeFolder}, Sel={node.IsSelected}, Rec={node.IsRecursiveScope}, Filled={node.IsFilledFolderIcon})";
         });
-        return $"state: {string.Join(" | ", parts)}; BrowserCurrentPath='{window.BrowserCurrentPath.Text}'";
+        return $"state: {string.Join(" | ", parts)}; BrowserCurrentPath='{window.BrowserCurrentPath.Text}'; presentationReady={window.PresentationReady.IsCompletedSuccessfully}; treeItems={window.BrowserFolderTree.Items.Count}; generator={window.BrowserFolderTree.ItemContainerGenerator.Status}; treeVisible={window.BrowserFolderTree.IsVisible}";
+    }
+
+    private static IEnumerable<BrowserTreeNode> Flatten(BrowserTreeNode node)
+    {
+        yield return node;
+        foreach (var child in node.Children)
+            foreach (var descendant in Flatten(child)) yield return descendant;
     }
 
     private static MainWindow NewOffscreenWindow(LightflowStorageCoordinator storage, StorageStartupResult startup)

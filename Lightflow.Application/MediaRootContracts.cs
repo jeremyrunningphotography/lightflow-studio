@@ -30,10 +30,14 @@ public interface IMediaRootFileSystem
     bool FileExists(string path);
 }
 
-public interface IMediaRootService
+public interface IMediaRootReader
 {
     Task<IReadOnlyList<MediaRootInfo>> ListAsync(CancellationToken cancellationToken = default);
     Task<MediaRootInfo?> GetAsync(Guid rootId, CancellationToken cancellationToken = default);
+}
+
+public interface IMediaRootService : IMediaRootReader
+{
     Task<MediaRootChangeResult> CreateAsync(string displayName, string physicalPath, CancellationToken cancellationToken = default);
     Task<MediaRootChangeResult> CreateBrowserAnchorAsync(string displayName, string physicalPath,
         CancellationToken cancellationToken = default) => CreateAsync(displayName, physicalPath, cancellationToken);
@@ -53,14 +57,18 @@ public interface IMediaRootPathAdmission : IDisposable
     Task ValidateAsync(CancellationToken token, string? catalogDirectory = null);
     string? ConflictingMapping(Guid existingRoot, Guid requestedRoot, string path, bool ignoreAncestorAnchor, CancellationToken token);
 }
-public interface IMediaRootPathEffects
+public interface IBrowserFolderPaths
+{
+    string NormalizeRootPath(string path);
+    string ResolveContained(string root, string relative);
+}
+
+public interface IMediaRootPathEffects : IBrowserFolderPaths
 {
     IMediaRootPathAdmission OpenAdmission(string root);
     void ValidatePaths(string root, IReadOnlyList<PathIdentityCandidate> candidates, CancellationToken token);
-    string NormalizeRootPath(string path);
     string NormalizeRelativePath(string path);
     string RelativePathKey(string path);
-    string ResolveContained(string root, string relative);
     bool Overlaps(string left, string right);
     bool Contains(string root, string candidate);
 }

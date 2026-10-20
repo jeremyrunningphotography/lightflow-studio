@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), related #395/#366 | Review preparation; real Catalog checkpoint, 34 native / 136 Application / 44 Catalog / 15 UI tests and 23 process checks passed; owner/CI/Windows package acceptance pending |
 | 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), [PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452), related #395/#366 | Done; owner Mac functional/visual and LF-WIN-DEV-024 DARKMATTER companion package qualification accepted at b4a8e0a; normal merge 3801de8; bounded shell only, no R2/R3/R4 or release completion |
 | 023 | LF-MAC-DEV-023 | Catalog Portability | [R2 #393](https://github.com/jeremyrunningphotography/lightflow-studio/issues/393), [physical qualification #406](https://github.com/jeremyrunningphotography/lightflow-studio/issues/406), accepted host [#425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425) | Research Complete / Production Portability Blocked; owner accepted final bounded CONDITIONAL disposition on 2026-10-20; write-capable SQLite activation, WAL/SHM, pooling and recovery integration unresolved; original production objective not delivered |
 | 022 | LF-WIN-DEV-022 | Windows CI Reliability Stabilization | [Issue #446](https://github.com/jeremyrunningphotography/lightflow-studio/issues/446), [Draft PR #447](https://github.com/jeremyrunningphotography/lightflow-studio/pull/447) | Review; journal fixture correction separately qualified; bounded playback attribution inconclusive; SQLite/Browser unresolved; final gates and owner acceptance required |
@@ -303,3 +304,20 @@ Windows replacement, signing/notarization, release/tag or next-feature work.
 Earlier review/pending statements above remain historical checkpoints superseded
 by this accepted completion. This registry-only closeout changes no implementation,
 test, build, dependency input, historical document or other assignment allocation.
+
+## Assignment 025 reservation — 2026-10-20
+
+Jeremy allocated LF-MAC-DEV-025 for bounded Catalog-backed Mac Browser implementation.
+Independent full clone `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-025-Browser`, branch
+`codex/025-mac-browser-foundation`, fetched main `32d6c110ba771233249f19475a88a2b4d1e14aa3`.
+025 was absent from the current registry and inspected open PRs. Native #454 parent #366,
+accepted #451 blocked-by prerequisite and Project #4 Browser / Priority unset verified;
+Backlog transitioned to In Progress when implementation began. R2/R3/R4 remain incomplete.
+No Preview, publication/Move, portability expansion, WPF retirement or merge authorization.
+
+025 local implementation checkpoint: existing Catalog readers/identity, selection, folder enumeration
+and recursive rules are shared; Windows compatibility effects and discovery/reconciliation remain.
+Read-only Mac Browser consumes one lifecycle session, supports real roots/folders/assets and stable
+single selection without Preview or ingestion. See [bounded qualification](qualification/mac-browser-454.md).
+Exact-head CI, final candidate bundle provenance, owner hands-on acceptance and Windows local package
+qualification are independent pending gates; no merge or broader R2/R3/R4 completion.

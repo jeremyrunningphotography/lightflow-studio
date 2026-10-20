@@ -7,6 +7,7 @@ namespace Lightflow.UI;
 /// <summary>Transient presentation only. Readiness and durable state come from the application service.</summary>
 public sealed class ShellViewModel(IShellCatalogSession catalog) : INotifyPropertyChanged
 {
+    public BrowserViewModel? Browser { get; } = catalog is IBrowserFolderSession browser ? new(browser) : null;
     public event PropertyChangedEventHandler? PropertyChanged;
     public string DataRoot => catalog.DataRoot;
     public ShellCatalogSnapshot Snapshot { get; private set; } = new(StorageStartupStatus.FirstRunChoiceRequired);
@@ -55,19 +56,19 @@ public sealed class ShellViewModel(IShellCatalogSession catalog) : INotifyProper
         if (IsBusy || IsClosing || !Snapshot.IsReady) return;
         var generation = _generation;
         var observed = await catalog.VerifyAsync();
-        if (generation == _generation && !IsClosing) { Snapshot = observed; Notify(); }
+        if (generation == _generation && !IsClosing) { Snapshot = observed; if (!observed.IsReady) Browser?.Suspend(); Notify(); }
     }
     private async Task RunAsync(Func<Task<ShellCatalogSnapshot>> request)
     {
         if (IsBusy || IsClosing) return;
-        _generation++; IsBusy = true; Notify();
-        try { Snapshot = await request(); }
+        _generation++; Browser?.Suspend(); IsBusy = true; Notify();
+        try { Snapshot = await request(); if (Snapshot.IsReady && Snapshot.CatalogId is { } id && Browser is not null) await Browser.OpenAsync(id); }
         finally { IsBusy = false; Notify(); }
     }
     public async Task CloseAsync()
     {
         if (IsClosing) { await catalog.DisposeAsync(); return; }
-        _generation++; IsClosing = true; Notify();
+        _generation++; Browser?.Suspend(); IsClosing = true; Notify();
         await catalog.DisposeAsync();
     }
     private void Notify() => PropertyChanged?.Invoke(this, new(null));

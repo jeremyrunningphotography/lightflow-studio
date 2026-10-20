@@ -14,7 +14,7 @@ public sealed class ShellWindow : Window
 {
     private readonly ShellViewModel _model;
     private readonly StackPanel _gate = new() { Spacing = 20, MaxWidth = 660, Margin = new Thickness(36) };
-    private readonly StackPanel _workspace = new() { Spacing = 20, Margin = new Thickness(36) };
+    private readonly StackPanel _workspace = new() { Spacing = 12, Margin = new Thickness(24, 8, 24, 8) };
     private readonly TextBlock _title = Text("", 26), _message = Text("", 15), _context = Text("", 13), _status = Text("", 13);
     private readonly TextBlock _selected = Text("", 14);
     private readonly Button _catalogButton = Action("Catalog…");
@@ -57,12 +57,14 @@ public sealed class ShellWindow : Window
         _status.VerticalAlignment = VerticalAlignment.Center; bottom.Children.Add(_status);
         var quit = Action("Quit Lightflow Studio"); Grid.SetColumn(quit, 1); bottom.Children.Add(quit); quit.Click += (_, _) => Close();
         var footer = new Border { Background = Brush("#11141A"), BorderBrush = Brush("#2B303A"), BorderThickness = new Thickness(0,1,0,0), Child = bottom }; Grid.SetRow(footer,2);layout.Children.Add(footer);
-        var home = Text("Home", 28); _workspace.Children.Add(home);
+        if (model.Browser is { } browser)
+            _workspace.Children.Add(new BrowserPane(browser) { Height = 480 });
         _workspace.Children.Add(_context);
-        _workspace.Children.Add(new Border { Background = Brush("#171A20"), BorderBrush = Brush("#2B303A"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(28), Child = new StackPanel { Spacing = 16, Children = {
-            Text("Your Catalog is ready", 22), Text("Your Catalog is open safely. Media browsing will be available in a future version.", 15),
-            Text("Coming next", 13), Text("Browser and Player · Inspector · Settings · Jobs", 15) } } });
-        _workspace.Children.Add(Text("Open another Catalog using Catalog… above. Quit before moving or removing a Catalog. Catalog Move and transfer are unavailable in this build.", 13));
+        SizeChanged += (_, _) =>
+        {
+            if (_workspace.Children.OfType<BrowserPane>().FirstOrDefault() is { } pane)
+                pane.Height = Math.Max(340, Bounds.Height - 200);
+        };
         Content = layout;
         _retry.Click += async (_, _) => await InvokeAsync(model.StartAsync);
         _open.Click += async (_, _) => { var folder = await PickFolderAsync("Open Existing Catalog"); if (folder is not null) { _preparedFolder = null; await InvokeAsync(() => model.OpenAsync(folder)); } };
@@ -98,7 +100,7 @@ public sealed class ShellWindow : Window
         _workspace.IsVisible = _model.WorkspaceAvailable && !_catalogPanel;
         _gate.Parent!.SetValue(IsVisibleProperty, !_workspace.IsVisible);
         _catalogButton.IsEnabled = _model.WorkspaceAvailable;
-        _catalogButton.Content = _catalogPanel ? "Back to Home" : "Catalog…";
+        _catalogButton.Content = _catalogPanel ? "Back to Browser" : "Catalog…";
         _create.IsEnabled = _open.IsEnabled = _model.CanChoose && _preparedFolder is null;
         _retry.IsEnabled = !_model.IsBusy && !_model.IsClosing && _preparedFolder is null;
         _retry.IsVisible = !_model.Snapshot.IsReady;

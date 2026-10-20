@@ -3,34 +3,9 @@ using System.IO;
 using Microsoft.Data.Sqlite;
 namespace LightflowStudio;
 public class CatalogMediaRootService(Func<CatalogDatabaseSession?> session, IMachineIdentityProvider machine,
-    IMediaRootFileSystem fileSystem, IMediaRootPathEffects paths) : IMediaRootService
+    IMediaRootFileSystem fileSystem, IMediaRootPathEffects paths) : CatalogMediaRootReader(session, machine, fileSystem), IMediaRootService
 {
     private readonly SemaphoreSlim _mutationGate = new(1, 1);
-    public Task<IReadOnlyList<MediaRootInfo>> ListAsync(CancellationToken cancellationToken = default) => RunAsync(() =>
-    {
-        var machineId = machine.GetMachineId();
-        using var connection = RequireSession().OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT r.RootId, r.DisplayName, m.PhysicalPath
-            FROM MediaRoots r
-            LEFT JOIN MediaRootMappings m ON m.RootId = r.RootId AND m.MachineId = $machine
-            ORDER BY r.DisplayName COLLATE NOCASE, r.RootId;
-            """;
-        command.Parameters.AddWithValue("$machine", machineId);
-        using var reader = command.ExecuteReader();
-        var roots = new List<MediaRootInfo>();
-        while (reader.Read()) roots.Add(Observe(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
-        return (IReadOnlyList<MediaRootInfo>)roots;
-    }, cancellationToken);
-
-    public Task<MediaRootInfo?> GetAsync(Guid rootId, CancellationToken cancellationToken = default) => RunAsync(() =>
-    {
-        var machineId = machine.GetMachineId();
-        using var connection = RequireSession().OpenConnection();
-        return Read(connection, rootId, machineId);
-    }, cancellationToken);
-
     public async Task<MediaRootChangeResult> CreateAsync(string displayName, string physicalPath, CancellationToken cancellationToken = default)
         => await CreateCoreAsync(displayName, physicalPath, allowManagedOverlap: false, cancellationToken).ConfigureAwait(false);
 
@@ -59,7 +34,7 @@ public class CatalogMediaRootService(Func<CatalogDatabaseSession?> session, IMac
         catch (IOException exception) { return new(false, Diagnostic: exception.Message); }
         return await RunChangeAsync(() =>
         {
-            var machineId = machine.GetMachineId();
+            var machineId = Machine.GetMachineId();
             using var connection = RequireSession().OpenConnection();
             if (allowManagedOverlap && FindExactMappingWithoutTransaction(connection, path, machineId) is { } anchor)
                 return new(true, Read(connection, anchor, machineId));
@@ -107,7 +82,7 @@ public class CatalogMediaRootService(Func<CatalogDatabaseSession?> session, IMac
         return RequireSession().Mutations.RunAsync<MediaRootChangeResult>(() => { return RunChangeAsync(() =>
     {
         var name = NormalizeName(displayName);
-        var machineId = machine.GetMachineId();
+        var machineId = Machine.GetMachineId();
         using var connection = RequireSession().OpenConnection();
         var changed = Execute(connection, null, "UPDATE MediaRoots SET DisplayName=$name, UpdatedUtc=$now WHERE RootId=$id;",
             ("$name", name), ("$now", UtcTimestamp()), ("$id", rootId.ToString("D")));
@@ -133,7 +108,7 @@ public class CatalogMediaRootService(Func<CatalogDatabaseSession?> session, IMac
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return new(false, Diagnostic: exception.Message); }
         return await RunChangeAsync(() =>
         {
-            var machineId = machine.GetMachineId();
+            var machineId = Machine.GetMachineId();
             using var connection = RequireSession().OpenConnection();
             var nativeConflict = FindNativeConflict(connection, pathAdmission, machineId, rootId, false, cancellationToken);
             if (nativeConflict is not null) return new(false, Diagnostic: nativeConflict);
@@ -168,7 +143,7 @@ public class CatalogMediaRootService(Func<CatalogDatabaseSession?> session, IMac
         if (!check.IsSafe)
             return new(rootId, relativePath, "", null, MediaRootAvailability.Online, false, check.Diagnostic, check.Status);
         var normalized = portable;
-        var machineId = machine.GetMachineId();
+        var machineId = Machine.GetMachineId();
         using var connection = RequireSession().OpenConnection();
         var root = Read(connection, rootId, machineId) ?? throw new KeyNotFoundException("The Media Root does not exist.");
         if (root.Availability != MediaRootAvailability.Online)
@@ -186,32 +161,17 @@ public class CatalogMediaRootService(Func<CatalogDatabaseSession?> session, IMac
                 exception.Message, exception is MediaPathIdentityException refusal ? refusal.Status : PathIdentityStatus.NativeEvidenceUnavailable);
         }
         var resolved = paths.ResolveContained(root.PhysicalPath!, normalized);
-        var exists = fileSystem.FileExists(resolved);
+        var exists = FileSystem.FileExists(resolved);
         return new(rootId, normalized, paths.RelativePathKey(normalized), resolved, root.Availability,
             exists, exists ? null : "The file is missing beneath an available Media Root.");
     }, cancellationToken);
 
-    private CatalogDatabaseSession RequireSession() => session() ?? throw new InvalidOperationException("The Catalog is unavailable.");
-    private MediaRootInfo Observe(Guid id, string name, string? path) => path is null
-        ? new(id, name, null, MediaRootAvailability.Unmapped, "This Media Root is not connected on this computer.")
-        : fileSystem.DirectoryExists(path)
-            ? new(id, name, path, MediaRootAvailability.Online)
-            : new(id, name, path, MediaRootAvailability.Unavailable, "The mapped folder is currently unavailable.");
-
-    private MediaRootInfo? Read(SqliteConnection connection, Guid id, string machineId)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT r.DisplayName,m.PhysicalPath FROM MediaRoots r LEFT JOIN MediaRootMappings m ON m.RootId=r.RootId AND m.MachineId=$machine WHERE r.RootId=$id;";
-        command.Parameters.AddWithValue("$machine", machineId); command.Parameters.AddWithValue("$id", id.ToString("D"));
-        using var reader = command.ExecuteReader();
-        return reader.Read() ? Observe(id, reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1)) : null;
-    }
-
+    private CatalogDatabaseSession RequireSession() => SessionProvider() ?? throw new InvalidOperationException("The Catalog is unavailable.");
     private async Task<string> ProbeAsync(string path, CancellationToken token)
     {
         if (!string.Equals(path, path.Trim(), StringComparison.Ordinal)) throw new ArgumentException("Root mapping spelling must not require trimming.");
         var normalized = paths.NormalizeRootPath(path);
-        var exists = await Task.Run(() => fileSystem.DirectoryExists(normalized), token).ConfigureAwait(false);
+        var exists = await Task.Run(() => FileSystem.DirectoryExists(normalized), token).ConfigureAwait(false);
         if (!exists) throw new IOException("The selected Media Root folder is not currently available.");
         return normalized;
     }

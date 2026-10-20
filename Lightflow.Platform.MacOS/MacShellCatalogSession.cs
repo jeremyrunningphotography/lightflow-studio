@@ -4,7 +4,7 @@ using LightflowStudio;
 namespace Lightflow.Platform.MacOS;
 
 /// <summary>Thin shell composition adapter; CatalogLifecycle retains admission, configuration and resource ownership.</summary>
-public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSession
+public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSession, IBrowserFolderSession
 {
     public string DataRoot { get; } = Path.GetFullPath(dataRoot);
     private readonly SemaphoreSlim _requests = new(1, 1);
@@ -65,6 +65,68 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
                 _owner?.RecoveryDiagnostic, _snapshot.Directory);
         return Task.FromResult(_snapshot);
     });
+
+    private CatalogMediaRootReader Roots(CatalogLifecycle owner) => new(() => owner.Session,
+        new MachineIdentityProvider(Path.Combine(DataRoot, "machine-id")), new MediaFiles());
+    private MacBrowserMediaEffects MediaEffects(CatalogLifecycle owner) => new([
+        owner.Locations.CatalogDirectory, owner.Locations.PreviewsDirectory, owner.Locations.TemporaryDirectory]);
+
+    public Task<BrowserCatalogSnapshot> ReadBrowserCatalogAsync(Guid? rootId = null, string folder = "",
+        bool recursive = false, CancellationToken cancellationToken = default) => BorrowAsync(async owner =>
+    {
+        var roots = await Roots(owner).ListAsync(cancellationToken).ConfigureAwait(false);
+        var assets = rootId is { } id
+            ? await new CatalogMediaAssetRepository(() => owner.Session).ListScopeAsync(id, folder, recursive, cancellationToken).ConfigureAwait(false)
+            : Array.Empty<MediaAsset>();
+        return new BrowserCatalogSnapshot(owner.CatalogSession.Identity.CatalogId, roots, assets);
+    }, cancellationToken);
+
+    public Task<MediaFolderEnumerationResult> ReadBrowserFoldersAsync(Guid rootId, string folder, CancellationToken token = default) => BorrowAsync(owner =>
+    {
+        var effects = MediaEffects(owner);
+        if (folder.Length > 0 && !PortablePathIdentityValidator.ValidateRelativePath(folder, token).IsSafe)
+            throw new ArgumentException("This relative folder needs review.", nameof(folder));
+        return new CatalogMediaFolderEnumerator(Roots(owner), MediaTypeRegistry.CreateDefault(), effects, effects)
+            .EnumerateAsync(new(rootId, folder), token);
+    }, token);
+
+    public Task<BrowserFolderSnapshot> ReadBrowserFolderAsync(Guid rootId, string folder, CancellationToken token = default) => BorrowAsync(owner =>
+    {
+        var effects = MediaEffects(owner);
+        var folders = new CatalogMediaFolderEnumerator(Roots(owner), MediaTypeRegistry.CreateDefault(), effects, effects);
+        return new BrowserCatalogReader(new CatalogMediaAssetRepository(() => owner.Session),
+            new CatalogBrowserRecursiveRootRepository(() => owner.Session), folders).ReadAsync(rootId, folder, token);
+    }, token);
+
+    public Task<bool> IsBrowserSourceAvailableAsync(Guid rootId, Guid assetId, CancellationToken token = default) => BorrowAsync(async owner =>
+    {
+        var asset = await new CatalogMediaAssetRepository(() => owner.Session).GetAsync(assetId, token).ConfigureAwait(false);
+        var root = await Roots(owner).GetAsync(rootId, token).ConfigureAwait(false);
+        return asset is not null && asset.RootId == rootId && root is not null &&
+            await MediaEffects(owner).FileExistsAsync(root, asset.RelativePath, token).ConfigureAwait(false);
+    }, token);
+
+    private async Task<T> BorrowAsync<T>(Func<CatalogLifecycle, Task<T>> read, CancellationToken token)
+    {
+        await _requests.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_closed, this);
+            if (!_snapshot.IsReady || _owner?.VerifyWorkspaceReadiness() != true)
+                throw new InvalidOperationException("The Catalog is unavailable.");
+            // Borrow the sole lifecycle session for the complete read. Catalog switching/close cannot retire it here.
+            var result = await read(_owner).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            if (!_owner.VerifyWorkspaceReadiness()) throw new InvalidOperationException("The Catalog is unavailable.");
+            return result;
+        }
+        finally { _requests.Release(); }
+    }
+    private sealed class MediaFiles : IMediaRootFileSystem
+    {
+        public bool DirectoryExists(string path) => Directory.Exists(path);
+        public bool FileExists(string path) => File.Exists(path);
+    }
 
     private CatalogLifecycle NewLifecycle() => new(new MacCatalogLifecycleEffects(DataRoot));
     private ShellCatalogSnapshot Accept(CatalogStartupResult result)

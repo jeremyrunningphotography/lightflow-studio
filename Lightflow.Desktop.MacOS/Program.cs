@@ -25,7 +25,9 @@ public sealed class MacApplication : Avalonia.Application
     public override void Initialize()
     {
         Name = "Lightflow Studio";
-        Styles.Add(new FluentTheme());
+        var theme = new FluentTheme();
+        theme.Palettes[Avalonia.Styling.ThemeVariant.Dark] = new ColorPaletteResources { Accent = Avalonia.Media.Color.Parse("#D86B37") };
+        Styles.Add(theme);
         RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
     }
     public override void OnFrameworkInitializationCompleted()

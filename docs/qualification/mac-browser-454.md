@@ -83,6 +83,14 @@ inspection prompted replacement of default bulky expanders and application of th
 Screenshots/logs/TRX and original sandbox failure remain under `artifacts/lf025-orientation`,
 project TestResults and `artifacts/lf025-process-fixtures`. No owner acceptance is inferred.
 
+CI run 39495258487 exposed a defect in the two new tests' default fixture location:
+`Path.GetTempPath()` returned the `/var` alias, correctly refused by the production unlinked-path
+guard. The remaining 32 native cases passed. The new tests now default to their own build-output
+`BrowserFixtures` directory (or the explicit task-owned override). They are requalified without
+that override; no production guard, ownership assertion or existing test is weakened. Raw failed
+job evidence is retained as `artifacts/lf025-orientation/failed-ci-39495258487-native.log`.
+A new source head, rather than a retry of failed inputs, requires fresh CI/bundle provenance.
+
 ## Runnable candidate and hands-on commands
 
 Workspace: `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-025-Browser`.

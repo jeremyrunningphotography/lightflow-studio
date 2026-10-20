@@ -8,10 +8,16 @@ namespace Lightflow.Platform.MacOS.Tests;
 [Collection("Native storage descriptor ownership")]
 public sealed class MacBrowserCatalogTests
 {
+    // Keep default fixtures in this test build's own output. /var is a macOS alias and is
+    // deliberately refused by the production unlinked-path guard; do not weaken that guard.
+    private static string FixtureRoot(string prefix) => Path.Combine(
+        Environment.GetEnvironmentVariable("LIGHTFLOW_TEST_ROOT") ?? Path.Combine(AppContext.BaseDirectory,"BrowserFixtures"),
+        prefix + Guid.NewGuid().ToString("N"));
+
     [Fact]
     public async Task RealHierarchyRecursiveScopesMissingSourcesAndReadOnlyReopen()
     {
-        var root=Path.Combine(Environment.GetEnvironmentVariable("LIGHTFLOW_TEST_ROOT") ?? Path.GetTempPath(),"lf025-browser-"+Guid.NewGuid().ToString("N"));
+        var root=FixtureRoot("lf025-browser-");
         Directory.CreateDirectory(Path.Combine(root,"Catalog"));
         Guid catalogId, rootId=Guid.NewGuid(), offline=Guid.NewGuid();
         var media=Path.Combine(root,"Media");Directory.CreateDirectory(Path.Combine(media,"Trip","Day 2"));Directory.CreateDirectory(Path.Combine(media,"Empty"));
@@ -22,7 +28,8 @@ public sealed class MacBrowserCatalogTests
         {
             await Assert.ThrowsAsync<InvalidOperationException>(()=>shell.ReadBrowserCatalogAsync());
             Assert.False((await shell.StartAsync()).IsReady);
-            catalogId=(await shell.CreateAsync(Path.Combine(root,"Catalog"))).CatalogId!.Value;
+            var ready=await shell.CreateAsync(Path.Combine(root,"Catalog"));Assert.True(ready.IsReady,ready.Diagnostic);
+            catalogId=ready.CatalogId!.Value;
             Assert.Empty((await shell.ReadBrowserCatalogAsync()).Roots);
         }
         var seed=await new CatalogLifecycle(new MacCatalogLifecycleEffects(root)).StartAsync(allowFirstCreation:false);
@@ -92,7 +99,7 @@ public sealed class MacBrowserCatalogTests
     [Fact]
     public async Task RealCatalogProjectionUsesExistingOwnerAndRetainsIdentitiesAndAuthoredState()
     {
-        var root = Path.Combine(Environment.GetEnvironmentVariable("LIGHTFLOW_TEST_ROOT") ?? Path.GetTempPath(), "lf025-checkpoint-" + Guid.NewGuid().ToString("N"));
+        var root = FixtureRoot("lf025-checkpoint-");
         Directory.CreateDirectory(Path.Combine(root,"Catalog"));
         var media = Path.Combine(root,"Media"); Directory.CreateDirectory(Path.Combine(media,"Trip"));
         await File.WriteAllBytesAsync(Path.Combine(media,"Trip","frame.png"), Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="));

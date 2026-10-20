@@ -27,6 +27,17 @@ jobs:
         run: dotnet build tools/MacCatalogHost/MacCatalogHost.csproj -c Release --disable-build-servers -p:RestoreLockedMode=true
       - name: Qualify independent Catalog processes
         run: python3 tools/MacCatalogHost/qualification/lifecycle.py --dotnet "$(command -v dotnet)" --host "$PWD/tools/MacCatalogHost/bin/Release/net8.0/MacCatalogHost.dll" --data-root "$RUNNER_TEMP/lf015-catalog-fixtures"
+      - name: Build self-contained Mac application shell
+        run: scripts/Build-MacShell.sh
+      - name: Archive unsigned development app
+        run: tar -czf artifacts/mac-shell/LightflowStudio-Mac-development.tar.gz -C artifacts/mac-shell 'Lightflow Studio.app' provenance.json
+      - name: Preserve Mac development app
+        uses: actions/upload-artifact@v6
+        with:
+          name: lightflow-studio-mac-development
+          path: artifacts/mac-shell/LightflowStudio-Mac-development.tar.gz
+          if-no-files-found: error
+          retention-days: 14
       - name: Preserve native results
         if: always()
         uses: actions/upload-artifact@v6
@@ -55,6 +66,8 @@ jobs:
         run: dotnet test Lightflow.Application.Tests/Lightflow.Application.Tests.csproj -c Release --disable-build-servers -p:RestoreLockedMode=true --logger "trx;LogFileName=neutral.trx"
       - name: Test shared production Catalog without Windows targeting packs
         run: dotnet test Lightflow.Catalog.Tests/Lightflow.Catalog.Tests.csproj -c Release --disable-build-servers -p:RestoreLockedMode=true --logger "trx;LogFileName=neutral-catalog.trx"
+      - name: Test shared Avalonia shell presentation
+        run: dotnet test Lightflow.UI.Tests/Lightflow.UI.Tests.csproj -c Release --disable-build-servers -p:RestoreLockedMode=true --logger "trx;LogFileName=shell-ui.trx"
       - name: Preserve neutral results
         if: always()
         uses: actions/upload-artifact@v6
@@ -63,6 +76,7 @@ jobs:
           path: |
             Lightflow.Application.Tests/TestResults/*.trx
             Lightflow.Catalog.Tests/TestResults/*.trx
+            Lightflow.UI.Tests/TestResults/*.trx
           if-no-files-found: error
           retention-days: 14
 

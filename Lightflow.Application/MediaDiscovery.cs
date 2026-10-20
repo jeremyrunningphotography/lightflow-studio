@@ -115,7 +115,7 @@ public interface IMediaFolderFileSystem
         CancellationToken cancellationToken = default);
 }
 
-public class ContainedMediaFolderFileSystem(IBrowserFolderPaths paths) : IMediaFolderFileSystem
+public class ContainedMediaFolderFileSystem(IBrowserFolderPaths paths, bool directoriesOnly = false) : IMediaFolderFileSystem
 {
     public Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(
         string mediaRootPath,
@@ -126,21 +126,24 @@ public class ContainedMediaFolderFileSystem(IBrowserFolderPaths paths) : IMediaF
         EnsureNoLinkedPath(mediaRootPath, folderPath);
         var directory = new DirectoryInfo(folderPath);
         var entries = new List<MediaFolderFileSystemEntry>();
-        foreach (var item in directory.EnumerateFileSystemInfos("*", new EnumerationOptions
+        var options = new EnumerationOptions
         {
             RecurseSubdirectories = false,
             ReturnSpecialDirectories = false,
             IgnoreInaccessible = false,
             AttributesToSkip = 0
-        }))
+        };
+        var items = directoriesOnly ? directory.EnumerateDirectories("*", options) : directory.EnumerateFileSystemInfos("*", options);
+        foreach (var item in items)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (directoriesOnly && item.Name.StartsWith('.')) continue;
             var attributes = item.Attributes;
             var isReparsePoint = (attributes & FileAttributes.ReparsePoint) != 0;
             var isDirectory = item is DirectoryInfo;
             entries.Add(new(item.FullName, item.Name, isDirectory,
                 !isReparsePoint && item is FileInfo file ? file.Length : null,
-                isReparsePoint ? default : item.LastWriteTimeUtc, isReparsePoint));
+                isReparsePoint || directoriesOnly ? default : item.LastWriteTimeUtc, isReparsePoint));
         }
         EnsureNoLinkedPath(mediaRootPath, folderPath);
         return entries;

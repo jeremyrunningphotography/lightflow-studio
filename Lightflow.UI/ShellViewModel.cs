@@ -5,9 +5,9 @@ using Lightflow.Application;
 namespace Lightflow.UI;
 
 /// <summary>Transient presentation only. Readiness and durable state come from the application service.</summary>
-public sealed class ShellViewModel(IShellCatalogSession catalog) : INotifyPropertyChanged
+public sealed class ShellViewModel(IShellCatalogSession catalog, IBrowserLocationProvider? locations = null) : INotifyPropertyChanged
 {
-    public BrowserViewModel? Browser { get; } = catalog is IBrowserFolderSession browser ? new(browser) : null;
+    public BrowserViewModel? Browser { get; } = catalog is IBrowserFolderSession browser ? new(browser, locations) : null;
     public event PropertyChangedEventHandler? PropertyChanged;
     public string DataRoot => catalog.DataRoot;
     public ShellCatalogSnapshot Snapshot { get; private set; } = new(StorageStartupStatus.FirstRunChoiceRequired);

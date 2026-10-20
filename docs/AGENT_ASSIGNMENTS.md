@@ -272,9 +272,18 @@ No new number or independent implementation assignment is created. The Mac agent
 records Jeremy's accepted DARKMATTER PASS, not a claim of executing Windows locally.
 The DARKMATTER qualification workspace retains its package, isolated data root,
 logs, dependency/runtime checks and provenance; the owner acceptance record is
-preserved on #451/#452. Task-local handoff specifies the planned Windows workspace
-`C:\Git\Agents\LF-MAC-DEV-024-WindowsQualification`; the operator's retained
-Windows report remains authoritative for actual execution paths.
+preserved on #451/#452. Owner-supplied completed qualification report identifies the actual workspace
+`C:\Git\Agents\LF-WIN-DEV-024-WindowsQualification` and retained
+`artifacts/lf024-qualification/REPORT.txt` (report, logs, provenance and package hashes).
+The mandatory PullRequest / SkipInstaller build exited 0; packaged startup/readiness,
+graceful shutdown, Catalog backup/restore protection, SQLite/native runtime,
+FFmpeg/playback checksums and staging validation passed. Executable UTC timestamp
+2026-10-20 17:34:36 is newer than the source commit; executable SHA-256 is
+`45c755a43eda87c1f2094d1a3415cbddf96f160e4c20338b2c4514a491f5db48`.
+The actual isolated root is `artifacts/lf024-windows-owner-acceptance` in that clone.
+No task-owned app remains; single-writer/interrupted-recovery evidence uses existing
+exact-head CI. No full local suites, installer or release archive were repeated.
+This supersedes the earlier planned LF-MAC-prefixed Windows handoff path.
 
 Mac evidence remains in the independent full clone
 `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-024-MacShell`: `artifacts/mac-shell`

@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 023 | LF-MAC-DEV-023 | Catalog Portability | [R2 #393](https://github.com/jeremyrunningphotography/lightflow-studio/issues/393), [physical qualification #406](https://github.com/jeremyrunningphotography/lightflow-studio/issues/406), accepted host [#425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425) | Research Complete / Production Portability Blocked; owner accepted final bounded CONDITIONAL disposition on 2026-10-20; write-capable SQLite activation, WAL/SHM, pooling and recovery integration unresolved; original production objective not delivered |
 | 022 | LF-WIN-DEV-022 | Windows CI Reliability Stabilization | [Issue #446](https://github.com/jeremyrunningphotography/lightflow-studio/issues/446), [Draft PR #447](https://github.com/jeremyrunningphotography/lightflow-studio/pull/447) | Review; journal fixture correction separately qualified; bounded playback attribution inconclusive; SQLite/Browser unresolved; final gates and owner acceptance required |
 | 015 | LF-MAC-DEV-015 | Native Catalog Lifecycle | [Issue #425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425), accepted prerequisite [#432](https://github.com/jeremyrunningphotography/lightflow-studio/issues/432) | Done; owner accepted native CLI at 3635fff; normal merge #443 / 27d4e95; bounded portability refusals retained |
 | 021 | LF-ANY-DOC-021 | Development History and Historical Maintenance | [Issue #430](https://github.com/jeremyrunningphotography/lightflow-studio/issues/430), [History Epic #427](https://github.com/jeremyrunningphotography/lightflow-studio/issues/427), [PR #442](https://github.com/jeremyrunningphotography/lightflow-studio/pull/442) | Done; owner editorial/architecture acceptance; normal merge 12b85ed on 2026-10-13; source/provenance limitations preserved |
@@ -173,3 +174,47 @@ The History uses dates and relative sequence rather than exact clock times or ti
 
 All history deliverables are accepted and present on main; #430 and #427 completion follows verification of required checks and the native #428 → #429 → #430 sequence. Historical reservation/Draft checkpoints above remain preserved. This registry-only reconciliation changes no accepted historical content, AGENTS.md policy, production/test/build inputs, other assignment or concurrent 012/015 ownership. No local application test/package, production fix, release, tag or new assignment.
 Owner-authorized resumption follows accepted journal-fixture correction [#447](https://github.com/jeremyrunningphotography/lightflow-studio/pull/447), merged as `1af0bc49e29aa70a9c43d362032791316f35cbcd`. Historical #442 post-merge [38407644935](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/38407644935) and #444 [38407866482](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/38407866482) failed interrupted-transfer assertions and remain failed evidence. The separate bounded correction waits for native child-process termination before journal inspection, preserving refusal and recovery assertions; it does not resolve SQLite/Browser failures or establish historical playback attribution. Registry PR #444 is reconciled with current main, preserving all 012/015/022 rows and histories. Fresh exact-head and post-merge CI gate administrative completion; final results and merge/cleanup are recorded in #430/#427 and #444. No accepted history/policy, production or test change is made by this closeout.
+
+## Assignment 023 final bounded research closeout — 2026-10-20
+
+Jeremy accepted **Research Complete / Production Portability Blocked** for
+LF-MAC-DEV-023. The exact-open feasibility result is **CONDITIONAL**: the retained
+verified descriptor supplied the actual SQLite main-file inode through `/dev/fd/N`
+despite pathname substitution, and immutable read-only access returned the verified
+Catalog. The write-capable route opened that inode but WAL admission and querying
+failed with SQLite error 14. The unprotected ABA negative control reproduced;
+`HAS_MOVED` detected the original schedule but missed the controlled timed variant.
+Write-capable activation, WAL/SHM companions, pooling and recovery remain unresolved.
+The original production Catalog portability assignment was not successfully delivered.
+
+[R2 #393](https://github.com/jeremyrunningphotography/lightflow-studio/issues/393),
+[physical qualification #406](https://github.com/jeremyrunningphotography/lightflow-studio/issues/406)
+and [migration Epic #366](https://github.com/jeremyrunningphotography/lightflow-studio/issues/366)
+remain open and incomplete, with existing Definitions of Done and native dependencies
+preserved. Accepted #425 and #432 decisions remain within their original bounds.
+No production behavior, publication refusal, schema/provider, transfer or recovery
+semantics changed; no Move, active ExFAT/SMB/NAS, round-trip or full Mac product
+qualification is claimed. This documentation-only closeout requires owner acceptance
+and a separately authorized merge; no new implementation begins.
+
+All four original reports and supporting sources, executables, fixtures, logs and
+native identity evidence are retained unchanged in the independent task workspace
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-023-CatalogPortability`:
+
+- `artifacts/lf023-publication-gate/REPORT.txt` — publication safety gate.
+- `artifacts/lf023-installation-proof/REPORT.txt` — descriptor-based installation proof.
+- `artifacts/lf023-safety-contract-review/REPORT.txt` — cross-platform safety contract review.
+- `artifacts/lf023-exact-open-proof/REPORT.txt` — exact-open feasibility proof.
+
+The task-local `artifacts/lf023-research-closeout/` inventory records evidence hashes
+and tracking verification. These artifact paths describe retained local evidence,
+not files published by this registry-only PR. Keep the workspace/evidence until the
+documentation closeout is accepted and safely preserved; no cleanup is authorized.
+
+**LF-MAC-DEV-024 handoff:** the accepted local APFS Catalog lifecycle from
+[#425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425) may
+support separately authorized Mac UI work without depending on Catalog publication
+or Move. Preserve prepared-directory creation, existing ownership/recovery, deep
+validation before authoring at every reopen and conservative Dirty/unpaired evidence;
+do not fabricate a Preview peer or clean-profile certificate. Keep unsupported
+publication/Move refused. Agent 024's workspace and implementation are untouched.

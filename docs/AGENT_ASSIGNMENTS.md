@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), related #395/#366 | Review; real Catalog checkpoint, 34 native / 136 Application / 44 Catalog / 15 UI tests and 23 process checks passed; owner/CI/Windows package acceptance pending |
+| 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), [PR #455](https://github.com/jeremyrunningphotography/lightflow-studio/pull/455), follow-up [#456](https://github.com/jeremyrunningphotography/lightflow-studio/issues/456) | Done; Jeremy accepted Mac hands-on and same-source LF-WIN-DEV-025 Windows companion package PASS at 6368099; normal merge 4e1f361 preserves the accepted tree; bounded Browser only, R2/R3/R4 incomplete |
 | 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), [PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452), related #395/#366 | Done; owner Mac functional/visual and LF-WIN-DEV-024 DARKMATTER companion package qualification accepted at b4a8e0a; normal merge 3801de8; bounded shell only, no R2/R3/R4 or release completion |
 | 023 | LF-MAC-DEV-023 | Catalog Portability | [R2 #393](https://github.com/jeremyrunningphotography/lightflow-studio/issues/393), [physical qualification #406](https://github.com/jeremyrunningphotography/lightflow-studio/issues/406), accepted host [#425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425) | Research Complete / Production Portability Blocked; owner accepted final bounded CONDITIONAL disposition on 2026-10-20; write-capable SQLite activation, WAL/SHM, pooling and recovery integration unresolved; original production objective not delivered |
 | 022 | LF-WIN-DEV-022 | Windows CI Reliability Stabilization | [Issue #446](https://github.com/jeremyrunningphotography/lightflow-studio/issues/446), [Draft PR #447](https://github.com/jeremyrunningphotography/lightflow-studio/pull/447) | Review; journal fixture correction separately qualified; bounded playback attribution inconclusive; SQLite/Browser unresolved; final gates and owner acceptance required |
@@ -321,3 +321,63 @@ Read-only Mac Browser consumes one lifecycle session, supports real roots/folder
 single selection without Preview or ingestion. See [bounded qualification](qualification/mac-browser-454.md).
 Exact-head CI, final candidate bundle provenance, owner hands-on acceptance and Windows local package
 qualification are independent pending gates; no merge or broader R2/R3/R4 completion.
+
+## Assignment 025 owner-accepted implementation and companion qualification — 2026-10-20
+
+Jeremy accepted the bounded Catalog-backed Mac Browser at
+`6368099a304e7242a77b87ded45cedd4f7036eaa`, tree
+`006d1e305a7c7d5a50045c98a1506b06966d2a24`, including completed Mac hands-on review
+and LF-WIN-DEV-025 Windows local package qualification PASS at that exact accepted
+source. Explicit final authorization permitted normal merge and bounded closeout only.
+[PR #455](https://github.com/jeremyrunningphotography/lightflow-studio/pull/455)
+merged normally as `4e1f361ab02b1e72ed729a59b439478ca916dc7b`; both merge parents
+and the complete accepted tree were independently verified. Exact-head
+[CI 39495587310](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/39495587310)
+passed Windows tests/installer/portable staging, neutral Windows/macOS and native Mac
+lifecycle/process/bundle checks. Implementation post-merge verification is
+[CI 39499032786](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/39499032786);
+its actual outcome and final registry closeout provenance are recorded on #454/#455.
+This record does not predeclare pending run outcomes or relabel historical failures.
+
+LF-WIN-DEV-025 is the Windows companion qualification of this same global assignment
+025, not another allocation or new implementation assignment. This Mac records
+Jeremy's accepted companion PASS; it does not claim to have run the Windows gate.
+The final authorization supplies no Windows artifact directory or executable hash,
+so neither is invented. Preserve the Windows qualifier's task-owned clone, packaged
+executable, isolated profile, smoke/dependency evidence and provenance at their
+existing locations. The owner acceptance and same-source companion PASS are also
+recorded durably on #455; no Windows workspace is modified or deleted by this Mac.
+
+Mac evidence remains in the independent full clone
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-025-Browser`: `artifacts/mac-shell`
+(accepted exact-head .app and clean-source provenance; all 290 file hashes verified),
+`artifacts/lf025-orientation` (logs/TRX references, screenshots, original sandbox and
+CI/fixture failures), `artifacts/lf025-fixtures` (real Catalog-backed disposable media),
+`artifacts/lf025-process-fixtures`, `artifacts/lf025-handoff` and
+`artifacts/lf025-closeout` (verified Git preservation bundle, provenance copy and
+owner acceptance). Local Release evidence: 34 native, 136 Application, 44 Catalog,
+15 presentation tests and 23 independent-process checks; corrected valid-PNG and
+default unlinked fixture-root cases separately passed. Failed CI 39494864488 and
+39495258487 remain failed historical evidence; no retry-to-green or safety-guard
+relaxation is claimed. Retain all Mac and Windows clones, fixtures and accepted
+executables until separately authorized safe cleanup. Branch-only cleanup follows
+verification of preservation and required checks; no release or tag is published.
+
+#454 is the completed bounded milestone. The Browser reads existing Catalog assets,
+shared folder enumeration/recursive rules and stable single selection through the sole
+accepted lifecycle. Catalog admission, writer/recovery and Move/publication refusals,
+Dirty/unpaired deep reopening, WPF continuity and Preview exclusions remain intact.
+R2 #393, R3 #394, R4 #395 and migration Epic #366 stay open and incomplete; their
+remaining Definition-of-Done and native dependencies are unchanged.
+
+[Follow-up #456](https://github.com/jeremyrunningphotography/lightflow-studio/issues/456)
+remains the next Browser milestone requiring separate implementation authorization, preserving all four accepted
+requirements: Finder-style accessible filesystem Locations including uncataloged
+folders; no product-facing “Media Root” terminology; leaf folders without “No subfolders”
+text or an expand affordance; and Refresh preservation of branches/current folder,
+valid AssetId selection and practical scroll context. These are nonblocking feedback
+accepted outside #455, not implementation changes in this closeout. No #456 assignment
+or implementation begins. Earlier pending-acceptance checkpoints above remain
+historical and are superseded only by this accepted completion. This administrative
+registry update changes no accepted implementation, test, build, dependency input,
+qualification snapshot, historical document or other assignment allocation.

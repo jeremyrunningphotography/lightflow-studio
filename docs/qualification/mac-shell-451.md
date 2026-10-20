@@ -62,7 +62,7 @@ Focused Release validation on Apple Silicon macOS 26.6:
 | Native storage/lifecycle plus eight shell-adapter integration tests | 32 passed |
 | Existing shared Catalog suite | 44 passed |
 | Existing neutral Application suite | 136 passed |
-| Shared presentation/headless window suite | 10 passed |
+| Shared presentation/headless window suite | 11 passed |
 | Existing independent-process Catalog host qualification | 23 checks passed |
 | Self-contained arm64 development bundle | built; real GUI create/open/reopen/quit verified |
 
@@ -75,7 +75,7 @@ future-schema refusal, unqualified publication refusal and no fabricated Preview
 Existing storage-policy tests supply unsupported-filesystem refusal evidence; no
 unsupported media was mounted or activated. Headless tests exercise the actual
 workspace's visibility before/after readiness and loss, busy/closing admission,
-reason-specific plain language and rejection of stale readiness completion after a
+reason-specific plain language (no raw native diagnostics in product UI) and rejection of stale readiness completion after a
 newer Catalog selection. Mock presentation tests are not native integration proof.
 
 The unchanged CLI process harness retains its historical LF015 labels. It ran from
@@ -101,7 +101,7 @@ startup status was CatalogMissing but its recovery reason was generic. Four focu
 status-presentation cases failed against the initial UI; the corrected view model
 projects both authoritative status and recovery reason, keeps PendingRecovery highest
 priority, disables selection for unreadable configuration and uses specific missing,
-validation and identity wording. All ten presentation tests pass after correction.
+validation and identity wording. All eleven presentation tests pass after correction.
 The original four failures are retained in missing-status-baseline.log/TRX; this is a
 source correction requiring fresh exact-head CI, not a retry to obtain green.
 

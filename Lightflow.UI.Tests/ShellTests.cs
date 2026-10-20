@@ -75,6 +75,18 @@ public sealed class ShellTests
         Assert.Equal(title,model.Title);Assert.Contains(message,model.Message);Assert.False(model.WorkspaceAvailable);
         if(status==StorageStartupStatus.InvalidConfiguration)Assert.False(model.CanChoose);
     }
+    [AvaloniaFact]
+    public async Task NativeDiagnosticTextNeverBecomesProductCopy()
+    {
+        const string diagnostic="ownership lease / transfer journal / native errno";
+        var service=new TestSession();service.Pending.SetResult(new(StorageStartupStatus.CatalogUnavailable,CatalogRecoveryReason.ValidationFailed,diagnostic));
+        var model=new ShellViewModel(service);var window=new ShellWindow(model);window.Show();
+        foreach(var expander in window.GetVisualDescendants().OfType<Expander>())expander.IsExpanded=true;
+        window.UpdateLayout();
+        var visibleText=string.Join(" ",window.GetVisualDescendants().OfType<TextBlock>().Select(t=>t.Text));
+        Assert.DoesNotContain(diagnostic,visibleText);Assert.Contains("couldn't open this Catalog",visibleText);
+        window.Close();await model.CloseAsync();
+    }
     private sealed class TestSession : IShellCatalogSession
     {
         public string DataRoot=>"/task";

@@ -16,13 +16,12 @@ public sealed class ShellWindow : Window
     private readonly StackPanel _gate = new() { Spacing = 20, MaxWidth = 660, Margin = new Thickness(36) };
     private readonly StackPanel _workspace = new() { Spacing = 20, Margin = new Thickness(36) };
     private readonly TextBlock _title = Text("", 26), _message = Text("", 15), _context = Text("", 13), _status = Text("", 13);
-    private readonly TextBlock _detail = Text("", 12), _selected = Text("", 14);
+    private readonly TextBlock _selected = Text("", 14);
     private readonly Button _catalogButton = Action("Catalog…");
     private readonly Button _retry = Action("Retry"), _create = Action("Create New Catalog…", true), _open = Action("Open Existing Catalog…");
     private readonly Button _confirm = Action("Create Catalog", true), _cancel = Action("Cancel");
     private readonly StackPanel _confirmation = new() { Spacing = 12 };
     private readonly StackPanel _actions = new() { Orientation = Orientation.Horizontal, Spacing = 12 };
-    private readonly Expander _troubleshooting = new() { Header = "Troubleshooting details" };
     private readonly DispatcherTimer _readiness = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly Bitmap _brand;
     private string? _preparedFolder;
@@ -54,7 +53,6 @@ public sealed class ShellWindow : Window
         _actions.Children.Add(_create); _actions.Children.Add(_open); _actions.Children.Add(_retry); _gate.Children.Add(_actions);
         _confirmation.Children.Add(Text("Create a Catalog in this prepared empty folder?", 16)); _confirmation.Children.Add(_selected);
         var confirmActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 }; confirmActions.Children.Add(_confirm); confirmActions.Children.Add(_cancel); _confirmation.Children.Add(confirmActions); _gate.Children.Add(_confirmation);
-        _troubleshooting.Content = _detail; _gate.Children.Add(_troubleshooting);
         var bottom = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(24, 0) };
         _status.VerticalAlignment = VerticalAlignment.Center; bottom.Children.Add(_status);
         var quit = Action("Quit Lightflow Studio"); Grid.SetColumn(quit, 1); bottom.Children.Add(quit); quit.Click += (_, _) => Close();
@@ -89,7 +87,7 @@ public sealed class ShellWindow : Window
     private async Task InvokeAsync(Func<Task> action, bool keepPanel = false)
     {
         try { await action(); if (!keepPanel && _model.WorkspaceAvailable) _catalogPanel = false; }
-        catch (Exception error) { Console.Error.WriteLine(error); _detail.Text = "The operation could not finish. Quit and retain your data folder for investigation."; }
+        catch (Exception error) { Console.Error.WriteLine(error); }
         Update();
     }
     private void Update()
@@ -106,8 +104,6 @@ public sealed class ShellWindow : Window
         _retry.IsVisible = !_model.Snapshot.IsReady;
         _confirmation.IsVisible = _preparedFolder is not null;
         _confirm.IsEnabled = _cancel.IsEnabled = _model.CanChoose;
-        _detail.Text = _model.Snapshot.Diagnostic ?? "No additional details.";
-        _troubleshooting.IsVisible = !string.IsNullOrEmpty(_model.Snapshot.Diagnostic) && !_model.Snapshot.IsReady && _model.Snapshot.Status != LightflowStudio.StorageStartupStatus.FirstRunChoiceRequired;
     }
     private static TextBlock Text(string text, double size) => new() { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap };
     private static Button Action(string label, bool primary = false) => new() { Content = label, Padding = new Thickness(16,10), CornerRadius = new CornerRadius(6), Background = Brush(primary ? "#D86B37" : "#1D2129"), Foreground = Brushes.White, BorderBrush = Brush("#3B404A"), BorderThickness = new Thickness(1), FontSize = 13 };

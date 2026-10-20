@@ -104,3 +104,16 @@ The exact managed and native package graph, versions, and package hashes are
 recorded in the NuGet `packages.lock.json` files. The native SQLite library is
 embedded in Lightflow's self-contained single-file executable and extracted by
 the .NET host at runtime.
+
+## Bounded Mac Avalonia application shell
+
+The separately packaged development Mac shell uses Avalonia 11.3.8
+([MIT source](https://github.com/AvaloniaUI/Avalonia/tree/11.3.8)),
+SkiaSharp 2.88.9 and HarfBuzzSharp 8.3.1.1. Its committed NuGet lock files
+record exact dependency versions and package content hashes. The development
+bundle preserves restored package license/notice files and NuGet license
+declarations under `Contents/Resources/ThirdParty`; `provenance.json` beside
+the bundle records executable/native-file hashes and reviewed source provenance.
+The existing Catalog SQLite provider remains unchanged. This Catalog-only shell
+does not package the Windows Flyleaf/FFmpeg playback stack described above.
+Unsigned development packaging is not signed/notarized release qualification.

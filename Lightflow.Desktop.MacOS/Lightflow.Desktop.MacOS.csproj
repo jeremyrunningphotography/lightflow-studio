@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net8.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><AssemblyName>LightflowStudio.Mac</AssemblyName></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Lightflow.UI/Lightflow.UI.csproj"/><ProjectReference Include="../Lightflow.Platform.MacOS/Lightflow.Platform.MacOS.csproj"/></ItemGroup>
+</Project>

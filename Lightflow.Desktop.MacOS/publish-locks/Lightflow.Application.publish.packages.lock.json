@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "lightflow.actions": {
+        "type": "Project"
+      },
+      "lightflow.domain": {
+        "type": "Project"
+      }
+    },
+    "net8.0/osx-arm64": {}
+  }
+}

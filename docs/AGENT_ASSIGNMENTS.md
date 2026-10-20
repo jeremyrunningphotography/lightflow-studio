@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), [Draft PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452), related #395/#366 | Review; early bounded shell over accepted #425; 32 native / 44 Catalog / 136 Application / 11 presentation and 23 process checks passed locally; no R2/R3/R4 completion, Move/publication or merge |
 | 023 | LF-MAC-DEV-023 | Catalog Portability | [R2 #393](https://github.com/jeremyrunningphotography/lightflow-studio/issues/393), [physical qualification #406](https://github.com/jeremyrunningphotography/lightflow-studio/issues/406), accepted host [#425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425) | Research Complete / Production Portability Blocked; owner accepted final bounded CONDITIONAL disposition on 2026-10-20; write-capable SQLite activation, WAL/SHM, pooling and recovery integration unresolved; original production objective not delivered |
 | 022 | LF-WIN-DEV-022 | Windows CI Reliability Stabilization | [Issue #446](https://github.com/jeremyrunningphotography/lightflow-studio/issues/446), [Draft PR #447](https://github.com/jeremyrunningphotography/lightflow-studio/pull/447) | Review; journal fixture correction separately qualified; bounded playback attribution inconclusive; SQLite/Browser unresolved; final gates and owner acceptance required |
 | 015 | LF-MAC-DEV-015 | Native Catalog Lifecycle | [Issue #425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425), accepted prerequisite [#432](https://github.com/jeremyrunningphotography/lightflow-studio/issues/432) | Done; owner accepted native CLI at 3635fff; normal merge #443 / 27d4e95; bounded portability refusals retained |
@@ -218,3 +219,33 @@ or Move. Preserve prepared-directory creation, existing ownership/recovery, deep
 validation before authoring at every reopen and conservative Dirty/unpaired evidence;
 do not fabricate a Preview peer or clean-profile certificate. Keep unsupported
 publication/Move refused. Agent 024's workspace and implementation are untouched.
+
+## Assignment 024 implementation review — 2026-10-20
+
+Jeremy authorized the early bounded Mac application shell under native child #451 of
+#366, without completing or waiving broader R2/R3/R4. Independent full clone
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-024-MacShell`, branch
+`codex/024-mac-application-shell`, fetched baseline
+`71fd8708d65d5925940961d7be97fc888328a37f`. Number 024 was unused on main and in
+the inspected open-PR inventory. Project #4 membership, In Progress only after
+implementation began, Application Framework Area, unset Priority and native parent
+#366 were verified through the authenticated browser after the CLI had no available
+Git credential. Existing milestone dependencies and incomplete Definitions of Done
+remain unchanged. No other task workspace or normal profile was modified.
+
+The real Avalonia/native Catalog readiness/normal-close checkpoint passed before
+substantial styling. One shared presentation consumes a narrow projection over the
+sole CatalogLifecycle; native startup/create/open/readiness/drain/disposal and
+conservative Dirty/unpaired deep reopening remain authoritative. Prepared local
+APFS folders inside the explicit data root only; missing-folder creation, Move and
+publication remain refused. No Preview peer, provider/schema/VFS change or fabricated
+completion. Windows shipping source remains unchanged.
+
+Local Release: 32 native, 44 Catalog, 136 Application and 11 presentation tests passed;
+23 existing independent-process checks passed. Real development bundle create,
+folder selection/confirmation, Command-Q, stable-identity reopen, existing selection
+and Quit button were exercised; authored Collection persisted. See
+[qualification and exact handoff](qualification/mac-shell-451.md). Draft PR/exact-head
+CI, fresh final-head bundle and explicit owner technical/hands-on acceptance remain
+separate gates. No Windows local private-desktop package is claimed from this Mac;
+no #446 ownership, retry-to-green, R2/R3/R4/Epic completion, merge or release.

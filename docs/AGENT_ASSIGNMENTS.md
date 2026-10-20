@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), [Draft PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452), related #395/#366 | Review; early bounded shell over accepted #425; 32 native / 44 Catalog / 136 Application / 11 presentation and 23 process checks passed locally; no R2/R3/R4 completion, Move/publication or merge |
+| 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), [PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452), related #395/#366 | Done; owner Mac functional/visual and LF-WIN-DEV-024 DARKMATTER companion package qualification accepted at b4a8e0a; normal merge 3801de8; bounded shell only, no R2/R3/R4 or release completion |
 | 023 | LF-MAC-DEV-023 | Catalog Portability | [R2 #393](https://github.com/jeremyrunningphotography/lightflow-studio/issues/393), [physical qualification #406](https://github.com/jeremyrunningphotography/lightflow-studio/issues/406), accepted host [#425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425) | Research Complete / Production Portability Blocked; owner accepted final bounded CONDITIONAL disposition on 2026-10-20; write-capable SQLite activation, WAL/SHM, pooling and recovery integration unresolved; original production objective not delivered |
 | 022 | LF-WIN-DEV-022 | Windows CI Reliability Stabilization | [Issue #446](https://github.com/jeremyrunningphotography/lightflow-studio/issues/446), [Draft PR #447](https://github.com/jeremyrunningphotography/lightflow-studio/pull/447) | Review; journal fixture correction separately qualified; bounded playback attribution inconclusive; SQLite/Browser unresolved; final gates and owner acceptance required |
 | 015 | LF-MAC-DEV-015 | Native Catalog Lifecycle | [Issue #425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425), accepted prerequisite [#432](https://github.com/jeremyrunningphotography/lightflow-studio/issues/432) | Done; owner accepted native CLI at 3635fff; normal merge #443 / 27d4e95; bounded portability refusals retained |
@@ -249,3 +249,57 @@ and Quit button were exercised; authored Collection persisted. See
 CI, fresh final-head bundle and explicit owner technical/hands-on acceptance remain
 separate gates. No Windows local private-desktop package is claimed from this Mac;
 no #446 ownership, retry-to-green, R2/R3/R4/Epic completion, merge or release.
+
+## Assignment 024 accepted implementation and companion qualification — 2026-10-20
+
+Jeremy accepted LF-MAC-DEV-024 at implementation head
+`b4a8e0a3a431624e05db1c2d86aca573c71ccc5d`, tree
+`0ad5d14ce3beea9dd9f6d34c2c8fe87b194c7401`, including Mac functional/visual
+review and final local DARKMATTER PullRequest-mode package qualification.
+[PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452)
+merged normally as `3801de8dc5618c63ae254bb75260b2a1433d6d9b` with exactly that
+accepted tree, unchanged. Exact-head CI
+[39456373929](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/39456373929)
+passed Windows tests (2,884 passed / 1 skipped), native Mac, neutral Windows/Mac
+and Windows installer/portable staging. Post-merge run
+[39480331551](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/39480331551)
+and final administrative closeout results are recorded on #451/#452; this record
+does not predeclare their outcomes.
+
+LF-WIN-DEV-024 identifies the owner-reported Windows companion qualification of
+this same assignment and accepted source, not a second global allocation of 024.
+No new number or independent implementation assignment is created. The Mac agent
+records Jeremy's accepted DARKMATTER PASS, not a claim of executing Windows locally.
+The DARKMATTER qualification workspace retains its package, isolated data root,
+logs, dependency/runtime checks and provenance; the owner acceptance record is
+preserved on #451/#452. Owner-supplied completed qualification report identifies the actual workspace
+`C:\Git\Agents\LF-WIN-DEV-024-WindowsQualification` and retained
+`artifacts/lf024-qualification/REPORT.txt` (report, logs, provenance and package hashes).
+The mandatory PullRequest / SkipInstaller build exited 0; packaged startup/readiness,
+graceful shutdown, Catalog backup/restore protection, SQLite/native runtime,
+FFmpeg/playback checksums and staging validation passed. Executable UTC timestamp
+2026-10-20 17:34:36 is newer than the source commit; executable SHA-256 is
+`45c755a43eda87c1f2094d1a3415cbddf96f160e4c20338b2c4514a491f5db48`.
+The actual isolated root is `artifacts/lf024-windows-owner-acceptance` in that clone.
+No task-owned app remains; single-writer/interrupted-recovery evidence uses existing
+exact-head CI. No full local suites, installer or release archive were repeated.
+This supersedes the earlier planned LF-MAC-prefixed Windows handoff path.
+
+Mac evidence remains in the independent full clone
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-024-MacShell`: `artifacts/mac-shell`
+(bundle and exact-head provenance), `artifacts/lf024-orientation` (tests, process
+checks, raw CI logs, final Ready/recovery screenshots), `artifacts/lf024-handoff`
+(commands and DARKMATTER handoff), `artifacts/lf024-owner-acceptance` and
+`artifacts/lf024-recovery-acceptance` (isolated fixtures). Task-only Git bundle
+and evidence inventory under `artifacts/lf024-closeout` precede branch cleanup.
+Do not delete either task-owned clone or acceptance fixtures prematurely.
+
+The early shared Avalonia shell composes the sole accepted Catalog lifecycle with
+prepared local APFS folders, authoritative readiness and normal shutdown/deep reopen.
+Portability/publication refusals and conservative Dirty/unpaired state remain.
+#451 is completed; #393, #394, #395 and Epic #366 remain open/incomplete with their
+existing dependencies and wider Definitions of Done. No full media UI, Preview,
+Windows replacement, signing/notarization, release/tag or next-feature work.
+Earlier review/pending statements above remain historical checkpoints superseded
+by this accepted completion. This registry-only closeout changes no implementation,
+test, build, dependency input, historical document or other assignment allocation.

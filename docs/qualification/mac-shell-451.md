@@ -62,7 +62,7 @@ Focused Release validation on Apple Silicon macOS 26.6:
 | Native storage/lifecycle plus eight shell-adapter integration tests | 32 passed |
 | Existing shared Catalog suite | 44 passed |
 | Existing neutral Application suite | 136 passed |
-| Shared presentation/headless window suite | 6 passed |
+| Shared presentation/headless window suite | 10 passed |
 | Existing independent-process Catalog host qualification | 23 checks passed |
 | Self-contained arm64 development bundle | built; real GUI create/open/reopen/quit verified |
 
@@ -95,6 +95,15 @@ Subsequent inspection verifies it remains present. Catalog ID:
 Original logs/TRX, screenshots and process evidence stay task-owned under
 `artifacts/lf024-orientation`, project TestResults and `artifacts/lf024-process-fixtures`.
 The checkpoint, failures and successful results are retained separately.
+
+An additional packaged missing-Catalog check caught generic wording when the shared
+startup status was CatalogMissing but its recovery reason was generic. Four focused
+status-presentation cases failed against the initial UI; the corrected view model
+projects both authoritative status and recovery reason, keeps PendingRecovery highest
+priority, disables selection for unreadable configuration and uses specific missing,
+validation and identity wording. All ten presentation tests pass after correction.
+The original four failures are retained in missing-status-baseline.log/TRX; this is a
+source correction requiring fresh exact-head CI, not a retry to obtain green.
 
 ## Build and hands-on handoff
 

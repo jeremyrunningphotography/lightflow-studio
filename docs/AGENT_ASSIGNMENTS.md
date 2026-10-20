@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), related #395/#366 | Review preparation; early bounded shell over accepted #425; 32 native / 44 Catalog / 136 Application / 6 presentation and 23 process checks passed locally; no R2/R3/R4 completion, Move/publication or merge |
+| 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), [Draft PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452), related #395/#366 | Review; early bounded shell over accepted #425; 32 native / 44 Catalog / 136 Application / 10 presentation and 23 process checks passed locally; no R2/R3/R4 completion, Move/publication or merge |
 | 023 | LF-MAC-DEV-023 | Catalog Portability | [R2 #393](https://github.com/jeremyrunningphotography/lightflow-studio/issues/393), [physical qualification #406](https://github.com/jeremyrunningphotography/lightflow-studio/issues/406), accepted host [#425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425) | Research Complete / Production Portability Blocked; owner accepted final bounded CONDITIONAL disposition on 2026-10-20; write-capable SQLite activation, WAL/SHM, pooling and recovery integration unresolved; original production objective not delivered |
 | 022 | LF-WIN-DEV-022 | Windows CI Reliability Stabilization | [Issue #446](https://github.com/jeremyrunningphotography/lightflow-studio/issues/446), [Draft PR #447](https://github.com/jeremyrunningphotography/lightflow-studio/pull/447) | Review; journal fixture correction separately qualified; bounded playback attribution inconclusive; SQLite/Browser unresolved; final gates and owner acceptance required |
 | 015 | LF-MAC-DEV-015 | Native Catalog Lifecycle | [Issue #425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425), accepted prerequisite [#432](https://github.com/jeremyrunningphotography/lightflow-studio/issues/432) | Done; owner accepted native CLI at 3635fff; normal merge #443 / 27d4e95; bounded portability refusals retained |
@@ -241,7 +241,7 @@ APFS folders inside the explicit data root only; missing-folder creation, Move a
 publication remain refused. No Preview peer, provider/schema/VFS change or fabricated
 completion. Windows shipping source remains unchanged.
 
-Local Release: 32 native, 44 Catalog, 136 Application and 6 presentation tests passed;
+Local Release: 32 native, 44 Catalog, 136 Application and 10 presentation tests passed;
 23 existing independent-process checks passed. Real development bundle create,
 folder selection/confirmation, Command-Q, stable-identity reopen, existing selection
 and Quit button were exercised; authored Collection persisted. See

@@ -63,6 +63,18 @@ public sealed class ShellTests
         await oldCheck;
         Assert.True(model.WorkspaceAvailable);
     }
+    [Theory]
+    [InlineData(StorageStartupStatus.CatalogMissing, "Catalog unavailable", "couldn't find your last Catalog")]
+    [InlineData(StorageStartupStatus.CatalogCorrupt, "Couldn't open Catalog", "couldn't be validated")]
+    [InlineData(StorageStartupStatus.CatalogIdentityMismatch, "Couldn't open Catalog", "doesn't match")]
+    [InlineData(StorageStartupStatus.InvalidConfiguration, "Catalog settings unavailable", "settings couldn't be read")]
+    public async Task StartupStatusRemainsAuthoritativeWhenRecoveryReasonIsGeneric(StorageStartupStatus status,string title,string message)
+    {
+        var service=new TestSession();service.Pending.SetResult(new(status,CatalogRecoveryReason.ValidationFailed));
+        var model=new ShellViewModel(service);await model.StartAsync();
+        Assert.Equal(title,model.Title);Assert.Contains(message,model.Message);Assert.False(model.WorkspaceAvailable);
+        if(status==StorageStartupStatus.InvalidConfiguration)Assert.False(model.CanChoose);
+    }
     private sealed class TestSession : IShellCatalogSession
     {
         public string DataRoot=>"/task";

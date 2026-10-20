@@ -123,6 +123,12 @@ all IDs. Catalog ID `48163e72-7ecd-4d0f-b97d-cb7a783377dd`; Field Notes RootId
    The authored Collection `LF025 preserved field notes` remains in Catalog (not an editing UI).
 
 Fixture media are three disposable real 1×1 PNGs; the fourth record intentionally has no file.
+A post-build fixture-format audit found an incorrect IDAT CRC in the original tiny PNG data.
+The test fixture constant and retained acceptance media were corrected without changing their
+length, recorded timestamps, Catalog identities or authored records. Original bytes/checks remain
+in `artifacts/lf025-orientation/png-fixture-correction.json`. CRC and decompression verification,
+the two real Browser tests and a fresh exact-head bundle/CI qualify the correction; no production
+Browser decoding or probing was added.
 No personal media is used. No thumbnail, Preview peer, decoder/probe, Player, rating/flag,
 collection editing, Inspector editing, Jobs/Export, Move or transfer implementation is included.
 No external-drive destructive testing or normal-profile launch is requested.

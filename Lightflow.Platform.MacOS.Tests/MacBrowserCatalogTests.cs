@@ -15,7 +15,7 @@ public sealed class MacBrowserCatalogTests
         Directory.CreateDirectory(Path.Combine(root,"Catalog"));
         Guid catalogId, rootId=Guid.NewGuid(), offline=Guid.NewGuid();
         var media=Path.Combine(root,"Media");Directory.CreateDirectory(Path.Combine(media,"Trip","Day 2"));Directory.CreateDirectory(Path.Combine(media,"Empty"));
-        var png=Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZxkAAAAASUVORK5CYII=");
+        var png=Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=");
         var names=new[]{"cover.png","Trip/sunrise.png","Trip/Day 2/forest.png","Trip/missing.png"};
         foreach(var name in names.Take(3)) await File.WriteAllBytesAsync(Path.Combine(media,name),png);
         await using(var shell=new MacShellCatalogSession(root))
@@ -95,7 +95,7 @@ public sealed class MacBrowserCatalogTests
         var root = Path.Combine(Environment.GetEnvironmentVariable("LIGHTFLOW_TEST_ROOT") ?? Path.GetTempPath(), "lf025-checkpoint-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root,"Catalog"));
         var media = Path.Combine(root,"Media"); Directory.CreateDirectory(Path.Combine(media,"Trip"));
-        await File.WriteAllBytesAsync(Path.Combine(media,"Trip","frame.png"), Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZxkAAAAASUVORK5CYII="));
+        await File.WriteAllBytesAsync(Path.Combine(media,"Trip","frame.png"), Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="));
         var created = await new CatalogLifecycle(new MacCatalogLifecycleEffects(root)).StartAsync();
         Assert.True(created.IsReady,created.Diagnostic);
         Guid catalogId, rootId = Guid.NewGuid(), assetId = Guid.NewGuid();

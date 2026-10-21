@@ -35,7 +35,7 @@ public sealed class MacApplication : Avalonia.Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            var model = new ShellViewModel(new MacShellCatalogSession(Program.DataRoot));
+            var model = new ShellViewModel(new MacShellCatalogSession(Program.DataRoot), new MacBrowserLocationProvider());
             var window = new ShellWindow(model);
             bool drained = false;
             Task? shutdown = null;

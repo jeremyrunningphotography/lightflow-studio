@@ -58,6 +58,14 @@ public sealed class MacBrowserCatalogTests
         {
             Assert.Equal(catalogId,(await shell.StartAsync()).CatalogId);
             Assert.Equal(2,(await shell.ReadBrowserCatalogAsync()).Roots.Count);
+            var locations = new MacBrowserLocationProvider();
+            var uncataloged = Path.Combine(root,"Uncataloged"); Directory.CreateDirectory(Path.Combine(uncataloged,"Leaf"));
+            await File.WriteAllBytesAsync(Path.Combine(uncataloged,"unimported.png"),png);
+            var listing = await locations.GetFoldersAsync(uncataloged,default);
+            Assert.Equal(MediaFolderEnumerationStatus.Succeeded,listing.Status);
+            Assert.Equal("Leaf",Assert.Single(listing.Folders).Name);
+            Assert.Null(BrowserLocationMapping.Find(uncataloged,(await shell.ReadBrowserCatalogAsync()).Roots,StringComparison.Ordinal));
+            Assert.Equal(rootId,BrowserLocationMapping.Find(media,(await shell.ReadBrowserCatalogAsync()).Roots,StringComparison.Ordinal)!.RootId);
             var top=await shell.ReadBrowserFolderAsync(rootId,"");Assert.Equal(MediaFolderEnumerationStatus.Succeeded,top.Status);Assert.Equal(2,top.Folders.Count);Assert.Equal(expected[0].AssetId,Assert.Single(top.Assets).AssetId);Assert.False(top.Recursive);
             var trip=await shell.ReadBrowserFolderAsync(rootId,"Trip");Assert.True(trip.Recursive);Assert.Equal(3,trip.Assets.Count);
             Assert.Empty((await shell.ReadBrowserFolderAsync(rootId,"Empty")).Assets);
@@ -80,6 +88,25 @@ public sealed class MacBrowserCatalogTests
         }
         File.WriteAllText(Path.Combine(root,"LF025-fixture.txt"),$"Catalog {catalogId}\nRoot {rootId}\nDisconnected Root {offline}\nAssets: {string.Join(", ",expected.Select(a=>$"{a.RelativePath}={a.AssetId}"))}\n");
         Console.WriteLine($"LF025 acceptance fixture: {root}");
+    }
+    [Fact]
+    public async Task NativeLocationsHandleMissingDeniedAndLinkedFoldersWithoutReadingMedia()
+    {
+        var root=FixtureRoot("lf026-locations-"); Directory.CreateDirectory(Path.Combine(root,"Leaf"));
+        var provider=new MacBrowserLocationProvider();
+        var locations=await provider.GetLocationsAsync(default);
+        Assert.Contains(locations,location=>location.Name=="Home" && Path.IsPathFullyQualified(location.Path));
+        Assert.Empty((await provider.GetFoldersAsync(Path.Combine(root,"Leaf"),default)).Folders);
+        Assert.Equal(MediaFolderEnumerationStatus.FolderNotFound,(await provider.GetFoldersAsync(Path.Combine(root,"Missing"),default)).Status);
+        var link=Path.Combine(root,"Linked"); Directory.CreateSymbolicLink(link,Path.Combine(root,"Leaf"));
+        Assert.Equal(MediaFolderEnumerationStatus.LinkedPathRejected,(await provider.GetFoldersAsync(link,default)).Status);
+        Assert.DoesNotContain((await provider.GetFoldersAsync(root,default)).Folders,folder=>folder.Name=="Linked");
+        var denied=Path.Combine(root,"Denied");Directory.CreateDirectory(denied);
+        File.SetUnixFileMode(denied,UnixFileMode.None);
+        try { Assert.Equal(MediaFolderEnumerationStatus.AccessDenied,(await provider.GetFoldersAsync(denied,default)).Status); }
+        finally { File.SetUnixFileMode(denied,UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute); }
+        using var cancelled=new CancellationTokenSource();cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>provider.GetFoldersAsync(root,cancelled.Token));
     }
     private static string LogicalSnapshot(CatalogLifecycle owner)
     {

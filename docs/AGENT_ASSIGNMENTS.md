@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 026 | LF-MAC-DEV-026 | Finder-Style Browser Navigation | [Issue #456](https://github.com/jeremyrunningphotography/lightflow-studio/issues/456) | Review preparation; focused native/shared validation and runnable Mac candidate; owner/CI/Windows acceptance pending |
 | 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), related #395/#366 | Review; real Catalog checkpoint, 34 native / 136 Application / 44 Catalog / 15 UI tests and 23 process checks passed; owner/CI/Windows package acceptance pending |
 | 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), [PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452), related #395/#366 | Done; owner Mac functional/visual and LF-WIN-DEV-024 DARKMATTER companion package qualification accepted at b4a8e0a; normal merge 3801de8; bounded shell only, no R2/R3/R4 or release completion |
 | 023 | LF-MAC-DEV-023 | Catalog Portability | [R2 #393](https://github.com/jeremyrunningphotography/lightflow-studio/issues/393), [physical qualification #406](https://github.com/jeremyrunningphotography/lightflow-studio/issues/406), accepted host [#425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425) | Research Complete / Production Portability Blocked; owner accepted final bounded CONDITIONAL disposition on 2026-10-20; write-capable SQLite activation, WAL/SHM, pooling and recovery integration unresolved; original production objective not delivered |
@@ -321,3 +322,21 @@ Read-only Mac Browser consumes one lifecycle session, supports real roots/folder
 single selection without Preview or ingestion. See [bounded qualification](qualification/mac-browser-454.md).
 Exact-head CI, final candidate bundle provenance, owner hands-on acceptance and Windows local package
 qualification are independent pending gates; no merge or broader R2/R3/R4 completion.
+
+## Assignment 026 reservation — 2026-10-20
+
+Jeremy allocated LF-MAC-DEV-026 for #456. Independent full clone
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-026-Finder-Navigation`, branch
+`codex/026-finder-browser-navigation`, fetched main `4e1f361ab02b1e72ed729a59b439478ca916dc7b`.
+026 was absent from main and the inspected open PR inventory (#457/#448/#360).
+Owner explicitly accepted folder-only uncataloged navigation with existing Catalog assets
+where mapped, no uncataloged file asset list or ingestion action (recorded on #456).
+Shared Browser architecture, Windows behavior and Catalog safety boundaries remain required;
+R2/R3/R4 incomplete. Draft PR and explicit architecture/functional/visual acceptance precede merge.
+
+026 implementation checkpoint: shared filesystem identities reuse existing Catalog mappings and
+read-only scope/AssetId selection; native location effects use the shared contained enumerator.
+Uncataloged folders have folder navigation only. Native parent #366, accepted #454 prerequisite
+and Project #4 Browser / Priority unset / In Progress reconciled. See
+[qualification and exact startup](qualification/mac-browser-456.md). Draft/owner/CI/Windows local
+package acceptance remain separate gates; no R2/R3/R4 completion, merge or release.

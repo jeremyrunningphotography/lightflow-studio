@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 026 | LF-MAC-DEV-026 | Finder-Style Browser Navigation | [Issue #456](https://github.com/jeremyrunningphotography/lightflow-studio/issues/456) | Review preparation; focused native/shared validation and runnable Mac candidate; owner/CI/Windows acceptance pending |
+| 026 | LF-MAC-DEV-026 | Finder-Style Browser Navigation | [Issue #456](https://github.com/jeremyrunningphotography/lightflow-studio/issues/456), [PR #458](https://github.com/jeremyrunningphotography/lightflow-studio/pull/458) | Done; Jeremy accepted Mac/Windows hands-on and LF-WIN-DEV-026 companion package PASS at 4fac866; normal merge d2a600f; bounded navigation only, R2/R3/R4 incomplete |
 | 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), related #395/#366 | Review; real Catalog checkpoint, 34 native / 136 Application / 44 Catalog / 15 UI tests and 23 process checks passed; owner/CI/Windows package acceptance pending |
 | 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), [PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452), related #395/#366 | Done; owner Mac functional/visual and LF-WIN-DEV-024 DARKMATTER companion package qualification accepted at b4a8e0a; normal merge 3801de8; bounded shell only, no R2/R3/R4 or release completion |
 | 023 | LF-MAC-DEV-023 | Catalog Portability | [R2 #393](https://github.com/jeremyrunningphotography/lightflow-studio/issues/393), [physical qualification #406](https://github.com/jeremyrunningphotography/lightflow-studio/issues/406), accepted host [#425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425) | Research Complete / Production Portability Blocked; owner accepted final bounded CONDITIONAL disposition on 2026-10-20; write-capable SQLite activation, WAL/SHM, pooling and recovery integration unresolved; original production objective not delivered |
@@ -340,3 +340,44 @@ Uncataloged folders have folder navigation only. Native parent #366, accepted #4
 and Project #4 Browser / Priority unset / In Progress reconciled. See
 [qualification and exact startup](qualification/mac-browser-456.md). Draft/owner/CI/Windows local
 package acceptance remain separate gates; no R2/R3/R4 completion, merge or release.
+
+## Assignment 026 accepted implementation and companion qualification — 2026-10-21
+
+Jeremy formally accepted Mac and Windows hands-on behavior for #456 / #458 at exact
+head `4fac86627f449829eba4cc1a5ea590f9591bf3f9`, tree
+`cdfb6be2a5f8e95bfa6845880b95ffa14cd10c2d`, and explicitly authorized normal merge and
+bounded closeout. LF-WIN-DEV-026 is the owner-reported accepted Windows companion
+package qualification at this same source under global allocation 026, not a new
+assignment. This Mac does not claim executing Windows locally; its actual Windows
+report paths/hashes were not supplied and are not invented. Preserve the Windows
+owning clone, accepted package/provenance, original logs and isolated fixtures in place.
+
+PR #458 merged normally as `d2a600f9372fc5a6869540135dc77eaa57a308d4`; both parents
+and the full accepted tree were independently verified unchanged. Exact-head
+[CI 39512678496](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/39512678496)
+passed Windows tests/installer/portable staging, neutral Windows/macOS and native Mac
+lifecycle/process/bundle jobs; release publication skipped. Implementation post-merge
+[CI 39631387819](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/39631387819)
+and registry reconciliation/final-main CI outcomes are recorded on #456/#458 and the
+registry PR; no result is predeclared by this record. #456 is Completed / Project #4
+Done / Browser / Priority unset, native parent #366 and completed #454 prerequisite
+preserved. #393, #394, #395 and #366 remain open/incomplete with wider DoD and
+native dependencies unchanged. No next Browser/Preview milestone, release or tag.
+
+The independent full Mac clone
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-026-Finder-Navigation` retains the accepted
+self-contained app and clean exact-head provenance in `artifacts/mac-shell`, test data
+in `artifacts/lf026-fixtures`, screenshots/verification in `artifacts/lf026-evidence`,
+original failures/traces/build/launch logs under `work/lf026-*.log` and project TRX files.
+All 290 app hashes were independently reverified before cleanup. Accepted executable
+SHA-256 is `5adeddd7c623e628296ee42e47d6ef23e5f66c7fbd133a2ddb4e956c3cd5f56f`;
+its UTC timestamp `2026-10-20 23:05:14.494900` is newer than the accepted source commit.
+`artifacts/lf026-closeout` preserves a verified complete Git bundle, acceptance/CI/issue
+snapshots and file-hash inventory before completed branch cleanup. No clone, executable
+or fixture deletion is authorized or performed by this closeout.
+
+This supersedes only assignment 026's earlier pending/review checkpoints. Registry
+reconciliation changes no production, tests, build inputs, other assignment, accepted
+qualification document or historical narrative. Chronicle assessment: this bounded
+follow-up needs no separate historical entry; evidence remains available for a later
+shared Browser milestone account.
